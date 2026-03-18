@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "gatewaze.fullname" . }}-config
+  labels:
+    {{- include "gatewaze.labels" . | nindent 4 }}
+data:
+  NODE_ENV: "production"
+  PORT: "3002"
+  PORTAL_PORT: "3100"
+
+  # Supabase
+  SUPABASE_URL: {{ .Values.supabase.url | quote }}
+  NEXT_PUBLIC_SUPABASE_URL: {{ .Values.supabase.url | quote }}
+  VITE_SUPABASE_URL: {{ .Values.supabase.url | quote }}
+
+  # Email
+  EMAIL_PROVIDER: {{ .Values.email.provider | quote }}
+  EMAIL_FROM: {{ .Values.email.from | quote }}
+  SMTP_HOST: {{ .Values.email.smtp.host | quote }}
+  SMTP_PORT: {{ .Values.email.smtp.port | quote }}
+
+  # Auth
+  AUTH_PROVIDER: {{ .Values.auth.provider | quote }}
+  {{- if eq .Values.auth.provider "oidc" }}
+  OIDC_ISSUER_URL: {{ .Values.auth.oidc.issuerUrl | quote }}
+  OIDC_CLIENT_ID: {{ .Values.auth.oidc.clientId | quote }}
+  OIDC_SCOPES: {{ .Values.auth.oidc.scopes | quote }}
+  OIDC_CALLBACK_URL: {{ .Values.auth.oidc.callbackUrl | quote }}
+  {{- end }}
+
+  # API URL (for admin frontend)
+  {{- if .Values.ingress.enabled }}
+  VITE_API_URL: {{ printf "https://%s" .Values.ingress.hosts.api | quote }}
+  {{- else }}
+  VITE_API_URL: {{ printf "http://%s-api:3002" (include "gatewaze.fullname" .) | quote }}
+  {{- end }}

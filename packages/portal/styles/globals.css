@@ -1,0 +1,541 @@
+@import "tailwindcss";
+
+@theme {
+  /* MLOps Community brand colors */
+  --color-mlops-primary: #ca2b7f;
+  --color-mlops-secondary: #4086c6;
+
+  /* TechTickets brand colors */
+  --color-techtickets-primary: #ee4443;
+  --color-techtickets-secondary: #1e2837;
+
+  /*
+   * Typographic scale — based on root numbers 8, 9, 10, 12, 16
+   * doubled progressively: 8 → 16 → 32 → 64 → 128, etc.
+   * Full scale (px): 8, 10, 12, 16, 18, 20, 24, 32, 40, 48, 64, 96, 128
+   */
+  --text-2xs: 0.5rem;          /* 8px  */
+  --text-2xs--line-height: 1rem;
+  --text-xs: 0.625rem;         /* 10px */
+  --text-xs--line-height: 1rem;
+  --text-sm: 0.75rem;          /* 12px */
+  --text-sm--line-height: 1.125rem;
+  --text-base: 1rem;           /* 16px */
+  --text-base--line-height: 1.5rem;
+  --text-lg: 1.125rem;         /* 18px */
+  --text-lg--line-height: 1.75rem;
+  --text-xl: 1.25rem;          /* 20px */
+  --text-xl--line-height: 1.75rem;
+  --text-2xl: 1.5rem;          /* 24px */
+  --text-2xl--line-height: 2rem;
+  --text-3xl: 2rem;            /* 32px */
+  --text-3xl--line-height: 2.5rem;
+  --text-4xl: 2.5rem;          /* 40px */
+  --text-4xl--line-height: 3rem;
+  --text-5xl: 3rem;            /* 48px */
+  --text-5xl--line-height: 1;
+  --text-6xl: 4rem;            /* 64px */
+  --text-6xl--line-height: 1;
+  --text-7xl: 6rem;            /* 96px */
+  --text-7xl--line-height: 1;
+  --text-8xl: 8rem;            /* 128px */
+  --text-8xl--line-height: 1;
+}
+
+/* Corner style system — controlled by data-corners attribute on <html> */
+:root {
+  --radius-control: 0.5rem;        /* buttons, inputs, tabs */
+  --radius-control-outer: 0.75rem; /* wrappers around controls (e.g. tab bar) */
+  --radius-card: 0.75rem;          /* cards, panels */
+}
+
+html[data-corners="square"] {
+  --radius-control: 0px;
+  --radius-control-outer: 0px;
+  --radius-card: 0px;
+}
+
+html[data-corners="pill"] {
+  --radius-control: 9999px;
+  --radius-control-outer: 9999px;
+  --radius-card: 1rem;
+}
+
+/* Apply corner style globally to form elements and standalone buttons */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]),
+select,
+textarea {
+  border-radius: var(--radius-control);
+}
+
+/* Standalone buttons/links that aren't part of PortalButton get the variable too */
+button.rounded-lg,
+button.rounded-xl,
+a.rounded-lg,
+a.rounded-xl {
+  border-radius: var(--radius-control);
+}
+
+/* Card / panel elements use --radius-card */
+:is(div, section, article).rounded-2xl,
+:is(div, section, article).rounded-xl,
+:is(div, section, article).rounded-lg {
+  border-radius: var(--radius-card);
+}
+
+/* When square corners are active, zero out all partial-side rounding on panels/images too */
+html[data-corners="square"] :is(div, section, article, img)[class*="rounded-"] {
+  border-radius: 0px;
+}
+
+:root {
+  line-height: 1.5;
+  font-weight: var(--font-weight-body, 400);
+  color: #213547;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Apply heading font weight from brand config */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: var(--font-weight-heading, 600);
+}
+
+/* Adaptive text for light brand backgrounds */
+/* Override Tailwind text-white so page text adapts to brand background */
+html.light-brand .text-white {
+  color: #000000;
+}
+
+html.light-brand .text-white\/70,
+html.light-brand .text-white\/60,
+html.light-brand .text-white\/50,
+html.light-brand .text-white\/40 {
+  color: rgba(26, 26, 46, 0.6);
+}
+
+html.light-brand .text-white\/80,
+html.light-brand .text-white\/90 {
+  color: rgba(26, 26, 46, 0.8);
+}
+
+html.light-brand .border-white\/10,
+html.light-brand .border-white\/20,
+html.light-brand .border-white\/30 {
+  border-color: rgba(26, 26, 46, 0.15);
+}
+
+html.light-brand .bg-white\/5,
+html.light-brand .bg-white\/10 {
+  background-color: rgba(26, 26, 46, 0.05);
+}
+
+html.light-brand .bg-white\/15,
+html.light-brand .bg-white\/20 {
+  background-color: rgba(26, 26, 46, 0.08);
+}
+
+html.light-brand .bg-white\/60 {
+  background-color: rgba(26, 26, 46, 0.5);
+}
+
+html.light-brand .text-white\/30 {
+  color: rgba(26, 26, 46, 0.3);
+}
+
+html.light-brand .hover\:bg-white\/15:hover {
+  background-color: rgba(26, 26, 46, 0.08);
+}
+
+html.light-brand .placeholder\:text-white\/50::placeholder,
+html.light-brand .placeholder-white\/50::placeholder,
+html.light-brand .placeholder-white\/40::placeholder {
+  color: rgba(26, 26, 46, 0.4);
+}
+
+html.light-brand .hover\:text-white:hover {
+  color: #000000;
+}
+
+html.light-brand .hover\:bg-white\/10:hover {
+  background-color: rgba(26, 26, 46, 0.06);
+}
+
+html.light-brand .hover\:bg-white\/20:hover {
+  background-color: rgba(26, 26, 46, 0.1);
+}
+
+/* Form inputs on light backgrounds: stronger contrast */
+html.light-brand input.bg-white\/10,
+html.light-brand select.bg-white\/10,
+html.light-brand textarea.bg-white\/10 {
+  background-color: rgba(255, 255, 255, 0.7);
+  color: #1a1a2e;
+}
+
+html.light-brand select option {
+  background-color: #ffffff;
+  color: #1a1a2e;
+}
+
+/* Utility class: text color that contrasts with the primary brand color */
+.text-on-primary {
+  color: var(--primary-text, #ffffff);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: #1e2837;
+}
+
+/* Legal page prose styling — adapts to dark (default) or light backgrounds */
+.legal-prose {
+  color: rgba(255, 255, 255, 0.85);
+  line-height: 1.75;
+}
+
+.legal-prose h1 {
+  font-size: 2rem;
+  font-weight: var(--font-weight-heading, 700);
+  color: #ffffff;
+  margin-bottom: 0.5rem;
+  line-height: 1.2;
+}
+
+.legal-prose h2 {
+  font-size: 1.5rem;
+  font-weight: var(--font-weight-heading, 600);
+  color: #ffffff;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.legal-prose h3 {
+  font-size: 1.25rem;
+  font-weight: var(--font-weight-heading, 600);
+  color: rgba(255, 255, 255, 0.95);
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.legal-prose p {
+  margin-bottom: 1rem;
+}
+
+.legal-prose ul {
+  list-style-type: disc;
+  padding-left: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.legal-prose li {
+  margin-bottom: 0.5rem;
+}
+
+.legal-prose strong {
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.legal-prose section {
+  margin-bottom: 1.5rem;
+}
+
+.legal-prose a {
+  text-decoration: underline;
+}
+
+.legal-prose a:hover {
+  opacity: 0.8;
+}
+
+/* Light brand overrides for legal prose */
+html.light-brand .legal-prose {
+  color: #374151;
+}
+
+html.light-brand .legal-prose h1,
+html.light-brand .legal-prose h2,
+html.light-brand .legal-prose strong {
+  color: #111827;
+}
+
+html.light-brand .legal-prose h2 {
+  border-bottom-color: rgba(26, 26, 46, 0.15);
+}
+
+html.light-brand .legal-prose h3 {
+  color: #1f2937;
+}
+
+/* Loading spinner styles */
+.loader {
+  width: 48px;
+  height: 48px;
+  display: block;
+  margin: 15px auto;
+  position: relative;
+  color: var(--primary-color, #FFF);
+  box-sizing: border-box;
+  animation: rotation 1s linear infinite;
+}
+
+.loader::after,
+.loader::before {
+  content: '';
+  box-sizing: border-box;
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  top: 50%;
+  left: 50%;
+  transform: scale(0.5) translate(0, 0);
+  background-color: var(--primary-color, #FFF);
+  border-radius: 50%;
+  animation: animloader 1s infinite ease-in-out;
+}
+
+.loader::before {
+  background-color: var(--secondary-color, #FF3D00);
+  transform: scale(0.5) translate(-48px, -48px);
+}
+
+/* Size variants */
+.loader-small {
+  width: 32px;
+  height: 32px;
+}
+
+.loader-small::after,
+.loader-small::before {
+  width: 16px;
+  height: 16px;
+}
+
+.loader-small::before {
+  transform: scale(0.5) translate(-32px, -32px);
+}
+
+.loader-large {
+  width: 64px;
+  height: 64px;
+}
+
+.loader-large::after,
+.loader-large::before {
+  width: 32px;
+  height: 32px;
+}
+
+.loader-large::before {
+  transform: scale(0.5) translate(-64px, -64px);
+}
+
+@keyframes rotation {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes animloader {
+  50% {
+    transform: scale(1) translate(-50%, -50%);
+  }
+}
+
+/* Portal primary button base styles */
+.portal-primary-button {
+  position: relative;
+  overflow: visible;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  cursor: pointer;
+}
+
+.portal-primary-button::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  background: var(--button-bg);
+  border-radius: calc(var(--radius-control) + 1px);
+  box-shadow: inset 0 0 0 1px var(--button-glow, rgba(255, 255, 255, 0.6));
+  z-index: 1;
+  transition: box-shadow 1s ease, filter 1s ease;
+}
+
+.portal-primary-button > * {
+  position: relative;
+  z-index: 10;
+}
+
+.portal-primary-button:hover::after {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.6),
+    0 0 8px 2px rgba(255, 255, 255, 0.6);
+  filter: brightness(1.15);
+}
+
+/* Spinning border glow effect for buttons */
+@property --glow-x {
+  syntax: '<percentage>';
+  initial-value: 0.01%;
+  inherits: false;
+}
+
+@property --glow-y {
+  syntax: '<percentage>';
+  initial-value: 0.01%;
+  inherits: false;
+}
+
+/* Animate position smoothly along the button perimeter */
+/* Timing proportional to edge length: ~4:1 aspect ratio */
+/* Top: 40%, Right: 10%, Bottom: 40%, Left: 10% */
+@keyframes glow-orbit {
+  /* Top edge: left to right (0% - 40%) */
+  0% { --glow-x: 0%; --glow-y: 0%; }
+  10% { --glow-x: 25%; --glow-y: 0%; }
+  20% { --glow-x: 50%; --glow-y: 0%; }
+  30% { --glow-x: 75%; --glow-y: 0%; }
+  40% { --glow-x: 100%; --glow-y: 0%; }
+  /* Right edge: top to bottom (40% - 50%) */
+  45% { --glow-x: 100%; --glow-y: 50%; }
+  50% { --glow-x: 100%; --glow-y: 100%; }
+  /* Bottom edge: right to left (50% - 90%) */
+  60% { --glow-x: 75%; --glow-y: 100%; }
+  70% { --glow-x: 50%; --glow-y: 100%; }
+  80% { --glow-x: 25%; --glow-y: 100%; }
+  90% { --glow-x: 0%; --glow-y: 100%; }
+  /* Left edge: bottom to top (90% - 100%) */
+  95% { --glow-x: 0%; --glow-y: 50%; }
+  100% { --glow-x: 0%; --glow-y: 0%; }
+}
+
+/* Animated spinning glow (extends portal-primary-button) */
+/* Only show on desktop devices - iOS/touch devices don't smoothly animate @property */
+@media (hover: hover) and (pointer: fine) {
+  .glow-button::before {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    /* Fallback for browsers without @property support */
+    --glow-x: 0%;
+    --glow-y: 0%;
+    background: radial-gradient(
+      25% 60% at var(--glow-x) var(--glow-y),
+      white 0%,
+      transparent 100%
+    );
+    border-radius: calc(var(--radius-control) + 3px);
+    animation: glow-orbit 5s linear infinite;
+    z-index: 0;
+    filter: blur(4px);
+    opacity: 0.9;
+    transition: opacity 1s ease, filter 1s ease;
+  }
+
+  .glow-button:hover::before {
+    opacity: 0;
+  }
+}
+
+/* Checkmark draw animation for success states */
+@keyframes checkmark-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ===== Animated Gradient Background ===== */
+:root {
+  --gradient-g1: 202, 42, 127;
+  --gradient-g2: 64, 134, 198;
+  --gradient-g3: 30, 40, 55;
+  --gradient-interactive: 202, 42, 127;
+}
+
+@keyframes gw-moveInCircle {
+  0% { transform: rotate(0deg); }
+  50% { transform: rotate(180deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes gw-moveVertical {
+  0% { transform: translateY(-50%); }
+  50% { transform: translateY(50%); }
+  100% { transform: translateY(-50%); }
+}
+
+.gradient-bg {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.gradient-bg .gradients-container {
+  filter: url(#gw-goo) blur(40px);
+  width: 100%;
+  height: 100%;
+}
+
+.gradient-bg .g1 {
+  position: absolute;
+  background: radial-gradient(circle at center, rgba(var(--gradient-g1), 0.15) 0, rgba(var(--gradient-g1), 0) 50%) no-repeat;
+  mix-blend-mode: hard-light;
+  width: 150vh;
+  height: 150vh;
+  top: calc(50% - 75vh);
+  left: calc(50% - 75vh);
+  transform-origin: center center;
+  animation: gw-moveVertical 30s ease infinite;
+  opacity: 0.5;
+}
+
+.gradient-bg .g2 {
+  position: absolute;
+  background: radial-gradient(circle at center, rgba(var(--gradient-g2), 0.15) 0, rgba(var(--gradient-g2), 0) 50%) no-repeat;
+  mix-blend-mode: hard-light;
+  width: 150vh;
+  height: 150vh;
+  top: calc(50% - 75vh);
+  left: calc(50% - 75vh);
+  transform-origin: calc(50% - 400px);
+  animation: gw-moveInCircle 20s reverse infinite;
+  opacity: 0.5;
+}
+
+.gradient-bg .g3 {
+  position: absolute;
+  background: radial-gradient(circle at center, rgba(var(--gradient-g3), 0.15) 0, rgba(var(--gradient-g3), 0) 50%) no-repeat;
+  mix-blend-mode: hard-light;
+  width: 150vh;
+  height: 150vh;
+  top: calc(50% - 75vh + 200px);
+  left: calc(50% - 75vh - 500px);
+  transform-origin: calc(50% + 400px);
+  animation: gw-moveInCircle 40s linear infinite;
+  opacity: 0.5;
+}
+
+.gradient-bg .interactive {
+  position: absolute;
+  background: radial-gradient(circle at center, rgba(var(--gradient-interactive), 0.15) 0, rgba(var(--gradient-interactive), 0) 50%) no-repeat;
+  mix-blend-mode: hard-light;
+  width: 100%;
+  height: 100%;
+  top: -50%;
+  left: -50%;
+  opacity: 0.7;
+}
+
+/* ===== Gradient Wave Background ===== */
+/* Now uses ShaderGradient (WebGL) — see GradientWaveBackground.tsx */

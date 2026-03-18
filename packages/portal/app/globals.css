@@ -1,0 +1,272 @@
+@import "tailwindcss";
+
+@theme {
+  /* MLOps Community brand colors */
+  --color-mlops-primary: #ca2b7f;
+  --color-mlops-secondary: #4086c6;
+
+  /* TechTickets brand colors */
+  --color-techtickets-primary: #ee4443;
+  --color-techtickets-secondary: #1e2837;
+}
+
+:root {
+  line-height: 1.5;
+  font-weight: 400;
+  color: #213547;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: #1e2837;
+}
+
+/* Legal page prose styling */
+.legal-prose {
+  color: #374151;
+  line-height: 1.75;
+}
+
+.legal-prose h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 0.5rem;
+  line-height: 1.2;
+}
+
+.legal-prose h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #111827;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.legal-prose h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.legal-prose p {
+  margin-bottom: 1rem;
+}
+
+.legal-prose ul {
+  list-style-type: disc;
+  padding-left: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.legal-prose li {
+  margin-bottom: 0.5rem;
+}
+
+.legal-prose strong {
+  font-weight: 600;
+  color: #111827;
+}
+
+.legal-prose section {
+  margin-bottom: 1.5rem;
+}
+
+.legal-prose a {
+  text-decoration: underline;
+}
+
+.legal-prose a:hover {
+  opacity: 0.8;
+}
+
+/* Loading spinner styles */
+.loader {
+  width: 48px;
+  height: 48px;
+  display: block;
+  margin: 15px auto;
+  position: relative;
+  color: var(--primary-color, #FFF);
+  box-sizing: border-box;
+  animation: rotation 1s linear infinite;
+}
+
+.loader::after,
+.loader::before {
+  content: '';
+  box-sizing: border-box;
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  top: 50%;
+  left: 50%;
+  transform: scale(0.5) translate(0, 0);
+  background-color: var(--primary-color, #FFF);
+  border-radius: 50%;
+  animation: animloader 1s infinite ease-in-out;
+}
+
+.loader::before {
+  background-color: var(--secondary-color, #FF3D00);
+  transform: scale(0.5) translate(-48px, -48px);
+}
+
+/* Size variants */
+.loader-small {
+  width: 32px;
+  height: 32px;
+}
+
+.loader-small::after,
+.loader-small::before {
+  width: 16px;
+  height: 16px;
+}
+
+.loader-small::before {
+  transform: scale(0.5) translate(-32px, -32px);
+}
+
+.loader-large {
+  width: 64px;
+  height: 64px;
+}
+
+.loader-large::after,
+.loader-large::before {
+  width: 32px;
+  height: 32px;
+}
+
+.loader-large::before {
+  transform: scale(0.5) translate(-64px, -64px);
+}
+
+@keyframes rotation {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes animloader {
+  50% {
+    transform: scale(1) translate(-50%, -50%);
+  }
+}
+
+/* Portal primary button base styles */
+.portal-primary-button {
+  position: relative;
+  overflow: visible;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  cursor: pointer;
+}
+
+.portal-primary-button::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  background: var(--button-bg);
+  border-radius: calc(0.5rem + 1px);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+  z-index: 1;
+  transition: box-shadow 1s ease, filter 1s ease;
+}
+
+.portal-primary-button > * {
+  position: relative;
+  z-index: 10;
+}
+
+.portal-primary-button:hover::after {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.6),
+    0 0 8px 2px rgba(255, 255, 255, 0.6);
+  filter: brightness(1.15);
+}
+
+/* Spinning border glow effect for buttons */
+@property --glow-x {
+  syntax: '<percentage>';
+  initial-value: 0.01%;
+  inherits: false;
+}
+
+@property --glow-y {
+  syntax: '<percentage>';
+  initial-value: 0.01%;
+  inherits: false;
+}
+
+/* Animate position smoothly along the button perimeter */
+/* Timing proportional to edge length: ~4:1 aspect ratio */
+/* Top: 40%, Right: 10%, Bottom: 40%, Left: 10% */
+@keyframes glow-orbit {
+  /* Top edge: left to right (0% - 40%) */
+  0% { --glow-x: 0%; --glow-y: 0%; }
+  10% { --glow-x: 25%; --glow-y: 0%; }
+  20% { --glow-x: 50%; --glow-y: 0%; }
+  30% { --glow-x: 75%; --glow-y: 0%; }
+  40% { --glow-x: 100%; --glow-y: 0%; }
+  /* Right edge: top to bottom (40% - 50%) */
+  45% { --glow-x: 100%; --glow-y: 50%; }
+  50% { --glow-x: 100%; --glow-y: 100%; }
+  /* Bottom edge: right to left (50% - 90%) */
+  60% { --glow-x: 75%; --glow-y: 100%; }
+  70% { --glow-x: 50%; --glow-y: 100%; }
+  80% { --glow-x: 25%; --glow-y: 100%; }
+  90% { --glow-x: 0%; --glow-y: 100%; }
+  /* Left edge: bottom to top (90% - 100%) */
+  95% { --glow-x: 0%; --glow-y: 50%; }
+  100% { --glow-x: 0%; --glow-y: 0%; }
+}
+
+/* Animated spinning glow (extends portal-primary-button) */
+/* Only show on desktop devices - iOS/touch devices don't smoothly animate @property */
+@media (hover: hover) and (pointer: fine) {
+  .glow-button::before {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    /* Fallback for browsers without @property support */
+    --glow-x: 0%;
+    --glow-y: 0%;
+    background: radial-gradient(
+      25% 60% at var(--glow-x) var(--glow-y),
+      white 0%,
+      transparent 100%
+    );
+    border-radius: calc(0.5rem + 3px);
+    animation: glow-orbit 5s linear infinite;
+    z-index: 0;
+    filter: blur(4px);
+    opacity: 0.9;
+    transition: opacity 1s ease, filter 1s ease;
+  }
+
+  .glow-button:hover::before {
+    opacity: 0;
+  }
+}
+
+/* Checkmark draw animation for success states */
+@keyframes checkmark-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}

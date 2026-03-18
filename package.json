@@ -1,0 +1,27 @@
+{
+  "name": "gatewaze",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Open-source event management platform",
+  "license": "Apache-2.0",
+  "scripts": {
+    "dev": "pnpm --filter @gatewaze/* dev",
+    "dev:admin": "pnpm --filter @gatewaze/admin dev",
+    "dev:portal": "pnpm --filter @gatewaze/portal dev",
+    "dev:api": "pnpm --filter @gatewaze/api dev",
+    "build": "pnpm --filter @gatewaze/* build",
+    "build:admin": "pnpm --filter @gatewaze/admin build",
+    "build:portal": "pnpm --filter @gatewaze/portal build",
+    "build:api": "pnpm --filter @gatewaze/api build",
+    "lint": "pnpm --filter @gatewaze/* lint",
+    "typecheck": "pnpm --filter @gatewaze/* typecheck",
+    "clean": "pnpm --filter @gatewaze/* clean"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild", "msgpackr-extract", "sharp"]
+  }
+}

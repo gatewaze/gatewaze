@@ -1,0 +1,84 @@
+###############################################################################
+# Development overrides — hot reload for admin, portal, api, worker, scheduler
+#
+# Usage: ./dev.sh <brand> up
+#   (dev.sh automatically includes this file)
+#
+# Replaces production builds with dev servers that watch for file changes.
+# Source directories are volume-mounted so edits are reflected immediately.
+###############################################################################
+
+services:
+  admin:
+    build:
+      context: ..
+      dockerfile: docker/admin/Dockerfile.dev
+    volumes:
+      - ../packages/admin/src:/app/packages/admin/src
+      - ../packages/admin/public:/app/packages/admin/public
+      - ../packages/admin/index.html:/app/packages/admin/index.html
+      - ../packages/admin/vite.config.ts:/app/packages/admin/vite.config.ts
+      - ../packages/admin/tsconfig.json:/app/packages/admin/tsconfig.json
+      - ../packages/admin/postcss.config.js:/app/packages/admin/postcss.config.js
+      - ../packages/admin/tailwind.config.ts:/app/packages/admin/tailwind.config.ts
+      - ../packages/shared/src:/app/packages/shared/src
+    environment:
+      NODE_ENV: development
+
+  portal:
+    build:
+      context: ..
+      dockerfile: docker/portal/Dockerfile.dev
+    volumes:
+      - ../packages/portal/app:/app/packages/portal/app
+      - ../packages/portal/components:/app/packages/portal/components
+      - ../packages/portal/config:/app/packages/portal/config
+      - ../packages/portal/data:/app/packages/portal/data
+      - ../packages/portal/hooks:/app/packages/portal/hooks
+      - ../packages/portal/lib:/app/packages/portal/lib
+      - ../packages/portal/styles:/app/packages/portal/styles
+      - ../packages/portal/types:/app/packages/portal/types
+      - ../packages/portal/public:/app/packages/portal/public
+      - ../packages/portal/next.config.ts:/app/packages/portal/next.config.ts
+      - ../packages/portal/tsconfig.json:/app/packages/portal/tsconfig.json
+      - ../packages/portal/postcss.config.mjs:/app/packages/portal/postcss.config.mjs
+      - ../packages/portal/tailwind.config.ts:/app/packages/portal/tailwind.config.ts
+      - ../packages/portal/middleware.ts:/app/packages/portal/middleware.ts
+      - ../packages/shared/src:/app/packages/shared/src
+    environment:
+      NODE_ENV: development
+
+  api:
+    build:
+      context: ..
+      dockerfile: docker/api/Dockerfile.dev
+    volumes:
+      - ../packages/api/src:/app/packages/api/src
+      - ../packages/api/tsconfig.json:/app/packages/api/tsconfig.json
+      - ../packages/shared/src:/app/packages/shared/src
+    environment:
+      NODE_ENV: development
+
+  worker:
+    build:
+      context: ..
+      dockerfile: docker/api/Dockerfile.dev
+    command: ["pnpm", "tsx", "watch", "packages/api/src/workers/job-worker.ts"]
+    volumes:
+      - ../packages/api/src:/app/packages/api/src
+      - ../packages/api/tsconfig.json:/app/packages/api/tsconfig.json
+      - ../packages/shared/src:/app/packages/shared/src
+    environment:
+      NODE_ENV: development
+
+  scheduler:
+    build:
+      context: ..
+      dockerfile: docker/api/Dockerfile.dev
+    command: ["pnpm", "tsx", "watch", "packages/api/src/scheduler/start-scheduler.ts"]
+    volumes:
+      - ../packages/api/src:/app/packages/api/src
+      - ../packages/api/tsconfig.json:/app/packages/api/tsconfig.json
+      - ../packages/shared/src:/app/packages/shared/src
+    environment:
+      NODE_ENV: development
