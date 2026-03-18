@@ -1,0 +1,45 @@
+{
+  "name": "@gatewaze/portal",
+  "version": "1.0.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev -p 3100 -H 0.0.0.0",
+    "build": "next build",
+    "start": "next start -p 3100",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf .next"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@react-three/fiber": "^9.5.0",
+    "@shadergradient/react": "^2.4.20",
+    "@supabase/supabase-js": "^2.57.4",
+    "@types/leaflet": "^1.9.21",
+    "dompurify": "^3.3.1",
+    "framer-motion": "^12.29.2",
+    "isomorphic-dompurify": "^3.0.0-rc.2",
+    "leaflet": "^1.9.4",
+    "next": "^15.1.0",
+    "openai": "^6.18.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "react-image-gallery": "^2.1.0",
+    "react-leaflet": "^5.0.0",
+    "three": "^0.182.0",
+    "three-stdlib": "^2.36.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.12",
+    "@types/dompurify": "^3.0.5",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.1.10",
+    "@types/react-dom": "^19.1.7",
+    "@types/react-image-gallery": "^1.2.4",
+    "@types/three": "^0.182.0",
+    "tailwindcss": "^4.1.12",
+    "typescript": "5.9.3"
+  }
+}

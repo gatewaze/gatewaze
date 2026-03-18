@@ -1,0 +1,26 @@
+FROM node:20-slim
+
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+WORKDIR /app
+
+# Copy workspace root files
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY tsconfig.json ./
+
+# Copy package manifests for dependency resolution
+COPY packages/portal/package.json packages/portal/
+COPY packages/shared/package.json packages/shared/
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# Copy shared source (referenced directly, no build step)
+COPY packages/shared/ packages/shared/
+
+# Copy portal source (will be overridden by volume mount)
+COPY packages/portal/ packages/portal/
+
+EXPOSE 3100
+
+CMD ["pnpm", "--filter", "portal", "dev", "-H", "0.0.0.0"]

@@ -1,0 +1,26 @@
+FROM node:20-slim
+
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+WORKDIR /app
+
+# Copy workspace root files
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY tsconfig.json ./
+
+# Copy package manifests for dependency resolution
+COPY packages/api/package.json packages/api/
+COPY packages/shared/package.json packages/shared/
+
+# Install dependencies (need all deps for tsx watch)
+RUN pnpm install --frozen-lockfile
+
+# Copy shared source (referenced directly, no build step)
+COPY packages/shared/ packages/shared/
+
+# Copy api source (will be overridden by volume mount)
+COPY packages/api/ packages/api/
+
+EXPOSE 3002
+
+CMD ["pnpm", "--filter", "api", "dev"]

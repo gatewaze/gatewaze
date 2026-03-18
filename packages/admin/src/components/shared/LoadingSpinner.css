@@ -1,0 +1,108 @@
+.loader {
+  width: 48px;
+  height: 48px;
+  display: block;
+  margin: 15px auto;
+  position: relative;
+  color: var(--primary-color, #ca2b7f);
+  box-sizing: border-box;
+  animation: rotation 1s linear infinite;
+}
+
+.loader::after,
+.loader::before {
+  content: '';
+  box-sizing: border-box;
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  top: 50%;
+  left: 50%;
+  transform: scale(0.5) translate(0, 0);
+  background-color: var(--primary-color, #ca2b7f);
+  border-radius: 50%;
+  animation: animloader 1s infinite ease-in-out;
+}
+
+.loader::before {
+  background-color: var(--secondary-color, #4086c6);
+  transform: scale(0.5) translate(-48px, -48px);
+}
+
+/* Size variants */
+.loader-xs {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+.loader-xs::after,
+.loader-xs::before {
+  width: 8px;
+  height: 8px;
+}
+
+.loader-xs::before {
+  transform: scale(0.5) translate(-16px, -16px);
+}
+
+.loader-sm {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+}
+
+.loader-sm::after,
+.loader-sm::before {
+  width: 10px;
+  height: 10px;
+}
+
+.loader-sm::before {
+  transform: scale(0.5) translate(-20px, -20px);
+}
+
+.loader-small {
+  width: 32px;
+  height: 32px;
+}
+
+.loader-small::after,
+.loader-small::before {
+  width: 16px;
+  height: 16px;
+}
+
+.loader-small::before {
+  transform: scale(0.5) translate(-32px, -32px);
+}
+
+.loader-large {
+  width: 64px;
+  height: 64px;
+}
+
+.loader-large::after,
+.loader-large::before {
+  width: 32px;
+  height: 32px;
+}
+
+.loader-large::before {
+  transform: scale(0.5) translate(-64px, -64px);
+}
+
+@keyframes rotation {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes animloader {
+  50% {
+    transform: scale(1) translate(-50%, -50%);
+  }
+}

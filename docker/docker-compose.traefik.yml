@@ -1,0 +1,33 @@
+###############################################################################
+# Shared Traefik Reverse Proxy
+#
+# Runs once and routes traffic to all brand instances via the shared
+# "traefik" Docker network. Each brand stack connects to this network
+# so Traefik can discover their containers.
+#
+# Managed automatically by dev.sh — no need to run manually.
+###############################################################################
+
+services:
+  traefik:
+    image: traefik:v2.11
+    container_name: gatewaze-traefik
+    restart: unless-stopped
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--log.level=DEBUG"
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - traefik
+
+networks:
+  traefik:
+    name: traefik
+    driver: bridge
