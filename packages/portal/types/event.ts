@@ -1,3 +1,5 @@
+import type { ThemeColors } from '@/config/brand'
+
 export interface TalkDurationOption {
   duration: number  // minutes
   capacity: number  // max number of talks
@@ -33,7 +35,7 @@ export interface Event {
   gradient_color_2: string | null
   gradient_color_3: string | null
   portal_theme: string | null
-  theme_colors: Record<string, string> | null
+  theme_colors: ThemeColors | null
   talk_duration_options: TalkDurationOption[] | null
   register_button_text: string | null
   page_content: string | null
@@ -44,7 +46,6 @@ export interface Event {
   addedpage_title: string | null
   event_type: string | null
   event_topics: string[] | null
-  gradual_eventslug: string | null
   custom_domain: string | null
   custom_domain_status: string | null
 }

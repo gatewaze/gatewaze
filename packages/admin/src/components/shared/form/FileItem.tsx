@@ -53,15 +53,15 @@ export function FileItem({ file, handleRemove, className = '' }: FileItemProps) 
 
   return (
     <div
-      className={`flex w-full items-center justify-between rounded-lg border border-gray-200 p-3 dark:border-dark-450 md:p-4 ${className}`}
+      className={`flex w-full items-center justify-between rounded-lg border border-[var(--gray-a5)] p-3 md:p-4 ${className}`}
     >
       <div className="mr-2 flex min-w-0 items-center space-x-2">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-500 dark:bg-dark-900 dark:text-dark-300">
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-[var(--gray-a3)] text-[var(--gray-a8)]">
           <Icon className="size-6" />
         </div>
         <div className="min-w-0">
-          <p className="truncate text-gray-800 dark:text-dark-100">{name}</p>
-          <p className="mt-1 text-xs text-gray-400 dark:text-dark-300">
+          <p className="truncate text-[var(--gray-12)]">{name}</p>
+          <p className="mt-1 text-xs text-[var(--gray-a8)]">
             {formatBytes(size)}
           </p>
         </div>

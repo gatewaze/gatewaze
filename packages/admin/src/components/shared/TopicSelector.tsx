@@ -1,7 +1,6 @@
-// @ts-nocheck
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { ChevronDownIcon, XMarkIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
-import { Badge } from '@/components/ui-legacy';
+import { Badge } from '@/components/ui';
 import { getAllTopics, searchTopics, type TopicOption } from '@/utils/topicService';
 
 interface TopicSelectorProps {

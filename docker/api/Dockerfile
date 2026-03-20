@@ -5,24 +5,34 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 
-# Copy workspace root files
-COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+# Copy workspace root files (lockfile excluded – external workspace packages
+# from ../gatewaze-modules are not available at build time)
+COPY package.json ./
 COPY tsconfig.json ./
+
+# Use a workspace config that only includes local packages
+RUN printf 'packages:\n  - "packages/*"\n' > pnpm-workspace.yaml
 
 # Copy package manifests for dependency resolution
 COPY packages/api/package.json packages/api/
 COPY packages/shared/package.json packages/shared/
 
-# Install all dependencies (needed for build)
-RUN pnpm install --frozen-lockfile
+# Install all dependencies (cache pnpm store between builds)
+RUN --mount=type=cache,id=pnpm-api,target=/root/.local/share/pnpm/store \
+    pnpm install --no-frozen-lockfile
 
 # Copy source code
+COPY gatewaze.config.ts ./
 COPY packages/shared/ packages/shared/
 COPY packages/api/ packages/api/
 
 # Build shared library first, then api
 RUN pnpm --filter shared build 2>/dev/null || true
 RUN pnpm --filter api build
+
+# Compile root config file (referenced by API at runtime)
+RUN npx tsc --module ESNext --moduleResolution bundler --target ES2022 \
+    --esModuleInterop --skipLibCheck --outDir . gatewaze.config.ts
 
 # ---- Stage 2: Run ----
 FROM node:20-slim
@@ -34,18 +44,25 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 # Copy workspace root files
-COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY package.json ./
+
+# Use a workspace config that only includes local packages
+RUN printf 'packages:\n  - "packages/*"\n' > pnpm-workspace.yaml
 
 # Copy package manifests
 COPY packages/api/package.json packages/api/
 COPY packages/shared/package.json packages/shared/
 
-# Install production dependencies only
-RUN pnpm install --frozen-lockfile --prod
+# Install production dependencies only (cache pnpm store between builds)
+RUN --mount=type=cache,id=pnpm-api,target=/root/.local/share/pnpm/store \
+    pnpm install --no-frozen-lockfile --prod
 
 # Copy built output
 COPY --from=builder /app/packages/api/dist packages/api/dist
 COPY --from=builder /app/packages/shared/dist packages/shared/dist
+
+# Copy compiled config
+COPY --from=builder /app/gatewaze.config.js ./
 
 # Create non-root user
 RUN addgroup --system --gid 1001 appgroup && \

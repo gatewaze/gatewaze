@@ -120,7 +120,7 @@ export function EventDetailContent({ event, brandConfig }: Props) {
             <div className="order-2 lg:order-1 w-full lg:w-[320px] flex-shrink-0 space-y-4">
               {/* Registration Panel */}
               {event.enable_registration && (
-                <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText}>
+                <GlowBorder useDarkTheme={useDarkText}>
                   <div className={`${theme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${theme.panelBorder} p-5`}>
                     {showRegistrationForm && event.enable_native_registration ? (
                       <RegistrationForm
@@ -152,7 +152,7 @@ export function EventDetailContent({ event, brandConfig }: Props) {
 
               {/* Registration closed message */}
               {!event.enable_registration && (
-                <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText}>
+                <GlowBorder useDarkTheme={useDarkText}>
                   <div className={`${theme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${theme.panelBorder} p-5`}>
                     <p className={`text-sm font-medium text-center ${theme.panelTextMuted}`}>
                       Registration is currently closed for this event.
@@ -163,7 +163,7 @@ export function EventDetailContent({ event, brandConfig }: Props) {
 
               {/* Call for Speakers Panel */}
               {event.enable_call_for_speakers && (
-                <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText}>
+                <GlowBorder useDarkTheme={useDarkText}>
                   <div className={`${theme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${theme.panelBorder} p-5`}>
                     <div className="flex items-center gap-3 mb-3">
                       <div

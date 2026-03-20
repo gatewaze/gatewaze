@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Trims transparent padding from an image file before upload.
  *

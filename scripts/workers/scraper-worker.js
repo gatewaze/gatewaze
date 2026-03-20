@@ -64,7 +64,7 @@ async function persistLog(message, logType = 'log', logLevel = 'info', metadata 
   if (!jobId || isNaN(jobId)) return;
 
   try {
-    await supabase.rpc('insert_scraper_job_log', {
+    await supabase.rpc('scrapers_insert_job_log', {
       p_job_id: jobId,
       p_log_type: logType,
       p_log_level: logLevel,
@@ -145,7 +145,7 @@ async function updateJobStatus(jobId, status, stats = {}) {
       }
     }
 
-    const { error } = await supabase.rpc('update_scraper_job_v2', params);
+    const { error } = await supabase.rpc('scrapers_update_job_v2', params);
 
     if (error) {
       sendError(new Error(`Failed to update job status: ${error.message}`));
@@ -273,7 +273,7 @@ async function runWorker() {
 
     // Get job details from database
     sendLog(`📊 Fetching job details from database...`);
-    const { data: jobData, error: jobError } = await supabase.rpc('get_scraper_job', {
+    const { data: jobData, error: jobError } = await supabase.rpc('scrapers_get_job', {
       job_id: jobId
     });
 
@@ -492,7 +492,6 @@ async function runWorker() {
             event_end: cleanedEvent.eventEnd || cleanedEvent.event_end,
             event_type: cleanedEvent.eventType || cleanedEvent.event_type,
             event_topics: cleanedEvent.eventTopics || cleanedEvent.event_topics || [],
-            listing_type: 'active',
             source_type: 'scraper',
             source_details: {
               scraper_name: cleanedEvent.scraperName || job.scraper_name || 'worker_scraper',
@@ -525,7 +524,6 @@ async function runWorker() {
               p_offer_close_date: null,
               p_event_start: dbEvent.event_start,
               p_event_end: dbEvent.event_end,
-              p_listing_type: dbEvent.listing_type,
               p_event_region: dbEvent.event_region,
               p_event_location: cleanedEvent.eventLocation || null,
               p_event_topics_updated_at: null,
@@ -537,7 +535,7 @@ async function runWorker() {
               p_source_details: dbEvent.source_details,
               p_event_timezone: dbEvent.event_timezone || 'UTC'
             };
-            const result = await supabase.rpc('update_event', updateParams);
+            const result = await supabase.rpc('events_update', updateParams);
             error = result.error;
           } else {
             // create_event uses p_event_id (6-char string)
@@ -558,7 +556,6 @@ async function runWorker() {
               p_offer_close_date: null,
               p_event_start: dbEvent.event_start,
               p_event_end: dbEvent.event_end,
-              p_listing_type: dbEvent.listing_type,
               p_event_region: dbEvent.event_region,
               p_event_location: cleanedEvent.eventLocation || null,
               p_event_topics_updated_at: null,
@@ -569,7 +566,7 @@ async function runWorker() {
               p_source_type: dbEvent.source_type,
               p_source_details: dbEvent.source_details
             };
-            const result = await supabase.rpc('create_event', createParams);
+            const result = await supabase.rpc('events_create', createParams);
             error = result.error;
           }
 
@@ -588,7 +585,7 @@ if (error) {
 
             // Update screenshot if available
             if (screenshotUrl && screenshotGeneratedAt) {
-              await supabase.rpc('update_event_screenshot_status', {
+              await supabase.rpc('events_update_screenshot_status', {
                 p_event_id: eventId,
                 p_screenshot_generated: true,
                 p_screenshot_url: screenshotUrl,

@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Import Dependencies
 import { Tooltip } from "react-tooltip";
 

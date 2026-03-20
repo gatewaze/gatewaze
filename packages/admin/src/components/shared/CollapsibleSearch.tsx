@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Import Dependencies
 import { useRef, useEffect } from "react";
 import { MagnifyingGlassIcon } from "@heroicons/react/24/outline";

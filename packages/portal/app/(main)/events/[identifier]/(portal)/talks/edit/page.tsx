@@ -36,7 +36,7 @@ async function getConfirmedDurationCounts(eventUuid: string, brandId: string): P
   const supabase = await createServerSupabase(brandId)
 
   const { data } = await supabase
-    .from('event_speakers')
+    .from('events_speakers')
     .select('talk_duration_minutes')
     .eq('event_uuid', eventUuid)
     .eq('status', 'confirmed')

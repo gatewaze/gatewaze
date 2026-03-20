@@ -12,7 +12,8 @@
     "start:scheduler": "node dist/scheduler/start-scheduler.js",
     "lint": "eslint src/",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "test": "vitest run"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.0",
@@ -30,6 +31,8 @@
     "@types/express": "^5.0.0",
     "@types/multer": "^1.4.0",
     "@types/node": "^22.0.0",
+    "@types/supertest": "^7.2.0",
+    "supertest": "^7.2.2",
     "tsx": "^4.19.0",
     "typescript": "^5.9.0"
   }

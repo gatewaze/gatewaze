@@ -19,9 +19,10 @@ services:
       - ../packages/admin/index.html:/app/packages/admin/index.html
       - ../packages/admin/vite.config.ts:/app/packages/admin/vite.config.ts
       - ../packages/admin/tsconfig.json:/app/packages/admin/tsconfig.json
-      - ../packages/admin/postcss.config.js:/app/packages/admin/postcss.config.js
-      - ../packages/admin/tailwind.config.ts:/app/packages/admin/tailwind.config.ts
       - ../packages/shared/src:/app/packages/shared/src
+      # Module system: config + external module sources
+      - ../gatewaze.config.ts:/app/gatewaze.config.ts
+      - ../../gatewaze-modules/modules:/gatewaze-modules/modules
     environment:
       NODE_ENV: development
 
@@ -56,6 +57,9 @@ services:
       - ../packages/api/src:/app/packages/api/src
       - ../packages/api/tsconfig.json:/app/packages/api/tsconfig.json
       - ../packages/shared/src:/app/packages/shared/src
+      # Module system: config + external module sources
+      - ../gatewaze.config.ts:/app/gatewaze.config.ts
+      - ../../gatewaze-modules/modules:/gatewaze-modules/modules
     environment:
       NODE_ENV: development
 
@@ -68,6 +72,8 @@ services:
       - ../packages/api/src:/app/packages/api/src
       - ../packages/api/tsconfig.json:/app/packages/api/tsconfig.json
       - ../packages/shared/src:/app/packages/shared/src
+      - ../gatewaze.config.ts:/app/gatewaze.config.ts
+      - ../../gatewaze-modules/modules:/gatewaze-modules/modules
     environment:
       NODE_ENV: development
 
@@ -80,5 +86,7 @@ services:
       - ../packages/api/src:/app/packages/api/src
       - ../packages/api/tsconfig.json:/app/packages/api/tsconfig.json
       - ../packages/shared/src:/app/packages/shared/src
+      - ../gatewaze.config.ts:/app/gatewaze.config.ts
+      - ../../gatewaze-modules/modules:/gatewaze-modules/modules
     environment:
       NODE_ENV: development

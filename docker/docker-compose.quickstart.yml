@@ -61,12 +61,13 @@ services:
       - ./supabase/00-set-admin-password.sh:/docker-entrypoint-initdb.d/00-set-admin-password.sh:ro
       - ../supabase/migrations:/gatewaze-migrations:ro
       - ./supabase/zz-gatewaze-init.sh:/docker-entrypoint-initdb.d/zz-gatewaze-init.sh:ro
+      - ./supabase/db-healthcheck.sh:/usr/local/bin/db-healthcheck.sh:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-postgres}"]
+      test: ["CMD-SHELL", "sh /usr/local/bin/db-healthcheck.sh"]
       interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 120s
+      retries: 10
+      start_period: 300s
     networks:
       - gatewaze
 

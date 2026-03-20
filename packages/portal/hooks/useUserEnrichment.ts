@@ -46,7 +46,7 @@ export function useUserEnrichment(): UseUserEnrichmentReturn {
       const brandConfig = getClientBrandConfig()
 
       // Call the user-enrichment edge function in sync mode
-      const { data, error: fnError } = await supabase.functions.invoke('user-enrichment', {
+      const { data, error: fnError } = await supabase.functions.invoke('people-enrichment', {
         body: {
           email,
           mode: 'sync', // Synchronous mode returns data immediately
@@ -144,9 +144,9 @@ export async function updateProfileWithEnrichment(
       return true
     }
 
-    // Update the member profile
+    // Update the person profile
     const { error } = await supabase
-      .from('member_profiles')
+      .from('people_profiles')
       .update(updates)
       .eq('user_id', userId)
 

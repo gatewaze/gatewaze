@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useEffect, useMemo, useRef } from "react";
 import debounce from "lodash/debounce";
 

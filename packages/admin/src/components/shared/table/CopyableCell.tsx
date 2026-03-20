@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Import Dependencies
 import { DocumentDuplicateIcon } from "@heroicons/react/20/solid";
 import { Getter, Table } from "@tanstack/react-table";

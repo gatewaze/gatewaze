@@ -51,7 +51,7 @@ function getPositionOnBorder(angle: number, width: number, height: number): { x:
 export function GlowBorder({
   children,
   className = '',
-  borderRadius = '1rem',
+  borderRadius = 'var(--radius-card)',
   useDarkTheme = false,
   autoRotate = false,
   autoRotateSpeed = 30,

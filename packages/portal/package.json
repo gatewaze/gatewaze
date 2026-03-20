@@ -10,7 +10,8 @@
     "start": "next start -p 3100",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf .next"
+    "clean": "rm -rf .next",
+    "test": "vitest run"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
@@ -33,12 +34,15 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.12",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/dompurify": "^3.0.5",
     "@types/node": "^22.0.0",
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",
     "@types/react-image-gallery": "^1.2.4",
     "@types/three": "^0.182.0",
+    "jsdom": "^29.0.0",
     "tailwindcss": "^4.1.12",
     "typescript": "5.9.3"
   }

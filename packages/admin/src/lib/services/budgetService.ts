@@ -390,7 +390,7 @@ export class BudgetService {
    */
   async getCategories(options?: { categoryType?: CategoryType; includeInactive?: boolean }) {
     let query = this.supabase
-      .from('event_budget_categories')
+      .from('events_budget_categories')
       .select('*')
       .order('display_order', { ascending: true });
 
@@ -435,7 +435,7 @@ export class BudgetService {
    */
   async getMarketingCategories() {
     const { data, error } = await this.supabase
-      .from('event_budget_categories')
+      .from('events_budget_categories')
       .select('*')
       .eq('category_type', 'marketing')
       .eq('is_active', true)
@@ -451,7 +451,7 @@ export class BudgetService {
    */
   async createCategory(input: Partial<BudgetCategory>) {
     const { data, error } = await this.supabase
-      .from('event_budget_categories')
+      .from('events_budget_categories')
       .insert(input)
       .select()
       .single();
@@ -465,7 +465,7 @@ export class BudgetService {
    */
   async updateCategory(id: string, input: Partial<BudgetCategory>) {
     const { data, error } = await this.supabase
-      .from('event_budget_categories')
+      .from('events_budget_categories')
       .update(input)
       .eq('id', id)
       .select()
@@ -480,7 +480,7 @@ export class BudgetService {
    */
   async deactivateCategory(id: string) {
     const { error } = await this.supabase
-      .from('event_budget_categories')
+      .from('events_budget_categories')
       .update({ is_active: false })
       .eq('id', id);
 
@@ -492,7 +492,7 @@ export class BudgetService {
    */
   async deleteCategory(id: string) {
     const { error } = await this.supabase
-      .from('event_budget_categories')
+      .from('events_budget_categories')
       .delete()
       .eq('id', id);
 
@@ -508,7 +508,7 @@ export class BudgetService {
    */
   async getEventBudgets(eventId: string) {
     const { data, error } = await this.supabase
-      .from('event_budget_allocations')
+      .from('events_budget_allocations')
       .select(`
         *,
         category:event_budget_categories(*)
@@ -524,7 +524,7 @@ export class BudgetService {
    */
   async upsertBudget(input: CreateBudgetInput) {
     const { data, error } = await this.supabase
-      .from('event_budget_allocations')
+      .from('events_budget_allocations')
       .upsert(
         {
           event_id: input.event_id,
@@ -562,7 +562,7 @@ export class BudgetService {
     }));
 
     const { data, error } = await this.supabase
-      .from('event_budget_allocations')
+      .from('events_budget_allocations')
       .upsert(records, { onConflict: 'event_id,category_id' })
       .select();
 
@@ -574,7 +574,7 @@ export class BudgetService {
    * Delete a budget allocation
    */
   async deleteBudget(id: string) {
-    const { error } = await this.supabase.from('event_budget_allocations').delete().eq('id', id);
+    const { error } = await this.supabase.from('events_budget_allocations').delete().eq('id', id);
     if (error) throw error;
   }
 
@@ -587,7 +587,7 @@ export class BudgetService {
    */
   async getEventLineItems(eventId: string, options?: { categoryId?: string; status?: LineItemStatus }) {
     let query = this.supabase
-      .from('event_budget_line_items')
+      .from('events_budget_line_items')
       .select(`
         *,
         category:event_budget_categories(*)
@@ -613,7 +613,7 @@ export class BudgetService {
    */
   async getLineItem(id: string) {
     const { data, error } = await this.supabase
-      .from('event_budget_line_items')
+      .from('events_budget_line_items')
       .select(`
         *,
         category:event_budget_categories(*)
@@ -630,7 +630,7 @@ export class BudgetService {
    */
   async createLineItem(input: CreateLineItemInput) {
     const { data, error } = await this.supabase
-      .from('event_budget_line_items')
+      .from('events_budget_line_items')
       .insert({
         event_id: input.event_id,
         category_id: input.category_id,
@@ -667,7 +667,7 @@ export class BudgetService {
    */
   async updateLineItem(id: string, updates: Partial<CreateLineItemInput> & { updated_by?: string }) {
     const { data, error } = await this.supabase
-      .from('event_budget_line_items')
+      .from('events_budget_line_items')
       .update(updates)
       .eq('id', id)
       .select()
@@ -681,7 +681,7 @@ export class BudgetService {
    * Delete a line item
    */
   async deleteLineItem(id: string) {
-    const { error } = await this.supabase.from('event_budget_line_items').delete().eq('id', id);
+    const { error } = await this.supabase.from('events_budget_line_items').delete().eq('id', id);
     if (error) throw error;
   }
 
@@ -705,7 +705,7 @@ export class BudgetService {
    * Get all suppliers
    */
   async getSuppliers(options?: { type?: string; activeOnly?: boolean; preferredOnly?: boolean }) {
-    let query = this.supabase.from('event_suppliers').select('*').order('name', { ascending: true });
+    let query = this.supabase.from('events_suppliers').select('*').order('name', { ascending: true });
 
     if (options?.type) {
       query = query.eq('supplier_type', options.type);
@@ -728,7 +728,7 @@ export class BudgetService {
    * Create a supplier
    */
   async createSupplier(input: Partial<Supplier>) {
-    const { data, error } = await this.supabase.from('event_suppliers').insert(input).select().single();
+    const { data, error } = await this.supabase.from('events_suppliers').insert(input).select().single();
 
     if (error) throw error;
     return data as Supplier;
@@ -738,7 +738,7 @@ export class BudgetService {
    * Update a supplier
    */
   async updateSupplier(id: string, updates: Partial<Supplier>) {
-    const { data, error } = await this.supabase.from('event_suppliers').update(updates).eq('id', id).select().single();
+    const { data, error } = await this.supabase.from('events_suppliers').update(updates).eq('id', id).select().single();
 
     if (error) throw error;
     return data as Supplier;
@@ -753,7 +753,7 @@ export class BudgetService {
    */
   async getEventRevenue(eventId: string, options?: { sourceType?: RevenueSourceType }) {
     let query = this.supabase
-      .from('event_revenue')
+      .from('events_revenue')
       .select('*')
       .eq('event_id', eventId)
       .order('revenue_date', { ascending: false });
@@ -772,7 +772,7 @@ export class BudgetService {
    */
   async createRevenue(input: CreateRevenueInput) {
     const { data, error } = await this.supabase
-      .from('event_revenue')
+      .from('events_revenue')
       .insert({
         event_id: input.event_id,
         source_type: input.source_type,
@@ -803,7 +803,7 @@ export class BudgetService {
    * Update a revenue entry
    */
   async updateRevenue(id: string, updates: Partial<CreateRevenueInput>) {
-    const { data, error } = await this.supabase.from('event_revenue').update(updates).eq('id', id).select().single();
+    const { data, error } = await this.supabase.from('events_revenue').update(updates).eq('id', id).select().single();
 
     if (error) throw error;
     return data as EventRevenue;
@@ -814,7 +814,7 @@ export class BudgetService {
    */
   async recordRefund(id: string, refundAmount: number, refundDate?: string) {
     const { data, error } = await this.supabase
-      .from('event_revenue')
+      .from('events_revenue')
       .update({
         refund_amount: refundAmount,
         refund_date: refundDate || new Date().toISOString().split('T')[0],
@@ -832,7 +832,7 @@ export class BudgetService {
    * Delete a revenue record
    */
   async deleteRevenue(id: string) {
-    const { error } = await this.supabase.from('event_revenue').delete().eq('id', id);
+    const { error } = await this.supabase.from('events_revenue').delete().eq('id', id);
     if (error) throw error;
   }
 
@@ -845,7 +845,7 @@ export class BudgetService {
    */
   async getEventSponsorPayments(eventId: string, options?: { sponsorId?: string; status?: SponsorPaymentStatus }) {
     let query = this.supabase
-      .from('event_sponsor_payments')
+      .from('events_sponsor_payments')
       .select('*')
       .eq('event_id', eventId)
       .order('created_at', { ascending: false });
@@ -868,7 +868,7 @@ export class BudgetService {
    */
   async createSponsorPayment(input: CreateSponsorPaymentInput) {
     const { data, error } = await this.supabase
-      .from('event_sponsor_payments')
+      .from('events_sponsor_payments')
       .insert({
         event_sponsor_id: input.event_sponsor_id,
         event_id: input.event_id,
@@ -905,7 +905,7 @@ export class BudgetService {
    */
   async updateSponsorPayment(id: string, updates: Partial<CreateSponsorPaymentInput>) {
     const { data, error } = await this.supabase
-      .from('event_sponsor_payments')
+      .from('events_sponsor_payments')
       .update(updates)
       .eq('id', id)
       .select()
@@ -942,7 +942,7 @@ export class BudgetService {
    */
   async getSponsorPayment(id: string) {
     const { data, error } = await this.supabase
-      .from('event_sponsor_payments')
+      .from('events_sponsor_payments')
       .select('*')
       .eq('id', id)
       .single();
@@ -955,7 +955,7 @@ export class BudgetService {
    * Delete a sponsor payment record
    */
   async deleteSponsorPayment(id: string) {
-    const { error } = await this.supabase.from('event_sponsor_payments').delete().eq('id', id);
+    const { error } = await this.supabase.from('events_sponsor_payments').delete().eq('id', id);
     if (error) throw error;
   }
 
@@ -967,7 +967,7 @@ export class BudgetService {
    * Get budget summary for an event (planned vs actual by category)
    */
   async getBudgetSummary(eventId: string): Promise<BudgetSummary> {
-    const { data, error } = await this.supabase.rpc('get_event_budget_summary', {
+    const { data, error } = await this.supabase.rpc('events_get_budget_summary', {
       p_event_id: eventId,
     });
 
@@ -979,7 +979,7 @@ export class BudgetService {
    * Get marketing CPA (Cost Per Acquisition) for an event
    */
   async getMarketingCPA(eventId: string): Promise<MarketingCPA> {
-    const { data, error } = await this.supabase.rpc('get_event_marketing_cpa', {
+    const { data, error } = await this.supabase.rpc('events_get_marketing_cpa', {
       p_event_id: eventId,
     });
 
@@ -991,7 +991,7 @@ export class BudgetService {
    * Get full Profit & Loss report for an event
    */
   async getProfitLoss(eventId: string): Promise<ProfitLoss> {
-    const { data, error } = await this.supabase.rpc('get_event_profit_loss', {
+    const { data, error } = await this.supabase.rpc('events_get_profit_loss', {
       p_event_id: eventId,
     });
 
@@ -1003,7 +1003,7 @@ export class BudgetService {
    * Get sponsor revenue summary for an event
    */
   async getSponsorRevenue(eventId: string) {
-    const { data, error } = await this.supabase.rpc('get_event_sponsor_revenue', {
+    const { data, error } = await this.supabase.rpc('events_get_sponsor_revenue', {
       p_event_id: eventId,
     });
 
@@ -1015,7 +1015,7 @@ export class BudgetService {
    * Get cost summary (includes overall CPA)
    */
   async getCostSummary(eventId: string) {
-    const { data, error } = await this.supabase.rpc('get_event_cost_summary', {
+    const { data, error } = await this.supabase.rpc('events_get_cost_summary', {
       p_event_id: eventId,
     });
 
@@ -1032,7 +1032,7 @@ export class BudgetService {
    */
   async getTotalActualSpend(eventId: string): Promise<number> {
     const { data, error } = await this.supabase
-      .from('event_budget_line_items')
+      .from('events_budget_line_items')
       .select('amount, quantity')
       .eq('event_id', eventId)
       .neq('status', 'cancelled');
@@ -1047,7 +1047,7 @@ export class BudgetService {
    */
   async getTotalPlannedBudget(eventId: string): Promise<number> {
     const { data, error } = await this.supabase
-      .from('event_budget_allocations')
+      .from('events_budget_allocations')
       .select('planned_amount')
       .eq('event_id', eventId);
 

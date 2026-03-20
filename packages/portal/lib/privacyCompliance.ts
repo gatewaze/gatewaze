@@ -14,7 +14,7 @@ import { getSupabaseClient } from './supabase/client'
 // Types matching the database schema
 export interface ConsentRecord {
   id?: string
-  customer_id?: number
+  person_id?: number
   email: string
   consent_type: ConsentType
   consented: boolean
@@ -138,7 +138,7 @@ export const recordCookieConsent = async (
     for (const [category, consentType] of Object.entries(COOKIE_TO_CONSENT_TYPE)) {
       const consented = categories[category as keyof typeof categories]
 
-      const { error } = await supabase.rpc('record_cookie_consent', {
+      const { error } = await supabase.rpc('compliance_record_cookie_consent', {
         p_email: normalizedEmail,
         p_consent_type: consentType,
         p_consented: consented,
@@ -172,7 +172,7 @@ export const recordPrivacyPolicyAcceptance = async (email: string, policyVersion
 
   try {
     const { error } = await supabase
-      .from('customers')
+      .from('people')
       .update({
         privacy_policy_accepted_at: new Date().toISOString(),
         privacy_policy_version: policyVersion,
@@ -203,7 +203,7 @@ export const submitPrivacyRequest = async (
   try {
     const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : ''
 
-    const { data, error } = await supabase.rpc('submit_privacy_request', {
+    const { data, error } = await supabase.rpc('compliance_submit_privacy_request', {
       p_request_type: requestType,
       p_email: email.toLowerCase(),
       p_requester_email: email.toLowerCase(),
@@ -251,7 +251,7 @@ export const setDoNotSell = async (email: string, doNotSell: boolean): Promise<C
   try {
     const normalizedEmail = email.toLowerCase()
 
-    const { data, error } = await supabase.rpc('set_ccpa_preference', {
+    const { data, error } = await supabase.rpc('compliance_set_ccpa_preference', {
       p_email: normalizedEmail,
       p_preference_type: 'do_not_sell',
       p_value: doNotSell,
@@ -286,7 +286,7 @@ export const setDoNotShare = async (email: string, doNotShare: boolean): Promise
   try {
     const normalizedEmail = email.toLowerCase()
 
-    const { data, error } = await supabase.rpc('set_ccpa_preference', {
+    const { data, error } = await supabase.rpc('compliance_set_ccpa_preference', {
       p_email: normalizedEmail,
       p_preference_type: 'do_not_share',
       p_value: doNotShare,
@@ -327,7 +327,7 @@ export const getPrivacyPreferences = async (
 
   try {
     const { data, error } = await supabase
-      .from('customers')
+      .from('people')
       .select('do_not_sell, do_not_share, privacy_policy_accepted_at, privacy_policy_version')
       .eq('email', email.toLowerCase())
       .maybeSingle()

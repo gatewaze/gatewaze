@@ -133,11 +133,11 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
 
         let talkData: any = null
         let speakerRecordData: any = null
-        let memberProfile: any = null
+        let personProfile: any = null
 
         if (editToken) {
           const { data: talk, error: talkError } = await supabase
-            .from('event_talks')
+            .from('events_talks')
             .select(`
               id,
               title,
@@ -153,10 +153,10 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
                   speaker_bio,
                   speaker_title,
                   edit_token,
-                  member_profiles!inner (
+                  people_profiles!inner (
                     id,
-                    customer_id,
-                    customers!inner (
+                    person_id,
+                    people!inner (
                       id,
                       email,
                       auth_user_id,
@@ -176,14 +176,14 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
             const primaryTalkSpeaker = (talk.event_talk_speakers as any[])?.find((ts: any) => ts.is_primary) || talk.event_talk_speakers?.[0]
             if (primaryTalkSpeaker?.speaker) {
               speakerRecordData = primaryTalkSpeaker.speaker
-              memberProfile = speakerRecordData.member_profiles
+              personProfile = speakerRecordData.people_profiles
             }
           }
         }
 
         if (!talkData && !speakerRecordData) {
           let speakerQuery = supabase
-            .from('event_speakers')
+            .from('events_speakers')
             .select(`
               id,
               status,
@@ -193,10 +193,10 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
               speaker_bio,
               speaker_title,
               edit_token,
-              member_profiles!inner (
+              people_profiles!inner (
                 id,
-                customer_id,
-                customers!inner (
+                person_id,
+                people!inner (
                   id,
                   email,
                   auth_user_id,
@@ -229,7 +229,7 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
           }
 
           speakerRecordData = data
-          memberProfile = data.member_profiles
+          personProfile = data.people_profiles
         }
 
         if (!speakerRecordData) {
@@ -238,10 +238,10 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
           return
         }
 
-        const typedMemberProfile = memberProfile as unknown as {
+        const typedPersonProfile = personProfile as unknown as {
           id: string
-          customer_id: string
-          customers: {
+          person_id: string
+          people: {
             id: string
             email: string
             auth_user_id: string | null
@@ -251,13 +251,13 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
           }
         }
 
-        const customerAttrs = typedMemberProfile?.customers?.attributes || {}
+        const personAttrs = typedPersonProfile?.people?.attributes || {}
 
         let avatarUrl: string | null = null
-        if (typedMemberProfile?.customers?.avatar_storage_path) {
+        if (typedPersonProfile?.people?.avatar_storage_path) {
           const { data: { publicUrl } } = supabase.storage
             .from('media')
-            .getPublicUrl(typedMemberProfile.customers.avatar_storage_path)
+            .getPublicUrl(typedPersonProfile.people.avatar_storage_path)
           avatarUrl = publicUrl
         }
 
@@ -270,12 +270,12 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
           talk_duration_minutes: talkData?.duration_minutes ?? speakerRecordData.talk_duration_minutes,
           speaker_bio: speakerRecordData.speaker_bio,
           speaker_title: speakerRecordData.speaker_title,
-          first_name: customerAttrs.first_name || '',
-          last_name: customerAttrs.last_name || '',
-          email: typedMemberProfile?.customers?.email || '',
-          company: customerAttrs.company,
-          job_title: customerAttrs.job_title,
-          linkedin_url: customerAttrs.linkedin_url,
+          first_name: personAttrs.first_name || '',
+          last_name: personAttrs.last_name || '',
+          email: typedPersonProfile?.people?.email || '',
+          company: personAttrs.company,
+          job_title: personAttrs.job_title,
+          linkedin_url: personAttrs.linkedin_url,
           avatar_url: avatarUrl,
         }
 
@@ -513,7 +513,7 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
   // Error state
   if (loadError) {
     return (
-      <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText}>
+      <GlowBorder useDarkTheme={useDarkText}>
         <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8 text-center`}>
           <div className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center bg-red-500/30">
             <svg className="w-8 h-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -553,7 +553,7 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
   // Cannot edit rejected submissions
   if (speakerData?.status === 'rejected') {
     return (
-      <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText}>
+      <GlowBorder useDarkTheme={useDarkText}>
         <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8 text-center`}>
           <div className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center bg-gray-500/30">
             <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -577,7 +577,7 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
 
   // Edit form
   return (
-    <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText}>
+    <GlowBorder useDarkTheme={useDarkText}>
       <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8`}>
         {/* Header */}
         <div className="mb-6">

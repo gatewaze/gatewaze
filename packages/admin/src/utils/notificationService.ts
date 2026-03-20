@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { supabase } from '@/lib/supabase';
 
 export interface PushNotification {
@@ -44,7 +43,7 @@ class NotificationService {
   ): Promise<NotificationServiceResponse<{ successful: number; failed: number; total: number }>> {
     try {
       // Call Supabase Edge Function to send push notification
-      const { data, error } = await supabase.functions.invoke('send-push', {
+      const { data, error } = await supabase.functions.invoke('email-send-push', {
         body: {
           notification: request.notification,
           recipients: request.recipients,
@@ -83,9 +82,9 @@ class NotificationService {
     notification: PushNotification
   ): Promise<NotificationServiceResponse> {
     try {
-      // Get all registered attendees for this event from event_registrations_with_members view
+      // Get all registered attendees for this event from events_registrations_with_people view
       const { data: registrations, error } = await supabase
-        .from('event_registrations_with_members')
+        .from('events_registrations_with_people')
         .select('email')
         .eq('event_id', eventId)
         .eq('status', 'confirmed')
@@ -187,9 +186,9 @@ class NotificationService {
    */
   static async getEventSubscribersCount(eventId: string): Promise<NotificationServiceResponse<{ count: number }>> {
     try {
-      // Get unique attendee emails from event_registrations_with_members view
+      // Get unique attendee emails from events_registrations_with_people view
       const { data: registrations, error: regError } = await supabase
-        .from('event_registrations_with_members')
+        .from('events_registrations_with_people')
         .select('email')
         .eq('event_id', eventId)
         .eq('status', 'confirmed')
@@ -250,7 +249,7 @@ class NotificationService {
     sentBy: string
   ): Promise<void> {
     try {
-      await supabase.from('notification_logs').insert({
+      await supabase.from('email_notification_logs').insert({
         event_id: eventId,
         notification_title: notification.title,
         notification_body: notification.body,

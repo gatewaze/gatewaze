@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Ensures the input is a string. If the input is `null` or `undefined`, returns an empty string.
  *

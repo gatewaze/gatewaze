@@ -92,7 +92,7 @@ export async function uploadEventImage(imageBuffer, eventId, fileExtension = 'jp
 
     // Upload file to storage
     const { data, error } = await getSupabaseClient().storage
-      .from('event-images')
+      .from('media')
       .upload(filePath, imageBuffer, {
         upsert: true, // Overwrite existing files
         contentType: `image/${fileExtension === 'jpg' ? 'jpeg' : fileExtension}`,
@@ -109,7 +109,7 @@ export async function uploadEventImage(imageBuffer, eventId, fileExtension = 'jp
 
     // Get public URL
     const { data: urlData } = getSupabaseClient().storage
-      .from('event-images')
+      .from('media')
       .getPublicUrl(data.path);
 
     console.log(`  ✅ Event image uploaded successfully: ${urlData.publicUrl}`);
@@ -138,7 +138,7 @@ export async function deleteEventImage(imagePath) {
     console.log(`  🗑️  Deleting event image from Supabase: ${imagePath}`);
 
     const { error } = await getSupabaseClient().storage
-      .from('event-images')
+      .from('media')
       .remove([imagePath]);
 
     if (error) {
@@ -170,7 +170,7 @@ export async function deleteEventImage(imagePath) {
  */
 export function getEventImageUrl(imagePath) {
   const { data } = getSupabaseClient().storage
-    .from('event-images')
+    .from('media')
     .getPublicUrl(imagePath);
 
   return data.publicUrl;
@@ -185,7 +185,7 @@ export async function eventImageExists(eventId) {
   try {
     const filePath = `event-previews/${eventId}.jpg`;
     const { data, error } = await getSupabaseClient().storage
-      .from('event-images')
+      .from('media')
       .list('event-previews', {
         search: `${eventId}.jpg`,
       });
@@ -212,7 +212,7 @@ export async function updateScreenshotStatus(eventId, success, screenshotUrl = n
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       // Use RPC function to bypass RLS policies (same as UI does)
-      const { data, error } = await getSupabaseClient().rpc('update_event_screenshot_status', {
+      const { data, error } = await getSupabaseClient().rpc('events_update_screenshot_status', {
         p_event_id: eventId,
         p_screenshot_generated: success,
         p_screenshot_url: screenshotUrl || null,

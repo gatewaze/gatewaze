@@ -2,6 +2,7 @@ import type { GatewazeConfig } from './packages/shared/src/types/modules';
 
 const config: GatewazeConfig = {
   name: process.env.INSTANCE_NAME || 'Gatewaze',
+  platformVersion: '1.0.0',
 
   auth: {
     provider: (process.env.AUTH_PROVIDER as 'supabase' | 'oidc') || 'supabase',
@@ -16,9 +17,20 @@ const config: GatewazeConfig = {
     provider: (process.env.EMAIL_PROVIDER as 'sendgrid' | 'smtp') || 'sendgrid',
   },
 
-  // Add paid modules here:
-  // modules: ['@gatewaze-modules/stripe-payments'],
-  modules: [],
+  // Module sources — directories containing module packages.
+  // Can be local paths (relative to project root) or git repo URLs.
+  // Examples:
+  //   '../gatewaze-modules/modules'              — local sibling folder (default)
+  //   './custom-modules'                          — local folder in project
+  //   'https://github.com/org/modules.git'        — git repo (cloned at build time)
+  //   { url: 'https://github.com/gatewaze/gatewaze-modules.git', path: 'modules', branch: 'main' }
+  moduleSources: [
+    '../gatewaze-modules/modules',
+  ],
+
+  // All modules found in moduleSources are included automatically.
+  // To limit to a subset, add a "modules" array with specific package names.
+  // Enable/disable per-instance is controlled via the Modules admin page.
 };
 
 export default config;

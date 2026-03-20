@@ -83,7 +83,7 @@ export function useConsent(): ConsentState {
   const grantConsent = useCallback(() => {
     // Delegate to custom-consent.js if available
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const consent = (window as any).techTicketsConsent
+    const consent = (window as any).gatewazeConsent
     if (consent?.acceptAll) {
       consent.acceptAll()
     }
@@ -92,7 +92,7 @@ export function useConsent(): ConsentState {
   const denyConsent = useCallback(() => {
     // Delegate to custom-consent.js if available
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const consent = (window as any).techTicketsConsent
+    const consent = (window as any).gatewazeConsent
     if (consent?.rejectAll) {
       consent.rejectAll()
     }
@@ -175,7 +175,7 @@ export function hasConsentFor(category: keyof ConsentCategories): boolean {
 
   // Check custom-consent.js first
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const consent = (window as any).techTicketsConsent
+  const consent = (window as any).gatewazeConsent
   if (consent?.hasConsent) {
     return consent.hasConsent(category)
   }

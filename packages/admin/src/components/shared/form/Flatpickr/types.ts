@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { InputHTMLAttributes, ReactNode, Ref } from "react";
 import type { Instance } from "flatpickr/dist/types/instance";
 import type { DateOption } from "flatpickr/dist/types/options";

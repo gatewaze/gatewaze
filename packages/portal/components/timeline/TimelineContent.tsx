@@ -93,6 +93,16 @@ function TimelineContentInner({ events, upcomingEvents, pastEvents, brandConfig,
 
   // Determine which events to show
   const activeEvents = view === 'upcoming' ? filteredUpcoming : view === 'past' ? filteredPast : []
+
+  // Compute which event types exist in the current view's unfiltered events
+  const availableTypes = useMemo(() => {
+    const viewEvents = view === 'upcoming' ? upcomingEvents : view === 'past' ? pastEvents : events
+    const types = new Set<string>()
+    for (const event of viewEvents) {
+      if (event.event_type) types.add(event.event_type)
+    }
+    return types
+  }, [view, upcomingEvents, pastEvents, events])
   const isPastView = view === 'past'
 
   // Near Me: filter to events within radius, then sort by distance
@@ -166,6 +176,7 @@ function TimelineContentInner({ events, upcomingEvents, pastEvents, brandConfig,
           region={region}
           eventType={eventType}
           topics={topics}
+          availableTypes={availableTypes}
           onToggleType={toggleType}
           onToggleRegion={toggleRegion}
           onToggleTopic={toggleTopic}

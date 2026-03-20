@@ -1171,7 +1171,6 @@ export class LumaEventsScraper extends BaseScraper {
       eventRegion: region,
       venueAddress: rawEvent.venueAddress || '', // New venue address field
       scrapedBy: this.config.name || 'LumaEventsScraper', // Track which scraper collected this
-      listingType: 'active',
       eventType: eventType, // 'meetup' or 'workshop'
       eventTopics: [], // To be filled by topic matching
       // New audit fields for scrapers

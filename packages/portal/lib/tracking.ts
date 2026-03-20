@@ -161,7 +161,7 @@ export async function updateSessionEmail(sessionId: string, email: string): Prom
   const emailHash = await hashValue(email)
 
   await supabase
-    .from('ad_tracking_sessions')
+    .from('integrations_ad_tracking_sessions')
     .update({
       email_hash: emailHash,
     })
@@ -175,7 +175,7 @@ export async function markSessionRedirected(sessionId: string): Promise<void> {
   const supabase = getSupabaseClient()
 
   await supabase
-    .from('ad_tracking_sessions')
+    .from('integrations_ad_tracking_sessions')
     .update({
       external_redirect_at: new Date().toISOString(),
     })

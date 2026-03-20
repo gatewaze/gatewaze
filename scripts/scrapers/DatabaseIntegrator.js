@@ -206,7 +206,6 @@ export class DatabaseIntegrator {
       'event_region': 'eventRegion',
       'event_type': 'eventType',
       'event_topics': 'eventTopics',
-      'listing_type': 'listing_status',
       'latitude': 'latitude',
       'longitude': 'longitude',
       'luma_event_id': 'lumaEventId',
@@ -281,7 +280,6 @@ export class DatabaseIntegrator {
       event_region: event.eventRegion || '',
       event_type: event.eventType || 'conference',
       event_topics: event.eventTopics || [],
-      listing_type: event.listingType || event.listing_status || 'active',
       // Luma event ID for registration matching (evt-XXX format)
       luma_event_id: event.lumaEventId || null,
       // Full __NEXT_DATA__ JSON from Luma page (refreshed on each scrape)

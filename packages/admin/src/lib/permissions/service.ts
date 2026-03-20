@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Admin permissions service
  * Handles all permission-related operations
@@ -37,7 +36,7 @@ export class PermissionsService {
     accountId?: string | null
   ): Promise<PermissionCheckResult> {
     try {
-      const { data, error } = await supabase.rpc('has_feature_permission', {
+      const { data, error } = await supabase.rpc('admin_has_feature_permission', {
         p_admin_id: adminId,
         p_feature: feature,
         p_account_id: accountId === null || accountId === undefined || accountId === 'null' ? null : accountId,
@@ -62,7 +61,7 @@ export class PermissionsService {
     accountId?: string | null
   ): Promise<AdminFeature[]> {
     try {
-      const { data, error } = await supabase.rpc('get_admin_features', {
+      const { data, error } = await supabase.rpc('admin_get_features', {
         p_admin_id: adminId,
         p_account_id: accountId === null || accountId === undefined || accountId === 'null' ? null : accountId,
       });
@@ -591,7 +590,7 @@ export class PermissionsService {
     calendarId: string
   ): Promise<CalendarPermissionCheckResult> {
     try {
-      const { data, error } = await supabase.rpc('can_access_calendar', {
+      const { data, error } = await supabase.rpc('can_admin_calendar', {
         p_admin_id: adminId,
         p_calendar_id: calendarId,
       });
@@ -631,7 +630,7 @@ export class PermissionsService {
     eventId: string
   ): Promise<EventPermissionCheckResult> {
     try {
-      const { data, error } = await supabase.rpc('can_access_event', {
+      const { data, error } = await supabase.rpc('can_admin_event', {
         p_admin_id: adminId,
         p_event_id: eventId,
       });
@@ -695,7 +694,7 @@ export class PermissionsService {
    */
   static async getAdminCalendars(adminId: string): Promise<{ calendar_id: string; permission_level: CalendarPermissionLevel }[]> {
     try {
-      const { data, error } = await supabase.rpc('get_admin_calendars', {
+      const { data, error } = await supabase.rpc('admin_get_calendars', {
         p_admin_id: adminId,
       });
 
@@ -713,7 +712,7 @@ export class PermissionsService {
    */
   static async getAdminAccessibleEvents(adminId: string): Promise<{ event_id: string; permission_level: CalendarPermissionLevel; permission_source: string }[]> {
     try {
-      const { data, error } = await supabase.rpc('get_admin_events', {
+      const { data, error } = await supabase.rpc('admin_get_events', {
         p_admin_id: adminId,
       });
 

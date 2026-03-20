@@ -1,20 +1,23 @@
-import { Navigate, Outlet } from 'react-router-dom';
-import { useAuth } from '@/app/contexts/auth/useAuth';
+// Import Dependencies
+import { Navigate, useOutlet } from "react-router";
 
-export function AdminGuard() {
-  const { user, isLoading } = useAuth();
+// Local Imports
+import { useAccountAccess } from "@/hooks/useAccountAccess";
 
-  if (isLoading) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-      </div>
-    );
+// ----------------------------------------------------------------------
+
+/**
+ * AdminGuard - Prevents account users from accessing system admin routes
+ * Account users should only access /competitions and /members
+ */
+export default function AdminGuard() {
+  const outlet = useOutlet();
+  const { isAccountUser, isSystemAdmin } = useAccountAccess();
+
+  // If user is an account user (not a system admin), redirect to competitions
+  if (isAccountUser && !isSystemAdmin) {
+    return <Navigate to="/competitions" replace />;
   }
 
-  if (!user || (user.role !== 'super_admin' && user.role !== 'admin')) {
-    return <Navigate to="/home" replace />;
-  }
-
-  return <Outlet />;
+  return <>{outlet}</>;
 }

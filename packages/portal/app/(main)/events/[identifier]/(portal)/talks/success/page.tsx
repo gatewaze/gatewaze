@@ -75,7 +75,7 @@ async function getSpeakerInfo(editToken: string, brandId: string): Promise<Speak
   // Query event_talks by edit_token - status is now on this table
   // Then get speaker info via the junction table
   const { data: talk } = await supabase
-    .from('event_talks')
+    .from('events_talks')
     .select(`
       status,
       title,
@@ -87,8 +87,8 @@ async function getSpeakerInfo(editToken: string, brandId: string): Promise<Speak
       event_talk_speakers!inner (
         is_primary,
         speaker:event_speakers!inner (
-          member_profiles!inner (
-            customers!inner (
+          people_profiles!inner (
+            people!inner (
               email,
               avatar_storage_path
             )
@@ -105,7 +105,7 @@ async function getSpeakerInfo(editToken: string, brandId: string): Promise<Speak
   // Build avatar URL from storage path
   let avatarUrl: string | null = null
   const talkSpeaker = (talk.event_talk_speakers as any)?.[0]
-  const avatarPath = talkSpeaker?.speaker?.member_profiles?.customers?.avatar_storage_path
+  const avatarPath = talkSpeaker?.speaker?.people_profiles?.people?.avatar_storage_path
   if (avatarPath) {
     const { data: { publicUrl } } = supabase.storage
       .from('media')
@@ -117,7 +117,7 @@ async function getSpeakerInfo(editToken: string, brandId: string): Promise<Speak
   let presentationUrl = talk.presentation_url
   if (talk.presentation_storage_path && !presentationUrl) {
     const { data: { publicUrl } } = supabase.storage
-      .from('presentation-decks')
+      .from('media')
       .getPublicUrl(talk.presentation_storage_path)
     presentationUrl = publicUrl
   }
@@ -129,7 +129,7 @@ async function getSpeakerInfo(editToken: string, brandId: string): Promise<Speak
     presentationUrl,
     presentationStoragePath: talk.presentation_storage_path,
     presentationType: talk.presentation_type,
-    speakerEmail: talkSpeaker?.speaker?.member_profiles?.customers?.email || null,
+    speakerEmail: talkSpeaker?.speaker?.people_profiles?.people?.email || null,
     calendarAddedAt: talk.calendar_added_at,
     trackingLinkCopiedAt: (talk as any).tracking_link_copied_at
   }

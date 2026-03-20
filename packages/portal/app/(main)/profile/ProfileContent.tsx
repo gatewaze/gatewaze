@@ -90,22 +90,22 @@ export function ProfileContent({ brandConfig }: Props) {
           global: { headers: { Authorization: `Bearer ${session.access_token}` } }
         })
 
-        // Get customer for this auth user
-        const { data: customer, error: customerError } = await supabase
-          .from('customers')
+        // Get person for this auth user
+        const { data: person, error: personError } = await supabase
+          .from('people')
           .select('id, email, attributes, avatar_storage_path')
           .eq('auth_user_id', session.user.id)
           .maybeSingle()
 
-        if (customerError) {
-          console.error('Error fetching customer:', customerError)
+        if (personError) {
+          console.error('Error fetching person:', personError)
           setLoadError('Failed to load profile')
           setIsLoadingProfile(false)
           return
         }
 
-        if (!customer) {
-          // No customer record yet - this is fine, they just haven't submitted anything
+        if (!person) {
+          // No person record yet - this is fine, they just haven't submitted anything
           setProfileData({
             email: session.user.email || '',
             first_name: '',
@@ -130,29 +130,29 @@ export function ProfileContent({ brandConfig }: Props) {
 
         // Build avatar URL from storage path if available
         let avatarUrl: string | null = null
-        if (customer.avatar_storage_path) {
+        if (person.avatar_storage_path) {
           const { data: { publicUrl } } = supabase.storage
             .from('media')
-            .getPublicUrl(customer.avatar_storage_path)
+            .getPublicUrl(person.avatar_storage_path)
           avatarUrl = publicUrl
         }
 
-        const customerAttrs = (customer.attributes as Record<string, string>) || {}
+        const personAttrs = (person.attributes as Record<string, string>) || {}
 
         const profile: ProfileData = {
-          email: customer.email,
-          first_name: customerAttrs.first_name || '',
-          last_name: customerAttrs.last_name || '',
-          company: customerAttrs.company || '',
-          job_title: customerAttrs.job_title || '',
-          linkedin_url: customerAttrs.linkedin_url || '',
+          email: person.email,
+          first_name: personAttrs.first_name || '',
+          last_name: personAttrs.last_name || '',
+          company: personAttrs.company || '',
+          job_title: personAttrs.job_title || '',
+          linkedin_url: personAttrs.linkedin_url || '',
           avatar_url: avatarUrl,
-          avatar_storage_path: customer.avatar_storage_path,
-          marketing_consent: String(customerAttrs.marketing_consent) === 'true',
+          avatar_storage_path: person.avatar_storage_path,
+          marketing_consent: String(personAttrs.marketing_consent) === 'true',
         }
 
         setProfileData(profile)
-        setMarketingConsent(String(customerAttrs.marketing_consent) === 'true')
+        setMarketingConsent(String(personAttrs.marketing_consent) === 'true')
         setFormData({
           first_name: profile.first_name,
           last_name: profile.last_name,

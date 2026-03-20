@@ -55,7 +55,7 @@ calendarsRouter.get('/:id', async (req, res) => {
 
     // Fetch associated events through junction table
     const { data: calendarEvents, error: eventsError } = await supabase
-      .from('calendar_events')
+      .from('calendars_events')
       .select('events!inner(*)')
       .eq('calendar_id', calendar.id);
 

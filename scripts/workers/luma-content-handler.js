@@ -370,7 +370,7 @@ export async function createSpeakersFromExtraction(eventId, speakers, options = 
 
       // Call the RPC function to create speaker with talk
       // Status is 'placeholder' for AI-extracted speakers without email addresses
-      const { data, error } = await supabase.rpc('create_placeholder_speaker_with_talk', {
+      const { data, error } = await supabase.rpc('events_create_placeholder_speaker_with_talk', {
         p_event_uuid: eventId,
         p_first_name: firstName,
         p_last_name: lastName,
@@ -418,7 +418,7 @@ export async function createSpeakersFromExtraction(eventId, speakers, options = 
           try {
             // Check if this speaker already has a talk with this title for this event
             const { data: existingTalk } = await supabase
-              .from('event_talk_speakers')
+              .from('events_talk_speakers')
               .select('talk_id, event_talks!inner(id, title)')
               .eq('speaker_id', data.speaker_id)
               .eq('event_talks.event_uuid', eventId)
@@ -433,7 +433,7 @@ export async function createSpeakersFromExtraction(eventId, speakers, options = 
 
             // Create additional talk and link to speaker
             const { data: talkData, error: talkError } = await supabase
-              .from('event_talks')
+              .from('events_talks')
               .insert({
                 event_uuid: eventId,
                 title: additionalTalk.title,
@@ -450,7 +450,7 @@ export async function createSpeakersFromExtraction(eventId, speakers, options = 
               logger(`    ⚠️ Failed to create additional talk: ${talkError.message}`);
             } else {
               // Link speaker to talk
-              await supabase.from('event_talk_speakers').insert({
+              await supabase.from('events_talk_speakers').insert({
                 talk_id: talkData.id,
                 speaker_id: data.speaker_id,
                 role: 'presenter',

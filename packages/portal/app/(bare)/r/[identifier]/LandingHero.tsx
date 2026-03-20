@@ -187,7 +187,7 @@ function LandingHeroInner({ event, identifier, primaryColor, secondaryColor, use
         <div className="w-full lg:w-[320px] flex-shrink-0">
           <a href={eUrl} className="cursor-pointer block w-full transition-transform hover:scale-[1.02]">
             {imageUrl ? (
-              <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText} className="shadow-2xl" autoRotate autoRotateSpeed={50}>
+              <GlowBorder useDarkTheme={useDarkText} className="shadow-2xl" autoRotate autoRotateSpeed={50}>
                 <div className={`rounded-2xl overflow-hidden ${theme.imageBorder}`}>
                   <img
                     ref={imageRef}
@@ -199,7 +199,7 @@ function LandingHeroInner({ event, identifier, primaryColor, secondaryColor, use
                 </div>
               </GlowBorder>
             ) : (
-              <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText} className="shadow-2xl" autoRotate autoRotateSpeed={50}>
+              <GlowBorder useDarkTheme={useDarkText} className="shadow-2xl" autoRotate autoRotateSpeed={50}>
                 <div
                   className={`rounded-2xl aspect-square flex items-center justify-center ${theme.imageBorder}`}
                   style={{ background: `linear-gradient(135deg, ${primaryColor}40, ${secondaryColor}40)` }}

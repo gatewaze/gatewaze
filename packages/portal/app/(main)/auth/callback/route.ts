@@ -6,7 +6,7 @@ import { createClient } from '@supabase/supabase-js'
  *
  * This route handles the redirect from Supabase magic link emails.
  * It exchanges the auth code for a session and redirects to the intended destination.
- * Note: Customer record creation happens during email submission in SignInForm.
+ * Note: Person record creation happens during email submission in SignInForm.
  */
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url)

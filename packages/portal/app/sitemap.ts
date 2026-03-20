@@ -2,18 +2,19 @@ import type { MetadataRoute } from 'next'
 import { getServerBrandConfig } from '@/config/brand'
 import { createServerSupabase } from '@/lib/supabase/server'
 
-export const revalidate = 3600 // Re-generate at most once per hour
+export const dynamic = 'force-dynamic'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const brandConfig = await getServerBrandConfig()
   const baseUrl = `https://${brandConfig.domain}`
   const supabase = await createServerSupabase(brandConfig.id)
 
-  // Fetch all live event slugs
+  // Fetch all live, listed event slugs (unlisted events use custom domains)
   const { data: events } = await supabase
     .from('events')
     .select('event_slug, event_id')
     .eq('is_live_in_production', true)
+    .eq('is_listed', true)
     .limit(10000)
 
   // Fetch all public active calendar slugs

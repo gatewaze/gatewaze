@@ -16,7 +16,7 @@ export async function getAppSetting(key: string): Promise<string | null> {
     })
 
     const { data, error } = await supabase
-      .from('app_settings')
+      .from('platform_settings')
       .select('value')
       .eq('key', key)
       .maybeSingle()

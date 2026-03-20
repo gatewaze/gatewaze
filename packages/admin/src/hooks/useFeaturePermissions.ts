@@ -1,82 +1,196 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useAuth } from '@/app/contexts/auth/useAuth';
-import { getSupabase } from '@/lib/supabase';
-import { isFeatureEnabled } from '@/config/modules';
-import type { AdminPermissionsMap } from '@gatewaze/shared';
+/**
+ * Hook for managing feature-based permissions
+ * Checks if the current admin user has access to specific features
+ */
 
-export function useFeaturePermissions() {
-  const { user } = useAuth();
+import { useEffect, useState, useCallback } from 'react';
+import { useAuthContext } from '@/app/contexts/auth/context';
+import { PermissionsService } from '@/lib/permissions/service';
+import type { AdminFeature, AdminPermissionsMap } from '@/lib/permissions/types';
+
+interface UseFeaturePermissionsReturn {
+  permissions: AdminPermissionsMap;
+  features: AdminFeature[];
+  hasFeature: (feature: AdminFeature) => boolean;
+  hasAnyFeature: (features: AdminFeature[]) => boolean;
+  hasAllFeatures: (features: AdminFeature[]) => boolean;
+  isLoading: boolean;
+  isSuperAdmin: boolean;
+  refetch: () => Promise<void>;
+}
+
+export function useFeaturePermissions(accountId?: string | null): UseFeaturePermissionsReturn {
+  const { user, isAuthenticated, isInitialized, impersonation } = useAuthContext();
   const [permissions, setPermissions] = useState<AdminPermissionsMap>({});
+  const [features, setFeatures] = useState<AdminFeature[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const isSuperAdmin = user?.role === 'super_admin';
+  // When impersonating, use the original user's role for authorization checks
+  // This ensures super admins retain their access while viewing as another user
+  const effectiveUserForAuth = impersonation.isImpersonating && impersonation.originalUser
+    ? impersonation.originalUser
+    : user;
 
+  // Check if user is super admin (using effective user for auth)
+  const isSuperAdmin = effectiveUserForAuth?.role === 'super_admin';
+
+  // Fetch permissions from database
   const fetchPermissions = useCallback(async () => {
-    if (!user) {
+    if (!isInitialized) {
+      // Don't fetch until auth is initialized
+      return;
+    }
+
+    if (!isAuthenticated || !user) {
+      // Not authenticated - no permissions
       setPermissions({});
+      setFeatures([]);
       setIsLoading(false);
       return;
     }
 
+    // Super admins have all permissions
     if (isSuperAdmin) {
-      setPermissions({});
-      setIsLoading(false);
-      return;
-    }
+      const allFeatures: AdminFeature[] = [
+        'dashboard_home',
+        'dashboard_people',
+        'accounts',
+        'users',
+        'calendars',
+        'events',
+        'blog',
+        'scrapers',
+        'competitions',
+        'discounts',
+        'offers',
+        'cohorts',
+        'payments',
+        'emails',
+        'compliance',
+        'scheduler',
+        'surveys',
+        'redirects',
+        'newsletters',
+        'slack',
+        'settings',
+      ];
 
-    try {
-      const supabase = getSupabase();
-      const { data } = await supabase.rpc('get_admin_features', {
-        p_admin_id: user.id,
+      const allPermissions: AdminPermissionsMap = {};
+      allFeatures.forEach(feature => {
+        allPermissions[feature] = true;
       });
 
-      const map: AdminPermissionsMap = {};
-      if (data) {
-        for (const feature of data) {
-          map[feature] = true;
-        }
-      }
-      setPermissions(map);
+      setPermissions(allPermissions);
+      setFeatures(allFeatures);
+      setIsLoading(false);
+      return;
+    }
+
+    // Regular admin - fetch permissions from database
+    // Use the effective user for permissions lookup
+    const userForPermissions = effectiveUserForAuth!;
+
+    try {
+      setIsLoading(true);
+
+      console.log('[useFeaturePermissions] Fetching permissions for admin:', {
+        adminId: userForPermissions.id,
+        email: userForPermissions.email,
+        role: userForPermissions.role,
+        accountId,
+        isImpersonating: impersonation.isImpersonating
+      });
+
+      // Use the admin profile ID to check permissions
+      const adminFeatures = await PermissionsService.getAdminFeatures(
+        userForPermissions.id,
+        accountId || null
+      );
+
+      const permissionsMap = await PermissionsService.getPermissionsMap(
+        userForPermissions.id,
+        accountId || null
+      );
+
+      console.log('[useFeaturePermissions] Permissions fetched:', {
+        features: adminFeatures,
+        permissionsMap
+      });
+
+      setFeatures(adminFeatures);
+      setPermissions(permissionsMap);
     } catch (error) {
-      console.error('Failed to fetch permissions:', error);
+      console.error('Error fetching feature permissions:', error);
+      setPermissions({});
+      setFeatures([]);
     } finally {
       setIsLoading(false);
     }
-  }, [user, isSuperAdmin]);
+  }, [isAuthenticated, isInitialized, effectiveUserForAuth, isSuperAdmin, accountId, impersonation.isImpersonating]);
 
+  // Fetch permissions on mount and when dependencies change
   useEffect(() => {
     fetchPermissions();
   }, [fetchPermissions]);
 
+  // Check if user has a specific feature
   const hasFeature = useCallback(
-    (feature: string): boolean => {
-      if (!isFeatureEnabled(feature)) return false;
+    (feature: AdminFeature): boolean => {
+      // Super admins have all features
       if (isSuperAdmin) return true;
+
+      // Check permissions map
       return permissions[feature] === true;
     },
-    [permissions, isSuperAdmin],
+    [isSuperAdmin, permissions]
   );
 
+  // Check if user has ANY of the specified features
   const hasAnyFeature = useCallback(
-    (features: string[]): boolean => features.some(hasFeature),
-    [hasFeature],
+    (featuresToCheck: AdminFeature[]): boolean => {
+      if (isSuperAdmin) return true;
+      return featuresToCheck.some(feature => hasFeature(feature));
+    },
+    [isSuperAdmin, hasFeature]
   );
 
+  // Check if user has ALL of the specified features
   const hasAllFeatures = useCallback(
-    (features: string[]): boolean => features.every(hasFeature),
-    [hasFeature],
+    (featuresToCheck: AdminFeature[]): boolean => {
+      if (isSuperAdmin) return true;
+      return featuresToCheck.every(feature => hasFeature(feature));
+    },
+    [isSuperAdmin, hasFeature]
   );
 
-  return useMemo(
-    () => ({
-      permissions,
-      isLoading,
-      isSuperAdmin,
-      hasFeature,
-      hasAnyFeature,
-      hasAllFeatures,
-      refetch: fetchPermissions,
-    }),
-    [permissions, isLoading, isSuperAdmin, hasFeature, hasAnyFeature, hasAllFeatures, fetchPermissions],
-  );
+  return {
+    permissions,
+    features,
+    hasFeature,
+    hasAnyFeature,
+    hasAllFeatures,
+    isLoading,
+    isSuperAdmin,
+    refetch: fetchPermissions,
+  };
+}
+
+// Helper hook for checking a single feature
+export function useHasFeature(feature: AdminFeature, accountId?: string | null): boolean {
+  const { hasFeature, isLoading } = useFeaturePermissions(accountId);
+
+  // While loading, deny access (safer default)
+  if (isLoading) return false;
+
+  return hasFeature(feature);
+}
+
+// Helper hook for checking multiple features
+export function useHasAnyFeature(features: AdminFeature[], accountId?: string | null): boolean {
+  const { hasAnyFeature, isLoading } = useFeaturePermissions(accountId);
+
+  // While loading, deny access (safer default)
+  if (isLoading) return false;
+
+  return hasAnyFeature(features);
 }
