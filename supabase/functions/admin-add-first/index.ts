@@ -82,11 +82,9 @@ export default async function(req: Request) {
       .insert({
         email,
         auth_user_id: newUser.user.id,
-        source: 'admin_onboarding',
         attributes: {
           first_name: firstName,
           last_name: lastName,
-          full_name: name,
         },
       });
 

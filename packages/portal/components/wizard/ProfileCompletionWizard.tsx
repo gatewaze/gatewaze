@@ -8,6 +8,8 @@ import type { BrandConfig } from '@/config/brand'
 import { ProfileWizard, WizardStep } from './ProfileWizard'
 import { ProfileDetailsStep, ProfileDetails, validateLinkedInUrlExists } from './ProfileDetailsStep'
 import { PreferencesStep } from './PreferencesStep'
+import type { PeopleAttributeConfig } from '@gatewaze/shared/types/people'
+import { DEFAULT_PEOPLE_ATTRIBUTES, LOCKED_ATTRIBUTE_KEYS } from '@gatewaze/shared/types/people'
 
 interface Props {
   brandConfig: BrandConfig
@@ -16,6 +18,15 @@ interface Props {
 interface PersonData {
   id: string
   attributes: Record<string, string>
+}
+
+/** Map from attribute key to ProfileDetails field name */
+const ATTR_KEY_TO_FIELD: Record<string, keyof ProfileDetails> = {
+  first_name: 'firstName',
+  last_name: 'lastName',
+  company: 'company',
+  job_title: 'jobTitle',
+  linkedin_url: 'linkedInUrl',
 }
 
 /**
@@ -35,6 +46,7 @@ export function ProfileCompletionWizard({ brandConfig }: Props) {
     jobTitle: '',
     linkedInUrl: '',
   })
+  const [attributeConfig, setAttributeConfig] = useState<PeopleAttributeConfig[]>(DEFAULT_PEOPLE_ATTRIBUTES)
   const [marketingConsent, setMarketingConsent] = useState(false)
   const [errors, setErrors] = useState<Partial<Record<keyof ProfileDetails, string>>>({})
   const [isLoading, setIsLoading] = useState(true)
@@ -63,11 +75,36 @@ export function ProfileCompletionWizard({ brandConfig }: Props) {
           global: { headers: { Authorization: `Bearer ${session.access_token}` } }
         })
 
-        const { data: person } = await supabase
-          .from('people')
-          .select('id, attributes')
-          .eq('auth_user_id', user.id)
-          .maybeSingle()
+        // Fetch people_attributes config and person data in parallel
+        const [{ data: attrSetting }, { data: person }] = await Promise.all([
+          supabase
+            .from('platform_settings')
+            .select('value')
+            .eq('key', 'people_attributes')
+            .maybeSingle(),
+          supabase
+            .from('people')
+            .select('id, attributes')
+            .eq('auth_user_id', user.id)
+            .maybeSingle(),
+        ])
+
+        // Parse attribute config
+        let attrConfig = DEFAULT_PEOPLE_ATTRIBUTES
+        if (attrSetting?.value) {
+          try {
+            const parsed = JSON.parse(attrSetting.value)
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              attrConfig = parsed
+            }
+          } catch { /* use defaults */ }
+        }
+        setAttributeConfig(attrConfig)
+
+        // Determine which fields are required based on config
+        const requiredKeys = attrConfig
+          .filter((a: PeopleAttributeConfig) => a.enabled && a.required)
+          .map((a: PeopleAttributeConfig) => a.key)
 
         if (person) {
           let attrs = (person.attributes as Record<string, string>) || {}
@@ -76,8 +113,8 @@ export function ProfileCompletionWizard({ brandConfig }: Props) {
             attributes: attrs,
           })
 
-          // Check if required fields are missing (first_name, last_name, company, job_title)
-          const isMissingRequired = !attrs.first_name || !attrs.last_name || !attrs.company || !attrs.job_title
+          // Check if any required fields are missing
+          const isMissingRequired = requiredKeys.some((key: string) => !attrs[key])
           const isMissingConsent = attrs.marketing_consent === undefined || attrs.marketing_consent === null
 
           // If profile fields are missing, try enrichment first
@@ -86,11 +123,14 @@ export function ProfileCompletionWizard({ brandConfig }: Props) {
               const enrichmentData = await enrichUser(user.email)
               if (enrichmentData) {
                 // Merge enrichment data into attrs (don't overwrite existing values)
-                if (!attrs.first_name && enrichmentData.first_name) attrs = { ...attrs, first_name: enrichmentData.first_name }
-                if (!attrs.last_name && enrichmentData.last_name) attrs = { ...attrs, last_name: enrichmentData.last_name }
-                if (!attrs.company && enrichmentData.company) attrs = { ...attrs, company: enrichmentData.company }
-                if (!attrs.job_title && enrichmentData.job_title) attrs = { ...attrs, job_title: enrichmentData.job_title }
-                if (!attrs.linkedin_url && enrichmentData.linkedin_url) attrs = { ...attrs, linkedin_url: enrichmentData.linkedin_url }
+                for (const key of requiredKeys) {
+                  if (!attrs[key] && (enrichmentData as Record<string, string>)[key]) {
+                    attrs = { ...attrs, [key]: (enrichmentData as Record<string, string>)[key] }
+                  }
+                }
+                if (!attrs.linkedin_url && enrichmentData.linkedin_url) {
+                  attrs = { ...attrs, linkedin_url: enrichmentData.linkedin_url }
+                }
               }
             } catch {
               // Enrichment failure is non-critical, continue with existing data
@@ -111,8 +151,8 @@ export function ProfileCompletionWizard({ brandConfig }: Props) {
             setMarketingConsent(true)
           }
 
-          // Re-check after enrichment - require all 4 fields
-          const stillMissingRequired = !attrs.first_name || !attrs.last_name || !attrs.company || !attrs.job_title
+          // Re-check after enrichment
+          const stillMissingRequired = requiredKeys.some((key: string) => !attrs[key])
           if (stillMissingRequired || isMissingConsent) {
             setShowWizard(true)
           }
@@ -184,11 +224,13 @@ export function ProfileCompletionWizard({ brandConfig }: Props) {
   const validateDetails = useCallback(async (): Promise<true | Record<string, string>> => {
     const newErrors: Record<string, string> = {}
 
-    if (!profileDetails.firstName.trim()) {
-      newErrors.firstName = 'First name is required'
-    }
-    if (!profileDetails.lastName.trim()) {
-      newErrors.lastName = 'Last name is required'
+    // Validate all required fields from config
+    for (const attr of attributeConfig) {
+      if (!attr.enabled || !attr.required) continue
+      const fieldName = ATTR_KEY_TO_FIELD[attr.key]
+      if (fieldName && !profileDetails[fieldName]?.trim()) {
+        newErrors[fieldName] = `${attr.label} is required`
+      }
     }
 
     // Validate LinkedIn URL if provided
@@ -213,7 +255,7 @@ export function ProfileCompletionWizard({ brandConfig }: Props) {
 
     setErrors({})
     return true
-  }, [profileDetails])
+  }, [profileDetails, attributeConfig])
 
   // Don't render anything while loading or if wizard shouldn't show
   if (isLoading || !showWizard) {
@@ -231,6 +273,7 @@ export function ProfileCompletionWizard({ brandConfig }: Props) {
           values={profileDetails}
           onChange={setProfileDetails}
           errors={errors}
+          attributeConfig={attributeConfig}
         />
       ),
       countInProgress: true,

@@ -2,6 +2,8 @@
 
 import type { BrandConfig } from '@/config/brand'
 import { GlowInput } from '@/components/ui/GlowInput'
+import type { PeopleAttributeConfig } from '@gatewaze/shared/types/people'
+import { DEFAULT_PEOPLE_ATTRIBUTES } from '@gatewaze/shared/types/people'
 
 export interface ProfileDetails {
   firstName: string
@@ -9,6 +11,7 @@ export interface ProfileDetails {
   company: string
   jobTitle: string
   linkedInUrl: string
+  [key: string]: string
 }
 
 interface Props {
@@ -16,6 +19,35 @@ interface Props {
   values: ProfileDetails
   onChange: (values: ProfileDetails) => void
   errors?: Partial<Record<keyof ProfileDetails, string>>
+  attributeConfig?: PeopleAttributeConfig[]
+}
+
+/** Map attribute keys to ProfileDetails field names */
+const ATTR_KEY_TO_FIELD: Record<string, keyof ProfileDetails> = {
+  first_name: 'firstName',
+  last_name: 'lastName',
+  company: 'company',
+  job_title: 'jobTitle',
+  linkedin_url: 'linkedInUrl',
+}
+
+const FIELD_PLACEHOLDERS: Record<string, string> = {
+  firstName: 'Your first name',
+  lastName: 'Your last name',
+  company: 'Acme Inc.',
+  jobTitle: 'Software Engineer',
+  linkedInUrl: 'https://linkedin.com/in/yourprofile',
+}
+
+const FIELD_AUTOCOMPLETE: Record<string, string> = {
+  firstName: 'given-name',
+  lastName: 'family-name',
+  company: 'organization',
+  jobTitle: 'organization-title',
+}
+
+const FIELD_INPUT_TYPE: Record<string, string> = {
+  linkedInUrl: 'url',
 }
 
 /**
@@ -84,10 +116,14 @@ export async function validateLinkedInUrlExists(
 
 /**
  * Form step for collecting user profile details.
- * Fields: first name, last name, company, job title, LinkedIn URL
+ * Fields are rendered dynamically based on the people attributes configuration.
  */
-export function ProfileDetailsStep({ brandConfig, values, onChange, errors = {} }: Props) {
+export function ProfileDetailsStep({ brandConfig, values, onChange, errors = {}, attributeConfig }: Props) {
   const primaryColor = brandConfig.primaryColor
+  const config = attributeConfig || DEFAULT_PEOPLE_ATTRIBUTES
+
+  // Get enabled attributes in config order
+  const enabledAttrs = config.filter(a => a.enabled)
 
   const handleChange = (field: keyof ProfileDetails) => (
     e: React.ChangeEvent<HTMLInputElement>
@@ -95,108 +131,64 @@ export function ProfileDetailsStep({ brandConfig, values, onChange, errors = {} 
     onChange({ ...values, [field]: e.target.value })
   }
 
-  return (
-      <div className="space-y-4">
-        <p className="text-white/70 text-sm text-center mb-6">
-          Please complete your profile to continue.
-        </p>
+  // Group fields into rows of 2 for side-by-side layout (except linkedin which is full-width)
+  const renderField = (attr: PeopleAttributeConfig) => {
+    const fieldName = ATTR_KEY_TO_FIELD[attr.key] || attr.key
+    const fieldId = String(fieldName)
+    const placeholder = FIELD_PLACEHOLDERS[fieldName] || attr.label
+    const autoComplete = FIELD_AUTOCOMPLETE[fieldName]
+    const inputType = FIELD_INPUT_TYPE[fieldName] || 'text'
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="firstName" className="block text-base font-medium text-white mb-1.5">
-              First Name <span className="text-[#FF0000] font-medium">*</span>
-            </label>
-            <GlowInput
-              id="firstName"
-              type="text"
-              value={values.firstName}
-              onChange={handleChange('firstName')}
-              placeholder="Your first name"
-              glowColor={primaryColor}
-              borderRadius="0.5rem"
-              className="w-full text-base px-3 py-2 border border-white/30 rounded-lg bg-white/60 text-gray-900 placeholder-gray-500 focus:outline-none transition-colors"
-              autoComplete="given-name"
-            />
-            {errors.firstName && (
-              <p className="text-white text-xs mt-1"><span className="text-[#FF0000]">*</span> {errors.firstName}</p>
-            )}
-          </div>
-
-          <div>
-            <label htmlFor="lastName" className="block text-base font-medium text-white mb-1.5">
-              Last Name <span className="text-[#FF0000] font-medium">*</span>
-            </label>
-            <GlowInput
-              id="lastName"
-              type="text"
-              value={values.lastName}
-              onChange={handleChange('lastName')}
-              placeholder="Your last name"
-              glowColor={primaryColor}
-              borderRadius="0.5rem"
-              className="w-full text-base px-3 py-2 border border-white/30 rounded-lg bg-white/60 text-gray-900 placeholder-gray-500 focus:outline-none transition-colors"
-              autoComplete="family-name"
-            />
-            {errors.lastName && (
-              <p className="text-white text-xs mt-1"><span className="text-[#FF0000]">*</span> {errors.lastName}</p>
-            )}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="company" className="block text-base font-medium text-white mb-1.5">
-              Company
-            </label>
-            <GlowInput
-              id="company"
-              type="text"
-              value={values.company}
-              onChange={handleChange('company')}
-              placeholder="Acme Inc."
-              glowColor={primaryColor}
-              borderRadius="0.5rem"
-              className="w-full text-base px-3 py-2 border border-white/30 rounded-lg bg-white/60 text-gray-900 placeholder-gray-500 focus:outline-none transition-colors"
-              autoComplete="organization"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="jobTitle" className="block text-base font-medium text-white mb-1.5">
-              Job Title
-            </label>
-            <GlowInput
-              id="jobTitle"
-              type="text"
-              value={values.jobTitle}
-              onChange={handleChange('jobTitle')}
-              placeholder="Software Engineer"
-              glowColor={primaryColor}
-              borderRadius="0.5rem"
-              className="w-full text-base px-3 py-2 border border-white/30 rounded-lg bg-white/60 text-gray-900 placeholder-gray-500 focus:outline-none transition-colors"
-              autoComplete="organization-title"
-            />
-          </div>
-        </div>
-
-        <div>
-          <label htmlFor="linkedInUrl" className="block text-base font-medium text-white mb-1.5">
-            LinkedIn Profile URL
-          </label>
-          <GlowInput
-            id="linkedInUrl"
-            type="url"
-            value={values.linkedInUrl}
-            onChange={handleChange('linkedInUrl')}
-            placeholder="https://linkedin.com/in/yourprofile"
-            glowColor={primaryColor}
-            borderRadius="0.5rem"
-            className="w-full text-base px-3 py-2 border border-white/30 rounded-lg bg-white/60 text-gray-900 placeholder-gray-500 focus:outline-none transition-colors"
-          />
-          {errors.linkedInUrl && (
-            <p className="text-white text-xs mt-1"><span className="text-[#FF0000]">*</span> {errors.linkedInUrl}</p>
-          )}
-        </div>
+    return (
+      <div key={attr.key}>
+        <label htmlFor={fieldId} className="block text-base font-medium text-white mb-1.5">
+          {attr.label}{attr.required ? <span className="text-[#FF0000] font-medium"> *</span> : ''}
+        </label>
+        <GlowInput
+          id={fieldId}
+          type={inputType}
+          value={values[fieldName] || ''}
+          onChange={handleChange(fieldName)}
+          placeholder={placeholder}
+          glowColor={primaryColor}
+          borderRadius="0.5rem"
+          className="w-full text-base px-3 py-2 border border-white/30 rounded-lg bg-white/60 text-gray-900 placeholder-gray-500 focus:outline-none transition-colors"
+          {...(autoComplete ? { autoComplete } : {})}
+        />
+        {errors[fieldName] && (
+          <p className="text-white text-xs mt-1"><span className="text-[#FF0000]">*</span> {errors[fieldName]}</p>
+        )}
       </div>
     )
+  }
+
+  // Separate LinkedIn (full-width) from the rest (paired in 2-column grid)
+  const pairedAttrs = enabledAttrs.filter(a => a.key !== 'linkedin_url')
+  const linkedInAttr = enabledAttrs.find(a => a.key === 'linkedin_url')
+
+  // Chunk paired attrs into groups of 2
+  const rows: PeopleAttributeConfig[][] = []
+  for (let i = 0; i < pairedAttrs.length; i += 2) {
+    rows.push(pairedAttrs.slice(i, i + 2))
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-white/70 text-sm text-center mb-6">
+        Please complete your profile to continue.
+      </p>
+
+      {rows.map((row, i) => (
+        <div key={i} className={`grid gap-4 ${row.length === 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+          {row.map(attr => renderField(attr))}
+        </div>
+      ))}
+
+      {linkedInAttr && (
+        <div>
+          {renderField(linkedInAttr)}
+        </div>
+      )}
+    </div>
+  )
 }

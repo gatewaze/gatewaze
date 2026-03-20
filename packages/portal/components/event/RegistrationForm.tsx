@@ -10,6 +10,8 @@ import { trackEvent } from '@/lib/analytics'
 import { hasConsentFor } from '@/hooks/useConsent'
 import { stripEmojis } from '@/lib/text'
 import { useAuth } from '@/hooks/useAuth'
+import type { PeopleAttributeConfig } from '@gatewaze/shared/types/people'
+import { DEFAULT_PEOPLE_ATTRIBUTES } from '@gatewaze/shared/types/people'
 
 interface Props {
   event: Event
@@ -101,6 +103,40 @@ export function RegistrationForm({ event, brandConfig, onSuccess, onCancel, trac
   const [isSendingMagicLink, setIsSendingMagicLink] = useState(false)
   const [magicLinkError, setMagicLinkError] = useState<string | null>(null)
   const { session } = useAuth()
+  const [attrConfig, setAttrConfig] = useState<PeopleAttributeConfig[]>(DEFAULT_PEOPLE_ATTRIBUTES)
+
+  // Fetch people_attributes config on mount
+  useEffect(() => {
+    async function loadAttrConfig() {
+      try {
+        const config = getClientBrandConfig()
+        const { createClient } = await import('@supabase/supabase-js')
+        const supabase = createClient(config.supabaseUrl, config.supabaseAnonKey)
+        const { data } = await supabase
+          .from('platform_settings')
+          .select('value')
+          .eq('key', 'people_attributes')
+          .maybeSingle()
+        if (data?.value) {
+          const parsed = JSON.parse(data.value)
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setAttrConfig(parsed)
+          }
+        }
+      } catch { /* use defaults */ }
+    }
+    loadAttrConfig()
+  }, [])
+
+  // Helper to check if an attribute is enabled/required
+  const isAttrEnabled = (key: string) => {
+    const attr = attrConfig.find(a => a.key === key)
+    return attr ? attr.enabled : true
+  }
+  const isAttrRequired = (key: string) => {
+    const attr = attrConfig.find(a => a.key === key)
+    return attr ? (attr.enabled && attr.required) : false
+  }
 
   const validateEmail = (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -116,12 +152,19 @@ export function RegistrationForm({ event, brandConfig, onSuccess, onCancel, trac
       newErrors.email = 'Please enter a valid email address'
     }
 
-    if (!formData.first_name.trim()) {
-      newErrors.first_name = 'First name is required'
+    // Validate fields based on people_attributes config
+    const fieldMap: Record<string, keyof FormErrors> = {
+      first_name: 'first_name',
+      last_name: 'last_name',
+      company: 'company',
+      job_title: 'job_title',
     }
-
-    if (!formData.last_name.trim()) {
-      newErrors.last_name = 'Last name is required'
+    for (const attr of attrConfig) {
+      const formField = fieldMap[attr.key]
+      if (formField && attr.enabled && attr.required && !formData[formField]?.trim()) {
+        const label = attr.label || attr.key.replace(/_/g, ' ')
+        newErrors[formField] = `${label} is required`
+      }
     }
 
     setErrors(newErrors)
@@ -371,9 +414,10 @@ export function RegistrationForm({ event, brandConfig, onSuccess, onCancel, trac
 
           {/* Name row */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {isAttrEnabled('first_name') && (
             <div>
               <label htmlFor="first_name" className={`block text-base font-medium ${theme.label} mb-2`}>
-                First name <span className={theme.requiredClass} style={{ backgroundColor: `${primaryColor}50` }}>required</span>
+                First name {isAttrRequired('first_name') && <span className={theme.requiredClass} style={{ backgroundColor: `${primaryColor}50` }}>required</span>}
               </label>
               <GlowInput
                 type="text"
@@ -392,10 +436,12 @@ export function RegistrationForm({ event, brandConfig, onSuccess, onCancel, trac
               />
               {errors.first_name && <p className={`mt-1 text-sm ${theme.errorText}`}>{errors.first_name}</p>}
             </div>
+            )}
 
+            {isAttrEnabled('last_name') && (
             <div>
               <label htmlFor="last_name" className={`block text-base font-medium ${theme.label} mb-2`}>
-                Last name <span className={theme.requiredClass} style={{ backgroundColor: `${primaryColor}50` }}>required</span>
+                Last name {isAttrRequired('last_name') && <span className={theme.requiredClass} style={{ backgroundColor: `${primaryColor}50` }}>required</span>}
               </label>
               <GlowInput
                 type="text"
@@ -414,13 +460,16 @@ export function RegistrationForm({ event, brandConfig, onSuccess, onCancel, trac
               />
               {errors.last_name && <p className={`mt-1 text-sm ${theme.errorText}`}>{errors.last_name}</p>}
             </div>
+            )}
           </div>
 
-          {/* Company & Job Title row */}
+          {/* Company & Job Title row - only show if at least one is enabled */}
+          {(isAttrEnabled('company') || isAttrEnabled('job_title')) && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {isAttrEnabled('company') && (
             <div>
               <label htmlFor="company" className={`block text-base font-medium ${theme.label} mb-2`}>
-                Company
+                Company {isAttrRequired('company') && <span className={theme.requiredClass} style={{ backgroundColor: `${primaryColor}50` }}>required</span>}
               </label>
               <GlowInput
                 type="text"
@@ -430,14 +479,21 @@ export function RegistrationForm({ event, brandConfig, onSuccess, onCancel, trac
                 onChange={handleChange}
                 glowColor={primaryColor}
                 borderRadius="0.5rem"
-                className={`w-full text-base px-4 py-2.5 border ${theme.inputBorder} rounded-lg ${theme.inputBg} ${theme.inputText} ${theme.inputPlaceholder} focus:outline-none transition-colors`}
+                className={`w-full text-base px-4 py-2.5 border rounded-lg ${theme.inputBg} ${theme.inputText} ${theme.inputPlaceholder} focus:outline-none transition-colors ${
+                  errors.company
+                    ? `${theme.errorInputBorder}`
+                    : `${theme.inputBorder}`
+                }`}
                 disabled={isSubmitting}
               />
+              {errors.company && <p className={`mt-1 text-sm ${theme.errorText}`}>{errors.company}</p>}
             </div>
+            )}
 
+            {isAttrEnabled('job_title') && (
             <div>
               <label htmlFor="job_title" className={`block text-base font-medium ${theme.label} mb-2`}>
-                Job title
+                Job title {isAttrRequired('job_title') && <span className={theme.requiredClass} style={{ backgroundColor: `${primaryColor}50` }}>required</span>}
               </label>
               <GlowInput
                 type="text"
@@ -447,11 +503,18 @@ export function RegistrationForm({ event, brandConfig, onSuccess, onCancel, trac
                 onChange={handleChange}
                 glowColor={primaryColor}
                 borderRadius="0.5rem"
-                className={`w-full text-base px-4 py-2.5 border ${theme.inputBorder} rounded-lg ${theme.inputBg} ${theme.inputText} ${theme.inputPlaceholder} focus:outline-none transition-colors`}
+                className={`w-full text-base px-4 py-2.5 border rounded-lg ${theme.inputBg} ${theme.inputText} ${theme.inputPlaceholder} focus:outline-none transition-colors ${
+                  errors.job_title
+                    ? `${theme.errorInputBorder}`
+                    : `${theme.inputBorder}`
+                }`}
                 disabled={isSubmitting}
               />
+              {errors.job_title && <p className={`mt-1 text-sm ${theme.errorText}`}>{errors.job_title}</p>}
             </div>
+            )}
           </div>
+          )}
 
           {/* Submit buttons */}
           <div className="flex flex-col sm:flex-row gap-3 pt-2">

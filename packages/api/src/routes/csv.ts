@@ -189,7 +189,7 @@ csvRouter.get('/export/people', async (req, res) => {
 
     let query = supabase
       .from('people')
-      .select('*')
+      .select('id, email, attributes, auth_user_id, created_at, updated_at')
       .order('created_at', { ascending: false });
 
     if (status) query = query.eq('status', status);
@@ -201,7 +201,27 @@ csvRouter.get('/export/people', async (req, res) => {
       return res.status(404).json({ error: 'No people found' });
     }
 
-    const columns = Object.keys(data[0]);
+    // Flatten attributes into top-level columns for CSV readability
+    const flatRows = data.map((row: any) => {
+      const attrs = row.attributes || {};
+      return {
+        id: row.id,
+        email: row.email,
+        first_name: attrs.first_name || '',
+        last_name: attrs.last_name || '',
+        company: attrs.company || '',
+        job_title: attrs.job_title || '',
+        phone: attrs.phone || '',
+        linkedin_url: attrs.linkedin_url || '',
+        city: attrs.city || '',
+        country: attrs.country || '',
+        auth_user_id: row.auth_user_id || '',
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      };
+    });
+
+    const columns = Object.keys(flatRows[0]);
 
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', 'attachment; filename="people.csv"');
@@ -209,7 +229,7 @@ csvRouter.get('/export/people', async (req, res) => {
     const stringifier = stringify({ header: true, columns });
     stringifier.pipe(res);
 
-    for (const row of data) {
+    for (const row of flatRows) {
       stringifier.write(row);
     }
 
@@ -285,35 +305,51 @@ function normalizeEventRecord(record: Record<string, string>): Record<string, un
 }
 
 function normalizePersonRecord(record: Record<string, string>): Record<string, unknown> {
-  const normalized: Record<string, unknown> = {};
+  // Fields that stay as top-level columns
+  const topLevelFields: Record<string, string> = {
+    email: 'email',
+    email_address: 'email',
+  };
 
-  const fieldMap: Record<string, string> = {
+  // Fields that go into the attributes JSONB column
+  const attributeFields: Record<string, string> = {
     first_name: 'first_name',
     firstname: 'first_name',
     first: 'first_name',
     last_name: 'last_name',
     lastname: 'last_name',
     last: 'last_name',
-    email: 'email',
-    email_address: 'email',
     company: 'company',
     organization: 'company',
     phone: 'phone',
     phone_number: 'phone',
-    status: 'status',
-    title: 'title',
-    job_title: 'title',
+    title: 'job_title',
+    job_title: 'job_title',
   };
 
+  const normalized: Record<string, unknown> = {};
+  const attributes: Record<string, string> = {};
+
   for (const [csvKey, value] of Object.entries(record)) {
-    const dbKey = fieldMap[csvKey.toLowerCase().trim()] ?? csvKey.toLowerCase().trim();
-    if (value !== '') {
-      normalized[dbKey] = value;
+    const key = csvKey.toLowerCase().trim();
+    if (value === '') continue;
+
+    if (topLevelFields[key]) {
+      normalized[topLevelFields[key]] = value;
+    } else if (attributeFields[key]) {
+      attributes[attributeFields[key]] = value;
+    } else {
+      // Unknown fields go into attributes
+      attributes[key] = value;
     }
   }
 
   if (!normalized.email) {
     throw new Error('Missing required field: email');
+  }
+
+  if (Object.keys(attributes).length > 0) {
+    normalized.attributes = attributes;
   }
 
   return normalized;

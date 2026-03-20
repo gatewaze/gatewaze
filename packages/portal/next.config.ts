@@ -3,6 +3,9 @@ import type { NextConfig } from 'next'
 const nextConfig: NextConfig = {
   reactStrictMode: true,
 
+  // Transpile shared workspace package
+  transpilePackages: ['@gatewaze/shared'],
+
   // Move dev indicator to bottom-right to avoid overlapping cookie consent button
   devIndicators: {
     position: 'bottom-right',
