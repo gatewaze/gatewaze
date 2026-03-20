@@ -120,7 +120,7 @@ const CustomCombobox = forwardRef(function CustomCombobox<
                         "outline-hidden focus:outline-hidden relative w-full cursor-default overflow-hidden rounded-lg border text-start transition-colors",
                         error
                           ? "border-error dark:border-error-lighter"
-                          : "focus-within:border-primary-600! dark:focus-within:border-primary-500! border-gray-300 hover:border-gray-400 dark:border-dark-450 dark:hover:border-dark-400",
+                          : "focus-within:border-primary-600! dark:focus-within:border-primary-500! border-[var(--gray-a5)] hover:border-[var(--gray-a6)]",
                       )}
                     >
                       <div className="flex flex-wrap justify-start gap-2 px-3 py-2 ltr:pr-9 rtl:pl-9">
@@ -136,7 +136,7 @@ const CustomCombobox = forwardRef(function CustomCombobox<
                           classNames={{
                             root: "flex-1",
                             input:
-                              "placeholder:font-light placeholder:text-gray-600 dark:placeholder:text-dark-200",
+                              "placeholder:font-light placeholder:text-[var(--gray-11)]",
                           }}
                           unstyled
                           displayValue={(val: { item?: DataItem }) =>
@@ -160,7 +160,7 @@ const CustomCombobox = forwardRef(function CustomCombobox<
                       <div className="absolute inset-y-0 flex items-center ltr:right-0 ltr:pr-2 rtl:left-0 rtl:pl-2">
                         <ChevronDownIcon
                           className={clsx(
-                            "size-5 text-gray-400 transition-transform dark:text-dark-300",
+                            "size-5 text-[var(--gray-a8)] transition-transform",
                             open && "rotate-180",
                           )}
                           aria-hidden="true"
@@ -213,12 +213,12 @@ const CustomCombobox = forwardRef(function CustomCombobox<
                       ["--left-anchor" as string]: `${inputLeft}px`,
                     }}
                     className={clsx(
-                      "left-(--left-anchor)! outline-hidden focus-visible:outline-hidden absolute z-10 max-h-60 overflow-y-auto overflow-x-hidden rounded-lg border border-gray-300 bg-white py-1 shadow-lg shadow-gray-200/50 dark:border-dark-500 dark:bg-dark-750 dark:shadow-none",
+                      "left-(--left-anchor)! outline-hidden focus-visible:outline-hidden absolute z-10 max-h-60 overflow-y-auto overflow-x-hidden rounded-lg border border-[var(--gray-a5)] bg-[var(--color-background)] py-1 shadow-lg shadow-gray-200/50 dark:shadow-none",
                       multiple && "mt-2",
                     )}
                   >
                     {filteredData.length === 0 && query !== "" ? (
-                      <div className="relative cursor-default select-none px-4 py-2 text-gray-800 dark:text-dark-100">
+                      <div className="relative cursor-default select-none px-4 py-2 text-[var(--gray-12)]">
                         Nothing found for {query}
                       </div>
                     ) : (
@@ -236,10 +236,10 @@ const CustomCombobox = forwardRef(function CustomCombobox<
                               "outline-hidden relative cursor-pointer select-none px-4 py-2 transition-colors",
                               active &&
                                 !selected &&
-                                "bg-gray-100 dark:bg-dark-600",
+                                "bg-[var(--gray-a3)]",
                               selected
                                 ? "bg-primary-600 text-white dark:bg-primary-500"
-                                : "text-gray-800 dark:text-dark-100",
+                                : "text-[var(--gray-12)]",
                             )
                           }
                           value={item}

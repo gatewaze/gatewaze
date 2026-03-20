@@ -1,10 +1,21 @@
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import { App } from './App';
-import './index.css';
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import App from './App.tsx'
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
+import "./i18n/config";
+import "./utils/setupEvents";
+import "./utils/validateEventsData";
+import { setupFavicon } from './utils/favicon';
+
+import "simplebar-react/dist/simplebar.min.css";
+
+import "./styles/index.css";
+
+// Setup brand-specific favicon and title
+setupFavicon();
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
     <App />
-  </React.StrictMode>,
-);
+  </StrictMode>,
+)

@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Import Dependencies
 import clsx from "clsx";
 import { Fragment } from "react";

@@ -13,7 +13,7 @@ interface Props {
   brandConfig: BrandConfig
 }
 
-interface CustomerData {
+interface PersonData {
   id: string
   attributes: Record<string, string>
 }
@@ -27,7 +27,7 @@ export function ProfileCompletionWizard({ brandConfig }: Props) {
   const { enrichUser } = useUserEnrichment()
   const [showWizard, setShowWizard] = useState(false)
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [_customerData, setCustomerData] = useState<CustomerData | null>(null)
+  const [_personData, setPersonData] = useState<PersonData | null>(null)
   const [profileDetails, setProfileDetails] = useState<ProfileDetails>({
     firstName: '',
     lastName: '',
@@ -63,16 +63,16 @@ export function ProfileCompletionWizard({ brandConfig }: Props) {
           global: { headers: { Authorization: `Bearer ${session.access_token}` } }
         })
 
-        const { data: customer } = await supabase
-          .from('customers')
+        const { data: person } = await supabase
+          .from('people')
           .select('id, attributes')
           .eq('auth_user_id', user.id)
           .maybeSingle()
 
-        if (customer) {
-          let attrs = (customer.attributes as Record<string, string>) || {}
-          setCustomerData({
-            id: customer.id,
+        if (person) {
+          let attrs = (person.attributes as Record<string, string>) || {}
+          setPersonData({
+            id: person.id,
             attributes: attrs,
           })
 
@@ -117,7 +117,7 @@ export function ProfileCompletionWizard({ brandConfig }: Props) {
             setShowWizard(true)
           }
         } else {
-          // No customer record - show wizard to create one
+          // No person record - show wizard to create one
           setShowWizard(true)
         }
       } catch (err) {
@@ -143,8 +143,8 @@ export function ProfileCompletionWizard({ brandConfig }: Props) {
     try {
       const config = getClientBrandConfig()
 
-      // Call user-signup to update customer attributes
-      const response = await fetch(`${config.supabaseUrl}/functions/v1/user-signup`, {
+      // Call people-signup to update person attributes
+      const response = await fetch(`${config.supabaseUrl}/functions/v1/people-signup`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

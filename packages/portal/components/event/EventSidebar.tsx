@@ -318,8 +318,9 @@ function EventMobileActionsInner({ event, eventIdentifier, useDarkText, primaryC
         {!isConfirmedSpeaker && isRegistered && (() => {
           const slug = event.gradual_eventslug
           if (slug) {
-            const eventUrl = `https://home.mlops.community/public/events/${slug}`
-            const joinUrl = `https://home.mlops.community/login?event=${slug}&returnTo=${encodeURIComponent(eventUrl)}&type=event`
+            const portalDomain = process.env.NEXT_PUBLIC_PORTAL_DOMAIN || 'home.mlops.community'
+            const eventUrl = `https://${portalDomain}/public/events/${slug}`
+            const joinUrl = `https://${portalDomain}/login?event=${slug}&returnTo=${encodeURIComponent(eventUrl)}&type=event`
             return (
               <PortalButton
                 variant="primary"
@@ -408,7 +409,7 @@ function EventMobileActionsInner({ event, eventIdentifier, useDarkText, primaryC
           menuOpen ? 'max-h-96 opacity-100 mt-3' : 'max-h-0 opacity-0 mt-0'
         }`}
       >
-        <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText}>
+        <GlowBorder useDarkTheme={useDarkText}>
           <div className={`${theme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${theme.panelBorder}`}>
             <nav className="p-2 flex flex-col gap-2">
               {visibleItems.map((item) => {
@@ -445,7 +446,7 @@ function EventMobileActionsInner({ event, eventIdentifier, useDarkText, primaryC
                         {item.icon}
                       </span>
                     </div>
-                    <span className="text-sm font-medium text-white">
+                    <span className="text-base font-medium text-white">
                       {item.label}
                     </span>
                   </Link>
@@ -547,8 +548,9 @@ function EventSidebarInner({ event, eventIdentifier, useDarkText, primaryColor, 
       {!isConfirmedSpeaker && isRegistered && (() => {
         const slug = event.gradual_eventslug
         if (slug) {
-          const eventUrl = `https://home.mlops.community/public/events/${slug}`
-          const joinUrl = `https://home.mlops.community/login?event=${slug}&returnTo=${encodeURIComponent(eventUrl)}&type=event`
+          const portalDomain = process.env.NEXT_PUBLIC_PORTAL_DOMAIN || 'home.mlops.community'
+          const eventUrl = `https://${portalDomain}/public/events/${slug}`
+          const joinUrl = `https://${portalDomain}/login?event=${slug}&returnTo=${encodeURIComponent(eventUrl)}&type=event`
           return (
             <PortalButton
               variant="primary"
@@ -596,7 +598,7 @@ function EventSidebarInner({ event, eventIdentifier, useDarkText, primaryColor, 
         </div>
       )}
 
-      <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText}>
+      <GlowBorder useDarkTheme={useDarkText}>
         <div className={`${theme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${theme.panelBorder}`}>
           <nav className="p-2 flex flex-col gap-2">
             {visibleItems.map((item) => {
@@ -632,7 +634,7 @@ function EventSidebarInner({ event, eventIdentifier, useDarkText, primaryColor, 
                       {item.icon}
                     </span>
                   </div>
-                  <span className="text-sm font-medium text-white">
+                  <span className="text-base font-medium text-white">
                     {item.label}
                   </span>
                 </Link>

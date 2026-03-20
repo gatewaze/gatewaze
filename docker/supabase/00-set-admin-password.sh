@@ -1,6 +1,9 @@
 #!/bin/sh
 set -e
 
+# Signal that initdb scripts are running (used by db-healthcheck.sh)
+touch /tmp/gatewaze-init-started
+
 # The supabase/postgres Docker image is designed for AMI builds where
 # supabase_admin is pre-created. In Docker with a fresh volume, initdb
 # only creates the 'postgres' user. This script creates supabase_admin

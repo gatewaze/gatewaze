@@ -16,7 +16,7 @@ import { GlowBorder } from '@/components/ui/GlowBorder'
 
 type AutoRegState = 'checking' | 'registering' | 'done' | 'none'
 
-interface CustomerData {
+interface PersonData {
   email?: string
   first_name?: string
   last_name?: string
@@ -30,7 +30,7 @@ export function RegisterContent() {
   const [showNativeForm, setShowNativeForm] = useState(event.enable_native_registration ?? false)
   const [autoRegState, setAutoRegState] = useState<AutoRegState>('checking')
   const [autoRegEmail, setAutoRegEmail] = useState<string>('')
-  const [customerData, setCustomerData] = useState<CustomerData | null>(null)
+  const [personData, setPersonData] = useState<PersonData | null>(null)
   const autoRegAttempted = useRef(false)
 
   const panelTheme = useMemo(() => ({
@@ -67,25 +67,25 @@ export function RegisterContent() {
           global: { headers: { Authorization: `Bearer ${authSession.access_token}` } },
         })
 
-        // Fetch customer profile
-        const { data: customer } = await supabase
-          .from('customers')
+        // Fetch person profile
+        const { data: person } = await supabase
+          .from('people')
           .select('email, attributes')
           .eq('auth_user_id', user.id)
           .maybeSingle()
 
-        if (!customer) {
+        if (!person) {
           setAutoRegState('none')
           return
         }
 
-        const attrs = (customer.attributes as Record<string, string>) || {}
-        const email = customer.email || user.email || ''
+        const attrs = (person.attributes as Record<string, string>) || {}
+        const email = person.email || user.email || ''
         const firstName = attrs.first_name || ''
         const lastName = attrs.last_name || ''
 
-        // Store customer data for form pre-fill fallback
-        setCustomerData({ email, first_name: firstName, last_name: lastName })
+        // Store person data for form pre-fill fallback
+        setPersonData({ email, first_name: firstName, last_name: lastName })
 
         if (!email || !firstName || !lastName) {
           // Missing required fields — fall back to form (pre-filled)
@@ -199,7 +199,7 @@ export function RegisterContent() {
   // Past event — registration no longer available
   if (userState.timeline === 'past') {
     return (
-      <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText}>
+      <GlowBorder useDarkTheme={useDarkText}>
         <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8`}>
           <div className="text-center py-8">
             <div className={`w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center ${useDarkText ? 'bg-gray-900/10' : 'bg-white/20'}`}>
@@ -222,7 +222,7 @@ export function RegisterContent() {
   // Already registered — show confirmation
   if (!userState.isLoading && userState.isRegistered && autoRegState !== 'done') {
     return (
-      <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText}>
+      <GlowBorder useDarkTheme={useDarkText}>
         <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8`}>
           <div className="text-center">
             <div className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center" style={{ backgroundColor: primaryColor, color: isLightColor(primaryColor) ? '#000000' : '#ffffff' }}>
@@ -246,7 +246,7 @@ export function RegisterContent() {
   // Auto-registration loading state
   if (event.enable_native_registration && event.enable_registration && (autoRegState === 'checking' || autoRegState === 'registering')) {
     return (
-      <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText}>
+      <GlowBorder useDarkTheme={useDarkText}>
         <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8`}>
           <div className="text-center py-8">
             <div
@@ -268,7 +268,7 @@ export function RegisterContent() {
   // Auto-registration success state
   if (autoRegState === 'done') {
     return (
-      <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText}>
+      <GlowBorder useDarkTheme={useDarkText}>
         <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8`}>
           <div className="text-center">
             <div className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center" style={{ backgroundColor: primaryColor, color: isLightColor(primaryColor) ? '#000000' : '#ffffff' }}>
@@ -291,7 +291,7 @@ export function RegisterContent() {
 
   if (!event.enable_registration) {
     return (
-      <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText}>
+      <GlowBorder useDarkTheme={useDarkText}>
         <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8`}>
           <div className="text-center py-8">
             <svg
@@ -325,7 +325,7 @@ export function RegisterContent() {
   // Native registration form
   if (event.enable_native_registration && showNativeForm) {
     return (
-      <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText}>
+      <GlowBorder useDarkTheme={useDarkText}>
         <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8`}>
           <RegistrationForm
             event={event}
@@ -334,7 +334,7 @@ export function RegisterContent() {
             onCancel={() => setShowNativeForm(false)}
             trackingSessionId={session?.sessionId}
             useDarkTheme={useDarkText}
-            initialData={customerData || prefillProfile || undefined}
+            initialData={personData || prefillProfile || undefined}
           />
         </div>
       </GlowBorder>
@@ -343,7 +343,7 @@ export function RegisterContent() {
 
   // External registration link
   return (
-    <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText}>
+    <GlowBorder useDarkTheme={useDarkText}>
       <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8`}>
         <div className="text-center">
           <div

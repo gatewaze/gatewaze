@@ -41,17 +41,15 @@ export async function generateMetadata(): Promise<Metadata> {
   const isCustomDomain = headersList.get('x-custom-domain') === 'true'
   const eventIdentifier = headersList.get('x-event-identifier')
 
-  // Favicon: use DB-configured URL if set, otherwise fall back to static theme files
+  // Favicon: use DB-configured URL if set, otherwise fall back to static 96x96 PNG
   const faviconIcons = brandConfig.faviconUrl
     ? { icon: [{ url: brandConfig.faviconUrl, sizes: 'any' }], shortcut: brandConfig.faviconUrl }
     : {
         icon: [
-          { url: `/theme/${brandId}/favicon.ico`, sizes: 'any' },
-          { url: `/theme/${brandId}/favicon-16x16.png`, sizes: '16x16', type: 'image/png' },
-          { url: `/theme/${brandId}/favicon-32x32.png`, sizes: '32x32', type: 'image/png' },
           { url: `/theme/${brandId}/favicon-96x96.png`, sizes: '96x96', type: 'image/png' },
+          { url: `/theme/${brandId}/favicon-32x32.png`, sizes: '32x32', type: 'image/png' },
         ],
-        shortcut: `/theme/${brandId}/favicon.ico`,
+        shortcut: `/theme/${brandId}/favicon-96x96.png`,
       }
 
   if (isCustomDomain && eventIdentifier) {

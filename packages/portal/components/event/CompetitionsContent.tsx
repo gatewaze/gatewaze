@@ -120,7 +120,7 @@ function CompetitionCard({ competition, index }: { competition: CompetitionWithE
 
       {/* Countdown Timer — own glass panel */}
       {!isClosed && competition.close_date && (
-        <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText} autoRotate autoRotateSpeed={20}>
+        <GlowBorder useDarkTheme={useDarkText} autoRotate autoRotateSpeed={20}>
           <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-5 sm:p-6`}>
             <div className="flex items-center gap-2 mb-3">
               <span className="relative flex h-2 w-2">
@@ -156,7 +156,7 @@ function CompetitionCard({ competition, index }: { competition: CompetitionWithE
       )}
 
       {isClosed && (
-        <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText}>
+        <GlowBorder useDarkTheme={useDarkText}>
           <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-5 sm:p-6 text-center`}>
             <p className={`text-sm font-medium ${panelTheme.textMuted}`}>
               This competition has ended
@@ -167,7 +167,7 @@ function CompetitionCard({ competition, index }: { competition: CompetitionWithE
 
       {/* Entry Form / Success State — own glass panel */}
       {!isClosed && (
-        <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText}>
+        <GlowBorder useDarkTheme={useDarkText}>
           <div
             className={`backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-5 sm:p-6`}
             style={{ backgroundColor: `${primaryColor}12` }}
@@ -298,7 +298,7 @@ export function CompetitionsContent() {
     async function fetchCompetitions() {
       const supabase = getSupabaseClient()
       const { data } = await supabase
-        .from('event_competitions')
+        .from('events_competitions')
         .select('*')
         .eq('event_id', event.event_id)
         .eq('status', 'active')
@@ -308,7 +308,7 @@ export function CompetitionsContent() {
       let competitionsWithStatus = data || []
       if (session?.user?.email) {
         const { data: entries } = await supabase
-          .from('competition_entries')
+          .from('events_competition_entries')
           .select('competition_id')
           .eq('email', session.user.email.toLowerCase())
           .in('competition_id', competitionsWithStatus.map(c => c.id))
@@ -349,7 +349,7 @@ export function CompetitionsContent() {
       {/* Content */}
       <div className={`transition-opacity duration-300 ${isLoading ? 'opacity-0' : 'opacity-100'}`}>
         {competitions.length === 0 && !isLoading ? (
-          <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText}>
+          <GlowBorder useDarkTheme={useDarkText}>
             <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-8`}>
               <div className="text-center py-4">
                 <div className={`w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center ${panelTheme.cardBg}`}>

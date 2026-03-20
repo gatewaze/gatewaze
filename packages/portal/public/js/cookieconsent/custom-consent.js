@@ -1,9 +1,9 @@
 /**
- * Custom Cookie Consent Manager for tech.tickets and mlops
+ * Custom Cookie Consent Manager for Gatewaze
  * Self-hosted, GDPR compliant, RudderStack integrated
  */
 
-class TechTicketsCookieConsent {
+class GatewazeCookieConsent {
   constructor() {
     this.consentGiven = true; // Default to true (implicit consent)
     this.consentDenied = false;
@@ -15,7 +15,7 @@ class TechTicketsCookieConsent {
     };
 
     // Detect brand and set colors/fonts
-    this.brand = document.documentElement.dataset.brand || 'techtickets';
+    this.brand = document.documentElement.dataset.brand || 'gatewaze';
     this.colors = this.getBrandColors();
     this.fontStack = this.getFontStack();
 
@@ -54,16 +54,12 @@ class TechTicketsCookieConsent {
     }
 
     const brandColors = {
-      techtickets: {
-        primary: '#ee4443',
-        primaryHover: '#dc3b3a'
+      gatewaze: {
+        primary: '#20dd20',
+        primaryHover: '#1bc41b'
       },
-      mlops: {
-        primary: '#ca2b7f',
-        primaryHover: '#b02570'
-      }
     };
-    return brandColors[this.brand] || brandColors.techtickets;
+    return brandColors[this.brand] || brandColors.gatewaze;
   }
 
   getFontStack() {
@@ -945,11 +941,11 @@ class TechTicketsCookieConsent {
 // Initialize when DOM is ready
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
-    window.techTicketsConsent = new TechTicketsCookieConsent();
+    window.gatewazeConsent = new GatewazeCookieConsent();
   });
 } else {
-  window.techTicketsConsent = new TechTicketsCookieConsent();
+  window.gatewazeConsent = new GatewazeCookieConsent();
 }
 
 // Make it globally available
-window.TechTicketsCookieConsent = TechTicketsCookieConsent;
+window.GatewazeCookieConsent = GatewazeCookieConsent;

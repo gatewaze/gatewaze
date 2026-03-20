@@ -9,18 +9,13 @@ const FluidBackground = dynamic(
   { ssr: false }
 )
 
-type BrandKey = 'mlops' | 'techtickets'
+type BrandKey = 'gatewaze'
 
 const brandColors: Record<BrandKey, { color1: string; color2: string; color3: string }> = {
-  mlops: {
-    color1: '#ca2b7f',
-    color2: '#4086c6',
-    color3: '#1e2837',
-  },
-  techtickets: {
-    color1: '#ee4443',
-    color2: '#1e2837',
-    color3: '#000000',
+  gatewaze: {
+    color1: '#20dd20',
+    color2: '#0d6e0d',
+    color3: '#0a0a0a',
   },
 }
 
@@ -29,7 +24,7 @@ export default function TestFluidPage() {
   const [radius, setRadius] = useState(0.35)
   const [roughness, setRoughness] = useState(0.4)
   const [metalness, setMetalness] = useState(0.1)
-  const [activeBrand, setActiveBrand] = useState<BrandKey>('mlops')
+  const [activeBrand, setActiveBrand] = useState<BrandKey>('gatewaze')
 
   const colors = brandColors[activeBrand]
 
@@ -184,32 +179,18 @@ export default function TestFluidPage() {
           </label>
           <div style={{ display: 'flex', gap: '8px' }}>
             <button
-              onClick={() => setActiveBrand('mlops')}
+              onClick={() => setActiveBrand('gatewaze')}
               style={{
                 padding: '8px 16px',
                 borderRadius: '6px',
-                border: activeBrand === 'mlops' ? '2px solid white' : '2px solid transparent',
-                background: '#ca2b7f',
+                border: activeBrand === 'gatewaze' ? '2px solid white' : '2px solid transparent',
+                background: '#20dd20',
                 color: 'white',
                 cursor: 'pointer',
                 fontSize: '13px',
               }}
             >
-              MLOps
-            </button>
-            <button
-              onClick={() => setActiveBrand('techtickets')}
-              style={{
-                padding: '8px 16px',
-                borderRadius: '6px',
-                border: activeBrand === 'techtickets' ? '2px solid white' : '2px solid transparent',
-                background: '#ee4443',
-                color: 'white',
-                cursor: 'pointer',
-                fontSize: '13px',
-              }}
-            >
-              TechTickets
+              Gatewaze
             </button>
           </div>
         </div>

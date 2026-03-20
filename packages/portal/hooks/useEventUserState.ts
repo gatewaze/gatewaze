@@ -98,23 +98,23 @@ export function useEventUserState(event: Event & { id: string }): EventUserState
         // Use the singleton client — it already manages the auth session
         const supabase = getSupabaseClient()
 
-        // Get customer
-        const { data: customer } = await supabase
-          .from('customers')
+        // Get person
+        const { data: person } = await supabase
+          .from('people')
           .select('id, email')
           .eq('auth_user_id', user!.id)
           .maybeSingle()
 
-        if (!customer || cancelled) {
+        if (!person || cancelled) {
           if (!cancelled) setState(prev => ({ ...prev, isLoading: false }))
           return
         }
 
-        // Get member profiles
+        // Get people profiles
         const { data: profiles } = await supabase
-          .from('member_profiles')
+          .from('people_profiles')
           .select('id')
-          .eq('customer_id', customer.id)
+          .eq('person_id', person.id)
 
         if (!profiles?.length || cancelled) {
           if (!cancelled) setState(prev => ({ ...prev, isLoading: false }))
@@ -128,10 +128,10 @@ export function useEventUserState(event: Event & { id: string }): EventUserState
           // Check registration
           event.enable_registration
             ? supabase
-                .from('event_registrations')
+                .from('events_registrations')
                 .select('id, calendar_added_at')
                 .eq('event_id', event.event_id)
-                .in('member_profile_id', profileIds)
+                .in('people_profile_id', profileIds)
                 .neq('status', 'cancelled')
                 .limit(1)
                 .maybeSingle()
@@ -140,7 +140,7 @@ export function useEventUserState(event: Event & { id: string }): EventUserState
           // Check speaker/talk submissions
           (async () => {
             const { data: speakerTalks } = await supabase
-              .from('event_talk_speakers')
+              .from('events_talk_speakers')
               .select(`
                 is_primary,
                 speaker:event_speakers!inner (
@@ -162,7 +162,7 @@ export function useEventUserState(event: Event & { id: string }): EventUserState
                 )
               `)
               .eq('speaker.event_uuid', event.id)
-              .in('speaker.member_profile_id', profileIds)
+              .in('speaker.people_profile_id', profileIds)
               .eq('is_primary', true)
 
             return speakerTalks
@@ -205,7 +205,7 @@ export function useEventUserState(event: Event & { id: string }): EventUserState
           presentationType: primaryTalk?.talk?.presentation_type || null,
           calendarAddedAt: primaryTalk?.talk?.calendar_added_at || null,
           trackingLinkCopiedAt: primaryTalk?.talk?.tracking_link_copied_at || null,
-          speakerEmail: customer!.email || null,
+          speakerEmail: person!.email || null,
           registrationId: registration?.id || null,
           registrationCalendarAddedAt: registration?.calendar_added_at || null,
           isLoading: false,

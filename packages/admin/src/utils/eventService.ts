@@ -1,8 +1,6 @@
-// @ts-nocheck
 import { supabase } from '@/lib/supabase';
 import { ScreenshotService } from './screenshotService';
 import { EventExportService } from './eventExportService';
-import { NetlifyBuildService } from './netlifyBuildService';
 
 export interface Event {
   id?: string;
@@ -24,7 +22,6 @@ export interface Event {
   offerCloseDate?: string;
   eventStart?: string;
   eventEnd?: string;
-  listingType?: string;
   eventRegion?: string;
   eventLocation?: string;
   eventTopicsUpdatedAt?: number;
@@ -67,8 +64,6 @@ export interface Event {
   walkinsAllowed?: boolean;
   // Luma integration
   lumaEventId?: string;
-  // Gradual integration
-  gradualEventslug?: string;
   // Custom domain (white-label)
   customDomain?: string | null;
   customDomainStatus?: string | null;
@@ -88,8 +83,6 @@ export interface Event {
   gradientColor1?: string | null;
   gradientColor2?: string | null;
   gradientColor3?: string | null;
-  portalTheme?: string | null;
-  themeColors?: Record<string, string> | null;
   // Registration count (computed field)
   registrationCount?: number;
   // Talk duration options for speaker submissions
@@ -159,7 +152,6 @@ export class EventService {
         offerCloseDate: data.offer_close_date,
         eventStart: data.event_start,
         eventEnd: data.event_end,
-        listingType: data.listing_type,
         eventRegion: data.event_region,
         eventLocation: data.event_location,
         eventTopicsUpdatedAt: data.event_topics_updated_at,
@@ -185,7 +177,6 @@ export class EventService {
         enableCallForSpeakers: data.enable_call_for_speakers || false,
         enableAgenda: data.enable_agenda || false,
         lumaEventId: data.luma_event_id,
-        gradualEventslug: data.gradual_eventslug,
         customDomain: data.custom_domain,
         customDomainStatus: data.custom_domain_status,
         sourceEventId: data.source_event_id,
@@ -197,8 +188,6 @@ export class EventService {
         gradientColor1: data.gradient_color_1,
         gradientColor2: data.gradient_color_2,
         gradientColor3: data.gradient_color_3,
-        portalTheme: data.portal_theme || null,
-        themeColors: data.theme_colors || null,
         talkDurationOptions: data.talk_duration_options || [{ duration: 10, capacity: 10 }, { duration: 25, capacity: 5 }],
         lumaPageData: data.luma_page_data,
         meetupPageData: data.meetup_page_data,
@@ -261,7 +250,6 @@ export class EventService {
         offerCloseDate: data.offer_close_date,
         eventStart: data.event_start,
         eventEnd: data.event_end,
-        listingType: data.listing_type,
         eventRegion: data.event_region,
         eventLocation: data.event_location,
         eventTopicsUpdatedAt: data.event_topics_updated_at,
@@ -287,7 +275,6 @@ export class EventService {
         enableCallForSpeakers: data.enable_call_for_speakers || false,
         enableAgenda: data.enable_agenda || false,
         lumaEventId: data.luma_event_id,
-        gradualEventslug: data.gradual_eventslug,
         customDomain: data.custom_domain,
         customDomainStatus: data.custom_domain_status,
         sourceEventId: data.source_event_id,
@@ -299,8 +286,6 @@ export class EventService {
         gradientColor1: data.gradient_color_1,
         gradientColor2: data.gradient_color_2,
         gradientColor3: data.gradient_color_3,
-        portalTheme: data.portal_theme || null,
-        themeColors: data.theme_colors || null,
         talkDurationOptions: data.talk_duration_options || [{ duration: 10, capacity: 10 }, { duration: 25, capacity: 5 }],
         lumaPageData: data.luma_page_data,
         meetupPageData: data.meetup_page_data,
@@ -336,7 +321,7 @@ export class EventService {
 
         const { data, error } = await supabase
           .from('events')
-          .select('*, event_registrations(count)')
+          .select('*, events_registrations(count)')
           .order('event_start', { ascending: true })
           .range(startRange, endRange);
 
@@ -387,7 +372,6 @@ export class EventService {
         offerCloseDate: event.offer_close_date,
         eventStart: event.event_start,
         eventEnd: event.event_end,
-        listingType: event.listing_type,
         eventRegion: event.event_region,
         eventLocation: event.event_location,
         eventTopicsUpdatedAt: event.event_topics_updated_at,
@@ -417,7 +401,7 @@ export class EventService {
         // External source event ID
         sourceEventId: event.source_event_id,
         // Registration count from joined query
-        registrationCount: event.event_registrations?.[0]?.count || 0,
+        registrationCount: event.events_registrations?.[0]?.count || 0,
         // Recommended event
         recommendedEventId: event.recommended_event_id || null,
       })) || [];
@@ -509,7 +493,6 @@ static async createEvent(eventData: Omit<Event, 'id' | 'createdAt' | 'updatedAt'
         offer_close_date: eventData.offerCloseDate || null,
         event_start: eventData.eventStart || null,
         event_end: eventData.eventEnd || null,
-        listing_type: eventData.listingType || null,
         event_region: eventData.eventRegion || null,
         event_location: eventLocation || null,
         event_topics_updated_at: eventData.eventTopicsUpdatedAt || null,
@@ -549,21 +532,6 @@ static async createEvent(eventData: Omit<Event, 'id' | 'createdAt' | 'updatedAt'
         ScreenshotManagementService.generateCheckinQrCode(data.id).catch(error => {
           console.warn(`QR code generation failed for event ${eventData.eventId}:`, error);
           // Don't fail the creation if QR code generation fails
-        });
-      }
-
-      // Trigger Netlify builds after successful create (for UI creates)
-      const isUICreate = sourceType === 'manual' || !sourceType;
-      if (isUICreate) {
-        // For UI creates, trigger builds immediately
-        NetlifyBuildService.triggerBuildsForEvent({
-          accountId: eventData.accountId,
-          account: eventData.account,
-          isLiveInProduction: eventData.isLiveInProduction !== undefined ? eventData.isLiveInProduction : true,
-          sourceType: sourceType || 'manual'
-        }, 'create').catch(error => {
-          console.warn('Failed to trigger Netlify build after event creation:', error);
-          // Don't fail the creation if build trigger fails
         });
       }
 
@@ -644,7 +612,6 @@ static async createEvent(eventData: Omit<Event, 'id' | 'createdAt' | 'updatedAt'
       if (eventData.offerCloseDate !== undefined) updateData.offer_close_date = eventData.offerCloseDate || null;
       if (eventData.eventStart !== undefined) updateData.event_start = eventData.eventStart || null;
       if (eventData.eventEnd !== undefined) updateData.event_end = eventData.eventEnd || null;
-      if (eventData.listingType !== undefined) updateData.listing_type = eventData.listingType || null;
       if (eventData.eventRegion !== undefined) updateData.event_region = eventData.eventRegion || null;
       if (eventLocation !== undefined) updateData.event_location = eventLocation || null;
       if (eventData.venueAddress !== undefined) updateData.venue_address = eventData.venueAddress || null;
@@ -668,7 +635,6 @@ static async createEvent(eventData: Omit<Event, 'id' | 'createdAt' | 'updatedAt'
       if (eventData.enableCallForSpeakers !== undefined) updateData.enable_call_for_speakers = eventData.enableCallForSpeakers;
       if (eventData.enableAgenda !== undefined) updateData.enable_agenda = eventData.enableAgenda;
       if (eventData.lumaEventId !== undefined) updateData.luma_event_id = eventData.lumaEventId || null;
-      if (eventData.gradualEventslug !== undefined) updateData.gradual_eventslug = eventData.gradualEventslug || null;
       if (eventData.customDomain !== undefined) updateData.custom_domain = eventData.customDomain || null;
       if (eventData.customDomainStatus !== undefined) updateData.custom_domain_status = eventData.customDomainStatus || null;
       if (eventData.sourceEventId !== undefined) updateData.source_event_id = eventData.sourceEventId || null;
@@ -676,8 +642,6 @@ static async createEvent(eventData: Omit<Event, 'id' | 'createdAt' | 'updatedAt'
       if (eventData.gradientColor1 !== undefined) updateData.gradient_color_1 = eventData.gradientColor1 || null;
       if (eventData.gradientColor2 !== undefined) updateData.gradient_color_2 = eventData.gradientColor2 || null;
       if (eventData.gradientColor3 !== undefined) updateData.gradient_color_3 = eventData.gradientColor3 || null;
-      if (eventData.portalTheme !== undefined) updateData.portal_theme = eventData.portalTheme || null;
-      if (eventData.themeColors !== undefined) updateData.theme_colors = eventData.themeColors || null;
       if (eventData.talkDurationOptions !== undefined) updateData.talk_duration_options = eventData.talkDurationOptions || null;
       if (eventData.registerButtonText !== undefined) updateData.register_button_text = eventData.registerButtonText || null;
       if (eventData.pageContent !== undefined) updateData.page_content = eventData.pageContent || null;
@@ -753,42 +717,6 @@ static async createEvent(eventData: Omit<Event, 'id' | 'createdAt' | 'updatedAt'
             console.warn(`Screenshot generation failed for event ${originalEvent.eventId}:`, error);
           });
         }
-      }
-
-      // Trigger Netlify builds after successful update (for UI edits)
-      // Determine if this is a UI edit vs scraper update based on source
-      const isUIEdit = !sourceType || sourceType === 'manual';
-      if (isUIEdit) {
-        // Check if isLiveInProduction changed
-        const oldIsLive = originalEvent?.isLiveInProduction !== undefined ? originalEvent.isLiveInProduction : true;
-        const newIsLive = eventData.isLiveInProduction !== undefined ? eventData.isLiveInProduction : oldIsLive;
-        const liveStatusChanged = eventData.isLiveInProduction !== undefined && oldIsLive !== newIsLive;
-
-        const buildTriggerData = {
-          accountId: eventData.accountId || originalEvent?.accountId,
-          account: originalEvent?.account,
-          isLiveInProduction: newIsLive,
-          liveStatusChanged,  // Pass this to know if we need to force production build
-          sourceType: sourceType || 'manual'
-        };
-
-        console.log('🚀 Triggering Netlify builds with data:', {
-          isLiveInProduction: buildTriggerData.isLiveInProduction,
-          liveStatusChanged: buildTriggerData.liveStatusChanged,
-          oldIsLive,
-          newIsLive,
-          account: buildTriggerData.account,
-          accountId: buildTriggerData.accountId,
-          sourceType: buildTriggerData.sourceType
-        });
-
-        // For UI edits, trigger builds immediately
-        NetlifyBuildService.triggerBuildsForEvent(buildTriggerData, 'update').catch(error => {
-          console.error('❌ Failed to trigger Netlify build after event update:', error);
-          // Don't fail the update if build trigger fails
-        });
-      } else {
-        console.log('⏭️ Skipping build triggers (not a UI edit, sourceType:', sourceType, ')');
       }
 
       return { success: true, data: true };
@@ -937,7 +865,7 @@ export class EventIdGenerator {
 export class ScreenshotManagementService {
   static async updateScreenshotStatus(eventId: string, generated: boolean, url?: string): Promise<EventServiceResponse<boolean>> {
     try {
-      const { data, error } = await supabase.rpc('update_event_screenshot_status', {
+      const { data, error } = await supabase.rpc('events_update_screenshot_status', {
         p_event_id: eventId,
         p_screenshot_generated: generated,
         p_screenshot_url: url || null,
@@ -988,32 +916,6 @@ export class ScreenshotManagementService {
     } catch (error) {
       console.error('Error in bulkUpdateScreenshotStatus:', error);
       return { success: false, error: 'Failed to bulk update screenshot status' };
-    }
-  }
-
-  /**
-   * Trigger Netlify builds after scraper batch operations
-   * This method is throttled to once per day per environment
-   */
-  static async triggerBuildsAfterScraperRun(events: Event[]): Promise<void> {
-    if (!events || events.length === 0) return;
-
-    try {
-      console.log(`🔄 Processing Netlify builds for ${events.length} scraper events`);
-
-      // Convert Event[] to the format expected by NetlifyBuildService
-      const eventData = events.map(event => ({
-        accountId: event.accountId,
-        account: event.account,
-        scrapedBy: event.scrapedBy,
-        isLiveInProduction: event.isLiveInProduction !== undefined ? event.isLiveInProduction : true,
-      }));
-
-      // Use batch trigger which handles throttling
-      await NetlifyBuildService.triggerBuildsForBatch(eventData, 'scraper');
-    } catch (error) {
-      console.error('Failed to trigger builds after scraper run:', error);
-      // Don't throw - this is a non-critical operation
     }
   }
 

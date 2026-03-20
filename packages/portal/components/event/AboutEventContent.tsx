@@ -63,7 +63,7 @@ function AboutEventContentInner() {
         const { createClient } = await import('@supabase/supabase-js')
         const supabase = createClient(config.supabaseUrl, config.supabaseAnonKey)
         const { data } = await supabase
-          .from('event_competitions')
+          .from('events_competitions')
           .select('id, title, value, intro, close_date, close_display')
           .eq('event_id', event.event_id)
           .eq('status', 'active')
@@ -85,7 +85,7 @@ function AboutEventContentInner() {
       try {
         const supabase = getSupabaseClient()
         const { data } = await supabase
-          .from('event_discounts')
+          .from('events_discounts')
           .select('*')
           .eq('event_id', event.event_id)
           .eq('status', 'active')
@@ -154,7 +154,7 @@ function AboutEventContentInner() {
     try {
       const supabase = getSupabaseClient()
       await supabase
-        .from('event_registrations')
+        .from('events_registrations')
         .update({ calendar_added_at: new Date().toISOString() })
         .eq('id', registrationId)
     } catch (err) {
@@ -173,8 +173,9 @@ function AboutEventContentInner() {
   const joinEventUrl = useMemo(() => {
     const slug = event.gradual_eventslug
     if (!slug) return null
-    const eventUrl = `https://home.mlops.community/public/events/${slug}`
-    return `https://home.mlops.community/login?event=${slug}&returnTo=${encodeURIComponent(eventUrl)}&type=event`
+    const portalDomain = process.env.NEXT_PUBLIC_PORTAL_DOMAIN || 'home.mlops.community'
+    const eventUrl = `https://${portalDomain}/public/events/${slug}`
+    return `https://${portalDomain}/login?event=${slug}&returnTo=${encodeURIComponent(eventUrl)}&type=event`
   }, [event.gradual_eventslug])
 
   const showJoinPanel = !!event.gradual_eventslug && (
@@ -188,7 +189,7 @@ function AboutEventContentInner() {
       {/* Join Event Panel */}
       {showJoinPanel && (
         <div className={`mb-6 transition-opacity duration-500 ease-out ${mounted ? 'opacity-100' : 'opacity-0'}`}>
-          <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText}>
+          <GlowBorder useDarkTheme={useDarkText}>
             <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-5 sm:p-6`}>
               <div className="flex items-start gap-4">
                 <div className="flex-shrink-0 mt-0.5">
@@ -252,7 +253,7 @@ function AboutEventContentInner() {
       {/* Past Event Banner */}
       {timeline === 'past' && (
         <div className={`mb-6 transition-opacity duration-500 ease-out ${mounted ? 'opacity-100' : 'opacity-0'}`}>
-          <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText}>
+          <GlowBorder useDarkTheme={useDarkText}>
             <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-5`}>
               <div className="flex items-center gap-3">
                 <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${useDarkText ? 'bg-gray-900/10' : 'bg-white/20'}`}>
@@ -275,7 +276,7 @@ function AboutEventContentInner() {
       {/* Live Event Banner */}
       {timeline === 'live' && (
         <div className={`mb-6 transition-opacity duration-500 ease-out ${mounted ? 'opacity-100' : 'opacity-0'}`}>
-          <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText}>
+          <GlowBorder useDarkTheme={useDarkText}>
             <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-5`}>
               <div className="flex items-center gap-3">
                 <span className="relative flex h-3 w-3 flex-shrink-0">
@@ -297,7 +298,7 @@ function AboutEventContentInner() {
       {/* Confirmed Speaker Prep Panel (upcoming/live) */}
       {!userStateLoading && isConfirmedSpeaker && timeline !== 'past' && (
         <div className={`mb-6 transition-opacity duration-500 ease-out ${mounted ? 'opacity-100' : 'opacity-0'}`}>
-          <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText}>
+          <GlowBorder useDarkTheme={useDarkText}>
             <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-5 sm:p-6`}>
               <div className="flex items-start gap-4 mb-4">
                 <div className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: primaryColor, color: isLightColor(primaryColor) ? '#000000' : '#ffffff' }}>
@@ -355,7 +356,7 @@ function AboutEventContentInner() {
 
         return (
           <div className={`mb-6 transition-opacity duration-500 ease-out ${mounted ? 'opacity-100' : 'opacity-0'}`}>
-            <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText}>
+            <GlowBorder useDarkTheme={useDarkText}>
               <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-5 sm:p-6`}>
                 <div className="flex items-start gap-4">
                   <div className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: primaryColor, color: isLightColor(primaryColor) ? '#000000' : '#ffffff' }}>
@@ -492,7 +493,7 @@ function AboutEventContentInner() {
       {/* Talk Submission Status (upcoming, submitted but not confirmed) */}
       {!userStateLoading && hasTalkSubmission && !isConfirmedSpeaker && timeline !== 'past' && (
         <div className={`mb-6 transition-opacity duration-500 ease-out ${mounted ? 'opacity-100' : 'opacity-0'}`}>
-          <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText}>
+          <GlowBorder useDarkTheme={useDarkText}>
             <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-5 sm:p-6`}>
               <div className="flex items-start gap-4">
                 <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${useDarkText ? 'bg-yellow-500/15' : 'bg-yellow-500/20'}`}>
@@ -667,7 +668,7 @@ function CompetitionCountdownPanel({
     async function checkEntry() {
       const supabase = getSupabaseClient()
       const { data } = await supabase
-        .from('competition_entries')
+        .from('events_competition_entries')
         .select('id')
         .eq('competition_id', competition.id)
         .eq('email', session!.user!.email!.toLowerCase())
@@ -710,7 +711,7 @@ function CompetitionCountdownPanel({
   if (timeLeft.isExpired) return null
 
   return (
-    <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText} className="shadow-2xl" autoRotate autoRotateSpeed={50} borderWidth={2}>
+    <GlowBorder useDarkTheme={useDarkText} className="shadow-2xl" autoRotate autoRotateSpeed={50} borderWidth={2}>
       <div
         className={`backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder}`}
       >

@@ -3,14 +3,10 @@ import type { NextRequest } from 'next/server'
 
 // Known brand hostnames that should pass through normally
 const KNOWN_HOSTS = [
-  'www.tech.tickets',
-  'events.tech.tickets',
-  'app.mlops.community',
-  'events.mlops.community',
-  'admin.tech.tickets',
-  'admin.mlops.community',
-  'gatewaze.mlops.community',
-  'custom.tech.tickets',
+  'www.gatewaze.com',
+  'events.gatewaze.com',
+  'app.gatewaze.com',
+  'admin.gatewaze.com',
 ]
 
 // Valid sub-paths under a custom domain event
@@ -22,13 +18,34 @@ const PASSTHROUGH_PATHS = ['/sign-in', '/auth', '/privacy', '/terms', '/do-not-s
 // Known region codes for path-based filter URLs
 const KNOWN_REGION_CODES = new Set(['as', 'af', 'eu', 'na', 'sa', 'oc', 'on'])
 
-// Event type slug mapping (plural URL slug → singular DB value)
+// Well-known event type slugs (plural URL slug → singular DB value).
+// Custom event types are handled by depluralizing unknown segments.
 const EVENT_TYPE_SLUGS: Record<string, string> = {
   conferences: 'conference',
   meetups: 'meetup',
   workshops: 'workshop',
   webinars: 'webinar',
   hackathons: 'hackathon',
+}
+
+/** Attempt to de-pluralize a URL slug to get the singular DB value.
+ *  Falls back to the slug as-is if no known rule applies. */
+function slugToEventType(slug: string): string {
+  // Check known slugs first
+  if (slug in EVENT_TYPE_SLUGS) return EVENT_TYPE_SLUGS[slug]
+  // De-pluralize: -ies → -y, -es → remove, -s → remove
+  if (slug.endsWith('ies')) return slug.slice(0, -3) + 'y'
+  if (slug.endsWith('shes') || slug.endsWith('ches')) return slug.slice(0, -2)
+  if (slug.endsWith('ses')) return slug.slice(0, -2)
+  if (slug.endsWith('s')) return slug.slice(0, -1)
+  return slug
+}
+
+/** Check if a segment looks like a pluralized event type slug (ends in s, not a region) */
+function isEventTypeSlug(seg: string): boolean {
+  if (KNOWN_REGION_CODES.has(seg)) return false
+  if (FILTER_VIEWS.has(seg)) return false
+  return seg.endsWith('s') && seg.length > 2
 }
 
 // Views that support path-based filters
@@ -149,7 +166,7 @@ export async function middleware(request: NextRequest) {
       const url = request.nextUrl.clone()
       const filterParts: string[] = []
       for (const seg of segments) {
-        if (KNOWN_REGION_CODES.has(seg) || seg in EVENT_TYPE_SLUGS) {
+        if (KNOWN_REGION_CODES.has(seg) || isEventTypeSlug(seg)) {
           filterParts.push(seg)
         }
       }
@@ -178,8 +195,8 @@ export async function middleware(request: NextRequest) {
       for (const seg of segments) {
         if (!region && KNOWN_REGION_CODES.has(seg)) {
           region = seg
-        } else if (!type && seg in EVENT_TYPE_SLUGS) {
-          type = EVENT_TYPE_SLUGS[seg]
+        } else if (!type && isEventTypeSlug(seg)) {
+          type = slugToEventType(seg)
         }
       }
       if (region || type) {
@@ -224,8 +241,8 @@ export async function middleware(request: NextRequest) {
   const eventIdentifier = await lookupEventByDomain(hostname)
 
   if (!eventIdentifier) {
-    // Unknown domain with no matching event — redirect to TechTickets
-    return NextResponse.redirect(new URL('https://www.tech.tickets'))
+    // Unknown domain with no matching event — redirect to main site
+    return NextResponse.redirect(new URL('https://www.gatewaze.com'))
   }
 
   // Passthrough paths (auth, legal pages, API, profile)

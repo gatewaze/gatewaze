@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Hook for managing team member permissions
  * Simplifies granting/revoking permissions when managing team members
@@ -117,8 +116,7 @@ export function useTeamMemberPermissions(
     async (adminId: string, accountId?: string | null): Promise<boolean> => {
       const allFeatures: AdminFeature[] = [
         'dashboard_home',
-        'dashboard_members',
-        'dashboard_segment_mappings',
+        'dashboard_people',
         'accounts',
         'users',
         'events',

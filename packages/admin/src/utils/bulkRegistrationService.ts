@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { supabase } from '@/lib/supabase';
 import { getApiConfig } from '@/config/brands';
 
@@ -304,13 +303,13 @@ export class BulkRegistrationService {
   }
 
   /**
-   * Create customer via user-signup edge function
+   * Create customer via people-signup edge function
    * This creates the auth user, customer record in Supabase, and syncs to CIO server-side
    * Returns the customer record directly (no polling needed)
    */
-  static async createCustomerViaSignup(email: string, metadata?: Record<string, any>): Promise<any | null> {
+  static async createPersonViaSignup(email: string, metadata?: Record<string, any>): Promise<any | null> {
     try {
-      const { data, error } = await supabase.functions.invoke('user-signup', {
+      const { data, error } = await supabase.functions.invoke('people-signup', {
         body: {
           email,
           source: 'admin_bulk_registration',
@@ -319,18 +318,18 @@ export class BulkRegistrationService {
       });
 
       if (error) {
-        console.error('Failed to create customer via user-signup:', error);
+        console.error('Failed to create customer via people-signup:', error);
         return null;
       }
 
       if (!data?.success) {
-        console.error('Failed to create customer via user-signup:', data?.error);
+        console.error('Failed to create customer via people-signup:', data?.error);
         return null;
       }
 
       // Fetch the full customer record from Supabase
       const { data: customer } = await supabase
-        .from('customers')
+        .from('people')
         .select('*')
         .eq('email', email)
         .maybeSingle();
@@ -343,19 +342,19 @@ export class BulkRegistrationService {
   }
 
   /**
-   * @deprecated Use createCustomerViaSignup instead
+   * @deprecated Use createPersonViaSignup instead
    */
-  static async createCustomerInCIO(email: string): Promise<string | null> {
-    const customer = await this.createCustomerViaSignup(email);
+  static async createPersonInCIO(email: string): Promise<string | null> {
+    const customer = await this.createPersonViaSignup(email);
     return customer ? email : null;
   }
 
   /**
-   * @deprecated No longer needed — createCustomerViaSignup creates the customer directly
+   * @deprecated No longer needed — createPersonViaSignup creates the customer directly
    */
-  static async pollForCustomer(email: string, maxAttempts: number = 30): Promise<any | null> {
+  static async pollForPerson(email: string, maxAttempts: number = 30): Promise<any | null> {
     const { data: customer } = await supabase
-      .from('customers')
+      .from('people')
       .select('*')
       .eq('email', email)
       .maybeSingle();
@@ -365,7 +364,7 @@ export class BulkRegistrationService {
   /**
    * Update customer attributes in Customer.io via edge function
    */
-  static async updateCustomerInCIO(
+  static async updatePersonInCIO(
     cioId: string,
     attributes: {
       first_name: string;
@@ -378,7 +377,7 @@ export class BulkRegistrationService {
     try {
       // Look up the customer's email from cio_id
       const { data: customer } = await supabase
-        .from('customers')
+        .from('people')
         .select('email')
         .eq('cio_id', cioId)
         .maybeSingle();
@@ -388,7 +387,7 @@ export class BulkRegistrationService {
         return false;
       }
 
-      const { data, error } = await supabase.functions.invoke('sync-customer-to-cio', {
+      const { data, error } = await supabase.functions.invoke('integrations-customerio-sync-person', {
         body: {
           email: customer.email,
           attributes,
@@ -410,7 +409,7 @@ export class BulkRegistrationService {
   /**
    * Update customer attributes in Supabase
    */
-  static async updateCustomerAttributes(
+  static async updatePersonAttributes(
     customerId: number,
     attributes: {
       first_name: string;
@@ -422,7 +421,7 @@ export class BulkRegistrationService {
   ): Promise<boolean> {
     try {
       const payload: any = {
-        p_customer_id: customerId,
+        p_person_id: customerId,
         p_first_name: attributes.first_name,
         p_last_name: attributes.last_name,
         p_company: attributes.company,
@@ -433,7 +432,7 @@ export class BulkRegistrationService {
         payload.p_linkedin_url = attributes.linkedin_url;
       }
 
-      const { error } = await supabase.rpc('update_customer_attributes', payload);
+      const { error } = await supabase.rpc('people_update_attributes', payload);
 
       if (error) {
         console.error('Error updating customer attributes:', error);
@@ -450,12 +449,12 @@ export class BulkRegistrationService {
   /**
    * Get or create member profile for customer
    */
-  static async getOrCreateMemberProfile(customerId: number): Promise<any | null> {
+  static async getOrCreatePeopleProfile(customerId: number): Promise<any | null> {
     try {
       // Use the RPC function that properly handles QR code generation
       const { data: memberProfileId, error: rpcError } = await supabase
-        .rpc('get_or_create_member_from_customer', {
-          p_customer_id: customerId,
+        .rpc('people_get_or_create_profile', {
+          p_person_id: customerId,
         });
 
       if (rpcError) {
@@ -465,7 +464,7 @@ export class BulkRegistrationService {
 
       // Get the full member profile data
       const { data: member, error: selectError } = await supabase
-        .from('member_profiles')
+        .from('people_profiles')
         .select('*')
         .eq('id', memberProfileId)
         .single();
@@ -492,10 +491,10 @@ export class BulkRegistrationService {
     try {
       // Check if already registered
       const { data: existing } = await supabase
-        .from('event_registrations')
+        .from('events_registrations')
         .select('id')
         .eq('event_id', eventId)
-        .eq('member_profile_id', memberProfileId)
+        .eq('people_profile_id', memberProfileId)
         .maybeSingle();
 
       if (existing) {
@@ -505,10 +504,10 @@ export class BulkRegistrationService {
 
       // Create registration
       const { error } = await supabase
-        .from('event_registrations')
+        .from('events_registrations')
         .insert({
           event_id: eventId,
-          member_profile_id: memberProfileId,
+          people_profile_id: memberProfileId,
           registration_type: 'individual',
           registration_source: 'csv_upload',
           payment_status: 'comp',
@@ -537,7 +536,7 @@ export class BulkRegistrationService {
     try {
       // Check if customer already exists
       let { data: customer } = await supabase
-        .from('customers')
+        .from('people')
         .select('*')
         .eq('email', row.email)
         .maybeSingle();
@@ -546,13 +545,13 @@ export class BulkRegistrationService {
       if (!customer) {
         console.log(`Creating new customer: ${row.email}`);
 
-        const cioId = await this.createCustomerInCIO(row.email);
+        const cioId = await this.createPersonInCIO(row.email);
         if (!cioId) {
           return { success: false, error: 'Failed to create customer in Customer.io' };
         }
 
         // Poll for customer to appear in Supabase
-        customer = await this.pollForCustomer(row.email);
+        customer = await this.pollForPerson(row.email);
         if (!customer) {
           return { success: false, error: 'Customer creation timed out' };
         }
@@ -568,12 +567,12 @@ export class BulkRegistrationService {
       };
 
       await Promise.all([
-        this.updateCustomerInCIO(customer.cio_id, attributes),
-        this.updateCustomerAttributes(customer.id, attributes),
+        this.updatePersonInCIO(customer.cio_id, attributes),
+        this.updatePersonAttributes(customer.id, attributes),
       ]);
 
       // Get or create member profile
-      const member = await this.getOrCreateMemberProfile(customer.id);
+      const member = await this.getOrCreatePeopleProfile(customer.id);
       if (!member) {
         return { success: false, error: 'Failed to create member profile' };
       }

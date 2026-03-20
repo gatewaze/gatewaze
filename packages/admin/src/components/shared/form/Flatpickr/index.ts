@@ -1,4 +1,3 @@
-// @ts-nocheck
 /*
 
 This file is the entry point for the Flatpickr component.

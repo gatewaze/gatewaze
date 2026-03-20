@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * YouTube Service
  * Handles YouTube API integration for video uploads

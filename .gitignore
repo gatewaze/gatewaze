@@ -12,6 +12,9 @@ out/
 .env
 .env.local
 .env.*.local
+docker/.env
+docker/.env.*
+!docker/.env.example
 
 # IDE / AI tools
 .vscode/
@@ -35,3 +38,60 @@ docker/data/
 # Supabase
 supabase/.temp/
 supabase/.branches/
+
+# Module-owned edge functions (copied by deploy-functions script)
+# These live in their module's functions/ dir in the modules repo.
+supabase/functions/email-batch-send/
+supabase/functions/calendars-api/
+supabase/functions/calendars-discover/
+supabase/functions/calendars-process-csv/
+supabase/functions/cohorts-create-payment/
+supabase/functions/cohorts-interest/
+supabase/functions/cohorts-signup/
+supabase/functions/events-competition-entry/
+supabase/functions/events-create-payment/
+supabase/functions/integrations-customerio-sync/
+supabase/functions/integrations-customerio-webhook/
+supabase/functions/integrations-customerio-sync-person/
+supabase/functions/event-invite-rsvp/
+supabase/functions/integrations-google-sheets-notify/
+supabase/functions/integrations-google-sheets-oauth/
+supabase/functions/integrations-gradual-sync/
+supabase/functions/integrations-gradual-webhook/
+supabase/functions/integrations-gradual-import-history/
+supabase/functions/integrations-luma-issue-discount/
+supabase/functions/integrations-luma-process-csv/
+supabase/functions/integrations-luma-process-registration/
+supabase/functions/integrations-luma-webhook/
+supabase/functions/integrations-track-offer/
+supabase/functions/integrations-stripe-webhook/
+supabase/functions/integrations-stripe-sync/
+supabase/functions/events-interest/
+supabase/functions/events-speaker-confirm/
+supabase/functions/events-speaker-submission/
+supabase/functions/events-speaker-submissions/
+supabase/functions/events-speaker-tracking-link/
+supabase/functions/events-speaker-update/
+supabase/functions/events-speaker-update-notify/
+supabase/functions/media-combine-chunks/
+supabase/functions/media-get-youtube-upload-url/
+supabase/functions/media-process-image/
+supabase/functions/media-process-youtube-uploads/
+supabase/functions/media-process-zip/
+supabase/functions/media-upload-youtube/
+supabase/functions/integrations-slack-list-channels/
+supabase/functions/integrations-slack-notify/
+supabase/functions/integrations-slack-oauth-callback/
+supabase/functions/integrations-bigquery-proxy/
+supabase/functions/integrations-cvent-sync/
+supabase/functions/integrations-send-conversion/
+supabase/functions/integrations-send-meta-conversion/
+supabase/functions/integrations-send-reddit-conversion/
+supabase/functions/integrations-sync-newsletters/
+supabase/functions/integrations-track-event/
+
+# Module source cache (git-cloned modules)
+.gatewaze-modules/
+
+# Uploaded module packages
+data/uploaded-modules/

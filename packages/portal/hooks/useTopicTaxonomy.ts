@@ -117,9 +117,9 @@ export function useTopicTaxonomy(): TopicsData {
     const supabase = getSupabaseClient()
 
     Promise.all([
-      supabase.from('topic_categories').select('id, name, parent_id, display_order'),
-      supabase.from('topics').select('id, name, display_order'),
-      supabase.from('topic_category_memberships').select('topic_id, category_id'),
+      supabase.from('events_topic_categories').select('id, name, parent_id, display_order'),
+      supabase.from('events_topics').select('id, name, display_order'),
+      supabase.from('events_topic_category_memberships').select('topic_id, category_id'),
     ]).then(([catRes, topicRes, memRes]) => {
       if (catRes.error || topicRes.error || memRes.error) return
 

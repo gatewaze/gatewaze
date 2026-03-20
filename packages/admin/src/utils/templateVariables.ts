@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Template Variable System
  *
@@ -76,8 +75,8 @@ export const templateVariableScopes: TemplateVariableScope[] = [
       { field: 'id', label: 'Event ID', description: 'Unique event identifier', example: 'abc123' },
       { field: 'city', label: 'City', description: 'Event city', example: 'San Francisco' },
       { field: 'country', label: 'Country', description: 'Event country code', example: 'US' },
-      { field: 'event_start', label: 'Start Date', description: 'Event start date', example: 'January 15, 2025' },
-      { field: 'event_end', label: 'End Date', description: 'Event end date', example: 'January 17, 2025' },
+      { field: 'start_date', label: 'Start Date', description: 'Event start date', example: 'January 15, 2025' },
+      { field: 'end_date', label: 'End Date', description: 'Event end date', example: 'January 17, 2025' },
     ],
   },
 ];
@@ -215,7 +214,7 @@ export function generateSlug(text: string): string {
 }
 
 // Context data types
-export interface CustomerContext {
+export interface PersonContext {
   first_name?: string;
   last_name?: string;
   full_name?: string;
@@ -249,12 +248,12 @@ export interface EventContext {
   id?: string;
   city?: string;
   country?: string;
-  event_start?: string;
-  event_end?: string;
+  start_date?: string;
+  end_date?: string;
 }
 
 export interface TemplateContext {
-  customer?: CustomerContext;
+  customer?: PersonContext;
   speaker?: SpeakerContext;
   sponsor?: SponsorContext;
   event?: EventContext;
@@ -373,10 +372,10 @@ export function buildContext(options: BuildContextOptions): TemplateContext {
       id: options.event.event_id, // Uses 6-character event_id
       city: options.event.event_city,
       country: options.event.event_country_code,
-      event_start: options.event.event_start
+      start_date: options.event.event_start
         ? formatDate(options.event.event_start)
         : undefined,
-      event_end: options.event.event_end
+      end_date: options.event.event_end
         ? formatDate(options.event.event_end)
         : undefined,
     };

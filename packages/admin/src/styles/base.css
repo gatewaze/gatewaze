@@ -1,0 +1,123 @@
+/* Pointer cursor for all interactive elements */
+button,
+[role="button"],
+[role="tab"],
+summary {
+  cursor: pointer !important;
+}
+
+/* Basic styles */
+html {
+  @apply h-full [-webkit-tap-highlight-color:transparent] [text-rendering:optimizeLegibility];
+}
+
+html.dark {
+  @apply [color-scheme:dark];
+}
+
+body {
+  @apply h-full font-sans text-sm leading-5 antialiased [text-rendering:optimizeLegibility];
+  background-color: var(--color-background);
+  color: var(--gray-11);
+}
+
+body.is-monochrome::before {
+  @apply pointer-events-none fixed inset-0 z-999999 -m-[5rem] h-[calc(100%+10rem)] w-[calc(100%+10rem)] backdrop-grayscale backdrop-opacity-[.92] content-[''];
+}
+
+.transition-content {
+  @apply duration-[.25s] ease-in [transition-property:width,padding-left,padding-right,margin-left,margin-right];
+}
+
+.is-sidebar-open .transition-content {
+  @apply ease-out;
+}
+
+/* Sidebar Toggle Button */
+.sidebar-toggle-btn span {
+  @apply h-[2px] w-5 translate-x-0 bg-current transition-all duration-[.25s] ease-in-out;
+}
+
+.sidebar-toggle-btn span:nth-child(2) {
+  @apply w-3;
+}
+
+.sidebar-toggle-btn.active span {
+  @apply ml-2 w-[11px] -translate-x-2;
+}
+
+.sidebar-toggle-btn.active span:nth-child(1) {
+  @apply -rotate-45 rtl:rotate-45;
+}
+
+.sidebar-toggle-btn.active span:nth-child(2) {
+  @apply hidden;
+}
+
+.sidebar-toggle-btn.active span:nth-child(3) {
+  @apply rotate-45 rtl:-rotate-45;
+}
+
+.min-h-100vh {
+  min-height: 100vh;
+}
+
+@supports (height: 100dvh) {
+  .min-h-100vh {
+    min-height: 100dvh;
+  }
+}
+
+/* Demo inline space */
+.inline-space > :not([hidden]) {
+  @apply mb-2.5 mr-2.5;
+}
+
+.inline-code code {
+  @apply rounded-sm px-1 py-0.5 text-xs-plus;
+  background-color: var(--gray-a3);
+  color: var(--accent-11);
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.hide-scrollbar::-webkit-scrollbar {
+  @apply hidden;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.hide-scrollbar {
+  @apply [-ms-overflow-style:none] [scrollbar-width:none];
+}
+
+@supports selector(::-webkit-scrollbar) {
+  .custom-scrollbar {
+    @apply [--margin-scroll:0px] [--scrollbar-size:.25rem];
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    @apply size-(--scrollbar-size);
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-clip-content;
+    background-color: var(--gray-a6);
+    border-left: var(--margin-scroll) solid transparent;
+    border-right: var(--margin-scroll) solid transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: var(--gray-a8);
+  }
+}
+
+/* Chrome, Safari, Edge, Opera Hide input number arrow*/
+input.hide-number-arrow::-webkit-outer-spin-button,
+input.hide-number-arrow::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Firefox Hide input number arrow*/
+input[type="number"].hide-number-arrow {
+  -moz-appearance: textfield;
+}

@@ -4,7 +4,7 @@
  */
 
 import { SupabaseClient } from '@supabase/supabase-js';
-import { MemberService } from './memberService_v2';
+import { PeopleProfileService } from './peopleProfileService_v2';
 
 export interface RegisterAttendee {
   eventId: string;
@@ -36,10 +36,10 @@ export interface CheckInAttendee {
 }
 
 export class RegistrationService {
-  private memberService: MemberService;
+  private peopleProfileService: PeopleProfileService;
 
   constructor(private supabase: SupabaseClient) {
-    this.memberService = new MemberService(supabase);
+    this.peopleProfileService = new PeopleProfileService(supabase);
   }
 
   /**
@@ -53,7 +53,7 @@ export class RegistrationService {
   async registerForEvent(data: RegisterAttendee) {
     // 1. Find or create customer by email
     let customer = await this.supabase
-      .from('customers')
+      .from('people')
       .select('*')
       .eq('email', data.customerEmail)
       .single();
@@ -61,7 +61,7 @@ export class RegistrationService {
     if (!customer.data) {
       // Create new customer
       const { data: newCustomer, error } = await this.supabase
-        .from('customers')
+        .from('people')
         .insert({
           email: data.customerEmail,
           cio_id: `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // Temporary CIO ID
@@ -83,7 +83,7 @@ export class RegistrationService {
       data.linkedinUrl ||
       data.phone
     ) {
-      await this.memberService.updateCustomerAttributes(customer.data.id, {
+      await this.peopleProfileService.updatePersonAttributes(customer.data.id, {
         firstName: data.firstName,
         lastName: data.lastName,
         company: data.company,
@@ -94,16 +94,16 @@ export class RegistrationService {
     }
 
     // 3. Get or create member profile (adds QR capability)
-    const member = await this.memberService.getOrCreateMemberProfile(
+    const member = await this.peopleProfileService.getOrCreatePeopleProfile(
       customer.data.id
     );
 
     // 4. Create event registration
     const { data: registration, error: regError } = await this.supabase
-      .from('event_registrations')
+      .from('events_registrations')
       .insert({
         event_id: data.eventId,
-        member_profile_id: member.id,
+        people_profile_id: member.id,
         registration_type: data.registrationType,
         ticket_type: data.ticketType,
         registration_source: data.registrationSource,
@@ -128,7 +128,7 @@ export class RegistrationService {
     // 5. Update discount code if applicable
     if (data.discountCodeId) {
       await this.supabase
-        .from('discount_codes')
+        .from('events_discount_codes')
         .update({
           member_profile_id: member.id,
           event_registration_id: registration.id,
@@ -205,7 +205,7 @@ export class RegistrationService {
     }
   ) {
     let query = this.supabase
-      .from('event_registrations_with_members')
+      .from('events_registrations_with_people')
       .select('*', { count: 'exact' })
       .eq('event_id', eventId);
 
@@ -245,10 +245,10 @@ export class RegistrationService {
   async checkInAttendee(data: CheckInAttendee) {
     // Get registration
     const { data: registration, error: regError } = await this.supabase
-      .from('event_registrations')
+      .from('events_registrations')
       .select('*')
       .eq('event_id', data.eventId)
-      .eq('member_profile_id', data.memberProfileId)
+      .eq('people_profile_id', data.memberProfileId)
       .eq('status', 'confirmed')
       .single();
 
@@ -258,10 +258,10 @@ export class RegistrationService {
 
     // Check if already checked in
     const { data: existing } = await this.supabase
-      .from('event_attendance')
+      .from('events_attendance')
       .select('id')
       .eq('event_id', data.eventId)
-      .eq('member_profile_id', data.memberProfileId)
+      .eq('people_profile_id', data.memberProfileId)
       .single();
 
     if (existing) {
@@ -270,10 +270,10 @@ export class RegistrationService {
 
     // Create attendance record
     const { data: attendance, error } = await this.supabase
-      .from('event_attendance')
+      .from('events_attendance')
       .insert({
         event_id: data.eventId,
-        member_profile_id: data.memberProfileId,
+        people_profile_id: data.memberProfileId,
         event_registration_id: registration.id,
         check_in_method: data.checkInMethod || 'manual_entry',
         check_in_location: data.checkInLocation,
@@ -287,7 +287,7 @@ export class RegistrationService {
     // Update discount code if applicable
     if (registration.discount_code_id) {
       await this.supabase
-        .from('discount_codes')
+        .from('events_discount_codes')
         .update({
           registered: true,
           attended: true,
@@ -312,7 +312,7 @@ export class RegistrationService {
     }
   ) {
     let query = this.supabase
-      .from('event_attendance_with_details')
+      .from('events_attendance_with_details')
       .select('*', { count: 'exact' })
       .eq('event_id', eventId);
 
@@ -343,7 +343,7 @@ export class RegistrationService {
    */
   async getRegistrationStats(eventId: string) {
     const { data, error } = await this.supabase.rpc(
-      'get_event_registration_stats',
+      'events_get_registration_stats',
       {
         p_event_id: eventId,
       }
@@ -373,7 +373,7 @@ export class RegistrationService {
    */
   async cancelRegistration(registrationId: string) {
     const { data, error } = await this.supabase
-      .from('event_registrations')
+      .from('events_registrations')
       .update({
         status: 'cancelled',
         cancelled_at: new Date().toISOString(),
@@ -397,9 +397,9 @@ export class RegistrationService {
     }
   ) {
     let query = this.supabase
-      .from('event_registrations_with_members')
+      .from('events_registrations_with_people')
       .select('*')
-      .eq('member_profile_id', memberProfileId)
+      .eq('people_profile_id', memberProfileId)
       .eq('status', 'confirmed');
 
     if (filters?.upcoming) {

@@ -1,173 +1,439 @@
-import { useCallback, useEffect, useReducer, useRef } from 'react';
-import type { AuthUser, AuthAdapter } from '@gatewaze/shared';
-import { AuthContext } from './context';
-import { createAuthAdapter } from '@/lib/auth/adapter';
+// Import Dependencies
+import { useEffect, useReducer, ReactNode } from "react";
 
-interface AuthState {
-  isAuthenticated: boolean;
-  isLoading: boolean;
-  isInitialized: boolean;
-  user: AuthUser | null;
+// Local Imports
+import { SupabaseAuthService, AdminUser } from "@/utils/supabaseAuth";
+import { AuthProvider as AuthContextProvider, AuthContextType } from "./context";
+import { User } from "@/@types/user";
+import { supabase } from "@/lib/supabase";
+import { ImpersonationService } from "@/utils/impersonationService";
+
+// ----------------------------------------------------------------------
+
+interface AuthAction {
+  type:
+    | "INITIALIZE"
+    | "LOGIN_REQUEST"
+    | "LOGIN_SUCCESS"
+    | "LOGIN_ERROR"
+    | "LOGOUT"
+    | "START_IMPERSONATION"
+    | "STOP_IMPERSONATION";
+  payload?: Partial<AuthContextType>;
 }
 
-type AuthAction =
-  | { type: 'INITIALIZE'; payload: { isAuthenticated: boolean; user: AuthUser | null } }
-  | { type: 'LOGIN_REQUEST' }
-  | { type: 'LOGIN_SUCCESS'; payload: { user: AuthUser } }
-  | { type: 'LOGIN_ERROR' }
-  | { type: 'LOGOUT' };
-
-const initialState: AuthState = {
+// Initial state
+const initialState: AuthContextType = {
   isAuthenticated: false,
-  isLoading: true,
+  isLoading: true, // Start as loading
   isInitialized: false,
+  errorMessage: null,
   user: null,
+  login: async () => {},
+  logout: async () => {},
+  impersonation: {
+    isImpersonating: false,
+    originalUser: null,
+    impersonatedUser: null,
+    sessionId: null,
+  },
+  startImpersonation: async () => false,
+  stopImpersonation: async () => false,
 };
 
-function reducer(state: AuthState, action: AuthAction): AuthState {
-  switch (action.type) {
-    case 'INITIALIZE':
-      return {
-        ...state,
-        isAuthenticated: action.payload.isAuthenticated,
-        isLoading: false,
-        isInitialized: true,
-        user: action.payload.user,
-      };
-    case 'LOGIN_REQUEST':
-      return { ...state, isLoading: true };
-    case 'LOGIN_SUCCESS':
-      return {
-        ...state,
-        isAuthenticated: true,
-        isLoading: false,
-        user: action.payload.user,
-      };
-    case 'LOGIN_ERROR':
-      return { ...state, isLoading: false };
-    case 'LOGOUT':
-      return {
-        ...state,
-        isAuthenticated: false,
-        isLoading: false,
-        user: null,
-      };
-    default:
-      return state;
-  }
-}
+// Reducer handlers
+const reducerHandlers: Record<
+  AuthAction["type"],
+  (state: AuthContextType, action: AuthAction) => AuthContextType
+> = {
+  INITIALIZE: (state, action) => ({
+    ...state,
+    isAuthenticated: action.payload?.isAuthenticated ?? false,
+    isInitialized: true,
+    isLoading: false,
+    user: action.payload?.user ?? null,
+    errorMessage: action.payload?.errorMessage ?? null,
+  }),
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+  LOGIN_REQUEST: (state) => ({
+    ...state,
+    isLoading: true,
+    errorMessage: null,
+  }),
+
+  LOGIN_SUCCESS: (state, action) => ({
+    ...state,
+    isAuthenticated: true,
+    isLoading: false,
+    user: action.payload?.user ?? null,
+    errorMessage: null,
+  }),
+
+  LOGIN_ERROR: (state, action) => ({
+    ...state,
+    isAuthenticated: false,
+    errorMessage: action.payload?.errorMessage ?? "An error occurred",
+    isLoading: false,
+    user: null,
+  }),
+
+  LOGOUT: (state) => ({
+    ...state,
+    isAuthenticated: false,
+    isLoading: false,
+    user: null,
+    errorMessage: null,
+    impersonation: {
+      isImpersonating: false,
+      originalUser: null,
+      impersonatedUser: null,
+      sessionId: null,
+    },
+  }),
+
+  START_IMPERSONATION: (state, action) => ({
+    ...state,
+    impersonation: action.payload?.impersonation ?? state.impersonation,
+    user: action.payload?.impersonation?.impersonatedUser ?? state.user,
+  }),
+
+  STOP_IMPERSONATION: (state, action) => ({
+    ...state,
+    impersonation: {
+      isImpersonating: false,
+      originalUser: null,
+      impersonatedUser: null,
+      sessionId: null,
+    },
+    user: action.payload?.impersonation?.originalUser ?? state.user,
+  }),
+};
+
+// Reducer function
+const reducer = (
+  state: AuthContextType,
+  action: AuthAction,
+): AuthContextType => {
+  const handler = reducerHandlers[action.type];
+  return handler ? handler(state, action) : state;
+};
+
+// Convert AdminUser to User for context
+const adminUserToUser = (adminUser: AdminUser): User => ({
+  id: adminUser.id,
+  name: adminUser.name,
+  email: adminUser.email,
+  role: adminUser.role,
+  avatarUrl: adminUser.avatar_url,
+});
+
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
-  const adapterRef = useRef<AuthAdapter | null>(null);
-  const initializedRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
+    let initializeTimeout: NodeJS.Timeout;
+    let isInitializing = true;
 
-    const init = async () => {
+    const initialize = async () => {
       try {
-        const adapter = await createAuthAdapter();
-        adapterRef.current = adapter;
+        // Quick session check first - don't wait for full auth validation during init
+        const { data: { session } } = await supabase.auth.getSession()
 
-        const session = await adapter.getSession();
+        if (!mounted) return;
+        clearTimeout(initializeTimeout);
 
-        if (mounted) {
-          initializedRef.current = true;
+        if (session?.user) {
+          // We have a session, get the full user profile
+          try {
+            const { user: adminUser, error } = await SupabaseAuthService.getCurrentUser();
+
+            if (adminUser && !error) {
+              dispatch({
+                type: "INITIALIZE",
+                payload: {
+                  isAuthenticated: true,
+                  user: adminUserToUser(adminUser),
+                  errorMessage: null,
+                }
+              });
+            } else {
+              // Fallback to basic session info if profile fetch fails
+              dispatch({
+                type: "INITIALIZE",
+                payload: {
+                  isAuthenticated: true,
+                  user: {
+                    id: session.user.id,
+                    name: session.user.email || 'Admin User',
+                    email: session.user.email || '',
+                    role: 'admin', // Default role
+                    avatarUrl: undefined,
+                  },
+                  errorMessage: error || null,
+                }
+              });
+            }
+          } catch (profileError) {
+            console.error('Auth Provider - Error getting user profile:', profileError);
+            // Fallback to basic session info
+            dispatch({
+              type: "INITIALIZE",
+              payload: {
+                isAuthenticated: true,
+                user: {
+                  id: session.user.id,
+                  name: session.user.email || 'Admin User',
+                  email: session.user.email || '',
+                  role: 'admin', // Default role
+                  avatarUrl: undefined,
+                },
+                errorMessage: null,
+              }
+            });
+          }
+        } else {
           dispatch({
-            type: 'INITIALIZE',
+            type: "INITIALIZE",
             payload: {
-              isAuthenticated: !!session,
-              user: session?.user ?? null,
-            },
+              isAuthenticated: false,
+              user: null,
+              errorMessage: null,
+            }
           });
         }
 
-        adapter.onAuthStateChange((user: AuthUser | null) => {
-          if (!mounted) return;
-          if (user) {
-            dispatch({ type: 'LOGIN_SUCCESS', payload: { user } });
-          } else {
-            dispatch({ type: 'LOGOUT' });
+        // Mark initialization as complete
+        isInitializing = false;
+
+      } catch (error) {
+        if (!mounted) return;
+        clearTimeout(initializeTimeout);
+
+        console.error('Auth Provider - Initialization error:', error);
+        dispatch({
+          type: "INITIALIZE",
+          payload: {
+            isAuthenticated: false,
+            user: null,
+            errorMessage: null,
           }
         });
-      } catch {
-        if (mounted) {
-          initializedRef.current = true;
-          dispatch({
-            type: 'INITIALIZE',
-            payload: { isAuthenticated: false, user: null },
-          });
-        }
+        // Mark initialization as complete even on error
+        isInitializing = false;
       }
     };
 
-    // Timeout fallback — use ref to avoid stale closure over state
-    const timeout = setTimeout(() => {
-      if (mounted && !initializedRef.current) {
+    // Failsafe timeout to prevent infinite loading
+    initializeTimeout = setTimeout(() => {
+      if (mounted) {
+        console.warn('Auth initialization timed out, forcing unauthenticated state');
         dispatch({
-          type: 'INITIALIZE',
-          payload: { isAuthenticated: false, user: null },
+          type: "INITIALIZE",
+          payload: {
+            isAuthenticated: false,
+            user: null,
+            errorMessage: null, // Don't show timeout error to user
+          }
         });
+        // Mark initialization as complete on timeout
+        isInitializing = false;
       }
-    }, 5000);
+    }, 3000); // 3 second timeout
 
-    init();
+    // Set up auth state listener - but only act on explicit sign in/out events
+    const { data: { subscription } } = SupabaseAuthService.onAuthStateChange(
+      async (adminUser) => {
+        if (!mounted) return;
+
+        try {
+          // Skip auth state changes during initialization
+          if (isInitializing) {
+            return;
+          }
+
+          // Only process auth state changes after initial setup is complete
+          if (!state.isInitialized) {
+            return;
+          }
+
+          if (adminUser) {
+            dispatch({
+              type: "LOGIN_SUCCESS",
+              payload: {
+                user: adminUserToUser(adminUser),
+              }
+            });
+          } else {
+            dispatch({ type: "LOGOUT" });
+          }
+        } catch (error) {
+          console.error('Auth state change handling error:', error)
+          // Only logout if we're initialized to avoid interfering with init
+          if (state.isInitialized) {
+            dispatch({ type: "LOGOUT" });
+          }
+        }
+      }
+    );
+
+    // Initialize
+    initialize();
 
     return () => {
       mounted = false;
-      clearTimeout(timeout);
+      clearTimeout(initializeTimeout);
+      subscription.unsubscribe();
     };
   }, []);
 
-  const login = useCallback(
-    async (credentials: { method: 'magic_link' | 'password' | 'oidc'; email?: string; password?: string }) => {
-      dispatch({ type: 'LOGIN_REQUEST' });
+  // Login function (send magic link)
+  const login = async (credentials: { email: string }) => {
+    dispatch({ type: "LOGIN_REQUEST" });
 
-      const adapter = adapterRef.current;
-      if (!adapter) {
-        dispatch({ type: 'LOGIN_ERROR' });
-        return { success: false, error: 'Auth adapter not initialized' };
-      }
-
-      let signInCredentials;
-      if (credentials.method === 'magic_link') {
-        signInCredentials = { method: 'magic_link' as const, email: credentials.email! };
-      } else if (credentials.method === 'password') {
-        signInCredentials = { method: 'password' as const, email: credentials.email!, password: credentials.password! };
-      } else {
-        signInCredentials = { method: 'oidc' as const, provider: 'default' };
-      }
-
-      const result = await adapter.signIn(signInCredentials);
+    try {
+      const result = await SupabaseAuthService.sendMagicLink(credentials.email);
 
       if (result.success) {
-        if (result.user) {
-          dispatch({ type: 'LOGIN_SUCCESS', payload: { user: result.user } });
-        } else {
-          // Magic link sent — not yet authenticated
-          dispatch({ type: 'LOGIN_ERROR' });
-        }
-        return { success: true, message: result.message };
+        // Clear loading state when magic link is sent successfully
+        // The actual authentication will be handled by the auth state listener
+        dispatch({
+          type: "INITIALIZE", // Use INITIALIZE to clear loading state
+          payload: {
+            isAuthenticated: false,
+            user: null,
+            errorMessage: null,
+          }
+        });
+        console.log(result.message);
       } else {
-        dispatch({ type: 'LOGIN_ERROR' });
-        return { success: false, error: result.error };
+        dispatch({
+          type: "LOGIN_ERROR",
+          payload: { errorMessage: result.error }
+        });
       }
-    },
-    [],
-  );
-
-  const logout = useCallback(async () => {
-    const adapter = adapterRef.current;
-    if (adapter) {
-      await adapter.signOut();
+    } catch (error) {
+      dispatch({
+        type: "LOGIN_ERROR",
+        payload: {
+          errorMessage: error instanceof Error ? error.message : "Login failed"
+        }
+      });
     }
-    dispatch({ type: 'LOGOUT' });
-  }, []);
+  };
+
+  // Logout function
+  const logout = async () => {
+    try {
+      // If impersonating, stop impersonation first
+      if (state.impersonation.isImpersonating && state.impersonation.sessionId) {
+        await stopImpersonation();
+      }
+
+      await SupabaseAuthService.signOut();
+      // The auth state listener will handle the logout dispatch
+
+      // Redirect to login page
+      window.location.href = '/login';
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Force logout even if signOut fails
+      dispatch({ type: "LOGOUT" });
+      // Still redirect to login
+      window.location.href = '/login';
+    }
+  };
+
+  // Start impersonating another admin user
+  const startImpersonation = async (targetUserId: string): Promise<boolean> => {
+    if (!state.user?.id) {
+      console.error('No authenticated user');
+      return false;
+    }
+
+    try {
+      const result = await ImpersonationService.startImpersonation(
+        state.user.id,
+        targetUserId
+      );
+
+      if (result.success && result.session && result.impersonatedUser) {
+        const impersonatedUser: User = adminUserToUser(result.impersonatedUser);
+
+        dispatch({
+          type: "START_IMPERSONATION",
+          payload: {
+            impersonation: {
+              isImpersonating: true,
+              originalUser: state.user,
+              impersonatedUser,
+              sessionId: result.session.id,
+            },
+          },
+        });
+
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error('Error starting impersonation:', error);
+      return false;
+    }
+  };
+
+  // Stop impersonating and return to original user
+  const stopImpersonation = async (): Promise<boolean> => {
+    if (!state.impersonation.isImpersonating || !state.impersonation.sessionId || !state.user?.id) {
+      return false;
+    }
+
+    try {
+      // Use the original user's ID to stop impersonation
+      const originalUserId = state.impersonation.originalUser?.id || state.user.id;
+
+      const result = await ImpersonationService.stopImpersonation(
+        originalUserId,
+        state.impersonation.sessionId
+      );
+
+      if (result.success) {
+        dispatch({
+          type: "STOP_IMPERSONATION",
+          payload: {
+            impersonation: {
+              isImpersonating: false,
+              originalUser: state.impersonation.originalUser,
+              impersonatedUser: null,
+              sessionId: null,
+            },
+          },
+        });
+
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error('Error stopping impersonation:', error);
+      return false;
+    }
+  };
+
+  const contextValue: AuthContextType = {
+    ...state,
+    login,
+    logout,
+    startImpersonation,
+    stopImpersonation,
+  };
 
   return (
-    <AuthContext.Provider value={{ ...state, login, logout }}>
+    <AuthContextProvider value={contextValue}>
       {children}
-    </AuthContext.Provider>
+    </AuthContextProvider>
   );
 }
+
+// Export useAuthContext as useAuth for backward compatibility
+export { useAuthContext as useAuth } from './context';

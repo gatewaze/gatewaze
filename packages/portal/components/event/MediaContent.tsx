@@ -201,7 +201,7 @@ export function MediaContent() {
 
       // Count total photos
       const { count } = await supabase
-        .from('event_media')
+        .from('events_media')
         .select('*', { count: 'exact', head: true })
         .eq('event_id', event.event_id)
         .eq('file_type', 'photo')
@@ -210,7 +210,7 @@ export function MediaContent() {
 
       // Fetch first batch
       const { data: mediaData } = await supabase
-        .from('event_media')
+        .from('events_media')
         .select('*')
         .eq('event_id', event.event_id)
         .eq('file_type', 'photo')
@@ -232,7 +232,7 @@ export function MediaContent() {
     try {
       const supabase = await getSupabase()
       const { data: albumData } = await supabase
-        .from('event_media_albums')
+        .from('events_media_albums')
         .select('*')
         .eq('event_id', event.event_id)
         .order('sort_order')
@@ -241,7 +241,7 @@ export function MediaContent() {
         const albumsWithCounts = await Promise.all(
           albumData.map(async (album: EventMediaAlbum) => {
             const { count } = await supabase
-              .from('event_media_album_items')
+              .from('events_media_album_items')
               .select('*', { count: 'exact', head: true })
               .eq('album_id', album.id)
             return { ...album, media_count: count || 0 }
@@ -259,15 +259,15 @@ export function MediaContent() {
       const supabase = await getSupabase()
 
       const { data: sponsorData } = await supabase
-        .from('event_sponsors')
-        .select(`*, sponsor:sponsors(id, name, slug, logo_url)`)
+        .from('events_sponsors')
+        .select(`*, sponsor:events_sponsor_profiles(id, name, slug, logo_url)`)
         .eq('event_id', event.event_id)
         .eq('is_active', true)
         .order('sponsorship_tier')
 
       // Get all media IDs for this event
       const { data: allMediaForEvent } = await supabase
-        .from('event_media')
+        .from('events_media')
         .select('id')
         .eq('event_id', event.event_id)
         .eq('file_type', 'photo')
@@ -281,7 +281,7 @@ export function MediaContent() {
         for (let i = 0; i < mediaIds.length; i += chunkSize) {
           const chunk = mediaIds.slice(i, i + chunkSize)
           const { data: tags } = await supabase
-            .from('event_media_sponsor_tags')
+            .from('events_media_sponsor_tags')
             .select('event_sponsor_id, media_id')
             .in('media_id', chunk)
           if (tags) allTags.push(...tags)
@@ -314,7 +314,7 @@ export function MediaContent() {
       let videoIds: string[] | null = null
       if (eventSponsorId) {
         const { data: sponsorTags } = await supabase
-          .from('event_media_sponsor_tags')
+          .from('events_media_sponsor_tags')
           .select('media_id')
           .eq('event_sponsor_id', eventSponsorId)
         if (!sponsorTags || sponsorTags.length === 0) {
@@ -325,7 +325,7 @@ export function MediaContent() {
       }
 
       let query = supabase
-        .from('event_media')
+        .from('events_media')
         .select('*')
         .eq('event_id', event.event_id)
         .eq('file_type', 'video')
@@ -360,7 +360,7 @@ export function MediaContent() {
       const supabase = await getSupabase()
 
       const { data: albumItems } = await supabase
-        .from('event_media_album_items')
+        .from('events_media_album_items')
         .select('media_id')
         .eq('album_id', albumId)
         .order('sort_order')
@@ -371,7 +371,7 @@ export function MediaContent() {
         // Filter by sponsor if needed
         if (eventSponsorId) {
           const { data: sponsorTags } = await supabase
-            .from('event_media_sponsor_tags')
+            .from('events_media_sponsor_tags')
             .select('media_id')
             .eq('event_sponsor_id', eventSponsorId)
           if (sponsorTags) {
@@ -386,7 +386,7 @@ export function MediaContent() {
         }
 
         const { data: mediaData } = await supabase
-          .from('event_media')
+          .from('events_media')
           .select('*')
           .in('id', mediaIds)
           .eq('file_type', 'photo')
@@ -413,14 +413,14 @@ export function MediaContent() {
       const supabase = await getSupabase()
 
       const { data: sponsorTags } = await supabase
-        .from('event_media_sponsor_tags')
+        .from('events_media_sponsor_tags')
         .select('media_id')
         .eq('event_sponsor_id', eventSponsorId)
 
       if (sponsorTags && sponsorTags.length > 0) {
         const mediaIds = sponsorTags.map((tag: { media_id: string }) => tag.media_id)
         const { data: mediaData } = await supabase
-          .from('event_media')
+          .from('events_media')
           .select('*')
           .in('id', mediaIds)
           .eq('file_type', 'photo')
@@ -442,7 +442,7 @@ export function MediaContent() {
       const supabase = await getSupabase()
 
       const { data: sponsorTags } = await supabase
-        .from('event_media_sponsor_tags')
+        .from('events_media_sponsor_tags')
         .select('media_id')
         .eq('event_sponsor_id', eventSponsorId)
 
@@ -454,7 +454,7 @@ export function MediaContent() {
       const sponsorMediaIds = new Set(sponsorTags.map((tag: { media_id: string }) => tag.media_id))
 
       const { data: albumData } = await supabase
-        .from('event_media_albums')
+        .from('events_media_albums')
         .select('*')
         .eq('event_id', event.event_id)
         .order('sort_order')
@@ -467,7 +467,7 @@ export function MediaContent() {
       const albumsWithCounts = await Promise.all(
         albumData.map(async (album: EventMediaAlbum) => {
           const { data: albumItems } = await supabase
-            .from('event_media_album_items')
+            .from('events_media_album_items')
             .select('media_id')
             .eq('album_id', album.id)
           if (!albumItems) return { ...album, media_count: 0 }
@@ -493,7 +493,7 @@ export function MediaContent() {
       const offset = mediaItems.length
 
       const { data: mediaData } = await supabase
-        .from('event_media')
+        .from('events_media')
         .select('*')
         .eq('event_id', event.event_id)
         .eq('file_type', 'photo')
@@ -650,7 +650,7 @@ export function MediaContent() {
   if (totalCount === 0 && videoItems.length === 0) {
     return (
       <div className={`transition-opacity duration-500 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
-        <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText}>
+        <GlowBorder useDarkTheme={useDarkText}>
           <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8`}>
             <div className="text-center py-8">
               <svg className={`w-16 h-16 mx-auto mb-4 ${panelTheme.textMuted}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">

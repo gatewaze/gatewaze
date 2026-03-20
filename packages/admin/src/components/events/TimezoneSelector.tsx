@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React from 'react';
 
 // Common IANA timezone identifiers grouped by region

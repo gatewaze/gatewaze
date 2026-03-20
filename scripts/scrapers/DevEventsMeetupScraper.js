@@ -996,7 +996,6 @@ export class DevEventsMeetupScraper extends BaseScraper {
       eventCountryCode: lumaData?.countryCode || '', // From Luma or will be populated by EventProcessor
       eventRegion: lumaData?.region || meetupData?.state || this.currentRegion || rawEvent.region || '',
       venueAddress: lumaData?.fullAddress || lumaData?.venueAddress || meetupData?.venueAddress || rawEvent.venueAddress || '', // Venue address field
-      listingType: 'active', // Default listing type
       eventType: 'meetup', // Specific to meetups
       eventTopics: [], // To be filled by topic matching
       sourceEventId: sourceEventId, // dev.events native ID

@@ -72,7 +72,7 @@ export function ConfirmedSpeakerTasks({
     if (presentationStoragePath) {
       const supabase = getSupabaseClient()
       const { data: { publicUrl } } = supabase.storage
-        .from('presentation-decks')
+        .from('media')
         .getPublicUrl(presentationStoragePath)
       return publicUrl
     }
@@ -157,7 +157,7 @@ export function ConfirmedSpeakerTasks({
         const fileName = `talks/${timestamp}-${randomStr}-presentation.${fileExt}`
 
         const { error: uploadErr } = await supabase.storage
-          .from('presentation-decks')
+          .from('media')
           .upload(fileName, presentationFile, {
             contentType: presentationFile.type,
             cacheControl: '3600',

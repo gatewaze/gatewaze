@@ -2,11 +2,7 @@
 
 import { useEffect, useState } from 'react'
 
-interface Props {
-  brandId: string
-}
-
-export function CookiePolicyContent({ brandId }: Props) {
+export function CookiePolicyContent() {
   const [policyHtml, setPolicyHtml] = useState<string | null>(null)
   const [policyStyles, setPolicyStyles] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -15,9 +11,7 @@ export function CookiePolicyContent({ brandId }: Props) {
   useEffect(() => {
     const loadPolicy = async () => {
       try {
-        // Determine which policy file to load based on brand
-        const policyFile =
-          brandId === 'mlops' ? '/policies/cookie-policy-mlops.html' : '/policies/cookie-policy.html'
+        const policyFile = '/policies/cookie-policy.html'
 
         const response = await fetch(policyFile)
         if (!response.ok) {
@@ -51,7 +45,7 @@ export function CookiePolicyContent({ brandId }: Props) {
     }
 
     loadPolicy()
-  }, [brandId])
+  }, [])
 
   if (isLoading) {
     return (

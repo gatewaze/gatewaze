@@ -38,7 +38,7 @@ export async function processQueue() {
     while (true) {
       // Get next pending invitation
       const { data, error } = await supabase
-        .rpc('get_pending_slack_invitations', { limit_count: 1 });
+        .rpc('integrations_get_pending_slack_invitations', { limit_count: 1 });
 
       if (error) {
         console.error('❌ Error getting next invitation:', error);
@@ -109,7 +109,7 @@ export async function processQueue() {
  */
 async function updateInvitationStatus(invitationId, status, errorMessage = null) {
   const { error } = await supabase
-    .rpc('update_slack_invitation_status', {
+    .rpc('integrations_update_slack_invitation_status', {
       p_invitation_id: invitationId,
       p_status: status,
       p_error_message: errorMessage
@@ -125,7 +125,7 @@ async function updateInvitationStatus(invitationId, status, errorMessage = null)
  */
 export async function addToQueue(email, account = 'mlops', metadata = {}) {
   const { data, error } = await supabase
-    .rpc('request_slack_invitation', {
+    .rpc('integrations_request_slack_invitation', {
       p_email: email,
       p_account: account,
       p_metadata: metadata
@@ -148,7 +148,7 @@ export async function addToQueue(email, account = 'mlops', metadata = {}) {
  * Get queue statistics
  */
 export async function getQueueStats() {
-  const { data, error } = await supabase.rpc('get_slack_invitation_stats');
+  const { data, error } = await supabase.rpc('integrations_get_slack_invitation_stats');
 
   if (error) {
     console.error('❌ Error getting queue stats:', error);
@@ -163,7 +163,7 @@ export async function getQueueStats() {
  */
 export async function getPendingCount() {
   const { count, error } = await supabase
-    .from('slack_invitation_queue')
+    .from('integrations_slack_invitation_queue')
     .select('*', { count: 'exact', head: true })
     .eq('status', 'pending');
 
@@ -180,7 +180,7 @@ export async function getPendingCount() {
  */
 export async function getInvitationStatus(invitationId) {
   const { data, error } = await supabase
-    .from('slack_invitation_queue')
+    .from('integrations_slack_invitation_queue')
     .select('*')
     .eq('id', invitationId)
     .single();

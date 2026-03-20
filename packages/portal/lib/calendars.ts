@@ -57,7 +57,7 @@ export async function getCalendarWithEvents(
 
   // Fetch all events for this calendar via the junction table
   const { data: rows } = await supabase
-    .from('calendar_events')
+    .from('calendars_events')
     .select(`events!inner(${EVENT_SELECT_FIELDS})`)
     .eq('calendar_id', calendar.id)
     .eq('events.is_live_in_production', true)
@@ -68,11 +68,15 @@ export async function getCalendarWithEvents(
 
   // Split into upcoming and past, sorted appropriately
   const upcoming = allEvents
-    .filter((e) => e.event_start >= now)
-    .sort((a, b) => a.event_start.localeCompare(b.event_start))
+    .filter((e) => !e.event_start || e.event_start >= now)
+    .sort((a, b) => {
+      if (!a.event_start) return 1
+      if (!b.event_start) return -1
+      return a.event_start.localeCompare(b.event_start)
+    })
 
   const past = allEvents
-    .filter((e) => e.event_start < now)
+    .filter((e) => e.event_start && e.event_start < now)
     .sort((a, b) => b.event_start.localeCompare(a.event_start))
 
   return {

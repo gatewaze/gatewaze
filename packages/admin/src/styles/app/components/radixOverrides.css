@@ -1,0 +1,76 @@
+/* Radix theme overrides — must be in components layer to win over radix layer */
+
+/* Use pointer cursor for all interactive Radix elements */
+.radix-themes {
+  --cursor-button: pointer;
+  --cursor-checkbox: pointer;
+  --cursor-menu-item: pointer;
+  --cursor-radio: pointer;
+  --cursor-slider-thumb: grab;
+  --cursor-slider-thumb-active: grabbing;
+  --cursor-switch: pointer;
+}
+
+/* Translucent card backgrounds — lets pixel trail show through */
+.rt-Card {
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+/* Pointer cursor for all interactive Radix elements */
+.radix-themes button,
+.radix-themes [role="button"],
+.radix-themes [role="tab"],
+.radix-themes .rt-BaseTabListTrigger {
+  cursor: pointer !important;
+}
+
+/* Solid background for tab navigation so pixel trail doesn't show through */
+.rt-BaseTabList {
+  background-color: var(--accent-2);
+  flex-wrap: wrap;
+  overflow-x: visible;
+  white-space: normal;
+  padding: 0.375rem 2.5rem;
+}
+
+/* Inline tabs (not under a hero header) get tighter horizontal padding */
+.rt-TabsRoot:not([data-full-width]) .rt-BaseTabList {
+  padding-inline: 1rem;
+}
+
+/* Hide the default full-width active underline */
+.rt-BaseTabListTrigger[data-state='active']::before {
+  display: none !important;
+}
+
+/* Add underline on the inner text element instead, matching text width */
+.rt-BaseTabListTrigger[data-state='active'] .rt-BaseTabListTriggerInner {
+  border-bottom: 2px solid var(--accent-indicator);
+  padding-bottom: 0;
+  margin-bottom: -1px;
+}
+
+/* Ensure sticky table columns have opaque backgrounds so content doesn't bleed through on scroll */
+.rt-TableCell[data-sticky-left],
+.rt-TableCell[data-sticky-right],
+.rt-TableColumnHeaderCell[data-sticky-left],
+.rt-TableColumnHeaderCell[data-sticky-right] {
+  background-color: var(--color-panel-solid) !important;
+}
+
+/* Hide the horizontal scrollbar track inside Radix Tables — scroll is handled by sticky columns */
+.rt-TableRoot .rt-ScrollAreaScrollbar[data-orientation="horizontal"] {
+  display: none;
+}
+
+/* Reduce default dialog content padding */
+.rt-BaseDialogContent {
+  --dialog-content-padding: 0;
+}
+
+/* Gap between icon and label in tab triggers */
+.rt-BaseTabListTriggerInner,
+.rt-BaseTabListTriggerInnerHidden {
+  gap: 6px;
+}

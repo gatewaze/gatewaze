@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
     const supabase = await createServerSupabase(body.brandId)
 
     const { data, error } = await supabase
-      .from('ad_tracking_sessions')
+      .from('integrations_ad_tracking_sessions')
       .insert({
         session_id: body.sessionId,
         brand_id: body.brandId,

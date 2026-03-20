@@ -37,7 +37,7 @@ export function useDiscountCode(): UseDiscountCodeReturn {
     const supabase = getSupabaseClient()
 
     try {
-      const { data, error: rpcError } = await supabase.rpc('check_user_existing_code', {
+      const { data, error: rpcError } = await supabase.rpc('events_check_user_existing_code', {
         p_user_email: email.toLowerCase().trim(),
         p_event_id: eventId,
       })
@@ -58,7 +58,7 @@ export function useDiscountCode(): UseDiscountCodeReturn {
     const supabase = getSupabaseClient()
 
     try {
-      const { data, error: rpcError } = await supabase.rpc('get_available_codes_count', {
+      const { data, error: rpcError } = await supabase.rpc('events_get_available_codes_count', {
         p_event_id: eventId,
       })
 
@@ -107,7 +107,7 @@ export function useDiscountCode(): UseDiscountCodeReturn {
       }
 
       // Issue code atomically
-      const { data, error: rpcError } = await supabase.rpc('issue_code_to_user', {
+      const { data, error: rpcError } = await supabase.rpc('events_issue_code_to_user', {
         p_user_email: normalizedEmail,
         p_event_id: eventId,
       })

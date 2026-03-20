@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useEffect, useRef } from "react";
 import { capitalize } from "@/utils/capitalize";
 

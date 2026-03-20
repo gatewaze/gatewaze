@@ -97,7 +97,7 @@ export class ScraperScheduler {
     try {
       // Get scrapers that are due for a run
       const { data: dueScrapers, error } = await this.supabase
-        .rpc('get_scrapers_due_for_run');
+        .rpc('scrapers_get_due_for_run');
 
       if (error) {
         console.error('❌ Error fetching due scrapers:', error);
@@ -131,7 +131,7 @@ export class ScraperScheduler {
       if (jobQueue) {
         // First, create a scraper_job record in the database
         const { data: jobData, error: jobError } = await this.supabase
-          .rpc('create_scraper_job', {
+          .rpc('scrapers_create_job', {
             scraper_ids: [scraper.id],
             created_by_user: 'scheduler'
           });
@@ -189,7 +189,7 @@ export class ScraperScheduler {
       // Fall back to API-based job creation
       // Create scraper job
       const { data: jobData, error: jobError } = await this.supabase
-        .rpc('create_scraper_job', {
+        .rpc('scrapers_create_job', {
           scraper_ids: [scraper.id],
           created_by_user: 'scheduler'
         });
@@ -467,7 +467,7 @@ export class ScraperScheduler {
 
       // Create sync job record in database
       const { data: jobData, error: jobError } = await this.supabase
-        .rpc('create_sync_job', {
+        .rpc('integrations_create_sync_job', {
           p_sync_type: syncType,
           p_metadata: { command, scheduled: true }
         });
@@ -501,7 +501,7 @@ export class ScraperScheduler {
 
       // Update job as completed
       if (jobId) {
-        await this.supabase.rpc('update_sync_job', {
+        await this.supabase.rpc('integrations_update_sync_job', {
           p_job_id: jobId,
           p_status: 'completed',
           p_items_processed: stats.processed || 0,
@@ -518,7 +518,7 @@ export class ScraperScheduler {
 
       // Update job as failed
       if (jobId) {
-        await this.supabase.rpc('update_sync_job', {
+        await this.supabase.rpc('integrations_update_sync_job', {
           p_job_id: jobId,
           p_status: 'failed',
           p_error_message: error.message

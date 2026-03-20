@@ -1,34 +1,76 @@
 #!/bin/bash
 set -e
 
-BRAND="${1:?Usage: ./dev.sh <brand> [up|down|restart|logs|ps]}"
-ACTION="${2:-up}"
-ENV_FILE="docker/.env.${BRAND}"
+# ---------------------------------------------------------------------------
+# Gatewaze Dev Script
+#
+# Usage:
+#   ./dev.sh [action]              — run with docker/.env (single-brand default)
+#   ./dev.sh <brand> [action]      — run a specific brand from gatewaze-environments
+#
+# Actions: up (default), down, restart, logs, ps
+# ---------------------------------------------------------------------------
 
-if [ ! -f "$ENV_FILE" ]; then
-  echo "Error: $ENV_FILE not found"
-  echo ""
-  echo "Available brands:"
-  for f in docker/.env.*; do
-    [ -f "$f" ] || continue
-    name="${f#docker/.env.}"
-    # Skip .example files in the listing
-    case "$name" in
-      *.example) continue ;;
-    esac
-    echo "  $name"
-  done
-  echo ""
-  echo "To create a brand config, copy an example:"
-  echo "  cp docker/.env.mlops.example docker/.env.mlops"
-  exit 1
+ENVIRONMENTS_DIR="../gatewaze-environments"
+ACTIONS="up|down|restart|logs|ps"
+
+# Determine if the first arg is a brand or an action
+if [ -z "$1" ] || echo "$1" | grep -qE "^(up|down|restart|logs|ps)$"; then
+  # No brand specified — use docker/.env directly
+  ACTION="${1:-up}"
+  SHIFT_COUNT=1
+  ENV_FILE="docker/.env"
+
+  if [ ! -f "$ENV_FILE" ]; then
+    echo "Error: docker/.env not found"
+    echo ""
+    echo "Quick start:"
+    echo "  cp docker/.env.example docker/.env"
+    echo "  ./dev.sh up"
+    exit 1
+  fi
+
+  echo "Using default config: docker/.env"
+else
+  # Brand specified — look in the environments repo
+  BRAND="$1"
+  ACTION="${2:-up}"
+  SHIFT_COUNT=2
+  ENV_FILE="${ENVIRONMENTS_DIR}/${BRAND}.env"
+
+  if [ ! -f "$ENV_FILE" ]; then
+    echo "Error: ${ENV_FILE} not found"
+    echo ""
+
+    if [ ! -d "$ENVIRONMENTS_DIR" ]; then
+      echo "The gatewaze-environments repo is not present at ${ENVIRONMENTS_DIR}/"
+      echo ""
+      echo "Clone it alongside this repo:"
+      echo "  cd .. && git clone <your-environments-repo-url> gatewaze-environments"
+    else
+      echo "Available brands:"
+      for f in "${ENVIRONMENTS_DIR}"/*.env; do
+        [ -f "$f" ] || continue
+        name="$(basename "$f" .env)"
+        # Skip .example files
+        case "$name" in
+          *.env) continue ;;
+        esac
+        echo "  $name"
+      done
+    fi
+    echo ""
+    echo "Or run without a brand to use the default config:"
+    echo "  ./dev.sh up"
+    exit 1
+  fi
+
+  # Copy brand env to docker/.env so Docker Compose picks it up
+  cp "$ENV_FILE" docker/.env
+  echo "Activated brand: $BRAND"
 fi
 
-# Copy brand env to active .env
-cp "$ENV_FILE" docker/.env
-echo "Activated brand: $BRAND"
-
-# Helper: read a value from the brand env file
+# Helper: read a value from the active env file
 env_val() { grep -E "^${1}=" "$ENV_FILE" | head -1 | cut -d= -f2-; }
 
 # Generate .mcp.json for Claude Code (Supabase MCP server)
@@ -96,7 +138,7 @@ case "$ACTION" in
     docker compose $COMPOSE_FILES restart
     ;;
   logs)
-    shift 2 2>/dev/null || true
+    shift "$SHIFT_COUNT" 2>/dev/null || true
     docker compose $COMPOSE_FILES logs -f "$@"
     ;;
   ps)

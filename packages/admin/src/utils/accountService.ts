@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { supabase, Account, AccountUser, AccountMemberDetail } from '@/lib/supabase'
 
 export interface CreateAccountData {
@@ -239,7 +238,7 @@ export class AccountService {
   static async getAccountMembers(accountId: string): Promise<{ members: AccountMemberDetail[] | null; error: string | null }> {
     try {
       const { data, error } = await supabase
-        .rpc('get_account_members', { account_uuid: accountId })
+        .rpc('accounts_get_members', { account_uuid: accountId })
 
       if (error) {
         console.error('Error fetching account members:', error)
@@ -262,7 +261,7 @@ export class AccountService {
   static async addAccountUser(userData: AddAccountUserData): Promise<{ success: boolean; error?: string; accountUserId?: string }> {
     try {
       const { data, error } = await supabase
-        .from('account_users')
+        .from('accounts_users')
         .insert({
           account_id: userData.account_id,
           admin_profile_id: userData.admin_profile_id,
@@ -292,7 +291,7 @@ export class AccountService {
   static async updateAccountUserRole(accountUserId: string, role: 'owner' | 'admin' | 'member' | 'viewer'): Promise<{ success: boolean; error?: string }> {
     try {
       const { error } = await supabase
-        .from('account_users')
+        .from('accounts_users')
         .update({
           role,
           updated_at: new Date().toISOString()
@@ -320,7 +319,7 @@ export class AccountService {
   static async removeAccountUser(accountUserId: string): Promise<{ success: boolean; error?: string }> {
     try {
       const { error } = await supabase
-        .from('account_users')
+        .from('accounts_users')
         .update({
           is_active: false,
           updated_at: new Date().toISOString()
@@ -367,7 +366,7 @@ export class AccountService {
 
       // Get accounts through account_users junction
       const { data, error } = await supabase
-        .from('account_users')
+        .from('accounts_users')
         .select('accounts(*)')
         .eq('admin_profile_id', adminProfile.id)
         .eq('is_active', true)

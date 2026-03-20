@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Google Sheets Service
  * Handles Google Sheets API interactions for notifications
@@ -158,7 +157,7 @@ export async function getEventGoogleSheetsNotifications(
   eventId: string
 ): Promise<EventGoogleSheetsNotification[]> {
   const { data, error } = await supabase
-    .from('event_google_sheets_notifications')
+    .from('events_google_sheets_notifications')
     .select('*')
     .eq('event_id', eventId);
 
@@ -178,7 +177,7 @@ export async function getEventGoogleSheetsNotification(
   notificationType: GoogleSheetsNotificationType
 ): Promise<EventGoogleSheetsNotification | null> {
   const { data, error } = await supabase
-    .from('event_google_sheets_notifications')
+    .from('events_google_sheets_notifications')
     .select('*')
     .eq('event_id', eventId)
     .eq('notification_type', notificationType)
@@ -202,7 +201,7 @@ export async function upsertEventGoogleSheetsNotification(
   }
 ): Promise<EventGoogleSheetsNotification | null> {
   const { data, error } = await supabase
-    .from('event_google_sheets_notifications')
+    .from('events_google_sheets_notifications')
     .upsert(
       {
         ...notification,
@@ -231,7 +230,7 @@ export async function getGoogleSheetsNotificationLogs(
   limit: number = 50
 ): Promise<GoogleSheetsNotificationLog[]> {
   const { data, error } = await supabase
-    .from('google_sheets_notification_logs')
+    .from('integrations_google_sheets_notification_logs')
     .select('*')
     .eq('event_id', eventId)
     .order('created_at', { ascending: false })

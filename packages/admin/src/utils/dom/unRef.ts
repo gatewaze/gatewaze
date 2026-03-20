@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { isRef } from "./isRef";
 import { RefObject } from "react";
 

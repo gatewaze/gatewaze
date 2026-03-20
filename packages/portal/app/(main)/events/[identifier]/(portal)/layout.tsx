@@ -99,7 +99,7 @@ async function getSpeakerCount(eventUuid: string, brandId: string): Promise<numb
   const supabase = await createServerSupabase(brandId)
   // Count confirmed speakers first
   const { count: confirmedCount } = await supabase
-    .from('event_speakers_with_details')
+    .from('events_speakers_with_details')
     .select('*', { count: 'exact', head: true })
     .eq('event_uuid', eventUuid)
     .eq('status', 'confirmed')
@@ -108,7 +108,7 @@ async function getSpeakerCount(eventUuid: string, brandId: string): Promise<numb
 
   // Fall back to placeholder speakers
   const { count: placeholderCount } = await supabase
-    .from('event_speakers_with_details')
+    .from('events_speakers_with_details')
     .select('*', { count: 'exact', head: true })
     .eq('event_uuid', eventUuid)
     .eq('status', 'placeholder')
@@ -119,7 +119,7 @@ async function getSpeakerCount(eventUuid: string, brandId: string): Promise<numb
 async function getSponsorCount(eventId: string, brandId: string): Promise<number> {
   const supabase = await createServerSupabase(brandId)
   const { count } = await supabase
-    .from('event_sponsors')
+    .from('events_sponsors')
     .select('*', { count: 'exact', head: true })
     .eq('event_id', eventId)
     .eq('is_active', true)
@@ -144,7 +144,7 @@ export interface RecommendedEvent {
 async function getCompetitionCount(eventId: string, brandId: string): Promise<number> {
   const supabase = await createServerSupabase(brandId)
   const { count } = await supabase
-    .from('event_competitions')
+    .from('events_competitions')
     .select('*', { count: 'exact', head: true })
     .eq('event_id', eventId)
     .eq('status', 'active')
@@ -155,7 +155,7 @@ async function getCompetitionCount(eventId: string, brandId: string): Promise<nu
 async function getDiscountCount(eventId: string, brandId: string): Promise<number> {
   const supabase = await createServerSupabase(brandId)
   const { count } = await supabase
-    .from('event_discounts')
+    .from('events_discounts')
     .select('*', { count: 'exact', head: true })
     .eq('event_id', eventId)
     .eq('status', 'active')
@@ -166,7 +166,7 @@ async function getDiscountCount(eventId: string, brandId: string): Promise<numbe
 async function getMediaCount(eventId: string, brandId: string): Promise<number> {
   const supabase = await createServerSupabase(brandId)
   const { count } = await supabase
-    .from('event_media')
+    .from('events_media')
     .select('*', { count: 'exact', head: true })
     .eq('event_id', eventId)
     .eq('file_type', 'photo')
@@ -198,8 +198,8 @@ async function getAdPixelConfig(eventId: string, brandId: string): Promise<AdPix
 
   // Fetch Reddit and Meta configs in parallel
   const [redditResult, metaResult] = await Promise.all([
-    supabase.rpc('get_ad_platform_config', { p_event_id: eventId, p_platform: 'reddit' }),
-    supabase.rpc('get_ad_platform_config', { p_event_id: eventId, p_platform: 'meta' }),
+    supabase.rpc('integrations_get_ad_platform_config', { p_event_id: eventId, p_platform: 'reddit' }),
+    supabase.rpc('integrations_get_ad_platform_config', { p_event_id: eventId, p_platform: 'meta' }),
   ])
 
   // Extract pixel IDs from credentials, with env var fallback

@@ -66,47 +66,47 @@ export function TalksFormContent({ initialStatus = 'pending', confirmedDurationC
           global: { headers: { Authorization: `Bearer ${session.access_token}` } }
         })
 
-        const { data: customer } = await supabase
-          .from('customers')
+        const { data: person } = await supabase
+          .from('people')
           .select('id, email, attributes, avatar_storage_path')
           .eq('auth_user_id', session.user.id)
           .maybeSingle()
 
-        if (!customer) {
+        if (!person) {
           setIsCheckingSubmission(false)
           return
         }
 
-        const customerAttrs = (customer.attributes as Record<string, string>) || {}
+        const personAttrs = (person.attributes as Record<string, string>) || {}
         let avatarUrl: string | null = null
-        if (customer.avatar_storage_path) {
+        if (person.avatar_storage_path) {
           const { data: { publicUrl } } = supabase.storage
             .from('media')
-            .getPublicUrl(customer.avatar_storage_path)
+            .getPublicUrl(person.avatar_storage_path)
           avatarUrl = publicUrl
         }
 
         setUserProfile({
-          email: customer.email,
-          first_name: customerAttrs.first_name || '',
-          last_name: customerAttrs.last_name || '',
-          company: customerAttrs.company || null,
-          job_title: customerAttrs.job_title || null,
-          linkedin_url: customerAttrs.linkedin_url || null,
+          email: person.email,
+          first_name: personAttrs.first_name || '',
+          last_name: personAttrs.last_name || '',
+          company: personAttrs.company || null,
+          job_title: personAttrs.job_title || null,
+          linkedin_url: personAttrs.linkedin_url || null,
           avatar_url: avatarUrl,
         })
 
-        const { data: memberProfiles } = await supabase
-          .from('member_profiles')
+        const { data: peopleProfiles } = await supabase
+          .from('people_profiles')
           .select('id')
-          .eq('customer_id', customer.id)
+          .eq('person_id', person.id)
 
-        if (!memberProfiles || memberProfiles.length === 0) {
+        if (!peopleProfiles || peopleProfiles.length === 0) {
           setIsCheckingSubmission(false)
           return
         }
 
-        const profileIds = memberProfiles.map(p => p.id)
+        const profileIds = peopleProfiles.map(p => p.id)
 
         const { data: eventData } = await supabase
           .from('events')
@@ -120,13 +120,13 @@ export function TalksFormContent({ initialStatus = 'pending', confirmedDurationC
         }
 
         const { data: speakerTalks } = await supabase
-          .from('event_talk_speakers')
+          .from('events_talk_speakers')
           .select(`
             is_primary,
             speaker:event_speakers!inner (
               id,
               event_uuid,
-              member_profile_id
+              people_profile_id
             ),
             talk:event_talks!inner (
               id,
@@ -136,7 +136,7 @@ export function TalksFormContent({ initialStatus = 'pending', confirmedDurationC
             )
           `)
           .eq('speaker.event_uuid', eventData.id)
-          .in('speaker.member_profile_id', profileIds)
+          .in('speaker.people_profile_id', profileIds)
           .eq('is_primary', true)
 
         if (speakerTalks && speakerTalks.length > 0) {
@@ -170,14 +170,14 @@ export function TalksFormContent({ initialStatus = 'pending', confirmedDurationC
       })
 
       const { error: junctionError } = await supabase
-        .from('event_talk_speakers')
+        .from('events_talk_speakers')
         .delete()
         .eq('talk_id', talkId)
 
       if (junctionError) throw junctionError
 
       const { error: talkError } = await supabase
-        .from('event_talks')
+        .from('events_talks')
         .delete()
         .eq('id', talkId)
 
@@ -198,7 +198,7 @@ export function TalksFormContent({ initialStatus = 'pending', confirmedDurationC
   // For past events with no existing submissions, show a closed state
   if (isPast && existingTalks.length === 0 && !isCheckingSubmission) {
     return (
-      <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText}>
+      <GlowBorder useDarkTheme={useDarkText}>
         <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8`}>
           <div className="text-center py-8">
             <div className={`w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center ${useDarkText ? 'bg-gray-900/10' : 'bg-white/20'}`}>
@@ -222,7 +222,7 @@ export function TalksFormContent({ initialStatus = 'pending', confirmedDurationC
     <div className="space-y-6">
       {/* Show loading state while checking for existing submission */}
       {session && isCheckingSubmission ? (
-        <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText}>
+        <GlowBorder useDarkTheme={useDarkText}>
           <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8`}>
             <div className="text-center py-8">
               <div
@@ -240,7 +240,7 @@ export function TalksFormContent({ initialStatus = 'pending', confirmedDurationC
         <>
           {/* Show existing submissions if any */}
           {existingTalks.length > 0 && (
-            <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText}>
+            <GlowBorder useDarkTheme={useDarkText}>
               <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8`}>
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: `${primaryColor}40` }}>
@@ -321,7 +321,7 @@ export function TalksFormContent({ initialStatus = 'pending', confirmedDurationC
 
           {/* Show submission form if CFP is open and event is not past */}
           {event.enable_call_for_speakers && !isPast ? (
-            <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText}>
+            <GlowBorder useDarkTheme={useDarkText}>
               <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8`}>
                 <SpeakerSubmissionForm
                   event={event}
@@ -343,7 +343,7 @@ export function TalksFormContent({ initialStatus = 'pending', confirmedDurationC
               </div>
             </GlowBorder>
           ) : existingTalks.length === 0 ? (
-            <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText}>
+            <GlowBorder useDarkTheme={useDarkText}>
               <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8`}>
                 <div className="text-center py-8">
                   <svg

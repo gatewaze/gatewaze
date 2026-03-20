@@ -2,14 +2,15 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { REGION_NAMES, REGION_CODES } from '@/lib/regions'
-import { isLightColor } from '@/config/brand'
-import { EVENT_TYPE_OPTIONS, slugifyTopic } from '@/hooks/useEventFilters'
+import { isLightColor, getClientBrandConfig } from '@/config/brand'
+import { getEventTypeOptions, slugifyTopic } from '@/hooks/useEventFilters'
 import { useTopicTaxonomy } from '@/hooks/useTopicTaxonomy'
 
 interface Props {
   region: string | null
   eventType: string | null
   topics: string[]
+  availableTypes: Set<string>
   onToggleType: (type: string) => void
   onToggleRegion: (code: string | null) => void
   onToggleTopic: (topic: string) => void
@@ -24,6 +25,7 @@ export function EventFilters({
   region,
   eventType,
   topics,
+  availableTypes,
   onToggleType,
   onToggleRegion,
   onToggleTopic,
@@ -33,11 +35,28 @@ export function EventFilters({
   showNearMe,
   nearMeLabel,
 }: Props) {
+  const allTypeOptions = getEventTypeOptions()
+  const visibleTypes = allTypeOptions.filter((opt) => availableTypes.has(opt.value))
+  const brandConfig = getClientBrandConfig()
+  const showTopics = brandConfig.eventTopicsEnabled
+
   return (
     <div className="flex flex-col items-center gap-2 mb-10 sm:flex-row sm:justify-between">
       {/* Event type pills */}
       <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
-        {EVENT_TYPE_OPTIONS.map((opt) => (
+        <button
+          onClick={() => eventType ? onToggleType(eventType) : undefined}
+          className={`cursor-pointer px-3 py-1.5 text-base font-medium transition-all duration-200 border
+            ${
+              !eventType
+                ? 'shadow-lg border-transparent'
+                : 'text-white/70 bg-white/10 border-white/10 hover:text-white hover:bg-white/15'
+            }`}
+          style={{ borderRadius: 'var(--radius-control)', ...(!eventType ? { backgroundColor: primaryColor, color: isLightColor(primaryColor) ? '#000000' : '#ffffff' } : {}) }}
+        >
+          All
+        </button>
+        {visibleTypes.map((opt) => (
           <button
             key={opt.value}
             onClick={() => onToggleType(opt.value)}
@@ -85,11 +104,13 @@ export function EventFilters({
           onToggleRegion={onToggleRegion}
           primaryColor={primaryColor}
         />
-        <TopicDropdown
-          selectedTopics={topics}
-          onToggleTopic={onToggleTopic}
-          primaryColor={primaryColor}
-        />
+        {showTopics && (
+          <TopicDropdown
+            selectedTopics={topics}
+            onToggleTopic={onToggleTopic}
+            primaryColor={primaryColor}
+          />
+        )}
       </div>
     </div>
   )
@@ -257,6 +278,9 @@ function TopicDropdown({
   }
 
   const hasTopics = selectedTopics.length > 0
+
+  // Hide entirely if no topics are configured
+  if (allTopics.length === 0) return null
 
   return (
     <div className="relative" ref={ref}>

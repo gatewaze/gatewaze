@@ -32,12 +32,25 @@ export interface BasicThemeColors {
 export type ThemeColors = BlobsThemeColors | GradientWaveThemeColors | BasicThemeColors
 
 export const DEFAULT_THEME_COLORS: Record<PortalTheme, ThemeColors> = {
-  blobs: { background: '#0d1218', blob1: '#ca2b7f', blob2: '#4086c6', blob3: '#1e2837' },
-  gradient_wave: { start: '#ca2b7f', middle: '#4086c6', end: '#0d1218' },
-  basic: { background: '#0d1218' },
+  blobs: { background: '#0a0a0a', blob1: '#20dd20', blob2: '#0d6e0d', blob3: '#1a1a1a' },
+  gradient_wave: { start: '#20dd20', middle: '#0d6e0d', end: '#0a0a0a' },
+  basic: { background: '#0a0a0a' },
 }
 
 export type CornerStyle = 'square' | 'rounded' | 'pill'
+
+export interface EventTypeOption {
+  value: string
+  label: string
+}
+
+export const DEFAULT_EVENT_TYPES: EventTypeOption[] = [
+  { value: 'conference', label: 'Conference' },
+  { value: 'workshop', label: 'Workshop' },
+  { value: 'meetup', label: 'Meetup' },
+  { value: 'webinar', label: 'Webinar' },
+  { value: 'hackathon', label: 'Hackathon' },
+]
 
 export interface BrandConfig {
   id: string
@@ -58,9 +71,12 @@ export interface BrandConfig {
   logoUrl: string
   logoIconUrl: string
   faviconUrl: string
+  domain: string
   contactEmail: string
   trackingHead: string
   trackingBody: string
+  eventTypes: EventTypeOption[]
+  eventTopicsEnabled: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -80,9 +96,9 @@ const defaults: BrandConfig = {
   name: 'Gatewaze',
   supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || '',
   supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
-  primaryColor: '#6366f1',
-  secondaryColor: '#0d1218',
-  tertiaryColor: '#1e2837',
+  primaryColor: '#20dd20',
+  secondaryColor: '#0a0a0a',
+  tertiaryColor: '#1a1a1a',
   portalTheme: 'blobs',
   themeColors: { ...DEFAULT_THEME_COLORS.blobs },
   cornerStyle: 'rounded' as CornerStyle,
@@ -94,9 +110,12 @@ const defaults: BrandConfig = {
   logoUrl: '',
   logoIconUrl: '',
   faviconUrl: '',
+  domain: '',
   contactEmail: '',
   trackingHead: '',
   trackingBody: '',
+  eventTypes: DEFAULT_EVENT_TYPES,
+  eventTopicsEnabled: false,
 }
 
 // Mapping from app_settings keys to BrandConfig fields + defaults
@@ -113,6 +132,7 @@ const settingsMap: Record<string, { field: keyof BrandConfig; defaultValue: stri
   logo_url: { field: 'logoUrl', defaultValue: defaults.logoUrl },
   logo_icon_url: { field: 'logoIconUrl', defaultValue: defaults.logoIconUrl },
   favicon_url: { field: 'faviconUrl', defaultValue: defaults.faviconUrl },
+  domain: { field: 'domain', defaultValue: defaults.domain },
   contact_email: { field: 'contactEmail', defaultValue: defaults.contactEmail },
   tracking_head: { field: 'trackingHead', defaultValue: defaults.trackingHead },
   tracking_body: { field: 'trackingBody', defaultValue: defaults.trackingBody },
@@ -154,7 +174,7 @@ export async function getServerBrandConfig(): Promise<BrandConfig> {
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: { fetch: (url, options = {}) => fetch(url, { ...options, cache: 'no-store' }) },
     })
-    const { data, error } = await supabase.from('app_settings').select('key, value')
+    const { data, error } = await supabase.from('platform_settings').select('key, value')
 
     if (error) {
       console.warn('[brand] Failed to fetch app_settings:', error.message)
@@ -170,7 +190,7 @@ export async function getServerBrandConfig(): Promise<BrandConfig> {
 
       for (const [settingsKey, { field, defaultValue }] of Object.entries(settingsMap)) {
         const value = kvMap.get(settingsKey)
-        ;(config as Record<string, unknown>)[field] = value ?? defaultValue
+        ;(config as unknown as Record<string, unknown>)[field] = value ?? defaultValue
       }
 
       // Parse theme settings
@@ -202,6 +222,27 @@ export async function getServerBrandConfig(): Promise<BrandConfig> {
       } else {
         config.themeColors = { ...DEFAULT_THEME_COLORS[config.portalTheme] }
       }
+
+      // Parse event types
+      const eventTypesValue = kvMap.get('event_types')
+      if (eventTypesValue) {
+        try {
+          const parsed = JSON.parse(eventTypesValue)
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            config.eventTypes = parsed
+          }
+        } catch {
+          // use defaults
+        }
+      }
+
+      // Check if event-topics module is enabled
+      const { data: topicsModule } = await supabase
+        .from('installed_modules')
+        .select('status')
+        .eq('module_id', 'event-topics')
+        .maybeSingle()
+      config.eventTopicsEnabled = topicsModule?.status === 'enabled'
     }
 
     // Fall back to first admin user's email if contact_email not set
@@ -358,10 +399,10 @@ export function resolveEventTheme(
   } else if (event.gradient_color_1 || event.gradient_color_2 || event.gradient_color_3) {
     // Legacy: map gradient_color_1/2/3 to blobs theme colors
     colors = {
-      background: (brandConfig.themeColors as BlobsThemeColors).background || '#0d1218',
+      background: (brandConfig.themeColors as BlobsThemeColors).background || '#0a0a0a',
       blob1: event.gradient_color_1 || (brandConfig.themeColors as BlobsThemeColors).blob1 || brandConfig.primaryColor,
       blob2: event.gradient_color_2 || (brandConfig.themeColors as BlobsThemeColors).blob2 || brandConfig.secondaryColor,
-      blob3: event.gradient_color_3 || (brandConfig.themeColors as BlobsThemeColors).blob3 || '#1e2837',
+      blob3: event.gradient_color_3 || (brandConfig.themeColors as BlobsThemeColors).blob3 || '#1a1a1a',
     }
   } else {
     colors = brandConfig.themeColors

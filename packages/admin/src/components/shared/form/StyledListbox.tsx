@@ -104,7 +104,7 @@ const StyledListbox: ListboxComponentType = forwardRef((props, ref) => {
                 {...inputProps}
               >
                 <span className="block truncate">
-                  <span className="dark:text-dark-200 text-gray-600">
+                  <span className="text-[var(--gray-11)]">
                     {!selectedValue?.[multiple ? "length" : displayField] &&
                       placeholder}
                   </span>
@@ -128,7 +128,7 @@ const StyledListbox: ListboxComponentType = forwardRef((props, ref) => {
               >
                 <ListboxOptions
                   anchor={{ to: "bottom end", gap: 8 }}
-                  className="dark:border-dark-500 dark:bg-dark-750 absolute z-100 max-h-60 w-(--button-width) overflow-auto rounded-lg border border-gray-300 bg-white py-1 shadow-lg shadow-gray-200/50 outline-hidden focus-visible:outline-hidden dark:shadow-none"
+                  className="absolute z-100 max-h-60 w-(--button-width) overflow-auto rounded-lg border border-[var(--gray-a5)] bg-[var(--color-background)] py-1 shadow-lg shadow-gray-200/50 outline-hidden focus-visible:outline-hidden dark:shadow-none"
                 >
                   {data.map((item: DataItem, i: number) => (
                     <ListboxOption
@@ -142,10 +142,10 @@ const StyledListbox: ListboxComponentType = forwardRef((props, ref) => {
                       }) =>
                         clsx(
                           "relative cursor-pointer py-2 pr-10 pl-4 outline-hidden transition-colors select-none rtl:pr-4 rtl:pl-10",
-                          active && !selected && "dark:bg-dark-600 bg-gray-100",
+                          active && !selected && "bg-[var(--gray-a3)]",
                           selected
                             ? "bg-primary-600 dark:bg-primary-500 text-white"
-                            : "dark:text-dark-100 text-gray-800",
+                            : "text-[var(--gray-12)]",
                         )
                       }
                       value={item}

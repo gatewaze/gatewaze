@@ -1,0 +1,4 @@
+{
+  "schedule": "*/5 * * * *",
+  "description": "Check for events needing reminder emails every 5 minutes"
+}

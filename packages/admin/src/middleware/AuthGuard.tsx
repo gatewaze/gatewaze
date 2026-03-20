@@ -1,21 +1,26 @@
-import { Navigate, Outlet, useLocation } from 'react-router-dom';
-import { useAuth } from '@/app/contexts/auth/useAuth';
+// Import Dependencies
+import { Navigate, useLocation, useOutlet } from "react-router";
 
-export function AuthGuard() {
-  const { isAuthenticated, isLoading } = useAuth();
+// Local Imports
+import { useAuthContext } from "@/app/contexts/auth/context";
+import { GHOST_ENTRY_PATH, REDIRECT_URL_KEY } from "@/constants/app";
+
+// ----------------------------------------------------------------------
+
+export default function AuthGuard() {
+  const outlet = useOutlet();
+  const { isAuthenticated } = useAuthContext();
+
   const location = useLocation();
 
-  if (isLoading) {
+  if (!isAuthenticated) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-      </div>
+      <Navigate
+        to={`${GHOST_ENTRY_PATH}?${REDIRECT_URL_KEY}=${location.pathname}`}
+        replace
+      />
     );
   }
 
-  if (!isAuthenticated) {
-    return <Navigate to="/auth/login" state={{ from: location }} replace />;
-  }
-
-  return <Outlet />;
+  return <>{outlet}</>;
 }

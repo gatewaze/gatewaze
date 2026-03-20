@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
 
     // Step 1: Look up the talk by edit_token
     const { data: talk, error: talkError } = await supabase
-      .from('event_talks')
+      .from('events_talks')
       .select('id, event_uuid')
       .eq('edit_token', editToken)
       .maybeSingle()
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
 
     // Step 2: Get the primary speaker for this talk
     const { data: talkSpeaker, error: talkSpeakerError } = await supabase
-      .from('event_talk_speakers')
+      .from('events_talk_speakers')
       .select('speaker_id')
       .eq('talk_id', talk.id)
       .eq('is_primary', true)
@@ -69,8 +69,8 @@ export async function POST(req: NextRequest) {
 
     // Step 3: Get speaker info
     const { data: speaker, error: speakerError } = await supabase
-      .from('event_speakers')
-      .select('id, member_profile_id')
+      .from('events_speakers')
+      .select('id, people_profile_id')
       .eq('id', speakerId)
       .single()
 
@@ -78,25 +78,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Speaker not found' }, { status: 404 })
     }
 
-    // Step 4: Get speaker name from member_profiles -> customers
+    // Step 4: Get speaker name from people_profiles -> people
     let speakerName = 'speaker'
-    if (speaker.member_profile_id) {
+    if (speaker.people_profile_id) {
       const { data: profile } = await supabase
-        .from('member_profiles')
-        .select('customer_id')
-        .eq('id', speaker.member_profile_id)
+        .from('people_profiles')
+        .select('person_id')
+        .eq('id', speaker.people_profile_id)
         .single()
 
-      if (profile?.customer_id) {
-        const { data: customer } = await supabase
-          .from('customers')
+      if (profile?.person_id) {
+        const { data: person } = await supabase
+          .from('people')
           .select('attributes, email')
-          .eq('id', profile.customer_id)
+          .eq('id', profile.person_id)
           .single()
 
-        if (customer) {
-          const firstName = (customer.attributes as Record<string, string>)?.first_name || ''
-          const lastName = (customer.attributes as Record<string, string>)?.last_name || ''
+        if (person) {
+          const firstName = (person.attributes as Record<string, string>)?.first_name || ''
+          const lastName = (person.attributes as Record<string, string>)?.last_name || ''
           speakerName = `${firstName} ${lastName}`.trim() || 'speaker'
         }
       }
@@ -137,7 +137,8 @@ export async function POST(req: NextRequest) {
     } else if (appUrl) {
       destinationUrl = `${appUrl}/events/${eventIdentifier}/register`
     } else {
-      destinationUrl = event.event_link || `https://events.mlops.community/events/${eventIdentifier}/register`
+      const portalDomain = process.env.NEXT_PUBLIC_PORTAL_DOMAIN || 'events.mlops.community'
+      destinationUrl = event.event_link || `https://${portalDomain}/events/${eventIdentifier}/register`
     }
 
     const url = new URL(destinationUrl)

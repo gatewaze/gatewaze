@@ -990,7 +990,6 @@ export class DevEventsConferenceScraper extends BaseScraper {
       eventCountryCode: lumaData?.countryCode || '', // From Luma or will be populated by EventProcessor
       eventRegion: lumaData?.region || this.currentRegion || rawEvent.region || '',
       venueAddress: lumaData?.fullAddress || lumaData?.venueAddress || rawEvent.venueAddress || '', // Venue address field
-      listingType: 'active', // Default listing type
       eventType: this.config.config?.type || 'conference', // conference or meetup
       eventTopics: [], // To be filled by topic matching
       sourceEventId: sourceEventId, // dev.events native ID

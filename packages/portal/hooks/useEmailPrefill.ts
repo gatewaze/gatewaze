@@ -17,10 +17,10 @@ interface UseEmailPrefillResult {
 
 /**
  * Hook that reads a pre-fill email from sessionStorage (stored by EventLayoutClient)
- * and optionally fetches the customer profile from the customer-prefill edge function.
+ * and optionally fetches the person profile from the customer-prefill edge function.
  *
  * @param eventIdentifier - The event identifier used as the sessionStorage key
- * @param fetchProfile - Whether to fetch the full customer profile (default: true)
+ * @param fetchProfile - Whether to fetch the full person profile (default: true)
  */
 export function useEmailPrefill(_eventIdentifier?: string, fetchProfile = true): UseEmailPrefillResult {
   const [prefillEmail, setPrefillEmail] = useState<string | null>(null)
@@ -40,13 +40,13 @@ export function useEmailPrefill(_eventIdentifier?: string, fetchProfile = true):
     }
   }, [])
 
-  // Fetch customer profile if email is available
+  // Fetch person profile if email is available
   useEffect(() => {
     if (!prefillEmail || !fetchProfile || fetchedRef.current) return
     fetchedRef.current = true
     setIsLoading(true)
 
-    const fetchCustomerProfile = async () => {
+    const fetchPersonProfile = async () => {
       try {
         const config = getClientBrandConfig()
         const response = await fetch(`${config.supabaseUrl}/functions/v1/customer-prefill`, {
@@ -59,7 +59,7 @@ export function useEmailPrefill(_eventIdentifier?: string, fetchProfile = true):
         })
 
         if (!response.ok) {
-          console.error('Customer prefill failed:', response.status)
+          console.error('Person prefill failed:', response.status)
           setPrefillProfile({ email: prefillEmail, first_name: '', last_name: '', company: '', job_title: '' })
           return
         }
@@ -74,18 +74,18 @@ export function useEmailPrefill(_eventIdentifier?: string, fetchProfile = true):
             job_title: data.profile.job_title || '',
           })
         } else {
-          // No customer found — still provide email
+          // No person found — still provide email
           setPrefillProfile({ email: prefillEmail, first_name: '', last_name: '', company: '', job_title: '' })
         }
       } catch (err) {
-        console.error('Error fetching customer prefill:', err)
+        console.error('Error fetching person prefill:', err)
         setPrefillProfile({ email: prefillEmail, first_name: '', last_name: '', company: '', job_title: '' })
       } finally {
         setIsLoading(false)
       }
     }
 
-    fetchCustomerProfile()
+    fetchPersonProfile()
   }, [prefillEmail, fetchProfile])
 
   return { prefillEmail, prefillProfile, isLoading }

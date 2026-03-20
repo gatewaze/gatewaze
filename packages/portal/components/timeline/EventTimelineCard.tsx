@@ -40,7 +40,9 @@ export function EventTimelineCard({ event, brandConfig, userLocation, showDate }
     const x = ((e.clientX - rect.left) / rect.width) * 100
     const y = ((e.clientY - rect.top) / rect.height) * 100
     glowRef.current.style.opacity = '1'
-    glowRef.current.style.background = `radial-gradient(250px circle at ${x}% ${y}%, rgba(255,255,255,0.15), transparent 70%)`
+    const isLight = document.documentElement.classList.contains('light-brand')
+    const glowColor = isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.15)'
+    glowRef.current.style.background = `radial-gradient(250px circle at ${x}% ${y}%, ${glowColor}, transparent 70%)`
   }, [])
 
   const handleMouseLeave = useCallback(() => {
@@ -51,8 +53,8 @@ export function EventTimelineCard({ event, brandConfig, userLocation, showDate }
   return (
     <Link href={eventUrl} className="block group">
       <div
-        className="relative bg-white/[0.06] rounded-xl border border-white/[0.08] overflow-hidden
-                   hover:bg-white/[0.10] hover:border-white/[0.15] transition-all duration-200
+        className="relative bg-white/5 rounded-xl border border-white/10 overflow-hidden
+                   hover:bg-white/10 hover:border-white/20 transition-all duration-200
                    flex"
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}

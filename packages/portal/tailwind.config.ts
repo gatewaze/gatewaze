@@ -8,10 +8,8 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        'mlops-primary': '#ca2b7f',
-        'mlops-secondary': '#4086c6',
-        'techtickets-primary': '#ee4443',
-        'techtickets-secondary': '#1e2837',
+        'gatewaze-primary': '#20dd20',
+        'gatewaze-secondary': '#0a0a0a',
       },
     },
   },

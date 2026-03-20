@@ -1,4 +1,3 @@
-// @ts-nocheck
 import QRCodeStyling from 'qr-code-styling';
 
 export interface QRCodeOptions {

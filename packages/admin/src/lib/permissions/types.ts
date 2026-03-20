@@ -2,10 +2,10 @@
  * Admin feature permissions types
  */
 
-export type AdminFeature =
+/** Core platform features */
+export type CoreFeature =
   | 'dashboard_home'
-  | 'dashboard_members'
-  | 'dashboard_segment_mappings'
+  | 'dashboard_people'
   | 'accounts'
   | 'users'
   | 'calendars'
@@ -19,13 +19,15 @@ export type AdminFeature =
   | 'payments'
   | 'emails'
   | 'compliance'
-  | 'warehouse'
   | 'scheduler'
   | 'surveys'
   | 'redirects'
   | 'newsletters'
   | 'slack'
   | 'settings';
+
+/** Accepts core features and module-defined features (arbitrary strings) */
+export type AdminFeature = CoreFeature | (string & {});
 
 export interface AdminPermission {
   id: string;
@@ -140,21 +142,14 @@ export const FEATURE_METADATA: Record<AdminFeature, FeatureMetadata> = {
     category: 'dashboard',
     route: '/home',
   },
-  dashboard_members: {
-    key: 'dashboard_members',
-    label: 'Dashboard Members',
-    description: 'View and manage member data',
+  dashboard_people: {
+    key: 'dashboard_people',
+    label: 'Dashboard People',
+    description: 'View and manage people data',
     category: 'dashboard',
-    route: '/members',
+    route: '/people',
   },
-  dashboard_segment_mappings: {
-    key: 'dashboard_segment_mappings',
-    label: 'Segment Mappings',
-    description: 'Manage segment mappings',
-    category: 'admin',
-    route: '/admin/segment-mappings',
-  },
-  accounts: {
+accounts: {
     key: 'accounts',
     label: 'Accounts',
     description: 'Manage accounts and organizations',
@@ -245,14 +240,7 @@ export const FEATURE_METADATA: Record<AdminFeature, FeatureMetadata> = {
     category: 'admin',
     route: '/admin/compliance',
   },
-  warehouse: {
-    key: 'warehouse',
-    label: 'Data Warehouse',
-    description: 'BigQuery data warehouse management and queries',
-    category: 'admin',
-    route: '/admin/warehouse',
-  },
-  scheduler: {
+scheduler: {
     key: 'scheduler',
     label: 'Scheduler',
     description: 'Job queue and scraper scheduler management',

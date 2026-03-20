@@ -1,0 +1,21 @@
+.form-range {
+  @apply block w-full appearance-none bg-transparent outline-hidden [--thumb-size:1.125rem] [--track-h:0.375rem];
+}
+
+.form-range::-webkit-slider-thumb {
+  @apply relative top-[50%] h-(--thumb-size) w-(--thumb-size) -translate-y-1/2 cursor-pointer appearance-none rounded-full border-none bg-current transition-all active:scale-125;
+}
+
+.form-range::-moz-range-thumb {
+  @apply relative top-[50%] h-(--thumb-size) w-(--thumb-size) cursor-pointer appearance-none rounded-full border-none bg-current transition-all active:scale-125;
+}
+
+.form-range::-moz-range-track {
+  @apply h-(--track-h) w-full rounded-full;
+  background-color: var(--gray-a5);
+}
+
+.form-range::-webkit-slider-runnable-track {
+  @apply h-(--track-h) w-full rounded-full;
+  background-color: var(--gray-a5);
+}

@@ -247,7 +247,7 @@ dbCopyRouter.post('/test-connection', async (req, res) => {
     });
 
     // Try to read from a table that should always exist
-    const { data, error } = await source.from('app_settings').select('key').limit(1);
+    const { data, error } = await source.from('platform_settings').select('key').limit(1);
 
     if (error) {
       return res.status(400).json({ error: `Connection failed: ${error.message}` });

@@ -291,7 +291,6 @@ export class BaseScraper {
       eventRegion: rawEvent.region || '',
       venueAddress: rawEvent.venueAddress || '', // New venue address field
       scrapedBy: this.config.name || this.constructor.name, // Track which scraper collected this
-      listingType: 'active', // Default listing type
       eventType: this.config.type, // conference or meetup
       eventTopics: [], // To be filled by topic matching
       latitude: null,

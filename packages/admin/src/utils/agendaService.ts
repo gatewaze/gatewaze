@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { supabase } from '@/lib/supabase';
 
 export interface AgendaTrack {
@@ -85,7 +84,7 @@ export class AgendaService {
 
   static async getTracksByEvent(eventUuid: string): Promise<AgendaTrack[]> {
     const { data, error } = await supabase
-      .from('event_agenda_tracks')
+      .from('events_agenda_tracks')
       .select('*')
       .eq('event_uuid', eventUuid)
       .order('sort_order', { ascending: true });
@@ -100,7 +99,7 @@ export class AgendaService {
 
   static async createTrack(input: CreateAgendaTrackInput): Promise<AgendaTrack> {
     const { data, error } = await supabase
-      .from('event_agenda_tracks')
+      .from('events_agenda_tracks')
       .insert([{
         event_uuid: input.event_uuid,
         name: input.name,
@@ -120,7 +119,7 @@ export class AgendaService {
 
   static async updateTrack(trackId: string, input: UpdateAgendaTrackInput): Promise<AgendaTrack> {
     const { data, error } = await supabase
-      .from('event_agenda_tracks')
+      .from('events_agenda_tracks')
       .update(input)
       .eq('id', trackId)
       .select()
@@ -136,7 +135,7 @@ export class AgendaService {
 
   static async deleteTrack(trackId: string): Promise<void> {
     const { error } = await supabase
-      .from('event_agenda_tracks')
+      .from('events_agenda_tracks')
       .delete()
       .eq('id', trackId);
 
@@ -150,7 +149,7 @@ export class AgendaService {
 
   static async getEntriesByEvent(eventUuid: string): Promise<AgendaEntry[]> {
     const { data, error } = await supabase
-      .from('event_agenda_entries')
+      .from('events_agenda_entries')
       .select('*')
       .eq('event_uuid', eventUuid)
       .order('start_time', { ascending: true });
@@ -165,7 +164,7 @@ export class AgendaService {
 
   static async getEntriesByTrack(trackId: string): Promise<AgendaEntry[]> {
     const { data, error } = await supabase
-      .from('event_agenda_entries')
+      .from('events_agenda_entries')
       .select('*')
       .eq('track_id', trackId)
       .order('start_time', { ascending: true });
@@ -180,7 +179,7 @@ export class AgendaService {
 
   static async createEntry(input: CreateAgendaEntryInput): Promise<AgendaEntry> {
     const { data, error } = await supabase
-      .from('event_agenda_entries')
+      .from('events_agenda_entries')
       .insert([input])
       .select()
       .single();
@@ -195,7 +194,7 @@ export class AgendaService {
 
   static async updateEntry(entryId: string, input: UpdateAgendaEntryInput): Promise<AgendaEntry> {
     const { data, error } = await supabase
-      .from('event_agenda_entries')
+      .from('events_agenda_entries')
       .update(input)
       .eq('id', entryId)
       .select()
@@ -211,7 +210,7 @@ export class AgendaService {
 
   static async deleteEntry(entryId: string): Promise<void> {
     const { error } = await supabase
-      .from('event_agenda_entries')
+      .from('events_agenda_entries')
       .delete()
       .eq('id', entryId);
 
@@ -229,7 +228,7 @@ export class AgendaService {
    */
   static async getEventTimeRange(eventUuid: string): Promise<{ start_time: string; end_time: string } | null> {
     const { data, error } = await supabase
-      .from('event_agenda_entries')
+      .from('events_agenda_entries')
       .select('start_time, end_time')
       .eq('event_uuid', eventUuid)
       .order('start_time', { ascending: true });

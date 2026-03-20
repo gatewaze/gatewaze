@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Custom hooks for permission management
  */
@@ -36,6 +35,13 @@ export function useHasPermission(
       return;
     }
 
+    // Super admins have all permissions — skip the RPC call
+    if (user.role === 'super_admin') {
+      setResult({ hasPermission: true });
+      setLoading(false);
+      return;
+    }
+
     let mounted = true;
 
     const checkPermission = async () => {
@@ -57,7 +63,7 @@ export function useHasPermission(
     return () => {
       mounted = false;
     };
-  }, [user?.id, feature, accountId]);
+  }, [user?.id, user?.role, feature, accountId]);
 
   return { ...result, loading };
 }

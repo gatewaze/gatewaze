@@ -13,7 +13,7 @@ registrationsRouter.get('/', async (req, res) => {
     const status = req.query.status as string;
 
     let query = supabase
-      .from('event_registrations')
+      .from('events_registrations')
       .select('*', { count: 'exact' })
       .order('created_at', { ascending: false })
       .range((page - 1) * limit, page * limit - 1);
@@ -36,7 +36,7 @@ registrationsRouter.get('/:id', async (req, res) => {
   try {
     const supabase = getSupabase();
     const { data, error } = await supabase
-      .from('event_registrations')
+      .from('events_registrations')
       .select('*')
       .eq('id', req.params.id)
       .single();
@@ -56,7 +56,7 @@ registrationsRouter.post('/', async (req, res) => {
   try {
     const supabase = getSupabase();
     const { data, error } = await supabase
-      .from('event_registrations')
+      .from('events_registrations')
       .insert(req.body)
       .select()
       .single();
@@ -74,7 +74,7 @@ registrationsRouter.patch('/:id', async (req, res) => {
   try {
     const supabase = getSupabase();
     const { data, error } = await supabase
-      .from('event_registrations')
+      .from('events_registrations')
       .update(req.body)
       .eq('id', req.params.id)
       .select()
@@ -95,7 +95,7 @@ registrationsRouter.delete('/:id', async (req, res) => {
   try {
     const supabase = getSupabase();
     const { error } = await supabase
-      .from('event_registrations')
+      .from('events_registrations')
       .delete()
       .eq('id', req.params.id);
 

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { supabase } from '@/lib/supabase';
 
 export interface EmailAttachment {
@@ -125,7 +124,7 @@ class EmailService {
       }
 
       // Call Supabase Edge Function to send email via SendGrid
-      const { data, error } = await supabase.functions.invoke('send-email', {
+      const { data, error } = await supabase.functions.invoke('email-send', {
         body: {
           to: request.to,
           cc: request.cc,

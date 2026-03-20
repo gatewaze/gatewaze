@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { supabase } from '@/lib/supabase';
 
 export interface TopicOption {
@@ -13,9 +12,9 @@ let cachePromise: Promise<TopicOption[]> | null = null;
 
 async function fetchTopics(): Promise<TopicOption[]> {
   const [topicsRes, membershipsRes, categoriesRes] = await Promise.all([
-    supabase.from('topics').select('id, name').order('display_order'),
-    supabase.from('topic_category_memberships').select('topic_id, category_id'),
-    supabase.from('topic_categories').select('id, name, parent_id'),
+    supabase.from('events_topics').select('id, name').order('display_order'),
+    supabase.from('events_topic_category_memberships').select('topic_id, category_id'),
+    supabase.from('events_topic_categories').select('id, name, parent_id'),
   ]);
 
   if (topicsRes.error) throw topicsRes.error;

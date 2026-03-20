@@ -90,9 +90,9 @@ export function SignInForm({ brandConfig }: Props) {
     }
 
     try {
-      // Step 1: Call user-signup to create auth user + customer record
+      // Step 1: Call people-signup to create auth user + person record
       const config = getClientBrandConfig()
-      const signupResponse = await fetch(`${config.supabaseUrl}/functions/v1/user-signup`, {
+      const signupResponse = await fetch(`${config.supabaseUrl}/functions/v1/people-signup`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

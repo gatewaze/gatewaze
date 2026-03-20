@@ -1,13 +1,9 @@
 @import "tailwindcss";
 
 @theme {
-  /* MLOps Community brand colors */
-  --color-mlops-primary: #ca2b7f;
-  --color-mlops-secondary: #4086c6;
-
-  /* TechTickets brand colors */
-  --color-techtickets-primary: #ee4443;
-  --color-techtickets-secondary: #1e2837;
+  /* Gatewaze brand colors */
+  --color-gatewaze-primary: #20dd20;
+  --color-gatewaze-secondary: #0a0a0a;
 }
 
 :root {
