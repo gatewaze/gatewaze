@@ -25,6 +25,14 @@ export const admin: NavigationTree = {
       icon: "admin.emails",
       requiredFeature: "emails",
     },
+    {
+      id: "admin.integrations",
+      path: "/admin/integrations",
+      type: "item",
+      title: "Integrations",
+      icon: "ArrowsRightLeft",
+      requiredFeature: "settings",
+    },
     // Module-contributed admin items (sorted by order)
     ...moduleAdminNavItems,
     {

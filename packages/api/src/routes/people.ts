@@ -20,7 +20,7 @@ peopleRouter.get('/', async (req, res) => {
 
     if (search) {
       query = query.or(
-        `first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%,company.ilike.%${search}%`
+        `email.ilike.%${search}%,attributes->>first_name.ilike.%${search}%,attributes->>last_name.ilike.%${search}%,attributes->>company.ilike.%${search}%`
       );
     }
 

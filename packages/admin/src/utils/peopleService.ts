@@ -6,9 +6,11 @@ export interface Person {
   id?: number;
   cio_id: string;
   email?: string;
+  phone?: string;
   attributes?: Record<string, any>;
   attribute_timestamps?: Record<string, number>; // Unix timestamps for when each attribute was changed
   auth_user_id?: string | null;
+  is_guest?: boolean;
   last_synced_at?: string;
   created_at?: string;
   updated_at?: string;

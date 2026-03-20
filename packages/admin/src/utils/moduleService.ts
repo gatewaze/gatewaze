@@ -333,6 +333,32 @@ export class ModuleService {
     }
   }
 
+  static async saveModuleConfig(
+    moduleId: string,
+    config: Record<string, unknown>
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL ?? '';
+      const res = await fetch(`${apiUrl}/api/modules/${moduleId}/config`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ config }),
+      });
+
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return { success: false, error: body.error ?? `Failed (${res.status})` };
+      }
+
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to save config',
+      };
+    }
+  }
+
   static async uploadModule(
     file: File
   ): Promise<{ success: boolean; slug?: string; error?: string }> {
