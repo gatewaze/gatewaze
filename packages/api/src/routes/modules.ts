@@ -218,6 +218,60 @@ modulesRouter.post('/reconcile', async (_req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// Module Configuration
+// ---------------------------------------------------------------------------
+
+/**
+ * PUT /api/modules/:id/config
+ *
+ * Save module configuration (API keys, settings, etc.).
+ * Merges the provided config into the existing config JSON column.
+ */
+modulesRouter.put('/:id/config', async (req, res) => {
+  try {
+    const supabase = getServiceClient();
+    const moduleId = req.params.id;
+    const { config: newConfig } = req.body as { config?: Record<string, unknown> };
+
+    if (!newConfig || typeof newConfig !== 'object') {
+      return res.status(400).json({ error: 'config object is required' });
+    }
+
+    // Get existing config to merge
+    const { data: existing } = await supabase
+      .from('installed_modules')
+      .select('config')
+      .eq('id', moduleId)
+      .single();
+
+    if (!existing) {
+      return res.status(404).json({ error: `Module "${moduleId}" is not installed` });
+    }
+
+    const mergedConfig = {
+      ...((existing as Record<string, unknown>).config as Record<string, unknown> ?? {}),
+      ...newConfig,
+    };
+
+    const { error: updateErr } = await supabase
+      .from('installed_modules')
+      .update({ config: mergedConfig })
+      .eq('id', moduleId);
+
+    if (updateErr) {
+      return res.status(500).json({ error: updateErr.message });
+    }
+
+    return res.json({ success: true, config: mergedConfig });
+  } catch (err) {
+    console.error('[modules] Config update failed:', err);
+    return res.status(500).json({
+      error: err instanceof Error ? err.message : 'Failed to save config',
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Module Enable / Disable (with edge function deployment)
 // ---------------------------------------------------------------------------
 

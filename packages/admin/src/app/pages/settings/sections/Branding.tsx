@@ -10,13 +10,20 @@ import {
   Check,
   FileText,
   Info,
+  Users,
 } from "lucide-react";
 import { EventTypesEditor } from "@/components/shared/branding/EventTypesEditor";
+import { PeopleAttributesEditor } from "@/components/shared/branding/PeopleAttributesEditor";
 import {
   type EventTypeOption,
   DEFAULT_EVENT_TYPES,
   saveEventTypes,
 } from "@/hooks/useEventTypes";
+import {
+  type PeopleAttributeConfig,
+  DEFAULT_PEOPLE_ATTRIBUTES,
+  savePeopleAttributes,
+} from "@/hooks/usePeopleAttributes";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { RichTextEditor } from "@/components/ui/RichTextEditor";
@@ -108,6 +115,10 @@ function BrandingCard() {
     useState<EventTypeOption[]>(DEFAULT_EVENT_TYPES);
   const [originalEventTypes, setOriginalEventTypes] =
     useState<EventTypeOption[]>(DEFAULT_EVENT_TYPES);
+  const [peopleAttributes, setPeopleAttributes] =
+    useState<PeopleAttributeConfig[]>(DEFAULT_PEOPLE_ATTRIBUTES);
+  const [originalPeopleAttributes, setOriginalPeopleAttributes] =
+    useState<PeopleAttributeConfig[]>(DEFAULT_PEOPLE_ATTRIBUTES);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -125,6 +136,7 @@ function BrandingCard() {
         "theme_colors",
         "corner_style",
         "event_types",
+        "people_attributes",
       ]);
 
     if (data) {
@@ -133,6 +145,7 @@ function BrandingCard() {
       let loadedColors: ThemeColorsMap = { ...DEFAULT_THEME_COLORS };
       let loadedCornerStyle: CornerStyle = "rounded";
       let loadedEventTypes: EventTypeOption[] = DEFAULT_EVENT_TYPES;
+      let loadedPeopleAttributes: PeopleAttributeConfig[] = DEFAULT_PEOPLE_ATTRIBUTES;
 
       for (const row of data) {
         if (row.key === "portal_theme") {
@@ -154,6 +167,15 @@ function BrandingCard() {
             const parsed = JSON.parse(row.value);
             if (Array.isArray(parsed) && parsed.length > 0) {
               loadedEventTypes = parsed;
+            }
+          } catch {
+            /* use defaults */
+          }
+        } else if (row.key === "people_attributes") {
+          try {
+            const parsed = JSON.parse(row.value);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              loadedPeopleAttributes = parsed;
             }
           } catch {
             /* use defaults */
@@ -208,6 +230,8 @@ function BrandingCard() {
       setOriginalCornerStyle(loadedCornerStyle);
       setEventTypes(loadedEventTypes);
       setOriginalEventTypes(loadedEventTypes);
+      setPeopleAttributes(loadedPeopleAttributes);
+      setOriginalPeopleAttributes(loadedPeopleAttributes);
     }
     setLoading(false);
   }, []);
@@ -221,7 +245,8 @@ function BrandingCard() {
     portalTheme !== originalPortalTheme ||
     JSON.stringify(themeColors) !== JSON.stringify(originalThemeColors) ||
     cornerStyle !== originalCornerStyle ||
-    JSON.stringify(eventTypes) !== JSON.stringify(originalEventTypes);
+    JSON.stringify(eventTypes) !== JSON.stringify(originalEventTypes) ||
+    JSON.stringify(peopleAttributes) !== JSON.stringify(originalPeopleAttributes);
 
   const handleSave = async () => {
     if (savingRef.current) return;
@@ -236,6 +261,9 @@ function BrandingCard() {
       allSettings.theme_colors = JSON.stringify(themeColors);
       allSettings.event_types = JSON.stringify(
         eventTypes.filter((t) => t.value && t.label)
+      );
+      allSettings.people_attributes = JSON.stringify(
+        peopleAttributes.filter((a) => a.key && a.label)
       );
       const rows = Object.entries(allSettings).map(([key, value]) => ({
         key,
@@ -263,6 +291,7 @@ function BrandingCard() {
       setOriginalThemeColors(themeColors);
       setOriginalCornerStyle(cornerStyle);
       setOriginalEventTypes(eventTypes);
+      setOriginalPeopleAttributes(peopleAttributes);
       setSaved(true);
       setTimeout(() => setSaved(false), 5000);
     } catch (err) {
@@ -1144,9 +1173,152 @@ function LegalPagesContent() {
   );
 }
 
+// ── People Attributes Card ─────────────────────────────────────────
+
+function PeopleAttributesCard() {
+  const [attributes, setAttributes] =
+    useState<PeopleAttributeConfig[]>(DEFAULT_PEOPLE_ATTRIBUTES);
+  const [originalAttributes, setOriginalAttributes] =
+    useState<PeopleAttributeConfig[]>(DEFAULT_PEOPLE_ATTRIBUTES);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const savingRef = useRef(false);
+
+  const loadAttributes = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("platform_settings")
+        .select("value")
+        .eq("key", "people_attributes")
+        .maybeSingle();
+
+      if (!error && data?.value) {
+        const parsed = JSON.parse(data.value);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setAttributes(parsed);
+          setOriginalAttributes(parsed);
+        }
+      }
+    } catch {
+      // use defaults
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadAttributes();
+  }, [loadAttributes]);
+
+  const hasChanges =
+    JSON.stringify(attributes) !== JSON.stringify(originalAttributes);
+
+  const handleSave = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
+    setSaved(false);
+    setSaveError(null);
+
+    try {
+      const { error } = await savePeopleAttributes(
+        attributes.filter((a) => a.key && a.label)
+      );
+      if (error) {
+        setSaveError(`Failed to save: ${error}`);
+        return;
+      }
+      setOriginalAttributes(attributes);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 5000);
+    } catch (err) {
+      setSaveError(
+        err instanceof Error ? err.message : "An unexpected error occurred"
+      );
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <Card size="4">
+        <div className="flex items-center gap-2 mb-4">
+          <Users className="h-5 w-5" />
+          <Heading size="4">People Attributes</Heading>
+        </div>
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="h-6 w-6 animate-spin text-[var(--gray-9)]" />
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card size="4">
+      <div className="flex items-center gap-2 mb-2">
+        <Users className="h-5 w-5" />
+        <Heading size="4">People Attributes</Heading>
+      </div>
+      <Text as="p" size="2" color="gray" className="mb-8">
+        Configure which attributes are collected when someone registers for an
+        event. Toggle attributes on or off and mark them as required for
+        registration.
+      </Text>
+
+      <PeopleAttributesEditor value={attributes} onChange={setAttributes} />
+
+      <hr className="border-[var(--gray-5)] my-6" />
+
+      <div className="flex items-center gap-3">
+        <Button
+          onClick={handleSave}
+          disabled={!hasChanges || saving}
+          variant="solid"
+        >
+          {saving ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...
+            </>
+          ) : saved ? (
+            <>
+              <Check className="mr-2 h-4 w-4" /> Saved
+            </>
+          ) : (
+            "Save Changes"
+          )}
+        </Button>
+        {hasChanges && !saving && !saveError && (
+          <Text size="1" color="gray">
+            You have unsaved changes
+          </Text>
+        )}
+        {saveError && (
+          <Text size="1" color="red">
+            Error: {saveError}
+          </Text>
+        )}
+      </div>
+      {saved && (
+        <div className="mt-4 flex items-center gap-2 rounded-md bg-[var(--accent-2)] border border-[var(--accent-6)] px-3 py-2">
+          <Info className="h-4 w-4 shrink-0 text-[var(--accent-9)]" />
+          <Text size="1" color="gray">
+            Registration forms will use these settings for future events.
+          </Text>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 // ── Main Page Component ────────────────────────────────────────────
 
 export default function Branding() {
+  const [topTab, setTopTab] = useState("portal");
+
   return (
     <Page title="Settings">
       <div className="p-6">
@@ -1155,12 +1327,34 @@ export default function Branding() {
             Settings
           </h1>
           <p className="text-[var(--gray-11)] mt-1">
-            Configure branding, themes, and legal pages for your portal
+            Configure your platform settings
           </p>
         </div>
-        <div className="space-y-6">
-          <BrandingCard />
-        </div>
+
+        <RadixTabs.Root value={topTab} onValueChange={setTopTab}>
+          <RadixTabs.List className="mb-6">
+            <RadixTabs.Trigger value="portal">
+              <Palette className="mr-1.5 h-4 w-4 inline-block" />
+              Portal Settings
+            </RadixTabs.Trigger>
+            <RadixTabs.Trigger value="people">
+              <Users className="mr-1.5 h-4 w-4 inline-block" />
+              People Attributes
+            </RadixTabs.Trigger>
+          </RadixTabs.List>
+
+          <RadixTabs.Content value="portal">
+            <div className="space-y-6">
+              <BrandingCard />
+            </div>
+          </RadixTabs.Content>
+
+          <RadixTabs.Content value="people">
+            <div className="space-y-6">
+              <PeopleAttributesCard />
+            </div>
+          </RadixTabs.Content>
+        </RadixTabs.Root>
       </div>
     </Page>
   );

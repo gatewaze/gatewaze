@@ -9,6 +9,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
 }
+import { getEnabledModules, isModuleEnabled } from '@/lib/modules/enabledModules'
 import { GlowProvider } from '@/components/ui/GlowContext'
 import { Header } from '@/components/Header'
 import { Footer } from '@/components/ui/Footer'
@@ -83,6 +84,8 @@ export default async function MainLayout({
 }) {
   const brandConfig = await getServerBrandConfig()
   const brand = brandConfig.id
+  const modules = await getEnabledModules()
+  const complianceEnabled = isModuleEnabled(modules, 'compliance')
   const fontsUrl = buildGoogleFontsUrl(brandConfig)
   const fontStack = buildFontStack(brandConfig)
   const themeBgColor = getThemeBackgroundColor(brandConfig.portalTheme, brandConfig.themeColors, brandConfig.secondaryColor)
@@ -157,7 +160,7 @@ export default async function MainLayout({
             </GlowProvider>
           </TrackingProvider>
         </AnalyticsProvider>
-        <CookieConsentLoader />
+        {complianceEnabled && <CookieConsentLoader />}
         {brandConfig.trackingBody && (
           <script dangerouslySetInnerHTML={{ __html: brandConfig.trackingBody }} />
         )}

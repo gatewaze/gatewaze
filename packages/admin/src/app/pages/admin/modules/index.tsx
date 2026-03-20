@@ -105,11 +105,14 @@ export default function ModulesPage() {
     checkForUpdates();
   }, [loadInstalledModules, loadModuleSources, checkForUpdates]);
 
-  // Merge config modules with DB status
+  // Merge config modules with DB status — excludes integration-type modules
+  // (those are managed in the Integrations page instead)
   const moduleCards: ModuleCardData[] = useMemo(() => {
     const updateMap = new Map(availableUpdates.map((u) => [u.id, u]));
 
-    const cards: ModuleCardData[] = modules.map((mod) => {
+    const cards: ModuleCardData[] = modules
+      .filter((mod) => (mod.type ?? "feature") !== "integration")
+      .map((mod) => {
       const installed = installedModules.find((m) => m.id === mod.id);
       const update = updateMap.get(mod.id);
       const installedVersion = installed?.version ?? mod.version;
@@ -132,8 +135,10 @@ export default function ModulesPage() {
     });
 
     // Also show custom/orphaned modules from DB not in bundled config
+    // (excludes integration-type — those are in the Integrations page)
     for (const installed of installedModules) {
       if (!modules.find((m) => m.id === installed.id)) {
+        if ((installed.type ?? "feature") === "integration") continue;
         cards.push({
           id: installed.id,
           name: installed.name,

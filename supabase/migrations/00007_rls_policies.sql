@@ -559,7 +559,7 @@ CREATE POLICY "admin_update_platform_settings"
 
 CREATE POLICY "installed_modules_select_anon"
   ON public.installed_modules FOR SELECT TO anon
-  USING (status = 'active');
+  USING (status = 'enabled');
 
 CREATE POLICY "authenticated_select_installed_modules"
   ON public.installed_modules FOR SELECT TO authenticated

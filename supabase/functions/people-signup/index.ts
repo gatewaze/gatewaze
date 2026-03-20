@@ -150,8 +150,8 @@ export default async function(req: Request) {
         emitIntegrationEvent(supabase, 'person.updated', { email, attributes: updatedAttributes })
       }
 
-      // Determine missing fields even for existing users
-      const requiredFields = ['first_name', 'last_name', 'company', 'job_title']
+      // Determine missing fields based on people_attributes config
+      const requiredFields = await getRequiredAttributeKeys()
       const missingFields: string[] = []
       const combinedData = { ...existingPerson.attributes, ...user_metadata }
 
@@ -330,8 +330,11 @@ export default async function(req: Request) {
       console.log('Person record created in Supabase successfully')
     }
 
-    // Step 7: Determine missing fields
-    const requiredFields = ['first_name', 'last_name', 'company', 'job_title']
+    // Step 7: Trigger enrichment if people-enrichment module is enabled
+    await triggerEnrichmentIfEnabled(email)
+
+    // Step 8: Determine missing fields based on people_attributes config
+    const requiredFields = await getRequiredAttributeKeys()
     const missingFields: string[] = []
 
     for (const field of requiredFields) {
@@ -427,4 +430,80 @@ async function getIpLocation(ipAddress: string | null): Promise<{
 function extractAppFromSource(source: string): string {
   const parts = source.split('_')
   return parts[0] || 'unknown'
+}
+
+/**
+ * Fetch the list of required attribute keys from the people_attributes platform setting.
+ * Falls back to ['first_name', 'last_name', 'company', 'job_title'] if not configured.
+ */
+async function getRequiredAttributeKeys(): Promise<string[]> {
+  const defaultRequired = ['first_name', 'last_name', 'company', 'job_title']
+
+  try {
+    const { data, error } = await supabase
+      .from('platform_settings')
+      .select('value')
+      .eq('key', 'people_attributes')
+      .maybeSingle()
+
+    if (error || !data?.value) return defaultRequired
+
+    const parsed = JSON.parse(data.value)
+    if (!Array.isArray(parsed) || parsed.length === 0) return defaultRequired
+
+    return parsed
+      .filter((a: { enabled?: boolean; required?: boolean }) => a.enabled && a.required)
+      .map((a: { key: string }) => a.key)
+  } catch {
+    return defaultRequired
+  }
+}
+
+/**
+ * Check if the people-enrichment module is enabled and has API keys configured,
+ * then trigger enrichment for the given email address.
+ * Runs as a fire-and-forget — does not block signup if enrichment fails.
+ */
+async function triggerEnrichmentIfEnabled(email: string): Promise<void> {
+  try {
+    // Check if the people-enrichment module is enabled
+    const { data: mod } = await supabase
+      .from('installed_modules')
+      .select('status, config')
+      .eq('id', 'people-enrichment')
+      .maybeSingle()
+
+    if (!mod || mod.status !== 'enabled') return
+
+    const config = (mod.config ?? {}) as Record<string, string>
+
+    // Check if auto-enrich is enabled (default: true)
+    if (config.AUTO_ENRICH_ON_CREATE === 'false') return
+
+    // Check if at least one enrichment API key is configured
+    const hasClearbit = !!config.CLEARBIT_API_KEY
+    const hasEnrichLayer = !!config.ENRICHLAYER_API_KEY
+    if (!hasClearbit && !hasEnrichLayer) return
+
+    const enrichmentMode = config.ENRICHMENT_MODE || 'full'
+    console.log(`[enrichment] Triggering ${enrichmentMode} enrichment for ${email}`)
+
+    // Call the people-enrichment edge function (fire-and-forget)
+    const enrichmentUrl = `${supabaseUrl}/functions/v1/people-enrichment`
+    const bearerToken = Deno.env.get('GW_API_BEARER') || ''
+
+    fetch(enrichmentUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${bearerToken}`,
+      },
+      body: JSON.stringify({ email, mode: enrichmentMode }),
+    }).catch((err) => {
+      console.error('[enrichment] Failed to trigger enrichment:', err)
+    })
+  } catch (err) {
+    // Don't block signup if enrichment check fails
+    console.error('[enrichment] Error checking enrichment module:', err)
+  }
 }

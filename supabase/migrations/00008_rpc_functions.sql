@@ -330,40 +330,16 @@ DECLARE
   v_person_id uuid;
 BEGIN
   INSERT INTO public.people (
-    cio_id, email, first_name, last_name, full_name,
-    company, job_title, phone, linkedin_url, location,
-    attributes, last_synced_at
+    cio_id, email, attributes, last_synced_at
   )
   VALUES (
     p_cio_id,
     lower(p_email),
-    p_attributes->>'first_name',
-    p_attributes->>'last_name',
-    COALESCE(
-      p_attributes->>'full_name',
-      NULLIF(
-        TRIM(COALESCE(p_attributes->>'first_name', '') || ' ' || COALESCE(p_attributes->>'last_name', '')),
-        ''
-      )
-    ),
-    p_attributes->>'company',
-    p_attributes->>'job_title',
-    p_attributes->>'phone',
-    p_attributes->>'linkedin_url',
-    p_attributes->>'location',
     p_attributes,
     now()
   )
   ON CONFLICT (email) DO UPDATE SET
     cio_id       = COALESCE(EXCLUDED.cio_id, people.cio_id),
-    first_name   = COALESCE(EXCLUDED.first_name, people.first_name),
-    last_name    = COALESCE(EXCLUDED.last_name, people.last_name),
-    full_name    = COALESCE(EXCLUDED.full_name, people.full_name),
-    company      = COALESCE(EXCLUDED.company, people.company),
-    job_title    = COALESCE(EXCLUDED.job_title, people.job_title),
-    phone        = COALESCE(EXCLUDED.phone, people.phone),
-    linkedin_url = COALESCE(EXCLUDED.linkedin_url, people.linkedin_url),
-    location     = COALESCE(EXCLUDED.location, people.location),
     attributes   = people.attributes || p_attributes,
     last_synced_at = now(),
     updated_at     = now()
@@ -393,29 +369,26 @@ RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
+DECLARE
+  v_updates jsonb := '{}'::jsonb;
 BEGIN
+  IF p_first_name IS NOT NULL THEN v_updates := v_updates || jsonb_build_object('first_name', p_first_name); END IF;
+  IF p_last_name IS NOT NULL THEN v_updates := v_updates || jsonb_build_object('last_name', p_last_name); END IF;
+  IF p_company IS NOT NULL THEN v_updates := v_updates || jsonb_build_object('company', p_company); END IF;
+  IF p_job_title IS NOT NULL THEN v_updates := v_updates || jsonb_build_object('job_title', p_job_title); END IF;
+  IF p_linkedin_url IS NOT NULL THEN v_updates := v_updates || jsonb_build_object('linkedin_url', p_linkedin_url); END IF;
+
   UPDATE public.people
   SET
-    first_name   = COALESCE(p_first_name, first_name),
-    last_name    = COALESCE(p_last_name, last_name),
-    full_name    = COALESCE(
-      NULLIF(
-        TRIM(COALESCE(p_first_name, first_name, '') || ' ' || COALESCE(p_last_name, last_name, '')),
-        ''
-      ),
-      full_name
-    ),
-    company      = COALESCE(p_company, company),
-    job_title    = COALESCE(p_job_title, job_title),
-    linkedin_url = COALESCE(p_linkedin_url, linkedin_url),
-    phone        = COALESCE(p_phone, phone),
-    updated_at   = now()
+    attributes = CASE WHEN v_updates != '{}'::jsonb THEN attributes || v_updates ELSE attributes END,
+    phone      = COALESCE(p_phone, phone),
+    updated_at = now()
   WHERE id = p_person_id;
 END;
 $$;
 
 COMMENT ON FUNCTION public.people_update_attributes(uuid, text, text, text, text, text, text)
-  IS 'Selectively update person attributes (NULL parameters are skipped)';
+  IS 'Selectively update person attributes in JSONB (NULL parameters are skipped)';
 
 --------------------------------------------------------------------------------
 -- 10. people_update_avatar
@@ -512,20 +485,32 @@ LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 AS $$
+DECLARE
+  v_sort_expr text;
+  v_order text;
 BEGIN
+  v_order := CASE WHEN upper(p_sort_order) = 'ASC' THEN 'ASC' ELSE 'DESC' END;
+
+  -- Map sort columns: top-level columns use %I, JSONB fields use ->> expression
+  v_sort_expr := CASE
+    WHEN p_sort_by IN ('email', 'created_at', 'updated_at') THEN format('%I', p_sort_by)
+    WHEN p_sort_by = 'full_name' THEN $f$COALESCE(attributes->>'first_name', '') || ' ' || COALESCE(attributes->>'last_name', '')$f$
+    WHEN p_sort_by = 'company' THEN $f$attributes->>'company'$f$
+    ELSE 'created_at'
+  END;
+
   RETURN QUERY EXECUTE format(
     'SELECT c.*
      FROM public.people c
      WHERE c.auth_user_id IS NOT NULL
-       AND ($1 IS NULL OR c.email ILIKE $1 OR c.full_name ILIKE $1 OR c.company ILIKE $1)
-     ORDER BY %I %s
+       AND ($1 IS NULL
+            OR c.email ILIKE $1
+            OR (c.attributes->>''first_name'' || '' '' || c.attributes->>''last_name'') ILIKE $1
+            OR c.attributes->>''company'' ILIKE $1)
+     ORDER BY %s %s
      LIMIT $2 OFFSET $3',
-    CASE
-      WHEN p_sort_by IN ('email', 'full_name', 'company', 'created_at', 'updated_at')
-      THEN p_sort_by
-      ELSE 'created_at'
-    END,
-    CASE WHEN upper(p_sort_order) = 'ASC' THEN 'ASC' ELSE 'DESC' END
+    v_sort_expr,
+    v_order
   )
   USING
     CASE WHEN p_search_term IS NOT NULL THEN '%' || p_search_term || '%' ELSE NULL END,
@@ -535,7 +520,7 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.people_get_authenticated_sorted(integer, integer, text, text, text)
-  IS 'Paginated, sortable, searchable listing of authenticated people';
+  IS 'Paginated, sortable, searchable listing of authenticated people (searches attributes JSONB)';
 
 --------------------------------------------------------------------------------
 -- 14. people_count_with_linkedin
@@ -550,12 +535,12 @@ AS $$
   SELECT COUNT(*)
   FROM public.people
   WHERE auth_user_id IS NOT NULL
-    AND linkedin_url IS NOT NULL
-    AND linkedin_url <> '';
+    AND attributes->>'linkedin_url' IS NOT NULL
+    AND attributes->>'linkedin_url' <> '';
 $$;
 
 COMMENT ON FUNCTION public.people_count_with_linkedin()
-  IS 'Count authenticated people who have a LinkedIn URL';
+  IS 'Count authenticated people who have a LinkedIn URL (in attributes)';
 
 --------------------------------------------------------------------------------
 -- 15. admin_get_auth_user_id_by_email

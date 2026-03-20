@@ -200,6 +200,56 @@ const protectedRoutes: RouteObject = {
                 };
               },
             },
+            {
+              path: "integrations",
+              children: [
+                {
+                  index: true,
+                  lazy: async () => {
+                    const module = await import(
+                      "@/app/pages/admin/integrations"
+                    );
+                    return {
+                      Component: () => (
+                        <FeatureGuard feature="settings">
+                          <module.default />
+                        </FeatureGuard>
+                      ),
+                    };
+                  },
+                },
+                {
+                  path: "people-enrichment",
+                  lazy: async () => {
+                    const module = await import(
+                      "@/app/pages/admin/integrations/PeopleEnrichmentSettings"
+                    );
+                    return {
+                      Component: () => (
+                        <FeatureGuard feature="settings">
+                          <module.default />
+                        </FeatureGuard>
+                      ),
+                    };
+                  },
+                },
+                {
+                  path: "people-warehouse",
+                  lazy: async () => {
+                    const module = await import(
+                      "@/app/pages/admin/integrations/PeopleWarehouseSettings"
+                    );
+                    return {
+                      Component: () => (
+                        <FeatureGuard feature="settings">
+                          <module.default />
+                        </FeatureGuard>
+                      ),
+                    };
+                  },
+                },
+              ],
+            },
             // Module-provided admin routes (guard: 'admin')
             ...moduleAdminRoutes,
           ],
