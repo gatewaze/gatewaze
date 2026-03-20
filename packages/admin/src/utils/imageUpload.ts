@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { supabase } from '@/lib/supabase';
 
 export interface ImageUploadResult {
@@ -56,7 +55,7 @@ export async function uploadBlogImage(
 
     // Upload file to storage
     const { data, error } = await supabase.storage
-      .from('blog-images')
+      .from('media')
       .upload(filePath, file, {
         upsert: false, // Don't overwrite existing files
         cacheControl: '3600', // Cache for 1 hour
@@ -71,7 +70,7 @@ export async function uploadBlogImage(
 
     // Get public URL
     const { data: urlData } = supabase.storage
-      .from('blog-images')
+      .from('media')
       .getPublicUrl(data.path);
 
     return {
@@ -93,7 +92,7 @@ export async function uploadBlogImage(
 export async function deleteBlogImage(imagePath: string): Promise<ImageUploadResult> {
   try {
     const { error } = await supabase.storage
-      .from('blog-images')
+      .from('media')
       .remove([imagePath]);
 
     if (error) {
@@ -150,7 +149,7 @@ export async function updateBlogImage(
  */
 export function getBlogImageUrl(imagePath: string): string {
   const { data } = supabase.storage
-    .from('blog-images')
+    .from('media')
     .getPublicUrl(imagePath);
 
   return data.publicUrl;
@@ -163,7 +162,7 @@ export function extractImagePath(imageUrl: string): string | null {
   try {
     const url = new URL(imageUrl);
     const pathParts = url.pathname.split('/');
-    const bucketIndex = pathParts.findIndex(part => part === 'blog-images');
+    const bucketIndex = pathParts.findIndex(part => part === 'media');
 
     if (bucketIndex !== -1 && bucketIndex < pathParts.length - 1) {
       return pathParts.slice(bucketIndex + 1).join('/');

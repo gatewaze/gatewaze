@@ -45,7 +45,7 @@ export function SpeakersListContent() {
 
         // Get speakers with 'confirmed' status for this event
         const { data, error } = await supabase
-          .from('event_speakers_with_details')
+          .from('events_speakers_with_details')
           .select('*')
           .eq('event_uuid', event.id)
           .eq('status', 'confirmed')
@@ -61,7 +61,7 @@ export function SpeakersListContent() {
         // If no confirmed speakers, fall back to placeholder speakers
         if (!data || data.length === 0) {
           const { data: placeholderData, error: placeholderError } = await supabase
-            .from('event_speakers_with_details')
+            .from('events_speakers_with_details')
             .select('*')
             .eq('event_uuid', event.id)
             .eq('status', 'placeholder')
@@ -116,7 +116,7 @@ export function SpeakersListContent() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {placeholders.map((i) => (
-            <GlowBorder key={i} borderRadius="1rem" useDarkTheme={useDarkText} className="h-full">
+            <GlowBorder key={i} useDarkTheme={useDarkText} className="h-full">
               <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-xl overflow-hidden ${panelTheme.panelBorder} p-4 h-full flex flex-col`}>
                 <div className="flex items-start gap-4 flex-1">
                   <div className="flex-shrink-0">
@@ -130,10 +130,10 @@ export function SpeakersListContent() {
                     </div>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className={`font-semibold text-sm ${panelTheme.textMuted}`}>
+                    <h3 className={`font-semibold text-base ${panelTheme.textMuted}`}>
                       Speaker TBA
                     </h3>
-                    <p className={`text-xs ${panelTheme.textMuted} mt-0.5 opacity-60`}>
+                    <p className={`text-sm ${panelTheme.textMuted} mt-0.5 opacity-60`}>
                       To be announced
                     </p>
                   </div>
@@ -182,7 +182,7 @@ export function SpeakersListContent() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <span className={`text-sm font-medium ${panelTheme.textColor}`}>
+          <span className={`text-base font-medium ${panelTheme.textColor}`}>
             You're in the lineup
           </span>
         </div>
@@ -279,7 +279,7 @@ function SpeakerCard({ speaker, useDarkText, primaryColor, panelTheme, isFeature
     : null
 
   return (
-    <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText} className="h-full">
+    <GlowBorder useDarkTheme={useDarkText} className="h-full">
       <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-xl overflow-hidden ${panelTheme.panelBorder} p-4 h-full flex flex-col group`}>
         <div className="flex items-start gap-4 flex-1">
           {/* Avatar */}
@@ -303,7 +303,7 @@ function SpeakerCard({ speaker, useDarkText, primaryColor, panelTheme, isFeature
           {/* Info */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <h3 className={`font-semibold ${panelTheme.textColor} truncate ${isFeatured ? 'text-base' : 'text-sm'}`}>
+              <h3 className={`font-semibold ${panelTheme.textColor} truncate ${isFeatured ? 'text-lg' : 'text-base'}`}>
                 {speaker.full_name}
               </h3>
               {speaker.linkedin_url && (
@@ -320,12 +320,12 @@ function SpeakerCard({ speaker, useDarkText, primaryColor, panelTheme, isFeature
               )}
             </div>
             {(speaker.job_title || speaker.company) && (
-              <p className={`text-xs ${panelTheme.textMuted} mt-0.5`}>
+              <p className={`text-sm ${panelTheme.textMuted} mt-0.5`}>
                 {[speaker.job_title, speaker.company].filter(Boolean).join(' at ')}
               </p>
             )}
             {speaker.speaker_title && (
-              <p className={`text-xs mt-1 ${panelTheme.textMuted} line-clamp-2`}>
+              <p className={`text-sm mt-1 ${panelTheme.textMuted} line-clamp-2`}>
                 {speaker.speaker_title}
               </p>
             )}
@@ -338,7 +338,7 @@ function SpeakerCard({ speaker, useDarkText, primaryColor, panelTheme, isFeature
               src={companyLogoUrl}
               alt={speaker.company ? `${speaker.company} logo` : 'Company logo'}
               className="max-h-6 max-w-28 w-auto object-contain"
-              style={{ filter: 'brightness(0) invert(1)' }}
+              style={{ filter: useDarkText ? 'brightness(0)' : 'brightness(0) invert(1)' }}
             />
           </div>
         )}

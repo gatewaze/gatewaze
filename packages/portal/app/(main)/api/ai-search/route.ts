@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
     // Also search the event_embeddings.description_text which contains all combined content
     // (includes extracted text from luma_page_data, meetup_page_data, fetched page content, etc.)
     const { data: embeddingTextMatches, error: embeddingSearchError } = await supabase
-      .from('event_embeddings')
+      .from('events_embeddings')
       .select('event_id')
       .or(`description_text.ilike.${searchPattern},description_text.ilike.${stemPattern}`)
       .limit(50)
@@ -121,7 +121,7 @@ export async function POST(req: NextRequest) {
     // Convert embedding array to string format for pgvector RPC
     const embeddingString = `[${queryEmbedding.join(',')}]`
 
-    const { data: similarEvents, error: searchError } = await supabase.rpc('search_similar_events', {
+    const { data: similarEvents, error: searchError } = await supabase.rpc('events_search_similar', {
       query_embedding: embeddingString,
       match_threshold: 0.25, // Lower threshold for semantic matches
       match_count: 30,
@@ -185,7 +185,7 @@ export async function POST(req: NextRequest) {
     const popularityScores: Map<string, PopularityScore> = new Map()
 
     if (eventIdStrings.length > 0) {
-      const { data: popularityData } = await supabase.rpc('get_event_popularity_scores', {
+      const { data: popularityData } = await supabase.rpc('events_get_popularity_scores', {
         event_ids: eventIdStrings,
       })
       if (popularityData) {
@@ -307,7 +307,7 @@ export async function POST(req: NextRequest) {
     // Log search query for analytics and self-populating pipeline (fire-and-forget)
     Promise.resolve(
       supabase
-        .from('search_queries_log')
+        .from('platform_search_queries_log')
         .insert({
           query,
           brand_id: brandId,

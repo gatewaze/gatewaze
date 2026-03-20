@@ -58,7 +58,7 @@ async function cleanupStaleScraperJobs() {
     // Query database to find which scraper_jobs exist
     const dbJobIds = scraperJobIds.map(j => j.scraperJobId);
     const { data: existingJobs, error } = await supabase
-      .from('scraper_jobs')
+      .from('scrapers_jobs')
       .select('id')
       .in('id', dbJobIds);
 
@@ -151,7 +151,7 @@ async function persistLog(scraperJobId, message, logType = 'log', logLevel = 'in
   if (!scraperJobId) return;
 
   try {
-    await supabase.rpc('insert_scraper_job_log', {
+    await supabase.rpc('scrapers_insert_job_log', {
       p_job_id: scraperJobId,
       p_log_type: logType,
       p_log_level: logLevel,

@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Import Dependencies
 import { ReactNode, useEffect, useRef, useState } from "react";
 

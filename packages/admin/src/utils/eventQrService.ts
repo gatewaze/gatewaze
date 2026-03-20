@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { supabase } from '@/lib/supabase';
 
 // Types for the QR system
@@ -29,7 +28,7 @@ export interface EventSponsor {
 
 export interface EventRegistration {
   id: string;
-  member_profile_id: string;
+  people_profile_id: string;
   event_id: string;
   registration_type: 'standard' | 'vip' | 'speaker' | 'sponsor_staff' | null;
   ticket_type: string | null;
@@ -60,7 +59,7 @@ export interface EventRegistration {
   } | null;
   // Joined member data
   qr_code_id?: string;
-  customer_id?: number;
+  person_id?: number;
   full_name?: string;
   email?: string;
   company?: string;
@@ -70,7 +69,7 @@ export interface EventRegistration {
 
 export interface EventAttendance {
   id: string;
-  member_profile_id: string;
+  people_profile_id: string;
   event_id: string;
   event_registration_id: string | null;
   checked_in_at: string;
@@ -79,7 +78,7 @@ export interface EventAttendance {
   badge_printed_on_site: boolean;
   // Joined member data
   qr_code_id?: string;
-  customer_id?: number;
+  person_id?: number;
   full_name?: string;
   email?: string;
   company?: string;
@@ -121,10 +120,10 @@ export class EventQrService {
   static async getEventSponsors(eventId: string): Promise<EventSponsor[]> {
     try {
       const { data, error } = await supabase
-        .from('event_sponsors')
+        .from('events_sponsors')
         .select(`
           *,
-          sponsor:sponsors (
+          sponsor:events_sponsor_profiles (
             id,
             name,
             slug,
@@ -146,7 +145,7 @@ export class EventQrService {
 
         // Count team members for each sponsor
         const { data: teamCounts, error: countError } = await supabase
-          .from('event_registrations')
+          .from('events_registrations')
           .select('sponsor_team_id')
           .eq('event_id', eventId)
           .in('sponsor_team_id', sponsorIds)
@@ -154,8 +153,8 @@ export class EventQrService {
 
         // Get team member profile IDs for badge scan counting and primary contacts
         const { data: teamMembers, error: teamMembersError } = await supabase
-          .from('event_registrations_with_members')
-          .select('sponsor_team_id, member_profile_id, is_primary_contact, full_name, email')
+          .from('events_registrations_with_people')
+          .select('sponsor_team_id, people_profile_id, is_primary_contact, full_name, email')
           .eq('event_id', eventId)
           .in('sponsor_team_id', sponsorIds)
           .not('sponsor_team_id', 'is', null);
@@ -167,24 +166,24 @@ export class EventQrService {
         // Get all badge scans for this event by team members
         let scanCountMap: Record<string, number> = {};
         if (teamMembers && teamMembers.length > 0) {
-          const memberProfileIds = teamMembers.map(tm => tm.member_profile_id);
+          const memberProfileIds = teamMembers.map(tm => tm.people_profile_id);
 
           const { data: scans } = await supabase
-            .from('contact_scans')
-            .select('scanner_profile_id')
+            .from('people_contact_scans')
+            .select('scanner_people_profile_id')
             .eq('event_id', eventId)
-            .in('scanner_profile_id', memberProfileIds);
+            .in('scanner_people_profile_id', memberProfileIds);
 
           if (scans) {
-            // Create a map of member_profile_id -> scan count
+            // Create a map of people_profile_id -> scan count
             const memberScanCounts = scans.reduce((acc, scan) => {
-              acc[scan.scanner_profile_id] = (acc[scan.scanner_profile_id] || 0) + 1;
+              acc[scan.scanner_people_profile_id] = (acc[scan.scanner_people_profile_id] || 0) + 1;
               return acc;
             }, {} as Record<string, number>);
 
             // Sum up scans by sponsor team
             scanCountMap = teamMembers.reduce((acc, member) => {
-              const scanCount = memberScanCounts[member.member_profile_id] || 0;
+              const scanCount = memberScanCounts[member.people_profile_id] || 0;
               acc[member.sponsor_team_id] = (acc[member.sponsor_team_id] || 0) + scanCount;
               return acc;
             }, {} as Record<string, number>);
@@ -239,7 +238,7 @@ export class EventQrService {
   static async getAllSponsors(): Promise<Sponsor[]> {
     try {
       const { data, error } = await supabase
-        .from('sponsors')
+        .from('events_sponsor_profiles')
         .select('*')
         .eq('is_active', true)
         .order('name', { ascending: true });
@@ -264,7 +263,7 @@ export class EventQrService {
       const slug = params.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
       const { data, error } = await supabase
-        .from('sponsors')
+        .from('events_sponsor_profiles')
         .insert([{
           name: params.name,
           slug,
@@ -294,11 +293,11 @@ export class EventQrService {
   }): Promise<EventSponsor> {
     try {
       const { data, error } = await supabase
-        .from('event_sponsors')
+        .from('events_sponsors')
         .insert([params])
         .select(`
           *,
-          sponsor:sponsors (
+          sponsor:events_sponsor_profiles (
             id,
             name,
             slug,
@@ -328,12 +327,12 @@ export class EventQrService {
   ): Promise<EventSponsor> {
     try {
       const { data, error } = await supabase
-        .from('event_sponsors')
+        .from('events_sponsors')
         .update(updates)
         .eq('id', id)
         .select(`
           *,
-          sponsor:sponsors (
+          sponsor:events_sponsor_profiles (
             id,
             name,
             slug,
@@ -360,7 +359,7 @@ export class EventQrService {
   static async updateSponsorName(sponsorId: string, name: string): Promise<Sponsor> {
     try {
       const { data, error } = await supabase
-        .from('sponsors')
+        .from('events_sponsor_profiles')
         .update({ name })
         .eq('id', sponsorId)
         .select()
@@ -380,7 +379,7 @@ export class EventQrService {
   static async removeEventSponsor(id: string): Promise<void> {
     try {
       const { error } = await supabase
-        .from('event_sponsors')
+        .from('events_sponsors')
         .delete()
         .eq('id', id);
 
@@ -401,7 +400,7 @@ export class EventQrService {
     try {
       // First, check if this event has discount_codes with registration data
       const { data: discountCodes, error: codesError } = await supabase
-        .from('discount_codes')
+        .from('events_discount_codes')
         .select(`
           id,
           code,
@@ -409,7 +408,7 @@ export class EventQrService {
           registered_at,
           member_profile_id,
           event_registration_id,
-          event_registrations!inner(sponsor_team_id)
+          events_registrations!inner(sponsor_team_id)
         `)
         .eq('event_id', eventId)
         .eq('registered', true)
@@ -427,7 +426,7 @@ export class EventQrService {
 
         for (const batch of emailBatches) {
           const { data: customers, error: customersError } = await supabase
-            .from('customers')
+            .from('people')
             .select('email, cio_id, attributes')
             .in('email', batch);
 
@@ -446,7 +445,7 @@ export class EventQrService {
           const customer = customerMap.get(code.issued_to);
           return {
             id: code.id,
-            member_profile_id: code.member_profile_id || customer?.cio_id || code.issued_to,
+            people_profile_id: code.member_profile_id || customer?.cio_id || code.issued_to,
             event_id: eventId,
             registration_type: null,
             ticket_type: 'discount_code',
@@ -460,7 +459,7 @@ export class EventQrService {
             email: code.issued_to,
             company: customer?.attributes?.company,
             job_title: customer?.attributes?.job_title,
-            sponsor_team_id: code.event_registrations?.sponsor_team_id || null,
+            sponsor_team_id: code.events_registrations?.sponsor_team_id || null,
           };
         });
       }
@@ -474,7 +473,7 @@ export class EventQrService {
 
       while (hasMore) {
         const { data, error } = await supabase
-          .from('event_registrations_with_members')
+          .from('events_registrations_with_people')
           .select('*')
           .eq('event_id', eventId)
           .order('registered_at', { ascending: false })
@@ -508,7 +507,7 @@ export class EventQrService {
     try {
       // First, check if this event has discount_codes with attendance data
       const { data: discountCodes, error: codesError } = await supabase
-        .from('discount_codes')
+        .from('events_discount_codes')
         .select('id, code, issued_to, attended_at, member_profile_id, event_registration_id')
         .eq('event_id', eventId)
         .eq('attended', true)
@@ -526,7 +525,7 @@ export class EventQrService {
 
         for (const batch of emailBatches) {
           const { data: customers, error: customersError } = await supabase
-            .from('customers')
+            .from('people')
             .select('email, cio_id, attributes')
             .in('email', batch);
 
@@ -545,7 +544,7 @@ export class EventQrService {
           const customer = customerMap.get(code.issued_to);
           return {
             id: code.id,
-            member_profile_id: code.member_profile_id || customer?.cio_id || code.issued_to,
+            people_profile_id: code.member_profile_id || customer?.cio_id || code.issued_to,
             event_id: eventId,
             event_registration_id: code.event_registration_id,
             checked_in_at: code.attended_at,
@@ -571,7 +570,7 @@ export class EventQrService {
 
       while (hasMore) {
         const { data, error } = await supabase
-          .from('event_attendance_with_details')
+          .from('events_attendance_with_details')
           .select('*')
           .eq('event_id', eventId)
           .order('checked_in_at', { ascending: false })
@@ -605,7 +604,7 @@ export class EventQrService {
     try {
       // Try the discount_codes approach first (older data model)
       const { data: codes, error: codesError } = await supabase
-        .from('discount_codes')
+        .from('events_discount_codes')
         .select('id, code, issued_to, issued_at')
         .eq('event_id', eventId)
         .eq('issued', true)
@@ -618,7 +617,7 @@ export class EventQrService {
 
         // Fetch customer details by email
         const { data: customers, error: customersError } = await supabase
-          .from('customers')
+          .from('people')
           .select('email, cio_id, attributes')
           .in('email', emails);
 
@@ -661,7 +660,7 @@ export class EventQrService {
 
       // Get all interactions for this offer where status indicates they claimed it
       const { data, error } = await supabase
-        .from('discount_interactions')
+        .from('events_discount_interactions')
         .select(`
           *
         `)
@@ -677,7 +676,7 @@ export class EventQrService {
 
       // Fetch customer details
       const { data: customers, error: customersError } = await supabase
-        .from('customers')
+        .from('people')
         .select('cio_id, email, attributes')
         .in('cio_id', customerCioIds);
 
@@ -719,7 +718,7 @@ export class EventQrService {
   }> {
     try {
       const { data, error } = await supabase
-        .rpc('get_event_registration_stats', { p_event_id: eventId });
+        .rpc('events_get_registration_stats', { p_event_id: eventId });
 
       if (error) throw error;
       return data || { total: 0, by_status: {}, by_type: {} };
@@ -741,7 +740,7 @@ export class EventQrService {
   }> {
     try {
       const { data, error } = await supabase
-        .rpc('get_event_attendance_stats', { p_event_id: eventId });
+        .rpc('events_get_attendance_stats', { p_event_id: eventId });
 
       if (error) throw error;
       return data || { total_registered: 0, total_attended: 0, attendance_rate: 0, checked_in_today: 0 };
@@ -756,7 +755,7 @@ export class EventQrService {
    * Get sponsor team members and their scan statistics
    */
   static async getSponsorTeamStats(eventSponsorId: string): Promise<Array<{
-    member_profile_id: string;
+    people_profile_id: string;
     full_name: string;
     email: string;
     registration_type: string;
@@ -764,7 +763,7 @@ export class EventQrService {
     latest_scan_at: string | null;
   }>> {
     try {
-      const { data, error } = await supabase.rpc('get_sponsor_team_scan_stats', {
+      const { data, error } = await supabase.rpc('events_get_sponsor_scan_stats', {
         p_event_sponsor_id: eventSponsorId,
       });
 
@@ -781,7 +780,7 @@ export class EventQrService {
    * Fallback method to get sponsor team stats without RPC function
    */
   private static async getSponsorTeamStatsFallback(eventSponsorId: string): Promise<Array<{
-    member_profile_id: string;
+    people_profile_id: string;
     full_name: string;
     email: string;
     registration_type: string;
@@ -791,12 +790,12 @@ export class EventQrService {
     try {
       // Get team members
       const { data: teamMembers, error: teamError } = await supabase
-        .from('event_registrations')
+        .from('events_registrations')
         .select(`
           id,
-          member_profile_id,
+          people_profile_id,
           registration_type,
-          member_profiles!event_registrations_member_profile_id_fkey (
+          people_profiles!event_registrations_member_profile_id_fkey (
             id,
             customers!member_profiles_customer_id_fkey (
               email,
@@ -816,12 +815,12 @@ export class EventQrService {
       }
 
       // Get scan counts for each team member
-      const memberIds = teamMembers.map((m: any) => m.member_profile_id);
+      const memberIds = teamMembers.map((m: any) => m.people_profile_id);
 
       const { data: scans, error: scansError } = await supabase
-        .from('contact_scans')
-        .select('scanner_profile_id, scanned_at')
-        .in('scanner_profile_id', memberIds);
+        .from('people_contact_scans')
+        .select('scanner_people_profile_id, scanned_at')
+        .in('scanner_people_profile_id', memberIds);
 
       if (scansError) {
         console.error('Error fetching scans:', scansError);
@@ -830,21 +829,21 @@ export class EventQrService {
 
       // Aggregate results
       const scansByMember = (scans || []).reduce((acc: any, scan: any) => {
-        if (!acc[scan.scanner_profile_id]) {
-          acc[scan.scanner_profile_id] = { count: 0, latest: null };
+        if (!acc[scan.scanner_people_profile_id]) {
+          acc[scan.scanner_people_profile_id] = { count: 0, latest: null };
         }
-        acc[scan.scanner_profile_id].count++;
-        if (!acc[scan.scanner_profile_id].latest || scan.scanned_at > acc[scan.scanner_profile_id].latest) {
-          acc[scan.scanner_profile_id].latest = scan.scanned_at;
+        acc[scan.scanner_people_profile_id].count++;
+        if (!acc[scan.scanner_people_profile_id].latest || scan.scanned_at > acc[scan.scanner_people_profile_id].latest) {
+          acc[scan.scanner_people_profile_id].latest = scan.scanned_at;
         }
         return acc;
       }, {});
 
       return teamMembers.map((member: any) => {
-        const profile = Array.isArray(member.member_profiles) ? member.member_profiles[0] : member.member_profiles;
+        const profile = Array.isArray(member.people_profiles) ? member.people_profiles[0] : member.people_profiles;
         const customer = Array.isArray(profile?.customers) ? profile.customers[0] : profile?.customers;
         const attributes = customer?.attributes || {};
-        const scanStats = scansByMember[member.member_profile_id] || { count: 0, latest: null };
+        const scanStats = scansByMember[member.people_profile_id] || { count: 0, latest: null };
 
         const firstName = attributes.first_name || '';
         const lastName = attributes.last_name || '';
@@ -853,7 +852,7 @@ export class EventQrService {
           : firstName || customer?.email || 'Unknown';
 
         return {
-          member_profile_id: member.member_profile_id,
+          people_profile_id: member.people_profile_id,
           full_name: fullName,
           email: customer?.email || '',
           registration_type: member.registration_type,
@@ -878,8 +877,8 @@ export class EventQrService {
     try {
       // Get all team members for this sponsor
       const { data: teamMembers, error: teamError } = await supabase
-        .from('event_registrations')
-        .select('member_profile_id')
+        .from('events_registrations')
+        .select('people_profile_id')
         .eq('sponsor_team_id', eventSponsorId);
 
       if (teamError) throw teamError;
@@ -889,14 +888,14 @@ export class EventQrService {
         return [];
       }
 
-      const memberProfileIds = teamMembers.map((m: any) => m.member_profile_id);
+      const memberProfileIds = teamMembers.map((m: any) => m.people_profile_id);
 
       // Get all scans by these team members (includes historical scans from before they joined the team)
       let query = supabase
-        .from('contact_scans')
+        .from('people_contact_scans')
         .select(`
           *,
-          scanner:member_profiles!contact_scans_scanner_profile_id_fkey(
+          scanner:people_profiles!contact_scans_scanner_profile_id_fkey(
             id,
             qr_code_id,
             customer:customers!member_profiles_customer_id_fkey(
@@ -904,7 +903,7 @@ export class EventQrService {
               attributes
             )
           ),
-          scanned:member_profiles!contact_scans_scanned_profile_id_fkey(
+          scanned:people_profiles!contact_scans_scanned_profile_id_fkey(
             id,
             qr_code_id,
             customer:customers!member_profiles_customer_id_fkey(
@@ -912,18 +911,18 @@ export class EventQrService {
               attributes
             )
           ),
-          scanner_registration:event_registrations!contact_scans_scanner_registration_id_fkey(
+          scanner_registration:events_registrations!contact_scans_scanner_registration_id_fkey(
             id,
             registration_type,
             sponsor_team_id
           )
         `)
-        .in('scanner_profile_id', memberProfileIds)
+        .in('scanner_people_profile_id', memberProfileIds)
         .order('scanned_at', { ascending: false });
 
       // Apply filters
       if (filters?.scannerId) {
-        query = query.eq('scanner_profile_id', filters.scannerId);
+        query = query.eq('scanner_people_profile_id', filters.scannerId);
       }
       if (filters?.interestLevel) {
         query = query.eq('interest_level', filters.interestLevel);
@@ -1035,7 +1034,7 @@ export class EventQrService {
   ): Promise<void> {
     try {
       const { error } = await supabase
-        .from('event_registrations')
+        .from('events_registrations')
         .update({
           sponsor_team_id: eventSponsorId,
           registration_type: 'sponsor_staff',
@@ -1057,7 +1056,7 @@ export class EventQrService {
   ): Promise<void> {
     try {
       const { error } = await supabase
-        .from('event_registrations')
+        .from('events_registrations')
         .update({
           sponsor_team_id: null,
           registration_type: 'free', // Reset to default
@@ -1084,7 +1083,7 @@ export class EventQrService {
 
       // First, clear any existing primary contact for this sponsor team
       const { error: clearError } = await supabase
-        .from('event_registrations')
+        .from('events_registrations')
         .update({ is_primary_contact: false })
         .eq('sponsor_team_id', eventSponsorId);
 
@@ -1096,7 +1095,7 @@ export class EventQrService {
 
       // Then set the new primary contact
       const { data, error } = await supabase
-        .from('event_registrations')
+        .from('events_registrations')
         .update({ is_primary_contact: true })
         .eq('id', registrationId)
         .eq('sponsor_team_id', eventSponsorId) // Ensure they're part of the team
@@ -1119,7 +1118,7 @@ export class EventQrService {
   static async clearPrimaryContact(eventSponsorId: string): Promise<void> {
     try {
       const { error } = await supabase
-        .from('event_registrations')
+        .from('events_registrations')
         .update({ is_primary_contact: false })
         .eq('sponsor_team_id', eventSponsorId);
 
@@ -1150,7 +1149,7 @@ export class EventQrService {
       const attendance = await this.getEventAttendance(eventId);
 
       // Get scan counts for all attendees
-      const memberIds = attendance.map((a: any) => a.member_profile_id);
+      const memberIds = attendance.map((a: any) => a.people_profile_id);
 
       if (memberIds.length === 0) {
         return [];
@@ -1164,10 +1163,10 @@ export class EventQrService {
       let allScans: any[] = [];
       for (const batch of memberIdBatches) {
         const { data: scans, error: scansError } = await supabase
-          .from('contact_scans')
-          .select('scanner_profile_id')
+          .from('people_contact_scans')
+          .select('scanner_people_profile_id')
           .eq('event_id', eventId)
-          .in('scanner_profile_id', batch);
+          .in('scanner_people_profile_id', batch);
 
         if (scansError) throw scansError;
         if (scans) allScans = allScans.concat(scans);
@@ -1175,7 +1174,7 @@ export class EventQrService {
 
       // Count scans per member
       const scanCounts = allScans.reduce((acc: any, scan: any) => {
-        acc[scan.scanner_profile_id] = (acc[scan.scanner_profile_id] || 0) + 1;
+        acc[scan.scanner_people_profile_id] = (acc[scan.scanner_people_profile_id] || 0) + 1;
         return acc;
       }, {});
 
@@ -1192,7 +1191,7 @@ export class EventQrService {
 
         for (const batch of registrationBatches) {
           const { data: registrations, error: regError } = await supabase
-            .from('event_registrations')
+            .from('events_registrations')
             .select('id, sponsor_permission')
             .in('id', batch);
 
@@ -1226,7 +1225,7 @@ export class EventQrService {
 
         return {
           ...record,
-          scan_count: scanCounts[record.member_profile_id] || 0,
+          scan_count: scanCounts[record.people_profile_id] || 0,
           sponsor_permission: sponsorPermission,
         };
       });
@@ -1242,10 +1241,10 @@ export class EventQrService {
   static async exportAttendeeScansCSV(eventId: string, memberProfileId: string): Promise<string> {
     try {
       const { data: scans, error } = await supabase
-        .from('contact_scans')
+        .from('people_contact_scans')
         .select(`
           *,
-          scanned:member_profiles!contact_scans_scanned_profile_id_fkey(
+          scanned:people_profiles!contact_scans_scanned_profile_id_fkey(
             id,
             qr_code_id,
             customer:customers!member_profiles_customer_id_fkey(
@@ -1255,7 +1254,7 @@ export class EventQrService {
           )
         `)
         .eq('event_id', eventId)
-        .eq('scanner_profile_id', memberProfileId)
+        .eq('scanner_people_profile_id', memberProfileId)
         .order('scanned_at', { ascending: false });
 
       if (error) throw error;
@@ -1385,7 +1384,7 @@ export class EventQrService {
   ): Promise<void> {
     try {
       const { error } = await supabase
-        .from('event_registrations')
+        .from('events_registrations')
         .update(updates)
         .eq('id', registrationId);
 
@@ -1404,7 +1403,7 @@ export class EventQrService {
   static async deleteRegistration(registrationId: string): Promise<void> {
     try {
       const { error } = await supabase
-        .from('event_registrations')
+        .from('events_registrations')
         .delete()
         .eq('id', registrationId);
 
@@ -1423,7 +1422,7 @@ export class EventQrService {
   static async deleteAttendance(attendanceId: string): Promise<void> {
     try {
       const { error } = await supabase
-        .from('event_attendance')
+        .from('events_attendance')
         .delete()
         .eq('id', attendanceId);
 
@@ -1445,7 +1444,7 @@ export class EventQrService {
     uniqueScanned: number;
     avgScansPerScanner: number;
     topScanners: Array<{
-      scanner_profile_id: string;
+      scanner_people_profile_id: string;
       scanner_name: string;
       scanner_email: string;
       scanner_company: string | null;
@@ -1460,10 +1459,10 @@ export class EventQrService {
     try {
       // Get all scans for this event
       const { data: scans, error } = await supabase
-        .from('contact_scans')
+        .from('people_contact_scans')
         .select(`
           *,
-          scanner:member_profiles!contact_scans_scanner_profile_id_fkey(
+          scanner:people_profiles!contact_scans_scanner_profile_id_fkey(
             id,
             qr_code_id,
             customer:customers!member_profiles_customer_id_fkey(
@@ -1489,17 +1488,17 @@ export class EventQrService {
       }
 
       // Calculate statistics
-      const uniqueScanners = new Set(scans.map(s => s.scanner_profile_id)).size;
-      const uniqueScanned = new Set(scans.map(s => s.scanned_profile_id)).size;
+      const uniqueScanners = new Set(scans.map(s => s.scanner_people_profile_id)).size;
+      const uniqueScanned = new Set(scans.map(s => s.scanned_people_profile_id)).size;
       const avgScansPerScanner = scans.length / uniqueScanners;
 
       // Get top scanners
       const scannerStats = scans.reduce((acc: any, scan: any) => {
-        const scannerId = scan.scanner_profile_id;
+        const scannerId = scan.scanner_people_profile_id;
         if (!acc[scannerId]) {
           const customer = scan.scanner?.customer;
           acc[scannerId] = {
-            scanner_profile_id: scannerId,
+            scanner_people_profile_id: scannerId,
             scanner_name: customer?.attributes?.first_name && customer?.attributes?.last_name
               ? `${customer.attributes.first_name} ${customer.attributes.last_name}`
               : customer?.attributes?.first_name || 'Unknown',
@@ -1565,10 +1564,10 @@ export class EventQrService {
     try {
       // Check if already checked in
       const { data: existing } = await supabase
-        .from('event_attendance')
+        .from('events_attendance')
         .select('*')
         .eq('event_id', params.eventId)
-        .eq('member_profile_id', params.memberProfileId)
+        .eq('people_profile_id', params.memberProfileId)
         .maybeSingle();
 
       if (existing) {
@@ -1577,10 +1576,10 @@ export class EventQrService {
 
       // Create attendance record
       const { data, error } = await supabase
-        .from('event_attendance')
+        .from('events_attendance')
         .insert({
           event_id: params.eventId,
-          member_profile_id: params.memberProfileId,
+          people_profile_id: params.memberProfileId,
           event_registration_id: params.registrationId,
           check_in_method: params.checkInMethod || 'manual_entry',
           badge_printed_on_site: false,
@@ -1605,7 +1604,7 @@ export class EventQrService {
   static async getCalendarInteractions(eventId: string): Promise<any[]> {
     try {
       const { data, error } = await supabase
-        .from('calendar_interactions')
+        .from('calendars_interactions')
         .select('*')
         .eq('event_id', eventId)
         .order('created_at', { ascending: false });
@@ -1725,7 +1724,7 @@ export class EventQrService {
     try {
       // First get the luma_event_id(s) from luma_csv_uploads for this event
       const { data: uploads, error: uploadsError } = await supabase
-        .from('luma_csv_uploads')
+        .from('integrations_luma_csv_uploads')
         .select('luma_event_id')
         .eq('event_id', eventId)
         .not('luma_event_id', 'is', null);
@@ -1741,7 +1740,7 @@ export class EventQrService {
 
       // Get all luma registrations for these events
       const { data: registrations, error: regError } = await supabase
-        .from('luma_event_registrations')
+        .from('integrations_luma_event_registrations')
         .select('email, first_name, last_name, amount, amount_tax, amount_discount, currency, coupon_code, luma_ticket_name, luma_approval_status')
         .in('luma_event_id', lumaEventIds)
         .eq('luma_approval_status', 'approved');
@@ -1763,7 +1762,7 @@ export class EventQrService {
       // Fetch job titles, function, seniority for paid registrations from customers table
       const paidEmails = paidRegistrations.map(r => r.email);
       const { data: customers } = await supabase
-        .from('customers')
+        .from('people')
         .select('email, attributes')
         .in('email', paidEmails);
 
@@ -1923,8 +1922,8 @@ export class EventQrService {
     try {
       // Get all registrations with member profile data
       const { data: registrations, error } = await supabase
-        .from('event_registrations')
-        .select('member_profile_id')
+        .from('events_registrations')
+        .select('people_profile_id')
         .eq('event_id', eventId)
         .eq('status', 'confirmed');
 
@@ -1934,28 +1933,28 @@ export class EventQrService {
       }
 
       // Get member profiles with customer data
-      const memberProfileIds = registrations.map(r => r.member_profile_id);
+      const memberProfileIds = registrations.map(r => r.people_profile_id);
       const BATCH_SIZE = 100;
       const batches = this.batchArray(memberProfileIds, BATCH_SIZE);
 
       let allProfiles: any[] = [];
       for (const batch of batches) {
         const { data: profiles, error: profileError } = await supabase
-          .from('member_profiles')
-          .select('customer_id')
+          .from('people_profiles')
+          .select('person_id')
           .in('id', batch);
         if (profileError) throw profileError;
         if (profiles) allProfiles = allProfiles.concat(profiles);
       }
 
       // Get customer attributes (job_function, job_seniority, job_title)
-      const customerIds = allProfiles.map(p => p.customer_id).filter(Boolean);
+      const customerIds = allProfiles.map(p => p.person_id).filter(Boolean);
       const customerBatches = this.batchArray(customerIds, BATCH_SIZE);
 
       let allCustomers: any[] = [];
       for (const batch of customerBatches) {
         const { data: customers, error: custError } = await supabase
-          .from('customers')
+          .from('people')
           .select('attributes')
           .in('id', batch);
         if (custError) throw custError;
@@ -2016,8 +2015,8 @@ export class EventQrService {
     try {
       // Get all attendance records
       const { data: attendance, error } = await supabase
-        .from('event_attendance')
-        .select('member_profile_id')
+        .from('events_attendance')
+        .select('people_profile_id')
         .eq('event_id', eventId);
 
       if (error) throw error;
@@ -2026,28 +2025,28 @@ export class EventQrService {
       }
 
       // Get member profiles with customer data
-      const memberProfileIds = attendance.map(a => a.member_profile_id);
+      const memberProfileIds = attendance.map(a => a.people_profile_id);
       const BATCH_SIZE = 100;
       const batches = this.batchArray(memberProfileIds, BATCH_SIZE);
 
       let allProfiles: any[] = [];
       for (const batch of batches) {
         const { data: profiles, error: profileError } = await supabase
-          .from('member_profiles')
-          .select('customer_id')
+          .from('people_profiles')
+          .select('person_id')
           .in('id', batch);
         if (profileError) throw profileError;
         if (profiles) allProfiles = allProfiles.concat(profiles);
       }
 
       // Get customer attributes (job_function, job_seniority, job_title)
-      const customerIds = allProfiles.map(p => p.customer_id).filter(Boolean);
+      const customerIds = allProfiles.map(p => p.person_id).filter(Boolean);
       const customerBatches = this.batchArray(customerIds, BATCH_SIZE);
 
       let allCustomers: any[] = [];
       for (const batch of customerBatches) {
         const { data: customers, error: custError } = await supabase
-          .from('customers')
+          .from('people')
           .select('attributes')
           .in('id', batch);
         if (custError) throw custError;
@@ -2119,7 +2118,7 @@ export class EventQrService {
       let allCustomers: any[] = [];
       for (const batch of emailBatches) {
         const { data: customers, error: customerError } = await supabase
-          .from('customers')
+          .from('people')
           .select('id, email')
           .in('email', batch);
         if (customerError) throw customerError;
@@ -2134,14 +2133,14 @@ export class EventQrService {
       let allMemberProfiles: any[] = [];
       for (const batch of customerIdBatches) {
         const { data: memberProfiles, error: profileError } = await supabase
-          .from('member_profiles')
-          .select('id, customer_id')
-          .in('customer_id', batch);
+          .from('people_profiles')
+          .select('id, person_id')
+          .in('person_id', batch);
         if (profileError) throw profileError;
         if (memberProfiles) allMemberProfiles = allMemberProfiles.concat(memberProfiles);
       }
 
-      const profileMap = new Map(allMemberProfiles.map(p => [p.customer_id, p.id]));
+      const profileMap = new Map(allMemberProfiles.map(p => [p.person_id, p.id]));
 
       // Get registrations and attendance in parallel (both batched)
       const memberProfileIds = Array.from(profileMap.values());
@@ -2154,10 +2153,10 @@ export class EventQrService {
           let results: any[] = [];
           for (const batch of memberIdBatches) {
             const { data, error } = await supabase
-              .from('event_registrations')
-              .select('member_profile_id, status, registered_at')
+              .from('events_registrations')
+              .select('people_profile_id, status, registered_at')
               .eq('event_id', eventId)
-              .in('member_profile_id', batch);
+              .in('people_profile_id', batch);
             if (error) throw error;
             if (data) results = results.concat(data);
           }
@@ -2168,10 +2167,10 @@ export class EventQrService {
           let results: any[] = [];
           for (const batch of memberIdBatches) {
             const { data, error } = await supabase
-              .from('event_attendance')
-              .select('member_profile_id, checked_in_at')
+              .from('events_attendance')
+              .select('people_profile_id, checked_in_at')
               .eq('event_id', eventId)
-              .in('member_profile_id', batch);
+              .in('people_profile_id', batch);
             if (error) throw error;
             if (data) results = results.concat(data);
           }
@@ -2179,8 +2178,8 @@ export class EventQrService {
         })(),
       ]);
 
-      const registrationMap = new Map(allRegistrations.map(r => [r.member_profile_id, r]));
-      const attendanceMap = new Map(allAttendance.map(a => [a.member_profile_id, a]));
+      const registrationMap = new Map(allRegistrations.map(r => [r.people_profile_id, r]));
+      const attendanceMap = new Map(allAttendance.map(a => [a.people_profile_id, a]));
 
       // Combine all data
       const emailDataMap = new Map();

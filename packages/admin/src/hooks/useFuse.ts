@@ -1,4 +1,3 @@
-// @ts-nocheck
 import Fuse, { IFuseOptions, FuseResult } from "fuse.js";
 import {
   useMemo,

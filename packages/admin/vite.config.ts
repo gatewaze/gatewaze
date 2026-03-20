@@ -1,16 +1,26 @@
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
-import path from 'path';
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import svgr from "vite-plugin-svgr";
+import path from "path";
+import tailwindcss from "@tailwindcss/vite";
+import { gatewazeModulesPlugin } from "./vite-plugin-gatewaze-modules";
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), svgr(), tailwindcss(), gatewazeModulesPlugin()],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
-      '@gatewaze/shared': path.resolve(__dirname, '../shared/src'),
+      "@": path.join(__dirname, "src"),
+      "@gatewaze/shared": path.resolve(__dirname, "../shared/src"),
     },
   },
   server: {
     port: 5274,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3002',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
   },
 });

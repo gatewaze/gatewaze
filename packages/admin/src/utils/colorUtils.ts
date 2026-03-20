@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Color utility functions for contrast checking and accessibility
  * Based on WCAG 2.1 guidelines

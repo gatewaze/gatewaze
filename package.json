@@ -15,13 +15,25 @@
     "build:api": "pnpm --filter @gatewaze/api build",
     "lint": "pnpm --filter @gatewaze/* lint",
     "typecheck": "pnpm --filter @gatewaze/* typecheck",
-    "clean": "pnpm --filter @gatewaze/* clean"
+    "clean": "pnpm --filter @gatewaze/* clean",
+    "test": "pnpm --filter @gatewaze/* test",
+    "test:watch": "pnpm --filter @gatewaze/* test:watch",
+    "modules:migrate": "tsx scripts/modules/run-migrations.ts",
+    "modules:deploy-functions": "tsx scripts/modules/deploy-functions.ts"
   },
   "engines": {
     "node": ">=20.0.0",
     "pnpm": ">=9.0.0"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild", "msgpackr-extract", "sharp"]
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "msgpackr-extract",
+      "sharp"
+    ]
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "vitest": "^4.1.0"
   }
 }

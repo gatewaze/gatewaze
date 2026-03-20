@@ -120,9 +120,9 @@ csvRouter.get('/export/events', async (req, res) => {
   }
 });
 
-// ── Import Members ─────────────────────────────────────────────────────────────
+// ── Import People ──────────────────────────────────────────────────────────────
 
-csvRouter.post('/import/members', upload.single('file'), async (req, res) => {
+csvRouter.post('/import/people', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No CSV file provided' });
@@ -142,7 +142,7 @@ csvRouter.post('/import/members', upload.single('file'), async (req, res) => {
     for (let i = 0; i < records.length; i += batchSize) {
       const batch = records.slice(i, i + batchSize).map((record, idx) => {
         try {
-          return normalizeMemberRecord(record);
+          return normalizePersonRecord(record);
         } catch (err) {
           errors.push({
             row: i + idx + 2,
@@ -154,7 +154,7 @@ csvRouter.post('/import/members', upload.single('file'), async (req, res) => {
 
       if (batch.length > 0) {
         const { error, count } = await supabase
-          .from('customers')
+          .from('people')
           .insert(batch)
           .select('id');
 
@@ -175,20 +175,20 @@ csvRouter.post('/import/members', upload.single('file'), async (req, res) => {
       errors: errors.length > 0 ? errors : undefined,
     });
   } catch (err) {
-    console.error('Error importing members CSV:', err);
-    res.status(500).json({ error: 'Failed to import members' });
+    console.error('Error importing people CSV:', err);
+    res.status(500).json({ error: 'Failed to import people' });
   }
 });
 
-// ── Export Members ─────────────────────────────────────────────────────────────
+// ── Export People ──────────────────────────────────────────────────────────────
 
-csvRouter.get('/export/members', async (req, res) => {
+csvRouter.get('/export/people', async (req, res) => {
   try {
     const supabase = getSupabase();
     const status = req.query.status as string;
 
     let query = supabase
-      .from('customers')
+      .from('people')
       .select('*')
       .order('created_at', { ascending: false });
 
@@ -198,13 +198,13 @@ csvRouter.get('/export/members', async (req, res) => {
     if (error) throw error;
 
     if (!data || data.length === 0) {
-      return res.status(404).json({ error: 'No members found' });
+      return res.status(404).json({ error: 'No people found' });
     }
 
     const columns = Object.keys(data[0]);
 
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename="members.csv"');
+    res.setHeader('Content-Disposition', 'attachment; filename="people.csv"');
 
     const stringifier = stringify({ header: true, columns });
     stringifier.pipe(res);
@@ -215,8 +215,8 @@ csvRouter.get('/export/members', async (req, res) => {
 
     stringifier.end();
   } catch (err) {
-    console.error('Error exporting members CSV:', err);
-    res.status(500).json({ error: 'Failed to export members' });
+    console.error('Error exporting people CSV:', err);
+    res.status(500).json({ error: 'Failed to export people' });
   }
 });
 
@@ -284,7 +284,7 @@ function normalizeEventRecord(record: Record<string, string>): Record<string, un
   return normalized;
 }
 
-function normalizeMemberRecord(record: Record<string, string>): Record<string, unknown> {
+function normalizePersonRecord(record: Record<string, string>): Record<string, unknown> {
   const normalized: Record<string, unknown> = {};
 
   const fieldMap: Record<string, string> = {

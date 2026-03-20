@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { supabase } from '@/lib/supabase';
 import EmailService from './emailService';
 
@@ -251,7 +250,7 @@ class EmailTemplateService {
    * Increment usage count for a template
    */
   static async incrementUsage(id: string): Promise<void> {
-    const { error } = await supabase.rpc('increment_email_template_usage', {
+    const { error } = await supabase.rpc('email_increment_template_usage', {
       template_id: id,
     });
 

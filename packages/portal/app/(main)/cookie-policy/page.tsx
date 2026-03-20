@@ -29,5 +29,5 @@ export default async function CookiePolicy() {
   const brand = await getServerBrand()
   const brandConfig = await getBrandConfigById(brand)
 
-  return <CookiePolicyPageContent brandConfig={brandConfig} brandId={brand} />
+  return <CookiePolicyPageContent brandConfig={brandConfig} />
 }

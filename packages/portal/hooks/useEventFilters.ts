@@ -4,22 +4,29 @@ import { useSearchParams, usePathname, useRouter } from 'next/navigation'
 import { useMemo, useCallback } from 'react'
 import type { Event } from '@/types/event'
 import { type RegionCode } from '@/lib/regions'
+import { getClientBrandConfig, type EventTypeOption, DEFAULT_EVENT_TYPES } from '@/config/brand'
 
 // Known region codes for parsing path segments
 const KNOWN_REGION_CODES = new Set(['as', 'af', 'eu', 'na', 'sa', 'oc', 'on'])
 
-// Event type slug mapping (singular DB value → plural URL slug)
-const TYPE_TO_SLUG: Record<string, string> = {
-  conference: 'conferences',
-  meetup: 'meetups',
-  workshop: 'workshops',
-  webinar: 'webinars',
-  hackathon: 'hackathons',
+/** Pluralize a value for URL slugs (e.g. conference → conferences) */
+function pluralize(value: string): string {
+  if (value.endsWith('y')) return value.slice(0, -1) + 'ies'
+  if (value.endsWith('s') || value.endsWith('sh') || value.endsWith('ch')) return value + 'es'
+  return value + 's'
 }
 
-const SLUG_TO_TYPE: Record<string, string> = Object.fromEntries(
-  Object.entries(TYPE_TO_SLUG).map(([k, v]) => [v, k])
-)
+/** Build slug mappings dynamically from configured event types */
+function buildSlugMaps(types: EventTypeOption[]) {
+  const typeToSlug: Record<string, string> = {}
+  const slugToType: Record<string, string> = {}
+  for (const t of types) {
+    const slug = pluralize(t.value)
+    typeToSlug[t.value] = slug
+    slugToType[slug] = t.value
+  }
+  return { typeToSlug, slugToType }
+}
 
 /** Convert a topic name to a URL-friendly slug (deterministic, no reverse lookup needed) */
 export function slugifyTopic(name: string): string {
@@ -29,13 +36,23 @@ export function slugifyTopic(name: string): string {
     .replace(/^-+|-+$/g, '')
 }
 
-export const EVENT_TYPE_OPTIONS = [
-  { value: 'conference', label: 'Conferences', slug: 'conferences' },
-  { value: 'meetup', label: 'Meetups', slug: 'meetups' },
-  { value: 'workshop', label: 'Workshops', slug: 'workshops' },
-  { value: 'webinar', label: 'Webinars', slug: 'webinars' },
-  { value: 'hackathon', label: 'Hackathons', slug: 'hackathons' },
-]
+/** Get configured event type options with plural labels and slugs */
+export function getEventTypeOptions(): { value: string; label: string; slug: string }[] {
+  const config = getClientBrandConfig()
+  const types = config.eventTypes?.length ? config.eventTypes : DEFAULT_EVENT_TYPES
+  return types.map((t) => ({
+    value: t.value,
+    label: pluralize(t.label.charAt(0).toUpperCase() + t.label.slice(1)),
+    slug: pluralize(t.value),
+  }))
+}
+
+/** @deprecated Use getEventTypeOptions() for dynamic types */
+export const EVENT_TYPE_OPTIONS = DEFAULT_EVENT_TYPES.map((t) => ({
+  value: t.value,
+  label: pluralize(t.label),
+  slug: pluralize(t.value),
+}))
 
 function buildFilterPath(
   basePath: string,
@@ -54,7 +71,10 @@ function buildFilterPath(
   return path
 }
 
-function extractFiltersFromPathname(pathname: string): {
+function extractFiltersFromPathname(
+  pathname: string,
+  slugToType: Record<string, string>
+): {
   basePath: string
   view: string
   region: RegionCode | null
@@ -76,8 +96,8 @@ function extractFiltersFromPathname(pathname: string): {
     for (const seg of segments) {
       if (!region && KNOWN_REGION_CODES.has(seg)) {
         region = seg as RegionCode
-      } else if (!eventType && seg in SLUG_TO_TYPE) {
-        eventType = SLUG_TO_TYPE[seg]
+      } else if (!eventType && seg in slugToType) {
+        eventType = slugToType[seg]
       }
     }
   }
@@ -90,9 +110,14 @@ export function useEventFilters() {
   const pathname = usePathname()
   const router = useRouter()
 
+  // Build dynamic slug maps from configured event types
+  const config = getClientBrandConfig()
+  const configuredTypes = config.eventTypes?.length ? config.eventTypes : DEFAULT_EVENT_TYPES
+  const { typeToSlug, slugToType } = useMemo(() => buildSlugMaps(configuredTypes), [configuredTypes])
+
   // Parse region & type from path segments (e.g. /events/upcoming/eu/conferences)
   // Fall back to search params for backward compatibility (direct query param URLs)
-  const parsed = extractFiltersFromPathname(pathname)
+  const parsed = extractFiltersFromPathname(pathname, slugToType)
   const { basePath, view } = parsed
   const region = parsed.region || (searchParams.get('region') as RegionCode | null)
   const eventType = parsed.eventType || searchParams.get('type')
@@ -101,7 +126,7 @@ export function useEventFilters() {
     return topicsParam ? topicsParam.split(',').filter(Boolean) : []
   }, [searchParams])
 
-  const typeSlug = eventType ? TYPE_TO_SLUG[eventType] || null : null
+  const typeSlug = eventType ? typeToSlug[eventType] || null : null
 
   const hasActiveFilters = !!(region || eventType || topics.length > 0)
 
@@ -120,10 +145,10 @@ export function useEventFilters() {
   const toggleType = useCallback(
     (type: string) => {
       const newType = eventType === type ? null : type
-      const newSlug = newType ? TYPE_TO_SLUG[newType] || null : null
+      const newSlug = newType ? typeToSlug[newType] || null : null
       router.push(buildFilterPath(basePath, view, region, newSlug, topics))
     },
-    [basePath, view, region, eventType, topics, router]
+    [basePath, view, region, eventType, topics, router, typeToSlug]
   )
 
   const toggleRegion = useCallback(

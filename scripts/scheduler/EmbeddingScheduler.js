@@ -117,7 +117,7 @@ export class EmbeddingScheduler {
     try {
       // First get all customer IDs that already have embeddings
       const { data: existingEmbeddings, error: embeddingsError } = await this.supabase
-        .from('customer_embeddings')
+        .from('people_embeddings')
         .select('customer_id');
 
       if (embeddingsError) {
@@ -130,7 +130,7 @@ export class EmbeddingScheduler {
 
       // Find customers without embeddings
       let query = this.supabase
-        .from('customers')
+        .from('people')
         .select('id')
         .limit(500); // Process max 500 at a time
 
@@ -168,7 +168,7 @@ export class EmbeddingScheduler {
 
       // Find embeddings with outdated model versions
       const { data: outdatedEmbeddings, error } = await this.supabase
-        .from('customer_embeddings')
+        .from('people_embeddings')
         .select('customer_id')
         .neq('model_version', currentModelVersion)
         .limit(1000); // Process max 1000 per day
@@ -208,7 +208,7 @@ export class EmbeddingScheduler {
       const batch = customerIds.slice(i, i + batchSize);
 
       try {
-        const { data, error } = await this.supabase.functions.invoke('generate-embeddings', {
+        const { data, error } = await this.supabase.functions.invoke('platform-generate-embeddings', {
           body: {
             customer_ids: batch,
             batch_size: 10  // Internal batch size for OpenAI API calls
@@ -292,7 +292,7 @@ export class EmbeddingScheduler {
       const batch = eventIds.slice(i, i + batchSize);
 
       try {
-        const { data, error } = await this.supabase.functions.invoke('generate-embeddings', {
+        const { data, error } = await this.supabase.functions.invoke('platform-generate-embeddings', {
           body: {
             event_ids: batch,
             batch_size: 10  // Internal batch size for OpenAI API calls
@@ -332,7 +332,7 @@ export class EmbeddingScheduler {
 
     // Mark successfully processed events in the queue
     if (processedIds.length > 0) {
-      await this.supabase.rpc('mark_event_embeddings_processed', {
+      await this.supabase.rpc('events_mark_embeddings_processed', {
         p_event_ids: processedIds,
         p_success: true
       });
@@ -340,7 +340,7 @@ export class EmbeddingScheduler {
 
     // Mark failed events in the queue with error message
     if (failedIds.length > 0) {
-      await this.supabase.rpc('mark_event_embeddings_processed', {
+      await this.supabase.rpc('events_mark_embeddings_processed', {
         p_event_ids: failedIds,
         p_success: false,
         p_error_message: 'Embedding generation failed'

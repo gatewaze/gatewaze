@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
 export function useSkipper() {

@@ -153,8 +153,9 @@ export function EventHero({ event, brandConfig, useDarkText }: Props) {
   const theme = useMemo(() => ({
     textStyle: useDarkText ? { color: '#111827' } : { color: '#ffffff' },
     textMutedStyle: useDarkText ? { color: '#4b5563' } : { color: 'rgba(255,255,255,0.8)' },
-    fallbackTextColor: useDarkText ? 'text-gray-900/30' : 'text-white/30',
-    imageBorder: useDarkText ? 'border border-gray-900/10' : 'border border-white/10',
+    fallbackTextColor: useDarkText ? 'text-gray-900/40' : 'text-white/30',
+    imageBorder: useDarkText ? 'border border-gray-900/15' : 'border border-white/10',
+    fallbackGradientAlpha: useDarkText ? '80' : '40',
   }), [useDarkText])
 
   // Use SSR-safe date formatting initially, then update to client locale after hydration
@@ -237,7 +238,7 @@ export function EventHero({ event, brandConfig, useDarkText }: Props) {
               href={`/events/${eventIdentifier}`}
               className="block w-full transition-transform hover:scale-[1.02]"
             >
-              <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText} className="shadow-2xl" autoRotate autoRotateSpeed={50}>
+              <GlowBorder useDarkTheme={useDarkText} className="shadow-2xl" autoRotate autoRotateSpeed={50}>
                 <div className={`rounded-2xl overflow-hidden ${theme.imageBorder}`}>
                   <img
                     ref={imageRef}
@@ -252,19 +253,27 @@ export function EventHero({ event, brandConfig, useDarkText }: Props) {
               </GlowBorder>
             </Link>
           ) : (
-            // Fallback gradient card when no image
+            // Fallback: brand icon if available, otherwise gradient card with first letter
             <Link
               href={`/events/${eventIdentifier}`}
               className="block w-full transition-transform hover:scale-[1.02]"
             >
-              <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText} className="shadow-2xl" autoRotate autoRotateSpeed={50}>
+              <GlowBorder useDarkTheme={useDarkText} className="shadow-2xl" autoRotate autoRotateSpeed={50}>
                 <div
                   className={`rounded-2xl aspect-square flex items-center justify-center ${theme.imageBorder}`}
                   style={{
-                    background: `linear-gradient(135deg, ${primaryColor}40, ${secondaryColor}40)`,
+                    background: `linear-gradient(135deg, ${primaryColor}${theme.fallbackGradientAlpha}, ${secondaryColor}${theme.fallbackGradientAlpha})`,
                   }}
                 >
-                  <span className={`text-6xl font-bold ${theme.fallbackTextColor}`}>{stripEmojis(event.event_title).charAt(0)}</span>
+                  {brandConfig.faviconUrl ? (
+                    <img
+                      src={brandConfig.faviconUrl}
+                      alt={stripEmojis(event.event_title)}
+                      className="w-3/5 h-3/5 object-contain"
+                    />
+                  ) : (
+                    <span className={`text-6xl font-bold ${theme.fallbackTextColor}`}>{stripEmojis(event.event_title).charAt(0)}</span>
+                  )}
                 </div>
               </GlowBorder>
             </Link>

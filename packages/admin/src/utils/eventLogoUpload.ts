@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { supabase } from '@/lib/supabase';
 
 export interface EventLogoUploadResult {
@@ -33,7 +32,7 @@ export async function uploadEventLogo(
 
     // Upload file to storage
     const { data, error } = await supabase.storage
-      .from('event-images')
+      .from('media')
       .upload(filePath, buffer, {
         upsert: true, // Overwrite existing files
         contentType: file.type,
@@ -49,7 +48,7 @@ export async function uploadEventLogo(
 
     // Get public URL
     const { data: urlData } = supabase.storage
-      .from('event-images')
+      .from('media')
       .getPublicUrl(data.path);
 
     return {
@@ -71,7 +70,7 @@ export async function uploadEventLogo(
 export async function deleteEventLogo(imagePath: string): Promise<EventLogoUploadResult> {
   try {
     const { error } = await supabase.storage
-      .from('event-images')
+      .from('media')
       .remove([imagePath]);
 
     if (error) {
@@ -122,7 +121,7 @@ export function extractEventLogoPath(imageUrl: string): string | null {
   try {
     const url = new URL(imageUrl);
     const pathParts = url.pathname.split('/');
-    const bucketIndex = pathParts.findIndex(part => part === 'event-images');
+    const bucketIndex = pathParts.findIndex(part => part === 'media');
 
     if (bucketIndex !== -1 && bucketIndex < pathParts.length - 1) {
       return pathParts.slice(bucketIndex + 1).join('/');
@@ -139,7 +138,7 @@ export function extractEventLogoPath(imageUrl: string): string | null {
  */
 export function getEventLogoUrl(imagePath: string): string {
   const { data } = supabase.storage
-    .from('event-images')
+    .from('media')
     .getPublicUrl(imagePath);
 
   return data.publicUrl;

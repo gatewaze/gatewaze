@@ -8,10 +8,8 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        'demo-primary': '#ca2b7f',
-        'demo-secondary': '#4086c6',
-        'acme-primary': '#ee4443',
-        'acme-secondary': '#1e2837',
+        'gatewaze-primary': '#20dd20',
+        'gatewaze-secondary': '#0a0a0a',
       },
     },
   },

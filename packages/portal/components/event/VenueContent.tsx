@@ -48,7 +48,7 @@ export function VenueContent() {
 
       {/* Interactive Map */}
       {coords && (
-        <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText}>
+        <GlowBorder useDarkTheme={useDarkText}>
           <div className={`${panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelBorder}`}>
             <VenueLeafletMap lat={coords.lat} lng={coords.lng} primaryColor={primaryColor} />
           </div>

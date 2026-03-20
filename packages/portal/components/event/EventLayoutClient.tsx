@@ -71,9 +71,10 @@ export function EventLayoutClient({ event, brandConfig, eventIdentifier, speaker
   const bgColor = getThemeBackgroundColor(theme, colors, secondaryColor)
 
   // Determine if we need dark text (for light backgrounds)
+  // Check against the actual background color, not just the accent colors
   const useDarkText = useMemo(
-    () => shouldUseDarkText(primaryColor, secondaryColor),
-    [primaryColor, secondaryColor]
+    () => shouldUseDarkText(bgColor, bgColor),
+    [bgColor]
   )
 
   // Set event primary color for cookie consent banner (client-side only to avoid hydration mismatch)

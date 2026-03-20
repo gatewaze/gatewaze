@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { createContext, useContext } from 'react';
 
 export function createSafeContext<ContextValue>(errorMessage: string) {

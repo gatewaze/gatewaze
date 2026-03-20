@@ -1,13 +1,9 @@
 @import "tailwindcss";
 
 @theme {
-  /* Demo Community brand colors */
-  --color-demo-primary: #ca2b7f;
-  --color-demo-secondary: #4086c6;
-
-  /* Acme brand colors */
-  --color-acme-primary: #ee4443;
-  --color-acme-secondary: #1e2837;
+  /* Gatewaze brand colors */
+  --color-gatewaze-primary: #20dd20;
+  --color-gatewaze-secondary: #0a0a0a;
 }
 
 :root {

@@ -66,20 +66,20 @@ export function WhiteLabelHeader({ brandConfig }: Props) {
           global: { headers: { Authorization: `Bearer ${session!.access_token}` } }
         })
 
-        const { data: customer } = await supabase
-          .from('customers')
+        const { data: person } = await supabase
+          .from('people')
           .select('attributes, avatar_storage_path')
           .eq('auth_user_id', user!.id)
           .maybeSingle()
 
-        if (!cancelled && customer) {
-          const attrs = (customer.attributes as Record<string, string>) || {}
+        if (!cancelled && person) {
+          const attrs = (person.attributes as Record<string, string>) || {}
           let avatarUrl: string | null = null
 
-          if (customer.avatar_storage_path) {
+          if (person.avatar_storage_path) {
             const { data: { publicUrl } } = supabase.storage
               .from('media')
-              .getPublicUrl(customer.avatar_storage_path)
+              .getPublicUrl(person.avatar_storage_path)
             avatarUrl = publicUrl
           }
 

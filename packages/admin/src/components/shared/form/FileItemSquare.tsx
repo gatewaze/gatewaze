@@ -27,7 +27,7 @@ export function FileItemSquare({
   return (
     <div
       title={name}
-      className={`group ring-primary-600 dark:ring-primary-500 dark:ring-offset-dark-700 relative aspect-square size-20 rounded-lg ring-offset-4 ring-offset-white transition-all hover:ring-3 ${className}`}
+      className={`group ring-primary-600 dark:ring-primary-500 relative aspect-square size-20 rounded-lg ring-offset-4 ring-offset-[var(--color-background)] transition-all hover:ring-3 ${className}`}
     >
       {isImage ? (
         <img
@@ -36,15 +36,15 @@ export function FileItemSquare({
           alt={name}
         />
       ) : (
-        <div className="bg-gray-150 dark:bg-dark-900 flex h-full w-full flex-col rounded-lg px-1 py-2 text-center select-none">
-          <DocumentTextIcon className="dark:text-dark-200 m-auto size-8 text-gray-500" />
+        <div className="bg-[var(--gray-a3)] flex h-full w-full flex-col rounded-lg px-1 py-2 text-center select-none">
+          <DocumentTextIcon className="m-auto size-8 text-[var(--gray-11)]" />
           <span className="text-tiny mt-1.5 line-clamp-2">{name}</span>
         </div>
       )}
-      <div className="dark:bg-dark-700 absolute -top-4 -right-3 flex items-center justify-center rounded-full bg-white opacity-0 transition-opacity group-hover:opacity-100">
+      <div className="absolute -top-4 -right-3 flex items-center justify-center rounded-full bg-[var(--color-background)] opacity-0 transition-opacity group-hover:opacity-100">
         <Button
           onClick={handleRemove}
-          className="dark:border-dark-450 size-6 shrink-0 rounded-full border p-0"
+          className="size-6 shrink-0 rounded-full border border-[var(--gray-a5)] p-0"
         >
           <XMarkIcon className="size-4" />
         </Button>

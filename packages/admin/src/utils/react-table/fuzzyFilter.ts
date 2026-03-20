@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { rankItem } from "@tanstack/match-sorter-utils";
 
 export const fuzzyFilter = (

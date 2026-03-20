@@ -1,6 +1,6 @@
 export type AdminFeature =
   | 'dashboard_home'
-  | 'dashboard_members'
+  | 'dashboard_people'
   | 'accounts'
   | 'users'
   | 'events'
@@ -11,7 +11,7 @@ export type AdminFeature =
 
 export const CORE_FEATURES: readonly string[] = [
   'dashboard_home',
-  'dashboard_members',
+  'dashboard_people',
   'events',
   'calendars',
   'emails',
@@ -50,7 +50,7 @@ export interface FeatureMetadata {
 
 export const FEATURE_METADATA: FeatureMetadata[] = [
   { key: 'dashboard_home', label: 'Dashboard', description: 'Main dashboard', category: 'dashboard', route: '/home' },
-  { key: 'dashboard_members', label: 'Members Dashboard', description: 'Member analytics', category: 'dashboard', route: '/members' },
+  { key: 'dashboard_people', label: 'People Dashboard', description: 'People analytics', category: 'dashboard', route: '/people' },
   { key: 'events', label: 'Events', description: 'Event management', category: 'content', route: '/events' },
   { key: 'calendars', label: 'Calendars', description: 'Calendar management', category: 'content', route: '/calendars' },
   { key: 'emails', label: 'Emails', description: 'Email templates and logs', category: 'admin', route: '/admin/emails' },

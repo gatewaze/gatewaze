@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Instance } from "flatpickr/dist/types/instance";
 import { DateOption, Options } from "flatpickr/dist/types/options";
 import invariant from "tiny-invariant";

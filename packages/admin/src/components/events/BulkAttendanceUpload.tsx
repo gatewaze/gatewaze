@@ -1,7 +1,6 @@
-// @ts-nocheck
 import { useState, useRef } from 'react';
 import { ArrowUpTrayIcon, DocumentArrowDownIcon } from '@heroicons/react/24/outline';
-import { Button, Modal } from '@/components/ui-legacy';
+import { Button, Modal } from '@/components/ui';
 import { BulkAttendanceService, BulkAttendanceRow, BulkAttendanceResult } from '@/utils/bulkAttendanceService';
 import { toast } from 'sonner';
 

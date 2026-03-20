@@ -1,0 +1,15 @@
+.form-switch {
+  @apply relative inline-block h-5 w-10 shrink-0 cursor-pointer select-none appearance-none overflow-hidden
+    rounded-full outline-hidden transition-all duration-200 ease-in-out [--thumb-border:2px] 
+    before:absolute before:left-(--thumb-border)
+    before:top-(--thumb-border) before:h-[calc(100%-var(--thumb-border)*2)]
+    before:w-[calc((100%/2)-(var(--thumb-border)*2))] before:rounded-full
+    before:transition-all before:duration-200
+    before:ease-in-out checked:before:translate-x-[calc(100%+(var(--thumb-border)*2))];
+}
+
+.form-switch.is-outline,
+.form-switch:disabled {
+  @apply before:w-[calc((100%/2)-(var(--thumb-border)*2)-1px)]
+    checked:before:translate-x-[calc(100%+(var(--thumb-border)*2)+2px)];
+}

@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Slack Service
  * Handles Slack API interactions for notifications
@@ -184,7 +183,7 @@ export function getSlackOAuthUrl(eventId: string): string {
  */
 export async function getEventSlackIntegration(eventId: string): Promise<EventSlackIntegration | null> {
   const { data, error } = await supabase
-    .from('event_slack_integrations')
+    .from('events_slack_integrations')
     .select('*')
     .eq('event_id', eventId)
     .maybeSingle();
@@ -202,7 +201,7 @@ export async function getEventSlackIntegration(eventId: string): Promise<EventSl
  */
 export async function deleteEventSlackIntegration(eventId: string): Promise<boolean> {
   const { error } = await supabase
-    .from('event_slack_integrations')
+    .from('events_slack_integrations')
     .delete()
     .eq('event_id', eventId);
 
@@ -219,7 +218,7 @@ export async function deleteEventSlackIntegration(eventId: string): Promise<bool
  */
 export async function getEventSlackNotifications(eventId: string): Promise<EventSlackNotification[]> {
   const { data, error } = await supabase
-    .from('event_slack_notifications')
+    .from('events_slack_notifications')
     .select('*')
     .eq('event_id', eventId);
 
@@ -239,7 +238,7 @@ export async function getEventSlackNotification(
   notificationType: 'registration' | 'speaker_submission'
 ): Promise<EventSlackNotification | null> {
   const { data, error } = await supabase
-    .from('event_slack_notifications')
+    .from('events_slack_notifications')
     .select('*')
     .eq('event_id', eventId)
     .eq('notification_type', notificationType)
@@ -260,7 +259,7 @@ export async function upsertEventSlackNotification(
   notification: Partial<EventSlackNotification> & { event_id: string; notification_type: string }
 ): Promise<EventSlackNotification | null> {
   const { data, error } = await supabase
-    .from('event_slack_notifications')
+    .from('events_slack_notifications')
     .upsert(
       {
         ...notification,
@@ -289,7 +288,7 @@ export async function getSlackNotificationLogs(
   limit: number = 50
 ): Promise<SlackNotificationLog[]> {
   const { data, error } = await supabase
-    .from('slack_notification_logs')
+    .from('integrations_slack_notification_logs')
     .select('*')
     .eq('event_id', eventId)
     .order('created_at', { ascending: false })

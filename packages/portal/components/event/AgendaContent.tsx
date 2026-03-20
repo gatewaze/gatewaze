@@ -75,7 +75,7 @@ export function AgendaContent() {
 
         // Fetch tracks
         const { data: tracksData, error: tracksError } = await supabase
-          .from('event_agenda_tracks')
+          .from('events_agenda_tracks')
           .select('id, name, description, sort_order')
           .eq('event_uuid', event.id)
           .order('sort_order', { ascending: true })
@@ -87,7 +87,7 @@ export function AgendaContent() {
 
         // Fetch entries with talk data
         const { data: entriesData, error: entriesError } = await supabase
-          .from('event_agenda_entries')
+          .from('events_agenda_entries')
           .select('id, track_id, title, description, start_time, end_time, entry_type, location, talk_id')
           .eq('event_uuid', event.id)
           .order('start_time', { ascending: true })
@@ -107,7 +107,7 @@ export function AgendaContent() {
         if (talkIds.length > 0) {
           // Fetch talks with speakers using the view
           const { data: talksData, error: talksError } = await supabase
-            .from('event_talks_with_speakers')
+            .from('events_talks_with_speakers')
             .select('id, title, synopsis, session_type, speakers')
             .in('id', talkIds)
 

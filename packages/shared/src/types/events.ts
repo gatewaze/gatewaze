@@ -23,8 +23,7 @@ export interface Event {
   virtual_url?: string;
 
   // Classification
-  event_type?: 'conference' | 'workshop' | 'meetup' | 'webinar' | 'hackathon';
-  listing_type?: string;
+  event_type?: string;
   listing_intro?: string;
   event_link?: string;
   slug?: string;
@@ -64,7 +63,6 @@ export interface Event {
 
   // Integrations
   luma_event_id?: string;
-  gradual_eventslug?: string;
   source_event_id?: string;
   custom_domain?: string;
   custom_domain_status?: string;
@@ -135,7 +133,7 @@ export interface EventSpeaker {
   is_featured?: boolean;
   status?: 'pending' | 'approved' | 'confirmed' | 'reserve' | 'rejected' | 'placeholder';
   company_logo_url?: string;
-  member_profile_id?: string;
+  people_profile_id?: string;
   speaker?: Speaker;
 }
 

@@ -1,5 +1,4 @@
-[project]
-id = "gatewaze-local"
+project_id = "gatewaze-local"
 
 [api]
 enabled = true

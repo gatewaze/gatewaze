@@ -32,7 +32,7 @@ export function useCompetitionEntry(): UseCompetitionEntryReturn {
       const trackingSessionId = getExistingSessionId()
 
       // Call the competition-entry edge function
-      const { data, error: functionError } = await supabase.functions.invoke('competition-entry', {
+      const { data, error: functionError } = await supabase.functions.invoke('events-competition-entry', {
         body: {
           email: email.toLowerCase().trim(),
           competition_id: competitionId,

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import invariant from "tiny-invariant";
 
 export type DeviceType =

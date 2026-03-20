@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Brand utility functions for the Gatewaze Admin application
  */
@@ -113,8 +112,8 @@ export function getBrandScraperApiUrl(): string | null {
 export function isCustomerIOConfigured(): boolean {
   const config = getBrandConfig();
   return Boolean(
-    config.customerio.siteId &&
-    config.customerio.apiKey &&
+    config.customerio?.siteId &&
+    config.customerio?.apiKey &&
     config.customerio.siteId !== '' &&
     config.customerio.apiKey !== ''
   );

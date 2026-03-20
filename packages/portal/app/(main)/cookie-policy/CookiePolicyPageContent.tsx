@@ -31,7 +31,6 @@ interface CookiePolicyData {
 
 interface Props {
   brandConfig: BrandConfig
-  brandId: string
 }
 
 export function CookiePolicyPageContent({ brandConfig }: Props) {

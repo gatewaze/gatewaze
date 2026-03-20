@@ -215,7 +215,7 @@ export default async function TrackingRedirectPage({ params, searchParams }: Pro
       const ipAddress = getClientIp(reqHeaders)
 
       await supabase
-        .from('ad_tracking_sessions')
+        .from('integrations_ad_tracking_sessions')
         .insert({
           session_id: sessionId,
           brand_id: brand,

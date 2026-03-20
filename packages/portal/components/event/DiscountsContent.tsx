@@ -71,7 +71,7 @@ export function DiscountCard({ discount, index }: { discount: DiscountWithCode; 
         if (discount.max_codes == null) return
         const supabase = getSupabaseClient()
         const { count } = await supabase
-          .from('discount_codes')
+          .from('events_discount_codes')
           .select('*', { count: 'exact', head: true })
           .eq('discount_id', discount.id)
           .eq('issued', true)
@@ -188,7 +188,7 @@ export function DiscountCard({ discount, index }: { discount: DiscountWithCode; 
         </div>
       )}
 
-      <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText} className="shadow-2xl" autoRotate autoRotateSpeed={50} borderWidth={2}>
+      <GlowBorder useDarkTheme={useDarkText} className="shadow-2xl" autoRotate autoRotateSpeed={50} borderWidth={2}>
         <div className={`backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelBorder}`}>
 
           {/* Banner — brand primary background */}
@@ -354,7 +354,7 @@ export function DiscountsContent() {
     async function fetchDiscounts() {
       const supabase = getSupabaseClient()
       const { data } = await supabase
-        .from('event_discounts')
+        .from('events_discounts')
         .select('*')
         .eq('event_id', event.event_id)
         .eq('status', 'active')
@@ -389,7 +389,7 @@ export function DiscountsContent() {
       {/* Content */}
       <div className={`transition-opacity duration-300 ${isLoading ? 'opacity-0' : 'opacity-100'}`}>
         {discounts.length === 0 && !isLoading ? (
-          <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText}>
+          <GlowBorder useDarkTheme={useDarkText}>
             <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-8`}>
               <div className="text-center py-4">
                 <div className={`w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center ${panelTheme.cardBg}`}>

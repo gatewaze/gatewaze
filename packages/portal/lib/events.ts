@@ -34,14 +34,15 @@ export async function getEvents(brandId: string): Promise<EventData> {
   const supabase = await createServerSupabase(brandId)
   const now = new Date().toISOString()
 
-  // Fetch upcoming events (all of them, ordered by start date ascending)
-  // Note: Supabase defaults to 1000 limit, so we set a high limit to get all events
+  // Fetch upcoming events (future start date or no start date set)
+  // Only listed events appear in portal listings (unlisted events use custom domains)
   const { data: upcomingEvents } = await supabase
     .from('events')
     .select(EVENT_SELECT_FIELDS)
     .eq('is_live_in_production', true)
-    .gte('event_start', now)
-    .order('event_start', { ascending: true })
+    .eq('is_listed', true)
+    .or(`event_start.gte.${now},event_start.is.null`)
+    .order('event_start', { ascending: true, nullsFirst: false })
     .limit(10000)
 
   // Fetch past events (ordered by start date descending, most recent first)
@@ -49,6 +50,7 @@ export async function getEvents(brandId: string): Promise<EventData> {
     .from('events')
     .select(EVENT_SELECT_FIELDS)
     .eq('is_live_in_production', true)
+    .eq('is_listed', true)
     .lt('event_start', now)
     .order('event_start', { ascending: false })
     .limit(10000)

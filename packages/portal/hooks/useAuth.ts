@@ -20,7 +20,7 @@ interface UseAuthReturn extends AuthState {
 
 /**
  * Hook for managing authentication state in the event portal
- * Supports magic link authentication for members
+ * Supports magic link authentication for people
  */
 export function useAuth(): UseAuthReturn {
   const [state, setState] = useState<AuthState>({

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { getApiConfig } from '@/config/brands';
 
 export interface BulkAttendanceRow {

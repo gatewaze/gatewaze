@@ -54,7 +54,7 @@ export function SponsorsContent() {
         const supabase = createClient(config.supabaseUrl, config.supabaseAnonKey)
 
         const { data, error } = await supabase
-          .from('event_sponsors')
+          .from('events_sponsors')
           .select(`
             id,
             sponsor_id,
@@ -124,7 +124,7 @@ export function SponsorsContent() {
 
   if (sponsors.length === 0) {
     return (
-      <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText}>
+      <GlowBorder useDarkTheme={useDarkText}>
         <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8`}>
           <div className="text-center py-8">
             <svg
@@ -217,7 +217,7 @@ function SponsorCard({ sponsor, tier, useDarkText, primaryColor, panelTheme }: S
   const isPremiumTier = tier === 'platinum' || tier === 'gold'
 
   const content = (
-    <GlowBorder borderRadius="1rem" useDarkTheme={useDarkText} className="h-full">
+    <GlowBorder useDarkTheme={useDarkText} className="h-full">
       <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-xl overflow-hidden ${panelTheme.panelBorder} p-4 sm:p-5 h-full flex flex-col group transition-all duration-200 ${sponsor.website ? 'hover:scale-[1.02] cursor-pointer' : ''}`}>
         {/* Logo */}
         <div className={`flex items-center justify-center ${isPremiumTier ? 'h-24 sm:h-32' : 'h-16 sm:h-20'} mb-3`}>

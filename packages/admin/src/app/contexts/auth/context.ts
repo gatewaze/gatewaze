@@ -1,16 +1,27 @@
-import { createContext } from 'react';
-import type { AuthUser } from '@gatewaze/shared';
+import { User } from "@/@types/user";
+import { createSafeContext } from "@/utils/createSafeContext";
+
+export interface ImpersonationState {
+  isImpersonating: boolean;
+  originalUser: User | null;
+  impersonatedUser: User | null;
+  sessionId: string | null;
+}
 
 export interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   isInitialized: boolean;
-  user: AuthUser | null;
-  login: (credentials: { method: 'magic_link' | 'password' | 'oidc'; email?: string; password?: string }) => Promise<{ success: boolean; message?: string; error?: string }>;
+  errorMessage: string | null;
+  user: User | null;
+  login: (credentials: { email: string }) => Promise<void>;
   logout: () => Promise<void>;
+  impersonation: ImpersonationState;
+  startImpersonation: (userId: string) => Promise<boolean>;
+  stopImpersonation: () => Promise<boolean>;
 }
 
-export const AuthContext = createContext<AuthContextType | null>(null);
-
-// Backward compatibility alias for ported gatewaze-admin components
-export { useAuth as useAuthContext } from './useAuth';
+export const [AuthProvider, useAuthContext] =
+  createSafeContext<AuthContextType>(
+    "useAuthContext must be used within AuthProvider",
+  );

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useState, useEffect } from 'react';
 import {
   MagnifyingGlassIcon,
@@ -8,7 +7,7 @@ import {
   ChevronDownIcon,
 } from '@heroicons/react/24/outline';
 import { toast } from 'sonner';
-import { Card, Button } from '@/components/ui-legacy';
+import { Card, Button } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 
 interface DiscoveredQuestion {
@@ -77,7 +76,7 @@ export function RegistrationFieldMappings({ eventId }: RegistrationFieldMappings
 
   const fetchRegistrationCount = async () => {
     const { count } = await supabase
-      .from('event_registrations')
+      .from('events_registrations')
       .select('id', { count: 'exact', head: true })
       .eq('event_id', eventId);
     setRegistrationCount(count);
@@ -117,7 +116,7 @@ export function RegistrationFieldMappings({ eventId }: RegistrationFieldMappings
   const handleDetectQuestions = async () => {
     setIsDetecting(true);
     try {
-      const { data, error } = await supabase.rpc('discover_registration_questions', {
+      const { data, error } = await supabase.rpc('events_discover_registration_questions', {
         p_event_id: eventId,
       });
 
@@ -248,7 +247,7 @@ export function RegistrationFieldMappings({ eventId }: RegistrationFieldMappings
     setIsApplying(true);
     setApplyResults(null);
     try {
-      const { data, error } = await supabase.rpc('apply_registration_mappings', {
+      const { data, error } = await supabase.rpc('events_apply_registration_mappings', {
         p_event_id: eventId,
       });
 

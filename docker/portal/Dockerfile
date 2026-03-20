@@ -5,16 +5,21 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 
-# Copy workspace root files
-COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+# Copy workspace root files (lockfile excluded – external workspace packages
+# from ../gatewaze-modules are not available at build time)
+COPY package.json ./
 COPY tsconfig.json ./
+
+# Use a workspace config that only includes local packages
+RUN printf 'packages:\n  - "packages/*"\n' > pnpm-workspace.yaml
 
 # Copy package manifests for dependency resolution
 COPY packages/portal/package.json packages/portal/
 COPY packages/shared/package.json packages/shared/
 
-# Install dependencies
-RUN pnpm install --frozen-lockfile
+# Install dependencies (cache pnpm store between builds)
+RUN --mount=type=cache,id=pnpm-portal,target=/root/.local/share/pnpm/store \
+    pnpm install --no-frozen-lockfile
 
 # Copy source code
 COPY packages/shared/ packages/shared/

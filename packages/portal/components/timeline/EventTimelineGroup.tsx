@@ -25,7 +25,7 @@ export function EventTimelineGroup({ group, brandConfig, isLast, userLocation }:
               top: 28,
               bottom: -2,
               width: '1px',
-              backgroundImage: 'linear-gradient(to bottom, rgba(255,255,255,0.4) 4px, transparent 4px)',
+              backgroundImage: 'linear-gradient(to bottom, var(--timeline-line-color, rgba(255,255,255,0.4)) 4px, transparent 4px)',
               backgroundSize: '1px 8px',
             }}
           />

@@ -1,0 +1,65 @@
+[data-sonner-toaster] {
+  @apply max-[425px]:[--width:calc(100%-calc(var(--margin-x)*2))]!;
+}
+
+[data-sonner-toaster][data-sonner-theme="light"] {
+  --normal-bg: var(--color-white) !important;
+  --normal-border: var(--color-gray-200) !important;
+  --normal-text: var(--color-gray-700) !important;
+}
+
+[data-sonner-toaster][data-sonner-theme="light"] :not(.soft-color) {
+  --success-bg: var(--color-success) !important;
+  --success-border: rgb(255 255 255 / 20%) !important;
+  --success-text: rgb(255 255 255 / 95%) !important;
+
+  --error-bg: var(--color-error) !important;
+  --error-border: rgb(255 255 255 / 20%) !important;
+  --error-text: rgb(255 255 255 / 95%) !important;
+}
+
+[data-sonner-toaster][data-sonner-theme="light"]
+  [data-sonner-toast][data-invert="true"] {
+  --normal-bg: var(--color-gray-800) !important;
+  --normal-border: var(--color-gray-600) !important;
+  --normal-text: var(--color-gray-200) !important;
+}
+
+[data-sonner-toaster][data-sonner-theme="dark"]
+  [data-sonner-toast][data-invert="true"] {
+  --normal-bg: var(--gray-2) !important;
+  --normal-border: var(--gray-6) !important;
+  --normal-text: var(--gray-12) !important;
+}
+
+[data-sonner-toaster][data-sonner-theme="dark"] {
+  --normal-bg: var(--gray-1) !important;
+  --normal-border: var(--gray-6) !important;
+  --normal-text: var(--gray-12) !important;
+}
+
+[data-sonner-toaster][data-sonner-theme="dark"] :not(.soft-color) {
+  --success-bg: var(--color-success-darker) !important;
+  --success-border: rgb(0 0 0 / 15%) !important;
+  --success-text: rgb(255 255 255 / 90%) !important;
+
+  --error-bg: var(--color-error-darker) !important;
+  --error-border: rgb(0 0 0 / 15%) !important;
+  --error-text: rgb(255 255 255 / 90%) !important;
+}
+
+[data-sonner-toast][data-styled="true"] {
+  @apply text-sm;
+}
+
+.sonner-loading-bar {
+  background-color: var(--gray-a8);
+}
+
+[data-sonner-toast] [data-button]:first-of-type {
+  @apply rtl:mr-auto! rtl:ml-0!;
+}
+
+[data-sonner-toast] [data-icon] {
+  @apply rtl:mr-[-3px]! rtl:ml-1!;
+}

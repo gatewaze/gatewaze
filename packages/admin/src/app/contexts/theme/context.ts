@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { createSafeContext } from "@/utils/createSafeContext";
 
 import {
@@ -8,7 +7,6 @@ import {
   LightColor,
   Notification,
   PrimaryColor,
-  SecondaryColor,
   ThemeConfig,
   ThemeLayout,
   ThemeMode,
@@ -22,7 +20,6 @@ export interface ThemeContextValue extends ThemeConfig {
   setLightColorScheme: (val: LightColor) => void;
   setDarkColorScheme: (val: DarkColor) => void;
   setPrimaryColorScheme: (val: PrimaryColor) => void;
-  setSecondaryColorScheme: (val: SecondaryColor) => void;
   setNotificationPosition: (val: Notification["position"]) => void;
   setNotificationExpand: (val: boolean) => void;
   setNotificationMaxCount: (val: number) => void;

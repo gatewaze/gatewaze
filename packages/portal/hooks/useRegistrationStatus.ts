@@ -34,29 +34,29 @@ export function useRegistrationStatus(event: RegistrationCheckEvent) {
       try {
         const supabase = getSupabaseClient()
 
-        // Find customer by auth_user_id
-        const { data: customer } = await supabase
-          .from('customers')
+        // Find person by auth_user_id
+        const { data: person } = await supabase
+          .from('people')
           .select('id')
           .eq('auth_user_id', user!.id)
           .maybeSingle()
 
-        if (!customer || cancelled) { setIsChecking(false); return }
+        if (!person || cancelled) { setIsChecking(false); return }
 
-        // Find member profiles for this customer
+        // Find people profiles for this person
         const { data: profiles } = await supabase
-          .from('member_profiles')
+          .from('people_profiles')
           .select('id')
-          .eq('customer_id', customer.id)
+          .eq('person_id', person.id)
 
         if (!profiles?.length || cancelled) { setIsChecking(false); return }
 
         // Check if any profile has a registration for this event
         const { data: registration } = await supabase
-          .from('event_registrations')
+          .from('events_registrations')
           .select('id')
           .eq('event_id', event.event_id)
-          .in('member_profile_id', profiles.map(p => p.id))
+          .in('people_profile_id', profiles.map(p => p.id))
           .neq('status', 'cancelled')
           .limit(1)
           .maybeSingle()
