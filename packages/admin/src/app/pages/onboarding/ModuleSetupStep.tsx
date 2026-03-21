@@ -3,7 +3,7 @@ import { useNavigate } from "react-router";
 import { CheckCircle2, Loader2, AlertCircle, Package } from "lucide-react";
 import { ModuleService } from "@/utils/moduleService";
 import { useModulesContext } from "@/app/contexts/modules/context";
-import PixelTrail from "@/components/shared/PixelTrail";
+import GradientBackground from "@/components/shared/GradientBackground";
 
 type SetupStatus = "running" | "done" | "error";
 
@@ -82,7 +82,7 @@ export default function ModuleSetupStep() {
 
   return (
     <>
-      <PixelTrail />
+      <GradientBackground />
       <div className="flex min-h-[100svh] items-center justify-center p-4">
         <div className="w-full max-w-md text-center space-y-6">
           <div className="flex justify-center">

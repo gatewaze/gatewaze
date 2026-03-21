@@ -82,6 +82,8 @@ import { useModuleSlots, type ResolvedSlot } from '@/hooks/useModuleSlots';
 import { useModulesContext } from '@/app/contexts/modules/context';
 import { resolveHeroIcon } from '@/utils/heroIconResolver';
 
+const ITEMS_PER_PAGE = 25;
+
 // Form validation schema
 const eventSchema = yup.object({
   eventTitle: yup.string().required('Event title is required').min(3, 'Title must be at least 3 characters'),
@@ -765,6 +767,7 @@ const EventDetailPage = () => {
               accounts={accounts}
               allEvents={allEvents}
               qrCodeDataUrl={qrCodeDataUrl}
+              eventTypes={eventTypes}
             />
           </div>
         )}

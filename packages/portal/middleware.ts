@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import modulePrefixes from './lib/modules/generated-module-prefixes.json'
 
 // Known brand hostnames that should pass through normally
 const KNOWN_HOSTS = [
@@ -50,6 +51,9 @@ function isEventTypeSlug(seg: string): boolean {
 
 // Views that support path-based filters
 const FILTER_VIEWS = new Set(['upcoming', 'past', 'calendar', 'map'])
+
+// Module prefixes with portal pages (generated at startup)
+const modulePortalPrefixes = new Set<string>(modulePrefixes as string[])
 
 // In-memory cache for domain → event lookups (per-pod, resets on deploy)
 const domainCache = new Map<string, { eventIdentifier: string; timestamp: number } | null>()
@@ -218,6 +222,14 @@ export async function middleware(request: NextRequest) {
         url.pathname = `/events/${canonicalSlug}${rest}`
         return NextResponse.redirect(url)
       }
+    }
+
+    // Rewrite module content pages: /blog/... → /m/blog/...
+    const firstSegment = pathname.split('/')[1]
+    if (firstSegment && modulePortalPrefixes.has(firstSegment)) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/m' + pathname
+      return NextResponse.rewrite(url)
     }
 
     return NextResponse.next()

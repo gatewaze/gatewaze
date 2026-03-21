@@ -10,6 +10,7 @@ const openaiApiKey = process.env.OPENAI_API_KEY || ''
 interface SearchRequest {
   query: string
   brandId: string
+  contentTypes?: string[] // e.g. ['events', 'blog'] — defaults to all
   userLocation?: {
     lat: number
     lng: number
@@ -17,17 +18,19 @@ interface SearchRequest {
   sessionId?: string
 }
 
-interface AISearchResult {
-  event_id: string
+export interface UniversalSearchResult {
+  content_type: 'event' | 'blog'
+  id: string
+  slug: string
+  title: string
   relevance_score: number
   match_reason: string
-  is_upcoming: boolean
-}
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-interface AISearchResponse {
-  results: AISearchResult[]
-  summary?: string
+  is_upcoming?: boolean
+  // Backward compat: old useEventSearch expects event_id
+  event_id?: string
+  // Extra fields for display
+  image_url?: string | null
+  subtitle?: string | null
 }
 
 interface PopularityScore {
@@ -41,7 +44,7 @@ interface PopularityScore {
 export async function POST(req: NextRequest) {
   try {
     const body: SearchRequest = await req.json()
-    const { query, brandId, userLocation, sessionId } = body
+    const { query, brandId, contentTypes, userLocation, sessionId } = body
 
     if (!query || !brandId) {
       return NextResponse.json({ error: 'Query and brandId are required' }, { status: 400 })
@@ -56,255 +59,60 @@ export async function POST(req: NextRequest) {
     })
 
     const now = new Date()
-
-    // Get IP address from request headers for logging
     const ipAddress = req.headers.get('x-forwarded-for')?.split(',')[0] ||
                       req.headers.get('x-real-ip') ||
                       'unknown'
 
-    // Step 1: Do keyword search first (exact/partial matches in title, topics, description)
-    // This ensures we catch direct matches that semantic search might miss
+    const searchEvents = !contentTypes || contentTypes.includes('events')
+    const searchBlog = !contentTypes || contentTypes.includes('blog')
+
     const queryLower = query.toLowerCase().trim()
     const searchPattern = `%${queryLower}%`
-
-    // Also create word stem patterns for common variations (agents -> agent, agentic)
     const wordRoot = queryLower.replace(/(s|ic|ing|ed|tion|ive)$/i, '')
     const stemPattern = `%${wordRoot}%`
 
-    // Search title, intro, description, and page content for keyword matches
-    const { data: keywordMatches, error: keywordError } = await supabase
-      .from('events')
-      .select('id, event_id')
-      .eq('is_live_in_production', true)
-      .or(
-        `event_title.ilike.${searchPattern},event_title.ilike.${stemPattern},` +
-        `listing_intro.ilike.${searchPattern},listing_intro.ilike.${stemPattern},` +
-        `event_description.ilike.${searchPattern},event_description.ilike.${stemPattern},` +
-        `page_content.ilike.${searchPattern},page_content.ilike.${stemPattern},` +
-        `luma_processed_html.ilike.${searchPattern},luma_processed_html.ilike.${stemPattern}`
-      )
-      .limit(50)
-
-    if (keywordError) {
-      console.error('Keyword search error:', keywordError)
-    }
-
-    // Also search the event_embeddings.description_text which contains all combined content
-    // (includes extracted text from luma_page_data, meetup_page_data, fetched page content, etc.)
-    const { data: embeddingTextMatches, error: embeddingSearchError } = await supabase
-      .from('events_embeddings')
-      .select('event_id')
-      .or(`description_text.ilike.${searchPattern},description_text.ilike.${stemPattern}`)
-      .limit(50)
-
-    if (embeddingSearchError) {
-      console.error('Embedding text search error:', embeddingSearchError)
-    }
-
-    // Combine both keyword match sources
-    const keywordMatchIds = new Set([
-      ...(keywordMatches || []).map((e: { id: string }) => e.id),
-      ...(embeddingTextMatches || []).map((e: { event_id: string }) => e.event_id),
-    ])
-
-    // Step 2: Generate embedding for semantic search
+    // Generate embedding for semantic search
     const openai = new OpenAI({ apiKey: openaiApiKey })
-
     const embeddingResponse = await openai.embeddings.create({
       model: 'text-embedding-3-small',
       input: query,
     })
-
     const queryEmbedding = embeddingResponse.data[0].embedding
-
-    // Step 3: Search for similar events using vector similarity
-    // Convert embedding array to string format for pgvector RPC
     const embeddingString = `[${queryEmbedding.join(',')}]`
 
-    const { data: similarEvents, error: searchError } = await supabase.rpc('events_search_similar', {
-      query_embedding: embeddingString,
-      match_threshold: 0.25, // Lower threshold for semantic matches
-      match_count: 30,
-    })
+    const allResults: UniversalSearchResult[] = []
 
-    if (searchError) {
-      console.error('Vector search error:', searchError)
-      // Don't fail if vector search fails - we still have keyword matches
-    }
-
-    // Combine keyword matches and vector matches
-    const vectorMatchMap = new Map<string, number>()
-    if (similarEvents) {
-      for (const e of similarEvents) {
-        vectorMatchMap.set(e.event_id, e.similarity)
-      }
-    }
-
-    // Collect all unique event IDs
-    const allEventIds = new Set<string>([
-      ...(keywordMatches || []).map((e: { id: string }) => e.id),
-      ...(similarEvents || []).map((e: { event_id: string }) => e.event_id),
-    ])
-
-    if (allEventIds.size === 0) {
-      return NextResponse.json({
-        results: [],
-        summary: 'No matching events found. Try different keywords.',
-      })
-    }
-
-    // Step 4: Fetch full event details for all matched events
-    const eventIds = Array.from(allEventIds)
-
-    const { data: events, error: eventsError } = await supabase
-      .from('events')
-      .select(
-        `
-        id,
-        event_id,
-        event_slug,
-        event_title,
-        event_start,
-        event_end,
-        event_city,
-        event_region,
-        event_country_code,
-        event_topics,
-        listing_intro
-      `
+    // ── Event search ──────────────────────────────────────────────────
+    if (searchEvents) {
+      const eventResults = await searchEventsContent(
+        supabase, queryLower, searchPattern, stemPattern, embeddingString, now, userLocation
       )
-      .in('id', eventIds)
-      .eq('is_live_in_production', true)
-
-    if (eventsError) {
-      return NextResponse.json({ error: `Failed to fetch events: ${eventsError.message}` }, { status: 500 })
+      allResults.push(...eventResults)
     }
 
-    // Step 4: Fetch popularity scores for weighting (registrations, speakers, series history)
-    const eventIdStrings = events?.map((e: { event_id: string }) => e.event_id) || []
-    const popularityScores: Map<string, PopularityScore> = new Map()
-
-    if (eventIdStrings.length > 0) {
-      const { data: popularityData } = await supabase.rpc('events_get_popularity_scores', {
-        event_ids: eventIdStrings,
-      })
-      if (popularityData) {
-        for (const score of popularityData) {
-          popularityScores.set(score.event_id, score)
-        }
-      }
+    // ── Blog search ───────────────────────────────────────────────────
+    if (searchBlog) {
+      const blogResults = await searchBlogContent(
+        supabase, queryLower, searchPattern, stemPattern, embeddingString
+      )
+      allResults.push(...blogResults)
     }
 
-    // Step 5: Build results with comprehensive scoring
-    const results: AISearchResult[] = []
+    // Sort by score descending
+    allResults.sort((a, b) => b.relevance_score - a.relevance_score)
 
-    for (const event of events || []) {
-      const isUpcoming = new Date(event.event_start) >= now
-      const isKeywordMatch = keywordMatchIds.has(event.id)
-      const vectorSimilarity = vectorMatchMap.get(event.id) || 0
+    const topResults = allResults.slice(0, 20)
 
-      // Scoring: Keyword matches get priority, vector adds semantic relevance
-      let score = 0
+    const eventCount = topResults.filter(r => r.content_type === 'event').length
+    const blogCount = topResults.filter(r => r.content_type === 'blog').length
+    const parts: string[] = []
+    if (eventCount > 0) parts.push(`${eventCount} event${eventCount !== 1 ? 's' : ''}`)
+    if (blogCount > 0) parts.push(`${blogCount} post${blogCount !== 1 ? 's' : ''}`)
+    const summary = parts.length > 0
+      ? `Found ${parts.join(' and ')}`
+      : 'No results found. Try different keywords.'
 
-      // Keyword match in title gets huge boost (+40 points)
-      if (event.event_title?.toLowerCase().includes(queryLower)) {
-        score += 40
-      }
-      // Keyword match in description (+25 points)
-      else if (isKeywordMatch) {
-        score += 25
-      }
-
-      // Vector similarity score (0-35 points)
-      score += Math.round(vectorSimilarity * 35)
-
-      // Boost upcoming events (+15 points)
-      if (isUpcoming) {
-        score += 15
-      }
-
-      // Boost by proximity if user location provided (+0-10 points)
-      if (userLocation && event.event_city) {
-        const eventCoords = getCityCoordinates(event.event_city)
-        if (eventCoords) {
-          const distanceKm = calculateDistance(userLocation.lat, userLocation.lng, eventCoords[0], eventCoords[1])
-          if (distanceKm < 50) score += 10
-          else if (distanceKm < 200) score += 6
-          else if (distanceKm < 500) score += 3
-        }
-      }
-
-      // Popularity-based scoring
-      const popularity = popularityScores.get(event.event_id)
-      if (popularity) {
-        // Registration count boost (+0-6 points)
-        if (popularity.registration_count >= 100) score += 6
-        else if (popularity.registration_count >= 50) score += 4
-        else if (popularity.registration_count >= 20) score += 3
-        else if (popularity.registration_count >= 5) score += 1
-
-        // Featured speakers boost (+0-4 points)
-        if (popularity.featured_speaker_count >= 5) score += 4
-        else if (popularity.featured_speaker_count >= 3) score += 3
-        else if (popularity.featured_speaker_count >= 1) score += 1
-      }
-
-      // Generate match reason based on what matched
-      let matchReason = ''
-      const topics = event.event_topics || []
-
-      if (event.event_title?.toLowerCase().includes(queryLower)) {
-        matchReason = `Title contains "${query}"`
-      } else if (topics.some((t: string) => t.toLowerCase().includes(queryLower))) {
-        const matchedTopic = topics.find((t: string) => t.toLowerCase().includes(queryLower))
-        matchReason = `Topic: ${matchedTopic}`
-      } else if (event.event_city?.toLowerCase().includes(queryLower)) {
-        matchReason = `Located in ${event.event_city}`
-      } else if (isKeywordMatch) {
-        matchReason = `Description matches "${query}"`
-      } else if (vectorSimilarity > 0.6) {
-        matchReason = 'Highly relevant to your search'
-      } else if (vectorSimilarity > 0.4) {
-        matchReason = 'Related to your search'
-      } else {
-        matchReason = 'May be relevant'
-      }
-
-      results.push({
-        event_id: event.event_id,
-        relevance_score: Math.min(score, 100),
-        match_reason: matchReason,
-        is_upcoming: isUpcoming,
-      })
-    }
-
-    // Sort by score descending, then by upcoming status
-    results.sort((a, b) => {
-      if (b.relevance_score !== a.relevance_score) {
-        return b.relevance_score - a.relevance_score
-      }
-      return a.is_upcoming === b.is_upcoming ? 0 : a.is_upcoming ? -1 : 1
-    })
-
-    // Limit to top 20 results
-    const topResults = results.slice(0, 20)
-
-    const upcomingCount = topResults.filter((r) => r.is_upcoming).length
-    const pastCount = topResults.filter((r) => !r.is_upcoming).length
-
-    let summary = ''
-    if (topResults.length > 0) {
-      summary = `Found ${topResults.length} event${topResults.length !== 1 ? 's' : ''}`
-      if (upcomingCount > 0 && pastCount > 0) {
-        summary += ` (${upcomingCount} upcoming, ${pastCount} past)`
-      } else if (upcomingCount > 0) {
-        summary += ` (all upcoming)`
-      } else {
-        summary += ` (all past)`
-      }
-    }
-
-    // Log search query for analytics and self-populating pipeline (fire-and-forget)
+    // Log search (fire-and-forget)
     Promise.resolve(
       supabase
         .from('platform_search_queries_log')
@@ -319,12 +127,291 @@ export async function POST(req: NextRequest) {
         })
     ).catch((err) => console.error('Failed to log search query:', err))
 
-    return NextResponse.json({
-      results: topResults,
-      summary,
-    })
+    return NextResponse.json({ results: topResults, summary })
   } catch (error) {
     console.error('AI search error:', error)
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 })
   }
+}
+
+// ── Event search logic (extracted from previous implementation) ─────────
+
+async function searchEventsContent(
+  supabase: ReturnType<typeof createClient>,
+  queryLower: string,
+  searchPattern: string,
+  stemPattern: string,
+  embeddingString: string,
+  now: Date,
+  userLocation?: { lat: number; lng: number },
+): Promise<UniversalSearchResult[]> {
+  // Keyword search
+  const { data: keywordMatches } = await supabase
+    .from('events')
+    .select('id, event_id')
+    .eq('is_live_in_production', true)
+    .or(
+      `event_title.ilike.${searchPattern},event_title.ilike.${stemPattern},` +
+      `listing_intro.ilike.${searchPattern},listing_intro.ilike.${stemPattern},` +
+      `event_description.ilike.${searchPattern},event_description.ilike.${stemPattern},` +
+      `page_content.ilike.${searchPattern},page_content.ilike.${stemPattern},` +
+      `luma_processed_html.ilike.${searchPattern},luma_processed_html.ilike.${stemPattern}`
+    )
+    .limit(50)
+
+  // Embedding text keyword search
+  const { data: embeddingTextMatches } = await supabase
+    .from('events_embeddings')
+    .select('event_id')
+    .or(`description_text.ilike.${searchPattern},description_text.ilike.${stemPattern}`)
+    .limit(50)
+
+  const keywordMatchIds = new Set([
+    ...(keywordMatches || []).map((e: { id: string }) => e.id),
+    ...(embeddingTextMatches || []).map((e: { event_id: string }) => e.event_id),
+  ])
+
+  // Vector search
+  const { data: similarEvents } = await supabase.rpc('events_search_similar', {
+    query_embedding: embeddingString,
+    match_threshold: 0.25,
+    match_count: 30,
+  })
+
+  const vectorMatchMap = new Map<string, number>()
+  if (similarEvents) {
+    for (const e of similarEvents) {
+      vectorMatchMap.set(e.event_id, e.similarity)
+    }
+  }
+
+  const allEventIds = new Set<string>([
+    ...(keywordMatches || []).map((e: { id: string }) => e.id),
+    ...(similarEvents || []).map((e: { event_id: string }) => e.event_id),
+  ])
+
+  if (allEventIds.size === 0) return []
+
+  const { data: events } = await supabase
+    .from('events')
+    .select(`
+      id, event_id, event_slug, event_title, event_start, event_end,
+      event_city, event_region, event_country_code, event_topics, listing_intro,
+      event_logo, screenshot_url
+    `)
+    .in('id', Array.from(allEventIds))
+    .eq('is_live_in_production', true)
+
+  // Popularity scores
+  const eventIdStrings = events?.map((e: { event_id: string }) => e.event_id) || []
+  const popularityScores: Map<string, PopularityScore> = new Map()
+  if (eventIdStrings.length > 0) {
+    const { data: popularityData } = await supabase.rpc('events_get_popularity_scores', {
+      event_ids: eventIdStrings,
+    })
+    if (popularityData) {
+      for (const score of popularityData) {
+        popularityScores.set(score.event_id, score)
+      }
+    }
+  }
+
+  const results: UniversalSearchResult[] = []
+
+  for (const event of events || []) {
+    const isUpcoming = new Date(event.event_start) >= now
+    const isKeywordMatch = keywordMatchIds.has(event.id)
+    const vectorSimilarity = vectorMatchMap.get(event.id) || 0
+
+    let score = 0
+    if (event.event_title?.toLowerCase().includes(queryLower)) {
+      score += 40
+    } else if (isKeywordMatch) {
+      score += 25
+    }
+    score += Math.round(vectorSimilarity * 35)
+    if (isUpcoming) score += 15
+
+    if (userLocation && event.event_city) {
+      const eventCoords = getCityCoordinates(event.event_city)
+      if (eventCoords) {
+        const distanceKm = calculateDistance(userLocation.lat, userLocation.lng, eventCoords[0], eventCoords[1])
+        if (distanceKm < 50) score += 10
+        else if (distanceKm < 200) score += 6
+        else if (distanceKm < 500) score += 3
+      }
+    }
+
+    const popularity = popularityScores.get(event.event_id)
+    if (popularity) {
+      if (popularity.registration_count >= 100) score += 6
+      else if (popularity.registration_count >= 50) score += 4
+      else if (popularity.registration_count >= 20) score += 3
+      else if (popularity.registration_count >= 5) score += 1
+
+      if (popularity.featured_speaker_count >= 5) score += 4
+      else if (popularity.featured_speaker_count >= 3) score += 3
+      else if (popularity.featured_speaker_count >= 1) score += 1
+    }
+
+    // Match reason
+    const topics = event.event_topics || []
+    let matchReason = ''
+    if (event.event_title?.toLowerCase().includes(queryLower)) {
+      matchReason = `Title contains "${queryLower}"`
+    } else if (topics.some((t: string) => t.toLowerCase().includes(queryLower))) {
+      const matchedTopic = topics.find((t: string) => t.toLowerCase().includes(queryLower))
+      matchReason = `Topic: ${matchedTopic}`
+    } else if (event.event_city?.toLowerCase().includes(queryLower)) {
+      matchReason = `Located in ${event.event_city}`
+    } else if (isKeywordMatch) {
+      matchReason = `Description matches "${queryLower}"`
+    } else if (vectorSimilarity > 0.6) {
+      matchReason = 'Highly relevant to your search'
+    } else if (vectorSimilarity > 0.4) {
+      matchReason = 'Related to your search'
+    } else {
+      matchReason = 'May be relevant'
+    }
+
+    // Subtitle: date + location
+    const datePart = event.event_start
+      ? new Date(event.event_start).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      : null
+    const subtitle = [datePart, event.event_city].filter(Boolean).join(' · ')
+
+    results.push({
+      content_type: 'event',
+      id: event.event_id,
+      event_id: event.event_id, // backward compat with useEventSearch
+      slug: event.event_slug || event.event_id,
+      title: event.event_title,
+      relevance_score: Math.min(score, 100),
+      match_reason: matchReason,
+      is_upcoming: isUpcoming,
+      image_url: event.event_logo || event.screenshot_url,
+      subtitle: subtitle || null,
+    })
+  }
+
+  return results
+}
+
+// ── Blog search logic ───────────────────────────────────────────────────
+
+async function searchBlogContent(
+  supabase: ReturnType<typeof createClient>,
+  queryLower: string,
+  searchPattern: string,
+  stemPattern: string,
+  embeddingString: string,
+): Promise<UniversalSearchResult[]> {
+  // Keyword search on blog_posts
+  const { data: keywordMatches } = await supabase
+    .from('blog_posts')
+    .select('id, title, slug, excerpt, featured_image, published_at, reading_time')
+    .eq('status', 'published')
+    .eq('visibility', 'public')
+    .or(
+      `title.ilike.${searchPattern},title.ilike.${stemPattern},` +
+      `excerpt.ilike.${searchPattern},excerpt.ilike.${stemPattern},` +
+      `content.ilike.${searchPattern},content.ilike.${stemPattern}`
+    )
+    .limit(30)
+
+  const keywordMatchIds = new Set((keywordMatches || []).map((p: { id: string }) => p.id))
+
+  // Vector search (if blog_embeddings table + RPC exist)
+  let vectorMatchMap = new Map<string, number>()
+  try {
+    const { data: similarPosts } = await supabase.rpc('blog_search_similar', {
+      query_embedding: embeddingString,
+      match_threshold: 0.25,
+      match_count: 20,
+    })
+    if (similarPosts) {
+      for (const p of similarPosts) {
+        vectorMatchMap.set(p.post_id, p.similarity)
+      }
+    }
+  } catch {
+    // blog_search_similar RPC may not exist yet — fall back to keyword only
+  }
+
+  // Collect all matched post IDs
+  const allPostIds = new Set<string>([
+    ...keywordMatchIds,
+    ...vectorMatchMap.keys(),
+  ])
+
+  if (allPostIds.size === 0) return []
+
+  // Fetch full post data for any that came from vector search but not keyword
+  const missingIds = [...allPostIds].filter(id => !keywordMatchIds.has(id))
+  let allPosts = [...(keywordMatches || [])]
+
+  if (missingIds.length > 0) {
+    const { data: extraPosts } = await supabase
+      .from('blog_posts')
+      .select('id, title, slug, excerpt, featured_image, published_at, reading_time')
+      .in('id', missingIds)
+      .eq('status', 'published')
+      .eq('visibility', 'public')
+
+    if (extraPosts) allPosts.push(...extraPosts)
+  }
+
+  const results: UniversalSearchResult[] = []
+
+  for (const post of allPosts) {
+    const isKeywordMatch = keywordMatchIds.has(post.id)
+    const vectorSimilarity = vectorMatchMap.get(post.id) || 0
+
+    let score = 0
+    if (post.title?.toLowerCase().includes(queryLower)) {
+      score += 40
+    } else if (isKeywordMatch) {
+      score += 25
+    }
+    score += Math.round(vectorSimilarity * 35)
+
+    // Recency boost: posts published in last 30 days get +5
+    if (post.published_at) {
+      const daysAgo = (Date.now() - new Date(post.published_at).getTime()) / (1000 * 60 * 60 * 24)
+      if (daysAgo < 30) score += 5
+      else if (daysAgo < 90) score += 2
+    }
+
+    let matchReason = ''
+    if (post.title?.toLowerCase().includes(queryLower)) {
+      matchReason = `Title contains "${queryLower}"`
+    } else if (isKeywordMatch) {
+      matchReason = `Content matches "${queryLower}"`
+    } else if (vectorSimilarity > 0.6) {
+      matchReason = 'Highly relevant to your search'
+    } else if (vectorSimilarity > 0.4) {
+      matchReason = 'Related to your search'
+    } else {
+      matchReason = 'May be relevant'
+    }
+
+    const datePart = post.published_at
+      ? new Date(post.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      : null
+    const readTime = post.reading_time ? `${post.reading_time} min read` : null
+    const subtitle = [datePart, readTime].filter(Boolean).join(' · ')
+
+    results.push({
+      content_type: 'blog',
+      id: post.id,
+      slug: post.slug,
+      title: post.title,
+      relevance_score: Math.min(score, 100),
+      match_reason: matchReason,
+      image_url: post.featured_image || null,
+      subtitle: subtitle || null,
+    })
+  }
+
+  return results
 }

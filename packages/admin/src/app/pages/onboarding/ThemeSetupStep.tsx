@@ -9,7 +9,7 @@ import { LogoUploadField } from "@/components/shared/branding/LogoUploadField";
 import { EventTypesEditor } from "@/components/shared/branding/EventTypesEditor";
 import { type EventTypeOption, DEFAULT_EVENT_TYPES } from "@/hooks/useEventTypes";
 import { useAuthContext } from "@/app/contexts/auth/context";
-import PixelTrail from "@/components/shared/PixelTrail";
+import GradientBackground from "@/components/shared/GradientBackground";
 
 type PortalTheme = "blobs" | "gradient_wave" | "basic";
 
@@ -79,7 +79,7 @@ export default function ThemeSetupStep() {
 
   return (
     <>
-      <PixelTrail />
+      <GradientBackground />
       <div className="flex min-h-[100svh] items-center justify-center p-4">
         <div className="w-full max-w-xl space-y-6">
           <div className="text-center">

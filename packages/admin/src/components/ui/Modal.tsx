@@ -25,7 +25,7 @@ export function Modal({ isOpen, onClose, title, size = 'md', children, footer }:
   return (
     <Dialog.Root open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
       <Dialog.Content
-        maxWidth={undefined}
+        maxWidth="100vw"
         className={`w-full ${sizeClasses[size]} max-h-[90vh] !rounded-2xl flex flex-col`}
         aria-describedby={undefined}
       >

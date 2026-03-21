@@ -26,10 +26,10 @@ export function ModuleUpdateBanner() {
   const hasBlocked = blockedUpdates.length > 0;
   const bannerColor = hasBlocked && compatibleUpdates.length === 0
     ? "bg-amber-600"
-    : "bg-blue-600";
+    : "bg-red-600";
 
   return (
-    <div className={`${bannerColor} text-white px-4 py-2 text-sm flex items-center justify-between gap-4`}>
+    <div className={`${bannerColor} text-white px-4 py-2 text-sm flex items-center justify-between gap-4 xl:ltr:ml-[var(--sidebar-panel-width)] xl:rtl:mr-[var(--sidebar-panel-width)]`}>
       <div className="flex items-center gap-2 min-w-0">
         <ArrowPathIcon className="size-4 shrink-0" />
         <span className="truncate">

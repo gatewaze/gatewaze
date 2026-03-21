@@ -9,7 +9,7 @@ import { Button, Card, Input, InputErrorMsg } from "@/components/ui";
 import { useAuthContext } from "@/app/contexts/auth/context";
 import { AuthFormValues, schema } from "./schema";
 import { Page } from "@/components/shared/Page";
-import PixelTrail from "@/components/shared/PixelTrail";
+import GradientBackground from "@/components/shared/GradientBackground";
 import { getSupabase } from "@/lib/supabase";
 import { ModuleSlot } from "@/components/ModuleSlot";
 
@@ -63,7 +63,7 @@ export default function SignIn() {
 
   return (
     <Page title="Login">
-      <PixelTrail />
+      <GradientBackground />
       <main className="min-h-100vh grid w-full grow grid-cols-1 place-items-center">
         <div className="w-full max-w-[26rem] p-4 sm:px-5">
           <div className="text-center">

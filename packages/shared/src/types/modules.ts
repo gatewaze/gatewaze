@@ -23,6 +23,13 @@ export interface GatewazeModule {
   /** Slot registrations for the admin React app */
   adminSlots?: SlotRegistration[];
   portalRoutes?: PortalRouteDefinition[];
+  /** Navigation config for the portal header — persisted in installed_modules.portal_nav on enable */
+  portalNav?: {
+    label: string;
+    path: string;
+    icon: string;
+    order: number;
+  };
   /** Slot registrations for the public portal Next.js app */
   portalSlots?: SlotRegistration[];
   apiRoutes?: (app: unknown, context?: ModuleContext) => void | Promise<void>;
@@ -199,6 +206,12 @@ export interface InstalledModuleRow {
   source?: string;
   visibility?: string;
   description?: string;
+  portal_nav?: {
+    label: string;
+    path: string;
+    icon: string;
+    order: number;
+  } | null;
   installed_at: string;
   updated_at: string;
 }

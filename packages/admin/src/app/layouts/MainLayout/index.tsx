@@ -6,14 +6,14 @@ import { Outlet } from "react-router";
 import { Sidebar } from "./Sidebar";
 import { ImpersonationBanner } from "@/components/impersonation/ImpersonationBanner";
 import { ModuleUpdateBanner } from "@/components/shared/ModuleUpdateBanner";
-import PixelTrail from "@/components/shared/PixelTrail";
+import GradientBackground from "@/components/shared/GradientBackground";
 
 // ----------------------------------------------------------------------
 
 export default function MainLayout() {
   return (
     <>
-      <PixelTrail />
+      <GradientBackground />
       <ModuleUpdateBanner />
       <ImpersonationBanner />
       <main

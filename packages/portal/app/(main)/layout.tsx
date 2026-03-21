@@ -144,7 +144,7 @@ export default async function MainLayout({
               {isCustomDomain ? (
                 <WhiteLabelHeader event={customDomainEvent} brandConfig={brandConfig} />
               ) : (
-                <Header brandConfig={brandConfig} />
+                <Header brandConfig={brandConfig} navItems={modules.portalNavItems} />
               )}
               <div className="relative z-10 flex-1">
                 {children}

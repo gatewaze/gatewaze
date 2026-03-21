@@ -6,7 +6,7 @@ import { SupabaseAuthService } from '@/utils/supabaseAuth';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Form/Input';
-import PixelTrail from '@/components/shared/PixelTrail';
+import GradientBackground from '@/components/shared/GradientBackground';
 
 export function OnboardingPage() {
   const [adminName, setAdminName] = useState('');
@@ -77,7 +77,7 @@ export function OnboardingPage() {
 
   return (
     <>
-    <PixelTrail />
+    <GradientBackground />
     <div className="flex min-h-[100svh] items-center justify-center p-4">
       <div className="w-full max-w-[520px]">
         {done ? (
