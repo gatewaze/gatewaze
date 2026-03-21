@@ -16,7 +16,6 @@ import { useAuthContext } from "@/app/contexts/auth/context";
 import { useModulesContext } from "@/app/contexts/modules/context";
 import { ModuleService } from "@/utils/moduleService";
 import type { InstalledModuleRow } from "@gatewaze/shared/modules";
-import modules from "virtual:gatewaze-modules";
 
 /** Modules that have a dedicated settings page under /admin/integrations/:id */
 const SETTINGS_ROUTES = new Set(["people-enrichment", "people-warehouse"]);
@@ -44,6 +43,7 @@ export default function IntegrationsPage() {
   const [installedModules, setInstalledModules] = useState<
     InstalledModuleRow[]
   >([]);
+  const [availableModules, setAvailableModules] = useState<{ id: string; name: string; description: string; version: string; type: string; group: string; features: string[] }[]>([]);
   const [loading, setLoading] = useState(true);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
@@ -57,33 +57,30 @@ export default function IntegrationsPage() {
     setLoading(false);
   }, []);
 
+  const loadAvailableModules = useCallback(async () => {
+    const { modules: available, error } = await ModuleService.getAvailableModules();
+    if (error) {
+      console.error("Failed to load available modules:", error);
+    }
+    setAvailableModules(available ?? []);
+  }, []);
+
   useEffect(() => {
     loadInstalledModules();
-  }, [loadInstalledModules]);
+    loadAvailableModules();
+  }, [loadInstalledModules, loadAvailableModules]);
 
-  // Build card data from all integration-type modules in virtual:gatewaze-modules
+  // Build card data from integration-type modules available from sources
   const integrationCards: IntegrationCardData[] = useMemo(() => {
     const cards: IntegrationCardData[] = [];
+    const availableSet = new Set(availableModules.map((m) => m.id));
 
-    // Collect integration modules from bundled sources
-    for (const mod of modules) {
+    for (const mod of availableModules) {
       if ((mod.type ?? "feature") !== "integration") continue;
 
       const installed = installedModules.find(
         (m: InstalledModuleRow) => m.id === mod.id
       );
-      const configSchema = (mod.configSchema ?? {}) as Record<
-        string,
-        { type?: string; required?: boolean }
-      >;
-      const configKeys = Object.keys(configSchema);
-      const savedConfig = ((installed?.config ?? {}) as Record<string, unknown>);
-      const configuredKeys = configKeys.filter(
-        (k) => savedConfig[k] !== undefined && savedConfig[k] !== ""
-      ).length;
-      const totalKeys = configKeys.filter(
-        (k) => configSchema[k]?.type === "secret" || configSchema[k]?.required
-      ).length;
 
       cards.push({
         id: mod.id,
@@ -93,18 +90,17 @@ export default function IntegrationsPage() {
         installedVersion: installed?.version ?? mod.version,
         status: installed?.status ?? "not_installed",
         hasSettings: SETTINGS_ROUTES.has(mod.id),
-        configuredKeys,
-        totalKeys,
+        configuredKeys: 0,
+        totalKeys: 0,
         installed_at: installed?.installed_at,
-        source: "bundled",
+        source: "source",
       });
     }
 
-    // Also include integration-type modules from DB that aren't in bundled sources
-    // (e.g. from a third-party or premium repo installed at runtime)
+    // Also include installed integration modules not in current sources
     for (const installed of installedModules) {
       if ((installed.type ?? "feature") !== "integration") continue;
-      if (cards.some((c) => c.id === installed.id)) continue;
+      if (availableSet.has(installed.id)) continue;
 
       cards.push({
         id: installed.id,
@@ -129,7 +125,7 @@ export default function IntegrationsPage() {
     });
 
     return cards;
-  }, [installedModules]);
+  }, [availableModules, installedModules]);
 
   const handleToggle = async (
     moduleId: string,

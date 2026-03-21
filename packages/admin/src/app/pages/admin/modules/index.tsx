@@ -20,7 +20,6 @@ import { useAuthContext } from "@/app/contexts/auth/context";
 import { useModulesContext } from "@/app/contexts/modules/context";
 import { ModuleService } from "@/utils/moduleService";
 import type { InstalledModuleRow, ModuleSourceRow } from "@gatewaze/shared/modules";
-import modules from "virtual:gatewaze-modules";
 
 const SECTION_LABELS: Record<string, string> = {
   events: "Event Features",
@@ -74,7 +73,16 @@ export default function ModulesPage() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [isUpdatingAll, setIsUpdatingAll] = useState(false);
   const [availableUpdates, setAvailableUpdates] = useState<ModuleUpdateInfo[]>([]);
+  const [availableModules, setAvailableModules] = useState<{ id: string; name: string; description: string; version: string; type: string; group: string; features: string[] }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const loadAvailableModules = useCallback(async () => {
+    const { modules: available, error } = await ModuleService.getAvailableModules();
+    if (error) {
+      console.error("Failed to load available modules:", error);
+    }
+    setAvailableModules(available ?? []);
+  }, []);
 
   const loadInstalledModules = useCallback(async () => {
     const { modules: installed, error } =
@@ -100,6 +108,7 @@ export default function ModulesPage() {
   }, []);
 
   useEffect(() => {
+    loadAvailableModules();
     loadInstalledModules();
     loadModuleSources();
     checkForUpdates();
@@ -109,8 +118,9 @@ export default function ModulesPage() {
   // (those are managed in the Integrations page instead)
   const moduleCards: ModuleCardData[] = useMemo(() => {
     const updateMap = new Map(availableUpdates.map((u) => [u.id, u]));
+    const availableSet = new Set(availableModules.map((m) => m.id));
 
-    const cards: ModuleCardData[] = modules
+    const cards: ModuleCardData[] = availableModules
       .filter((mod) => (mod.type ?? "feature") !== "integration")
       .map((mod) => {
       const installed = installedModules.find((m) => m.id === mod.id);
@@ -125,7 +135,7 @@ export default function ModulesPage() {
         features: mod.features,
         type: mod.type ?? "feature",
         group: mod.group ?? mod.type ?? "feature",
-        source: "bundled",
+        source: "source",
         status: installed?.status ?? "not_installed",
         installed_at: installed?.installed_at,
         updateAvailable: !!update,
@@ -134,10 +144,10 @@ export default function ModulesPage() {
       };
     });
 
-    // Also show custom/orphaned modules from DB not in bundled config
-    // (excludes integration-type — those are in the Integrations page)
+    // Also show installed modules not found in current sources
+    // (e.g. from a source that was removed but module still installed)
     for (const installed of installedModules) {
-      if (!modules.find((m) => m.id === installed.id)) {
+      if (!availableSet.has(installed.id)) {
         if ((installed.type ?? "feature") === "integration") continue;
         cards.push({
           id: installed.id,
@@ -158,7 +168,7 @@ export default function ModulesPage() {
     }
 
     return cards;
-  }, [installedModules, availableUpdates]);
+  }, [availableModules, installedModules, availableUpdates]);
 
   // Group by group field
   const grouped = useMemo(() => {

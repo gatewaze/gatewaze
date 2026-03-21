@@ -398,6 +398,35 @@ modulesRouter.post('/:id/disable', async (req, res) => {
 // ---------------------------------------------------------------------------
 
 /**
+ * GET /api/modules/available
+ *
+ * Returns all modules discovered from live module sources.
+ * The admin modules dashboard uses this instead of bundled config.
+ */
+modulesRouter.get('/available', async (_req, res) => {
+  try {
+    const modules = await loadAllModules();
+    const available = modules.map((m) => ({
+      id: m.config.id,
+      name: m.config.name,
+      description: m.config.description,
+      version: m.config.version,
+      type: m.config.type ?? 'feature',
+      group: m.config.group ?? m.config.type ?? 'feature',
+      visibility: m.config.visibility ?? 'public',
+      features: m.config.features ?? [],
+      minPlatformVersion: m.config.minPlatformVersion,
+    }));
+    return res.json({ modules: available });
+  } catch (err) {
+    console.error('[modules] Failed to load available modules:', err);
+    return res.status(500).json({
+      error: err instanceof Error ? err.message : 'Failed to load modules',
+    });
+  }
+});
+
+/**
  * GET /api/modules/check-updates
  *
  * Compare source module versions against installed versions.
