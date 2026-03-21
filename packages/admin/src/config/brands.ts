@@ -99,7 +99,7 @@ export function getBrandConfig(): BrandConfig {
     },
 
     api: {
-      baseUrl: import.meta.env.VITE_API_BASE_URL || '/api',
+      baseUrl: import.meta.env.VITE_API_BASE_URL || (import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api'),
       scraperApiUrl: import.meta.env.VITE_SCRAPER_API_URL || '',
     },
 

@@ -412,6 +412,7 @@ services:
       NODE_ENV: production
       BRAND: ${BRAND:-default}
       SUPABASE_URL: http://supabase-kong:8000
+      SUPABASE_PUBLIC_URL: ${API_EXTERNAL_URL:-http://gatewaze-supabase.localhost}
       VITE_SUPABASE_URL: http://supabase-kong:8000
       SUPABASE_ANON_KEY: ${ANON_KEY}
       VITE_SUPABASE_ANON_KEY: ${ANON_KEY}

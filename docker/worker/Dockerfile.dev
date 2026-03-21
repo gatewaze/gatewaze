@@ -33,14 +33,13 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
 WORKDIR /app
 
 # Copy package files first for better caching
-COPY package*.json ./
+COPY scripts/package.json scripts/package-lock.json ./
 
-# Install dependencies including nodemon
-RUN npm ci && npm install -g nodemon
+# Install dependencies
+RUN npm ci
 
 # Copy application code (will be overridden by volume mounts)
 COPY scripts/ ./scripts/
-COPY src/config/ ./src/config/
 
-# Use nodemon for hot reloading
-CMD ["nodemon", "--watch", "scripts", "-e", "js,json,ts", "scripts/workers/job-worker.js"]
+# Use node --watch for hot reloading
+CMD ["node", "--watch", "scripts/workers/job-worker.js"]

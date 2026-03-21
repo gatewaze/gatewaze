@@ -162,19 +162,42 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
               document.head.appendChild(link);
             }
           }
-          // Apply font-family to document
+          // Build font stack and apply to the Radix .radix-themes element
+          // directly, since Radix sets --default-font-family on that element.
           const stack: string[] = [];
-          if (fontHeading) stack.push(fontHeading);
-          if (fontBody && fontBody !== fontHeading) stack.push(fontBody);
+          if (fontHeading) stack.push(`'${fontHeading}'`);
+          if (fontBody && fontBody !== fontHeading) stack.push(`'${fontBody}'`);
           stack.push("ui-sans-serif", "system-ui", "sans-serif");
-          document.documentElement.style.fontFamily = stack.join(", ");
+          const fontStack = stack.join(", ");
 
-          // Apply font weights as CSS custom properties
-          if (map.font_heading_weight) {
-            document.documentElement.style.setProperty("--font-weight-heading", map.font_heading_weight);
+          const headingStack = fontHeading
+            ? `'${fontHeading}', ${fontStack}`
+            : fontStack;
+
+          function applyFontToRadix(el: HTMLElement) {
+            el.style.setProperty("--default-font-family", fontStack);
+            el.style.setProperty("--heading-font-family", headingStack);
+            if (map.font_heading_weight) {
+              el.style.setProperty("--font-weight-heading", map.font_heading_weight);
+            }
+            if (map.font_body_weight) {
+              el.style.setProperty("--font-weight-body", map.font_body_weight);
+            }
           }
-          if (map.font_body_weight) {
-            document.documentElement.style.setProperty("--font-weight-body", map.font_body_weight);
+
+          const radixEl = document.querySelector(".radix-themes") as HTMLElement | null;
+          if (radixEl) {
+            applyFontToRadix(radixEl);
+          } else {
+            // Radix element not yet mounted — wait for it
+            const observer = new MutationObserver((_mutations, obs) => {
+              const el = document.querySelector(".radix-themes") as HTMLElement | null;
+              if (el) {
+                applyFontToRadix(el);
+                obs.disconnect();
+              }
+            });
+            observer.observe(document.body, { childList: true, subtree: true });
           }
         }
       } catch {
