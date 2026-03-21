@@ -480,7 +480,26 @@ CREATE OR REPLACE FUNCTION public.people_get_authenticated_sorted(
   p_sort_order  text    DEFAULT 'desc',
   p_search_term text    DEFAULT NULL
 )
-RETURNS SETOF public.people
+RETURNS TABLE(
+  id                  uuid,
+  email               text,
+  phone               text,
+  avatar_url          text,
+  cio_id              text,
+  attributes          jsonb,
+  attribute_timestamps jsonb,
+  auth_user_id        uuid,
+  has_gravatar        boolean,
+  avatar_source       text,
+  avatar_storage_path text,
+  avatar_updated_at   timestamptz,
+  linkedin_avatar_url text,
+  is_guest            boolean,
+  last_synced_at      timestamptz,
+  created_at          timestamptz,
+  updated_at          timestamptz,
+  total_count         bigint
+)
 LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
@@ -488,39 +507,47 @@ AS $$
 DECLARE
   v_sort_expr text;
   v_order text;
+  v_search text;
 BEGIN
   v_order := CASE WHEN upper(p_sort_order) = 'ASC' THEN 'ASC' ELSE 'DESC' END;
+  v_search := CASE WHEN p_search_term IS NOT NULL AND p_search_term <> ''
+                   THEN '%' || p_search_term || '%'
+                   ELSE NULL END;
 
   -- Map sort columns: top-level columns use %I, JSONB fields use ->> expression
   v_sort_expr := CASE
-    WHEN p_sort_by IN ('email', 'created_at', 'updated_at') THEN format('%I', p_sort_by)
-    WHEN p_sort_by = 'full_name' THEN $f$COALESCE(attributes->>'first_name', '') || ' ' || COALESCE(attributes->>'last_name', '')$f$
-    WHEN p_sort_by = 'company' THEN $f$attributes->>'company'$f$
-    ELSE 'created_at'
+    WHEN p_sort_by IN ('email', 'created_at', 'updated_at', 'created') THEN
+      CASE WHEN p_sort_by = 'created' THEN format('%I', 'created_at')
+           ELSE format('%I', p_sort_by) END
+    WHEN p_sort_by = 'full_name' THEN $f$COALESCE(c.attributes->>'first_name', '') || ' ' || COALESCE(c.attributes->>'last_name', '')$f$
+    WHEN p_sort_by = 'company' THEN $f$c.attributes->>'company'$f$
+    ELSE format('%I', 'created_at')
   END;
 
   RETURN QUERY EXECUTE format(
-    'SELECT c.*
+    'SELECT c.id, c.email, c.phone, c.avatar_url, c.cio_id,
+            c.attributes, c.attribute_timestamps, c.auth_user_id,
+            c.has_gravatar, c.avatar_source, c.avatar_storage_path,
+            c.avatar_updated_at, c.linkedin_avatar_url, c.is_guest,
+            c.last_synced_at, c.created_at, c.updated_at,
+            COUNT(*) OVER() AS total_count
      FROM public.people c
      WHERE c.auth_user_id IS NOT NULL
-       AND ($1 IS NULL
+       AND ($1::text IS NULL
             OR c.email ILIKE $1
-            OR (c.attributes->>''first_name'' || '' '' || c.attributes->>''last_name'') ILIKE $1
-            OR c.attributes->>''company'' ILIKE $1)
+            OR (COALESCE(c.attributes->>''first_name'', '''') || '' '' || COALESCE(c.attributes->>''last_name'', '''')) ILIKE $1
+            OR COALESCE(c.attributes->>''company'', '''') ILIKE $1)
      ORDER BY %s %s
      LIMIT $2 OFFSET $3',
     v_sort_expr,
     v_order
   )
-  USING
-    CASE WHEN p_search_term IS NOT NULL THEN '%' || p_search_term || '%' ELSE NULL END,
-    p_limit,
-    p_offset;
+  USING v_search, p_limit, p_offset;
 END;
 $$;
 
 COMMENT ON FUNCTION public.people_get_authenticated_sorted(integer, integer, text, text, text)
-  IS 'Paginated, sortable, searchable listing of authenticated people (searches attributes JSONB)';
+  IS 'Paginated, sortable, searchable listing of authenticated people with total count';
 
 --------------------------------------------------------------------------------
 -- 14. people_count_with_linkedin

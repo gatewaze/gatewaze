@@ -94,7 +94,7 @@ export class QRCodeService {
     eventCode: string,
     options?: Partial<QRCodeOptions>
   ): Promise<string> {
-    const appUrl = import.meta.env.VITE_APP_URL || 'https://www.tech.tickets';
+    const appUrl = import.meta.env.VITE_APP_URL || '';
     const url = `${appUrl}/event/${eventCode}`;
 
     return this.generateQRCode({
@@ -115,7 +115,7 @@ export class QRCodeService {
     filename: string,
     size: number = 1000
   ): Promise<void> {
-    const appUrl = import.meta.env.VITE_APP_URL || 'https://www.tech.tickets';
+    const appUrl = import.meta.env.VITE_APP_URL || '';
     const url = `${appUrl}/event/${eventCode}`;
 
     const qrCode = new QRCodeStyling({

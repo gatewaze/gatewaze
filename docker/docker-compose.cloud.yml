@@ -75,6 +75,7 @@ services:
       VITE_SUPABASE_URL: ${SUPABASE_URL}
       VITE_SUPABASE_ANON_KEY: ${ANON_KEY}
       VITE_API_URL: ${API_URL:-http://gatewaze-api.localhost}
+      VITE_APP_URL: ${APP_URL:-http://${PORTAL_HOST:-gatewaze-app.localhost}}
     networks:
       - gatewaze
 

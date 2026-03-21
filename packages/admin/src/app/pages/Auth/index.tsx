@@ -11,6 +11,7 @@ import { AuthFormValues, schema } from "./schema";
 import { Page } from "@/components/shared/Page";
 import PixelTrail from "@/components/shared/PixelTrail";
 import { getSupabase } from "@/lib/supabase";
+import { ModuleSlot } from "@/components/ModuleSlot";
 
 // ----------------------------------------------------------------------
 
@@ -142,6 +143,9 @@ export default function SignIn() {
                 </p>
               </div>
             </form>
+
+            {/* Extension point for third-party auth providers (e.g. LFID) */}
+            <ModuleSlot name="sign-in:providers" />
           </Card>
 
           <div className="mt-8 flex justify-center">

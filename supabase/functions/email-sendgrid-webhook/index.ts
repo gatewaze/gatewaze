@@ -1,7 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 /**
- * SendGrid Webhook Handler - Multi-Brand Support
+ * SendGrid Webhook Handler
  *
  * Handles SendGrid Event Webhook notifications for tracking email events:
  * - delivered
@@ -12,23 +12,12 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
  * - spamreport
  * - unsubscribe
  *
- * This single webhook handles events from multiple brands by routing based on
- * the sender email domain.
- *
  * Documentation: https://docs.sendgrid.com/for-developers/tracking-events/event
  */
 
-// Brand configuration - maps email domains to Supabase projects
-const BRAND_CONFIG = {
-  'mlops.community': {
-    supabaseUrl: 'https://db.mlops.community',
-    supabaseKey: Deno.env.get('MLOPS_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),
-  },
-  'tech.tickets': {
-    supabaseUrl: 'https://data.tech.tickets',
-    supabaseKey: Deno.env.get('TECHTICKETS_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),
-  },
-};
+// Single-instance configuration — uses the local Supabase project
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+const SUPABASE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 interface SendGridEvent {
   email: string;
@@ -44,42 +33,25 @@ interface SendGridEvent {
 }
 
 /**
- * Determine which brand database to use based on sender email domain
+ * Get a Supabase client for the local instance
  */
-function getBrandConfig(fromEmail?: string) {
-  if (!fromEmail) {
-    console.warn('No from email found, defaulting to first brand');
-    return Object.values(BRAND_CONFIG)[0];
-  }
-
-  const domain = fromEmail.split('@')[1];
-  const config = BRAND_CONFIG[domain as keyof typeof BRAND_CONFIG];
-
-  if (!config) {
-    console.warn(`Unknown domain: ${domain}, defaulting to first brand`);
-    return Object.values(BRAND_CONFIG)[0];
-  }
-
-  return config;
+function getSupabaseClient() {
+  return createClient(SUPABASE_URL, SUPABASE_KEY);
 }
 
 /**
- * Get the from email address from the email log in the database
- * We need to query both databases to find which one has this email
+ * Find an email log entry by SendGrid message ID
  */
 async function findEmailLog(messageId: string) {
-  for (const [brand, config] of Object.entries(BRAND_CONFIG)) {
-    const client = createClient(config.supabaseUrl, config.supabaseKey!);
+  const client = getSupabaseClient();
+  const { data, error } = await client
+    .from('email_logs')
+    .select('*')
+    .eq('sendgrid_message_id', messageId)
+    .limit(1);
 
-    const { data, error } = await client
-      .from('email_logs')
-      .select('*')
-      .eq('sendgrid_message_id', messageId)
-      .limit(1);
-
-    if (!error && data && data.length > 0) {
-      return { emailLog: data[0], client, brand };
-    }
+  if (!error && data && data.length > 0) {
+    return { emailLog: data[0], client };
   }
 
   return null;
@@ -133,16 +105,14 @@ export default async function(req: Request) {
         continue;
       }
 
-      // Find the email log across all brand databases
       const result = await findEmailLog(messageId);
 
       if (!result) {
-        console.warn('No email log found for message ID across any brand:', messageId);
+        console.warn('No email log found for message ID:', messageId);
         continue;
       }
 
-      const { emailLog, client: supabaseClient, brand } = result;
-      console.log(`Found email in ${brand} database`);
+      const { emailLog, client: supabaseClient } = result;
 
       const updateData: any = {};
 
