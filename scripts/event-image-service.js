@@ -107,16 +107,26 @@ export async function uploadEventImage(imageBuffer, eventId, fileExtension = 'jp
       };
     }
 
-    // Get public URL
+    // Get public URL — replace internal Docker hostname with the external URL
+    // so the URL is accessible from outside the Docker network
     const { data: urlData } = getSupabaseClient().storage
       .from('media')
       .getPublicUrl(data.path);
 
-    console.log(`  ✅ Event image uploaded successfully: ${urlData.publicUrl}`);
+    let publicUrl = urlData.publicUrl;
+    const externalUrl = process.env.SUPABASE_PUBLIC_URL || process.env.API_EXTERNAL_URL;
+    if (externalUrl) {
+      const internalUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+      if (internalUrl && publicUrl.startsWith(internalUrl)) {
+        publicUrl = publicUrl.replace(internalUrl, externalUrl);
+      }
+    }
+
+    console.log(`  ✅ Event image uploaded successfully: ${publicUrl}`);
 
     return {
       success: true,
-      url: urlData.publicUrl,
+      url: publicUrl,
       path: data.path,
     };
   } catch (error) {

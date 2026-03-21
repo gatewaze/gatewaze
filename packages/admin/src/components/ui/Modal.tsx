@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import { Dialog } from '@radix-ui/themes';
+import { Dialog, VisuallyHidden } from '@radix-ui/themes';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import { Button } from './Button';
 
@@ -29,7 +29,7 @@ export function Modal({ isOpen, onClose, title, size = 'md', children, footer }:
         className={`w-full ${sizeClasses[size]} max-h-[90vh] !rounded-2xl flex flex-col`}
         aria-describedby={undefined}
       >
-        {title && (
+        {title ? (
           <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--gray-a6)] flex-shrink-0">
             <Dialog.Title className="text-lg font-medium leading-6">
               {title}
@@ -43,6 +43,8 @@ export function Modal({ isOpen, onClose, title, size = 'md', children, footer }:
               <XMarkIcon className="h-5 w-5" />
             </Button>
           </div>
+        ) : (
+          <VisuallyHidden><Dialog.Title>Dialog</Dialog.Title></VisuallyHidden>
         )}
 
         <div className={`overflow-y-auto flex-1 min-h-0 ${title ? 'px-4 py-3' : 'p-4'}`}>

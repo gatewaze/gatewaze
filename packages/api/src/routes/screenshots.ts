@@ -21,9 +21,43 @@ screenshotsRouter.get('/health', (_req: Request, res: Response) => {
   });
 });
 
+// Fire-and-forget screenshot generation (enqueues job and returns immediately)
+screenshotsRouter.post('/generate', async (req: Request, res: Response) => {
+  const { eventIds, type, forceRegenerate, forceBrowserless } = req.body;
+
+  if (!isQueueAvailable()) {
+    res.status(503).json({
+      success: false,
+      error: 'Screenshot generation requires Redis job queue. Set REDIS_URL to enable.',
+    });
+    return;
+  }
+
+  try {
+    const screenshotJobId = `screenshot-${Date.now()}`;
+    const job = await addJob(JobTypes.SCREENSHOT_GENERATE, {
+      eventIds: eventIds || null,
+      forceRegenerate: forceRegenerate || false,
+      forceBrowserless: forceBrowserless || false,
+      screenshotJobId,
+    });
+
+    res.json({
+      success: true,
+      message: `Screenshot job enqueued (Job ID: ${job.id})`,
+      jobId: job.id,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to enqueue screenshot job',
+    });
+  }
+});
+
 // Screenshot generation streaming endpoint
 screenshotsRouter.post('/generate-stream', async (req: Request, res: Response) => {
-  const { eventIds, type, forceRegenerate } = req.body;
+  const { eventIds, type, forceRegenerate, forceBrowserless } = req.body;
 
   // Set headers for Server-Sent Events
   res.writeHead(200, {
@@ -66,10 +100,17 @@ screenshotsRouter.post('/generate-stream', async (req: Request, res: Response) =
     let isComplete = false;
     let progress = 20;
 
+    function cleanup() {
+      if (isComplete) return;
+      isComplete = true;
+      subscriber.unsubscribe(channel).catch(() => {});
+      subscriber.quit().catch(() => {});
+    }
+
     await subscriber.subscribe(channel);
 
     subscriber.on('message', (ch: string, message: string) => {
-      if (ch !== channel) return;
+      if (ch !== channel || isComplete) return;
       try {
         const logData = JSON.parse(message);
         switch (logData.type) {
@@ -84,16 +125,13 @@ screenshotsRouter.post('/generate-stream', async (req: Request, res: Response) =
             sendEvent('progress', { line: `Progress: ${logData.stats?.percent || 0}%`, progress });
             break;
           case 'complete':
-            isComplete = true;
             sendEvent('complete', { message: 'Screenshot generation completed!', progress: 100, success: logData.success });
-            subscriber.unsubscribe(channel);
-            subscriber.quit();
+            cleanup();
             res.end();
             break;
           case 'error':
             sendEvent('error', { message: 'Screenshot generation failed', details: logData.error });
-            subscriber.unsubscribe(channel);
-            subscriber.quit();
+            cleanup();
             res.end();
             break;
         }
@@ -105,6 +143,7 @@ screenshotsRouter.post('/generate-stream', async (req: Request, res: Response) =
     const job = await addJob(JobTypes.SCREENSHOT_GENERATE, {
       eventIds: eventIds || null,
       forceRegenerate: forceRegenerate || false,
+      forceBrowserless: forceBrowserless || false,
       screenshotJobId,
     });
 
@@ -113,21 +152,19 @@ screenshotsRouter.post('/generate-stream', async (req: Request, res: Response) =
     // Timeout after 5 minutes
     setTimeout(() => {
       if (!isComplete) {
-        subscriber.unsubscribe(channel);
-        subscriber.quit();
         sendEvent('complete', {
           message: 'Screenshot job is running in background. Check job status for results.',
           progress: 100,
           success: true,
           background: true,
         });
+        cleanup();
         res.end();
       }
     }, 5 * 60 * 1000);
 
     req.on('close', () => {
-      subscriber.unsubscribe(channel);
-      subscriber.quit();
+      cleanup();
     });
   } catch (error: any) {
     sendEvent('error', { message: 'Failed to start screenshot generation', details: error.message });
