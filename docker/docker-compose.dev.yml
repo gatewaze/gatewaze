@@ -40,14 +40,21 @@ services:
       - ../packages/portal/styles:/app/packages/portal/styles
       - ../packages/portal/types:/app/packages/portal/types
       - ../packages/portal/public:/app/packages/portal/public
+      - ../packages/portal/scripts:/app/packages/portal/scripts
       - ../packages/portal/next.config.ts:/app/packages/portal/next.config.ts
       - ../packages/portal/tsconfig.json:/app/packages/portal/tsconfig.json
       - ../packages/portal/postcss.config.mjs:/app/packages/portal/postcss.config.mjs
       - ../packages/portal/tailwind.config.ts:/app/packages/portal/tailwind.config.ts
       - ../packages/portal/middleware.ts:/app/packages/portal/middleware.ts
+      - ../packages/portal/package.json:/app/packages/portal/package.json
       - ../packages/shared/src:/app/packages/shared/src
+      # Module system: config + external module sources
+      - ../gatewaze.config.ts:/app/gatewaze.config.ts
+      - ../../gatewaze-modules/modules:/gatewaze-modules/modules
     environment:
       NODE_ENV: development
+      # Internal Supabase URL for module registry generator (DB source lookup)
+      SUPABASE_URL: http://supabase-kong:8000
 
   api:
     build:

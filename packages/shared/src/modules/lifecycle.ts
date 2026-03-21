@@ -76,6 +76,7 @@ export async function reconcileModules(
           features: mod.config.features,
           status: 'enabled',
           config: mod.moduleConfig,
+          portal_nav: mod.config.portalNav || null,
         });
 
       if (insertErr) {
@@ -101,7 +102,7 @@ export async function reconcileModules(
         await applyModuleMigrations(mod, supabase);
         await supabase
           .from('installed_modules')
-          .update({ version: mod.config.version, features: mod.config.features })
+          .update({ version: mod.config.version, features: mod.config.features, portal_nav: mod.config.portalNav || null })
           .eq('id', mod.config.id);
       }
     } else {
@@ -113,9 +114,19 @@ export async function reconcileModules(
         console.log(`[modules] Upgrading "${mod.config.name}" from v${(existing as InstalledModuleRow).version} to v${mod.config.version}...`);
         await supabase
           .from('installed_modules')
-          .update({ version: mod.config.version, features: mod.config.features })
+          .update({ version: mod.config.version, features: mod.config.features, portal_nav: mod.config.portalNav || null })
           .eq('id', mod.config.id);
         console.log(`[modules] Upgraded "${mod.config.name}" to v${mod.config.version}`);
+      } else {
+        // Always sync portal_nav (may have been added/changed without a version bump)
+        const newNav = mod.config.portalNav || null;
+        const existingNav = (existing as InstalledModuleRow).portal_nav || null;
+        if (JSON.stringify(newNav) !== JSON.stringify(existingNav)) {
+          await supabase
+            .from('installed_modules')
+            .update({ portal_nav: newNav })
+            .eq('id', mod.config.id);
+        }
       }
     }
   }

@@ -6,14 +6,14 @@ import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { ImpersonationBanner } from "@/components/impersonation/ImpersonationBanner";
 import { ModuleUpdateBanner } from "@/components/shared/ModuleUpdateBanner";
-import PixelTrail from "@/components/shared/PixelTrail";
+import GradientBackground from "@/components/shared/GradientBackground";
 
 // ----------------------------------------------------------------------
 
 export default function Sideblock() {
   return (
     <>
-      <PixelTrail />
+      <GradientBackground />
       <ModuleUpdateBanner />
       <ImpersonationBanner />
       <Header />

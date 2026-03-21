@@ -242,6 +242,7 @@ export class RegistrationService {
     offset?: number;
     checkedInAfter?: string;
   }) {
+    // Try the detailed view first (may not exist without modules)
     let query = this.supabase
       .from('events_attendance_with_details')
       .select('*', { count: 'exact' })
@@ -261,7 +262,27 @@ export class RegistrationService {
 
     const { data, error, count } = await query;
 
-    if (error) throw error;
+    // If the view doesn't exist, fall back to core events_attendance table
+    if (error) {
+      let fallbackQuery = this.supabase
+        .from('events_attendance')
+        .select('*', { count: 'exact' })
+        .eq('event_id', eventId);
+
+      if (filters?.checkedInAfter) {
+        fallbackQuery = fallbackQuery.gte('checked_in_at', filters.checkedInAfter);
+      }
+      if (filters?.limit) {
+        fallbackQuery = fallbackQuery.limit(filters.limit);
+      }
+      if (filters?.offset) {
+        fallbackQuery = fallbackQuery.range(filters?.offset, filters.offset + (filters.limit || 100) - 1);
+      }
+
+      const { data: fbData, error: fbError, count: fbCount } = await fallbackQuery;
+      if (fbError) throw fbError;
+      return { data: fbData, count: fbCount };
+    }
 
     return { data, count };
   }

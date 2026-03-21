@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Switch } from "@/components/ui";
-import PixelTrail from "@/components/shared/PixelTrail";
+import GradientBackground from "@/components/shared/GradientBackground";
 import { ModuleService } from "@/utils/moduleService";
 
 const SECTION_LABELS: Record<string, string> = {
@@ -103,7 +103,7 @@ export default function ModuleSelectionStep() {
   if (loadingModules) {
     return (
       <>
-        <PixelTrail />
+        <GradientBackground />
         <div className="flex min-h-[100svh] items-center justify-center p-4">
           <Loader2 className="h-8 w-8 animate-spin text-[var(--gray-a9)]" />
         </div>
@@ -113,7 +113,7 @@ export default function ModuleSelectionStep() {
 
   return (
     <>
-      <PixelTrail />
+      <GradientBackground />
       <div className="flex min-h-[100svh] items-center justify-center p-4">
         <div className="w-full max-w-3xl space-y-6">
           <div className="text-center">

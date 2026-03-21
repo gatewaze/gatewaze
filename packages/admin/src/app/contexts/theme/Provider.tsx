@@ -16,6 +16,58 @@ import {
 } from "@/configs/@types/theme";
 import { defaultTheme } from "@/configs/theme";
 import { colors } from "@/constants/colors";
+import { getSupabase } from "@/lib/supabase";
+
+// Reference colors for each Radix accent (approximate hue center)
+const RADIX_ACCENT_REFS: { name: PrimaryColor; r: number; g: number; b: number }[] = [
+  { name: "red",     r: 229, g: 72,  b: 77  },
+  { name: "crimson", r: 233, g: 61,  b: 130 },
+  { name: "pink",    r: 214, g: 64,  b: 159 },
+  { name: "plum",    r: 171, g: 74,  b: 186 },
+  { name: "purple",  r: 142, g: 78,  b: 198 },
+  { name: "violet",  r: 110, g: 86,  b: 207 },
+  { name: "indigo",  r: 62,  g: 99,  b: 214 },
+  { name: "blue",    r: 59,  g: 130, b: 246 },
+  { name: "teal",    r: 18,  g: 165, b: 148 },
+  { name: "green",   r: 34,  g: 197, b: 94  },
+  { name: "amber",   r: 245, g: 158, b: 11  },
+  { name: "orange",  r: 247, g: 107, b: 21  },
+  { name: "rose",    r: 244, g: 63,  b: 94  },
+];
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  hex = hex.trim().replace("#", "");
+  if (hex.length !== 6) return null;
+  return {
+    r: parseInt(hex.substring(0, 2), 16),
+    g: parseInt(hex.substring(2, 4), 16),
+    b: parseInt(hex.substring(4, 6), 16),
+  };
+}
+
+function closestRadixAccent(hex: string): PrimaryColor {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return "blue";
+  // If the color is very dark or desaturated, use a neutral accent
+  const max = Math.max(rgb.r, rgb.g, rgb.b);
+  const min = Math.min(rgb.r, rgb.g, rgb.b);
+  const lightness = (max + min) / 2;
+  const saturation = max === 0 ? 0 : (max - min) / max;
+  if (lightness < 40 || saturation < 0.15) return "violet";
+  let best: PrimaryColor = "blue";
+  let bestDist = Infinity;
+  for (const ref of RADIX_ACCENT_REFS) {
+    const dr = rgb.r - ref.r;
+    const dg = rgb.g - ref.g;
+    const db = rgb.b - ref.b;
+    const dist = dr * dr + dg * dg + db * db;
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = ref.name;
+    }
+  }
+  return best;
+}
 // ----------------------------------------------------------------------
 
 const initialState: ThemeContextValue = {
@@ -57,27 +109,32 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     (settings.themeMode === "system" && isDarkOS) ||
     settings.themeMode === "dark";
 
-  // Migrate old brand color names to Radix accent names on mount
+  // Sync Radix accent color from platform branding settings on mount
   useEffect(() => {
-    const expectedPrimaryColor: PrimaryColor = "green";
+    async function syncAccentColor() {
+      try {
+        const supabase = getSupabase();
+        const { data } = await supabase
+          .from("platform_settings")
+          .select("value")
+          .eq("key", "primary_color")
+          .single();
 
-    const currentName = settings.primaryColorScheme?.name;
-    const needsMigration =
-      currentName === ("mlops-pink" as string) ||
-      currentName === ("techtickets-red" as string) ||
-      currentName === ("pink" as string) ||
-      currentName === ("red" as string) ||
-      !currentName;
+        const brandHex = data?.value as string | undefined;
+        const accent = brandHex ? closestRadixAccent(brandHex) : "green";
 
-    if (needsMigration) {
-      setSettings((prevSettings) => ({
-        ...prevSettings,
-        primaryColorScheme: {
-          name: expectedPrimaryColor,
-          ...colors[expectedPrimaryColor],
-        },
-      }));
+        if (settings.primaryColorScheme?.name !== accent) {
+          setSettings((prev) => ({
+            ...prev,
+            primaryColorScheme: { name: accent, ...colors[accent] },
+          }));
+        }
+      } catch {
+        // If fetch fails, keep current setting
+      }
     }
+
+    syncAccentColor();
   }, []); // Run once on mount
 
   const setThemeMode = (val: ThemeMode) => {
