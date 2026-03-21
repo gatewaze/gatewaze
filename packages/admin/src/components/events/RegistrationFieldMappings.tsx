@@ -68,27 +68,50 @@ export function RegistrationFieldMappings({ eventId }: RegistrationFieldMappings
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // Fetch existing mappings and registration count on mount
+  // Resolve varchar event_id to UUID for tables that use UUID FK
+  const [eventUuid, setEventUuid] = useState<string | null>(null);
+
   useEffect(() => {
-    fetchExistingMappings();
-    fetchRegistrationCount();
+    async function resolve() {
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventId);
+      if (isUUID) {
+        setEventUuid(eventId);
+        return;
+      }
+      const { data } = await supabase
+        .from('events')
+        .select('id')
+        .eq('event_id', eventId)
+        .single();
+      setEventUuid(data?.id ?? null);
+    }
+    resolve();
   }, [eventId]);
 
+  // Fetch existing mappings and registration count once UUID is resolved
+  useEffect(() => {
+    if (!eventUuid) return;
+    fetchExistingMappings();
+    fetchRegistrationCount();
+  }, [eventUuid]);
+
   const fetchRegistrationCount = async () => {
+    if (!eventUuid) return;
     const { count } = await supabase
       .from('events_registrations')
       .select('id', { count: 'exact', head: true })
-      .eq('event_id', eventId);
+      .eq('event_id', eventUuid);
     setRegistrationCount(count);
   };
 
   const fetchExistingMappings = async () => {
+    if (!eventUuid) return;
     setIsLoading(true);
     try {
       const { data, error } = await supabase
         .from('registration_field_mappings')
         .select('*')
-        .eq('event_id', eventId)
+        .eq('event_id', eventUuid)
         .eq('is_active', true)
         .order('created_at');
 
@@ -117,7 +140,7 @@ export function RegistrationFieldMappings({ eventId }: RegistrationFieldMappings
     setIsDetecting(true);
     try {
       const { data, error } = await supabase.rpc('events_discover_registration_questions', {
-        p_event_id: eventId,
+        p_event_id: eventUuid,
       });
 
       if (error) throw error;
@@ -221,7 +244,7 @@ export function RegistrationFieldMappings({ eventId }: RegistrationFieldMappings
           const { error } = await supabase
             .from('registration_field_mappings')
             .insert({
-              event_id: eventId,
+              event_id: eventUuid,
               source_label: m.question_label,
               source_question_type: m.question_type,
               target_type: m.target_type,
@@ -248,7 +271,7 @@ export function RegistrationFieldMappings({ eventId }: RegistrationFieldMappings
     setApplyResults(null);
     try {
       const { data, error } = await supabase.rpc('events_apply_registration_mappings', {
-        p_event_id: eventId,
+        p_event_id: eventUuid,
       });
 
       if (error) throw error;
