@@ -121,7 +121,7 @@ export function EventDetailContent({ event, brandConfig }: Props) {
               {/* Registration Panel */}
               {event.enable_registration && (
                 <GlowBorder useDarkTheme={useDarkText}>
-                  <div className={`${theme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${theme.panelBorder} p-5`}>
+                  <div className={`${theme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${theme.panelBorder} p-5`}>
                     {showRegistrationForm && event.enable_native_registration ? (
                       <RegistrationForm
                         event={event}
@@ -134,7 +134,7 @@ export function EventDetailContent({ event, brandConfig }: Props) {
                     ) : (
                       <button
                         onClick={handleRegister}
-                        className={`w-full px-6 py-3.5 text-base font-semibold ${theme.buttonText} rounded-xl shadow-lg hover:shadow-xl hover:brightness-110 transition-all duration-200 transform hover:scale-[1.02] cursor-pointer`}
+                        className={`w-full px-6 py-3.5 text-base font-semibold ${theme.buttonText} rounded-xl hover:shadow-lg hover:brightness-110 transition-all duration-200 transform hover:scale-[1.02] cursor-pointer`}
                         style={{
                           backgroundColor: primaryColor,
                           borderColor: primaryColor,
@@ -153,7 +153,7 @@ export function EventDetailContent({ event, brandConfig }: Props) {
               {/* Registration closed message */}
               {!event.enable_registration && (
                 <GlowBorder useDarkTheme={useDarkText}>
-                  <div className={`${theme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${theme.panelBorder} p-5`}>
+                  <div className={`${theme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${theme.panelBorder} p-5`}>
                     <p className={`text-sm font-medium text-center ${theme.panelTextMuted}`}>
                       Registration is currently closed for this event.
                     </p>
@@ -164,7 +164,7 @@ export function EventDetailContent({ event, brandConfig }: Props) {
               {/* Call for Speakers Panel */}
               {event.enable_call_for_speakers && (
                 <GlowBorder useDarkTheme={useDarkText}>
-                  <div className={`${theme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${theme.panelBorder} p-5`}>
+                  <div className={`${theme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${theme.panelBorder} p-5`}>
                     <div className="flex items-center gap-3 mb-3">
                       <div
                         className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${

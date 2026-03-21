@@ -282,7 +282,7 @@ export function RegistrationForm({ event, brandConfig, onSuccess, onCancel, trac
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" style={{ strokeDasharray: 24, strokeDashoffset: 24, animation: 'checkmark-draw 0.4s ease-out 0.2s forwards' }} />
           </svg>
         </div>
-        <h2 className={`text-2xl font-bold ${theme.heading} mb-2 drop-shadow-md`}>You're registered!</h2>
+        <h2 className={`text-2xl font-bold ${theme.heading} mb-2`}>You're registered!</h2>
         <p className="text-white/80 mb-4">
           Thank you for registering for <strong>{stripEmojis(event.event_title)}</strong>.
         </p>
@@ -367,7 +367,7 @@ export function RegistrationForm({ event, brandConfig, onSuccess, onCancel, trac
   return (
     <div className={theme.containerBg}>
       <div>
-        <h2 className={`text-2xl sm:text-3xl font-bold ${theme.heading} mb-6 drop-shadow-md`}>Register for this event</h2>
+        <h2 className={`text-2xl sm:text-3xl font-bold ${theme.heading} mb-6`}>Register for this event</h2>
 
         {submitError && (
           <div className={`mb-4 p-3 ${theme.errorBg} border ${theme.errorBorder} rounded-lg ${theme.errorText} text-sm`}>

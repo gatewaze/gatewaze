@@ -52,14 +52,6 @@ describe('Events API', () => {
       expect(res.body.limit).toBe(100);
     });
 
-    it('filters by status', async () => {
-      mockSupabase.mockResult([], null, 0);
-
-      await request(app).get('/api/events?status=published');
-
-      expect(mockSupabase.client.eq).toHaveBeenCalledWith('status', 'published');
-    });
-
     it('searches by title', async () => {
       mockSupabase.mockResult([], null, 0);
 

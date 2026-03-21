@@ -943,21 +943,22 @@ async function navigateWithRetries(page, eventId, eventTitle, eventLink) {
 export async function generateScreenshots(options = {}) {
   // Check for flags - options take precedence over environment variables
   const forceRegenerate = options.forceRegenerate ?? process.env.FORCE_SCREENSHOTS === 'true';
+  const forceBrowserless = options.forceBrowserless ?? false;
   const onlyMissing = options.onlyMissing ?? process.env.ONLY_MISSING === 'true';
   const specificEventIds = options.eventIds ?? parseEventIds();
   
   const events = await getEvents();
   console.log(`Starting screenshot generation for ${events.length} events...`);
-  console.log(`Mode: ${onlyMissing ? 'Only missing screenshots' : (forceRegenerate ? 'Force regenerate all' : 'Normal')}`);
+  console.log(`Mode: ${forceBrowserless ? 'Force BrowserLess.io' : onlyMissing ? 'Only missing screenshots' : (forceRegenerate ? 'Force regenerate all' : 'Normal')}`);
   
   if (specificEventIds) {
     console.log(`Filtering for specific event IDs: ${specificEventIds.join(', ')}`);
   }
   
-  // Use a more specific browser path for macOS
-  // This can help avoid connection issues
   let browser;
 
+  // Skip Puppeteer browser launch if using BrowserLess.io exclusively
+  if (!forceBrowserless) {
   // Ensure crashpad directory exists for Chrome crash handler (Docker compatibility)
   const crashpadDir = process.env.CRASHPAD_DATABASE_PATH || '/tmp/crashpad';
   if (!fs.existsSync(crashpadDir)) {
@@ -1003,6 +1004,7 @@ export async function generateScreenshots(options = {}) {
     console.error("Failed to launch browser:", error);
     throw error;
   }
+  } // end if (!forceBrowserless)
 
   let successCount = 0;
   let errorCount = 0;
@@ -1088,6 +1090,52 @@ export async function generateScreenshots(options = {}) {
       }
     }
     
+    // If forceBrowserless is set, skip Puppeteer entirely and use BrowserLess.io
+    if (forceBrowserless) {
+      console.log(`[${i+1}/${eventsToProcess.length}] Using BrowserLess.io for ${eventTitle} (${eventLink})`);
+      try {
+        const browserlessResult = await BrowserlessService.generateScreenshot({
+          url: eventLink,
+          width: 1366,
+          height: 1024,
+          format: 'jpeg',
+          quality: 75,
+          fullPage: false,
+          waitForTimeout: 30000
+        });
+
+        if (browserlessResult.success && browserlessResult.data) {
+          const resizedBuffer = await sharp(browserlessResult.data)
+            .resize({ width: 400 })
+            .jpeg({ quality: 75 })
+            .toBuffer();
+
+          console.log(`  📤 Uploading BrowserLess.io screenshot to Supabase...`);
+          const uploadResult = await uploadEventImage(resizedBuffer, eventId, 'jpg');
+
+          if (uploadResult.success) {
+            console.log(`✅ BrowserLess.io screenshot uploaded: ${uploadResult.url}`);
+            await updateScreenshotStatus(eventId, true, uploadResult.url);
+            successCount++;
+            browserlessSuccessCount++;
+          } else {
+            console.error(`  ❌ Failed to upload BrowserLess.io screenshot: ${uploadResult.error}`);
+            errorCount++;
+            await updateScreenshotStatus(eventId, false);
+          }
+        } else {
+          console.log(`  ❌ BrowserLess.io failed: ${browserlessResult.message}`);
+          errorCount++;
+          await updateScreenshotStatus(eventId, false);
+        }
+      } catch (browserlessError) {
+        console.error(`  ❌ BrowserLess.io error: ${browserlessError.message}`);
+        errorCount++;
+        await updateScreenshotStatus(eventId, false);
+      }
+      continue;
+    }
+
     let page = null;
     try {
       console.log(`[${i+1}/${eventsToProcess.length}] Capturing screenshot for ${eventTitle} (${eventLink})`);
@@ -1324,10 +1372,12 @@ export async function generateScreenshots(options = {}) {
     await new Promise(resolve => setTimeout(resolve, 500)); // Reduced from 1000ms to 500ms
   }
   
-  try {
-    await browser.close();
-  } catch (e) {
-    console.error("Error closing browser:", e.message);
+  if (browser) {
+    try {
+      await browser.close();
+    } catch (e) {
+      console.error("Error closing browser:", e.message);
+    }
   }
   
   console.log(`\nScreenshot generation complete!`);

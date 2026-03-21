@@ -40,7 +40,6 @@ eventsRouter.get('/', async (req, res) => {
     const supabase = getSupabase();
     const page = parseInt(req.query.page as string) || 1;
     const limit = Math.min(parseInt(req.query.limit as string) || 25, 100);
-    const status = req.query.status as string;
     const search = req.query.search as string;
 
     let query = supabase
@@ -49,7 +48,6 @@ eventsRouter.get('/', async (req, res) => {
       .order('event_start', { ascending: false })
       .range((page - 1) * limit, page * limit - 1);
 
-    if (status) query = query.eq('status', status);
     if (search) query = query.ilike('event_title', `%${search}%`);
 
     const { data, error, count } = await query;

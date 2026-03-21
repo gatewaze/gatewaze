@@ -412,7 +412,7 @@ export function SpeakerSubmissionForm({ event, brandConfig, onSuccess, onCancel,
   return (
     <div>
       <div>
-        <h2 className={`text-2xl sm:text-3xl font-bold ${theme.heading} mb-6 drop-shadow-md`}>{isAdditionalTalk ? 'Submit another talk...' : 'Submit a talk...'}</h2>
+        <h2 className={`text-2xl sm:text-3xl font-bold ${theme.heading} mb-6`}>{isAdditionalTalk ? 'Submit another talk...' : 'Submit a talk...'}</h2>
 
         {submitError && (
           <div className="mb-4 p-3 rounded-lg bg-red-500/20 border border-red-400/50">
@@ -747,7 +747,7 @@ export function SpeakerSubmissionForm({ event, brandConfig, onSuccess, onCancel,
                           disabled={isSubmitting}
                           className={`px-4 py-2.5 rounded-lg font-medium text-sm transition-all duration-200 border-2 ${
                             isSelected
-                              ? 'shadow-md'
+                              ? ''
                               : `${theme.inputBg} ${theme.inputText} ${theme.inputBorder} hover:border-white/50`
                           } disabled:opacity-50`}
                           style={isSelected ? {

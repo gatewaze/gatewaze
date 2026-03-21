@@ -125,7 +125,7 @@ export function SponsorsContent() {
   if (sponsors.length === 0) {
     return (
       <GlowBorder useDarkTheme={useDarkText}>
-        <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8`}>
+        <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8`}>
           <div className="text-center py-8">
             <svg
               className={`w-16 h-16 mx-auto mb-4 ${panelTheme.textMuted}`}
@@ -171,7 +171,7 @@ export function SponsorsContent() {
 
   return (
     <div className="space-y-8">
-      <h1 className={`text-2xl sm:text-3xl font-bold ${panelTheme.textColor} drop-shadow-md`}>Sponsors</h1>
+      <h1 className={`text-2xl sm:text-3xl font-bold ${panelTheme.textColor}`}>Sponsors</h1>
 
       {sortedTiers.map((tier) => (
         <div key={tier}>
@@ -218,7 +218,7 @@ function SponsorCard({ sponsor, tier, useDarkText, primaryColor, panelTheme }: S
 
   const content = (
     <GlowBorder useDarkTheme={useDarkText} className="h-full">
-      <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-xl overflow-hidden ${panelTheme.panelBorder} p-4 sm:p-5 h-full flex flex-col group transition-all duration-200 ${sponsor.website ? 'hover:scale-[1.02] cursor-pointer' : ''}`}>
+      <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${panelTheme.panelBorder} p-4 sm:p-5 h-full flex flex-col group transition-all duration-200 ${sponsor.website ? 'hover:scale-[1.02] cursor-pointer' : ''}`}>
         {/* Logo */}
         <div className={`flex items-center justify-center ${isPremiumTier ? 'h-24 sm:h-32' : 'h-16 sm:h-20'} mb-3`}>
           {sponsor.logo_url ? (

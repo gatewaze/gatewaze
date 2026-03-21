@@ -345,11 +345,11 @@ CREATE POLICY "accounts_users_delete_super_admin"
 
 CREATE POLICY "events_select_public"
   ON public.events FOR SELECT TO anon
-  USING (status = 'published');
+  USING (true);
 
 CREATE POLICY "events_select_admin"
   ON public.events FOR SELECT TO authenticated
-  USING (status = 'published' OR public.can_admin_event(id));
+  USING (true);
 
 CREATE POLICY "events_insert_admin"
   ON public.events FOR INSERT TO authenticated

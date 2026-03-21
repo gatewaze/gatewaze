@@ -44,12 +44,12 @@ export function VenueContent() {
 
   return (
     <div className="space-y-10">
-      <h1 className={`text-2xl sm:text-3xl font-bold ${textColor} drop-shadow-md`}>Venue</h1>
+      <h1 className={`text-2xl sm:text-3xl font-bold ${textColor}`}>Venue</h1>
 
       {/* Interactive Map */}
       {coords && (
         <GlowBorder useDarkTheme={useDarkText}>
-          <div className={`${panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelBorder}`}>
+          <div className={`${panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${panelBorder}`}>
             <VenueLeafletMap lat={coords.lat} lng={coords.lng} primaryColor={primaryColor} />
           </div>
         </GlowBorder>

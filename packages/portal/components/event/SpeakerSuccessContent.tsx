@@ -142,7 +142,7 @@ export function SpeakerSuccessContent({ editToken, isExisting, isUpdated, status
 
     return (
       <GlowBorder useDarkTheme={useDarkText}>
-        <div className={`${theme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${theme.panelBorder} p-6 sm:p-8`}>
+        <div className={`${theme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${theme.panelBorder} p-6 sm:p-8`}>
           <div className="text-center">
             {magicLinkSent ? (
               <>
@@ -278,7 +278,7 @@ export function SpeakerSuccessContent({ editToken, isExisting, isUpdated, status
   return (
   <>
     <GlowBorder useDarkTheme={useDarkText}>
-      <div className={`${theme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${theme.panelBorder} p-6 sm:p-8`}>
+      <div className={`${theme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${theme.panelBorder} p-6 sm:p-8`}>
         {/* Success Icon */}
         <div className="text-center mb-6">
           <div
@@ -524,7 +524,7 @@ export function SpeakerSuccessContent({ editToken, isExisting, isUpdated, status
       {speakerStatus === 'confirmed' && (
         <div className="mt-6">
           <GlowBorder useDarkTheme={useDarkText}>
-            <div className={`${theme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${theme.panelBorder} p-6 sm:p-8`}>
+            <div className={`${theme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${theme.panelBorder} p-6 sm:p-8`}>
               <h2 className={`text-lg font-semibold ${theme.panelText} mb-4`}>Speaker tasks</h2>
               <ConfirmedSpeakerTasks
                 event={event}
