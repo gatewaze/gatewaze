@@ -168,6 +168,30 @@ export class ModuleService {
   }
 
   // ---------------------------------------------------------------------------
+  // Available Modules (from live sources)
+  // ---------------------------------------------------------------------------
+
+  static async getAvailableModules(): Promise<{
+    modules: { id: string; name: string; description: string; version: string; type: string; group: string; features: string[]; visibility?: string }[];
+    error: string | null;
+  }> {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL ?? '';
+      const res = await fetch(`${apiUrl}/api/modules/available`);
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return { modules: [], error: body.error ?? `Failed (${res.status})` };
+      }
+      return { modules: body.modules ?? [], error: null };
+    } catch (error) {
+      return {
+        modules: [],
+        error: error instanceof Error ? error.message : 'Failed to load available modules',
+      };
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Module Updates
   // ---------------------------------------------------------------------------
 

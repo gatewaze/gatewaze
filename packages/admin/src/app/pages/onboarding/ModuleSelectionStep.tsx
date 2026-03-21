@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router";
 import { ArrowRight, Loader2, Puzzle } from "lucide-react";
 import { toast } from "sonner";
@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Switch } from "@/components/ui";
 import PixelTrail from "@/components/shared/PixelTrail";
-import modules from "virtual:gatewaze-modules";
+import { ModuleService } from "@/utils/moduleService";
 
 const SECTION_LABELS: Record<string, string> = {
   events: "Event Features",
@@ -20,11 +20,26 @@ export default function ModuleSelectionStep() {
   const navigate = useNavigate();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [availableModules, setAvailableModules] = useState<{ id: string; name: string; description: string; version: string; type: string; group: string; features: string[]; visibility?: string }[]>([]);
+  const [loadingModules, setLoadingModules] = useState(true);
+
+  const loadAvailableModules = useCallback(async () => {
+    const { modules: available, error } = await ModuleService.getAvailableModules();
+    if (error) {
+      console.error("Failed to load available modules:", error);
+    }
+    setAvailableModules(available ?? []);
+    setLoadingModules(false);
+  }, []);
+
+  useEffect(() => {
+    loadAvailableModules();
+  }, [loadAvailableModules]);
 
   // Only show public modules
   const visibleModules = useMemo(
-    () => modules.filter((m) => (m.visibility ?? "public") !== "hidden"),
-    []
+    () => availableModules.filter((m) => (m.visibility ?? "public") !== "hidden"),
+    [availableModules]
   );
 
   // Group by group field first, then fall back to type
@@ -84,6 +99,17 @@ export default function ModuleSelectionStep() {
       setIsSubmitting(false);
     }
   };
+
+  if (loadingModules) {
+    return (
+      <>
+        <PixelTrail />
+        <div className="flex min-h-[100svh] items-center justify-center p-4">
+          <Loader2 className="h-8 w-8 animate-spin text-[var(--gray-a9)]" />
+        </div>
+      </>
+    );
+  }
 
   return (
     <>

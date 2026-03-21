@@ -13,15 +13,6 @@ export const baseNavigationObj: Record<string, NavigationTree> = {
     transKey: "nav.admin.admin",
     icon: "admin",
   },
-  blog: {
-    id: "blog",
-    type: "item",
-    path: "/blog/posts",
-    title: "Blog",
-    transKey: "nav.blog.blog",
-    icon: "blog",
-    requiredFeature: "blog",
-  },
 };
 
 /**
