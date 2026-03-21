@@ -294,7 +294,7 @@ function EventMobileActionsInner({ event, eventIdentifier, useDarkText, primaryC
             href={useExternalLink ? undefined : registerHref!}
             onClick={useExternalLink ? handleExternalRegister : undefined}
             glow
-            className="flex-1 justify-center shadow-2xl"
+            className="flex-1 justify-center"
           >
             {event.register_button_text || 'Register now'}
           </PortalButton>
@@ -329,7 +329,7 @@ function EventMobileActionsInner({ event, eventIdentifier, useDarkText, primaryC
                 target="_blank"
                 rel="noopener noreferrer"
                 glow
-                className="flex-1 justify-center shadow-2xl"
+                className="flex-1 justify-center"
               >
                 Join event
               </PortalButton>
@@ -410,7 +410,7 @@ function EventMobileActionsInner({ event, eventIdentifier, useDarkText, primaryC
         }`}
       >
         <GlowBorder useDarkTheme={useDarkText}>
-          <div className={`${theme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${theme.panelBorder}`}>
+          <div className={`${theme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${theme.panelBorder}`}>
             <nav className="p-2 flex flex-col gap-2">
               {visibleItems.map((item) => {
                 const active = isActive(item.href)
@@ -517,7 +517,7 @@ function EventSidebarInner({ event, eventIdentifier, useDarkText, primaryColor, 
           href={useExternalLink ? undefined : registerHref!}
           onClick={useExternalLink ? handleExternalRegister : undefined}
           glow
-          className="w-full justify-center shadow-2xl"
+          className="w-full justify-center"
         >
           {event.register_button_text || 'Register now'}
         </PortalButton>
@@ -559,7 +559,7 @@ function EventSidebarInner({ event, eventIdentifier, useDarkText, primaryColor, 
               target="_blank"
               rel="noopener noreferrer"
               glow
-              className="w-full justify-center shadow-2xl"
+              className="w-full justify-center"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
@@ -599,7 +599,7 @@ function EventSidebarInner({ event, eventIdentifier, useDarkText, primaryColor, 
       )}
 
       <GlowBorder useDarkTheme={useDarkText}>
-        <div className={`${theme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${theme.panelBorder}`}>
+        <div className={`${theme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${theme.panelBorder}`}>
           <nav className="p-2 flex flex-col gap-2">
             {visibleItems.map((item) => {
               const active = isActive(item.href)

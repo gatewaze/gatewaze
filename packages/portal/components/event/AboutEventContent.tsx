@@ -190,7 +190,7 @@ function AboutEventContentInner() {
       {showJoinPanel && (
         <div className={`mb-6 transition-opacity duration-500 ease-out ${mounted ? 'opacity-100' : 'opacity-0'}`}>
           <GlowBorder useDarkTheme={useDarkText}>
-            <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-5 sm:p-6`}>
+            <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${panelTheme.panelBorder} p-5 sm:p-6`}>
               <div className="flex items-start gap-4">
                 <div className="flex-shrink-0 mt-0.5">
                   <span className="relative flex h-3 w-3">
@@ -254,7 +254,7 @@ function AboutEventContentInner() {
       {timeline === 'past' && (
         <div className={`mb-6 transition-opacity duration-500 ease-out ${mounted ? 'opacity-100' : 'opacity-0'}`}>
           <GlowBorder useDarkTheme={useDarkText}>
-            <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-5`}>
+            <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${panelTheme.panelBorder} p-5`}>
               <div className="flex items-center gap-3">
                 <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${useDarkText ? 'bg-gray-900/10' : 'bg-white/20'}`}>
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: theme.textMutedColor }}>
@@ -277,7 +277,7 @@ function AboutEventContentInner() {
       {timeline === 'live' && (
         <div className={`mb-6 transition-opacity duration-500 ease-out ${mounted ? 'opacity-100' : 'opacity-0'}`}>
           <GlowBorder useDarkTheme={useDarkText}>
-            <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-5`}>
+            <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${panelTheme.panelBorder} p-5`}>
               <div className="flex items-center gap-3">
                 <span className="relative flex h-3 w-3 flex-shrink-0">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
@@ -299,7 +299,7 @@ function AboutEventContentInner() {
       {!userStateLoading && isConfirmedSpeaker && timeline !== 'past' && (
         <div className={`mb-6 transition-opacity duration-500 ease-out ${mounted ? 'opacity-100' : 'opacity-0'}`}>
           <GlowBorder useDarkTheme={useDarkText}>
-            <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-5 sm:p-6`}>
+            <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${panelTheme.panelBorder} p-5 sm:p-6`}>
               <div className="flex items-start gap-4 mb-4">
                 <div className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: primaryColor, color: isLightColor(primaryColor) ? '#000000' : '#ffffff' }}>
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -357,7 +357,7 @@ function AboutEventContentInner() {
         return (
           <div className={`mb-6 transition-opacity duration-500 ease-out ${mounted ? 'opacity-100' : 'opacity-0'}`}>
             <GlowBorder useDarkTheme={useDarkText}>
-              <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-5 sm:p-6`}>
+              <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${panelTheme.panelBorder} p-5 sm:p-6`}>
                 <div className="flex items-start gap-4">
                   <div className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: primaryColor, color: isLightColor(primaryColor) ? '#000000' : '#ffffff' }}>
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -494,7 +494,7 @@ function AboutEventContentInner() {
       {!userStateLoading && hasTalkSubmission && !isConfirmedSpeaker && timeline !== 'past' && (
         <div className={`mb-6 transition-opacity duration-500 ease-out ${mounted ? 'opacity-100' : 'opacity-0'}`}>
           <GlowBorder useDarkTheme={useDarkText}>
-            <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-5 sm:p-6`}>
+            <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${panelTheme.panelBorder} p-5 sm:p-6`}>
               <div className="flex items-start gap-4">
                 <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${useDarkText ? 'bg-yellow-500/15' : 'bg-yellow-500/20'}`}>
                   <svg className="w-5 h-5 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -711,9 +711,9 @@ function CompetitionCountdownPanel({
   if (timeLeft.isExpired) return null
 
   return (
-    <GlowBorder useDarkTheme={useDarkText} className="shadow-2xl" autoRotate autoRotateSpeed={50} borderWidth={2}>
+    <GlowBorder useDarkTheme={useDarkText} className="" autoRotate autoRotateSpeed={50} borderWidth={2}>
       <div
-        className={`backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder}`}
+        className={`backdrop-blur-[10px] rounded-2xl overflow-hidden ${panelTheme.panelBorder}`}
       >
         {/* Intro banner with brand primary background */}
         <div className="px-5 sm:px-6 pt-5 sm:pt-6 pb-4" style={{ backgroundColor: brandPrimary }}>

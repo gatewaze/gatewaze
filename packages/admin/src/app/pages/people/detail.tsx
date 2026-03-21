@@ -170,6 +170,8 @@ export default function MemberDetailPage() {
   const { id, tab: tabFromUrl } = useParams<{ id: string; tab?: string }>();
   const navigate = useNavigate();
   const hasCIO = useHasModule('customerio');
+  const hasCompetitions = useHasModule('competitions');
+  const hasBulkEmailing = useHasModule('bulk-emailing');
   const [person, setPerson] = useState<Person | null>(null);
   const [segments, setSegments] = useState<Segment[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -566,8 +568,8 @@ export default function MemberDetailPage() {
         }
       }
 
-      // Fetch competition wins by email
-      if (customerData?.email) {
+      // Fetch competition wins by email (only if competitions module is enabled)
+      if (hasCompetitions && customerData?.email) {
         const { data: winnersData } = await supabase
           .from('events_competition_winners')
           .select('*')
@@ -582,8 +584,10 @@ export default function MemberDetailPage() {
 
           setCompetitionWins(wins);
         }
+      }
 
-        // Fetch email subscriptions by customer_id (indexed for performance)
+      // Fetch email subscriptions (only if bulk-emailing module is enabled)
+      if (hasBulkEmailing && customerData?.email) {
         const { data: subscriptionsData } = await supabase
           .from('email_subscriptions')
           .select('id, list_id, subscribed, subscribed_at, unsubscribed_at')
@@ -639,11 +643,10 @@ export default function MemberDetailPage() {
       }
 
       // Fetch event registrations, attendance, and speaker submissions via member_profiles
-      const customerId = parseInt(id!);
       const { data: profileData } = await supabase
         .from('people_profiles')
         .select('id')
-        .eq('person_id', customerId);
+        .eq('person_id', id!);
 
       const memberProfileIds = (profileData || []).map((p: any) => p.id);
 

@@ -131,7 +131,7 @@ export class ScraperService {
    */
   static async startJob(jobId: number): Promise<{ success: boolean; error: any }> {
     try {
-      const response = await fetch(`${getApiBase()}/api/scrapers/${jobId}/start`, {
+      const response = await fetch(`${getApiBase()}/scrapers/${jobId}/start`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -496,7 +496,7 @@ export class ScraperService {
    */
   static async getActiveJobs(): Promise<{ data: any[] | null; error: any }> {
     try {
-      const response = await fetch(`${getApiBase()}/api/scrapers/active`);
+      const response = await fetch(`${getApiBase()}/scrapers/active`);
       const data = await response.json();
 
       if (!response.ok) {
@@ -515,7 +515,7 @@ export class ScraperService {
    */
   static async stopJob(jobId: number): Promise<{ success: boolean; error: any }> {
     try {
-      const response = await fetch(`${getApiBase()}/api/scrapers/${jobId}/stop`, {
+      const response = await fetch(`${getApiBase()}/scrapers/${jobId}/stop`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -540,7 +540,7 @@ export class ScraperService {
    */
   static async getJobDetails(jobId: number): Promise<{ data: any | null; error: any }> {
     try {
-      const response = await fetch(`${getApiBase()}/api/scrapers/${jobId}/details`);
+      const response = await fetch(`${getApiBase()}/scrapers/${jobId}/details`);
       const data = await response.json();
 
       if (!response.ok) {

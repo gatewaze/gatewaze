@@ -238,7 +238,7 @@ export function EventHero({ event, brandConfig, useDarkText }: Props) {
               href={`/events/${eventIdentifier}`}
               className="block w-full transition-transform hover:scale-[1.02]"
             >
-              <GlowBorder useDarkTheme={useDarkText} className="shadow-2xl" autoRotate autoRotateSpeed={50}>
+              <GlowBorder useDarkTheme={useDarkText} className="" autoRotate autoRotateSpeed={50}>
                 <div className={`rounded-2xl overflow-hidden ${theme.imageBorder}`}>
                   <img
                     ref={imageRef}
@@ -258,7 +258,7 @@ export function EventHero({ event, brandConfig, useDarkText }: Props) {
               href={`/events/${eventIdentifier}`}
               className="block w-full transition-transform hover:scale-[1.02]"
             >
-              <GlowBorder useDarkTheme={useDarkText} className="shadow-2xl" autoRotate autoRotateSpeed={50}>
+              <GlowBorder useDarkTheme={useDarkText} className="" autoRotate autoRotateSpeed={50}>
                 <div
                   className={`rounded-2xl aspect-square flex items-center justify-center ${theme.imageBorder}`}
                   style={{

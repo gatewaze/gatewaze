@@ -109,7 +109,7 @@ export function SpeakersListContent() {
 
     return (
       <div className="space-y-6">
-        <h1 className={`text-2xl sm:text-3xl font-bold ${panelTheme.textColor} drop-shadow-md`}>Speakers</h1>
+        <h1 className={`text-2xl sm:text-3xl font-bold ${panelTheme.textColor}`}>Speakers</h1>
         <p className={panelTheme.textMuted}>
           The speaker lineup will be announced soon. Stay tuned!
         </p>
@@ -117,7 +117,7 @@ export function SpeakersListContent() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {placeholders.map((i) => (
             <GlowBorder key={i} useDarkTheme={useDarkText} className="h-full">
-              <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-xl overflow-hidden ${panelTheme.panelBorder} p-4 h-full flex flex-col`}>
+              <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${panelTheme.panelBorder} p-4 h-full flex flex-col`}>
                 <div className="flex items-start gap-4 flex-1">
                   <div className="flex-shrink-0">
                     <div
@@ -167,7 +167,7 @@ export function SpeakersListContent() {
 
   return (
     <div className="space-y-6">
-      <h1 className={`text-2xl sm:text-3xl font-bold ${panelTheme.textColor} drop-shadow-md`}>Speakers</h1>
+      <h1 className={`text-2xl sm:text-3xl font-bold ${panelTheme.textColor}`}>Speakers</h1>
       {isPast && (
         <p className={`${panelTheme.textMuted} -mt-2`}>
           {speakers.length} speaker{speakers.length !== 1 ? 's' : ''} presented at this event.
@@ -280,7 +280,7 @@ function SpeakerCard({ speaker, useDarkText, primaryColor, panelTheme, isFeature
 
   return (
     <GlowBorder useDarkTheme={useDarkText} className="h-full">
-      <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-xl overflow-hidden ${panelTheme.panelBorder} p-4 h-full flex flex-col group`}>
+      <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${panelTheme.panelBorder} p-4 h-full flex flex-col group`}>
         <div className="flex items-start gap-4 flex-1">
           {/* Avatar */}
           <div className="flex-shrink-0">
