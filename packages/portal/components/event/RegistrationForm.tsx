@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import type { Event } from '@/types/event'
 import type { BrandConfig } from '@/config/brand'
 import { getClientBrandConfig, isLightColor } from '@/config/brand'
-import { GlowInput } from '@/components/ui/GlowInput'
+import { GlowInput, GlowTextarea } from '@/components/ui/GlowInput'
 import { PortalButton } from '@/components/ui/PortalButton'
 import { trackEvent } from '@/lib/analytics'
 import { hasConsentFor } from '@/hooks/useConsent'
@@ -39,18 +39,11 @@ interface RegistrationResponse {
 
 interface FormData {
   email: string
-  first_name: string
-  last_name: string
-  company: string
-  job_title: string
+  [key: string]: string
 }
 
 interface FormErrors {
-  email?: string
-  first_name?: string
-  last_name?: string
-  company?: string
-  job_title?: string
+  [key: string]: string | undefined
 }
 
 export function RegistrationForm({ event, brandConfig, onSuccess, onCancel, trackingSessionId, useDarkTheme = false, initialData }: Props) {
@@ -153,17 +146,10 @@ export function RegistrationForm({ event, brandConfig, onSuccess, onCancel, trac
     }
 
     // Validate fields based on people_attributes config
-    const fieldMap: Record<string, keyof FormErrors> = {
-      first_name: 'first_name',
-      last_name: 'last_name',
-      company: 'company',
-      job_title: 'job_title',
-    }
     for (const attr of attrConfig) {
-      const formField = fieldMap[attr.key]
-      if (formField && attr.enabled && attr.required && !formData[formField]?.trim()) {
+      if (attr.enabled && attr.required && !formData[attr.key]?.trim()) {
         const label = attr.label || attr.key.replace(/_/g, ' ')
-        newErrors[formField] = `${label} is required`
+        newErrors[attr.key] = `${label} is required`
       }
     }
 
@@ -171,11 +157,11 @@ export function RegistrationForm({ event, brandConfig, onSuccess, onCancel, trac
     return Object.keys(newErrors).length === 0
   }
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target
     setFormData(prev => ({ ...prev, [name]: value }))
     // Clear error when user starts typing
-    if (errors[name as keyof FormErrors]) {
+    if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: undefined }))
     }
   }
@@ -242,10 +228,12 @@ export function RegistrationForm({ event, brandConfig, onSuccess, onCancel, trac
         body: JSON.stringify({
           email: formData.email.toLowerCase().trim(),
           event_id: event.event_id,
-          first_name: formData.first_name.trim(),
-          last_name: formData.last_name.trim(),
-          company: formData.company.trim() || undefined,
-          job_title: formData.job_title.trim() || undefined,
+          // Include all enabled attribute values
+          ...Object.fromEntries(
+            attrConfig
+              .filter(a => a.enabled && formData[a.key]?.trim())
+              .map(a => [a.key, formData[a.key].trim()])
+          ),
           source: 'event_portal',
           metadata: {
             tracking_session_id: trackingSessionId || undefined,
@@ -412,109 +400,150 @@ export function RegistrationForm({ event, brandConfig, onSuccess, onCancel, trac
             {errors.email && <p className={`mt-1 text-sm ${theme.errorText}`}>{errors.email}</p>}
           </div>
 
-          {/* Name row */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {isAttrEnabled('first_name') && (
-            <div>
-              <label htmlFor="first_name" className={`block text-base font-medium ${theme.label} mb-2`}>
-                First name {isAttrRequired('first_name') && <span className={theme.requiredClass} style={{ backgroundColor: `${primaryColor}50` }}>required</span>}
-              </label>
-              <GlowInput
-                type="text"
-                id="first_name"
-                name="first_name"
-                value={formData.first_name}
-                onChange={handleChange}
-                glowColor={primaryColor}
-                borderRadius="0.5rem"
-                className={`w-full text-base px-4 py-2.5 border rounded-lg ${theme.inputBg} ${theme.inputText} ${theme.inputPlaceholder} focus:outline-none transition-colors ${
-                  errors.first_name
-                    ? `${theme.errorInputBorder}`
-                    : `${theme.inputBorder}`
-                }`}
-                disabled={isSubmitting}
-              />
-              {errors.first_name && <p className={`mt-1 text-sm ${theme.errorText}`}>{errors.first_name}</p>}
-            </div>
-            )}
+          {/* Dynamic attribute fields */}
+          {(() => {
+            const enabledAttrs = attrConfig.filter(a => a.enabled)
+            const inputClass = (key: string) => `w-full text-base px-4 py-2.5 border rounded-lg ${theme.inputBg} ${theme.inputText} ${theme.inputPlaceholder} focus:outline-none transition-colors ${
+              errors[key] ? theme.errorInputBorder : theme.inputBorder
+            }`
+            const isFullWidth = (a: typeof enabledAttrs[0]) => a.type === 'text' || a.type === 'multi-select'
 
-            {isAttrEnabled('last_name') && (
-            <div>
-              <label htmlFor="last_name" className={`block text-base font-medium ${theme.label} mb-2`}>
-                Last name {isAttrRequired('last_name') && <span className={theme.requiredClass} style={{ backgroundColor: `${primaryColor}50` }}>required</span>}
-              </label>
-              <GlowInput
-                type="text"
-                id="last_name"
-                name="last_name"
-                value={formData.last_name}
-                onChange={handleChange}
-                glowColor={primaryColor}
-                borderRadius="0.5rem"
-                className={`w-full text-base px-4 py-2.5 border rounded-lg ${theme.inputBg} ${theme.inputText} ${theme.inputPlaceholder} focus:outline-none transition-colors ${
-                  errors.last_name
-                    ? `${theme.errorInputBorder}`
-                    : `${theme.inputBorder}`
-                }`}
-                disabled={isSubmitting}
-              />
-              {errors.last_name && <p className={`mt-1 text-sm ${theme.errorText}`}>{errors.last_name}</p>}
-            </div>
-            )}
-          </div>
+            // Build rows: full-width items get their own row, others pair up
+            const rows: typeof enabledAttrs[] = []
+            let idx = 0
+            while (idx < enabledAttrs.length) {
+              if (isFullWidth(enabledAttrs[idx])) {
+                rows.push([enabledAttrs[idx]])
+                idx++
+              } else if (idx + 1 < enabledAttrs.length && !isFullWidth(enabledAttrs[idx + 1])) {
+                rows.push([enabledAttrs[idx], enabledAttrs[idx + 1]])
+                idx += 2
+              } else {
+                rows.push([enabledAttrs[idx]])
+                idx++
+              }
+            }
 
-          {/* Company & Job Title row - only show if at least one is enabled */}
-          {(isAttrEnabled('company') || isAttrEnabled('job_title')) && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {isAttrEnabled('company') && (
-            <div>
-              <label htmlFor="company" className={`block text-base font-medium ${theme.label} mb-2`}>
-                Company {isAttrRequired('company') && <span className={theme.requiredClass} style={{ backgroundColor: `${primaryColor}50` }}>required</span>}
-              </label>
-              <GlowInput
-                type="text"
-                id="company"
-                name="company"
-                value={formData.company}
-                onChange={handleChange}
-                glowColor={primaryColor}
-                borderRadius="0.5rem"
-                className={`w-full text-base px-4 py-2.5 border rounded-lg ${theme.inputBg} ${theme.inputText} ${theme.inputPlaceholder} focus:outline-none transition-colors ${
-                  errors.company
-                    ? `${theme.errorInputBorder}`
-                    : `${theme.inputBorder}`
-                }`}
-                disabled={isSubmitting}
-              />
-              {errors.company && <p className={`mt-1 text-sm ${theme.errorText}`}>{errors.company}</p>}
-            </div>
-            )}
+            const renderAttrField = (attr: typeof enabledAttrs[0]) => {
+              const attrType = attr.type || 'string'
 
-            {isAttrEnabled('job_title') && (
-            <div>
-              <label htmlFor="job_title" className={`block text-base font-medium ${theme.label} mb-2`}>
-                Job title {isAttrRequired('job_title') && <span className={theme.requiredClass} style={{ backgroundColor: `${primaryColor}50` }}>required</span>}
-              </label>
-              <GlowInput
-                type="text"
-                id="job_title"
-                name="job_title"
-                value={formData.job_title}
-                onChange={handleChange}
-                glowColor={primaryColor}
-                borderRadius="0.5rem"
-                className={`w-full text-base px-4 py-2.5 border rounded-lg ${theme.inputBg} ${theme.inputText} ${theme.inputPlaceholder} focus:outline-none transition-colors ${
-                  errors.job_title
-                    ? `${theme.errorInputBorder}`
-                    : `${theme.inputBorder}`
-                }`}
-                disabled={isSubmitting}
-              />
-              {errors.job_title && <p className={`mt-1 text-sm ${theme.errorText}`}>{errors.job_title}</p>}
-            </div>
-            )}
-          </div>
-          )}
+              const fieldLabel = (
+                <label htmlFor={attr.key} className={`block text-base font-medium ${theme.label} mb-2`}>
+                  {attr.label} {attr.required && <span className={theme.requiredClass} style={{ backgroundColor: `${primaryColor}50` }}>required</span>}
+                </label>
+              )
+              const fieldError = errors[attr.key] && <p className={`mt-1 text-sm ${theme.errorText}`}>{errors[attr.key]}</p>
+
+              if (attrType === 'text') {
+                return (
+                  <div key={attr.key}>
+                    {fieldLabel}
+                    <GlowTextarea
+                      id={attr.key}
+                      name={attr.key}
+                      value={formData[attr.key] || ''}
+                      onChange={handleChange as any}
+                      glowColor={primaryColor}
+                      borderRadius="0.5rem"
+                      rows={3}
+                      className={inputClass(attr.key)}
+                      disabled={isSubmitting}
+                    />
+                    {fieldError}
+                  </div>
+                )
+              }
+
+              if (attrType === 'select') {
+                return (
+                  <div key={attr.key}>
+                    {fieldLabel}
+                    <select
+                      id={attr.key}
+                      name={attr.key}
+                      value={formData[attr.key] || ''}
+                      onChange={(e) => {
+                        setFormData(prev => ({ ...prev, [attr.key]: e.target.value }))
+                        if (errors[attr.key]) setErrors(prev => ({ ...prev, [attr.key]: undefined }))
+                      }}
+                      className={`${inputClass(attr.key)} appearance-none cursor-pointer`}
+                      style={{ borderRadius: '0.5rem' }}
+                      disabled={isSubmitting}
+                    >
+                      <option value="">{`Select ${attr.label}...`}</option>
+                      {(attr.options || []).map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                    {fieldError}
+                  </div>
+                )
+              }
+
+              if (attrType === 'multi-select') {
+                const selected: string[] = formData[attr.key] ? (() => { try { return JSON.parse(formData[attr.key]) } catch { return [] } })() : []
+                return (
+                  <div key={attr.key}>
+                    {fieldLabel}
+                    <div className={`flex flex-wrap gap-1.5 rounded-lg border p-2.5 min-h-[42px] ${theme.inputBg} ${errors[attr.key] ? theme.errorInputBorder : theme.inputBorder}`}>
+                      {(attr.options || []).map(opt => {
+                        const isSelected = selected.includes(opt)
+                        return (
+                          <button
+                            key={opt}
+                            type="button"
+                            disabled={isSubmitting}
+                            onClick={() => {
+                              const next = isSelected ? selected.filter(s => s !== opt) : [...selected, opt]
+                              setFormData(prev => ({ ...prev, [attr.key]: JSON.stringify(next) }))
+                              if (errors[attr.key]) setErrors(prev => ({ ...prev, [attr.key]: undefined }))
+                            }}
+                            className={`px-2.5 py-1 rounded-md text-sm font-medium transition-colors ${
+                              isSelected
+                                ? 'text-white'
+                                : `bg-white/50 ${theme.inputText} hover:bg-white/70`
+                            } ${isSubmitting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                            style={isSelected ? { backgroundColor: primaryColor } : undefined}
+                          >
+                            {opt}
+                          </button>
+                        )
+                      })}
+                      {(attr.options || []).length === 0 && (
+                        <span className={`text-sm ${theme.inputPlaceholder}`}>No options configured</span>
+                      )}
+                    </div>
+                    {fieldError}
+                  </div>
+                )
+              }
+
+              // Default: string type
+              return (
+                <div key={attr.key}>
+                  {fieldLabel}
+                  <GlowInput
+                    type="text"
+                    id={attr.key}
+                    name={attr.key}
+                    value={formData[attr.key] || ''}
+                    onChange={handleChange}
+                    glowColor={primaryColor}
+                    borderRadius="0.5rem"
+                    className={inputClass(attr.key)}
+                    disabled={isSubmitting}
+                  />
+                  {fieldError}
+                </div>
+              )
+            }
+
+            return rows.map((row, ri) => (
+              <div key={ri} className={`grid grid-cols-1 ${row.length === 2 ? 'sm:grid-cols-2' : ''} gap-4`}>
+                {row.map(attr => renderAttrField(attr))}
+              </div>
+            ))
+          })()}
 
           {/* Submit buttons */}
           <div className="flex flex-col sm:flex-row gap-3 pt-2">

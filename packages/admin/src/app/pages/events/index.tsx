@@ -194,7 +194,6 @@ export default function EventsManagement() {
   const [selectedEventType, setSelectedEventType] = useState<string>('');
   const [selectedSourceType, setSelectedSourceType] = useState<string>('');
   const [selectedScrapedBy, setSelectedScrapedBy] = useState<string>('');
-  const [selectedStatus, setSelectedStatus] = useState<string>('');
   const [eventLogoPath, setEventLogoPath] = useState<string | undefined>(undefined);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [activeTab, setActiveTab] = useState<'basic' | 'location' | 'dates' | 'discount' | 'competition' | 'topics' | 'source'>('basic');
@@ -395,13 +394,8 @@ export default function EventsManagement() {
       filtered = filtered.filter(event => event.scrapedBy === selectedScrapedBy);
     }
 
-    // Filter by status
-    if (selectedStatus) {
-      filtered = filtered.filter(event => event.status === selectedStatus);
-    }
-
     return filtered;
-  }, [events, searchTerm, hidePastEvents, hideEventsWithScreenshots, selectedEventType, selectedSourceType, selectedScrapedBy, selectedStatus, filterScraperName]);
+  }, [events, searchTerm, hidePastEvents, hideEventsWithScreenshots, selectedEventType, selectedSourceType, selectedScrapedBy, filterScraperName]);
 
   const loadEvents = async () => {
     setLoading(true);
@@ -1140,15 +1134,6 @@ export default function EventsManagement() {
     }
   };
 
-  const getStatusBadgeColor = (status?: string): 'green' | 'yellow' | 'gray' => {
-    switch (status) {
-      case 'complete': return 'green';
-      case 'incomplete': return 'yellow';
-      case 'draft': return 'gray';
-      default: return 'gray';
-    }
-  };
-
   const columnHelper = createColumnHelper<Event>();
 
   const columns = useMemo(() => [
@@ -1198,9 +1183,6 @@ export default function EventsManagement() {
         const event = info.row.original;
         return (
           <div className="flex items-center gap-3 max-w-[350px]">
-            <Badge color={getStatusBadgeColor(event.status)} variant="soft" title={event.status || 'unknown'}>
-              {event.status || 'unknown'}
-            </Badge>
             <div className="min-w-0 flex-1">
               <div className="text-sm font-semibold text-[var(--gray-12)] truncate">
                 {event.eventTitle}
@@ -1531,17 +1513,6 @@ export default function EventsManagement() {
             ))}
           </select>
 
-          <select
-            value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
-            className={`px-2.5 py-1.5 text-sm rounded-lg border bg-[var(--gray-a3)] focus:ring-2 focus:ring-[var(--accent-8)] cursor-pointer ${selectedStatus ? 'border-[var(--accent-8)] text-[var(--accent-11)]' : 'border-[var(--gray-a5)] text-[var(--gray-11)]'}`}
-          >
-            <option value="">Status</option>
-            <option value="complete">Complete</option>
-            <option value="incomplete">Incomplete</option>
-            <option value="draft">Draft</option>
-          </select>
-
           {/* Toggle Filters */}
           <div className="flex items-center gap-1.5">
             <Button
@@ -1565,7 +1536,7 @@ export default function EventsManagement() {
           </div>
 
           {/* Reset */}
-          {(searchTerm || hidePastEvents || hideEventsWithScreenshots || selectedEventType || selectedSourceType || selectedScrapedBy || selectedStatus || filterScraperName) && (
+          {(searchTerm || hidePastEvents || hideEventsWithScreenshots || selectedEventType || selectedSourceType || selectedScrapedBy || filterScraperName) && (
             <Button
               size="1"
               variant="ghost"
@@ -1577,7 +1548,6 @@ export default function EventsManagement() {
                 setSelectedEventType('');
                 setSelectedSourceType('');
                 setSelectedScrapedBy('');
-                setSelectedStatus('');
                 setFilterScraperName(null);
                 window.history.replaceState({}, '', window.location.pathname);
               }}
@@ -1734,6 +1704,7 @@ export default function EventsManagement() {
                       />
                     </div>
 
+                    {accounts.length > 0 && (
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">
                         Account / Organization
@@ -1756,6 +1727,7 @@ export default function EventsManagement() {
                         <p className="mt-1 text-sm text-error-600">{errors.accountId.message}</p>
                       )}
                     </div>
+                    )}
 
                     <Input
                       label="Event Link"

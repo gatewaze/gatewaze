@@ -79,7 +79,7 @@ export function generateQrCodeUrl(
   token?: string,
   memberData?: EmbeddedMemberData
 ): string {
-  const baseUrl = process.env.NEXT_PUBLIC_QR_BASE_URL || 'https://events.yourdomain.com';
+  const baseUrl = process.env.NEXT_PUBLIC_QR_BASE_URL || '';
   const url = `${baseUrl}/m/${qrCodeId}`;
   const params: string[] = [];
 

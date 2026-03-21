@@ -328,6 +328,7 @@ services:
       VITE_SUPABASE_URL: ${SUPABASE_URL:-http://gatewaze-supabase.localhost}
       VITE_SUPABASE_ANON_KEY: ${ANON_KEY}
       VITE_API_URL: ${API_URL:-http://gatewaze-api.localhost}
+      VITE_APP_URL: http://${PORTAL_HOST:-gatewaze-app.localhost}
       VITE_APP_NAME: ${GW_APP_NAME:-}
     depends_on:
       supabase-kong:

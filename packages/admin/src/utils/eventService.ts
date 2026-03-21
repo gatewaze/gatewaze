@@ -48,8 +48,6 @@ export interface Event {
   screenshotGenerated?: boolean;
   screenshotGeneratedAt?: string;
   screenshotUrl?: string;
-  // Data completeness status
-  status?: 'complete' | 'incomplete' | 'draft';
   // Account association
   accountId?: string;
   // Beta offer indicator
@@ -166,7 +164,6 @@ export class EventService {
         sourceDetails: data.source_details,
         createdAt: data.created_at,
         updatedAt: data.updated_at,
-        status: data.status,
         accountId: data.account_id,
         offerBeta: data.offer_beta,
         isLiveInProduction: data.is_live_in_production !== undefined ? data.is_live_in_production : true,
@@ -264,7 +261,6 @@ export class EventService {
         sourceDetails: data.source_details,
         createdAt: data.created_at,
         updatedAt: data.updated_at,
-        status: data.status,
         accountId: data.account_id,
         offerBeta: data.offer_beta,
         isLiveInProduction: data.is_live_in_production !== undefined ? data.is_live_in_production : true,
@@ -390,8 +386,6 @@ export class EventService {
         screenshotGenerated: event.screenshot_generated || false,
         screenshotGeneratedAt: event.screenshot_generated_at,
         screenshotUrl: event.screenshot_url,
-        // Data completeness status
-        status: event.status,
         // Account association
         accountId: event.account_id,
         // Beta offer indicator
