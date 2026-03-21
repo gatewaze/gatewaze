@@ -14,6 +14,9 @@ export interface ScreenshotStreamCallback {
 }
 
 export class ScreenshotService {
+  private static _serviceAvailable: boolean | null = null;
+  private static _lastCheck = 0;
+
   private static getApiBase() {
     const baseUrl = getApiBaseUrl();
     // Remove /api suffix if present since we'll add /screenshots
@@ -23,7 +26,29 @@ export class ScreenshotService {
     return `${cleanBaseUrl}/api/screenshots`;
   }
 
+  /** Quick health check — cached for 60s to avoid repeated failing requests */
+  private static async isAvailable(): Promise<boolean> {
+    const now = Date.now();
+    if (this._serviceAvailable !== null && now - this._lastCheck < 60_000) {
+      return this._serviceAvailable;
+    }
+    try {
+      const res = await fetch(`${this.getApiBase()}/health`, { signal: AbortSignal.timeout(3000) });
+      const data = await res.json();
+      this._serviceAvailable = res.ok && data.queueAvailable === true;
+    } catch {
+      this._serviceAvailable = false;
+    }
+    this._lastCheck = now;
+    return this._serviceAvailable;
+  }
+
   static async generateScreenshot(eventId: string): Promise<ScreenshotServiceResponse> {
+    // Skip if screenshot service / Redis queue is unavailable
+    if (!(await this.isAvailable())) {
+      return { success: false, message: 'Screenshot service not available', error: 'Queue not available' };
+    }
+
     try {
       const apiUrl = `${this.getApiBase()}/generate`;
 

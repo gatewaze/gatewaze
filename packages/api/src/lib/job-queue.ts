@@ -47,8 +47,8 @@ export const JobTypes = {
   MEETUP_CONTENT_PROCESS: 'meetup:content-process',
 } as const;
 
-// Queue name (single brand)
-const QUEUE_NAME = 'jobs-gatewaze';
+// Queue name — must match scripts/workers/job-worker.js (`jobs-${BRAND}`)
+const QUEUE_NAME = `jobs-${process.env.BRAND || 'default'}`;
 
 // Singleton queue and events
 let queue: Queue | null = null;

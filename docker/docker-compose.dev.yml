@@ -73,14 +73,9 @@ services:
   worker:
     build:
       context: ..
-      dockerfile: docker/api/Dockerfile.dev
-    command: ["pnpm", "tsx", "watch", "packages/api/src/workers/job-worker.ts"]
+      dockerfile: docker/worker/Dockerfile.dev
     volumes:
-      - ../packages/api/src:/app/packages/api/src
-      - ../packages/api/tsconfig.json:/app/packages/api/tsconfig.json
-      - ../packages/shared/src:/app/packages/shared/src
-      - ../gatewaze.config.ts:/app/gatewaze.config.ts
-      - ../../gatewaze-modules/modules:/gatewaze-modules/modules
+      - ../scripts:/app/scripts
     environment:
       NODE_ENV: development
 

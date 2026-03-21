@@ -270,8 +270,8 @@ const handlers = {
   },
 
   [JobTypes.SCREENSHOT_GENERATE]: async (job) => {
-    const { eventIds, forceRegenerate, onlyMissing, screenshotJobId } = job.data;
-    console.log(`📸 Generating screenshots${eventIds ? ` for events: ${eventIds.join(', ')}` : ''}`);
+    const { eventIds, forceRegenerate, forceBrowserless, onlyMissing, screenshotJobId } = job.data;
+    console.log(`📸 Generating screenshots${eventIds ? ` for events: ${eventIds.join(', ')}` : ''}${forceBrowserless ? ' (forced BrowserLess.io)' : ''}`);
 
     // Create logging functions that publish to Redis for SSE streaming
     const logger = {
@@ -333,6 +333,7 @@ const handlers = {
       const result = await generateScreenshots({
         eventIds: eventIds || null,
         forceRegenerate: forceRegenerate || false,
+        forceBrowserless: forceBrowserless || false,
         onlyMissing: onlyMissing || false,
       });
 
