@@ -4,7 +4,7 @@ import { ArrowRight, Check, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Form/Input';
-import PixelTrail from '@/components/shared/PixelTrail';
+import GradientBackground from '@/components/shared/GradientBackground';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -98,7 +98,7 @@ export function SetupPage() {
 
   return (
     <>
-    <PixelTrail />
+    <GradientBackground />
     <div className="flex min-h-[100svh] items-center justify-center p-4">
       <div className="w-full max-w-[520px] space-y-4">
         {step === 'checking' && (

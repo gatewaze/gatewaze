@@ -6,9 +6,11 @@ import { usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { getClientBrandConfig, isLightColor } from '@/config/brand'
 import type { BrandConfig } from '@/config/brand'
+import type { PortalNavItem } from '@/lib/modules/enabledModules'
 
 interface Props {
   brandConfig: BrandConfig
+  navItems?: PortalNavItem[]
 }
 
 interface UserProfile {
@@ -16,7 +18,7 @@ interface UserProfile {
   avatarUrl: string | null
 }
 
-export function Header({ brandConfig }: Props) {
+export function Header({ brandConfig, navItems = [] }: Props) {
   const { user, session, isLoading, signOut } = useAuth()
   const pathname = usePathname()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -142,6 +144,31 @@ export function Header({ brandConfig }: Props) {
             />
           )}
         </Link>
+
+        {/* Content Navigation — only shown when 2+ content types are enabled */}
+        {navItems.length >= 2 && (
+          <nav className="flex items-center gap-8 overflow-x-auto">
+            {[{ moduleId: '_home', label: 'Home', path: '/', icon: 'home', order: 0 }, ...navItems].map((item) => {
+              const isActive = item.path === '/'
+                ? pathname === '/'
+                : pathname.startsWith(item.path.replace(/\/upcoming$/, '')) || pathname === item.path
+              return (
+                <Link
+                  key={item.moduleId}
+                  href={item.path}
+                  className={`relative text-base whitespace-nowrap transition-colors group ${
+                    isActive ? 'text-white' : 'text-white/60 hover:text-white'
+                  }`}
+                >
+                  {item.label}
+                  <span className={`absolute bottom-0 left-0 h-0.5 bg-white/60 transition-all duration-300 ${
+                    isActive ? 'w-full' : 'w-0 group-hover:w-full'
+                  }`} />
+                </Link>
+              )
+            })}
+          </nav>
+        )}
 
         {/* Auth Navigation */}
         <nav className="flex items-center gap-4">

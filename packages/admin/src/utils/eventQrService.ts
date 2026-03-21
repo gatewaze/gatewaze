@@ -505,7 +505,7 @@ export class EventQrService {
    */
   static async getEventAttendance(eventId: string): Promise<EventAttendance[]> {
     try {
-      // First, check if this event has discount_codes with attendance data
+      // Try discount_codes table first (only exists when discount module is installed)
       const { data: discountCodes, error: codesError } = await supabase
         .from('events_discount_codes')
         .select('id, code, issued_to, attended_at, member_profile_id, event_registration_id')
@@ -513,7 +513,7 @@ export class EventQrService {
         .eq('attended', true)
         .order('attended_at', { ascending: false });
 
-      // If we have discount codes attendance data, use that
+      // If the table exists and has data, use it
       if (!codesError && discountCodes && discountCodes.length > 0) {
         // Get unique email addresses
         const emails = [...new Set(discountCodes.map((c: any) => c.issued_to).filter(Boolean))];
@@ -561,36 +561,53 @@ export class EventQrService {
         });
       }
 
-      // Fall back to event_attendance_with_details view
-      // Fetch all records using pagination to handle events with >1000 attendees
-      let allData: EventAttendance[] = [];
-      let page = 0;
-      const pageSize = 1000;
-      let hasMore = true;
+      // Try events_attendance_with_details view (may not exist without modules)
+      const { data: viewData, error: viewError } = await supabase
+        .from('events_attendance_with_details')
+        .select('*')
+        .eq('event_id', eventId)
+        .order('checked_in_at', { ascending: false })
+        .limit(1);
 
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('events_attendance_with_details')
-          .select('*')
-          .eq('event_id', eventId)
-          .order('checked_in_at', { ascending: false })
-          .range(page * pageSize, (page + 1) * pageSize - 1);
-
-        if (error) throw error;
-
-        if (data && data.length > 0) {
-          allData = allData.concat(data);
-          hasMore = data.length === pageSize;
-          page++;
-        } else {
-          hasMore = false;
+      if (!viewError) {
+        // View exists — fetch all records with pagination
+        let allData: EventAttendance[] = viewData && viewData.length > 0 ? [...viewData] : [];
+        if (viewData && viewData.length > 0) {
+          let page = 1;
+          const pageSize = 1000;
+          let hasMore = true;
+          while (hasMore) {
+            const { data, error } = await supabase
+              .from('events_attendance_with_details')
+              .select('*')
+              .eq('event_id', eventId)
+              .order('checked_in_at', { ascending: false })
+              .range(page * pageSize, (page + 1) * pageSize - 1);
+            if (error) throw error;
+            if (data && data.length > 0) {
+              allData = allData.concat(data);
+              hasMore = data.length === pageSize;
+              page++;
+            } else {
+              hasMore = false;
+            }
+          }
         }
+        return allData;
       }
 
-      return allData;
+      // Final fallback: core events_attendance table (always exists)
+      const { data: coreData, error: coreError } = await supabase
+        .from('events_attendance')
+        .select('*')
+        .eq('event_id', eventId)
+        .order('checked_in_at', { ascending: false });
+
+      if (coreError) throw coreError;
+      return (coreData || []) as EventAttendance[];
     } catch (error) {
       console.error('Error fetching event attendance:', error);
-      throw error;
+      return [];
     }
   }
 
@@ -704,7 +721,7 @@ export class EventQrService {
       });
     } catch (error) {
       console.error('Error fetching discount code claims:', error);
-      throw error;
+      return [];
     }
   }
 
@@ -937,7 +954,7 @@ export class EventQrService {
       return data || [];
     } catch (error) {
       console.error('Error fetching sponsor team scans:', error);
-      throw error;
+      return [];
     }
   }
 
@@ -1159,7 +1176,7 @@ export class EventQrService {
       const BATCH_SIZE = 100;
       const memberIdBatches = this.batchArray(memberIds, BATCH_SIZE);
 
-      // Fetch scans in batches
+      // Fetch scans in batches (table only exists when badge-scanning module is installed)
       let allScans: any[] = [];
       for (const batch of memberIdBatches) {
         const { data: scans, error: scansError } = await supabase
@@ -1168,7 +1185,8 @@ export class EventQrService {
           .eq('event_id', eventId)
           .in('scanner_people_profile_id', batch);
 
-        if (scansError) throw scansError;
+        // If the table doesn't exist, skip scan counts entirely
+        if (scansError) break;
         if (scans) allScans = allScans.concat(scans);
       }
 
@@ -1257,7 +1275,8 @@ export class EventQrService {
         .eq('scanner_people_profile_id', memberProfileId)
         .order('scanned_at', { ascending: false });
 
-      if (error) throw error;
+      // Table may not exist if badge-scanning module isn't installed
+      if (error) return '';
 
       // CSV headers
       const headers = [
@@ -1457,7 +1476,7 @@ export class EventQrService {
     }>;
   }> {
     try {
-      // Get all scans for this event
+      // Get all scans for this event (table only exists when badge-scanning module is installed)
       const { data: scans, error } = await supabase
         .from('people_contact_scans')
         .select(`
@@ -1474,7 +1493,17 @@ export class EventQrService {
         .eq('event_id', eventId)
         .order('scanned_at', { ascending: true });
 
-      if (error) throw error;
+      // Table may not exist if badge-scanning module isn't installed
+      if (error) {
+        return {
+          totalScans: 0,
+          uniqueScanners: 0,
+          uniqueScanned: 0,
+          avgScansPerScanner: 0,
+          topScanners: [],
+          timeline: [],
+        };
+      }
 
       if (!scans || scans.length === 0) {
         return {

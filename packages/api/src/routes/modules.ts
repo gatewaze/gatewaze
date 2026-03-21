@@ -301,10 +301,13 @@ modulesRouter.post('/:id/enable', async (req, res) => {
       }
     }
 
-    // Update status in DB
+    // Update status and portal_nav in DB
     const { error: updateErr } = await supabase
       .from('installed_modules')
-      .update({ status: 'enabled' })
+      .update({
+        status: 'enabled',
+        portal_nav: mod?.config.portalNav || null,
+      })
       .eq('id', moduleId);
 
     if (updateErr) {

@@ -5,9 +5,18 @@ import { createClient } from '@supabase/supabase-js';
  * Cached for 60 seconds to avoid repeated queries on every render.
  */
 
+export interface PortalNavItem {
+  moduleId: string;
+  label: string;
+  path: string;
+  icon: string;
+  order: number;
+}
+
 interface ModuleState {
   enabledIds: Set<string>;
   enabledFeatures: Set<string>;
+  portalNavItems: PortalNavItem[];
 }
 
 let cache: ModuleState | null = null;
@@ -25,7 +34,7 @@ export async function getEnabledModules(): Promise<ModuleState> {
 
   if (!url || !key) {
     console.warn('[modules] Missing Supabase env vars, returning empty module state');
-    return { enabledIds: new Set(), enabledFeatures: new Set() };
+    return { enabledIds: new Set(), enabledFeatures: new Set(), portalNavItems: [] };
   }
 
   try {
@@ -34,30 +43,54 @@ export async function getEnabledModules(): Promise<ModuleState> {
     });
     const { data, error } = await supabase
       .from('installed_modules')
-      .select('id, status, features')
+      .select('id, status, features, portal_nav')
       .eq('status', 'enabled');
 
     if (error) {
       console.error('[modules] Failed to fetch installed_modules:', error);
-      return cache ?? { enabledIds: new Set(), enabledFeatures: new Set() };
+      return cache ?? { enabledIds: new Set(), enabledFeatures: new Set(), portalNavItems: [] };
     }
 
     const enabledIds = new Set<string>();
     const enabledFeatures = new Set<string>();
+    const portalNavItems: PortalNavItem[] = [];
 
     for (const row of data ?? []) {
       enabledIds.add(row.id);
       if (Array.isArray(row.features)) {
         for (const f of row.features) enabledFeatures.add(f);
       }
+      if (row.portal_nav && typeof row.portal_nav === 'object') {
+        const nav = row.portal_nav as { label?: string; path?: string; icon?: string; order?: number };
+        if (nav.label && nav.path) {
+          portalNavItems.push({
+            moduleId: row.id,
+            label: nav.label,
+            path: nav.path,
+            icon: nav.icon || 'default',
+            order: nav.order ?? 100,
+          });
+        }
+      }
     }
 
-    cache = { enabledIds, enabledFeatures };
+    // Events is a core feature (not a module) — always add its nav item
+    portalNavItems.push({
+      moduleId: '_core_events',
+      label: 'Events',
+      path: '/events/upcoming',
+      icon: 'calendar',
+      order: 10,
+    });
+
+    portalNavItems.sort((a, b) => a.order - b.order);
+
+    cache = { enabledIds, enabledFeatures, portalNavItems };
     cacheTimestamp = now;
     return cache;
   } catch (err) {
     console.error('[modules] Error fetching modules:', err);
-    return cache ?? { enabledIds: new Set(), enabledFeatures: new Set() };
+    return cache ?? { enabledIds: new Set(), enabledFeatures: new Set(), portalNavItems: [] };
   }
 }
 
