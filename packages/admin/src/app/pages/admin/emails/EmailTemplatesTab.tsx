@@ -387,7 +387,7 @@ export function EmailTemplatesTab() {
         isOpen={showModal}
         onClose={handleCloseModal}
         title={isEditing ? 'Edit Template' : 'Create Template'}
-        size="2xl"
+        size="xl"
         footer={
           <div className="flex justify-end gap-3 px-6 py-4">
             <Button type="button" variant="outlined" onClick={handleCloseModal}>

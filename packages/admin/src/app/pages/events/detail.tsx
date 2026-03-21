@@ -17,6 +17,7 @@ import {
   XMarkIcon,
   PlusIcon,
   UsersIcon,
+  UserGroupIcon,
   BuildingOfficeIcon,
   QrCodeIcon,
   MagnifyingGlassIcon,
@@ -2428,17 +2429,16 @@ const EventRegistrationsTab = ({ eventId }: { eventId: string }) => {
   const loadRegistrations = async () => {
     setLoading(true);
     try {
-      // Fetch registrations and tracking sessions in parallel
-      const [data, trackingResult] = await Promise.all([
-        EventQrService.getEventRegistrations(eventId),
-        supabase
-          .from('integrations_ad_tracking_sessions')
-          .select('matched_registration_id, utm_source, utm_medium, utm_campaign, utm_content, utm_term, status, click_ids')
-          .eq('event_id', eventId)
-          .not('matched_registration_id', 'is', null),
-      ]);
-
+      // Fetch registrations
+      const data = await EventQrService.getEventRegistrations(eventId);
       setRegistrations(data);
+
+      // Fetch tracking sessions (module-dependent, may not exist)
+      const trackingResult = await supabase
+        .from('integrations_ad_tracking_sessions')
+        .select('matched_registration_id, utm_source, utm_medium, utm_campaign, utm_content, utm_term, status, click_ids')
+        .eq('event_id', eventId)
+        .not('matched_registration_id', 'is', null);
 
       // Build a map of registration ID -> tracking info
       if (trackingResult.data) {

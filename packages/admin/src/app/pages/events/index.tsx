@@ -1673,7 +1673,7 @@ export default function EventsManagement() {
           isOpen={isModalOpen}
           onClose={closeModal}
           title={editingEvent ? 'Edit Event' : 'Create New Event'}
-          size="2xl"
+          size="xl"
         >
           <form onSubmit={handleSubmit(onSubmit as any, onValidationError)} className="flex flex-col h-[calc(90vh-140px)]">
             {/* Tab Navigation */}
