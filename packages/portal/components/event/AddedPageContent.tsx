@@ -33,7 +33,7 @@ export function AddedPageContent() {
 
   return (
     <div className="space-y-6">
-      <h1 className={`text-2xl sm:text-3xl font-bold ${textColor} drop-shadow-md`}>
+      <h1 className={`text-2xl sm:text-3xl font-bold ${textColor}`}>
         {event.addedpage_title || 'Workshops'}
       </h1>
       <div

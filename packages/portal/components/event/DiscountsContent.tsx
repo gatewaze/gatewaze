@@ -188,8 +188,8 @@ export function DiscountCard({ discount, index }: { discount: DiscountWithCode; 
         </div>
       )}
 
-      <GlowBorder useDarkTheme={useDarkText} className="shadow-2xl" autoRotate autoRotateSpeed={50} borderWidth={2}>
-        <div className={`backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelBorder}`}>
+      <GlowBorder useDarkTheme={useDarkText} className="" autoRotate autoRotateSpeed={50} borderWidth={2}>
+        <div className={`backdrop-blur-[10px] rounded-2xl overflow-hidden ${panelBorder}`}>
 
           {/* Banner — brand primary background */}
           <div className="px-5 sm:px-6 pt-5 sm:pt-6 pb-4" style={{ backgroundColor: brandPrimary }}>
@@ -390,7 +390,7 @@ export function DiscountsContent() {
       <div className={`transition-opacity duration-300 ${isLoading ? 'opacity-0' : 'opacity-100'}`}>
         {discounts.length === 0 && !isLoading ? (
           <GlowBorder useDarkTheme={useDarkText}>
-            <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-8`}>
+            <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${panelTheme.panelBorder} p-8`}>
               <div className="text-center py-4">
                 <div className={`w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center ${panelTheme.cardBg}`}>
                   <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: theme.textMutedColor }}>

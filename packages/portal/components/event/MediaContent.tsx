@@ -651,7 +651,7 @@ export function MediaContent() {
     return (
       <div className={`transition-opacity duration-500 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
         <GlowBorder useDarkTheme={useDarkText}>
-          <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8`}>
+          <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8`}>
             <div className="text-center py-8">
               <svg className={`w-16 h-16 mx-auto mb-4 ${panelTheme.textMuted}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v13.5A1.5 1.5 0 003.75 21z" />
@@ -667,7 +667,7 @@ export function MediaContent() {
 
   return (
     <div className={`space-y-6 transition-opacity duration-500 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
-      <h1 className={`text-2xl sm:text-3xl font-bold ${panelTheme.textColor} drop-shadow-md`}>Media</h1>
+      <h1 className={`text-2xl sm:text-3xl font-bold ${panelTheme.textColor}`}>Media</h1>
 
       {/* Sponsor filter */}
       {sponsors.length > 0 && (
@@ -717,7 +717,7 @@ export function MediaContent() {
                     className="w-full h-full object-cover"
                   />
                   <div className="absolute inset-0 flex items-center justify-center pb-10 bg-gradient-to-b from-black/5 to-black/15 hover:from-black/10 hover:to-black/25 transition-all">
-                    <svg className="w-12 h-12 text-white drop-shadow-lg" fill="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-12 h-12 text-white" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M8 5v14l11-7z" />
                     </svg>
                   </div>

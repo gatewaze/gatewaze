@@ -262,7 +262,7 @@ export function SpeakersPageContent({ event, brandConfig, initialStatus = 'pendi
           {/* Show loading state while checking for existing submission */}
           {session && isCheckingSubmission ? (
             <GlowBorder useDarkTheme={useDarkText}>
-              <div className={`${theme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${theme.panelBorder} p-6 sm:p-8`}>
+              <div className={`${theme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${theme.panelBorder} p-6 sm:p-8`}>
                 <div className="text-center py-8">
                   <div
                     className="loader mx-auto mb-4"
@@ -280,7 +280,7 @@ export function SpeakersPageContent({ event, brandConfig, initialStatus = 'pendi
               {/* Show existing submissions if any */}
               {existingTalks.length > 0 && (
                 <GlowBorder useDarkTheme={useDarkText}>
-                  <div className={`${theme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${theme.panelBorder} p-6 sm:p-8`}>
+                  <div className={`${theme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${theme.panelBorder} p-6 sm:p-8`}>
                     <div className="flex items-center gap-3 mb-4">
                       <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: `${primaryColor}40` }}>
                         <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -371,7 +371,7 @@ export function SpeakersPageContent({ event, brandConfig, initialStatus = 'pendi
               {/* Show submission form if CFP is open */}
               {event.enable_call_for_speakers ? (
                 <GlowBorder useDarkTheme={useDarkText}>
-                  <div className={`${theme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${theme.panelBorder} p-6 sm:p-8`}>
+                  <div className={`${theme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${theme.panelBorder} p-6 sm:p-8`}>
                     <SpeakerSubmissionForm
                       event={event}
                       brandConfig={brandConfig}
@@ -386,7 +386,7 @@ export function SpeakersPageContent({ event, brandConfig, initialStatus = 'pendi
               ) : existingTalks.length === 0 ? (
                 /* CFP closed and no existing submissions */
                 <GlowBorder useDarkTheme={useDarkText}>
-                  <div className={`${theme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${theme.panelBorder} p-6 sm:p-8`}>
+                  <div className={`${theme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${theme.panelBorder} p-6 sm:p-8`}>
                     <div className="text-center py-8">
                       <svg
                         className={`w-16 h-16 mx-auto mb-4 ${theme.panelTextMuted}`}

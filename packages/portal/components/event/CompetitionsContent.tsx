@@ -108,7 +108,7 @@ function CompetitionCard({ competition, index }: { competition: CompetitionWithE
         </div>
         <div>
           {competition.value && (
-            <p className="text-3xl sm:text-4xl font-extrabold drop-shadow-md" style={{ color: primaryColor }}>
+            <p className="text-3xl sm:text-4xl font-extrabold" style={{ color: primaryColor }}>
               Win {competition.value}
             </p>
           )}
@@ -121,7 +121,7 @@ function CompetitionCard({ competition, index }: { competition: CompetitionWithE
       {/* Countdown Timer — own glass panel */}
       {!isClosed && competition.close_date && (
         <GlowBorder useDarkTheme={useDarkText} autoRotate autoRotateSpeed={20}>
-          <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-5 sm:p-6`}>
+          <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${panelTheme.panelBorder} p-5 sm:p-6`}>
             <div className="flex items-center gap-2 mb-3">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ backgroundColor: primaryColor }} />
@@ -157,7 +157,7 @@ function CompetitionCard({ competition, index }: { competition: CompetitionWithE
 
       {isClosed && (
         <GlowBorder useDarkTheme={useDarkText}>
-          <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-5 sm:p-6 text-center`}>
+          <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${panelTheme.panelBorder} p-5 sm:p-6 text-center`}>
             <p className={`text-sm font-medium ${panelTheme.textMuted}`}>
               This competition has ended
             </p>
@@ -169,7 +169,7 @@ function CompetitionCard({ competition, index }: { competition: CompetitionWithE
       {!isClosed && (
         <GlowBorder useDarkTheme={useDarkText}>
           <div
-            className={`backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-5 sm:p-6`}
+            className={`backdrop-blur-[10px] rounded-2xl overflow-hidden ${panelTheme.panelBorder} p-5 sm:p-6`}
             style={{ backgroundColor: `${primaryColor}12` }}
           >
             {hasEntered ? (
@@ -233,7 +233,7 @@ function CompetitionCard({ competition, index }: { competition: CompetitionWithE
                 <button
                   type="submit"
                   disabled={isEntering || (!session && !email.trim())}
-                  className="w-full px-6 py-3 rounded-lg font-semibold transition-all duration-200 hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-lg"
+                  className="w-full px-6 py-3 rounded-lg font-semibold transition-all duration-200 hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer "
                   style={{
                     backgroundColor: primaryColor,
                     color: isLightColor(primaryColor) ? '#000000' : '#ffffff',
@@ -350,7 +350,7 @@ export function CompetitionsContent() {
       <div className={`transition-opacity duration-300 ${isLoading ? 'opacity-0' : 'opacity-100'}`}>
         {competitions.length === 0 && !isLoading ? (
           <GlowBorder useDarkTheme={useDarkText}>
-            <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-8`}>
+            <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${panelTheme.panelBorder} p-8`}>
               <div className="text-center py-4">
                 <div className={`w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center ${panelTheme.cardBg}`}>
                   <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: theme.textMutedColor }}>

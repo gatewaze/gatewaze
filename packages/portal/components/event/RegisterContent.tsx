@@ -200,7 +200,7 @@ export function RegisterContent() {
   if (userState.timeline === 'past') {
     return (
       <GlowBorder useDarkTheme={useDarkText}>
-        <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8`}>
+        <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8`}>
           <div className="text-center py-8">
             <div className={`w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center ${useDarkText ? 'bg-gray-900/10' : 'bg-white/20'}`}>
               <svg className={`w-8 h-8 ${panelTheme.textMuted}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -223,14 +223,14 @@ export function RegisterContent() {
   if (!userState.isLoading && userState.isRegistered && autoRegState !== 'done') {
     return (
       <GlowBorder useDarkTheme={useDarkText}>
-        <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8`}>
+        <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8`}>
           <div className="text-center">
             <div className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center" style={{ backgroundColor: primaryColor, color: isLightColor(primaryColor) ? '#000000' : '#ffffff' }}>
               <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" style={{ strokeDasharray: 24, strokeDashoffset: 24, animation: 'checkmark-draw 0.4s ease-out 0.2s forwards' }} />
               </svg>
             </div>
-            <h2 className={`text-2xl font-bold ${panelTheme.textColor} mb-2 drop-shadow-md`}>You're registered</h2>
+            <h2 className={`text-2xl font-bold ${panelTheme.textColor} mb-2`}>You're registered</h2>
             <p className="text-white/80 mb-4">
               You're already registered for <strong>{stripEmojis(event.event_title)}</strong>.
             </p>
@@ -247,7 +247,7 @@ export function RegisterContent() {
   if (event.enable_native_registration && event.enable_registration && (autoRegState === 'checking' || autoRegState === 'registering')) {
     return (
       <GlowBorder useDarkTheme={useDarkText}>
-        <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8`}>
+        <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8`}>
           <div className="text-center py-8">
             <div
               className="loader mx-auto"
@@ -269,14 +269,14 @@ export function RegisterContent() {
   if (autoRegState === 'done') {
     return (
       <GlowBorder useDarkTheme={useDarkText}>
-        <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8`}>
+        <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8`}>
           <div className="text-center">
             <div className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center" style={{ backgroundColor: primaryColor, color: isLightColor(primaryColor) ? '#000000' : '#ffffff' }}>
               <svg className="w-8 h-8 animate-[checkmark_0.4s_ease-out_forwards]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" style={{ strokeDasharray: 24, strokeDashoffset: 24, animation: 'checkmark-draw 0.4s ease-out 0.2s forwards' }} />
               </svg>
             </div>
-            <h2 className={`text-2xl font-bold ${panelTheme.textColor} mb-2 drop-shadow-md`}>You're registered!</h2>
+            <h2 className={`text-2xl font-bold ${panelTheme.textColor} mb-2`}>You're registered!</h2>
             <p className="text-white/80 mb-4">
               Thank you for registering for <strong>{stripEmojis(event.event_title)}</strong>.
             </p>
@@ -292,7 +292,7 @@ export function RegisterContent() {
   if (!event.enable_registration) {
     return (
       <GlowBorder useDarkTheme={useDarkText}>
-        <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8`}>
+        <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8`}>
           <div className="text-center py-8">
             <svg
               className={`w-16 h-16 mx-auto mb-4 ${panelTheme.textMuted}`}
@@ -326,7 +326,7 @@ export function RegisterContent() {
   if (event.enable_native_registration && showNativeForm) {
     return (
       <GlowBorder useDarkTheme={useDarkText}>
-        <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8`}>
+        <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8`}>
           <RegistrationForm
             event={event}
             brandConfig={brandConfig}
@@ -344,7 +344,7 @@ export function RegisterContent() {
   // External registration link
   return (
     <GlowBorder useDarkTheme={useDarkText}>
-      <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8`}>
+      <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8`}>
         <div className="text-center">
           <div
             className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"
@@ -379,7 +379,7 @@ export function RegisterContent() {
           {event.enable_native_registration ? (
             <button
               onClick={() => setShowNativeForm(true)}
-              className="w-full px-8 py-4 text-lg font-semibold text-white rounded-xl shadow-lg hover:shadow-xl hover:brightness-110 transition-all duration-200 transform hover:scale-[1.02] cursor-pointer"
+              className="w-full px-8 py-4 text-lg font-semibold text-white rounded-xl hover:shadow-lg hover:brightness-110 transition-all duration-200 transform hover:scale-[1.02] cursor-pointer"
               style={{
                 backgroundColor: primaryColor,
                 boxShadow: `inset 0 0 0 1px rgba(255, 255, 255, 0.5), 0 10px 15px -3px rgba(0, 0, 0, 0.1)`,
@@ -390,7 +390,7 @@ export function RegisterContent() {
           ) : event.event_link ? (
             <button
               onClick={handleExternalRegister}
-              className="w-full px-8 py-4 text-lg font-semibold text-white rounded-xl shadow-lg hover:shadow-xl hover:brightness-110 transition-all duration-200 transform hover:scale-[1.02] cursor-pointer"
+              className="w-full px-8 py-4 text-lg font-semibold text-white rounded-xl hover:shadow-lg hover:brightness-110 transition-all duration-200 transform hover:scale-[1.02] cursor-pointer"
               style={{
                 backgroundColor: primaryColor,
                 boxShadow: `inset 0 0 0 1px rgba(255, 255, 255, 0.5), 0 10px 15px -3px rgba(0, 0, 0, 0.1)`,

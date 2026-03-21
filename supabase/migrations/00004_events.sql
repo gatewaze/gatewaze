@@ -49,7 +49,6 @@ CREATE TABLE IF NOT EXISTS public.events (
   scraper_id               integer,
   event_source_url         text,
   event_source_name        text,
-  status                   varchar(20) DEFAULT 'incomplete',
   account_id               uuid,          -- FK added in 00006_platform.sql after accounts table exists
   account                  text,
   offer_beta               boolean DEFAULT false,

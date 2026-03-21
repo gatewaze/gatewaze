@@ -514,7 +514,7 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
   if (loadError) {
     return (
       <GlowBorder useDarkTheme={useDarkText}>
-        <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8 text-center`}>
+        <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8 text-center`}>
           <div className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center bg-red-500/30">
             <svg className="w-8 h-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -554,7 +554,7 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
   if (speakerData?.status === 'rejected') {
     return (
       <GlowBorder useDarkTheme={useDarkText}>
-        <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8 text-center`}>
+        <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8 text-center`}>
           <div className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center bg-gray-500/30">
             <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
@@ -578,7 +578,7 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
   // Edit form
   return (
     <GlowBorder useDarkTheme={useDarkText}>
-      <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl shadow-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8`}>
+      <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8`}>
         {/* Header */}
         <div className="mb-6">
           <h1 className={`text-2xl sm:text-3xl font-bold ${panelTheme.heading} mb-2`}>
@@ -875,7 +875,7 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
                           disabled={isSubmitting}
                           className={`px-4 py-2.5 rounded-lg font-medium text-sm transition-all duration-200 border-2 cursor-pointer ${
                             isSelected
-                              ? 'shadow-md'
+                              ? ''
                               : `${panelTheme.inputBg} ${panelTheme.inputText} ${panelTheme.inputBorder} hover:border-white/50`
                           } disabled:opacity-50`}
                           style={isSelected ? {

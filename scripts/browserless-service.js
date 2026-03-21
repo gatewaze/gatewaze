@@ -1,7 +1,7 @@
 import fetch from 'node-fetch';
 
 export class BrowserlessService {
-  static API_KEY = process.env.BROWSERLESS_API_KEY || '2Sec0lLQfV1jrtE3d124cd541bd53ecc4440ef7c9fb587f4b';
+  static API_KEY = process.env.BROWSERLESS_API_KEY;
   static API_URL = 'https://production-sfo.browserless.io';
 
   static async generateScreenshot(options) {
