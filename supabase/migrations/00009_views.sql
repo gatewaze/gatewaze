@@ -17,15 +17,18 @@ CREATE OR REPLACE VIEW public.events_registrations_with_people AS
 SELECT
   r.*,
   p.email,
-  p.first_name,
-  p.last_name,
-  p.full_name,
-  p.company,
-  p.job_title,
-  p.linkedin_url,
+  p.attributes->>'first_name'   AS first_name,
+  p.attributes->>'last_name'    AS last_name,
+  COALESCE(
+    NULLIF(TRIM(COALESCE(p.attributes->>'first_name', '') || ' ' || COALESCE(p.attributes->>'last_name', '')), ''),
+    p.attributes->>'first_name'
+  ) AS full_name,
+  p.attributes->>'company'      AS company,
+  p.attributes->>'job_title'    AS job_title,
+  p.attributes->>'linkedin_url' AS linkedin_url,
   p.avatar_url,
   p.phone,
-  p.location,
+  p.attributes->>'location'     AS location,
   p.cio_id,
   p.attributes AS people_attributes
 FROM public.events_registrations r

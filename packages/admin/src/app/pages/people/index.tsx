@@ -40,6 +40,8 @@ import {
   Avatar,
   Badge,
   Tabs,
+  Select,
+  Textarea,
 } from '@/components/ui';
 import { Spinner } from '@/components/ui/Spinner';
 import { DataTable } from '@/components/shared/table/DataTable';
@@ -51,6 +53,7 @@ import md5 from 'md5';
 import { useAccountAccess } from '@/hooks/useAccountAccess';
 import { SendEmailModal } from '@/components/emails/SendEmailModal';
 import { PersonLocationMap } from '@/components/charts/PersonLocationMap';
+import { usePeopleAttributes } from '@/hooks/usePeopleAttributes';
 
 const PAGE_SIZE = 50;
 
@@ -142,6 +145,7 @@ const columnHelper = createColumnHelper<Person>();
 export default function MembersPage() {
   const navigate = useNavigate();
   const { isAccountUser, isSystemAdmin } = useAccountAccess();
+  const { attributes: peopleAttrConfig } = usePeopleAttributes();
   const [people, setPeople] = useState<Person[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isImporting, setIsImporting] = useState(false);
@@ -194,7 +198,7 @@ export default function MembersPage() {
     company: '',
     linkedin_url: '',
   });
-  const [addPersonFormData, setAddPersonFormData] = useState({
+  const [addPersonFormData, setAddPersonFormData] = useState<Record<string, string>>({
     email: '',
     first_name: '',
     last_name: '',
@@ -219,7 +223,7 @@ export default function MembersPage() {
       setLoading(true);
 
       // Determine sort parameters
-      const sortBy = sorting.length > 0 ? sorting[0].id : 'created';
+      const sortBy = sorting.length > 0 ? sorting[0].id : 'created_at';
       const sortOrder = sorting.length > 0 ? (sorting[0].desc ? 'desc' : 'asc') : 'desc';
 
       // Fetch only the current page with server-side pagination, sorting, and filtering
@@ -507,58 +511,72 @@ export default function MembersPage() {
           );
         },
       }),
-      columnHelper.accessor((row) => row.attributes?.job_title, {
-        id: 'jobTitle',
-        header: 'Job Title',
-        cell: (info) => {
-          const value = info.getValue() || '-';
-          return (
-            <div className="text-sm text-[var(--gray-12)] flex items-center gap-2 max-w-[200px]" title={value}>
-              {info.getValue() && (
-                <BriefcaseIcon className="size-4 text-[var(--gray-a8)] flex-shrink-0" />
-              )}
-              <span className="truncate">{value}</span>
-            </div>
-          );
-        },
-      }),
-      columnHelper.accessor((row) => row.attributes?.company, {
-        id: 'company',
-        header: 'Company',
-        cell: (info) => {
-          const value = info.getValue() || '-';
-          return (
-            <div className="text-sm text-[var(--gray-12)] flex items-center gap-2 max-w-[200px]" title={value}>
-              {info.getValue() && (
-                <BuildingOfficeIcon className="size-4 text-[var(--gray-a8)] flex-shrink-0" />
-              )}
-              <span className="truncate">{value}</span>
-            </div>
-          );
-        },
-      }),
-      columnHelper.accessor((row) => row.attributes?.linkedin_url, {
-        id: 'linkedin',
-        header: 'LinkedIn',
-        enableSorting: false,
-        cell: (info) => (
-          <div className="text-sm">
-            {info.getValue() ? (
-              <a
-                href={info.getValue()}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[var(--accent-11)] hover:text-[var(--accent-12)]"
-                title="View LinkedIn Profile"
-              >
-                <EyeIcon className="size-5" />
-              </a>
-            ) : (
-              <span className="text-[var(--gray-11)]">-</span>
-            )}
-          </div>
-        ),
-      }),
+      // Dynamic attribute columns based on people attributes config
+      // (excludes first_name and last_name which have dedicated columns above)
+      ...peopleAttrConfig
+        .filter(a => a.enabled && a.key !== 'first_name' && a.key !== 'last_name')
+        .map(attr => {
+          if (attr.key === 'linkedin_url') {
+            return columnHelper.accessor((row) => row.attributes?.linkedin_url, {
+              id: 'linkedin',
+              header: attr.label,
+              enableSorting: false,
+              cell: (info) => (
+                <div className="text-sm">
+                  {info.getValue() ? (
+                    <a
+                      href={info.getValue()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[var(--accent-11)] hover:text-[var(--accent-12)]"
+                      title="View LinkedIn Profile"
+                    >
+                      <EyeIcon className="size-5" />
+                    </a>
+                  ) : (
+                    <span className="text-[var(--gray-11)]">-</span>
+                  )}
+                </div>
+              ),
+            });
+          }
+
+          const icon = attr.key === 'job_title' ? <BriefcaseIcon className="size-4 text-[var(--gray-a8)] flex-shrink-0" />
+            : attr.key === 'company' ? <BuildingOfficeIcon className="size-4 text-[var(--gray-a8)] flex-shrink-0" />
+            : null;
+          const attrType = attr.type || 'string';
+
+          return columnHelper.accessor((row) => (row.attributes as Record<string, any>)?.[attr.key], {
+            id: attr.key,
+            header: attr.label,
+            cell: (info) => {
+              const rawValue = info.getValue();
+              if (!rawValue) return <span className="text-sm text-[var(--gray-11)]">-</span>;
+
+              // Multi-select: display as pills
+              if (attrType === 'multi-select') {
+                let items: string[] = [];
+                try { items = typeof rawValue === 'string' ? JSON.parse(rawValue) : Array.isArray(rawValue) ? rawValue : []; } catch { items = []; }
+                if (items.length === 0) return <span className="text-sm text-[var(--gray-11)]">-</span>;
+                return (
+                  <div className="flex flex-wrap gap-1 max-w-[250px]">
+                    {items.map((item, idx) => (
+                      <span key={idx} className="inline-block rounded-md bg-[var(--accent-3)] text-[var(--accent-11)] px-1.5 py-0.5 text-xs font-medium">{item}</span>
+                    ))}
+                  </div>
+                );
+              }
+
+              const displayValue = String(rawValue);
+              return (
+                <div className="text-sm text-[var(--gray-12)] flex items-center gap-2 max-w-[200px]" title={displayValue}>
+                  {icon}
+                  <span className="truncate">{displayValue}</span>
+                </div>
+              );
+            },
+          });
+        }),
       columnHelper.display({
         id: 'actions',
         header: '',
@@ -576,7 +594,7 @@ export default function MembersPage() {
         },
       }),
     ],
-    [selectedPersonIds, people, selectAllMode, totalPeople]
+    [selectedPersonIds, people, selectAllMode, totalPeople, peopleAttrConfig]
   );
 
   const table = useReactTable({
@@ -930,11 +948,10 @@ export default function MembersPage() {
 
   // Add new member using people-signup edge function
   const handleAddMember = async () => {
-    const { email, first_name, last_name, job_title, company } = addPersonFormData;
+    const { email } = addPersonFormData;
 
-    // Validate required fields
-    if (!email || !first_name || !last_name) {
-      toast.error('Email, first name, and last name are required');
+    if (!email) {
+      toast.error('Email is required');
       return;
     }
 
@@ -942,6 +959,15 @@ export default function MembersPage() {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       toast.error('Please enter a valid email address');
+      return;
+    }
+
+    // Validate required fields from people attributes config
+    const missingRequired = peopleAttrConfig
+      .filter(a => a.enabled && a.required && !addPersonFormData[a.key]?.trim())
+      .map(a => a.label);
+    if (missingRequired.length > 0) {
+      toast.error(`Required: ${missingRequired.join(', ')}`);
       return;
     }
 
@@ -968,11 +994,12 @@ export default function MembersPage() {
           source: 'admin_member_invite',
           app: 'admin',
           user_metadata: {
-            first_name,
-            last_name,
-            full_name: `${first_name} ${last_name}`.trim(),
-            job_title: job_title || undefined,
-            company: company || undefined,
+            ...Object.fromEntries(
+              peopleAttrConfig
+                .filter(a => a.enabled && addPersonFormData[a.key]?.trim())
+                .map(a => [a.key, addPersonFormData[a.key].trim()])
+            ),
+            full_name: `${addPersonFormData.first_name || ''} ${addPersonFormData.last_name || ''}`.trim() || undefined,
           },
         }),
       });
@@ -1478,13 +1505,7 @@ export default function MembersPage() {
           isOpen={addPersonModalOpen}
           onClose={() => {
             setAddPersonModalOpen(false);
-            setAddPersonFormData({
-              email: '',
-              first_name: '',
-              last_name: '',
-              job_title: '',
-              company: '',
-            });
+            setAddPersonFormData({ email: '', first_name: '', last_name: '', job_title: '', company: '' });
           }}
           title="Add New Person"
           footer={
@@ -1493,13 +1514,7 @@ export default function MembersPage() {
                 variant="outlined"
                 onClick={() => {
                   setAddPersonModalOpen(false);
-                  setAddPersonFormData({
-                    email: '',
-                    first_name: '',
-                    last_name: '',
-                    job_title: '',
-                    company: '',
-                  });
+                  setAddPersonFormData({ email: '', first_name: '', last_name: '', job_title: '', company: '' });
                 }}
                 disabled={addingMember}
               >
@@ -1520,12 +1535,6 @@ export default function MembersPage() {
           }
         >
           <div className="space-y-4">
-            <div className="bg-[var(--accent-a3)] p-3 rounded-lg border border-[var(--accent-a6)]">
-              <p className="text-sm text-[var(--accent-11)]">
-                This will create a new person account in Customer.io and Supabase. They will be able to access the platform.
-              </p>
-            </div>
-
             <Input
               label="Email"
               type="email"
@@ -1536,40 +1545,112 @@ export default function MembersPage() {
               disabled={addingMember}
             />
 
-            <div className="grid grid-cols-2 gap-4">
-              <Input
-                label="First Name"
-                value={addPersonFormData.first_name}
-                onChange={(e) => setAddPersonFormData({ ...addPersonFormData, first_name: e.target.value })}
-                placeholder="John"
-                required
-                disabled={addingMember}
-              />
-              <Input
-                label="Last Name"
-                value={addPersonFormData.last_name}
-                onChange={(e) => setAddPersonFormData({ ...addPersonFormData, last_name: e.target.value })}
-                placeholder="Doe"
-                required
-                disabled={addingMember}
-              />
-            </div>
+            {(() => {
+              const enabledAttrs = peopleAttrConfig.filter(a => a.enabled);
+              // Group into pairs for 2-column layout (text/multi-select get full width)
+              const items: { attr: typeof enabledAttrs[0]; fullWidth: boolean }[] = enabledAttrs.map(a => ({
+                attr: a,
+                fullWidth: a.type === 'text' || a.type === 'multi-select',
+              }));
+              const rows: typeof items[] = [];
+              let i = 0;
+              while (i < items.length) {
+                if (items[i].fullWidth) {
+                  rows.push([items[i]]);
+                  i++;
+                } else if (i + 1 < items.length && !items[i + 1].fullWidth) {
+                  rows.push([items[i], items[i + 1]]);
+                  i += 2;
+                } else {
+                  rows.push([items[i]]);
+                  i++;
+                }
+              }
+              return rows.map((row, ri) => (
+                <div key={ri} className={`grid gap-4 ${row.length === 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                  {row.map(({ attr }) => {
+                    const fieldLabel = `${attr.label}${attr.required ? '' : ' (Optional)'}`;
+                    const attrType = attr.type || 'string';
 
-            <Input
-              label="Job Title (Optional)"
-              value={addPersonFormData.job_title}
-              onChange={(e) => setAddPersonFormData({ ...addPersonFormData, job_title: e.target.value })}
-              placeholder="Software Engineer"
-              disabled={addingMember}
-            />
+                    if (attrType === 'text') {
+                      return (
+                        <Textarea
+                          key={attr.key}
+                          label={fieldLabel}
+                          value={addPersonFormData[attr.key] || ''}
+                          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setAddPersonFormData({ ...addPersonFormData, [attr.key]: e.target.value })}
+                          disabled={addingMember}
+                          rows={3}
+                        />
+                      );
+                    }
 
-            <Input
-              label="Company (Optional)"
-              value={addPersonFormData.company}
-              onChange={(e) => setAddPersonFormData({ ...addPersonFormData, company: e.target.value })}
-              placeholder="Acme Corp"
-              disabled={addingMember}
-            />
+                    if (attrType === 'select') {
+                      return (
+                        <Select
+                          key={attr.key}
+                          label={fieldLabel}
+                          value={addPersonFormData[attr.key] || ''}
+                          onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setAddPersonFormData({ ...addPersonFormData, [attr.key]: e.target.value })}
+                          disabled={addingMember}
+                          data={[
+                            { label: `Select ${attr.label}...`, value: '', disabled: true },
+                            ...(attr.options || []).map(opt => ({ label: opt, value: opt })),
+                          ]}
+                        />
+                      );
+                    }
+
+                    if (attrType === 'multi-select') {
+                      const selected: string[] = addPersonFormData[attr.key] ? JSON.parse(addPersonFormData[attr.key] || '[]') : [];
+                      return (
+                        <div key={attr.key} className="flex flex-col">
+                          <span className="text-sm font-medium text-[var(--gray-12)] mb-1">{fieldLabel}</span>
+                          <div className="flex flex-wrap gap-1.5 rounded-lg border border-[var(--gray-6)] bg-[var(--color-surface)] p-2 min-h-[38px]">
+                            {(attr.options || []).map(opt => {
+                              const isSelected = selected.includes(opt);
+                              return (
+                                <button
+                                  key={opt}
+                                  type="button"
+                                  disabled={addingMember}
+                                  onClick={() => {
+                                    const next = isSelected ? selected.filter(s => s !== opt) : [...selected, opt];
+                                    setAddPersonFormData({ ...addPersonFormData, [attr.key]: JSON.stringify(next) });
+                                  }}
+                                  className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                                    isSelected
+                                      ? 'bg-[var(--accent-9)] text-white'
+                                      : 'bg-[var(--gray-3)] text-[var(--gray-11)] hover:bg-[var(--gray-4)]'
+                                  } ${addingMember ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                                >
+                                  {opt}
+                                </button>
+                              );
+                            })}
+                            {(attr.options || []).length === 0 && (
+                              <span className="text-xs text-[var(--gray-8)]">No options configured</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // Default: string type
+                    return (
+                      <Input
+                        key={attr.key}
+                        label={fieldLabel}
+                        value={addPersonFormData[attr.key] || ''}
+                        onChange={(e) => setAddPersonFormData({ ...addPersonFormData, [attr.key]: e.target.value })}
+                        required={attr.required}
+                        disabled={addingMember}
+                      />
+                    );
+                  })}
+                </div>
+              ));
+            })()}
           </div>
         </Modal>
       </div>

@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { emitIntegrationEvent } from '../_shared/integrationEvents.ts'
+import { isEmailConfigured, sendEmail } from '../_shared/email.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -30,6 +31,7 @@ interface SignupRequest {
   }
   source: string // Required - identifies which app/platform the signup came from
   app?: string // Optional - app identifier (cohorts, app, etc.)
+  redirect_to?: string // Optional - callback URL for magic link redirect
 }
 
 interface SignupResponse {
@@ -40,6 +42,7 @@ interface SignupResponse {
   missing_fields?: string[]
   user_id?: string
   error?: string
+  magic_link_sent?: boolean
 }
 
 export default async function(req: Request) {
@@ -57,7 +60,7 @@ export default async function(req: Request) {
 
   try {
     const body: SignupRequest = await req.json()
-    const { email, user_metadata = {}, source, app } = body
+    const { email, user_metadata = {}, source, app, redirect_to } = body
 
     if (!email) {
       return new Response(JSON.stringify({ error: 'Email required' }), {
@@ -161,13 +164,17 @@ export default async function(req: Request) {
         }
       }
 
+      // Send magic link if requested (portal sign-in flow)
+      const magicLinkSent = await sendMagicLinkIfRequested(email, app, redirect_to)
+
       return new Response(JSON.stringify({
         success: true,
         message: 'Person already exists',
         person_id: existingPerson.id,
         cio_id: existingPerson.cio_id,
         user_id: existingPerson.auth_user_id,
-        missing_fields: missingFields
+        missing_fields: missingFields,
+        magic_link_sent: magicLinkSent,
       }), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -343,6 +350,9 @@ export default async function(req: Request) {
       }
     }
 
+    // Send magic link if requested (portal sign-in flow)
+    const magicLinkSent = await sendMagicLinkIfRequested(email, app, redirect_to)
+
     const response: SignupResponse = {
       success: true,
       message: missingFields.length > 0
@@ -351,7 +361,8 @@ export default async function(req: Request) {
       person_id: person.id,
       cio_id: person.cio_id,
       user_id: person.auth_user_id,
-      missing_fields: missingFields
+      missing_fields: missingFields,
+      magic_link_sent: magicLinkSent,
     }
 
     console.log('Signup response:', response)
@@ -456,6 +467,68 @@ async function getRequiredAttributeKeys(): Promise<string[]> {
       .map((a: { key: string }) => a.key)
   } catch {
     return defaultRequired
+  }
+}
+
+/**
+ * Generate and send a magic link email when the request comes from the portal.
+ * GoTrue SMTP is intentionally disabled — magic links are sent via the custom
+ * email system (SendGrid / SMTP configured in environment).
+ *
+ * Returns true if the magic link was sent, false otherwise.
+ */
+async function sendMagicLinkIfRequested(
+  email: string,
+  app: string | undefined,
+  redirectTo: string | undefined,
+): Promise<boolean> {
+  if (app !== 'portal') return false
+  if (!isEmailConfigured()) {
+    console.warn('[magic-link] Email not configured, skipping magic link send')
+    return false
+  }
+
+  try {
+    const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
+      type: 'magiclink',
+      email,
+      options: redirectTo ? { redirectTo } : undefined,
+    })
+
+    if (linkError || !linkData?.properties?.action_link) {
+      console.error('[magic-link] Failed to generate link:', linkError)
+      return false
+    }
+
+    const magicLink = linkData.properties.action_link
+
+    // Fetch brand name for email template
+    const { data: brandSetting } = await supabase
+      .from('platform_settings')
+      .select('value')
+      .eq('key', 'brand_name')
+      .maybeSingle()
+    const brandName = brandSetting?.value || 'Gatewaze'
+
+    await sendEmail({
+      to: email,
+      subject: `Your Sign-In Link — ${brandName}`,
+      html: `
+        <h2>Sign In</h2>
+        <p>Click the button below to sign in to ${brandName}:</p>
+        <p><a href="${magicLink}" style="display:inline-block;padding:12px 24px;background:#000;color:#fff;text-decoration:none;border-radius:6px;">Sign In</a></p>
+        <p>Or copy this URL into your browser:</p>
+        <p style="word-break:break-all;color:#666;">${magicLink}</p>
+        <p style="color:#999;font-size:12px;">This link expires in 1 hour. If you didn't request this, you can safely ignore this email.</p>
+      `,
+      text: `Sign in to ${brandName}:\n\n${magicLink}\n\nThis link expires in 1 hour.`,
+    })
+
+    console.log(`[magic-link] Sent magic link to ${email}`)
+    return true
+  } catch (err) {
+    console.error('[magic-link] Error sending magic link:', err)
+    return false
   }
 }
 

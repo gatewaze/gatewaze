@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { getServerBrandConfig } from '@/config/brand'
+import { getEnabledModules } from '@/lib/modules/enabledModules'
 import { SignInPageContent } from './SignInPageContent'
 
 // Force dynamic rendering - this page uses headers() for brand detection
@@ -25,7 +26,16 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function SignInPage() {
-  const brandConfig = await getServerBrandConfig()
+  const [brandConfig, modules] = await Promise.all([
+    getServerBrandConfig(),
+    getEnabledModules(),
+  ])
 
-  return <SignInPageContent brandConfig={brandConfig} />
+  return (
+    <SignInPageContent
+      brandConfig={brandConfig}
+      enabledModuleIds={[...modules.enabledIds]}
+      enabledFeatures={[...modules.enabledFeatures]}
+    />
+  )
 }

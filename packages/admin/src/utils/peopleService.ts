@@ -617,7 +617,7 @@ export class PeopleService {
       const { data, error } = await supabase.rpc('people_get_authenticated_sorted', {
         p_offset: offset,
         p_limit: pageSize,
-        p_sort_by: sortBy || 'created',
+        p_sort_by: sortBy || 'created_at',
         p_sort_order: sortOrder,
         p_search_term: searchTerm || null
       });

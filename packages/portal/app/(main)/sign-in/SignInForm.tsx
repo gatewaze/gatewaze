@@ -8,12 +8,15 @@ import { getClientBrandConfig } from '@/config/brand'
 import { getEmailFromParams } from '@/lib/emailEncoding'
 import { GlowInput } from '@/components/ui/GlowInput'
 import { PortalButton } from '@/components/ui/PortalButton'
+import { ModuleSlot } from '@/lib/modules'
 
 interface Props {
   brandConfig: BrandConfig
+  enabledModuleIds?: string[]
+  enabledFeatures?: string[]
 }
 
-export function SignInForm({ brandConfig }: Props) {
+export function SignInForm({ brandConfig, enabledModuleIds = [], enabledFeatures = [] }: Props) {
   const { signInWithMagicLink, user, isLoading } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -90,8 +93,12 @@ export function SignInForm({ brandConfig }: Props) {
     }
 
     try {
-      // Step 1: Call people-signup to create auth user + person record
       const config = getClientBrandConfig()
+      // Build the callback URL for the magic link redirect
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : `https://${config.domain}`
+      const callbackUrl = `${baseUrl}/sign-in${redirectTo ? `?redirectTo=${encodeURIComponent(redirectTo)}` : ''}`
+
+      // Step 1: Call people-signup to create auth user + person record + send magic link
       const signupResponse = await fetch(`${config.supabaseUrl}/functions/v1/people-signup`, {
         method: 'POST',
         headers: {
@@ -102,23 +109,28 @@ export function SignInForm({ brandConfig }: Props) {
           email: trimmedEmail,
           source: 'event_portal_signin',
           app: 'portal',
+          redirect_to: callbackUrl,
         }),
       })
 
       if (!signupResponse.ok) {
         const errorText = await signupResponse.text()
-        // User likely already exists - this is expected, continue to magic link
         console.log('User signup skipped:', errorText)
       } else {
         const signupData = await signupResponse.json()
         console.log('User signup result:', signupData)
+
+        // If the edge function already sent the magic link, we're done
+        if (signupData.magic_link_sent) {
+          localStorage.setItem('auth_redirect_to', redirectTo)
+          setSuccess(true)
+          setIsSubmitting(false)
+          return
+        }
       }
 
-      // Step 2: Send magic link for authentication
-      // Store redirectTo in localStorage - Supabase will redirect to its Site URL,
-      // and our implicit flow handler will read this to redirect to the correct page
+      // Step 2: Fallback — send magic link via Supabase client (requires GoTrue SMTP)
       localStorage.setItem('auth_redirect_to', redirectTo)
-
       const result = await signInWithMagicLink(trimmedEmail, redirectTo)
 
       if (result.success) {
@@ -282,6 +294,14 @@ export function SignInForm({ brandConfig }: Props) {
       </PortalButton>
 
     </form>
+
+      {/* Extension point for third-party auth providers (e.g. LFID, Google, GitHub) */}
+      <ModuleSlot
+        name="sign-in:providers"
+        enabledModuleIds={enabledModuleIds}
+        enabledFeatures={enabledFeatures}
+        props={{ redirectTo, primaryColor: brandConfig.primaryColor }}
+      />
     </>
   )
 }

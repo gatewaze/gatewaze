@@ -122,7 +122,7 @@ export class SupabaseAuthService {
 
       // Update in Customer.io
       const supabaseConfig = getSupabaseConfig()
-      const supabaseUrl = supabaseConfig.url || 'https://data.tech.tickets'
+      const supabaseUrl = supabaseConfig.url
 
       const { data: { session } } = await supabase.auth.getSession()
 
@@ -202,7 +202,7 @@ export class SupabaseAuthService {
 
       // Get the Supabase URL from config
       const supabaseConfig = getSupabaseConfig()
-      const supabaseUrl = supabaseConfig.url || 'https://data.tech.tickets'
+      const supabaseUrl = supabaseConfig.url
 
       let authUserId: string | null = null
 

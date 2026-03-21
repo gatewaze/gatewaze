@@ -1,7 +1,7 @@
 'use client'
 
 import type { BrandConfig } from '@/config/brand'
-import { GlowInput } from '@/components/ui/GlowInput'
+import { GlowInput, GlowTextarea } from '@/components/ui/GlowInput'
 import type { PeopleAttributeConfig } from '@gatewaze/shared/types/people'
 import { DEFAULT_PEOPLE_ATTRIBUTES } from '@gatewaze/shared/types/people'
 
@@ -126,10 +126,12 @@ export function ProfileDetailsStep({ brandConfig, values, onChange, errors = {},
   const enabledAttrs = config.filter(a => a.enabled)
 
   const handleChange = (field: keyof ProfileDetails) => (
-    e: React.ChangeEvent<HTMLInputElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     onChange({ ...values, [field]: e.target.value })
   }
+
+  const inputClassName = "w-full text-base px-3 py-2 border border-white/30 rounded-lg bg-white/60 text-gray-900 placeholder-gray-500 focus:outline-none transition-colors"
 
   // Group fields into rows of 2 for side-by-side layout (except linkedin which is full-width)
   const renderField = (attr: PeopleAttributeConfig) => {
@@ -138,12 +140,100 @@ export function ProfileDetailsStep({ brandConfig, values, onChange, errors = {},
     const placeholder = FIELD_PLACEHOLDERS[fieldName] || attr.label
     const autoComplete = FIELD_AUTOCOMPLETE[fieldName]
     const inputType = FIELD_INPUT_TYPE[fieldName] || 'text'
+    const attrType = attr.type || 'string'
 
+    const label = (
+      <label htmlFor={fieldId} className="block text-base font-medium text-white mb-1.5">
+        {attr.label}{attr.required ? <span className="text-[#FF0000] font-medium"> *</span> : ''}
+      </label>
+    )
+
+    const error = errors[fieldName] && (
+      <p className="text-white text-xs mt-1"><span className="text-[#FF0000]">*</span> {errors[fieldName]}</p>
+    )
+
+    if (attrType === 'text') {
+      return (
+        <div key={attr.key}>
+          {label}
+          <GlowTextarea
+            id={fieldId}
+            value={values[fieldName] || ''}
+            onChange={handleChange(fieldName)}
+            placeholder={placeholder}
+            glowColor={primaryColor}
+            borderRadius="0.5rem"
+            rows={3}
+            className={inputClassName}
+          />
+          {error}
+        </div>
+      )
+    }
+
+    if (attrType === 'select') {
+      return (
+        <div key={attr.key}>
+          {label}
+          <div className="relative" style={{ borderRadius: '0.5rem' }}>
+            <select
+              id={fieldId}
+              value={values[fieldName] || ''}
+              onChange={handleChange(fieldName)}
+              className={`${inputClassName} appearance-none cursor-pointer`}
+              style={{ borderRadius: '0.5rem' }}
+            >
+              <option value="">{`Select ${attr.label}...`}</option>
+              {(attr.options || []).map(opt => (
+                <option key={opt} value={opt}>{opt}</option>
+              ))}
+            </select>
+          </div>
+          {error}
+        </div>
+      )
+    }
+
+    if (attrType === 'multi-select') {
+      const selected: string[] = values[fieldName] ? (() => { try { return JSON.parse(values[fieldName]) } catch { return [] } })() : []
+      return (
+        <div key={attr.key}>
+          {label}
+          <div className="flex flex-wrap gap-1.5 rounded-lg border border-white/30 bg-white/60 p-2 min-h-[38px]">
+            {(attr.options || []).map(opt => {
+              const isSelected = selected.includes(opt)
+              return (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => {
+                    const next = isSelected ? selected.filter(s => s !== opt) : [...selected, opt]
+                    onChange({ ...values, [fieldName]: JSON.stringify(next) })
+                  }}
+                  className={`px-2.5 py-1 rounded-md text-sm font-medium transition-colors cursor-pointer ${
+                    isSelected
+                      ? 'text-white'
+                      : 'bg-white/50 text-gray-700 hover:bg-white/70'
+                  }`}
+                  style={isSelected ? { backgroundColor: primaryColor } : undefined}
+                >
+                  {opt}
+                </button>
+              )
+            })}
+            {(attr.options || []).length === 0 && (
+              <span className="text-sm text-gray-500">No options configured</span>
+            )}
+          </div>
+          {error}
+        </div>
+      )
+    }
+
+    // Default: string type
     return (
       <div key={attr.key}>
-        <label htmlFor={fieldId} className="block text-base font-medium text-white mb-1.5">
-          {attr.label}{attr.required ? <span className="text-[#FF0000] font-medium"> *</span> : ''}
-        </label>
+        {label}
         <GlowInput
           id={fieldId}
           type={inputType}
@@ -152,24 +242,32 @@ export function ProfileDetailsStep({ brandConfig, values, onChange, errors = {},
           placeholder={placeholder}
           glowColor={primaryColor}
           borderRadius="0.5rem"
-          className="w-full text-base px-3 py-2 border border-white/30 rounded-lg bg-white/60 text-gray-900 placeholder-gray-500 focus:outline-none transition-colors"
+          className={inputClassName}
           {...(autoComplete ? { autoComplete } : {})}
         />
-        {errors[fieldName] && (
-          <p className="text-white text-xs mt-1"><span className="text-[#FF0000]">*</span> {errors[fieldName]}</p>
-        )}
+        {error}
       </div>
     )
   }
 
-  // Separate LinkedIn (full-width) from the rest (paired in 2-column grid)
-  const pairedAttrs = enabledAttrs.filter(a => a.key !== 'linkedin_url')
-  const linkedInAttr = enabledAttrs.find(a => a.key === 'linkedin_url')
+  // Fields that should be full-width: linkedin, text type, multi-select type
+  const isFullWidth = (a: PeopleAttributeConfig) =>
+    a.key === 'linkedin_url' || a.type === 'text' || a.type === 'multi-select'
 
-  // Chunk paired attrs into groups of 2
+  // Build rows: full-width items get their own row, others pair up
   const rows: PeopleAttributeConfig[][] = []
-  for (let i = 0; i < pairedAttrs.length; i += 2) {
-    rows.push(pairedAttrs.slice(i, i + 2))
+  let i = 0
+  while (i < enabledAttrs.length) {
+    if (isFullWidth(enabledAttrs[i])) {
+      rows.push([enabledAttrs[i]])
+      i++
+    } else if (i + 1 < enabledAttrs.length && !isFullWidth(enabledAttrs[i + 1])) {
+      rows.push([enabledAttrs[i], enabledAttrs[i + 1]])
+      i += 2
+    } else {
+      rows.push([enabledAttrs[i]])
+      i++
+    }
   }
 
   return (
@@ -178,17 +276,11 @@ export function ProfileDetailsStep({ brandConfig, values, onChange, errors = {},
         Please complete your profile to continue.
       </p>
 
-      {rows.map((row, i) => (
-        <div key={i} className={`grid gap-4 ${row.length === 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+      {rows.map((row, ri) => (
+        <div key={ri} className={`grid gap-4 ${row.length === 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
           {row.map(attr => renderField(attr))}
         </div>
       ))}
-
-      {linkedInAttr && (
-        <div>
-          {renderField(linkedInAttr)}
-        </div>
-      )}
     </div>
   )
 }

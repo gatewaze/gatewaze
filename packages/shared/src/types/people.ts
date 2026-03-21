@@ -17,19 +17,24 @@ export interface Person {
   updated_at: string;
 }
 
+export type PeopleAttributeType = 'string' | 'text' | 'select' | 'multi-select';
+
 export interface PeopleAttributeConfig {
   key: string;
   label: string;
   enabled: boolean;
   required: boolean;
+  type?: PeopleAttributeType;
+  /** Options for select and multi-select fields */
+  options?: string[];
 }
 
 export const DEFAULT_PEOPLE_ATTRIBUTES: PeopleAttributeConfig[] = [
-  { key: 'first_name', label: 'First Name', enabled: true, required: true },
-  { key: 'last_name', label: 'Last Name', enabled: true, required: true },
-  { key: 'company', label: 'Company', enabled: true, required: false },
-  { key: 'job_title', label: 'Job Title', enabled: true, required: false },
-  { key: 'linkedin_url', label: 'LinkedIn URL', enabled: true, required: false },
+  { key: 'first_name', label: 'First Name', enabled: true, required: true, type: 'string' },
+  { key: 'last_name', label: 'Last Name', enabled: true, required: true, type: 'string' },
+  { key: 'company', label: 'Company', enabled: true, required: false, type: 'string' },
+  { key: 'job_title', label: 'Job Title', enabled: true, required: false, type: 'string' },
+  { key: 'linkedin_url', label: 'LinkedIn URL', enabled: true, required: false, type: 'string' },
 ];
 
 /** Attribute keys that are always enabled and required (cannot be toggled off) */
