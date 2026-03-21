@@ -109,32 +109,80 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     (settings.themeMode === "system" && isDarkOS) ||
     settings.themeMode === "dark";
 
-  // Sync Radix accent color from platform branding settings on mount
+  // Sync Radix accent color and brand fonts from platform branding settings on mount
   useEffect(() => {
-    async function syncAccentColor() {
+    async function syncBrandSettings() {
       try {
         const supabase = getSupabase();
         const { data } = await supabase
           .from("platform_settings")
-          .select("value")
-          .eq("key", "primary_color")
-          .single();
+          .select("key, value")
+          .in("key", ["primary_color", "font_heading", "font_heading_weight", "font_body", "font_body_weight"]);
 
-        const brandHex = data?.value as string | undefined;
+        const map: Record<string, string> = {};
+        for (const row of data ?? []) map[row.key] = row.value as string;
+
+        // Accent color
+        const brandHex = map.primary_color;
         const accent = brandHex ? closestRadixAccent(brandHex) : "green";
-
         if (settings.primaryColorScheme?.name !== accent) {
           setSettings((prev) => ({
             ...prev,
             primaryColorScheme: { name: accent, ...colors[accent] },
           }));
         }
+
+        // Brand fonts
+        const fontHeading = map.font_heading;
+        const fontBody = map.font_body;
+        if (fontHeading || fontBody) {
+          // Build Google Fonts URL
+          const baseWeights = [400, 500, 600, 700];
+          const fonts: { name: string; weights: string }[] = [];
+          if (fontHeading) {
+            const w = new Set(baseWeights);
+            if (map.font_heading_weight) w.add(Number(map.font_heading_weight));
+            fonts.push({ name: fontHeading, weights: [...w].sort((a, b) => a - b).join(";") });
+          }
+          if (fontBody && fontBody !== fontHeading) {
+            const w = new Set(baseWeights);
+            if (map.font_body_weight) w.add(Number(map.font_body_weight));
+            fonts.push({ name: fontBody, weights: [...w].sort((a, b) => a - b).join(";") });
+          }
+          if (fonts.length > 0) {
+            const params = fonts
+              .map((f) => `family=${encodeURIComponent(f.name)}:wght@${f.weights}`)
+              .join("&");
+            const href = `https://fonts.googleapis.com/css2?${params}&display=swap`;
+            // Inject stylesheet if not already present
+            if (!document.querySelector(`link[href="${href}"]`)) {
+              const link = document.createElement("link");
+              link.rel = "stylesheet";
+              link.href = href;
+              document.head.appendChild(link);
+            }
+          }
+          // Apply font-family to document
+          const stack: string[] = [];
+          if (fontHeading) stack.push(fontHeading);
+          if (fontBody && fontBody !== fontHeading) stack.push(fontBody);
+          stack.push("ui-sans-serif", "system-ui", "sans-serif");
+          document.documentElement.style.fontFamily = stack.join(", ");
+
+          // Apply font weights as CSS custom properties
+          if (map.font_heading_weight) {
+            document.documentElement.style.setProperty("--font-weight-heading", map.font_heading_weight);
+          }
+          if (map.font_body_weight) {
+            document.documentElement.style.setProperty("--font-weight-body", map.font_body_weight);
+          }
+        }
       } catch {
-        // If fetch fails, keep current setting
+        // If fetch fails, keep current settings
       }
     }
 
-    syncAccentColor();
+    syncBrandSettings();
   }, []); // Run once on mount
 
   const setThemeMode = (val: ThemeMode) => {

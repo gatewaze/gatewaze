@@ -115,6 +115,23 @@ export interface Sponsor {
  */
 export class EventQrService {
   /**
+   * Resolve a varchar event_id (e.g. "fv1l2f") to the UUID primary key.
+   * Many core tables use UUID event_id FK, but the app routes use the short varchar.
+   */
+  private static async resolveEventUuid(eventId: string): Promise<string | null> {
+    // If it already looks like a UUID, return as-is
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventId)) {
+      return eventId;
+    }
+    const { data } = await supabase
+      .from('events')
+      .select('id')
+      .eq('event_id', eventId)
+      .single();
+    return data?.id ?? null;
+  }
+
+  /**
    * Get all sponsors for an event
    */
   static async getEventSponsors(eventId: string): Promise<EventSponsor[]> {
@@ -464,8 +481,11 @@ export class EventQrService {
         });
       }
 
-      // Fall back to event_registrations_with_members view
-      // Fetch all records using pagination to handle events with >1000 registrations
+      // Fall back to events_registrations_with_people view
+      // The view's event_id is a UUID, so resolve the varchar event_id first
+      const eventUuid = await this.resolveEventUuid(eventId);
+      if (!eventUuid) return [];
+
       let allData: EventRegistration[] = [];
       let page = 0;
       const pageSize = 1000;
@@ -475,7 +495,7 @@ export class EventQrService {
         const { data, error } = await supabase
           .from('events_registrations_with_people')
           .select('*')
-          .eq('event_id', eventId)
+          .eq('event_id', eventUuid)
           .order('registered_at', { ascending: false })
           .range(page * pageSize, (page + 1) * pageSize - 1);
 
@@ -493,7 +513,7 @@ export class EventQrService {
       return allData;
     } catch (error) {
       console.error('Error fetching event registrations:', error);
-      throw error;
+      return [];
     }
   }
 
@@ -597,10 +617,14 @@ export class EventQrService {
       }
 
       // Final fallback: core events_attendance table (always exists)
+      // events_attendance.event_id is a UUID FK, so resolve the varchar first
+      const eventUuid = await this.resolveEventUuid(eventId);
+      if (!eventUuid) return [];
+
       const { data: coreData, error: coreError } = await supabase
         .from('events_attendance')
         .select('*')
-        .eq('event_id', eventId)
+        .eq('event_id', eventUuid)
         .order('checked_in_at', { ascending: false });
 
       if (coreError) throw coreError;
