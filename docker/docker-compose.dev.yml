@@ -26,6 +26,8 @@ services:
     environment:
       NODE_ENV: development
       API_PROXY_TARGET: http://api:3002
+      VITE_PORTAL_DOMAIN: ${PORTAL_HOST:-gatewaze-app.localhost}
+      VITE_API_URL: ${API_URL:-http://gatewaze-api.localhost}
 
   portal:
     build:
@@ -54,6 +56,7 @@ services:
       - ../../gatewaze-modules/modules:/gatewaze-modules/modules
     environment:
       NODE_ENV: development
+      NEXT_PUBLIC_API_URL: ${API_URL:-http://aaif-api.localhost}
       # Internal Supabase URL for module registry generator (DB source lookup)
       SUPABASE_URL: http://supabase-kong:8000
 

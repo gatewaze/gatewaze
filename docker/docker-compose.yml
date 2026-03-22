@@ -328,6 +328,7 @@ services:
       VITE_SUPABASE_URL: ${SUPABASE_URL:-http://gatewaze-supabase.localhost}
       VITE_SUPABASE_ANON_KEY: ${ANON_KEY}
       VITE_API_URL: ${API_URL:-http://gatewaze-api.localhost}
+      VITE_PORTAL_DOMAIN: ${PORTAL_HOST:-gatewaze-app.localhost}
       VITE_APP_URL: http://${PORTAL_HOST:-gatewaze-app.localhost}
       VITE_APP_NAME: ${GW_APP_NAME:-}
     depends_on:
@@ -353,6 +354,7 @@ services:
     environment:
       NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_URL:-http://gatewaze-supabase.localhost}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${ANON_KEY}
+      NEXT_PUBLIC_API_URL: ${API_URL:-http://gatewaze-api.localhost}
       SUPABASE_URL: ${SUPABASE_INTERNAL_URL:-http://supabase-kong:8000}
       SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
       INSTANCE_NAME: ${INSTANCE_NAME:-gatewaze}
