@@ -173,14 +173,22 @@ export async function downloadAndUploadImage(imageUrl, eventId, imageIndex) {
       };
     }
 
-    // Get public URL
-    const { data: urlData } = supabase.storage.from(CONTENT_IMAGES_BUCKET).getPublicUrl(storagePath);
+    // Get public URL — use SUPABASE_PUBLIC_URL if set (browser-accessible hostname),
+    // because SUPABASE_URL may be an internal Docker hostname (e.g. supabase-kong:8000)
+    const publicBaseUrl = process.env.SUPABASE_PUBLIC_URL;
+    let publicUrl;
+    if (publicBaseUrl) {
+      publicUrl = `${publicBaseUrl}/storage/v1/object/public/${CONTENT_IMAGES_BUCKET}/${storagePath}`;
+    } else {
+      const { data: urlData } = supabase.storage.from(CONTENT_IMAGES_BUCKET).getPublicUrl(storagePath);
+      publicUrl = urlData.publicUrl;
+    }
 
     console.log(`  ✅ Image uploaded: ${storagePath}`);
 
     return {
       success: true,
-      publicUrl: urlData.publicUrl,
+      publicUrl,
       storagePath,
     };
   } catch (error) {
