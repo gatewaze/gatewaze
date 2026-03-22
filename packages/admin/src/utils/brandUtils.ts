@@ -102,7 +102,7 @@ export function getBrandScraperApiUrl(): string | null {
     return null;
   }
   const config = getBrandConfig();
-  return config.api.scraperApiUrl || `${config.api.baseUrl}/api/scrapers`;
+  return config.api.scraperApiUrl || `${config.api.baseUrl}/scrapers`;
 }
 
 /**

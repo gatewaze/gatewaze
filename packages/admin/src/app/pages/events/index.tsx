@@ -986,7 +986,7 @@ export default function EventsManagement() {
       }));
 
       const apiBaseUrl = getApiBaseUrl();
-      const response = await fetch(`${apiBaseUrl}/api/scrapers/refresh-events-bulk`, {
+      const response = await fetch(`${apiBaseUrl}/scrapers/refresh-events-bulk`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -1094,7 +1094,7 @@ export default function EventsManagement() {
     try {
       // Call API to re-scrape this specific event
       const apiBaseUrl = getApiBaseUrl();
-      const response = await fetch(`${apiBaseUrl}/api/scrapers/refresh-event`, {
+      const response = await fetch(`${apiBaseUrl}/scrapers/refresh-event`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
