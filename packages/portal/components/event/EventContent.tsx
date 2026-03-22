@@ -19,10 +19,32 @@ export function EventContent({ event, useDarkText }: Props) {
   useEffect(() => {
     if (processedHtml && typeof window !== 'undefined') {
       import('dompurify').then((DOMPurify) => {
+        // Strip color/background styles from HTML so theme colors apply
+        DOMPurify.default.addHook('afterSanitizeAttributes', (node) => {
+          if (node.hasAttribute('style')) {
+            const style = node.getAttribute('style') || ''
+            const cleaned = style
+              .split(';')
+              .filter((s) => {
+                const prop = s.split(':')[0]?.trim().toLowerCase()
+                return prop !== 'color' && prop !== 'background-color' && prop !== 'background'
+              })
+              .join(';')
+              .trim()
+            if (cleaned) {
+              node.setAttribute('style', cleaned)
+            } else {
+              node.removeAttribute('style')
+            }
+          }
+        })
+
         const clean = DOMPurify.default.sanitize(processedHtml, {
           ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'a', 'img', 'ul', 'ol', 'li', 'blockquote', 'h1', 'h2', 'h3', 'h4', 'code', 'pre', 'hr', 'u', 's', 'sub', 'sup', 'div', 'span'],
           ALLOWED_ATTR: ['href', 'src', 'alt', 'width', 'height', 'target', 'rel', 'class', 'style'],
         })
+
+        DOMPurify.default.removeHook('afterSanitizeAttributes')
 
         // Parse and process portrait images (add max-height style on desktop)
         const isDesktop = window.matchMedia('(min-width: 1024px)').matches

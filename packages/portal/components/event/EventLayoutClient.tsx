@@ -122,6 +122,7 @@ export function EventLayoutClient({ event, brandConfig, eventIdentifier, speaker
         discountCount={discountCount}
         mediaCount={mediaCount}
         recommendedEvent={recommendedEvent}
+        useDarkText={useDarkText}
       >
         <EventLayoutInner
           event={event}
