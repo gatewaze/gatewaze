@@ -81,17 +81,61 @@ scrapersRouter.post('/:jobId/start', async (req: Request, res: Response) => {
     }
 
     const supabase = getSupabase();
-    const { data: scraper, error } = await supabase
-      .from('scrapers')
-      .select('id, name, scraper_type, event_type')
-      .eq('id', req.params.jobId)
+    const scraperJobId = parseInt(req.params.jobId, 10);
+
+    // Look up the scrapers_jobs row and its parent scraper
+    const { data: jobRow, error: jobError } = await supabase
+      .from('scrapers_jobs')
+      .select('id, scraper_id, scrapers(id, name, scraper_type, event_type)')
+      .eq('id', scraperJobId)
       .single();
 
-    if (error || !scraper) {
-      return res.status(404).json({ success: false, error: 'Scraper not found' });
+    if (jobError || !jobRow) {
+      // Fallback: treat param as scraper ID (direct start without pre-created job)
+      const { data: scraper, error } = await supabase
+        .from('scrapers')
+        .select('id, name, scraper_type, event_type')
+        .eq('id', req.params.jobId)
+        .single();
+
+      if (error || !scraper) {
+        return res.status(404).json({ success: false, error: 'Scraper or job not found' });
+      }
+
+      // Create a scrapers_jobs row first
+      const { data: newJobs, error: createError } = await supabase.rpc('scrapers_create_job', {
+        scraper_ids: [scraper.id],
+        created_by_user: 'api'
+      });
+
+      if (createError || !newJobs?.length) {
+        return res.status(500).json({ success: false, error: 'Failed to create scraper job' });
+      }
+
+      const newJobId = newJobs[0].job_id;
+
+      const bullJob = await addJob(JobTypes.SCRAPER_RUN, {
+        scraperJobId: newJobId,
+        scraperId: scraper.id,
+        scraperName: scraper.name,
+        scraperType: scraper.scraper_type,
+        eventType: scraper.event_type,
+        manual: true,
+      });
+
+      return res.json({
+        success: true,
+        message: `Scraper "${scraper.name}" started`,
+        jobId: bullJob.id,
+        scraperJobId: newJobId,
+      });
     }
 
-    const job = await addJob(JobTypes.SCRAPER_RUN, {
+    // Normal path: scrapers_jobs row already exists
+    const scraper = jobRow.scrapers as any;
+
+    const bullJob = await addJob(JobTypes.SCRAPER_RUN, {
+      scraperJobId: jobRow.id,
       scraperId: scraper.id,
       scraperName: scraper.name,
       scraperType: scraper.scraper_type,
@@ -102,7 +146,8 @@ scrapersRouter.post('/:jobId/start', async (req: Request, res: Response) => {
     res.json({
       success: true,
       message: `Scraper "${scraper.name}" started`,
-      jobId: job.id,
+      jobId: bullJob.id,
+      scraperJobId: jobRow.id,
     });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });

@@ -55,5 +55,8 @@ psql -v ON_ERROR_STOP=1 --no-password --no-psqlrc -U supabase_admin -d "${POSTGR
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
 GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
+
+-- Tell PostgREST to reload its schema cache so it sees all new tables
+NOTIFY pgrst, 'reload schema';
 EOSQL
 echo "API role grants applied."

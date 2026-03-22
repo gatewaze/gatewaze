@@ -145,7 +145,7 @@ async function updateJobStatus(jobId, status, stats = {}) {
       }
     }
 
-    const { error } = await supabase.rpc('scrapers_update_job_v2', params);
+    const { error } = await supabase.rpc('scrapers_update_job', params);
 
     if (error) {
       sendError(new Error(`Failed to update job status: ${error.message}`));
