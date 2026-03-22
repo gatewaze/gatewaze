@@ -41,9 +41,9 @@ scrapersRouter.get('/:jobId/details', async (req: Request, res: Response) => {
       return res.status(404).json({ success: false, error: 'Scraper not found' });
     }
 
-    // Get recent logs
+    // Get recent jobs
     const { data: logs } = await supabase
-      .from('scrapers_runs')
+      .from('scrapers_jobs')
       .select('*')
       .eq('scraper_id', req.params.jobId)
       .order('created_at', { ascending: false })
@@ -60,7 +60,7 @@ scrapersRouter.get('/:jobId/logs', async (req: Request, res: Response) => {
   try {
     const supabase = getSupabase();
     const { data: logs, error } = await supabase
-      .from('scrapers_runs')
+      .from('scrapers_jobs')
       .select('*')
       .eq('scraper_id', req.params.jobId)
       .order('created_at', { ascending: false })
