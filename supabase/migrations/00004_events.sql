@@ -112,7 +112,6 @@ ALTER TABLE public.events
   FOREIGN KEY (recommended_event_id) REFERENCES public.events(id) ON DELETE SET NULL;
 
 -- Indexes
-CREATE INDEX IF NOT EXISTS idx_events_status ON public.events (status);
 CREATE INDEX IF NOT EXISTS idx_events_start ON public.events (event_start);
 CREATE INDEX IF NOT EXISTS idx_events_event_id ON public.events (event_id);
 CREATE INDEX IF NOT EXISTS idx_events_link ON public.events (event_link);
