@@ -17,6 +17,7 @@ import { LumaICalScraper } from '../scrapers/LumaICalScraper.js';
 import { TopicMatcher } from '../scrapers/TopicMatcher.js';
 import { GeocodingService } from '../scrapers/GeocodingService.js';
 import { EventProcessor } from '../scrapers/EventProcessor.js';
+import { addJob, JobTypes } from '../lib/job-queue.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -518,7 +519,16 @@ export async function runScraperJob(jobId, logger) {
                     .from('events')
                     .update({ luma_processing_status: 'pending' })
                     .eq('id', eventUuid);
-                  logger.log(`🔄 Queued Luma content processing for ${cleanedEvent.eventTitle}`);
+
+                  try {
+                    await addJob(JobTypes.LUMA_CONTENT_PROCESS, {
+                      eventId: eventUuid,
+                      eventTitle: cleanedEvent.eventTitle,
+                    });
+                    logger.log(`🔄 Enqueued Luma content processing for ${cleanedEvent.eventTitle}`);
+                  } catch (enqueueErr) {
+                    logger.log(`⚠️ Failed to enqueue Luma content job (will be picked up by scheduler): ${enqueueErr.message}`, 'warn');
+                  }
                 }
               }
             }
