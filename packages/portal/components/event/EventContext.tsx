@@ -4,7 +4,6 @@ import { createContext, useContext, useMemo } from 'react'
 import type { Event } from '@/types/event'
 import type { BrandConfig } from '@/config/brand'
 import type { RecommendedEvent } from '@/app/(main)/events/[identifier]/(portal)/layout'
-import { shouldUseDarkText } from './EventHero'
 import { useEventUserState } from '@/hooks/useEventUserState'
 import type { EventUserState } from '@/hooks/useEventUserState'
 
@@ -44,13 +43,13 @@ interface Props {
   discountCount: number
   mediaCount: number
   recommendedEvent?: RecommendedEvent | null
+  useDarkText: boolean
   children: React.ReactNode
 }
 
-export function EventProvider({ event, brandConfig, eventIdentifier, speakerCount, sponsorCount, competitionCount, discountCount, mediaCount, recommendedEvent, children }: Props) {
+export function EventProvider({ event, brandConfig, eventIdentifier, speakerCount, sponsorCount, competitionCount, discountCount, mediaCount, recommendedEvent, useDarkText, children }: Props) {
   const primaryColor = event.gradient_color_1 || brandConfig.primaryColor
   const secondaryColor = event.gradient_color_2 || brandConfig.secondaryColor
-  const useDarkText = shouldUseDarkText(primaryColor, secondaryColor)
   const userState = useEventUserState(event)
 
   const theme = useMemo(() => ({
