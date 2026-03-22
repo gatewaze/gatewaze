@@ -8,7 +8,6 @@ import { csvRouter } from './routes/csv.js';
 import { calendarsRouter } from './routes/calendars.js';
 import { dbCopyRouter } from './routes/db-copy.js';
 import { jobsRouter } from './routes/jobs.js';
-import { scrapersRouter } from './routes/scrapers.js';
 import { screenshotsRouter } from './routes/screenshots.js';
 import { customerioRouter } from './routes/customerio.js';
 import { avatarsRouter } from './routes/avatars.js';
@@ -45,7 +44,6 @@ app.use('/api/db-copy', dbCopyRouter);
 
 // Routes - added for admin
 app.use('/api/jobs', jobsRouter);
-app.use('/api/scrapers', scrapersRouter);
 app.use('/api/screenshots', screenshotsRouter);
 app.use('/api/customerio', customerioRouter);
 app.use('/api/avatars', avatarsRouter);
