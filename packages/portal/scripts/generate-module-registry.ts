@@ -319,6 +319,26 @@ export function findModulePage(pathname: string): PortalModulePage | undefined {
 
   return undefined
 }
+
+/**
+ * Extract dynamic params from a route pattern matched against a pathname.
+ * e.g., extractParams('/forms/[slug]', '/forms/meetup-organizer') → { slug: 'meetup-organizer' }
+ */
+export function extractParams(routePath: string, pathname: string): Record<string, string> {
+  const params: Record<string, string> = {}
+  const routeSegments = routePath.split('/').filter(Boolean)
+  const pathSegments = pathname.split('/').filter(Boolean)
+
+  for (let i = 0; i < routeSegments.length; i++) {
+    const seg = routeSegments[i]
+    const match = seg.match(/^\\[([^\\]]+)\\]$/)
+    if (match && pathSegments[i]) {
+      params[match[1]] = pathSegments[i]
+    }
+  }
+
+  return params
+}
 `
 
   writeFileSync(OUTPUT_PATH, output, 'utf-8')
