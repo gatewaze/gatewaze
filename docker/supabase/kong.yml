@@ -145,10 +145,15 @@ services:
           allow:
             - admin
             - anon
+      - name: request-transformer
+        config:
+          replace:
+            headers:
+              - "host:realtime-dev"
 
   # ---------- Realtime WebSocket ----------
   - name: realtime-v1-ws
-    url: http://supabase-realtime:4000/socket
+    url: http://supabase-realtime:4000/socket/websocket
     routes:
       - name: realtime-v1-ws
         strip_path: true
@@ -165,6 +170,11 @@ services:
           allow:
             - admin
             - anon
+      - name: request-transformer
+        config:
+          replace:
+            headers:
+              - "host:realtime-dev"
 
   # ---------- Storage ----------
   - name: storage-v1
