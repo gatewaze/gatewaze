@@ -36,7 +36,7 @@ else
   BRAND="$1"
   ACTION="${2:-up}"
   SHIFT_COUNT=2
-  ENV_FILE="${ENVIRONMENTS_DIR}/${BRAND}.env"
+  ENV_FILE="${ENVIRONMENTS_DIR}/${BRAND}.local.env"
 
   if [ ! -f "$ENV_FILE" ]; then
     echo "Error: ${ENV_FILE} not found"
@@ -49,13 +49,9 @@ else
       echo "  cd .. && git clone <your-environments-repo-url> gatewaze-environments"
     else
       echo "Available brands:"
-      for f in "${ENVIRONMENTS_DIR}"/*.env; do
+      for f in "${ENVIRONMENTS_DIR}"/*.local.env; do
         [ -f "$f" ] || continue
-        name="$(basename "$f" .env)"
-        # Skip .example files
-        case "$name" in
-          *.env) continue ;;
-        esac
+        name="$(basename "$f" .local.env)"
         echo "  $name"
       done
     fi

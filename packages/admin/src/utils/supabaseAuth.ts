@@ -35,7 +35,7 @@ export class SupabaseAuthService {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
       const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-      const res = await fetch(`${supabaseUrl}/functions/v1/send-magic-link`, {
+      const res = await fetch(`${supabaseUrl}/functions/v1/admin-send-magic-link`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
