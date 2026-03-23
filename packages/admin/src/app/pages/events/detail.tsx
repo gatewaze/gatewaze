@@ -2309,11 +2309,53 @@ const EventDetailsTab = ({ event, isEditMode, register, errors, watch, setValue,
   );
 };
 
+/** Self-contained inline edit cell — keeps local state so parent columns stay stable */
+const InlineEditCell = ({
+  value,
+  onSave,
+  renderDisplay,
+}: {
+  value: string | null;
+  onSave: (newValue: string | null) => Promise<void>;
+  renderDisplay: (onClick: () => void) => ReactNode;
+}) => {
+  const [editing, setEditing] = useState(false);
+  const [localValue, setLocalValue] = useState(value || '');
+
+  const save = async () => {
+    try {
+      await onSave(localValue || null);
+      setEditing(false);
+    } catch {
+      // error handled by caller
+    }
+  };
+
+  if (editing) {
+    return (
+      <input
+        type="text"
+        value={localValue}
+        onChange={(e) => setLocalValue(e.target.value)}
+        onBlur={save}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') save();
+          if (e.key === 'Escape') setEditing(false);
+        }}
+        autoFocus
+        className="px-2 py-1 text-sm border border-[var(--accent-8)] rounded bg-[var(--color-background)] text-[var(--gray-12)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-8)]"
+      />
+    );
+  }
+
+  return <>{renderDisplay(() => { setLocalValue(value || ''); setEditing(true); })}</>;
+};
+
 const EventRegistrationsTab = ({ eventId }: { eventId: string }) => {
   const navigate = useNavigate();
   const { isModuleEnabled } = useModulesContext();
   const hasAdConversions = isModuleEnabled('ad-conversions');
-  const hasDiscountCodes = isModuleEnabled('event-sponsors') || isModuleEnabled('luma-integration');
+  const hasDiscountCodes = isModuleEnabled('discounts');
   const [registrations, setRegistrations] = useState<EventRegistration[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -3243,7 +3285,7 @@ const EventAttendanceTab = ({ eventId }: { eventId: string }) => {
   const navigate = useNavigate();
   const { isModuleEnabled } = useModulesContext();
   const hasAdConversions = isModuleEnabled('ad-conversions');
-  const hasDiscountCodes = isModuleEnabled('event-sponsors') || isModuleEnabled('luma-integration');
+  const hasDiscountCodes = isModuleEnabled('discounts');
   const hasBadgeScanning = isModuleEnabled('badge-scanning');
   const [attendance, setAttendance] = useState<EventAttendance[]>([]);
   const [loading, setLoading] = useState(true);

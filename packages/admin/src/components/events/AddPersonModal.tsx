@@ -11,7 +11,7 @@ interface AddPersonModalProps {
 }
 
 interface PersonProfile {
-  id: number;
+  id: string;
   email: string;
   cio_id: string;
   attributes: {
@@ -83,8 +83,8 @@ export const AddPersonModal = ({ eventId, onComplete }: AddPersonModalProps) => 
         return;
       }
 
-      // Register for event
-      const success = await BulkRegistrationService.registerForEvent(eventId, peopleProfile.id);
+      // Register for event (person_id is the people.id, peopleProfile.id is the profile UUID)
+      const success = await BulkRegistrationService.registerForEvent(eventId, selectedPerson.id, peopleProfile.id);
 
       if (success) {
         toast.success(`Successfully registered ${selectedPerson.email}`);
@@ -134,6 +134,23 @@ export const AddPersonModal = ({ eventId, onComplete }: AddPersonModalProps) => 
         onClose={handleClose}
         title="Add Person to Event"
         size="md"
+        footer={
+          <div className="flex justify-end gap-3">
+            <Button
+              variant="outline"
+              onClick={handleClose}
+              disabled={registering}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleRegister}
+              disabled={!selectedPerson || registering}
+            >
+              {registering ? 'Registering...' : 'Register User'}
+            </Button>
+          </div>
+        }
       >
         <div className="space-y-6">
           {/* Search Section */}
@@ -228,23 +245,6 @@ export const AddPersonModal = ({ eventId, onComplete }: AddPersonModalProps) => 
               <p className="text-xs mt-1">Try searching with a different email address</p>
             </div>
           )}
-
-          {/* Actions */}
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-            <Button
-              variant="outline"
-              onClick={handleClose}
-              disabled={registering}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleRegister}
-              disabled={!selectedPerson || registering}
-            >
-              {registering ? 'Registering...' : 'Register User'}
-            </Button>
-          </div>
         </div>
       </Modal>
     </>
