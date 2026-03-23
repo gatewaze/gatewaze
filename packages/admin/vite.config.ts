@@ -12,9 +12,26 @@ export default defineConfig({
       "@": path.join(__dirname, "src"),
       "@gatewaze/shared": path.resolve(__dirname, "../shared/src"),
     },
+    // Ensure bare imports from external module sources (gatewaze-modules) resolve
+    // from the admin app's node_modules, not from the module's filesystem location
+    dedupe: [
+      "date-fns", "jszip", "react", "react-dom", "react-router", "react-router-dom",
+      "sonner", "@heroicons/react", "@headlessui/react", "@dnd-kit/core",
+      "@dnd-kit/sortable", "@dnd-kit/utilities", "@supabase/supabase-js",
+      "@tanstack/react-table", "react-hook-form", "@hookform/resolvers",
+      "@radix-ui/themes", "yup",
+    ],
   },
   server: {
     port: 5274,
+    fs: {
+      allow: [
+        // Allow serving files from the gatewaze-modules sibling repo
+        path.resolve(__dirname, "../../../gatewaze-modules"),
+        // Default: project root and workspace
+        path.resolve(__dirname, "../.."),
+      ],
+    },
     proxy: {
       '/api': {
         target: process.env.API_PROXY_TARGET || 'http://localhost:3002',
@@ -22,5 +39,9 @@ export default defineConfig({
         secure: false,
       },
     },
+  },
+  optimizeDeps: {
+    // Ensure deps from external module sources are resolved from admin's node_modules
+    include: ["date-fns", "jszip"],
   },
 });

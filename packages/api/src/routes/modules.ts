@@ -13,6 +13,7 @@ import type { InstalledModuleRow, LoadedModule } from '@gatewaze/shared/modules'
 import { resolve } from 'path';
 import { existsSync, mkdirSync, readdirSync, unlinkSync } from 'fs';
 import { execSync } from 'child_process';
+import http from 'http';
 import multer from 'multer';
 import _configImport from '../../../../gatewaze.config.js';
 // Unwrap CJS→ESM double-default wrapping (root package.json has no "type":"module")
@@ -52,6 +53,27 @@ async function loadAllModules() {
 /** Should we deploy edge functions to Supabase (cloud/self-hosted)? */
 function shouldDeployEdgeFunctions(): boolean {
   return !!(process.env.DEPLOY_EDGE_FUNCTIONS === 'true' || process.env.SUPABASE_PROJECT_REF);
+}
+
+/** Restart the edge runtime container so it picks up newly deployed functions. */
+function restartEdgeRuntime(): Promise<void> {
+  const container = process.env.EDGE_FUNCTIONS_CONTAINER;
+  if (!container) return Promise.resolve();
+
+  return new Promise((resolve) => {
+    const req = http.request(
+      { socketPath: '/var/run/docker.sock', path: `/containers/${container}/restart`, method: 'POST' },
+      (res) => {
+        console.log(`[modules] Edge runtime restart: ${res.statusCode === 204 ? 'OK' : res.statusCode}`);
+        resolve();
+      },
+    );
+    req.on('error', (err) => {
+      console.warn('[modules] Failed to restart edge runtime:', err.message);
+      resolve();
+    });
+    req.end();
+  });
 }
 
 /**
@@ -194,6 +216,7 @@ modulesRouter.post('/reconcile', async (_req, res) => {
       });
       if (deployResult.copied.length > 0) {
         console.log(`[modules] Deployed ${deployResult.copied.length} edge function(s) during reconciliation`);
+        await restartEdgeRuntime();
       }
     }
 
@@ -335,6 +358,10 @@ modulesRouter.post('/:id/enable', async (req, res) => {
 
         if (deployResult.errors.length > 0) {
           console.warn('[modules] Edge function deployment warnings:', deployResult.errors);
+        }
+
+        if (edgeFunctionsDeployed.length > 0) {
+          await restartEdgeRuntime();
         }
       }
 
@@ -566,6 +593,9 @@ modulesRouter.post('/:id/update', async (req, res) => {
         projectRef: process.env.SUPABASE_PROJECT_REF,
       });
       edgeFunctionsDeployed = deployResult.copied.map((r) => r.functionName);
+      if (edgeFunctionsDeployed.length > 0) {
+        await restartEdgeRuntime();
+      }
     }
 
     console.log(`[modules] Updated "${mod.config.name}" from v${previousVersion} to v${mod.config.version}`);
@@ -666,6 +696,9 @@ modulesRouter.post('/update-all', async (_req, res) => {
         projectRef: process.env.SUPABASE_PROJECT_REF,
       });
       edgeFunctionsDeployed = deployResult.copied.map((r) => r.functionName);
+      if (edgeFunctionsDeployed.length > 0) {
+        await restartEdgeRuntime();
+      }
     }
 
     return res.json({

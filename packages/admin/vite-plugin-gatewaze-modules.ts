@@ -17,9 +17,34 @@ const RESOLVED_ID = '\0' + VIRTUAL_MODULE_ID;
  */
 export function gatewazeModulesPlugin(): Plugin {
   const projectRoot = resolve(__dirname, '../..');
+  // Map of @/utils/<name> → absolute path to module's admin/utils/<name>.ts
+  let utilAliases: Record<string, string> = {};
 
   return {
     name: 'gatewaze-modules',
+
+    config() {
+      const configPath = resolve(projectRoot, 'gatewaze.config.ts');
+      const { sources } = parseConfig(configPath);
+      const resolvedSources = resolveSources(sources, projectRoot);
+
+      // Auto-discover admin/utils exports from all modules and register
+      // them as @/utils/<name> aliases so cross-module imports resolve
+      // without hard-coding module paths in the admin app.
+      utilAliases = discoverModuleUtilAliases(resolvedSources);
+
+      if (Object.keys(utilAliases).length > 0) {
+        console.log(
+          `[gatewaze-modules] Registered ${Object.keys(utilAliases).length} module util alias(es)`
+        );
+      }
+
+      return {
+        resolve: {
+          alias: utilAliases,
+        },
+      };
+    },
 
     resolveId(id) {
       if (id === VIRTUAL_MODULE_ID) {
@@ -204,6 +229,46 @@ function cloneOrUpdateRepo(
     console.error(`[gatewaze-modules] Failed to clone ${gitUrl}:`, err);
     return null;
   }
+}
+
+/**
+ * Scan all modules for admin/utils/*.ts files and build a map of
+ * @/utils/<name> → absolute path aliases. When multiple modules export
+ * the same util name, the first one found wins (source order matters).
+ */
+function discoverModuleUtilAliases(resolvedSources: string[]): Record<string, string> {
+  const adminSrcUtils = resolve(__dirname, 'src/utils');
+  const aliases: Record<string, string> = {};
+
+  for (const sourceDir of resolvedSources) {
+    if (!existsSync(sourceDir)) continue;
+
+    const modules = readdirSync(sourceDir, { withFileTypes: true });
+    for (const mod of modules) {
+      if (!mod.isDirectory() || mod.name.startsWith('_') || mod.name.startsWith('.')) continue;
+
+      const utilsDir = resolve(sourceDir, mod.name, 'admin', 'utils');
+      if (!existsSync(utilsDir)) continue;
+
+      const utilFiles = readdirSync(utilsDir, { withFileTypes: true });
+      for (const file of utilFiles) {
+        if (!file.isFile() || !file.name.endsWith('.ts')) continue;
+
+        const utilName = file.name.replace(/\.ts$/, '');
+        const aliasKey = `@/utils/${utilName}`;
+        const aliasTarget = resolve(utilsDir, file.name);
+
+        // Skip if the admin app already has this file (app takes precedence)
+        if (existsSync(resolve(adminSrcUtils, file.name))) continue;
+
+        if (!aliases[aliasKey]) {
+          aliases[aliasKey] = aliasTarget;
+        }
+      }
+    }
+  }
+
+  return aliases;
 }
 
 /**
