@@ -482,19 +482,42 @@ export class BulkRegistrationService {
   }
 
   /**
+   * Resolve a short varchar event_id (e.g. "65rbwg") to the UUID primary key.
+   */
+  private static async resolveEventUuid(eventId: string): Promise<string | null> {
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventId)) {
+      return eventId;
+    }
+    const { data } = await supabase
+      .from('events')
+      .select('id')
+      .eq('event_id', eventId)
+      .single();
+    return data?.id ?? null;
+  }
+
+  /**
    * Register user for event (without check-in)
    */
   static async registerForEvent(
     eventId: string,
-    memberProfileId: string
+    personId: string,
+    peopleProfileId?: string
   ): Promise<boolean> {
     try {
+      // Resolve short event_id to UUID for the events_registrations table
+      const eventUuid = await this.resolveEventUuid(eventId);
+      if (!eventUuid) {
+        console.error('Could not resolve event UUID for:', eventId);
+        return false;
+      }
+
       // Check if already registered
       const { data: existing } = await supabase
         .from('events_registrations')
         .select('id')
-        .eq('event_id', eventId)
-        .eq('people_profile_id', memberProfileId)
+        .eq('event_id', eventUuid)
+        .eq('person_id', personId)
         .maybeSingle();
 
       if (existing) {
@@ -506,11 +529,11 @@ export class BulkRegistrationService {
       const { error } = await supabase
         .from('events_registrations')
         .insert({
-          event_id: eventId,
-          people_profile_id: memberProfileId,
-          registration_type: 'individual',
-          registration_source: 'csv_upload',
-          payment_status: 'comp',
+          event_id: eventUuid,
+          person_id: personId,
+          people_profile_id: peopleProfileId,
+          registration_type: 'comp',
+          registration_source: 'manual',
           status: 'confirmed',
         });
 
@@ -578,7 +601,7 @@ export class BulkRegistrationService {
       }
 
       // Register for event
-      const registered = await this.registerForEvent(eventId, member.id);
+      const registered = await this.registerForEvent(eventId, member.person_id, member.id);
       if (!registered) {
         return { success: false, error: 'Failed to register for event' };
       }
