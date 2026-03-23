@@ -372,7 +372,7 @@ export class GeocodingService {
       const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10&addressdetails=1`;
       const response = await fetch(url, {
         headers: {
-          'User-Agent': 'Gatewaze-TechEvents/1.0 (https://mlops.community)'
+          'User-Agent': 'Gatewaze/1.0 (https://gatewaze.io)'
         }
       });
 

@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
     } else if (appUrl) {
       destinationUrl = `${appUrl}/events/${eventIdentifier}/register`
     } else {
-      const portalDomain = process.env.NEXT_PUBLIC_PORTAL_DOMAIN || 'events.mlops.community'
+      const portalDomain = process.env.NEXT_PUBLIC_PORTAL_DOMAIN
       destinationUrl = event.event_link || `https://${portalDomain}/events/${eventIdentifier}/register`
     }
 

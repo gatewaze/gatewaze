@@ -71,8 +71,13 @@ services:
       # Module system: config + external module sources
       - ../gatewaze.config.ts:/app/gatewaze.config.ts
       - ../../gatewaze-modules/modules:/gatewaze-modules/modules
+      # Edge functions: allow deployEdgeFunctions to write back to the host
+      - ../supabase/functions:/app/supabase/functions
+      # Docker socket: allow API to restart edge runtime after deploying functions
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       NODE_ENV: development
+      EDGE_FUNCTIONS_CONTAINER: ${COMPOSE_PROJECT_NAME:-gatewaze}-supabase-edge-functions
 
   worker:
     build:

@@ -139,8 +139,8 @@ If you manage multiple brands, place brand configs in a sibling `gatewaze-enviro
 parent-directory/
   gatewaze/               # This repo
   gatewaze-environments/  # Brand-specific .env files
-    aaif.env
-    mlops.env
+    aaif.local.env
+    mlops.local.env
 ```
 
 Then pass the brand name before the command:

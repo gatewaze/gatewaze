@@ -173,7 +173,7 @@ function AboutEventContentInner() {
   const joinEventUrl = useMemo(() => {
     const slug = event.gradual_eventslug
     if (!slug) return null
-    const portalDomain = process.env.NEXT_PUBLIC_PORTAL_DOMAIN || 'home.mlops.community'
+    const portalDomain = process.env.NEXT_PUBLIC_PORTAL_DOMAIN
     const eventUrl = `https://${portalDomain}/public/events/${slug}`
     return `https://${portalDomain}/login?event=${slug}&returnTo=${encodeURIComponent(eventUrl)}&type=event`
   }, [event.gradual_eventslug])

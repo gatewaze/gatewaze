@@ -31,7 +31,7 @@ endif
 
 # Resolve the env file
 ifdef BRAND
-  ENV_FILE := $(ENVIRONMENTS_DIR)/$(BRAND).env
+  ENV_FILE := $(ENVIRONMENTS_DIR)/$(BRAND).local.env
 else
   ENV_FILE := docker/.env
 endif
@@ -104,9 +104,9 @@ ifdef BRAND
 			echo "  cd .. && git clone <your-environments-repo-url> gatewaze-environments"; \
 		else \
 			echo "Available brands:"; \
-			for f in $(ENVIRONMENTS_DIR)/*.env; do \
+			for f in $(ENVIRONMENTS_DIR)/*.local.env; do \
 				[ -f "$$f" ] || continue; \
-				basename "$$f" .env; \
+				basename "$$f" .local.env; \
 			done; \
 		fi; \
 		exit 1; \
