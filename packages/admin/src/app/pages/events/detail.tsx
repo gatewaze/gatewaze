@@ -2313,6 +2313,7 @@ const EventRegistrationsTab = ({ eventId }: { eventId: string }) => {
   const navigate = useNavigate();
   const { isModuleEnabled } = useModulesContext();
   const hasAdConversions = isModuleEnabled('ad-conversions');
+  const hasDiscountCodes = isModuleEnabled('event-sponsors') || isModuleEnabled('luma-integration');
   const [registrations, setRegistrations] = useState<EventRegistration[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -2432,7 +2433,7 @@ const EventRegistrationsTab = ({ eventId }: { eventId: string }) => {
     setLoading(true);
     try {
       // Fetch registrations
-      const data = await EventQrService.getEventRegistrations(eventId);
+      const data = await EventQrService.getEventRegistrations(eventId, { hasDiscountCodes });
       setRegistrations(data);
 
       // Fetch tracking sessions (only when ad-conversions module is enabled)
@@ -3242,6 +3243,8 @@ const EventAttendanceTab = ({ eventId }: { eventId: string }) => {
   const navigate = useNavigate();
   const { isModuleEnabled } = useModulesContext();
   const hasAdConversions = isModuleEnabled('ad-conversions');
+  const hasDiscountCodes = isModuleEnabled('event-sponsors') || isModuleEnabled('luma-integration');
+  const hasBadgeScanning = isModuleEnabled('badge-scanning');
   const [attendance, setAttendance] = useState<EventAttendance[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -3262,7 +3265,7 @@ const EventAttendanceTab = ({ eventId }: { eventId: string }) => {
   const loadAttendance = async () => {
     setLoading(true);
     try {
-      const data = await EventQrService.getAttendanceWithScanCounts(eventId);
+      const data = await EventQrService.getAttendanceWithScanCounts(eventId, { hasDiscountCodes, hasBadgeScanning });
       setAttendance(data);
       processCheckInTimeline(data);
     } catch (error) {
@@ -3301,7 +3304,7 @@ const EventAttendanceTab = ({ eventId }: { eventId: string }) => {
 
   const loadBadgeScanStats = async () => {
     try {
-      const stats = await EventQrService.getBadgeScanStats(eventId);
+      const stats = await EventQrService.getBadgeScanStats(eventId, { hasBadgeScanning });
       setBadgeScanStats(stats);
     } catch (error) {
       console.error('Error loading badge scan stats:', error);
