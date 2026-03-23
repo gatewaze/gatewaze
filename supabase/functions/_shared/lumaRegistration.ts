@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { syncRegistrantToCvent } from './cventApi.ts'
+import { emitIntegrationEvent } from './integrationEvents.ts'
 
 /**
  * Shared utilities for processing Luma registrations
@@ -18,7 +18,6 @@ export interface RegistrationData {
   lumaUserId?: string
   lumaGuestId?: string
   ticketType?: string
-  ticketQuantity?: number // Number of tickets purchased (default 1)
   ticketAmount?: number // in cents for webhook, dollars for CSV (use amountInDollars for CSV)
   amountInDollars?: number // direct dollar amount (for CSV import)
   currency?: string
@@ -26,7 +25,6 @@ export interface RegistrationData {
   registrationAnswers?: Record<string, any>[] // webhook format
   surveyResponses?: Record<string, any> // CSV format (key-value pairs)
   registeredAt?: string
-  externalQrCode?: string // Luma QR code URL for check-in
   couponCode?: string
   source?: 'luma_webhook' | 'luma_csv_upload' | 'luma_email_notification' | 'gradual_webhook' // registration source
   gradualUserId?: string // Gradual user ID
@@ -43,16 +41,13 @@ export interface EventData {
   eventRegion?: string | null
   eventContinent?: string | null
   eventLocation?: string | null
-  // Cvent integration (set when event has cvent_sync_enabled = true)
-  cventEventId?: string | null
-  cventAdmissionItemId?: string | null
 }
 
 export interface RegistrationResult {
   success: boolean
   error?: string
-  customerId?: number
-  memberProfileId?: string
+  personId?: string
+  peopleProfileId?: string
   registrationId?: string
   action?: 'created' | 'updated' | 'already_exists'
 }
@@ -106,7 +101,7 @@ export function parseName(fullName: string | undefined): { firstName: string; la
 }
 
 /**
- * Create a full registration including auth user, customer, member profile, and event registration
+ * Create a full registration including auth user, person, people profile, and event registration
  */
 export async function createFullRegistration(
   supabase: SupabaseClient,
@@ -128,19 +123,19 @@ export async function createFullRegistration(
       lastName = lastName || parsed.lastName
     }
 
-    // Check if customer already exists
-    let customer: { id: number; cio_id: string } | null = null
-    const { data: existingCustomer } = await supabase
-      .from('customers')
+    // Check if person already exists
+    let person: { id: string; cio_id: string } | null = null
+    const { data: existingPerson } = await supabase
+      .from('people')
       .select('id, cio_id, attributes')
       .ilike('email', email)
       .maybeSingle()
 
-    if (existingCustomer) {
-      customer = existingCustomer
+    if (existingPerson) {
+      person = existingPerson
 
-      // Update customer attributes if we have new data
-      const attrs = existingCustomer.attributes as Record<string, any> || {}
+      // Update person attributes if we have new data
+      const attrs = existingPerson.attributes as Record<string, any> || {}
       const updates: Record<string, any> = {}
 
       if (!attrs.city && event.eventCity) updates.city = event.eventCity
@@ -164,10 +159,10 @@ export async function createFullRegistration(
 
       if (Object.keys(updates).length > 0) {
         await supabase
-          .from('customers')
+          .from('people')
           .update({ attributes: { ...attrs, ...updates } })
-          .eq('id', existingCustomer.id)
-        console.log(`Updated existing customer ${existingCustomer.id} with new attributes`)
+          .eq('id', existingPerson.id)
+        console.log(`Updated existing person ${existingPerson.id} with new attributes`)
       }
     } else {
       // Get or create auth user
@@ -244,73 +239,64 @@ export async function createFullRegistration(
         })
       }
 
-      // Create customer record
+      // Create person record
       const temporaryCioId = `email:${email}`
       const marketingConsentValue = registrantMarketingConsent === true
-      const customerAttributes: Record<string, any> = {
+      const personAttributes: Record<string, any> = {
         first_name: firstName || null,
         last_name: lastName || null,
         source: registrationSource,
         marketing_consent: marketingConsentValue,
       }
-      if (event.eventCity) customerAttributes.city = event.eventCity
-      if (event.eventCountry || event.eventCountryCode) customerAttributes.country = event.eventCountry || event.eventCountryCode
-      if (event.eventCountryCode) customerAttributes.country_code = event.eventCountryCode
-      if (event.venueAddress) customerAttributes.address = event.venueAddress
-      if (event.eventRegion) customerAttributes.region = event.eventRegion
-      if (event.eventContinent) customerAttributes.continent = event.eventContinent
-      if (event.eventLocation) customerAttributes.location = event.eventLocation
-      if (registration.lumaUserId) customerAttributes.luma_user_id = registration.lumaUserId
-      if (registration.gradualUserId) customerAttributes.gradual_user_id = registration.gradualUserId
-      if (registration.phone) customerAttributes.phone = registration.phone
+      if (event.eventCity) personAttributes.city = event.eventCity
+      if (event.eventCountry || event.eventCountryCode) personAttributes.country = event.eventCountry || event.eventCountryCode
+      if (event.eventCountryCode) personAttributes.country_code = event.eventCountryCode
+      if (event.venueAddress) personAttributes.address = event.venueAddress
+      if (event.eventRegion) personAttributes.region = event.eventRegion
+      if (event.eventContinent) personAttributes.continent = event.eventContinent
+      if (event.eventLocation) personAttributes.location = event.eventLocation
+      if (registration.lumaUserId) personAttributes.luma_user_id = registration.lumaUserId
+      if (registration.gradualUserId) personAttributes.gradual_user_id = registration.gradualUserId
+      if (registration.phone) personAttributes.phone = registration.phone
 
-      const { data: newCustomer, error: createError } = await supabase
-        .from('customers')
+      const { data: newPerson, error: createError } = await supabase
+        .from('people')
         .insert({
           cio_id: temporaryCioId,
           email,
           auth_user_id: authUserId,
-          attributes: customerAttributes,
+          attributes: personAttributes,
           last_synced_at: new Date().toISOString(),
         })
         .select('id, cio_id')
         .single()
 
       if (createError) {
-        return { success: false, error: `Failed to create customer: ${createError.message}` }
+        return { success: false, error: `Failed to create person: ${createError.message}` }
       }
-      customer = newCustomer
+      person = newPerson
     }
 
-    if (!customer) {
-      return { success: false, error: 'Could not find or create customer' }
+    if (!person) {
+      return { success: false, error: 'Could not find or create person' }
     }
 
-    // Get or create member profile
-    const { data: memberProfileId, error: memberError } = await supabase
-      .rpc('get_or_create_member_from_customer', {
-        p_customer_id: customer.id,
+    // Get or create people profile
+    const { data: peopleProfileId, error: profileError } = await supabase
+      .rpc('people_get_or_create_profile', {
+        p_person_id: person.id,
       })
 
-    if (memberError) {
-      return { success: false, error: `Failed to create member profile: ${memberError.message}` }
-    }
-
-    // Update member profile with phone if we have it
-    if (registration.phone) {
-      await supabase
-        .from('member_profiles')
-        .update({ phone: registration.phone })
-        .eq('id', memberProfileId)
-        .is('phone', null)
+    if (profileError) {
+      return { success: false, error: `Failed to create people profile: ${profileError.message}` }
     }
 
     // Check if already registered
     const { data: existingReg } = await supabase
-      .from('event_registrations')
-      .select('id, ticket_type, ticket_quantity, amount_paid, registration_metadata, registration_source, external_qr_code, sponsor_permission')
+      .from('events_registrations')
+      .select('id, ticket_type, amount_paid, registration_metadata, registration_source')
       .eq('event_id', event.eventId)
-      .eq('member_profile_id', memberProfileId)
+      .eq('person_id', person.id)
       .maybeSingle()
 
     // Calculate amount - support both cents (webhook) and dollars (CSV)
@@ -326,26 +312,16 @@ export async function createFullRegistration(
         updates.ticket_type = registration.ticketType
       }
 
-      // Update ticket_quantity if we have a multi-ticket purchase
-      if (registration.ticketQuantity && registration.ticketQuantity > 1 && (!existingReg.ticket_quantity || existingReg.ticket_quantity === 1)) {
-        updates.ticket_quantity = registration.ticketQuantity
-      }
-
       // Update amount_paid if we have it and it's missing or zero
       if (amountInDollars && (!existingReg.amount_paid || existingReg.amount_paid === 0)) {
         updates.amount_paid = amountInDollars
         updates.registration_type = amountInDollars > 0 ? 'paid' : 'free'
-        updates.payment_status = amountInDollars > 0 ? 'paid' : 'comp'
+        updates.payment_status = amountInDollars > 0 ? 'paid' : 'waived'
       }
 
       // Update currency if provided
       if (registration.currency) {
         updates.currency = registration.currency
-      }
-
-      // Update external QR code if provided and missing
-      if (registration.externalQrCode && !existingReg.external_qr_code) {
-        updates.external_qr_code = registration.externalQrCode
       }
 
       // Merge registration metadata (luma_guest_id, registration_answers, survey_responses, etc.)
@@ -383,7 +359,7 @@ export async function createFullRegistration(
       // Apply updates if any
       if (Object.keys(updates).length > 0) {
         await supabase
-          .from('event_registrations')
+          .from('events_registrations')
           .update(updates)
           .eq('id', existingReg.id)
 
@@ -400,8 +376,8 @@ export async function createFullRegistration(
 
         return {
           success: true,
-          customerId: customer.id,
-          memberProfileId,
+          personId: person.id,
+          peopleProfileId,
           registrationId: existingReg.id,
           action: 'updated',
         }
@@ -409,8 +385,8 @@ export async function createFullRegistration(
 
       return {
         success: true,
-        customerId: customer.id,
-        memberProfileId,
+        personId: person.id,
+        peopleProfileId,
         registrationId: existingReg.id,
         action: 'already_exists',
       }
@@ -419,7 +395,7 @@ export async function createFullRegistration(
     // Determine registration type and payment status
     const isPaid = amountInDollars && amountInDollars > 0
     const registrationType = isPaid ? 'paid' : 'free'
-    const paymentStatus = isPaid ? 'paid' : 'comp'
+    const paymentStatus = isPaid ? 'paid' : 'waived'
     const status = registration.approvalStatus
       ? mapApprovalStatus(registration.approvalStatus)
       : 'confirmed'
@@ -442,22 +418,20 @@ export async function createFullRegistration(
 
     // Create event registration
     const { data: newRegistration, error: regError } = await supabase
-      .from('event_registrations')
+      .from('events_registrations')
       .insert({
         event_id: event.eventId,
-        member_profile_id: memberProfileId,
+        person_id: person.id,
+        people_profile_id: peopleProfileId,
         registration_type: registrationType,
         registration_source: registrationSource,
         payment_status: paymentStatus,
         status,
         ticket_type: registration.ticketType || null,
-        ticket_quantity: registration.ticketQuantity || 1,
         amount_paid: amountInDollars,
         currency: registration.currency || 'USD',
-        external_qr_code: registration.externalQrCode || null,
         registration_metadata: Object.keys(registrationMetadata).length > 0 ? registrationMetadata : {},
         registered_at: registration.registeredAt || new Date().toISOString(),
-        sponsor_permission: null,
       })
       .select('id')
       .single()
@@ -467,18 +441,18 @@ export async function createFullRegistration(
       // fetch the existing one and return success (treat as already_exists)
       if (regError.message?.includes('duplicate key') || regError.code === '23505') {
         const { data: existingAfterRace } = await supabase
-          .from('event_registrations')
+          .from('events_registrations')
           .select('id')
           .eq('event_id', event.eventId)
-          .eq('member_profile_id', memberProfileId)
+          .eq('person_id', person.id)
           .maybeSingle()
 
         if (existingAfterRace) {
           console.log(`Registration already created by concurrent process: ${existingAfterRace.id}`)
           return {
             success: true,
-            customerId: customer.id,
-            memberProfileId,
+            personId: person.id,
+            peopleProfileId,
             registrationId: existingAfterRace.id,
             action: 'already_exists',
           }
@@ -496,35 +470,19 @@ export async function createFullRegistration(
       else console.log(`Applied field mappings for registration ${newRegistration.id}`)
     })
 
-    // Sync to Cvent if configured (non-blocking, fire-and-forget)
-    if (event.cventEventId && event.cventAdmissionItemId) {
-      const cventClientId = Deno.env.get('CVENT_CLIENT_ID')
-      const cventClientSecret = Deno.env.get('CVENT_CLIENT_SECRET')
-      if (cventClientId && cventClientSecret) {
-        syncRegistrantToCvent(
-          cventClientId,
-          cventClientSecret,
-          event.cventEventId,
-          event.cventAdmissionItemId,
-          email,
-          firstName,
-          lastName
-        ).then(result => {
-          if (result.success) {
-            console.log(`Cvent sync OK for ${email}: ${result.action}`)
-          } else {
-            console.error(`Cvent sync failed for ${email}: ${result.error}`)
-          }
-        }).catch(err => {
-          console.error('Cvent sync error:', err)
-        })
-      }
-    }
+    // Notify integration modules about the new registration (fire-and-forget)
+    emitIntegrationEvent(supabase, 'event.registered', {
+      email,
+      first_name: firstName,
+      last_name: lastName,
+      event_id: event.eventId,
+      registration_id: newRegistration.id,
+    })
 
     return {
       success: true,
-      customerId: customer.id,
-      memberProfileId,
+      personId: person.id,
+      peopleProfileId,
       registrationId: newRegistration.id,
       action: 'created',
     }
@@ -542,31 +500,21 @@ export async function cancelRegistration(
   eventId: string
 ): Promise<CancellationResult> {
   try {
-    const { data: customer } = await supabase
-      .from('customers')
+    const { data: person } = await supabase
+      .from('people')
       .select('id')
       .ilike('email', email)
       .maybeSingle()
 
-    if (!customer) {
-      return { success: false, error: `No customer found with email: ${email}` }
-    }
-
-    const { data: memberProfile } = await supabase
-      .from('member_profiles')
-      .select('id')
-      .eq('customer_id', customer.id)
-      .maybeSingle()
-
-    if (!memberProfile) {
-      return { success: false, error: `No member profile found for customer: ${email}` }
+    if (!person) {
+      return { success: false, error: `No person found with email: ${email}` }
     }
 
     const { data: registration } = await supabase
-      .from('event_registrations')
+      .from('events_registrations')
       .select('id, status')
       .eq('event_id', eventId)
-      .eq('member_profile_id', memberProfile.id)
+      .eq('person_id', person.id)
       .maybeSingle()
 
     if (!registration) {
@@ -574,7 +522,7 @@ export async function cancelRegistration(
     }
 
     const { error: updateError } = await supabase
-      .from('event_registrations')
+      .from('events_registrations')
       .update({
         status: 'cancelled',
         cancelled_at: new Date().toISOString(),
@@ -605,31 +553,21 @@ export async function updateRegistrationStatus(
   newStatus: 'pending' | 'confirmed' | 'cancelled' | 'waitlist'
 ): Promise<{ success: boolean; error?: string; registrationId?: string; previousStatus?: string }> {
   try {
-    const { data: customer } = await supabase
-      .from('customers')
+    const { data: person } = await supabase
+      .from('people')
       .select('id')
       .ilike('email', email)
       .maybeSingle()
 
-    if (!customer) {
-      return { success: false, error: `No customer found with email: ${email}` }
-    }
-
-    const { data: memberProfile } = await supabase
-      .from('member_profiles')
-      .select('id')
-      .eq('customer_id', customer.id)
-      .maybeSingle()
-
-    if (!memberProfile) {
-      return { success: false, error: `No member profile found for customer: ${email}` }
+    if (!person) {
+      return { success: false, error: `No person found with email: ${email}` }
     }
 
     const { data: registration } = await supabase
-      .from('event_registrations')
+      .from('events_registrations')
       .select('id, status')
       .eq('event_id', eventId)
-      .eq('member_profile_id', memberProfile.id)
+      .eq('person_id', person.id)
       .maybeSingle()
 
     if (!registration) {
@@ -642,7 +580,7 @@ export async function updateRegistrationStatus(
     }
 
     const { error: updateError } = await supabase
-      .from('event_registrations')
+      .from('events_registrations')
       .update(updateData)
       .eq('id', registration.id)
 
