@@ -2311,6 +2311,8 @@ const EventDetailsTab = ({ event, isEditMode, register, errors, watch, setValue,
 
 const EventRegistrationsTab = ({ eventId }: { eventId: string }) => {
   const navigate = useNavigate();
+  const { isModuleEnabled } = useModulesContext();
+  const hasAdConversions = isModuleEnabled('ad-conversions');
   const [registrations, setRegistrations] = useState<EventRegistration[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -2433,7 +2435,8 @@ const EventRegistrationsTab = ({ eventId }: { eventId: string }) => {
       const data = await EventQrService.getEventRegistrations(eventId);
       setRegistrations(data);
 
-      // Fetch tracking sessions (module-dependent, may not exist)
+      // Fetch tracking sessions (only when ad-conversions module is enabled)
+      if (hasAdConversions) {
       const trackingResult = await supabase
         .from('integrations_ad_tracking_sessions')
         .select('matched_registration_id, utm_source, utm_medium, utm_campaign, utm_content, utm_term, status, click_ids')
@@ -2491,6 +2494,7 @@ const EventRegistrationsTab = ({ eventId }: { eventId: string }) => {
         }
         setTrackingByRegistration(trackingMap);
       }
+      } // end hasAdConversions
     } catch (error) {
       console.error('Error loading registrations:', error);
       toast.error('Failed to load registrations');
@@ -3236,6 +3240,8 @@ interface BadgeScanStats {
 
 const EventAttendanceTab = ({ eventId }: { eventId: string }) => {
   const navigate = useNavigate();
+  const { isModuleEnabled } = useModulesContext();
+  const hasAdConversions = isModuleEnabled('ad-conversions');
   const [attendance, setAttendance] = useState<EventAttendance[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -3356,7 +3362,7 @@ const EventAttendanceTab = ({ eventId }: { eventId: string }) => {
         utm_term: string | null;
       }>();
 
-      if (registrationIds.length > 0) {
+      if (hasAdConversions && registrationIds.length > 0) {
         const { data: trackingData } = await supabase
           .from('integrations_ad_tracking_sessions')
           .select('matched_registration_id, utm_source, utm_medium, utm_campaign, utm_content, utm_term, click_ids')
