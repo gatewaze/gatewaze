@@ -1210,16 +1210,18 @@ export class EventQrService {
 
       // Fetch scans in batches (table only exists when badge-scanning module is installed)
       let allScans: any[] = [];
-      for (const batch of memberIdBatches) {
-        const { data: scans, error: scansError } = await supabase
-          .from('people_contact_scans')
-          .select('scanner_people_profile_id')
-          .eq('event_id', eventId)
-          .in('scanner_people_profile_id', batch);
+      if (options?.hasBadgeScanning !== false) {
+        for (const batch of memberIdBatches) {
+          const { data: scans, error: scansError } = await supabase
+            .from('people_contact_scans')
+            .select('scanner_people_profile_id')
+            .eq('event_id', eventId)
+            .in('scanner_people_profile_id', batch);
 
-        // If the table doesn't exist, skip scan counts entirely
-        if (scansError) break;
-        if (scans) allScans = allScans.concat(scans);
+          // If the table doesn't exist, skip scan counts entirely
+          if (scansError) break;
+          if (scans) allScans = allScans.concat(scans);
+        }
       }
 
       // Count scans per member
@@ -1489,7 +1491,7 @@ export class EventQrService {
   /**
    * Get badge scan statistics and timeline for an event
    */
-  static async getBadgeScanStats(eventId: string): Promise<{
+  static async getBadgeScanStats(eventId: string, options?: { hasBadgeScanning?: boolean }): Promise<{
     totalScans: number;
     uniqueScanners: number;
     uniqueScanned: number;
@@ -1508,6 +1510,11 @@ export class EventQrService {
     }>;
   }> {
     try {
+      // Skip entirely if badge-scanning module is not installed
+      if (options?.hasBadgeScanning === false) {
+        return { totalScans: 0, uniqueScanners: 0, uniqueScanned: 0, avgScansPerScanner: 0, topScanners: [], timeline: [] };
+      }
+
       // Get all scans for this event (table only exists when badge-scanning module is installed)
       const { data: scans, error } = await supabase
         .from('people_contact_scans')
