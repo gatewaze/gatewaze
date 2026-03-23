@@ -413,8 +413,10 @@ export class EventQrService {
    * 1. discount_codes table (for discount events with registered = true)
    * 2. event_registrations_with_members view (for QR-based registrations)
    */
-  static async getEventRegistrations(eventId: string): Promise<EventRegistration[]> {
+  static async getEventRegistrations(eventId: string, options?: { hasDiscountCodes?: boolean }): Promise<EventRegistration[]> {
     try {
+      // Only query discount_codes table if the module is enabled
+      if (options?.hasDiscountCodes !== false) {
       // First, check if this event has discount_codes with registration data
       const { data: discountCodes, error: codesError } = await supabase
         .from('events_discount_codes')
@@ -480,6 +482,7 @@ export class EventQrService {
           };
         });
       }
+      } // end hasDiscountCodes guard
 
       // Fall back to events_registrations_with_people view
       // The view's event_id is a UUID, so resolve the varchar event_id first
@@ -523,8 +526,10 @@ export class EventQrService {
    * 1. discount_codes table (for discount events with attended = true)
    * 2. event_attendance_with_details view (for QR-based check-ins)
    */
-  static async getEventAttendance(eventId: string): Promise<EventAttendance[]> {
+  static async getEventAttendance(eventId: string, options?: { hasDiscountCodes?: boolean; hasBadgeScanning?: boolean }): Promise<EventAttendance[]> {
     try {
+      // Only query discount_codes table if the module is enabled
+      if (options?.hasDiscountCodes !== false) {
       // Try discount_codes table first (only exists when discount module is installed)
       const { data: discountCodes, error: codesError } = await supabase
         .from('events_discount_codes')
@@ -580,8 +585,10 @@ export class EventQrService {
           };
         });
       }
+      } // end hasDiscountCodes guard
 
-      // Try events_attendance_with_details view (may not exist without modules)
+      // Try events_attendance_with_details view (only exists with badge-scanning module)
+      if (options?.hasBadgeScanning !== false) {
       const { data: viewData, error: viewError } = await supabase
         .from('events_attendance_with_details')
         .select('*')
@@ -615,6 +622,7 @@ export class EventQrService {
         }
         return allData;
       }
+      } // end hasBadgeScanning guard
 
       // Final fallback: core events_attendance table (always exists)
       // events_attendance.event_id is a UUID FK, so resolve the varchar first
@@ -1184,10 +1192,10 @@ export class EventQrService {
   /**
    * Get attendance with scan counts for each attendee
    */
-  static async getAttendanceWithScanCounts(eventId: string): Promise<Array<any>> {
+  static async getAttendanceWithScanCounts(eventId: string, options?: { hasDiscountCodes?: boolean; hasBadgeScanning?: boolean }): Promise<Array<any>> {
     try {
       // Get attendance records
-      const attendance = await this.getEventAttendance(eventId);
+      const attendance = await this.getEventAttendance(eventId, options);
 
       // Get scan counts for all attendees
       const memberIds = attendance.map((a: any) => a.people_profile_id);
