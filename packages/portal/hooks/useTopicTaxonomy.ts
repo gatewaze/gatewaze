@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { getSupabaseClient } from '@/lib/supabase/client'
-import { topics as staticTopics, type TopicsData } from '@/data/topics'
+export type TopicsData = Record<string, string[] | Record<string, string[]>>
 
 interface Category {
   id: string
@@ -106,7 +106,7 @@ function buildTopicsData(
 }
 
 export function useTopicTaxonomy(): TopicsData {
-  const [taxonomy, setTaxonomy] = useState<TopicsData>(cachedTaxonomy || staticTopics)
+  const [taxonomy, setTaxonomy] = useState<TopicsData>(cachedTaxonomy || {})
 
   useEffect(() => {
     if (cachedTaxonomy) {
