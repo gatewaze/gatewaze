@@ -10,6 +10,12 @@ import emailSendgridWebhook from '../email-sendgrid-webhook/index.ts';
 import events from '../events/index.ts';
 import eventsRegistration from '../events-registration/index.ts';
 import eventsSearch from '../events-search/index.ts';
+import eventsSpeakerConfirm from '../events-speaker-confirm/index.ts';
+import eventsSpeakerSubmission from '../events-speaker-submission/index.ts';
+import eventsSpeakerSubmissions from '../events-speaker-submissions/index.ts';
+import eventsSpeakerTrackingLink from '../events-speaker-tracking-link/index.ts';
+import eventsSpeakerUpdate from '../events-speaker-update/index.ts';
+import eventsSpeakerUpdateNotify from '../events-speaker-update-notify/index.ts';
 import integrationsLumaIssueDiscount from '../integrations-luma-issue-discount/index.ts';
 import integrationsLumaProcessCsv from '../integrations-luma-process-csv/index.ts';
 import integrationsLumaProcessRegistration from '../integrations-luma-process-registration/index.ts';
@@ -28,6 +34,12 @@ const functions: Record<string, (req: Request) => Response | Promise<Response>> 
   'events': events,
   'events-registration': eventsRegistration,
   'events-search': eventsSearch,
+  'events-speaker-confirm': eventsSpeakerConfirm,
+  'events-speaker-submission': eventsSpeakerSubmission,
+  'events-speaker-submissions': eventsSpeakerSubmissions,
+  'events-speaker-tracking-link': eventsSpeakerTrackingLink,
+  'events-speaker-update': eventsSpeakerUpdate,
+  'events-speaker-update-notify': eventsSpeakerUpdateNotify,
   'integrations-luma-issue-discount': integrationsLumaIssueDiscount,
   'integrations-luma-process-csv': integrationsLumaProcessCsv,
   'integrations-luma-process-registration': integrationsLumaProcessRegistration,
