@@ -63,7 +63,6 @@ export class PermissionsService {
     try {
       const { data, error } = await supabase.rpc('admin_get_features', {
         p_admin_id: adminId,
-        p_account_id: accountId === null || accountId === undefined || accountId === 'null' ? null : accountId,
       });
 
       if (error) throw error;
