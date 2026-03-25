@@ -35,14 +35,6 @@ export function OnboardingGuard() {
     // Cache key scoped to user ID so a DB reset + new user doesn't hit stale cache
     const cacheKey = `${CACHE_KEY_PREFIX}${user.id}`;
 
-    // Check cached value first
-    const cached = sessionStorage.getItem(cacheKey);
-    if (cached === 'complete') {
-      setOnboardingStep('complete');
-      setChecking(false);
-      return;
-    }
-
     // Fetch from DB
     const fetchStep = async () => {
       try {
@@ -52,8 +44,18 @@ export function OnboardingGuard() {
           .eq('key', 'onboarding_step')
           .maybeSingle();
 
-        const step = data?.value ?? 'complete';
-        sessionStorage.setItem(cacheKey, step);
+        let step = data?.value ?? null;
+
+        // No onboarding_step row — check if modules are installed.
+        // A reset cluster has no modules and needs onboarding;
+        // an established cluster (pre-onboarding) has modules and can pass through.
+        if (!step) {
+          const { count } = await supabase
+            .from('installed_modules')
+            .select('*', { count: 'exact', head: true });
+          step = (count && count > 0) ? 'complete' : 'admin_created';
+        }
+
         setOnboardingStep(step);
       } catch {
         // If we can't fetch, assume complete to not block the user
