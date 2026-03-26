@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Tabs as RadixTabs, Text, Heading } from "@radix-ui/themes";
+import { Tabs as RadixTabs, Text, Heading, Callout } from "@radix-ui/themes";
 import {
   Sun,
   Moon,
@@ -11,7 +11,9 @@ import {
   FileText,
   Info,
   Users,
+  Lock,
 } from "lucide-react";
+import { useActiveThemeModule } from "@/hooks/useActiveThemeModule";
 import { EventTypesEditor } from "@/components/shared/branding/EventTypesEditor";
 import { PeopleAttributesEditor } from "@/components/shared/branding/PeopleAttributesEditor";
 import {
@@ -97,6 +99,10 @@ import { LogoUploadField } from "@/components/shared/branding/LogoUploadField";
 // ── BrandingCard ───────────────────────────────────────────────────
 
 function BrandingCard() {
+  const activeTheme = useActiveThemeModule();
+  const lockedSettings = activeTheme?.themeOverrides.lockedSettings ?? [];
+  const isLocked = (key: string) => lockedSettings.includes(key);
+
   const [settings, setSettings] =
     useState<BrandingSettings>(BRANDING_DEFAULTS);
   const [originalSettings, setOriginalSettings] =
@@ -337,10 +343,21 @@ function BrandingCard() {
         <Palette className="h-5 w-5" />
         <Heading size="4">Portal Settings</Heading>
       </div>
-      <Text as="p" size="2" color="gray" className="mb-8">
+      <Text as="p" size="2" color="gray" className="mb-4">
         Configure your event portal's appearance. Changes may take up to a
         minute to appear on the portal.
       </Text>
+
+      {activeTheme && (
+        <Callout.Root color="blue" className="mb-6">
+          <Callout.Icon>
+            <Lock className="h-4 w-4" />
+          </Callout.Icon>
+          <Callout.Text>
+            The <strong>{activeTheme.name}</strong> theme module is active. Some settings are managed by the theme and cannot be edited.
+          </Callout.Text>
+        </Callout.Root>
+      )}
 
       <RadixTabs.Root value={settingsTab} onValueChange={setSettingsTab}>
         <RadixTabs.List className="mb-6">
@@ -479,12 +496,14 @@ function BrandingCard() {
               description="Used for buttons, links, form focus borders, and accent elements across the portal."
               value={settings.primary_color}
               onChange={(v) => updateSetting("primary_color", v)}
+              disabled={isLocked("primary_color")}
             />
             <ColorInput
               label="Secondary Color"
               description="Fallback background color used when the theme background is unavailable."
               value={settings.secondary_color}
               onChange={(v) => updateSetting("secondary_color", v)}
+              disabled={isLocked("secondary_color")}
             />
           </div>
         </div>
@@ -523,11 +542,12 @@ function BrandingCard() {
               <button
                 key={t.value}
                 onClick={() => setPortalTheme(t.value)}
+                disabled={isLocked("portal_theme")}
                 className={`rounded-lg border-2 p-3 text-left transition-colors ${
                   portalTheme === t.value
                     ? "border-[var(--accent-9)] bg-[var(--accent-2)]"
                     : "border-[var(--gray-6)] hover:border-[var(--accent-7)]"
-                }`}
+                } ${isLocked("portal_theme") ? "opacity-60 cursor-not-allowed" : ""}`}
               >
                 <div className="text-sm font-medium">{t.label}</div>
                 <div className="text-xs text-[var(--gray-9)]">{t.desc}</div>
@@ -635,11 +655,12 @@ function BrandingCard() {
               <button
                 key={s.value}
                 onClick={() => setCornerStyle(s.value)}
+                disabled={isLocked("corner_style")}
                 className={`rounded-lg border-2 p-3 text-left transition-colors ${
                   cornerStyle === s.value
                     ? "border-[var(--accent-9)] bg-[var(--accent-2)]"
                     : "border-[var(--gray-6)] hover:border-[var(--accent-7)]"
-                }`}
+                } ${isLocked("corner_style") ? "opacity-60 cursor-not-allowed" : ""}`}
               >
                 <div className="text-sm font-medium mb-2">{s.label}</div>
                 <div
@@ -673,9 +694,10 @@ function BrandingCard() {
             . The font will be loaded automatically on the portal.
           </Text>
           <div className="space-y-4">
-            <div className="space-y-1.5">
-              <Text as="label" size="2" weight="medium">
+            <div className={`space-y-1.5 ${isLocked("font_heading") ? "opacity-60" : ""}`}>
+              <Text as="label" size="2" weight="medium" className="flex items-center gap-1.5">
                 Heading Font
+                {isLocked("font_heading") && <Lock className="h-3 w-3 text-[var(--gray-9)]" />}
               </Text>
               <div className="flex items-center gap-3">
                 <input
@@ -683,37 +705,42 @@ function BrandingCard() {
                   onChange={(e) =>
                     updateSetting("font_heading", e.target.value)
                   }
+                  disabled={isLocked("font_heading")}
                   placeholder="Poppins"
-                  className="flex-1 rounded border border-[var(--gray-6)] bg-[var(--color-surface)] px-3 py-2 text-sm"
+                  className="flex-1 rounded border border-[var(--gray-6)] bg-[var(--color-surface)] px-3 py-2 text-sm disabled:cursor-not-allowed"
                 />
                 <input
                   value={settings.font_heading_weight}
                   onChange={(e) =>
                     updateSetting("font_heading_weight", e.target.value)
                   }
+                  disabled={isLocked("font_heading_weight")}
                   placeholder="600"
-                  className="w-24 rounded border border-[var(--gray-6)] bg-[var(--color-surface)] px-3 py-2 text-center font-mono text-sm"
+                  className="w-24 rounded border border-[var(--gray-6)] bg-[var(--color-surface)] px-3 py-2 text-center font-mono text-sm disabled:cursor-not-allowed"
                 />
               </div>
             </div>
-            <div className="space-y-1.5">
-              <Text as="label" size="2" weight="medium">
+            <div className={`space-y-1.5 ${isLocked("font_body") ? "opacity-60" : ""}`}>
+              <Text as="label" size="2" weight="medium" className="flex items-center gap-1.5">
                 Body Font
+                {isLocked("font_body") && <Lock className="h-3 w-3 text-[var(--gray-9)]" />}
               </Text>
               <div className="flex items-center gap-3">
                 <input
                   value={settings.font_body}
                   onChange={(e) => updateSetting("font_body", e.target.value)}
+                  disabled={isLocked("font_body")}
                   placeholder="Inter"
-                  className="flex-1 rounded border border-[var(--gray-6)] bg-[var(--color-surface)] px-3 py-2 text-sm"
+                  className="flex-1 rounded border border-[var(--gray-6)] bg-[var(--color-surface)] px-3 py-2 text-sm disabled:cursor-not-allowed"
                 />
                 <input
                   value={settings.font_body_weight}
                   onChange={(e) =>
                     updateSetting("font_body_weight", e.target.value)
                   }
+                  disabled={isLocked("font_body_weight")}
                   placeholder="400"
-                  className="w-24 rounded border border-[var(--gray-6)] bg-[var(--color-surface)] px-3 py-2 text-center font-mono text-sm"
+                  className="w-24 rounded border border-[var(--gray-6)] bg-[var(--color-surface)] px-3 py-2 text-center font-mono text-sm disabled:cursor-not-allowed"
                 />
               </div>
             </div>

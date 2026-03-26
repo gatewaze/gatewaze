@@ -776,12 +776,12 @@ const EventDetailPage = () => {
         {activeTab === 'registrations' && (
           <div className="space-y-6">
             <RegistrationFieldMappings eventId={eventId!} />
-            <EventRegistrationsTab eventId={eventId!} />
+            <EventRegistrationsTab eventId={eventId!} eventUuid={event?.id} />
           </div>
         )}
 
         {activeTab === 'attendance' && (
-          <EventAttendanceTab eventId={eventId!} />
+          <EventAttendanceTab eventId={eventId!} eventUuid={event?.id} />
         )}
 
         {/* Module-contributed tab content */}
@@ -2351,7 +2351,7 @@ const InlineEditCell = ({
   return <>{renderDisplay(() => { setLocalValue(value || ''); setEditing(true); })}</>;
 };
 
-const EventRegistrationsTab = ({ eventId }: { eventId: string }) => {
+const EventRegistrationsTab = ({ eventId, eventUuid }: { eventId: string; eventUuid?: string }) => {
   const navigate = useNavigate();
   const { isModuleEnabled } = useModulesContext();
   const hasAdConversions = isModuleEnabled('ad-conversions');
@@ -2397,17 +2397,17 @@ const EventRegistrationsTab = ({ eventId }: { eventId: string }) => {
 
   // Subscribe to real-time changes for event registrations
   useEffect(() => {
-    if (!eventId) return;
+    if (!eventUuid) return;
 
     const channel = supabase
-      .channel(`event_registrations_${eventId}`)
+      .channel(`event_registrations_${eventUuid}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'events_registrations',
-          filter: `event_id=eq.${eventId}`,
+          filter: `event_id=eq.${eventUuid}`,
         },
         async (payload: RealtimePostgresChangesPayload<EventRegistration>) => {
           if (payload.eventType === 'INSERT') {
@@ -2469,7 +2469,7 @@ const EventRegistrationsTab = ({ eventId }: { eventId: string }) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [eventId]);
+  }, [eventUuid]);
 
   const loadRegistrations = async () => {
     setLoading(true);
@@ -3281,7 +3281,7 @@ interface BadgeScanStats {
   }>;
 }
 
-const EventAttendanceTab = ({ eventId }: { eventId: string }) => {
+const EventAttendanceTab = ({ eventId, eventUuid }: { eventId: string; eventUuid?: string }) => {
   const navigate = useNavigate();
   const { isModuleEnabled } = useModulesContext();
   const hasAdConversions = isModuleEnabled('ad-conversions');
@@ -3303,6 +3303,33 @@ const EventAttendanceTab = ({ eventId }: { eventId: string }) => {
     loadAttendance();
     loadBadgeScanStats();
   }, [eventId]);
+
+  // Subscribe to real-time changes for event attendance
+  useEffect(() => {
+    if (!eventUuid) return;
+
+    const channel = supabase
+      .channel(`event_attendance_${eventUuid}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'events_attendance',
+          filter: `event_id=eq.${eventUuid}`,
+        },
+        () => {
+          // Reload all attendance data on any change — the joined data
+          // (scan counts, sponsor permissions) makes incremental updates impractical
+          loadAttendance();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [eventUuid]);
 
   const loadAttendance = async () => {
     setLoading(true);

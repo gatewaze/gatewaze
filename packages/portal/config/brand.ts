@@ -245,6 +245,57 @@ export async function getServerBrandConfig(): Promise<BrandConfig> {
       config.eventTopicsEnabled = topicsModule?.status === 'enabled'
     }
 
+    // Apply theme module overrides (if an active theme module exists)
+    try {
+      const { data: themeModule } = await supabase
+        .from('installed_modules')
+        .select('config')
+        .eq('type', 'theme')
+        .eq('status', 'enabled')
+        .maybeSingle()
+
+      if (themeModule?.config) {
+        const portalOverrides = (themeModule.config as Record<string, unknown>).portalThemeOverrides as {
+          brandingDefaults?: Record<string, string>
+          portalTheme?: string
+          themeColors?: Record<string, Record<string, string>>
+          cornerStyle?: string
+        } | undefined
+
+        if (portalOverrides) {
+          // Apply branding defaults overrides via the settingsMap
+          if (portalOverrides.brandingDefaults) {
+            for (const [settingsKey, value] of Object.entries(portalOverrides.brandingDefaults)) {
+              const mapping = settingsMap[settingsKey]
+              if (mapping) {
+                ;(config as unknown as Record<string, unknown>)[mapping.field] = value
+              }
+            }
+          }
+
+          // Override portal theme
+          if (portalOverrides.portalTheme && ['blobs', 'gradient_wave', 'basic'].includes(portalOverrides.portalTheme)) {
+            config.portalTheme = portalOverrides.portalTheme as PortalTheme
+          }
+
+          // Override theme colors
+          if (portalOverrides.themeColors?.[config.portalTheme]) {
+            config.themeColors = {
+              ...DEFAULT_THEME_COLORS[config.portalTheme],
+              ...portalOverrides.themeColors[config.portalTheme],
+            }
+          }
+
+          // Override corner style
+          if (portalOverrides.cornerStyle && ['square', 'rounded', 'pill'].includes(portalOverrides.cornerStyle)) {
+            config.cornerStyle = portalOverrides.cornerStyle as CornerStyle
+          }
+        }
+      }
+    } catch {
+      // Theme override lookup failed — continue with base config
+    }
+
     // Fall back to first admin user's email if contact_email not set
     if (!config.contactEmail) {
       try {
