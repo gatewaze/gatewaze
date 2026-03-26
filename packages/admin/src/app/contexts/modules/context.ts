@@ -1,4 +1,5 @@
 import { createSafeContext } from '@/utils/createSafeContext';
+import type { ThemeOverrides } from '@gatewaze/shared/modules';
 
 export interface ModuleUpdateInfo {
   id: string;
@@ -9,6 +10,12 @@ export interface ModuleUpdateInfo {
   platformCompatible: boolean;
 }
 
+export interface ActiveThemeModule {
+  id: string;
+  name: string;
+  themeOverrides: ThemeOverrides;
+}
+
 export interface ModulesContextType {
   /** True once the initial DB fetch has completed */
   ready: boolean;
@@ -16,6 +23,8 @@ export interface ModulesContextType {
   isModuleEnabled: (moduleId: string) => boolean;
   /** Check if a specific feature flag is enabled across all enabled modules */
   isFeatureEnabled: (feature: string) => boolean;
+  /** Returns the active theme module (if any) with its overrides */
+  activeThemeModule: ActiveThemeModule | null;
   /** Re-fetch module state from DB (e.g. after toggling) */
   refresh: () => Promise<void>;
   /** Modules with available updates */

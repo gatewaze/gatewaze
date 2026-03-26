@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { ModulesProvider as ContextProvider } from './context';
-import type { ModuleUpdateInfo } from './context';
+import type { ModuleUpdateInfo, ActiveThemeModule } from './context';
 import { supabase } from '@/lib/supabase';
 import modules from 'virtual:gatewaze-modules';
 import type { InstalledModuleRow } from '@gatewaze/shared/modules';
@@ -103,6 +103,15 @@ export function ModulesProviderWrapper({ children }: Props) {
     return features;
   }, [enabledIds]);
 
+  const activeThemeModule = useMemo<ActiveThemeModule | null>(() => {
+    for (const mod of modules) {
+      if (mod.type === 'theme' && enabledIds.has(mod.id) && mod.themeOverrides) {
+        return { id: mod.id, name: mod.name, themeOverrides: mod.themeOverrides };
+      }
+    }
+    return null;
+  }, [enabledIds]);
+
   const checkUpdates = useCallback(async () => {
     try {
       const { updates } = await ModuleService.checkUpdates();
@@ -134,11 +143,12 @@ export function ModulesProviderWrapper({ children }: Props) {
       ready,
       isModuleEnabled,
       isFeatureEnabled,
+      activeThemeModule,
       refresh: fetchAndSeed,
       availableUpdates,
       checkUpdates,
     }),
-    [ready, isModuleEnabled, isFeatureEnabled, fetchAndSeed, availableUpdates, checkUpdates],
+    [ready, isModuleEnabled, isFeatureEnabled, activeThemeModule, fetchAndSeed, availableUpdates, checkUpdates],
   );
 
   return <ContextProvider value={value}>{children}</ContextProvider>;

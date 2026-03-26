@@ -2,6 +2,8 @@
 import { Label, Radio, RadioGroup } from "@headlessui/react";
 import clsx from "clsx";
 import { toast } from "sonner";
+import { Lock } from "lucide-react";
+import { Callout } from "@radix-ui/themes";
 
 // Local Imports
 import { useThemeContext } from "@/app/contexts/theme/context";
@@ -15,6 +17,7 @@ import {
   DarkColor,
   Notification,
 } from "@/configs/@types/theme";
+import { useActiveThemeModule } from "@/hooks/useActiveThemeModule";
 
 // ----------------------------------------------------------------------
 
@@ -81,6 +84,8 @@ const MAX_NOTIFICATION_COUNT = 5;
 
 export default function Appearance() {
   const theme = useThemeContext();
+  const activeTheme = useActiveThemeModule();
+  const adminOverrides = activeTheme?.themeOverrides.admin;
 
   useDidUpdate(() => {
     const currentPosition = notificationPos.find(
@@ -107,6 +112,18 @@ export default function Appearance() {
       <p className="mt-0.5 text-sm text-balance text-[var(--gray-11)]">
         Customize notification preferences and display settings.
       </p>
+
+      {activeTheme && adminOverrides && (
+        <Callout.Root color="blue" className="mt-4">
+          <Callout.Icon>
+            <Lock className="h-4 w-4" />
+          </Callout.Icon>
+          <Callout.Text>
+            The <strong>{activeTheme.name}</strong> theme module is managing admin appearance settings like color scheme and layout.
+          </Callout.Text>
+        </Callout.Root>
+      )}
+
       <div className="my-5 h-px bg-[var(--gray-a4)]" />
 
       {/* Theme selection disabled - using fixed gradient background theme */}

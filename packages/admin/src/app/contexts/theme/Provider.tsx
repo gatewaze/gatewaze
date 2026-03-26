@@ -17,6 +17,7 @@ import {
 import { defaultTheme } from "@/configs/theme";
 import { colors } from "@/constants/colors";
 import { getSupabase } from "@/lib/supabase";
+import { useActiveThemeModule } from "@/hooks/useActiveThemeModule";
 
 // Reference colors for each Radix accent (approximate hue center)
 const RADIX_ACCENT_REFS: { name: PrimaryColor; r: number; g: number; b: number }[] = [
@@ -93,6 +94,7 @@ const _html = document?.documentElement;
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const isDarkOS = useMediaQuery(COLOR_SCHEME_QUERY);
+  const activeTheme = useActiveThemeModule();
 
   const [settings, setSettings] = useLocalStorage<ThemeConfig>("settings", {
     themeMode: initialState.themeMode,
@@ -207,6 +209,39 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
     syncBrandSettings();
   }, []); // Run once on mount
+
+  // Apply admin theme overrides from active theme module
+  useEffect(() => {
+    if (!activeTheme) return;
+    const overrides = activeTheme.themeOverrides.admin;
+    if (!overrides) return;
+
+    setSettings((prev: ThemeConfig) => {
+      const next = { ...prev };
+      if (overrides.themeMode) {
+        next.themeMode = overrides.themeMode as ThemeMode;
+      }
+      if (overrides.primaryColor && overrides.primaryColor in colors) {
+        const name = overrides.primaryColor as PrimaryColor;
+        next.primaryColorScheme = { name, ...colors[name] };
+      }
+      if (overrides.lightColor && overrides.lightColor in colors) {
+        const name = overrides.lightColor as LightColor;
+        next.lightColorScheme = { name, ...colors[name] };
+      }
+      if (overrides.darkColor && overrides.darkColor in colors) {
+        const name = overrides.darkColor as DarkColor;
+        next.darkColorScheme = { name, ...colors[name] };
+      }
+      if (overrides.cardSkin) {
+        next.cardSkin = overrides.cardSkin as CardSkin;
+      }
+      if (overrides.themeLayout) {
+        next.themeLayout = overrides.themeLayout as ThemeLayout;
+      }
+      return next;
+    });
+  }, [activeTheme]);
 
   const setThemeMode = (val: ThemeMode) => {
     setSettings((prevSettings) => ({
