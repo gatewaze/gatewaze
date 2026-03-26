@@ -72,8 +72,12 @@ export async function reconcileModules(
         .insert({
           id: mod.config.id,
           name: mod.config.name,
+          description: mod.config.description ?? '',
           version: mod.config.version,
           features: mod.config.features,
+          type: mod.config.type ?? 'feature',
+          source: mod.packageName,
+          visibility: mod.config.visibility ?? 'public',
           status: 'enabled',
           config: mod.moduleConfig,
           portal_nav: mod.config.portalNav || null,

@@ -218,7 +218,7 @@ export function RegistrationForm({ event, brandConfig, onSuccess, onCancel, trac
       const config = getClientBrandConfig()
 
       // Call the event-registration edge function
-      const response = await fetch(`${config.supabaseUrl}/functions/v1/event-registration`, {
+      const response = await fetch(`${config.supabaseUrl}/functions/v1/events-registration`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

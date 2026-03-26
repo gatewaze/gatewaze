@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState, useEffect, ReactNode } from 'react'
+import { useRef, useEffect, ReactNode } from 'react'
 import { useGlowPosition } from './GlowContext'
 
 interface Props {
@@ -59,9 +59,35 @@ export function GlowBorder({
   borderWidth = 1,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const [glowStyle, setGlowStyle] = useState({ angle: 0, intensity: 1 })
-  const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
+  const overlayRef = useRef<HTMLDivElement>(null)
+  const glowStateRef = useRef({ angle: 0, intensity: 1 })
+  const dimensionsRef = useRef({ width: 0, height: 0 })
   const glowPosition = useGlowPosition()
+
+  const updateOverlay = () => {
+    const overlay = overlayRef.current
+    const dims = dimensionsRef.current
+    const glow = glowStateRef.current
+    if (!overlay) return
+
+    const glowColor = useDarkTheme ? 'rgba(0, 0, 0, 0.5)' : 'rgba(255, 255, 255, 0.7)'
+    const baseColor = useDarkTheme ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.08)'
+
+    const glowPos1 = getPositionOnBorder(glow.angle, dims.width, dims.height)
+    const glowPos2 = getPositionOnBorder((glow.angle + 180) % 360, dims.width, dims.height)
+
+    const glow1X = dims.width > 0 ? (glowPos1.x / dims.width) * 100 : 50
+    const glow1Y = dims.height > 0 ? (glowPos1.y / dims.height) * 100 : 0
+    const glow2X = dims.width > 0 ? (glowPos2.x / dims.width) * 100 : 50
+    const glow2Y = dims.height > 0 ? (glowPos2.y / dims.height) * 100 : 100
+
+    overlay.style.background = `
+      radial-gradient(${glowSize}px ${glowSize}px at ${glow1X}% ${glow1Y}%, ${glowColor} 0%, transparent 70%),
+      radial-gradient(${glowSize}px ${glowSize}px at ${glow2X}% ${glow2Y}%, ${glowColor} 0%, transparent 70%),
+      ${baseColor}
+    `
+    overlay.style.opacity = String(0.1 + glow.intensity * 0.9)
+  }
 
   // Track container dimensions
   useEffect(() => {
@@ -70,7 +96,8 @@ export function GlowBorder({
     const updateDimensions = () => {
       if (containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect()
-        setDimensions({ width: rect.width, height: rect.height })
+        dimensionsRef.current = { width: rect.width, height: rect.height }
+        updateOverlay()
       }
     }
 
@@ -82,7 +109,7 @@ export function GlowBorder({
     return () => resizeObserver.disconnect()
   }, [])
 
-  // Auto-rotate effect
+  // Auto-rotate effect — updates ref + DOM directly, no setState
   useEffect(() => {
     if (!autoRotate) return
 
@@ -90,13 +117,14 @@ export function GlowBorder({
     let lastTime = performance.now()
 
     const animate = (currentTime: number) => {
-      const deltaTime = (currentTime - lastTime) / 1000 // Convert to seconds
+      const deltaTime = (currentTime - lastTime) / 1000
       lastTime = currentTime
 
-      setGlowStyle((prev) => ({
-        angle: (prev.angle + autoRotateSpeed * deltaTime) % 360,
+      glowStateRef.current = {
+        angle: (glowStateRef.current.angle + autoRotateSpeed * deltaTime) % 360,
         intensity: 1,
-      }))
+      }
+      updateOverlay()
 
       animationFrame = requestAnimationFrame(animate)
     }
@@ -115,27 +143,12 @@ export function GlowBorder({
     const centerX = rect.left + rect.width / 2
     const centerY = rect.top + rect.height / 2
 
-    // Calculate angle from center to global position
     const angle = Math.atan2(glowPosition.y - centerY, glowPosition.x - centerX)
     const angleDeg = ((angle * 180) / Math.PI + 90 + 360) % 360
 
-    // Use constant intensity across the whole page
-    setGlowStyle({ angle: angleDeg, intensity: 1 })
+    glowStateRef.current = { angle: angleDeg, intensity: 1 }
+    updateOverlay()
   }, [glowPosition, autoRotate])
-
-  const glowColor = useDarkTheme ? 'rgba(0, 0, 0, 0.5)' : 'rgba(255, 255, 255, 0.7)'
-  const baseColor = useDarkTheme ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.08)'
-
-  // Calculate glow position on border (primary)
-  const glowPos1 = getPositionOnBorder(glowStyle.angle, dimensions.width, dimensions.height)
-  // Calculate opposite glow position (180 degrees apart)
-  const glowPos2 = getPositionOnBorder((glowStyle.angle + 180) % 360, dimensions.width, dimensions.height)
-
-  // Calculate percentage positions for the gradients
-  const glow1X = dimensions.width > 0 ? (glowPos1.x / dimensions.width) * 100 : 50
-  const glow1Y = dimensions.height > 0 ? (glowPos1.y / dimensions.height) * 100 : 0
-  const glow2X = dimensions.width > 0 ? (glowPos2.x / dimensions.width) * 100 : 50
-  const glow2Y = dimensions.height > 0 ? (glowPos2.y / dimensions.height) * 100 : 100
 
   return (
     <div
@@ -146,20 +159,15 @@ export function GlowBorder({
       {children}
       {/* Glow border overlay */}
       <div
+        ref={overlayRef}
         className="absolute inset-0 pointer-events-none"
         style={{
           borderRadius,
           padding: `${borderWidth}px`,
-          background: `
-            radial-gradient(${glowSize}px ${glowSize}px at ${glow1X}% ${glow1Y}%, ${glowColor} 0%, transparent 70%),
-            radial-gradient(${glowSize}px ${glowSize}px at ${glow2X}% ${glow2Y}%, ${glowColor} 0%, transparent 70%),
-            ${baseColor}
-          `,
           WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
           WebkitMaskComposite: 'xor',
           mask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
           maskComposite: 'exclude',
-          opacity: 0.1 + glowStyle.intensity * 0.9,
           transition: 'opacity 0.15s ease-out',
         }}
       />
