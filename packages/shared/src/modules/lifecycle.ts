@@ -89,12 +89,12 @@ export async function reconcileModules(
       }
 
       console.log(`[modules] Registered "${mod.config.name}" v${mod.config.version}`);
-    } else if ((existing as InstalledModuleRow).status === 'disabled') {
-      // Module exists but is disabled — apply any pending migrations but
-      // leave it disabled. Admins enable modules explicitly via the UI.
+    } else if ((existing as InstalledModuleRow).status === 'disabled' || (existing as InstalledModuleRow).status === 'not_installed') {
+      // Module exists but is not active — update metadata (version, features)
+      // but do NOT run migrations. Migrations are applied when the module is
+      // explicitly enabled via the admin UI or onboarding /select endpoint.
       if (isNewerVersion(mod.config.version, (existing as InstalledModuleRow).version)) {
-        console.log(`[modules] Applying migrations for disabled module "${mod.config.name}" (v${(existing as InstalledModuleRow).version} → v${mod.config.version})...`);
-        await applyModuleMigrations(mod, supabase);
+        console.log(`[modules] Updating metadata for inactive module "${mod.config.name}" (v${(existing as InstalledModuleRow).version} → v${mod.config.version})...`);
         await supabase
           .from('installed_modules')
           .update({ version: mod.config.version, features: mod.config.features, portal_nav: mod.config.portalNav || null })

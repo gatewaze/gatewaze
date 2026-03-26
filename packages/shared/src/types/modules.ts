@@ -253,7 +253,7 @@ export interface InstalledModuleRow {
   name: string;
   version: string;
   features: string[];
-  status: 'enabled' | 'disabled' | 'error';
+  status: 'enabled' | 'disabled' | 'not_installed' | 'error';
   config: Record<string, unknown>;
   type?: string;
   source?: string;
