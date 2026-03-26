@@ -80,6 +80,8 @@ export default function ModulesPage() {
     const { modules: available, error } = await ModuleService.getAvailableModules();
     if (error) {
       console.error("Failed to load available modules:", error);
+      toast.error("Failed to load available modules");
+      return;
     }
     setAvailableModules(available ?? []);
   }, []);
@@ -112,7 +114,7 @@ export default function ModulesPage() {
     loadInstalledModules();
     loadModuleSources();
     checkForUpdates();
-  }, [loadInstalledModules, loadModuleSources, checkForUpdates]);
+  }, [loadAvailableModules, loadInstalledModules, loadModuleSources, checkForUpdates]);
 
   // Merge config modules with DB status — excludes integration-type modules
   // (those are managed in the Integrations page instead)
@@ -263,10 +265,15 @@ export default function ModulesPage() {
     if (result.success) {
       toast.success(`Module "${result.slug}" uploaded`);
       toast.info("Reconciling modules...");
-      await ModuleService.reconcileModules();
+      const reconcileResult = await ModuleService.reconcileModules();
+      if (!reconcileResult.success) {
+        toast.error(reconcileResult.error ?? "Reconciliation failed");
+      }
       await Promise.all([
+        loadAvailableModules(),
         loadInstalledModules(),
         loadModuleSources(),
+        checkForUpdates(),
         refreshModulesContext(),
       ]);
     } else {
@@ -571,8 +578,16 @@ export default function ModulesPage() {
               setShowAddSourceModal(false);
               await loadModuleSources();
               toast.info("Reconciling modules...");
-              await ModuleService.reconcileModules();
-              await Promise.all([loadInstalledModules(), refreshModulesContext()]);
+              const result = await ModuleService.reconcileModules();
+              if (!result.success) {
+                toast.error(result.error ?? "Reconciliation failed");
+              }
+              await Promise.all([
+                loadAvailableModules(),
+                loadInstalledModules(),
+                checkForUpdates(),
+                refreshModulesContext(),
+              ]);
             }}
           />
         )}

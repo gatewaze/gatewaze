@@ -110,7 +110,8 @@ export async function loadModules(
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      throw new Error(`Failed to load module "${packageName}": ${message}`);
+      console.error(`[modules] Failed to load module "${packageName}": ${message}`);
+      // Continue loading other modules — one bad module should not break everything
     }
   }
 

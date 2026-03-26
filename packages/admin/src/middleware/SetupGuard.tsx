@@ -17,6 +17,14 @@ export function SetupGuard() {
         const res = await fetch(`${SUPABASE_URL}/functions/v1/platform-setup`, {
           headers: { apikey: ANON_KEY },
         });
+
+        // Treat server errors (5xx) as transient — don't redirect to setup
+        if (res.status >= 500) {
+          console.warn(`[SetupGuard] platform-setup returned ${res.status}, treating as ready`);
+          setStatus('ready');
+          return;
+        }
+
         const data = await res.json();
 
         if (data.needsSetup) {
@@ -27,9 +35,13 @@ export function SetupGuard() {
           setStatus('ready');
         }
       } catch {
-        // If we can't reach the setup endpoint, assume setup is needed
-        sessionStorage.removeItem(CACHE_KEY);
-        setStatus('needs_setup');
+        // Network failure — if we previously completed setup, stay ready
+        if (cached) {
+          setStatus('ready');
+        } else {
+          sessionStorage.removeItem(CACHE_KEY);
+          setStatus('needs_setup');
+        }
       }
     };
 
