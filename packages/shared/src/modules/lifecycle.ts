@@ -64,8 +64,9 @@ export async function reconcileModules(
     const existing = installedMap.get(mod.config.id);
 
     if (!existing) {
-      // New module: insert row first (module_migrations has FK to installed_modules)
-      console.log(`[modules] Installing "${mod.config.name}" v${mod.config.version}...`);
+      // New module: register it but leave disabled.
+      // Migrations and lifecycle hooks run when the admin explicitly enables it.
+      console.log(`[modules] Registering "${mod.config.name}" v${mod.config.version}...`);
 
       const { error: insertErr } = await supabase
         .from('installed_modules')
@@ -78,26 +79,16 @@ export async function reconcileModules(
           type: mod.config.type ?? 'feature',
           source: mod.packageName,
           visibility: mod.config.visibility ?? 'public',
-          status: 'enabled',
+          status: 'not_installed',
           config: mod.moduleConfig,
           portal_nav: mod.config.portalNav || null,
         });
 
       if (insertErr) {
-        console.error(`[modules] Failed to record installation of "${mod.config.name}":`, insertErr);
+        console.error(`[modules] Failed to register "${mod.config.name}":`, insertErr);
       }
 
-      await applyModuleMigrations(mod, supabase);
-
-      if (mod.config.onInstall) {
-        await mod.config.onInstall();
-      }
-
-      if (mod.config.onEnable) {
-        await mod.config.onEnable();
-      }
-
-      console.log(`[modules] Installed "${mod.config.name}" v${mod.config.version}`);
+      console.log(`[modules] Registered "${mod.config.name}" v${mod.config.version}`);
     } else if ((existing as InstalledModuleRow).status === 'disabled') {
       // Module exists but is disabled — apply any pending migrations but
       // leave it disabled. Admins enable modules explicitly via the UI.

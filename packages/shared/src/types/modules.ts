@@ -184,6 +184,8 @@ export type ModuleSource = string | {
   path?: string;
   /** Git branch/tag (default: main) */
   branch?: string;
+  /** Access token for private git repositories */
+  token?: string;
 };
 
 export interface GatewazeConfig {
@@ -241,6 +243,7 @@ export interface ModuleSourceRow {
   path: string | null;
   branch: string | null;
   label: string | null;
+  token: string | null;
   origin: 'config' | 'user' | 'upload';
   created_at: string;
 }

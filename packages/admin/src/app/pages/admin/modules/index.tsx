@@ -482,7 +482,7 @@ export default function ModulesPage() {
             </div>
             {moduleSources.length === 0 ? (
               <p className="text-sm text-[var(--gray-a9)]">
-                No module sources configured. Add a git repository or local path.
+                No module sources configured. Add a git repository to get started.
               </p>
             ) : (
               <div className="space-y-2">
@@ -506,6 +506,9 @@ export default function ModulesPage() {
                           >
                             {source.origin}
                           </Badge>
+                          {(source as Record<string, unknown>).hasToken && (
+                            <Badge color="purple">authenticated</Badge>
+                          )}
                         </div>
                         <p className="text-xs text-[var(--gray-a9)] truncate">
                           {source.url}
@@ -734,6 +737,7 @@ function AddSourceModal({
   const [path, setPath] = useState("");
   const [branch, setBranch] = useState("");
   const [label, setLabel] = useState("");
+  const [token, setToken] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleAdd = async () => {
@@ -748,6 +752,7 @@ function AddSourceModal({
       path: path.trim() || undefined,
       branch: branch.trim() || undefined,
       label: label.trim() || undefined,
+      token: token.trim() || undefined,
     });
 
     if (result.success) {
@@ -781,12 +786,12 @@ function AddSourceModal({
     >
       <div className="space-y-3">
         <Input
-          label="Repository URL or Path"
+          label="Git Repository URL"
           value={url}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
             setUrl(e.target.value)
           }
-          placeholder="https://github.com/org/modules.git or ../local-modules"
+          placeholder="https://github.com/org/modules.git"
           required
         />
         <Input
@@ -812,6 +817,15 @@ function AddSourceModal({
             setLabel(e.target.value)
           }
           placeholder="My Custom Modules"
+        />
+        <Input
+          label="Access Token (optional, for private repos)"
+          value={token}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+            setToken(e.target.value)
+          }
+          placeholder="ghp_xxxxxxxxxxxx"
+          type="password"
         />
       </div>
     </Modal>

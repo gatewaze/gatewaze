@@ -134,6 +134,7 @@ export async function loadModulesWithDbSources(
     url: row.url,
     path: row.path ?? undefined,
     branch: row.branch ?? undefined,
+    token: row.token ?? undefined,
   }));
 
   // Deduplicate by url+path
@@ -167,10 +168,10 @@ function resolveSourceDirs(sources: ModuleSource[], projectRoot: string): string
   const resolved: string[] = [];
 
   for (const source of sources) {
-    const { url, path: subPath, branch } = normalizeSource(source);
+    const { url, path: subPath, branch, token } = normalizeSource(source);
 
     if (isGitUrl(url)) {
-      const localPath = cloneOrUpdateRepo(url, branch, projectRoot);
+      const localPath = cloneOrUpdateRepo(url, branch, projectRoot, token);
       if (localPath) {
         resolved.push(subPath ? resolve(localPath, subPath) : localPath);
       }
@@ -183,7 +184,7 @@ function resolveSourceDirs(sources: ModuleSource[], projectRoot: string): string
   return resolved;
 }
 
-function normalizeSource(source: ModuleSource): { url: string; path?: string; branch?: string } {
+function normalizeSource(source: ModuleSource): { url: string; path?: string; branch?: string; token?: string } {
   if (typeof source === 'string') {
     const [url, fragment] = source.split('#');
     if (!fragment) return { url };
@@ -210,6 +211,7 @@ function cloneOrUpdateRepo(
   gitUrl: string,
   branch: string | undefined,
   projectRoot: string,
+  token?: string,
 ): string | null {
   const cacheDir = resolve(projectRoot, '.gatewaze-modules');
   const repoSlug = gitUrl
@@ -219,15 +221,24 @@ function cloneOrUpdateRepo(
   const repoDir = resolve(cacheDir, repoSlug);
   const execOpts: ExecSyncOptions = { stdio: 'pipe' };
 
+  // Inject token into HTTPS URLs for private repo access
+  const authUrl = token && gitUrl.startsWith('https://')
+    ? gitUrl.replace('https://', `https://x-access-token:${token}@`)
+    : gitUrl;
+
   try {
     mkdirSync(cacheDir, { recursive: true });
 
     if (existsSync(resolve(repoDir, '.git'))) {
+      // Update the remote URL in case the token changed
+      if (token) {
+        execSync(`git -C "${repoDir}" remote set-url origin "${authUrl}"`, execOpts);
+      }
       const branchArg = branch ? `origin ${branch}` : '';
       execSync(`git -C "${repoDir}" pull ${branchArg} --ff-only 2>/dev/null || true`, execOpts);
     } else {
       const branchFlag = branch ? `--branch ${branch}` : '';
-      execSync(`git clone --depth 1 ${branchFlag} "${gitUrl}" "${repoDir}"`, execOpts);
+      execSync(`git clone --depth 1 ${branchFlag} "${authUrl}" "${repoDir}"`, execOpts);
     }
 
     console.log(`[gatewaze-modules] Resolved git source: ${gitUrl} → ${repoDir}`);

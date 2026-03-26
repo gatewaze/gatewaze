@@ -1,9 +1,16 @@
 # ---- Stage 1: Build ----
 FROM node:20-slim AS builder
 
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
+
+# Clone default open-source modules at build time so they're available
+# immediately (onboarding, reconciliation) without a runtime git clone.
+ARG MODULES_REPO_URL=https://github.com/gatewaze/gatewaze-modules.git
+ARG MODULES_REPO_BRANCH=main
+RUN git clone --depth 1 --branch ${MODULES_REPO_BRANCH} ${MODULES_REPO_URL} /gatewaze-modules
 
 # Copy workspace root files (lockfile excluded – external workspace packages
 # from ../gatewaze-modules are not available at build time)
@@ -37,6 +44,7 @@ RUN npx tsc --module ESNext --moduleResolution bundler --target ES2022 \
 # ---- Stage 2: Run ----
 FROM node:20-slim
 
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
@@ -64,9 +72,16 @@ COPY --from=builder /app/packages/shared/dist packages/shared/dist
 # Copy compiled config
 COPY --from=builder /app/gatewaze.config.js ./
 
-# Create non-root user
+# Copy default modules (cloned at build time)
+COPY --from=builder /gatewaze-modules/modules /gatewaze-modules/modules
+
+# Create writable directories for runtime git clones and uploaded modules
+RUN mkdir -p /app/.gatewaze-modules /app/data
+
+# Create non-root user and grant access to writable directories
 RUN addgroup --system --gid 1001 appgroup && \
-    adduser --system --uid 1001 appuser
+    adduser --system --uid 1001 appuser && \
+    chown -R appuser:appgroup /app/.gatewaze-modules /app/data
 USER appuser
 
 EXPOSE 3002
