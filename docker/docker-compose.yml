@@ -380,6 +380,10 @@ services:
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-api.rule=Host(`${API_HOST:-gatewaze-api.localhost}`)"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-api.entrypoints=web"
       - "traefik.http.services.${COMPOSE_PROJECT_NAME:-gatewaze}-api.loadbalancer.server.port=3002"
+    volumes:
+      # Persist runtime git clones and uploaded modules across restarts
+      - api-modules-cache:/app/.gatewaze-modules
+      - api-data:/app/data
     environment:
       PORT: "3002"
       NODE_ENV: production
@@ -465,6 +469,10 @@ volumes:
   supabase-storage-data:
     driver: local
   redis-data:
+    driver: local
+  api-modules-cache:
+    driver: local
+  api-data:
     driver: local
 
 # ---------------------------------------------------------------------------

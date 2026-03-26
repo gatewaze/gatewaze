@@ -23,7 +23,6 @@ services:
       # Module system: config + external module sources
       - ../gatewaze.config.ts:/app/gatewaze.config.ts
       - ../../gatewaze-modules/modules:/gatewaze-modules/modules
-      - ../../lf-gatewaze-modules/modules:/lf-gatewaze-modules/modules
     environment:
       NODE_ENV: development
       API_PROXY_TARGET: http://api:3002
@@ -55,7 +54,6 @@ services:
       # Module system: config + external module sources
       - ../gatewaze.config.ts:/app/gatewaze.config.ts
       - ../../gatewaze-modules/modules:/gatewaze-modules/modules
-      - ../../lf-gatewaze-modules/modules:/lf-gatewaze-modules/modules
     environment:
       NODE_ENV: development
       NEXT_PUBLIC_API_URL: ${API_URL:-http://aaif-api.localhost}
@@ -73,7 +71,9 @@ services:
       # Module system: config + external module sources
       - ../gatewaze.config.ts:/app/gatewaze.config.ts
       - ../../gatewaze-modules/modules:/gatewaze-modules/modules
-      - ../../lf-gatewaze-modules/modules:/lf-gatewaze-modules/modules
+      # Git module source cache + uploaded modules (persist across restarts)
+      - ../.gatewaze-modules:/app/.gatewaze-modules
+      - ../data:/app/data
       # Edge functions: allow deployEdgeFunctions to write back to the host
       - ../supabase/functions:/app/supabase/functions
       # Docker socket: allow API to restart edge runtime after deploying functions
@@ -102,6 +102,5 @@ services:
       - ../packages/shared/src:/app/packages/shared/src
       - ../gatewaze.config.ts:/app/gatewaze.config.ts
       - ../../gatewaze-modules/modules:/gatewaze-modules/modules
-      - ../../lf-gatewaze-modules/modules:/lf-gatewaze-modules/modules
     environment:
       NODE_ENV: development
