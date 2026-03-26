@@ -310,6 +310,7 @@ export class ModuleService {
     path?: string;
     branch?: string;
     label?: string;
+    token?: string;
   }): Promise<{ success: boolean; source?: ModuleSourceRow; error?: string }> {
     try {
       const apiUrl = import.meta.env.VITE_API_URL ?? '';

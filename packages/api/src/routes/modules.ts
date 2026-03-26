@@ -818,7 +818,14 @@ modulesRouter.get('/sources', async (_req, res) => {
       return res.status(500).json({ error: error.message });
     }
 
-    return res.json({ sources: data });
+    // Strip tokens — only indicate whether one is set
+    const sources = (data ?? []).map((row: Record<string, unknown>) => ({
+      ...row,
+      token: undefined,
+      hasToken: !!row.token,
+    }));
+
+    return res.json({ sources });
   } catch (err) {
     return res.status(500).json({
       error: err instanceof Error ? err.message : 'Failed to fetch sources',
@@ -834,15 +841,32 @@ modulesRouter.post('/sources', async (req, res) => {
       return res.status(500).json({ error: 'Missing Supabase credentials' });
     }
 
-    const { url, path, branch, label } = req.body as {
+    const { url, path, branch, label, token } = req.body as {
       url?: string;
       path?: string;
       branch?: string;
       label?: string;
+      token?: string;
     };
 
     if (!url?.trim()) {
       return res.status(400).json({ error: 'URL is required' });
+    }
+
+    const trimmedUrl = url.trim();
+
+    // Only git URLs are supported for user-added sources.
+    // Local paths are only available via gatewaze.config.ts (bundled at build time).
+    const isGit =
+      trimmedUrl.startsWith('https://') ||
+      trimmedUrl.startsWith('git://') ||
+      trimmedUrl.startsWith('git@') ||
+      trimmedUrl.endsWith('.git');
+
+    if (!isGit) {
+      return res.status(400).json({
+        error: 'Only git repository URLs are supported. Use an HTTPS or git:// URL (e.g. https://github.com/org/modules.git).',
+      });
     }
 
     const supabase = createClient(supabaseUrl, serviceRoleKey);
@@ -853,6 +877,7 @@ modulesRouter.post('/sources', async (req, res) => {
         path: path?.trim() || null,
         branch: branch?.trim() || null,
         label: label?.trim() || null,
+        token: token?.trim() || null,
         origin: 'user',
       })
       .select()

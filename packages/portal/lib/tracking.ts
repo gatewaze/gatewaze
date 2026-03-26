@@ -133,6 +133,8 @@ export async function createTrackingSession(params: {
     })
 
     if (!response.ok) {
+      // 404 means ad tracking module isn't installed — silently skip
+      if (response.status === 404) return null
       console.error('Failed to create tracking session:', await response.text())
       return null
     }

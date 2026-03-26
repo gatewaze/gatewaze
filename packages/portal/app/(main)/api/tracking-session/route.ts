@@ -94,6 +94,13 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) {
+      // If the table doesn't exist, the ad tracking module isn't installed — return gracefully
+      if (error.code === '42P01' || error.message?.includes('does not exist')) {
+        return NextResponse.json(
+          { error: 'Ad tracking module is not enabled' },
+          { status: 404 }
+        )
+      }
       console.error('Failed to create tracking session:', error)
       return NextResponse.json(
         { error: 'Failed to create tracking session' },

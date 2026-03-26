@@ -72,9 +72,8 @@ export function useTrackingCapture(options: UseTrackingCaptureOptions): UseTrack
         if (newSession) {
           setSession(newSession)
           hasCaptured.current = true
-        } else {
-          setError('Failed to create tracking session')
         }
+        // If null, tracking module may not be installed — not an error
       } catch (err) {
         console.error('Error capturing tracking:', err)
         setError(err instanceof Error ? err.message : 'Unknown error')
