@@ -376,6 +376,19 @@ export default function ModulesPage() {
         </div>
       )}
 
+      {mod.status === "not_installed" && (
+        <div className="mt-4 pt-4 border-t border-[var(--gray-a5)] flex items-center justify-between">
+          <span className="text-sm text-[var(--gray-11)]">Not installed</span>
+          <Button
+            size="1"
+            onClick={() => handleToggle(mod.id, false)}
+            disabled={!isSuperAdmin || togglingId === mod.id}
+          >
+            {togglingId === mod.id ? "Installing..." : "Install"}
+          </Button>
+        </div>
+      )}
+
       {(mod.status === "enabled" || mod.status === "disabled") && (
         <div className="mt-4 pt-4 border-t border-[var(--gray-a5)] flex items-center justify-between">
           <span className="text-sm text-[var(--gray-11)]">

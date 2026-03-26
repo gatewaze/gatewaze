@@ -21,18 +21,20 @@ export default function ModuleSetupStep() {
 
     async function run() {
       try {
-        setStatusText("Applying database migrations...");
+        setStatusText("Verifying module configuration...");
 
-        const result = await ModuleService.reconcileModules();
+        // Modules were already reconciled and migrations applied by /select
+        // in the previous step. Fetch current state to confirm.
+        const { modules: installed, error: fetchErr } = await ModuleService.getInstalledModules();
 
-        if (!result.success) {
+        if (fetchErr) {
           setStatus("error");
-          setErrorMessage(result.error ?? "Unknown error");
+          setErrorMessage(fetchErr);
           return;
         }
 
         const enabledCount =
-          result.modules?.filter((m) => m.status === "enabled").length ?? 0;
+          (installed ?? []).filter((m) => m.status === "enabled").length;
 
         setStatusText(
           `${enabledCount} module${enabledCount !== 1 ? "s" : ""} configured successfully`
