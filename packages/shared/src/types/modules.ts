@@ -1,5 +1,53 @@
-export type ModuleType = 'feature' | 'integration';
+export type ModuleType = 'feature' | 'integration' | 'theme';
 export type ModuleVisibility = 'public' | 'hidden' | 'premium';
+
+// ---------------------------------------------------------------------------
+// Theme override types — used by modules with type === 'theme'
+// ---------------------------------------------------------------------------
+
+export interface AdminThemeOverrides {
+  /** Force a specific theme mode (or leave undefined to respect user preference) */
+  themeMode?: 'light' | 'dark' | 'system';
+  /** Force a primary accent color (Radix color name) */
+  primaryColor?: string;
+  /** Force light color scheme */
+  lightColor?: string;
+  /** Force dark color scheme */
+  darkColor?: string;
+  /** Force card skin */
+  cardSkin?: 'shadow' | 'bordered';
+  /** Force layout */
+  themeLayout?: 'main-layout' | 'sideblock';
+  /** Path to a custom CSS file relative to the module directory, bundled by Vite */
+  customCss?: string;
+  /** Additional props merged into the Radix <Theme> component */
+  radixThemeProps?: Record<string, unknown>;
+}
+
+export interface PortalThemeOverrides {
+  /** Override platform_settings branding keys (keys match the DB key column) */
+  brandingDefaults?: Record<string, string>;
+  /** Force a portal theme */
+  portalTheme?: 'blobs' | 'gradient_wave' | 'basic';
+  /** Override default theme colors per portal theme type */
+  themeColors?: Record<string, Record<string, string>>;
+  /** Override corner style */
+  cornerStyle?: 'square' | 'rounded' | 'pill';
+  /** Additional CSS class added to the portal <html> element */
+  htmlClassName?: string;
+  /** URL to a custom CSS file (e.g. served from the module's public assets) */
+  customCssUrl?: string;
+}
+
+export interface ThemeOverrides {
+  admin?: AdminThemeOverrides;
+  portal?: PortalThemeOverrides;
+  /**
+   * Platform settings keys that this theme module controls.
+   * The Settings UI will show these as read-only when the theme is active.
+   */
+  lockedSettings?: string[];
+}
 
 export interface GatewazeModule {
   id: string;
@@ -39,6 +87,8 @@ export interface GatewazeModule {
   migrations?: string[];
   dependencies?: string[];
   configSchema?: Record<string, ConfigField>;
+  /** Theme overrides — only meaningful when type === 'theme' */
+  themeOverrides?: ThemeOverrides;
   onInstall?: () => Promise<void>;
   onEnable?: () => Promise<void>;
   onDisable?: () => Promise<void>;

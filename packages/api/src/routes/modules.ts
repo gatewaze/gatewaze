@@ -324,13 +324,75 @@ modulesRouter.post('/:id/enable', async (req, res) => {
       }
     }
 
+    // Theme module enforcement: only one active theme module at a time
+    if (mod?.config.type === 'theme') {
+      // Disable any currently active theme module
+      const { data: activeThemes } = await supabase
+        .from('installed_modules')
+        .select('id')
+        .eq('type', 'theme')
+        .eq('status', 'enabled')
+        .neq('id', moduleId);
+
+      if (activeThemes?.length) {
+        for (const prev of activeThemes) {
+          await supabase
+            .from('installed_modules')
+            .update({ status: 'disabled' })
+            .eq('id', (prev as Record<string, unknown>).id);
+
+          // Clear portal overrides from the previous theme's config
+          const { data: prevRow } = await supabase
+            .from('installed_modules')
+            .select('config')
+            .eq('id', (prev as Record<string, unknown>).id)
+            .single();
+          if (prevRow) {
+            const prevConfig = { ...((prevRow as Record<string, unknown>).config as Record<string, unknown> ?? {}) };
+            delete prevConfig.portalThemeOverrides;
+            await supabase
+              .from('installed_modules')
+              .update({ config: prevConfig })
+              .eq('id', (prev as Record<string, unknown>).id);
+          }
+
+          // Run onDisable for the previous theme
+          const prevMod = modules.find((m) => m.config.id === (prev as Record<string, unknown>).id);
+          if (prevMod?.config.onDisable) {
+            try { await prevMod.config.onDisable(); } catch { /* non-critical */ }
+          }
+
+          console.log(`[modules] Auto-disabled previous theme module: ${(prev as Record<string, unknown>).id}`);
+        }
+      }
+    }
+
+    // Build the update payload
+    const updatePayload: Record<string, unknown> = {
+      status: 'enabled',
+      portal_nav: mod?.config.portalNav || null,
+    };
+
+    // For theme modules, write portal overrides into the config column
+    // so the portal (Next.js) can read them at runtime without Vite
+    if (mod?.config.type === 'theme' && mod.config.themeOverrides?.portal) {
+      const { data: currentRow } = await supabase
+        .from('installed_modules')
+        .select('config')
+        .eq('id', moduleId)
+        .single();
+
+      const currentConfig = (currentRow as Record<string, unknown>)?.config as Record<string, unknown> ?? {};
+      updatePayload.config = {
+        ...currentConfig,
+        portalThemeOverrides: mod.config.themeOverrides.portal,
+      };
+    }
+
     // Update status and portal_nav in DB
     const { error: updateErr } = await supabase
       .from('installed_modules')
-      .update({
-        status: 'enabled',
-        portal_nav: mod?.config.portalNav || null,
-      })
+      .update(updatePayload)
       .eq('id', moduleId);
 
     if (updateErr) {
@@ -407,6 +469,25 @@ modulesRouter.post('/:id/disable', async (req, res) => {
     try {
       const modules = await loadAllModules();
       const mod = modules.find((m) => m.config.id === moduleId);
+
+      // Clear portal theme overrides from config column for theme modules
+      if (mod?.config.type === 'theme') {
+        const { data: row } = await supabase
+          .from('installed_modules')
+          .select('config')
+          .eq('id', moduleId)
+          .single();
+
+        if (row) {
+          const currentConfig = { ...((row as Record<string, unknown>).config as Record<string, unknown> ?? {}) };
+          delete currentConfig.portalThemeOverrides;
+          await supabase
+            .from('installed_modules')
+            .update({ config: currentConfig })
+            .eq('id', moduleId);
+        }
+      }
+
       if (mod?.config.onDisable) {
         await mod.config.onDisable();
       }

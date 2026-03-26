@@ -2,6 +2,7 @@ import { ReactNode } from "react";
 import { Theme } from "@radix-ui/themes";
 import { useThemeContext } from "./context";
 import type { PrimaryColor } from "@/configs/@types/theme";
+import { useActiveThemeModule } from "@/hooks/useActiveThemeModule";
 
 // Map our PrimaryColor names to Radix Theme accentColor values.
 // Most names match directly since we now use Radix color names.
@@ -23,7 +24,10 @@ const accentColorMap: Record<PrimaryColor, React.ComponentProps<typeof Theme>["a
 
 export function RadixThemeBridge({ children }: { children: ReactNode }) {
   const { isDark, primaryColorScheme } = useThemeContext();
+  const activeTheme = useActiveThemeModule();
   const accentColor = accentColorMap[primaryColorScheme?.name] ?? "pink";
+
+  const radixOverrides = activeTheme?.themeOverrides.admin?.radixThemeProps ?? {};
 
   return (
     <Theme
@@ -32,6 +36,7 @@ export function RadixThemeBridge({ children }: { children: ReactNode }) {
       appearance={isDark ? "dark" : "light"}
       scaling="100%"
       panelBackground="translucent"
+      {...radixOverrides}
     >
       {children}
     </Theme>

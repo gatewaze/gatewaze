@@ -1,6 +1,6 @@
 import type { Plugin } from 'vite';
 import { readFileSync, existsSync, mkdirSync, readdirSync } from 'fs';
-import { resolve, isAbsolute } from 'path';
+import { resolve, dirname, isAbsolute } from 'path';
 import { execSync } from 'child_process';
 
 const VIRTUAL_MODULE_ID = 'virtual:gatewaze-modules';
@@ -73,6 +73,7 @@ export function gatewazeModulesPlugin(): Plugin {
       // Generate imports for each module
       const imports: string[] = [];
       const refs: string[] = [];
+      const cssImports: string[] = [];
 
       for (let i = 0; i < moduleIds.length; i++) {
         const moduleId = moduleIds[i];
@@ -81,6 +82,13 @@ export function gatewazeModulesPlugin(): Plugin {
         if (importPath) {
           imports.push(`import mod${i} from '${importPath}';`);
           refs.push(`mod${i}`);
+
+          // Check for theme module customCss and generate a side-effect import
+          const moduleCssPath = resolveThemeCustomCss(importPath, resolvedSources, moduleId);
+          if (moduleCssPath) {
+            cssImports.push(`import '${moduleCssPath}';`);
+            console.log(`[gatewaze-modules] Bundling theme CSS: ${moduleCssPath}`);
+          }
         } else {
           console.warn(`[gatewaze-modules] Could not resolve module: ${moduleId}`);
         }
@@ -88,6 +96,7 @@ export function gatewazeModulesPlugin(): Plugin {
 
       return [
         ...imports,
+        ...cssImports,
         `export default [${refs.join(', ')}];`,
         '',
       ].join('\n');
@@ -295,6 +304,39 @@ function discoverModulesFromSources(resolvedSources: string[]): string[] {
   }
 
   return result.sort();
+}
+
+/**
+ * Check if a module's index.ts declares a themeOverrides.admin.customCss path.
+ * If so, resolve it to an absolute path relative to the module directory.
+ *
+ * This is a lightweight static parse — it looks for `customCss:` in the source
+ * file and extracts the string value. No actual TS execution is involved.
+ */
+function resolveThemeCustomCss(
+  importPath: string,
+  _resolvedSources: string[],
+  _moduleId: string,
+): string | null {
+  try {
+    const moduleDir = dirname(importPath);
+    const content = readFileSync(importPath, 'utf-8');
+
+    // Look for customCss: './path/to/file.css' or customCss: "../path/to/file.css"
+    const match = content.match(/customCss\s*:\s*['"]([^'"]+)['"]/);
+    if (!match) return null;
+
+    const cssRelPath = match[1];
+    const cssAbsPath = resolve(moduleDir, cssRelPath);
+    if (existsSync(cssAbsPath)) {
+      return cssAbsPath;
+    }
+
+    console.warn(`[gatewaze-modules] Theme customCss not found: ${cssAbsPath}`);
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 /**
