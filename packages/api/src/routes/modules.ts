@@ -103,18 +103,35 @@ modulesRouter.post('/select', async (req, res) => {
     const supabase = createClient(supabaseUrl, serviceRoleKey);
     const { enabled, disabled } = req.body as { enabled?: string[]; disabled?: string[] };
 
-    if (enabled?.length) {
-      await supabase
-        .from('installed_modules')
-        .update({ status: 'enabled' })
-        .in('id', enabled);
-    }
+    // Reconcile first so all modules are registered in installed_modules.
+    // This is important during onboarding when the table may be empty.
+    const modules = await loadAllModules();
+    await reconcileModules(modules, supabase as never);
 
     if (disabled?.length) {
       await supabase
         .from('installed_modules')
         .update({ status: 'disabled' })
         .in('id', disabled);
+    }
+
+    if (enabled?.length) {
+      // Enable each module in dependency order and apply migrations
+      for (const moduleId of enabled) {
+        const mod = modules.find((m) => m.config.id === moduleId);
+        if (mod) {
+          try {
+            await applyModuleMigrations(mod, supabase as never);
+          } catch (migErr) {
+            console.error(`[modules] Migration failed for "${moduleId}" during selection:`, migErr);
+          }
+        }
+
+        await supabase
+          .from('installed_modules')
+          .update({ status: 'enabled' })
+          .eq('id', moduleId);
+      }
     }
 
     // Also update the onboarding step
