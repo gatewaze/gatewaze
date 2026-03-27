@@ -8,6 +8,9 @@ import {
   deployEdgeFunctions,
   isNewerVersion,
   compareSemver,
+  bootstrapCheck,
+  applyCoreMigrations,
+  detectEnvironment,
 } from '@gatewaze/shared/modules';
 import type { InstalledModuleRow, LoadedModule } from '@gatewaze/shared/modules';
 import { resolve } from 'path';
@@ -22,7 +25,11 @@ const config = (_configImport as any)?.default ?? _configImport;
 const PROJECT_ROOT = resolve(import.meta.dirname ?? __dirname, '../../../..');
 const UPLOAD_DIR = resolve(PROJECT_ROOT, 'data/uploaded-modules');
 
-const upload = multer({ dest: resolve(PROJECT_ROOT, 'data/.tmp-uploads') });
+const MAX_UPLOAD_SIZE = 50 * 1024 * 1024; // 50MB
+const upload = multer({
+  dest: resolve(PROJECT_ROOT, 'data/.tmp-uploads'),
+  limits: { fileSize: MAX_UPLOAD_SIZE },
+});
 
 export const modulesRouter = Router();
 
@@ -75,6 +82,58 @@ function restartEdgeRuntime(): Promise<void> {
     req.end();
   });
 }
+
+/**
+ * GET /api/modules/bootstrap-check
+ *
+ * Validates that the Supabase instance (local or cloud) is ready for
+ * module operations. Checks environment detection, exec_sql availability,
+ * and cloud credentials.
+ */
+modulesRouter.get('/bootstrap-check', async (_req, res) => {
+  try {
+    const supabase = getServiceClient();
+    const result = await bootstrapCheck(supabase as never);
+    return res.json(result);
+  } catch (err) {
+    console.error('[modules] Bootstrap check failed:', err);
+    return res.status(500).json({
+      error: err instanceof Error ? err.message : 'Bootstrap check failed',
+    });
+  }
+});
+
+/**
+ * POST /api/modules/bootstrap
+ *
+ * Apply core platform migrations to a Supabase instance.
+ * Used during initial setup of a blank Supabase Cloud instance.
+ */
+modulesRouter.post('/bootstrap', async (_req, res) => {
+  try {
+    const supabase = getServiceClient();
+    const environment = detectEnvironment();
+
+    // Apply core migrations
+    const { applied, errors } = await applyCoreMigrations(supabase as never, PROJECT_ROOT);
+
+    if (errors.length > 0) {
+      console.warn('[modules] Bootstrap migration errors:', errors);
+    }
+
+    return res.json({
+      success: errors.length === 0,
+      environment,
+      migrationsApplied: applied,
+      errors,
+    });
+  } catch (err) {
+    console.error('[modules] Bootstrap failed:', err);
+    return res.status(500).json({
+      error: err instanceof Error ? err.message : 'Bootstrap failed',
+    });
+  }
+});
 
 /**
  * POST /api/modules/reconcile
@@ -967,6 +1026,35 @@ modulesRouter.post('/upload', upload.single('file'), async (req, res) => {
       execSync(`rm -rf "${extractDir}"`, { stdio: 'pipe' });
       unlinkSync(file.path);
       return res.status(400).json({ error: 'Failed to extract zip file' });
+    }
+
+    // Security: validate no path traversal in extracted files
+    try {
+      const listOutput = execSync(`unzip -l "${file.path}"`, { stdio: 'pipe' }).toString();
+      if (listOutput.includes('../') || listOutput.includes('..\\')) {
+        execSync(`rm -rf "${extractDir}"`, { stdio: 'pipe' });
+        unlinkSync(file.path);
+        return res.status(400).json({ error: 'Zip file contains path traversal sequences' });
+      }
+    } catch {
+      // If we can't list the zip, the extraction above would have also failed
+    }
+
+    // Security: verify all extracted files are within the extraction directory
+    try {
+      const findOutput = execSync(`find "${extractDir}" -type f`, { stdio: 'pipe' }).toString();
+      const resolvedExtractDir = resolve(extractDir);
+      const hasEscape = findOutput.split('\n').some((f) => {
+        if (!f.trim()) return false;
+        return !resolve(f).startsWith(resolvedExtractDir);
+      });
+      if (hasEscape) {
+        execSync(`rm -rf "${extractDir}"`, { stdio: 'pipe' });
+        unlinkSync(file.path);
+        return res.status(400).json({ error: 'Zip file contains files outside extraction directory' });
+      }
+    } catch {
+      // find failure is non-fatal — extraction was already successful
     }
 
     // Find the module directory (may be nested one level inside the zip)

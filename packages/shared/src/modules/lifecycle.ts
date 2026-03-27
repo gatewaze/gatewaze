@@ -4,10 +4,65 @@ import { applyModuleMigrations } from './migrations';
 import { isNewerVersion } from './semver';
 
 /**
+ * Detect circular dependencies in the module graph.
+ * Returns an array of cycle descriptions (empty if no cycles found).
+ */
+export function detectCircularDependencies(modules: LoadedModule[]): string[] {
+  const byId = new Map(modules.map((m) => [m.config.id, m]));
+  const visited = new Set<string>();
+  const inStack = new Set<string>();
+  const cycles: string[] = [];
+
+  function dfs(modId: string, path: string[]): void {
+    if (inStack.has(modId)) {
+      // Found a cycle — extract the cycle portion from path
+      const cycleStart = path.indexOf(modId);
+      const cycle = [...path.slice(cycleStart), modId];
+      cycles.push(cycle.join(' → '));
+      return;
+    }
+    if (visited.has(modId)) return;
+
+    const mod = byId.get(modId);
+    if (!mod) return;
+
+    inStack.add(modId);
+    path.push(modId);
+
+    for (const depId of mod.config.dependencies ?? []) {
+      if (byId.has(depId)) {
+        dfs(depId, path);
+      }
+    }
+
+    path.pop();
+    inStack.delete(modId);
+    visited.add(modId);
+  }
+
+  for (const mod of modules) {
+    if (!visited.has(mod.config.id)) {
+      dfs(mod.config.id, []);
+    }
+  }
+
+  return cycles;
+}
+
+/**
  * Topologically sort modules so dependencies are processed before dependents.
  * Falls back to original order for modules with no dependency relationships.
+ * Throws an error if circular dependencies are detected.
  */
 function topologicalSort(modules: LoadedModule[]): LoadedModule[] {
+  // Check for circular dependencies first
+  const cycles = detectCircularDependencies(modules);
+  if (cycles.length > 0) {
+    const cycleList = cycles.map((c) => `  - ${c}`).join('\n');
+    console.error(`[modules] Circular dependencies detected:\n${cycleList}`);
+    throw new Error(`Circular dependencies detected:\n${cycleList}`);
+  }
+
   const byId = new Map(modules.map((m) => [m.config.id, m]));
   const visited = new Set<string>();
   const sorted: LoadedModule[] = [];
