@@ -31,7 +31,6 @@ import { Page } from '@/components/shared/Page';
 import { PeopleService, Person } from '@/utils/peopleService';
 import { PeopleAvatarService } from '@/utils/peopleAvatarService';
 import { CompetitionWinnerService, CompetitionWinner } from '@/utils/competitionWinnerService';
-import { EventService, Event as CompetitionEvent } from '@/utils/eventService';
 import { supabase } from '@/lib/supabase';
 import { EmailHistorySection } from '@/components/emails/EmailHistorySection';
 import { useHasModule } from '@/hooks/useModuleFeature';
@@ -172,6 +171,7 @@ export default function MemberDetailPage() {
   const hasCIO = useHasModule('customerio');
   const hasCompetitions = useHasModule('competitions');
   const hasBulkEmailing = useHasModule('bulk-emailing');
+  const hasEvents = useHasModule('core-events');
   const [person, setPerson] = useState<Person | null>(null);
   const [segments, setSegments] = useState<Segment[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -180,7 +180,6 @@ export default function MemberDetailPage() {
   const [competitionWins, setCompetitionWins] = useState<CompetitionWin[]>([]);
   const [competitions, setCompetitions] = useState<CompetitionActivity[]>([]);
   const [offers, setOffers] = useState<OfferActivity[]>([]);
-  const [allEvents, setAllEvents] = useState<CompetitionEvent[]>([]);
   const [eventRegistrations, setEventRegistrations] = useState<EventRegistration[]>([]);
   const [eventAttendances, setEventAttendances] = useState<EventAttendance[]>([]);
   const [speakerSubmissions, setSpeakerSubmissions] = useState<SpeakerSubmission[]>([]);
@@ -420,11 +419,6 @@ export default function MemberDetailPage() {
 
       setPerson(customerData);
 
-      // Fetch all events for various uses
-      const eventsResult = await EventService.getAllEvents();
-      const fetchedEvents = eventsResult.success ? eventsResult.data || [] : [];
-      setAllEvents(fetchedEvents);
-
       if (hasCIO && customerData?.cio_id) {
         // Fetch segments
         const { data: segmentsData } = await supabase
@@ -643,57 +637,60 @@ export default function MemberDetailPage() {
       }
 
       // Fetch event registrations, attendance, and speaker submissions via member_profiles
-      const { data: profileData } = await supabase
-        .from('people_profiles')
-        .select('id')
-        .eq('person_id', id!);
+      // Only when core-events module is installed
+      if (hasEvents) {
+        const { data: profileData } = await supabase
+          .from('people_profiles')
+          .select('id')
+          .eq('person_id', id!);
 
-      const memberProfileIds = (profileData || []).map((p: any) => p.id);
+        const memberProfileIds = (profileData || []).map((p: any) => p.id);
 
-      if (memberProfileIds.length > 0) {
-        const [regResult, attendResult, speakerResult] = await Promise.all([
-          supabase
-            .from('events_registrations')
-            .select('id, event_id, status, registered_at, ticket_type, registration_type')
-            .in('people_profile_id', memberProfileIds)
-            .order('registered_at', { ascending: false }),
-          supabase
-            .from('events_attendance')
-            .select('id, event_id, checked_in_at, checked_out_at')
-            .in('people_profile_id', memberProfileIds)
-            .order('checked_in_at', { ascending: false }),
-          supabase
-            .from('events_speakers')
-            .select('id, event_uuid, status, talk_title, submitted_at')
-            .in('people_profile_id', memberProfileIds)
-            .order('submitted_at', { ascending: false }),
-        ]);
+        if (memberProfileIds.length > 0) {
+          const [regResult, attendResult, speakerResult] = await Promise.all([
+            supabase
+              .from('events_registrations')
+              .select('id, event_id, status, registered_at, ticket_type, registration_type')
+              .in('people_profile_id', memberProfileIds)
+              .order('registered_at', { ascending: false }),
+            supabase
+              .from('events_attendance')
+              .select('id, event_id, checked_in_at, checked_out_at')
+              .in('people_profile_id', memberProfileIds)
+              .order('checked_in_at', { ascending: false }),
+            supabase
+              .from('events_speakers')
+              .select('id, event_uuid, status, talk_title, submitted_at')
+              .in('people_profile_id', memberProfileIds)
+              .order('submitted_at', { ascending: false }),
+          ]);
 
-        const regData = regResult.data || [];
-        const attendData = attendResult.data || [];
-        const speakerData = speakerResult.data || [];
+          const regData = regResult.data || [];
+          const attendData = attendResult.data || [];
+          const speakerData = speakerResult.data || [];
 
-        // Collect all event IDs to fetch titles in one query
-        const allEventIds = [
-          ...new Set([
-            ...regData.map((r: any) => r.event_id),
-            ...attendData.map((a: any) => a.event_id),
-            ...speakerData.map((s: any) => s.event_uuid?.toString()),
-          ].filter(Boolean)),
-        ];
+          // Collect all event IDs to fetch titles in one query
+          const allEventIds = [
+            ...new Set([
+              ...regData.map((r: any) => r.event_id),
+              ...attendData.map((a: any) => a.event_id),
+              ...speakerData.map((s: any) => s.event_uuid?.toString()),
+            ].filter(Boolean)),
+          ];
 
-        const eventsMap = new Map<string, EventDetails>();
-        if (allEventIds.length > 0) {
-          const { data: eventDetails } = await supabase
-            .from('events')
-            .select('event_id, event_title, event_city, event_country_code, event_start, event_end, event_logo')
-            .in('event_id', allEventIds);
-          (eventDetails || []).forEach((e: any) => eventsMap.set(e.event_id, e));
+          const eventsMap = new Map<string, EventDetails>();
+          if (allEventIds.length > 0) {
+            const { data: eventDetails } = await supabase
+              .from('events')
+              .select('event_id, event_title, event_city, event_country_code, event_start, event_end, event_logo')
+              .in('event_id', allEventIds);
+            (eventDetails || []).forEach((e: any) => eventsMap.set(e.event_id, e));
+          }
+
+          setEventRegistrations(regData.map((r: any) => ({ ...r, event: eventsMap.get(r.event_id) })));
+          setEventAttendances(attendData.map((a: any) => ({ ...a, event: eventsMap.get(a.event_id) })));
+          setSpeakerSubmissions(speakerData.map((s: any) => ({ ...s, event: eventsMap.get(s.event_uuid?.toString()) })));
         }
-
-        setEventRegistrations(regData.map((r: any) => ({ ...r, event: eventsMap.get(r.event_id) })));
-        setEventAttendances(attendData.map((a: any) => ({ ...a, event: eventsMap.get(a.event_id) })));
-        setSpeakerSubmissions(speakerData.map((s: any) => ({ ...s, event: eventsMap.get(s.event_uuid?.toString()) })));
       }
     } catch (error) {
       console.error('Error loading person details:', error);
@@ -1010,7 +1007,7 @@ export default function MemberDetailPage() {
             competitions.length > 0 && { id: 'competitions', label: 'Competitions', icon: <TrophyIcon className="size-4" />, count: competitions.length },
             offers.length > 0 && { id: 'offers', label: 'Offers', icon: <CalendarIcon className="size-4" />, count: offers.length },
             hasCIO && { id: 'activities', label: 'Activities', icon: <ClockIcon className="size-4" />, count: activities.length },
-            { id: 'events', label: 'Events', icon: <CalendarIcon className="size-4" />, count: eventRegistrations.length + speakerSubmissions.length },
+            hasEvents && { id: 'events', label: 'Events', icon: <CalendarIcon className="size-4" />, count: eventRegistrations.length + speakerSubmissions.length },
             hasCIO && { id: 'relationships', label: 'Relationships', icon: <LinkIcon className="size-4" />, count: relationships.length },
             competitionWins.length > 0 && { id: 'wins', label: 'Wins', icon: <TrophyIcon className="size-4" />, count: competitionWins.length },
             { id: 'emails', label: 'Emails', icon: <EnvelopeIcon className="size-4" /> },

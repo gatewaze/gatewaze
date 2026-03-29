@@ -11,10 +11,12 @@ import {
 import { EventService, Event } from '@/utils/eventService';
 import { WinnerService } from '@/utils/winnerService';
 import { PeopleService } from '@/utils/peopleService';
-import { isFeatureEnabled, getBrandConfig } from '@/config/brands';
+import { getBrandConfig } from '@/config/brands';
+import { useModulesContext } from '@/app/contexts/modules/context';
 
 export default function Home() {
   const brandConfig = getBrandConfig();
+  const { isFeatureEnabled } = useModulesContext();
   const showEvents = isFeatureEnabled('events');
   const showCompetitions = isFeatureEnabled('competitions');
 
