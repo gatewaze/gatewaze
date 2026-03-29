@@ -367,14 +367,10 @@ function parseConfig(configPath: string): {
     const sourcesMatch = content.match(/moduleSources\s*:\s*\[([\s\S]*?)\]/);
     const sources: SourceEntry[] = [];
     if (sourcesMatch) {
-      const strings = sourcesMatch[1].match(/['"]([^'"]+)['"]/g);
-      if (strings) {
-        for (const s of strings) {
-          sources.push(normalizeSource(s.slice(1, -1)));
-        }
-      }
-      // Also parse object-style entries: { url: '...', path: '...', branch: '...' }
-      const objMatches = sourcesMatch[1].matchAll(
+      let sourcesBody = sourcesMatch[1];
+
+      // Parse object-style entries first: { url: '...', path: '...', branch: '...' }
+      const objMatches = sourcesBody.matchAll(
         /\{\s*url\s*:\s*['"]([^'"]+)['"]\s*(?:,\s*path\s*:\s*['"]([^'"]+)['"])?\s*(?:,\s*branch\s*:\s*['"]([^'"]+)['"])?\s*\}/g
       );
       for (const m of objMatches) {
@@ -383,6 +379,15 @@ function parseConfig(configPath: string): {
           path: m[2] || undefined,
           branch: m[3] || undefined,
         });
+      }
+
+      // Strip object entries so their inner strings aren't matched as bare sources
+      const bareBody = sourcesBody.replace(/\{[^}]*\}/g, '');
+      const strings = bareBody.match(/['"]([^'"]+)['"]/g);
+      if (strings) {
+        for (const s of strings) {
+          sources.push(normalizeSource(s.slice(1, -1)));
+        }
       }
     }
 

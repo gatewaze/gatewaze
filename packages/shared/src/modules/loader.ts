@@ -72,8 +72,10 @@ export async function loadModules(
   projectRoot?: string,
 ): Promise<LoadedModule[]> {
   const root = projectRoot ?? process.cwd();
-  const resolvedSources = resolveSourceDirs(config.moduleSources ?? [], root);
-  const moduleIds = config.modules ?? discoverModules(config.moduleSources ?? [], root);
+  const configSources = config.moduleSources ?? [];
+  const resolvedSources = resolveSourceDirs(configSources, root);
+  const sourceLabels = buildSourceLabelMap(configSources, resolvedSources);
+  const moduleIds = config.modules ?? discoverModules(configSources, root);
   const modules: LoadedModule[] = [];
 
   for (const packageName of moduleIds) {
@@ -83,12 +85,14 @@ export async function loadModules(
       // Try moduleSources first
       let mod: Record<string, unknown> | undefined;
       let resolvedDir: string | undefined;
+      let sourceLabel: string | undefined;
       for (const sourceDir of resolvedSources) {
         const moduleDir = resolve(sourceDir, slug);
         const indexTs = resolve(moduleDir, 'index.ts');
         if (existsSync(indexTs)) {
           mod = await import(indexTs);
           resolvedDir = moduleDir;
+          sourceLabel = sourceLabels.get(sourceDir);
           break;
         }
       }
@@ -107,6 +111,7 @@ export async function loadModules(
         packageName,
         moduleConfig: config.moduleConfig?.[moduleExport.id] ?? {},
         resolvedDir,
+        sourceLabel,
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -116,6 +121,62 @@ export async function loadModules(
   }
 
   return modules;
+}
+
+/**
+ * Build a map from resolved source directory → human-readable label.
+ * Derives labels from the source config (explicit label, repo name, or directory name).
+ */
+function buildSourceLabelMap(
+  sources: ModuleSource[],
+  resolvedDirs: string[],
+): Map<string, string> {
+  const map = new Map<string, string>();
+
+  for (let i = 0; i < sources.length && i < resolvedDirs.length; i++) {
+    const source = sources[i];
+    const dir = resolvedDirs[i];
+
+    let label: string | undefined;
+
+    if (typeof source === 'object' && source.label) {
+      label = source.label;
+    } else {
+      // Derive from URL/path: extract the repo or directory name
+      const url = typeof source === 'string' ? source : source.url;
+      label = deriveSourceLabel(url);
+    }
+
+    if (label) {
+      map.set(dir, label);
+    }
+  }
+
+  return map;
+}
+
+/**
+ * Derive a human-readable label from a source URL or path.
+ * '../gatewaze-modules/modules' → 'Gatewaze Modules'
+ * 'https://github.com/gatewaze/gatewaze-modules.git' → 'Gatewaze Modules'
+ */
+function deriveSourceLabel(url: string): string {
+  // Strip git suffix and fragments
+  let name = url.split('#')[0].replace(/\.git$/, '');
+
+  // Extract the last meaningful path segment
+  // For '../gatewaze-modules/modules' → 'gatewaze-modules'
+  // For 'https://github.com/org/repo' → 'repo'
+  const segments = name.split('/').filter(Boolean);
+  // Skip generic trailing segments like 'modules'
+  name = segments.length > 1 && segments[segments.length - 1] === 'modules'
+    ? segments[segments.length - 2]
+    : segments[segments.length - 1] || name;
+
+  // Convert kebab-case to title case: 'gatewaze-modules' → 'Gatewaze Modules'
+  return name
+    .replace(/[-_]/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 /**
@@ -135,6 +196,7 @@ export async function loadModulesWithDbSources(
     path: row.path ?? undefined,
     branch: row.branch ?? undefined,
     token: row.token ?? undefined,
+    label: row.label ?? undefined,
   }));
 
   // Deduplicate by url+path
