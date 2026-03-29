@@ -18,11 +18,14 @@ services:
       - ../packages/admin/public:/app/packages/admin/public
       - ../packages/admin/index.html:/app/packages/admin/index.html
       - ../packages/admin/vite.config.ts:/app/packages/admin/vite.config.ts
+      - ../packages/admin/vite-plugin-gatewaze-modules.ts:/app/packages/admin/vite-plugin-gatewaze-modules.ts
       - ../packages/admin/tsconfig.json:/app/packages/admin/tsconfig.json
       - ../packages/shared/src:/app/packages/shared/src
       # Module system: config + external module sources
       - ../gatewaze.config.ts:/app/gatewaze.config.ts
-      - ../../gatewaze-modules/modules:/gatewaze-modules/modules
+      - ../../gatewaze-modules:/gatewaze-modules
+      - ../../premium-gatewaze-modules:/premium-gatewaze-modules
+      - ../../lf-gatewaze-modules:/lf-gatewaze-modules
     environment:
       NODE_ENV: development
       API_PROXY_TARGET: http://api:3002
@@ -53,7 +56,9 @@ services:
       - ../packages/shared/src:/app/packages/shared/src
       # Module system: config + external module sources
       - ../gatewaze.config.ts:/app/gatewaze.config.ts
-      - ../../gatewaze-modules/modules:/gatewaze-modules/modules
+      - ../../gatewaze-modules:/gatewaze-modules
+      - ../../premium-gatewaze-modules:/premium-gatewaze-modules
+      - ../../lf-gatewaze-modules:/lf-gatewaze-modules
     environment:
       NODE_ENV: development
       NEXT_PUBLIC_API_URL: ${API_URL:-http://aaif-api.localhost}
@@ -70,7 +75,9 @@ services:
       - ../packages/shared/src:/app/packages/shared/src
       # Module system: config + external module sources
       - ../gatewaze.config.ts:/app/gatewaze.config.ts
-      - ../../gatewaze-modules/modules:/gatewaze-modules/modules
+      - ../../gatewaze-modules:/gatewaze-modules
+      - ../../premium-gatewaze-modules:/premium-gatewaze-modules
+      - ../../lf-gatewaze-modules:/lf-gatewaze-modules
       # Git module source cache + uploaded modules (persist across restarts)
       - ../.gatewaze-modules:/app/.gatewaze-modules
       - ../data:/app/data
@@ -101,6 +108,8 @@ services:
       - ../packages/api/tsconfig.json:/app/packages/api/tsconfig.json
       - ../packages/shared/src:/app/packages/shared/src
       - ../gatewaze.config.ts:/app/gatewaze.config.ts
-      - ../../gatewaze-modules/modules:/gatewaze-modules/modules
+      - ../../gatewaze-modules:/gatewaze-modules
+      - ../../premium-gatewaze-modules:/premium-gatewaze-modules
+      - ../../lf-gatewaze-modules:/lf-gatewaze-modules
     environment:
       NODE_ENV: development

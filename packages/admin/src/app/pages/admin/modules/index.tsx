@@ -48,12 +48,15 @@ interface ModuleCardData {
   type: string;
   group: string;
   source: string;
+  sourceLabel: string;
   status: "enabled" | "disabled" | "error" | "not_installed";
   installed_at?: string;
   updateAvailable: boolean;
   platformCompatible: boolean;
   minPlatformVersion?: string;
 }
+
+const ALL_SOURCES_TAB = "__all__";
 
 export default function ModulesPage() {
   const { user } = useAuthContext();
@@ -73,7 +76,8 @@ export default function ModulesPage() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [isUpdatingAll, setIsUpdatingAll] = useState(false);
   const [availableUpdates, setAvailableUpdates] = useState<ModuleUpdateInfo[]>([]);
-  const [availableModules, setAvailableModules] = useState<{ id: string; name: string; description: string; version: string; type: string; group: string; features: string[] }[]>([]);
+  const [availableModules, setAvailableModules] = useState<{ id: string; name: string; description: string; version: string; type: string; group: string; features: string[]; sourceLabel?: string }[]>([]);
+  const [activeSourceTab, setActiveSourceTab] = useState<string>(ALL_SOURCES_TAB);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadAvailableModules = useCallback(async () => {
@@ -138,6 +142,7 @@ export default function ModulesPage() {
         type: mod.type ?? "feature",
         group: mod.group ?? mod.type ?? "feature",
         source: "source",
+        sourceLabel: mod.sourceLabel ?? "Modules",
         status: installed?.status ?? "not_installed",
         installed_at: installed?.installed_at,
         updateAvailable: !!update,
@@ -161,6 +166,7 @@ export default function ModulesPage() {
           type: installed.type ?? "feature",
           group: installed.type ?? "feature",
           source: installed.source ?? "custom",
+          sourceLabel: "Custom",
           status: installed.status,
           installed_at: installed.installed_at,
           updateAvailable: false,
@@ -172,16 +178,31 @@ export default function ModulesPage() {
     return cards;
   }, [availableModules, installedModules, availableUpdates]);
 
+  // Unique source labels for tabs
+  const sourceTabs = useMemo(() => {
+    const labels = new Set<string>();
+    for (const mod of moduleCards) {
+      labels.add(mod.sourceLabel);
+    }
+    return Array.from(labels).sort();
+  }, [moduleCards]);
+
+  // Filter cards by active source tab
+  const filteredCards = useMemo(() => {
+    if (activeSourceTab === ALL_SOURCES_TAB) return moduleCards;
+    return moduleCards.filter((mod) => mod.sourceLabel === activeSourceTab);
+  }, [moduleCards, activeSourceTab]);
+
   // Group by group field
   const grouped = useMemo(() => {
     const groups: Record<string, ModuleCardData[]> = {};
-    for (const mod of moduleCards) {
+    for (const mod of filteredCards) {
       const section = mod.group;
       if (!groups[section]) groups[section] = [];
       groups[section].push(mod);
     }
     return groups;
-  }, [moduleCards]);
+  }, [filteredCards]);
 
   const sortedSections = useMemo(() => {
     const sections = Object.keys(grouped);
@@ -545,6 +566,35 @@ export default function ModulesPage() {
               </div>
             )}
           </section>
+        )}
+
+        {/* Source Tabs — only shown when modules come from multiple sources */}
+        {!loading && sourceTabs.length > 1 && (
+          <div className="mb-6 flex gap-1 border-b border-[var(--gray-a5)]">
+            <button
+              onClick={() => setActiveSourceTab(ALL_SOURCES_TAB)}
+              className={`px-4 py-2 text-sm font-medium transition-colors -mb-px ${
+                activeSourceTab === ALL_SOURCES_TAB
+                  ? "border-b-2 border-[var(--accent-9)] text-[var(--accent-11)]"
+                  : "text-[var(--gray-a9)] hover:text-[var(--gray-12)]"
+              }`}
+            >
+              All
+            </button>
+            {sourceTabs.map((label) => (
+              <button
+                key={label}
+                onClick={() => setActiveSourceTab(label)}
+                className={`px-4 py-2 text-sm font-medium transition-colors -mb-px ${
+                  activeSourceTab === label
+                    ? "border-b-2 border-[var(--accent-9)] text-[var(--accent-11)]"
+                    : "text-[var(--gray-a9)] hover:text-[var(--gray-12)]"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         )}
 
         {loading ? (
