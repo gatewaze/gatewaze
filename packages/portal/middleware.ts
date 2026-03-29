@@ -55,6 +55,47 @@ const FILTER_VIEWS = new Set(['upcoming', 'past', 'calendar', 'map'])
 // Module prefixes with portal pages (generated at startup)
 const modulePortalPrefixes = new Set<string>(modulePrefixes as string[])
 
+// Cache for core-events module status
+let eventsModuleStatus: { enabled: boolean; timestamp: number } | null = null
+const MODULE_CACHE_TTL = 60 * 1000 // 60 seconds
+
+async function isEventsModuleEnabled(): Promise<boolean> {
+  // Check cache
+  if (eventsModuleStatus && Date.now() - eventsModuleStatus.timestamp < MODULE_CACHE_TTL) {
+    return eventsModuleStatus.enabled
+  }
+
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!supabaseUrl || !supabaseAnonKey) {
+    // If we can't check, assume enabled for backward compatibility
+    return true
+  }
+
+  try {
+    const url = `${supabaseUrl}/rest/v1/installed_modules?select=status&id=eq.core-events&limit=1`
+    const res = await fetch(url, {
+      headers: {
+        'apikey': supabaseAnonKey,
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+      },
+    })
+
+    if (!res.ok) {
+      eventsModuleStatus = { enabled: true, timestamp: Date.now() }
+      return true
+    }
+
+    const rows = await res.json()
+    const enabled = rows?.[0]?.status === 'enabled'
+    eventsModuleStatus = { enabled, timestamp: Date.now() }
+    return enabled
+  } catch {
+    eventsModuleStatus = { enabled: true, timestamp: Date.now() }
+    return true
+  }
+}
+
 // In-memory cache for domain → event lookups (per-pod, resets on deploy)
 const domainCache = new Map<string, { eventIdentifier: string; timestamp: number } | null>()
 // In-memory cache for event identifier → canonical slug
@@ -162,65 +203,76 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // Check events module status once (used in both known host and custom domain sections)
+  const eventsEnabled = await isEventsModuleEnabled()
+
   // Pass through for known hosts — no custom domain logic needed
   if (isKnownHost(hostname)) {
-    // Redirect legacy /calendar paths (e.g., /calendar, /calendar/eu, /calendar/eu/conferences/)
-    if (pathname === '/calendar' || pathname.startsWith('/calendar/')) {
-      const segments = pathname.replace(/\/+$/, '').split('/').filter(Boolean).slice(1) // remove 'calendar', strip trailing slash
-      const url = request.nextUrl.clone()
-      const filterParts: string[] = []
-      for (const seg of segments) {
-        if (KNOWN_REGION_CODES.has(seg) || isEventTypeSlug(seg)) {
-          filterParts.push(seg)
+    // Event-specific redirects only when events module is enabled
+    if (eventsEnabled) {
+      // Redirect legacy /calendar paths (e.g., /calendar, /calendar/eu, /calendar/eu/conferences/)
+      if (pathname === '/calendar' || pathname.startsWith('/calendar/')) {
+        const segments = pathname.replace(/\/+$/, '').split('/').filter(Boolean).slice(1) // remove 'calendar', strip trailing slash
+        const url = request.nextUrl.clone()
+        const filterParts: string[] = []
+        for (const seg of segments) {
+          if (KNOWN_REGION_CODES.has(seg) || isEventTypeSlug(seg)) {
+            filterParts.push(seg)
+          }
+        }
+        url.pathname = '/events/upcoming' + (filterParts.length > 0 ? '/' + filterParts.join('/') : '')
+        return NextResponse.redirect(url, 301)
+      }
+
+      // Redirect old /event/ (singular) URLs to /events/ (plural) with canonical slug
+      const legacyEventMatch = pathname.match(/^\/event\/([^/]+)(.*)$/)
+      if (legacyEventMatch) {
+        const [, identifier, rest] = legacyEventMatch
+        const canonicalSlug = await lookupCanonicalSlug(identifier)
+        const slug = canonicalSlug || identifier
+        const url = request.nextUrl.clone()
+        url.pathname = `/events/${slug}${rest}`
+        return NextResponse.redirect(url, 301)
+      }
+
+      // Rewrite path-based filter URLs: /events/{view}/{region?}/{type?} → /events/{view}?region=...&type=...
+      const filterMatch = pathname.match(/^\/events\/(upcoming|past|calendar|map)\/(.+)$/)
+      if (filterMatch) {
+        const [, view, rest] = filterMatch
+        const segments = rest.replace(/\/+$/, '').split('/').filter(Boolean)
+        let region: string | null = null
+        let type: string | null = null
+        for (const seg of segments) {
+          if (!region && KNOWN_REGION_CODES.has(seg)) {
+            region = seg
+          } else if (!type && isEventTypeSlug(seg)) {
+            type = slugToEventType(seg)
+          }
+        }
+        if (region || type) {
+          const url = request.nextUrl.clone()
+          url.pathname = `/events/${view}`
+          if (region) url.searchParams.set('region', region)
+          if (type) url.searchParams.set('type', type)
+          return NextResponse.rewrite(url)
         }
       }
-      url.pathname = '/events/upcoming' + (filterParts.length > 0 ? '/' + filterParts.join('/') : '')
-      return NextResponse.redirect(url, 301)
-    }
 
-    // Redirect old /event/ (singular) URLs to /events/ (plural) with canonical slug
-    const legacyEventMatch = pathname.match(/^\/event\/([^/]+)(.*)$/)
-    if (legacyEventMatch) {
-      const [, identifier, rest] = legacyEventMatch
-      const canonicalSlug = await lookupCanonicalSlug(identifier)
-      const slug = canonicalSlug || identifier
-      const url = request.nextUrl.clone()
-      url.pathname = `/events/${slug}${rest}`
-      return NextResponse.redirect(url, 301)
-    }
-
-    // Rewrite path-based filter URLs: /events/{view}/{region?}/{type?} → /events/{view}?region=...&type=...
-    const filterMatch = pathname.match(/^\/events\/(upcoming|past|calendar|map)\/(.+)$/)
-    if (filterMatch) {
-      const [, view, rest] = filterMatch
-      const segments = rest.replace(/\/+$/, '').split('/').filter(Boolean)
-      let region: string | null = null
-      let type: string | null = null
-      for (const seg of segments) {
-        if (!region && KNOWN_REGION_CODES.has(seg)) {
-          region = seg
-        } else if (!type && isEventTypeSlug(seg)) {
-          type = slugToEventType(seg)
+      // Redirect to canonical slug if the URL identifier doesn't match
+      const eventMatch = pathname.match(/^\/events\/([^/]+)(.*)$/)
+      if (eventMatch) {
+        const [, identifier, rest] = eventMatch
+        const canonicalSlug = await lookupCanonicalSlug(identifier)
+        if (canonicalSlug && canonicalSlug !== identifier) {
+          const url = request.nextUrl.clone()
+          url.pathname = `/events/${canonicalSlug}${rest}`
+          return NextResponse.redirect(url)
         }
       }
-      if (region || type) {
-        const url = request.nextUrl.clone()
-        url.pathname = `/events/${view}`
-        if (region) url.searchParams.set('region', region)
-        if (type) url.searchParams.set('type', type)
-        return NextResponse.rewrite(url)
-      }
-    }
-
-    // Redirect to canonical slug if the URL identifier doesn't match
-    const eventMatch = pathname.match(/^\/events\/([^/]+)(.*)$/)
-    if (eventMatch) {
-      const [, identifier, rest] = eventMatch
-      const canonicalSlug = await lookupCanonicalSlug(identifier)
-      if (canonicalSlug && canonicalSlug !== identifier) {
-        const url = request.nextUrl.clone()
-        url.pathname = `/events/${canonicalSlug}${rest}`
-        return NextResponse.redirect(url)
+    } else {
+      // Events module disabled — let Next.js handle event paths (will hit not-found page)
+      if (pathname.startsWith('/events') || pathname.startsWith('/event') || pathname === '/calendar' || pathname.startsWith('/calendar/')) {
+        return NextResponse.next()
       }
     }
 
@@ -247,6 +299,11 @@ export async function middleware(request: NextRequest) {
     /\.(ico|png|jpg|jpeg|svg|css|js|woff|woff2|ttf|eot|map|webp|gif)$/.test(pathname)
   ) {
     return NextResponse.next()
+  }
+
+  // If events module is disabled, custom domains can't resolve to events
+  if (!eventsEnabled) {
+    return NextResponse.redirect(new URL('https://www.gatewaze.com'))
   }
 
   // Look up the event for this custom domain

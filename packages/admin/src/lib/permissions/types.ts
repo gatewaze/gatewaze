@@ -9,7 +9,6 @@ export type CoreFeature =
   | 'accounts'
   | 'users'
   | 'calendars'
-  | 'events'
   | 'blog'
   | 'scrapers'
   | 'competitions'
@@ -169,13 +168,6 @@ accounts: {
     description: 'Manage calendars and calendar members',
     category: 'content',
     route: '/calendars',
-  },
-  events: {
-    key: 'events',
-    label: 'Events',
-    description: 'Manage events and conferences',
-    category: 'content',
-    route: '/events',
   },
   blog: {
     key: 'blog',
