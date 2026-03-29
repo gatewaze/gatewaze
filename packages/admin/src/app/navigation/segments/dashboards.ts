@@ -20,13 +20,4 @@ export const dashboardItems: NavigationTree[] = [
     icon: "dashboards.members",
     requiredFeature: "dashboard_people",
   },
-  {
-    id: "events",
-    path: "/events",
-    type: "item",
-    title: "Events",
-    transKey: "nav.dashboards.events",
-    icon: "admin.events",
-    requiredFeature: "events",
-  },
 ];

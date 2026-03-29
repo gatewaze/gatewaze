@@ -9,13 +9,26 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = `https://${brandConfig.domain}`
   const supabase = await createServerSupabase(brandConfig.id)
 
-  // Fetch all live, listed event slugs (unlisted events use custom domains)
-  const { data: events } = await supabase
-    .from('events')
-    .select('event_slug, event_id')
-    .eq('is_live_in_production', true)
-    .eq('is_listed', true)
-    .limit(10000)
+  // Check if events module is enabled
+  const { data: eventsModule } = await supabase
+    .from('installed_modules')
+    .select('status')
+    .eq('id', 'core-events')
+    .maybeSingle()
+
+  const eventsEnabled = eventsModule?.status === 'enabled'
+
+  // Fetch events only if module is enabled
+  let events: any[] = []
+  if (eventsEnabled) {
+    const { data } = await supabase
+      .from('events')
+      .select('event_slug, event_id')
+      .eq('is_live_in_production', true)
+      .eq('is_listed', true)
+      .limit(10000)
+    events = data || []
+  }
 
   // Fetch all public active calendar slugs
   const { data: calendars } = await supabase
@@ -25,21 +38,23 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     .eq('visibility', 'public')
     .limit(10000)
 
-  // Static pages
+  // Static pages - only include event pages if events enabled
   const staticPages: MetadataRoute.Sitemap = [
     { url: baseUrl, changeFrequency: 'daily', priority: 1.0 },
-    { url: `${baseUrl}/events/upcoming`, changeFrequency: 'daily', priority: 0.9 },
-    { url: `${baseUrl}/events/past`, changeFrequency: 'daily', priority: 0.8 },
-    { url: `${baseUrl}/events/calendar`, changeFrequency: 'daily', priority: 0.8 },
-    { url: `${baseUrl}/events/map`, changeFrequency: 'daily', priority: 0.8 },
+    ...(eventsEnabled ? [
+      { url: `${baseUrl}/events/upcoming`, changeFrequency: 'daily' as const, priority: 0.9 },
+      { url: `${baseUrl}/events/past`, changeFrequency: 'daily' as const, priority: 0.8 },
+      { url: `${baseUrl}/events/calendar`, changeFrequency: 'daily' as const, priority: 0.8 },
+      { url: `${baseUrl}/events/map`, changeFrequency: 'daily' as const, priority: 0.8 },
+    ] : []),
     { url: `${baseUrl}/privacy`, changeFrequency: 'monthly', priority: 0.3 },
     { url: `${baseUrl}/terms`, changeFrequency: 'monthly', priority: 0.3 },
     { url: `${baseUrl}/cookie-policy`, changeFrequency: 'monthly', priority: 0.3 },
     { url: `${baseUrl}/do-not-sell`, changeFrequency: 'monthly', priority: 0.3 },
   ]
 
-  // Dynamic event pages
-  const eventPages: MetadataRoute.Sitemap = (events || []).map((event) => ({
+  // Dynamic event pages (only if events enabled)
+  const eventPages: MetadataRoute.Sitemap = events.map((event) => ({
     url: `${baseUrl}/events/${event.event_slug || event.event_id}`,
     changeFrequency: 'weekly' as const,
     priority: 0.7,

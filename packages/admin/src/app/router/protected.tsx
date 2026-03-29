@@ -72,50 +72,6 @@ const coreChildren = [
       },
     ],
   },
-  {
-    path: "events",
-    children: [
-      {
-        index: true,
-        lazy: async () => {
-          const module = await import("@/app/pages/events");
-          return {
-            Component: () => (
-              <FeatureGuard feature="events">
-                <module.default />
-              </FeatureGuard>
-            ),
-          };
-        },
-      },
-      {
-        path: ":eventId",
-        lazy: async () => {
-          const module = await import("@/app/pages/events/detail");
-          return {
-            Component: () => (
-              <FeatureGuard feature="events">
-                <module.default />
-              </FeatureGuard>
-            ),
-          };
-        },
-      },
-      {
-        path: ":eventId/:tab",
-        lazy: async () => {
-          const module = await import("@/app/pages/events/detail");
-          return {
-            Component: () => (
-              <FeatureGuard feature="events">
-                <module.default />
-              </FeatureGuard>
-            ),
-          };
-        },
-      },
-    ],
-  },
 ];
 
 /**
@@ -139,7 +95,7 @@ const protectedRoutes: RouteObject = {
           index: true,
           Component: RoleBasedRedirect,
         },
-        // Core routes (home, people, events)
+        // Core routes (home, people)
         ...coreChildren,
         // Module-provided routes (from gatewaze.config.ts modules)
         ...moduleRoutes,

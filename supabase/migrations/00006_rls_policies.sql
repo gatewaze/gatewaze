@@ -2,6 +2,10 @@
 -- 00007_rls_policies.sql
 -- Comprehensive RLS policies for all core tables
 -- Runs after 00006_platform.sql
+--
+-- NOTE: Event-related RLS (events, events_registrations, events_attendance,
+--       admin_event_permissions) has been moved to the core-events module
+--       migration (002_events_rls_functions.sql).
 -- =============================================================================
 
 -- =============================================================================
@@ -29,36 +33,21 @@ RETURNS boolean AS $$
   );
 $$ LANGUAGE sql SECURITY DEFINER STABLE;
 
--- can_admin_event: Check if current user has event-level admin access
--- Core version only checks super_admin + direct event permissions.
--- The calendars module extends this to also check calendar permissions.
+-- can_admin_event: Stub that returns false when events module is not installed.
+-- The core-events module overrides this with the full implementation.
 CREATE OR REPLACE FUNCTION public.can_admin_event(p_event_uuid uuid)
 RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER
 AS $$
-  SELECT
-    public.is_super_admin()
-    OR EXISTS (
-      SELECT 1
-      FROM public.admin_event_permissions aep
-      JOIN public.admin_profiles ap ON ap.id = aep.admin_id
-      JOIN public.events e ON e.event_id = aep.event_id
-      WHERE e.id = p_event_uuid
-        AND ap.user_id = auth.uid()
-        AND ap.is_active = true
-        AND aep.is_active = true
-        AND (aep.expires_at IS NULL OR aep.expires_at > now())
-    );
+  SELECT public.is_super_admin();
 $$;
 
--- can_admin_event_by_eid: Same but takes varchar event_id
+-- can_admin_event_by_eid: Stub — overridden by core-events module.
 CREATE OR REPLACE FUNCTION public.can_admin_event_by_eid(p_event_id text)
 RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER
 AS $$
-  SELECT public.can_admin_event(e.id)
-  FROM public.events e
-  WHERE e.event_id = p_event_id;
+  SELECT public.is_super_admin();
 $$;
 
 -- is_own_people_profile: Check if a people_profile belongs to the current user
@@ -74,22 +63,14 @@ AS $$
   );
 $$;
 
--- can_admin_member: Check if current user can access a people profile
--- Core version checks if person is registered for an event the admin can access
+-- can_admin_member: Check if current user can access a people profile.
+-- Base version only checks super_admin + admin status.
+-- The core-events module overrides this to also check event registrations.
 CREATE OR REPLACE FUNCTION public.can_admin_member(p_profile_id uuid)
 RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER
 AS $$
-  SELECT
-    public.is_super_admin()
-    OR EXISTS (
-      SELECT 1
-      FROM public.people_profiles pp
-      JOIN public.people p ON p.id = pp.person_id
-      JOIN public.events_registrations er ON er.person_id = p.id
-      WHERE pp.id = p_profile_id
-        AND public.can_admin_event(er.event_id)
-    );
+  SELECT public.is_admin();
 $$;
 
 
@@ -103,7 +84,6 @@ ALTER TABLE public.admin_permissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.admin_permission_groups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.admin_permission_group_assignments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.admin_permission_audit ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.admin_event_permissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.admin_impersonation_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.admin_impersonation_audit ENABLE ROW LEVEL SECURITY;
 
@@ -111,10 +91,8 @@ ALTER TABLE public.admin_impersonation_audit ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.accounts_users ENABLE ROW LEVEL SECURITY;
 
--- Event tables (core only — module tables have RLS in their own migrations)
-ALTER TABLE public.events ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.events_registrations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.events_attendance ENABLE ROW LEVEL SECURITY;
+-- NOTE: Event table RLS (events, events_registrations, events_attendance,
+--       admin_event_permissions) is enabled by core-events module migration.
 
 -- People tables
 ALTER TABLE public.people ENABLE ROW LEVEL SECURITY;
@@ -242,25 +220,7 @@ CREATE POLICY "admin_permission_audit_delete_super_admin"
   USING (public.is_super_admin());
 
 
--- -----------------------------------------------------------------------------
--- ADMIN_EVENT_PERMISSIONS
--- -----------------------------------------------------------------------------
-
-CREATE POLICY "admin_event_permissions_select"
-  ON public.admin_event_permissions FOR SELECT TO authenticated
-  USING (public.is_super_admin());
-
-CREATE POLICY "admin_event_permissions_insert"
-  ON public.admin_event_permissions FOR INSERT TO authenticated
-  WITH CHECK (public.is_super_admin());
-
-CREATE POLICY "admin_event_permissions_update"
-  ON public.admin_event_permissions FOR UPDATE TO authenticated
-  USING (public.is_super_admin());
-
-CREATE POLICY "admin_event_permissions_delete"
-  ON public.admin_event_permissions FOR DELETE TO authenticated
-  USING (public.is_super_admin());
+-- NOTE: admin_event_permissions policies are created by core-events module.
 
 
 -- -----------------------------------------------------------------------------
@@ -339,92 +299,8 @@ CREATE POLICY "accounts_users_delete_super_admin"
   USING (public.is_super_admin());
 
 
--- -----------------------------------------------------------------------------
--- EVENTS
--- -----------------------------------------------------------------------------
-
-CREATE POLICY "events_select_public"
-  ON public.events FOR SELECT TO anon
-  USING (true);
-
-CREATE POLICY "events_select_admin"
-  ON public.events FOR SELECT TO authenticated
-  USING (true);
-
-CREATE POLICY "events_insert_admin"
-  ON public.events FOR INSERT TO authenticated
-  WITH CHECK (public.is_super_admin());
-
-CREATE POLICY "events_update_admin"
-  ON public.events FOR UPDATE TO authenticated
-  USING (public.can_admin_event(id));
-
-CREATE POLICY "events_delete_admin"
-  ON public.events FOR DELETE TO authenticated
-  USING (public.is_super_admin());
-
-
--- -----------------------------------------------------------------------------
--- EVENTS_REGISTRATIONS (uses person_id, not customer_id)
--- -----------------------------------------------------------------------------
-
-CREATE POLICY "registrations_select_own"
-  ON public.events_registrations FOR SELECT TO authenticated
-  USING (
-    person_id = (
-      SELECT c.id FROM public.people c
-      WHERE c.auth_user_id = auth.uid()
-    )
-    OR public.can_admin_event(event_id)
-  );
-
-CREATE POLICY "registrations_insert_self"
-  ON public.events_registrations FOR INSERT TO authenticated
-  WITH CHECK (
-    person_id = (
-      SELECT c.id FROM public.people c
-      WHERE c.auth_user_id = auth.uid()
-    )
-  );
-
-CREATE POLICY "registrations_insert_admin"
-  ON public.events_registrations FOR INSERT TO authenticated
-  WITH CHECK (public.can_admin_event(event_id));
-
-CREATE POLICY "registrations_update_admin"
-  ON public.events_registrations FOR UPDATE TO authenticated
-  USING (public.can_admin_event(event_id));
-
-CREATE POLICY "registrations_delete_admin"
-  ON public.events_registrations FOR DELETE TO authenticated
-  USING (public.is_super_admin());
-
-
--- -----------------------------------------------------------------------------
--- EVENTS_ATTENDANCE (uses person_id)
--- -----------------------------------------------------------------------------
-
-CREATE POLICY "attendance_select"
-  ON public.events_attendance FOR SELECT TO authenticated
-  USING (
-    person_id = (
-      SELECT c.id FROM public.people c
-      WHERE c.auth_user_id = auth.uid()
-    )
-    OR public.can_admin_event(event_id)
-  );
-
-CREATE POLICY "attendance_insert"
-  ON public.events_attendance FOR INSERT TO authenticated
-  WITH CHECK (public.can_admin_event(event_id));
-
-CREATE POLICY "attendance_update"
-  ON public.events_attendance FOR UPDATE TO authenticated
-  USING (public.can_admin_event(event_id));
-
-CREATE POLICY "attendance_delete"
-  ON public.events_attendance FOR DELETE TO authenticated
-  USING (public.can_admin_event(event_id));
+-- NOTE: Events, events_registrations, events_attendance policies are created
+-- by the core-events module migration.
 
 
 -- -----------------------------------------------------------------------------

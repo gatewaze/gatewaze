@@ -134,50 +134,8 @@ INSERT INTO storage.buckets (id, name, public, file_size_limit)
 VALUES ('media', 'media', true, 52428800)
 ON CONFLICT (id) DO UPDATE SET public = true, file_size_limit = EXCLUDED.file_size_limit;
 
---------------------------------------------------------------------------------
--- 7. Admin Event Permissions (deferred from 00002; needs events table)
---------------------------------------------------------------------------------
-
-CREATE TABLE IF NOT EXISTS public.admin_event_permissions (
-  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  admin_id         uuid NOT NULL REFERENCES public.admin_profiles(id) ON DELETE CASCADE,
-  event_id         varchar(10) NOT NULL REFERENCES public.events(event_id) ON DELETE CASCADE,
-  permission_level text CHECK (permission_level IN ('view', 'edit', 'manage')) DEFAULT 'view',
-  granted_by       uuid REFERENCES public.admin_profiles(id),
-  granted_at       timestamptz DEFAULT now(),
-  expires_at       timestamptz,
-  is_active        boolean DEFAULT true,
-  created_at       timestamptz DEFAULT now(),
-  updated_at       timestamptz DEFAULT now(),
-  UNIQUE(admin_id, event_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_admin_event_permissions_admin ON public.admin_event_permissions(admin_id);
-CREATE INDEX IF NOT EXISTS idx_admin_event_permissions_event ON public.admin_event_permissions(event_id);
-
-COMMENT ON TABLE public.admin_event_permissions IS 'Event-level admin permissions';
-
-CREATE TRIGGER admin_event_permissions_updated_at
-  BEFORE UPDATE ON public.admin_event_permissions
-  FOR EACH ROW
-  EXECUTE FUNCTION public.set_updated_at();
-
---------------------------------------------------------------------------------
--- 8. FK from events.account_id -> accounts.id (deferred from 00002)
---------------------------------------------------------------------------------
-
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.table_constraints
-    WHERE constraint_name = 'events_account_id_fkey'
-      AND table_name = 'events'
-  ) THEN
-    ALTER TABLE public.events
-      ADD CONSTRAINT events_account_id_fkey
-      FOREIGN KEY (account_id) REFERENCES public.accounts(id) ON DELETE SET NULL;
-  END IF;
-END $$;
+-- NOTE: admin_event_permissions table and events_account_id_fkey have been moved
+-- to the core-events module migration (002_events_rls_functions.sql).
 
 --------------------------------------------------------------------------------
 -- 9. Auto-link admin_profile trigger
