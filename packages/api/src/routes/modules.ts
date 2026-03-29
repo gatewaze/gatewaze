@@ -603,6 +603,7 @@ modulesRouter.get('/available', async (_req, res) => {
       visibility: m.config.visibility ?? 'public',
       features: m.config.features ?? [],
       minPlatformVersion: m.config.minPlatformVersion,
+      sourceLabel: m.sourceLabel,
     }));
     return res.json({ modules: available });
   } catch (err) {

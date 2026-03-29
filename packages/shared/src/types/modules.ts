@@ -186,6 +186,8 @@ export type ModuleSource = string | {
   branch?: string;
   /** Access token for private git repositories */
   token?: string;
+  /** Human-readable label for this source (shown on Modules page) */
+  label?: string;
 };
 
 export interface GatewazeConfig {
@@ -235,6 +237,8 @@ export interface LoadedModule {
   moduleConfig: Record<string, unknown>;
   /** Absolute path to the module directory on disk (when resolved from a source directory). */
   resolvedDir?: string;
+  /** Human-readable label for the source this module was loaded from. */
+  sourceLabel?: string;
 }
 
 export interface ModuleSourceRow {

@@ -25,7 +25,12 @@ const config: GatewazeConfig = {
   //   'https://github.com/org/modules.git'        — git repo (cloned at build time)
   //   { url: 'https://github.com/gatewaze/gatewaze-modules.git', path: 'modules', branch: 'main' }
   moduleSources: [
+    // Local sibling repos (development — skipped if not present)
     '../gatewaze-modules/modules',
+    '../premium-gatewaze-modules/modules',
+    '../lf-gatewaze-modules/modules',
+    // Git source for production — seeded into module_sources DB table on first run
+    { url: 'https://github.com/gatewaze/gatewaze-modules.git', path: 'modules', branch: 'main' },
   ],
 
   // All modules found in moduleSources are included automatically.
