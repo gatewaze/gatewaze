@@ -1,9 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import { healthRouter } from './routes/health.js';
-import { eventsRouter } from './routes/events.js';
 import { peopleRouter } from './routes/people.js';
-import { registrationsRouter } from './routes/registrations.js';
 import { csvRouter } from './routes/csv.js';
 import { calendarsRouter } from './routes/calendars.js';
 import { dbCopyRouter } from './routes/db-copy.js';
@@ -13,7 +11,6 @@ import { customerioRouter } from './routes/customerio.js';
 import { avatarsRouter } from './routes/avatars.js';
 import { redirectsRouter } from './routes/redirects.js';
 import { slackRouter } from './routes/slack.js';
-import { attendanceRouter } from './routes/attendance.js';
 import { calendarProxyRouter } from './routes/calendar-proxy.js';
 import { modulesRouter } from './routes/modules.js';
 import { loadModules, loadModulesWithDbSources } from '@gatewaze/shared/modules';
@@ -35,9 +32,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Routes - existing
 app.use('/api', healthRouter);
-app.use('/api/events', eventsRouter);
 app.use('/api/people', peopleRouter);
-app.use('/api/registrations', registrationsRouter);
 app.use('/api/csv', csvRouter);
 app.use('/api/calendars', calendarsRouter);
 app.use('/api/db-copy', dbCopyRouter);
@@ -49,7 +44,6 @@ app.use('/api/customerio', customerioRouter);
 app.use('/api/avatars', avatarsRouter);
 app.use('/api/redirects', redirectsRouter);
 app.use('/api/slack', slackRouter);
-app.use('/api/attendance', attendanceRouter);
 app.use('/api/calendar', calendarProxyRouter);
 app.use('/api/modules', modulesRouter);
 
@@ -60,11 +54,23 @@ async function registerModuleRoutes() {
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     let dbSources: Record<string, unknown>[] = [];
+    let enabledModuleIds = new Set<string>();
+
     if (supabaseUrl && serviceRoleKey) {
       try {
         const supabase = createClient(supabaseUrl, serviceRoleKey);
         const { data } = await supabase.from('module_sources').select('*');
         dbSources = data ?? [];
+
+        // Fetch enabled modules to only register routes for active modules
+        const { data: installed } = await supabase
+          .from('installed_modules')
+          .select('id, status');
+        enabledModuleIds = new Set(
+          (installed ?? [])
+            .filter((r: any) => r.status === 'enabled')
+            .map((r: any) => r.id)
+        );
       } catch {
         console.warn('[modules] module_sources table not available — using config sources only');
       }
@@ -72,6 +78,11 @@ async function registerModuleRoutes() {
 
     const modules = await loadModulesWithDbSources(config, dbSources as never[], PROJECT_ROOT);
     for (const mod of modules) {
+      // Only register API routes for enabled modules
+      if (enabledModuleIds.size > 0 && !enabledModuleIds.has(mod.config.id)) {
+        console.log(`[modules] Skipping API routes for disabled module: ${mod.config.name}`);
+        continue;
+      }
       if (mod.config.apiRoutes) {
         await mod.config.apiRoutes(app, {
           projectRoot: PROJECT_ROOT,

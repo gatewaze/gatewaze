@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS public.admin_permission_audit (
 COMMENT ON TABLE public.admin_permission_audit IS 'Immutable audit trail for permission changes';
 
 -- NOTE: admin_calendar_permissions lives in the calendars module migration.
--- NOTE: admin_event_permissions lives in 00006_platform.sql (after events table exists).
+-- NOTE: admin_event_permissions is created by the core-events module migration.
 
 -- ==========================================================================
 -- 6. Admin impersonation sessions
