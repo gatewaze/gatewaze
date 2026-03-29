@@ -134,7 +134,7 @@ export async function reconcileModules(
           type: mod.config.type ?? 'feature',
           source: mod.packageName,
           visibility: mod.config.visibility ?? 'public',
-          status: 'not_installed',
+          status: 'disabled',
           config: mod.moduleConfig,
           portal_nav: mod.config.portalNav || null,
         });
