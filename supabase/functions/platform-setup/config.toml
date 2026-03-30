@@ -1,0 +1,2 @@
+[functions.platform-setup]
+verify_jwt = false
