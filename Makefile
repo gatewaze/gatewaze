@@ -21,7 +21,8 @@ TRAEFIK_FILE     := -f docker/docker-compose.traefik.yml
 # ---------------------------------------------------------------------------
 # Brand detection: supports `make <brand> <action>` syntax
 # ---------------------------------------------------------------------------
-KNOWN_TARGETS := up down reset logs ps help init migrate deploy-functions
+KNOWN_TARGETS := up down reset logs ps help init migrate deploy-functions \
+	_check-env _activate-brand _link-cloud _cloud-reset _sync-secrets _ensure-traefik _generate-mcp
 
 CMD_ARGS := $(filter-out $(KNOWN_TARGETS), $(MAKECMDGOALS))
 ifneq ($(CMD_ARGS),)
@@ -96,8 +97,12 @@ down: _check-env _activate-brand ## Stop services
 reset: _check-env _activate-brand ## Stop services, remove volumes, and restart fresh
 	docker compose $(COMPOSE_FILES) down -v
 ifeq ($(SUPABASE_MODE),cloud)
-	@$(MAKE) _cloud-reset
+	@$(MAKE) _cloud-reset $(if $(BRAND),$(BRAND),)
 endif
+	@echo "Removing cached modules and module-installed edge functions..."
+	@rm -rf .gatewaze-modules data/uploaded-modules data/.tmp-uploads
+	@git checkout -- supabase/functions/ 2>/dev/null || true
+	@git clean -fdx -- supabase/functions/
 	@$(MAKE) up $(if $(BRAND),$(BRAND),)
 
 logs: _check-env _activate-brand ## Tail service logs
@@ -226,33 +231,66 @@ ifeq ($(SUPABASE_MODE),cloud)
 endif
 
 _cloud-reset: _link-cloud
+	@ALLOW=$$(grep -E '^ALLOW_CLOUD_RESET=' "$(ENV_FILE)" 2>/dev/null | head -1 | cut -d= -f2-); \
+	if [ "$$ALLOW" != "true" ]; then \
+		echo ""; \
+		echo "Error: Cloud reset is blocked for this environment."; \
+		echo ""; \
+		echo "To allow cloud reset, add this to your env file:"; \
+		echo "  ALLOW_CLOUD_RESET=true"; \
+		echo ""; \
+		echo "This is a safety measure to prevent accidental wipes of production data."; \
+		exit 1; \
+	fi
 	@echo "Resetting cloud Supabase project data..."
 	@echo ""
-	@echo "  [1/3] Resetting database (drop public schema & re-apply migrations)..."
-	@npx supabase db reset --linked
+	@echo "  [1/5] Deleting edge functions..."
+	@for dir in supabase/functions/*/; do \
+		fname=$$(basename "$$dir"); \
+		[ "$$fname" = "_shared" ] && continue; \
+		npx supabase functions delete "$$fname" 2>/dev/null || true; \
+	done
+	@echo "    Done."
+	@echo "  [2/5] Emptying storage..."
 	@SUPABASE_URL=$$(grep -E '^SUPABASE_URL=' "$(ENV_FILE)" | head -1 | cut -d= -f2-); \
 	SERVICE_KEY=$$(grep -E '^SERVICE_ROLE_KEY=' "$(ENV_FILE)" | head -1 | cut -d= -f2-); \
-	echo "  [2/3] Deleting auth users..."; \
+	curl -s -X POST "$$SUPABASE_URL/storage/v1/bucket/media/empty" \
+		-H "Authorization: Bearer $$SERVICE_KEY" \
+		-H "apikey: $$SERVICE_KEY" || true; \
+	echo "    Done."
+	@echo "  [3/5] Resetting database (drop & re-apply migrations)..."
+	@npx supabase db reset --linked --yes
+	@echo "    Done."
+	@echo "  [4/5] Deleting auth users..."
+	@SUPABASE_URL=$$(grep -E '^SUPABASE_URL=' "$(ENV_FILE)" | head -1 | cut -d= -f2-); \
+	SERVICE_KEY=$$(grep -E '^SERVICE_ROLE_KEY=' "$(ENV_FILE)" | head -1 | cut -d= -f2-); \
+	echo "    Listing users from $$SUPABASE_URL/auth/v1/admin/users ..."; \
 	TOTAL=0; \
 	while true; do \
 		RESP=$$(curl -s "$$SUPABASE_URL/auth/v1/admin/users?per_page=100" \
 			-H "Authorization: Bearer $$SERVICE_KEY" \
 			-H "apikey: $$SERVICE_KEY"); \
-		UIDS=$$(echo "$$RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); [print(u['id']) for u in d.get('users',[])]" 2>/dev/null); \
-		[ -z "$$UIDS" ] && break; \
+		echo "    API response (first 300 chars): $$(echo "$$RESP" | cut -c1-300)"; \
+		if [ -z "$$RESP" ]; then \
+			echo "    Warning: empty response from auth API"; \
+			break; \
+		fi; \
+		UIDS=$$(echo "$$RESP" | python3 -c "import sys,json;d=json.load(sys.stdin);[print(u['id']) for u in (d.get('users',[]) if isinstance(d,dict) else d)]" 2>&1); \
+		echo "    Parsed UIDs: $$UIDS"; \
+		if [ -z "$$UIDS" ]; then break; fi; \
 		for uid in $$UIDS; do \
-			curl -s -X DELETE "$$SUPABASE_URL/auth/v1/admin/users/$$uid" \
+			echo "    Deleting user $$uid ..."; \
+			DEL_RESP=$$(curl -s -X DELETE "$$SUPABASE_URL/auth/v1/admin/users/$$uid" \
 				-H "Authorization: Bearer $$SERVICE_KEY" \
-				-H "apikey: $$SERVICE_KEY" > /dev/null; \
+				-H "apikey: $$SERVICE_KEY"); \
+			echo "    Delete response: $$DEL_RESP"; \
 			TOTAL=$$((TOTAL + 1)); \
 		done; \
 	done; \
-	echo "    Deleted $$TOTAL auth users."; \
-	echo "  [3/3] Emptying storage bucket..."; \
-	curl -s -X POST "$$SUPABASE_URL/storage/v1/bucket/media/empty" \
-		-H "Authorization: Bearer $$SERVICE_KEY" \
-		-H "apikey: $$SERVICE_KEY" > /dev/null 2>&1 || true; \
-	echo "    Done."
+	echo "    Deleted $$TOTAL auth users."
+	@echo "  [5/5] Re-deploying edge functions & secrets..."
+	@$(MAKE) _sync-secrets
+	@npx supabase functions deploy
 	@echo ""
 	@echo "Cloud reset complete."
 
