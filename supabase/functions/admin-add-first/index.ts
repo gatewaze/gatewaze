@@ -4,7 +4,7 @@ import { sendEmail, isEmailConfigured } from '../_shared/email.ts';
 
 const SETUP_EMAIL = 'admin@setup.localhost';
 
-export default async function(req: Request) {
+async function handler(req: Request) {
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
 
@@ -112,13 +112,21 @@ export default async function(req: Request) {
       .from('platform_settings')
       .upsert({ key: 'onboarding_step', value: 'admin_created' }, { onConflict: 'key' });
 
-    // Generate magic link for the new admin
+    // Generate magic link for the new admin, redirecting back to the calling app
+    const origin = req.headers.get('origin') || '';
     const { data: linkData } = await supabase.auth.admin.generateLink({
       type: 'magiclink',
       email,
+      options: origin ? { redirectTo: origin } : undefined,
     });
 
-    const magicLink = linkData?.properties?.action_link;
+    // Ensure redirect_to points to the admin app
+    let magicLink = linkData?.properties?.action_link;
+    if (magicLink && origin) {
+      const url = new URL(magicLink);
+      url.searchParams.set('redirect_to', origin);
+      magicLink = url.toString();
+    }
 
     // If email is configured, send welcome email; otherwise return magic link directly
     if (emailReady && magicLink) {
@@ -162,3 +170,6 @@ export default async function(req: Request) {
     );
   }
 }
+
+export default handler;
+if (import.meta.main) Deno.serve(handler);

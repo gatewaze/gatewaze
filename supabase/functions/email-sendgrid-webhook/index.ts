@@ -57,7 +57,7 @@ async function findEmailLog(messageId: string) {
   return null;
 }
 
-export default async function(req: Request) {
+async function handler(req: Request) {
   try {
     // Handle OPTIONS for CORS
     if (req.method === 'OPTIONS') {
@@ -201,3 +201,6 @@ export default async function(req: Request) {
     );
   }
 }
+
+export default handler;
+if (import.meta.main) Deno.serve(handler);

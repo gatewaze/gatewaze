@@ -2,7 +2,7 @@ import { corsHeaders, handleCors } from '../_shared/cors.ts';
 import { createServiceClient } from '../_shared/supabase.ts';
 import { isEmailConfigured, sendEmail } from '../_shared/email.ts';
 
-export default async function(req: Request) {
+async function handler(req: Request) {
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
 
@@ -51,10 +51,12 @@ export default async function(req: Request) {
       );
     }
 
-    // Generate magic link
+    // Generate magic link, redirecting back to the calling app
+    const origin = req.headers.get('origin') || '';
     const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
       type: 'magiclink',
       email: normalizedEmail,
+      options: origin ? { redirectTo: origin } : undefined,
     });
 
     if (linkError || !linkData?.properties?.action_link) {
@@ -64,7 +66,13 @@ export default async function(req: Request) {
       );
     }
 
-    const magicLink = linkData.properties.action_link;
+    // Ensure redirect_to points to the admin app
+    let magicLink = linkData.properties.action_link;
+    if (origin) {
+      const url = new URL(magicLink);
+      url.searchParams.set('redirect_to', origin);
+      magicLink = url.toString();
+    }
 
     // Send the email
     await sendEmail({
@@ -92,3 +100,6 @@ export default async function(req: Request) {
     );
   }
 }
+
+export default handler;
+if (import.meta.main) Deno.serve(handler);
