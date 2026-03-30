@@ -74,6 +74,9 @@ policy = "per_worker"
 [functions.platform-setup]
 verify_jwt = false
 
+[functions.admin-add-first]
+verify_jwt = false
+
 [functions.email-sendgrid-webhook]
 verify_jwt = false
 
