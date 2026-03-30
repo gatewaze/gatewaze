@@ -8,8 +8,12 @@ async function handler(req: Request) {
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
 
-  // GET returns email configuration status for the onboarding UI
-  if (req.method === 'GET') {
+  // GET (or POST without body) returns email configuration status for the onboarding UI.
+  // supabase.functions.invoke() sends POST by default, so we also detect an empty
+  // body as a config check to support both GET and invoke({ method: 'GET' }).
+  const body = req.method === 'POST' ? await req.text() : null;
+
+  if (req.method === 'GET' || (req.method === 'POST' && !body)) {
     return new Response(
       JSON.stringify({ emailConfigured: isEmailConfigured() }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
@@ -26,7 +30,7 @@ async function handler(req: Request) {
   const supabase = createServiceClient();
 
   try {
-    const { name, email } = await req.json();
+    const { name, email } = JSON.parse(body!);
 
     if (!name || !email) {
       return new Response(
