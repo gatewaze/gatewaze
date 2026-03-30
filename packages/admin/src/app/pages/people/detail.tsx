@@ -171,7 +171,7 @@ export default function MemberDetailPage() {
   const hasCIO = useHasModule('customerio');
   const hasCompetitions = useHasModule('competitions');
   const hasBulkEmailing = useHasModule('bulk-emailing');
-  const hasEvents = useHasModule('core-events');
+  const hasEvents = useHasModule('events');
   const [person, setPerson] = useState<Person | null>(null);
   const [segments, setSegments] = useState<Segment[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -637,7 +637,7 @@ export default function MemberDetailPage() {
       }
 
       // Fetch event registrations, attendance, and speaker submissions via member_profiles
-      // Only when core-events module is installed
+      // Only when events module is installed
       if (hasEvents) {
         const { data: profileData } = await supabase
           .from('people_profiles')

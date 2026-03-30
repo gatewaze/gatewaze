@@ -4,7 +4,7 @@
 -- Runs after 00006_platform.sql
 --
 -- NOTE: Event-related RLS (events, events_registrations, events_attendance,
---       admin_event_permissions) has been moved to the core-events module
+--       admin_event_permissions) has been moved to the events module
 --       migration (002_events_rls_functions.sql).
 -- =============================================================================
 
@@ -34,7 +34,7 @@ RETURNS boolean AS $$
 $$ LANGUAGE sql SECURITY DEFINER STABLE;
 
 -- can_admin_event: Stub that returns false when events module is not installed.
--- The core-events module overrides this with the full implementation.
+-- The events module overrides this with the full implementation.
 CREATE OR REPLACE FUNCTION public.can_admin_event(p_event_uuid uuid)
 RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER
@@ -42,7 +42,7 @@ AS $$
   SELECT public.is_super_admin();
 $$;
 
--- can_admin_event_by_eid: Stub — overridden by core-events module.
+-- can_admin_event_by_eid: Stub — overridden by events module.
 CREATE OR REPLACE FUNCTION public.can_admin_event_by_eid(p_event_id text)
 RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER
@@ -65,7 +65,7 @@ $$;
 
 -- can_admin_member: Check if current user can access a people profile.
 -- Base version only checks super_admin + admin status.
--- The core-events module overrides this to also check event registrations.
+-- The events module overrides this to also check event registrations.
 CREATE OR REPLACE FUNCTION public.can_admin_member(p_profile_id uuid)
 RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER
@@ -92,7 +92,7 @@ ALTER TABLE public.accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.accounts_users ENABLE ROW LEVEL SECURITY;
 
 -- NOTE: Event table RLS (events, events_registrations, events_attendance,
---       admin_event_permissions) is enabled by core-events module migration.
+--       admin_event_permissions) is enabled by events module migration.
 
 -- People tables
 ALTER TABLE public.people ENABLE ROW LEVEL SECURITY;
@@ -220,7 +220,7 @@ CREATE POLICY "admin_permission_audit_delete_super_admin"
   USING (public.is_super_admin());
 
 
--- NOTE: admin_event_permissions policies are created by core-events module.
+-- NOTE: admin_event_permissions policies are created by events module.
 
 
 -- -----------------------------------------------------------------------------
@@ -300,7 +300,7 @@ CREATE POLICY "accounts_users_delete_super_admin"
 
 
 -- NOTE: Events, events_registrations, events_attendance policies are created
--- by the core-events module migration.
+-- by the events module migration.
 
 
 -- -----------------------------------------------------------------------------

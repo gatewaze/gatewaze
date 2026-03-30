@@ -135,7 +135,7 @@ VALUES ('media', 'media', true, 52428800)
 ON CONFLICT (id) DO UPDATE SET public = true, file_size_limit = EXCLUDED.file_size_limit;
 
 -- NOTE: admin_event_permissions table and events_account_id_fkey have been moved
--- to the core-events module migration (002_events_rls_functions.sql).
+-- to the events module migration (002_events_rls_functions.sql).
 
 --------------------------------------------------------------------------------
 -- 9. Auto-link admin_profile trigger

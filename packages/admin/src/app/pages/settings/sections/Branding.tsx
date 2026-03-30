@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useModulesContext } from "@/app/contexts/modules/context";
 import { Tabs as RadixTabs, Text, Heading, Callout } from "@radix-ui/themes";
 import {
   Sun,
@@ -101,6 +102,8 @@ import { LogoUploadField } from "@/components/shared/branding/LogoUploadField";
 function BrandingCard() {
   const activeTheme = useActiveThemeModule();
   const lockedSettings = activeTheme?.themeOverrides.lockedSettings ?? [];
+  const { isFeatureEnabled } = useModulesContext();
+  const hasEvents = isFeatureEnabled('events');
   const isLocked = (key: string) => lockedSettings.includes(key);
 
   const [settings, setSettings] =
@@ -363,7 +366,7 @@ function BrandingCard() {
         <RadixTabs.List className="mb-6">
           <RadixTabs.Trigger value="branding">Branding</RadixTabs.Trigger>
           <RadixTabs.Trigger value="theme">Theme</RadixTabs.Trigger>
-          <RadixTabs.Trigger value="event-types">Event Types</RadixTabs.Trigger>
+          {hasEvents && <RadixTabs.Trigger value="event-types">Event Types</RadixTabs.Trigger>}
           <RadixTabs.Trigger value="tracking">Tracking</RadixTabs.Trigger>
           <RadixTabs.Trigger value="pages">Pages</RadixTabs.Trigger>
         </RadixTabs.List>
