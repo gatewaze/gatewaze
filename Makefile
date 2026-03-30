@@ -103,7 +103,7 @@ logs: _check-env _activate-brand ## Tail service logs
 ps: _check-env _activate-brand ## Show running containers
 	docker compose $(COMPOSE_FILES) ps
 
-deploy-functions: _check-env _activate-brand _link-cloud ## Deploy all edge functions to Supabase Cloud
+deploy-functions: _check-env _activate-brand _link-cloud _sync-secrets ## Deploy all edge functions to Supabase Cloud
 ifeq ($(SUPABASE_MODE),cloud)
 	@echo "Deploying edge functions..."
 	npx supabase functions deploy
@@ -126,7 +126,17 @@ endif
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
-.PHONY: _check-env _activate-brand _link-cloud _ensure-traefik _generate-mcp
+.PHONY: _check-env _activate-brand _link-cloud _sync-secrets _ensure-traefik _generate-mcp
+
+# Env vars that edge functions read (beyond the auto-provided SUPABASE_* vars).
+# Only non-empty values from the env file are synced.
+EDGE_FUNCTION_SECRETS := \
+	EMAIL_PROVIDER EMAIL_FROM EMAIL_FROM_NAME \
+	SENDGRID_API_KEY SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASS \
+	SENDGRID_FROM_EVENTS SENDGRID_FROM_PARTNERS SENDGRID_FROM_MEMBERS SENDGRID_FROM_ADMIN SENDGRID_FROM_DEFAULT \
+	OPENAI_API_KEY ENRICHLAYER_API_KEY GW_API_BEARER \
+	VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY VAPID_SUBJECT \
+	CUSTOMERIO_SITE_ID CUSTOMERIO_API_KEY CUSTOMERIO_APP_API_KEY
 
 _check-env:
 ifdef BRAND
@@ -173,6 +183,43 @@ ifeq ($(SUPABASE_MODE),cloud)
 	fi; \
 	echo "Linking to Supabase project: $$PROJECT_REF"; \
 	npx supabase link --project-ref "$$PROJECT_REF"
+endif
+
+_sync-secrets:
+ifeq ($(SUPABASE_MODE),cloud)
+	@echo "Syncing edge function secrets from $(ENV_FILE)..."
+	@SECRETS=""; \
+	for key in $(EDGE_FUNCTION_SECRETS); do \
+		val=$$(grep -E "^$$key=" "$(ENV_FILE)" 2>/dev/null | head -1 | cut -d= -f2-); \
+		if [ -n "$$val" ]; then \
+			SECRETS="$$SECRETS $$key=$$val"; \
+		fi; \
+	done; \
+	if [ -n "$$SECRETS" ]; then \
+		echo "  Setting: $$(echo $$SECRETS | sed 's/=[^ ]*/=***/g')"; \
+		npx supabase secrets set $$SECRETS; \
+	else \
+		echo "  No secrets to sync."; \
+	fi
+	@echo "Configuring auth redirect URLs..."
+	@ADMIN_HOST=$$(grep -E '^ADMIN_HOST=' "$(ENV_FILE)" | head -1 | cut -d= -f2-); \
+	PORTAL_HOST=$$(grep -E '^PORTAL_HOST=' "$(ENV_FILE)" | head -1 | cut -d= -f2-); \
+	ACCESS_TOKEN=$$(grep -E '^SUPABASE_ACCESS_TOKEN=' "$(ENV_FILE)" | head -1 | cut -d= -f2-); \
+	SUPABASE_URL=$$(grep -E '^SUPABASE_URL=' "$(ENV_FILE)" | head -1 | cut -d= -f2-); \
+	PROJECT_REF=$$(echo "$$SUPABASE_URL" | sed -E 's|https://([^.]+)\.supabase\.co.*|\1|'); \
+	if [ -n "$$ACCESS_TOKEN" ] && [ -n "$$ADMIN_HOST" ] && [ -n "$$PROJECT_REF" ]; then \
+		SITE_URL="http://$$ADMIN_HOST"; \
+		ALLOW="http://$$ADMIN_HOST"; \
+		if [ -n "$$PORTAL_HOST" ]; then ALLOW="$$ALLOW,http://$$PORTAL_HOST"; fi; \
+		echo "  SITE_URL=$$SITE_URL"; \
+		echo "  URI_ALLOW_LIST=$$ALLOW"; \
+		curl -s -X PATCH "https://api.supabase.com/v1/projects/$$PROJECT_REF/config/auth" \
+			-H "Authorization: Bearer $$ACCESS_TOKEN" \
+			-H "Content-Type: application/json" \
+			-d "{\"site_url\":\"$$SITE_URL\",\"uri_allow_list\":\"$$ALLOW\"}" > /dev/null; \
+	else \
+		echo "  Skipping auth config (missing SUPABASE_ACCESS_TOKEN or ADMIN_HOST)"; \
+	fi
 endif
 
 _ensure-traefik:
