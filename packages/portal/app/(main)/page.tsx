@@ -11,9 +11,23 @@ export default async function HomePage() {
   const modules = await getEnabledModules()
   const { portalNavItems } = modules
 
-  // Single content type → redirect directly (preserves current behavior)
-  if (portalNavItems.length <= 1) {
-    redirect(portalNavItems[0]?.path || '/events/upcoming')
+  // No content types enabled → show a blank landing page
+  if (portalNavItems.length === 0) {
+    const brandConfig = await getServerBrandConfig()
+    const { trackingHead: _, trackingBody: __, ...clientBrandConfig } = brandConfig
+    return (
+      <HomepageContent
+        brandConfig={clientBrandConfig as any}
+        navItems={[]}
+        upcomingEvents={[]}
+        blogPosts={[]}
+      />
+    )
+  }
+
+  // Single content type → redirect directly
+  if (portalNavItems.length === 1) {
+    redirect(portalNavItems[0].path)
   }
 
   const brandConfig = await getServerBrandConfig()

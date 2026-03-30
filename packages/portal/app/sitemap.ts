@@ -13,7 +13,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const { data: eventsModule } = await supabase
     .from('installed_modules')
     .select('status')
-    .eq('id', 'core-events')
+    .eq('id', 'events')
     .maybeSingle()
 
   const eventsEnabled = eventsModule?.status === 'enabled'
