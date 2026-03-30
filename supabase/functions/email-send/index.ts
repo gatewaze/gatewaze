@@ -24,7 +24,7 @@ interface EmailRequest {
   attachments?: EmailAttachment[];
 }
 
-export default async function(req: Request) {
+async function handler(req: Request) {
   try {
     // CORS headers
     if (req.method === 'OPTIONS') {
@@ -293,3 +293,6 @@ export default async function(req: Request) {
     );
   }
 }
+
+export default handler;
+if (import.meta.main) Deno.serve(handler);

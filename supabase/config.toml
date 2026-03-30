@@ -71,6 +71,12 @@ sign_in_sign_ups = 30
 enabled = true
 policy = "per_worker"
 
+[functions.platform-setup]
+verify_jwt = false
+
+[functions.email-sendgrid-webhook]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327

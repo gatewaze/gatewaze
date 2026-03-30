@@ -38,7 +38,7 @@ interface OfferResource {
   is_active: boolean
 }
 
-export default async function(req: Request) {
+async function handler(req: Request) {
   // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -192,3 +192,6 @@ export default async function(req: Request) {
     })
   }
 }
+
+export default handler;
+if (import.meta.main) Deno.serve(handler);
