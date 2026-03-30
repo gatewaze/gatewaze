@@ -96,13 +96,13 @@ down: _check-env _activate-brand ## Stop services
 
 reset: _check-env _activate-brand ## Stop services, remove volumes, and restart fresh
 	docker compose $(COMPOSE_FILES) down -v
-ifeq ($(SUPABASE_MODE),cloud)
-	@$(MAKE) _cloud-reset $(if $(BRAND),$(BRAND),)
-endif
 	@echo "Removing cached modules and module-installed edge functions..."
 	@rm -rf .gatewaze-modules data/uploaded-modules data/.tmp-uploads
 	@git checkout -- supabase/functions/ 2>/dev/null || true
 	@git clean -fdx -- supabase/functions/
+ifeq ($(SUPABASE_MODE),cloud)
+	@$(MAKE) _cloud-reset $(if $(BRAND),$(BRAND),)
+endif
 	@$(MAKE) up $(if $(BRAND),$(BRAND),)
 
 logs: _check-env _activate-brand ## Tail service logs
