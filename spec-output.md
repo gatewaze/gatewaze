@@ -1,466 +1,618 @@
-# Technical Specification: Events Module Restructure & Edge Function Migration
+# Technical Specification: Agent-First Portal Architecture
 
 ## Overview / Context
 
-Gatewaze is a modular community platform where features are delivered as optional modules. The Events feature was recently extracted from the core platform into optional modules, but the extraction is incomplete:
+Gatewaze is an open-source event and community management platform. The portal (public-facing app) is built with Next.js 15, React 19, TypeScript, and Supabase. It currently supports event browsing, AI-powered semantic search (OpenAI embeddings), registration (Stripe), attendee networking (Claude-powered matching), user profiles, blog, and embeddable calendars.
 
-1. **Naming**: The base events module is currently called `core-events`, implying it's essential to Gatewaze. It should be renamed to `events` since it's entirely optional.
-2. **Edge Functions**: 15 event-related Deno edge functions still live in the core `supabase/functions/` directory instead of being owned by their respective modules.
-3. **Submodule ownership**: The submodule definitions (`event-speakers`, `luma-integration`, etc.) already declare their `edgeFunctions` arrays and have `functions/` directories — but the actual source code is duplicated in the core repo.
+The portal already integrates OpenAI (`text-embedding-3-small` for embeddings, GPT for NL queries) and has `@anthropic-ai/sdk` as a dependency (currently unused in portal code). Metadata is limited to Open Graph and Twitter Cards — no structured data (JSON-LD/Schema.org) exists.
 
-### Current State
+This spec defines the architecture for making the portal **agent-first**: optimized for both human users and AI agents to discover, understand, and interact with the platform programmatically.
 
-- **Base module**: `core-events` — needs rename to `events`
-- **Existing submodules** (already defined in `gatewaze-modules`):
-  - `event-speakers` — declares 6 edge functions, has `functions/` directory with source code
-  - `event-sponsors` — no edge functions
-  - `event-agenda` — no edge functions, depends on `event-speakers`
-  - `event-topics` — no edge functions
-  - `event-interest` — no edge functions
-  - `event-invites` — no edge functions
-  - `event-media` — no edge functions
-  - `luma-integration` — declares 4 edge functions, has `functions/` directory with source code
-- **Problem**: All 15 event edge functions are hardcoded in `supabase/functions/` and statically imported in `platform-main/index.ts`, regardless of which modules are installed
-- **Deploy infrastructure**: `deployEdgeFunctions()` and `regeneratePlatformMain()` already support dynamic edge function deployment from modules
+### Architectural Rationale
 
-### Module Dependency Graph
+- **Vercel AI SDK** over raw Anthropic SDK: provides streaming UI primitives, multi-provider abstraction, and tool calling that maps directly to Next.js server components and API routes. Eliminates boilerplate for SSE streaming and tool result rendering.
+- **MCP over custom agent API**: MCP is an open standard with growing adoption across Claude, Cursor, and other agent tooling. Building an MCP server provides compatibility with the broadest agent ecosystem without maintaining custom SDKs.
+- **JSON-LD over Microdata/RDFa**: JSON-LD is Google's recommended format, doesn't require modifying HTML structure, and is the most widely consumed structured data format by LLM agents browsing via web tools.
+- **OpenAPI 3.1 over 3.0**: Native JSON Schema support, better alignment with TypeScript type generation, and broader agent framework compatibility.
 
-All event feature modules depend on the `events` base module. This ensures the core event tables and edge functions are present before any submodule is enabled.
+## Goals
 
-```
-events (base)
-├── event-sponsors (depends on events)
-│   └── event-speakers (depends on events, event-sponsors)
-│       └── event-agenda (depends on events, event-speakers)
-├── event-topics (depends on events)
-├── event-interest (depends on events)
-├── event-invites (depends on events)
-├── event-media (depends on events)
-└── luma-integration (depends on events, type: integration)
-```
+1. **Agent Discoverability**: AI agents can discover Gatewaze capabilities via `llms.txt`, OpenAPI spec, and MCP server without prior knowledge of the platform.
+2. **Structured Data**: All portal pages emit Schema.org JSON-LD markup, enabling search engines and LLM agents to parse event, organization, and person data.
+3. **Conversational Interface**: An embedded AI assistant in the portal allows users (human or agent) to search events, register, and get recommendations via natural language.
+4. **Programmatic API Access**: A published OpenAPI 3.1 spec at `/.well-known/openapi.json` enables agent frameworks (LangChain, CrewAI, AutoGPT) to auto-generate tool definitions.
+5. **MCP Integration**: An MCP server wraps the existing REST API so Claude and other MCP-compatible agents can natively interact with Gatewaze.
+6. **HATEOAS-lite API Responses**: API responses include `_links` for agent discoverability of related actions.
 
-**Modules needing dependency updates:**
+## Non-Goals
 
-| Module | Current `dependencies` | New `dependencies` |
-|--------|----------------------|-------------------|
-| `event-sponsors` | `[]` | `['events']` |
-| `event-speakers` | `['event-sponsors']` | `['events', 'event-sponsors']` |
-| `event-agenda` | `['event-speakers']` | `['events', 'event-speakers']` |
-| `event-topics` | `[]` | `['events']` |
-| `event-interest` | `[]` | `['events']` |
-| `event-invites` | `[]` | `['events']` |
-| `event-media` | `[]` | `['events']` |
-| `luma-integration` | `[]` | `['events']` |
-
-### Related Systems
-
-- `platform-main/index.ts` — Auto-generated Deno router that dispatches to individual edge functions
-- `regeneratePlatformMain()` — Merges existing core function imports with module function imports
-- `deployEdgeFunctions()` — Copies module edge functions to `supabase/functions/` and regenerates the router
-- Admin Vite plugin — Generates `virtual:gatewaze-modules` for admin build
-- Portal `enabledModules.ts` — Server-side module state cache for Next.js
-
-## Goals and Non-Goals
-
-### Goals
-
-1. **Rename `core-events` to `events`** — Update module ID, directory name, all references in code and database
-2. **Distribute edge functions to their owning modules** — Each submodule owns its own edge functions, core `events` module owns the base functions
-3. **Remove all event edge functions from `supabase/functions/`** — They should only appear when their respective modules are installed and enabled
-4. **Remove event function imports from `platform-main/index.ts`** — They get added dynamically by `deployEdgeFunctions()` when modules are enabled
-5. **Ensure each module is independently installable** — Installing `event-speakers` deploys speaker functions; installing `luma-integration` deploys luma functions; neither requires the other
-
-### Non-Goals
-
-- Moving non-event edge functions (people-*, email-*, admin-*, platform-*)
-- Changing the edge function runtime or deployment mechanism
-- Adding new features to any module
-- Creating new submodules (the existing ones cover current functionality)
+- Replacing the existing human UI — agent features augment, not replace.
+- Building a standalone chatbot product — the assistant is scoped to portal interactions.
+- Supporting real-time bidirectional agent communication via WebSocket. Server-to-client streaming (SSE) is used for the chat UI and MCP transport.
+- Migrating away from Supabase or the existing Express API.
+- Implementing agent authentication beyond standard JWT Bearer tokens via Supabase Auth.
 
 ## System Architecture
 
-### Edge Function Ownership Map
-
 ```
-MODULE: events (base)
-  Edge functions:
-    events/                        ← core event CRUD
-    events-registration/           ← event registration
-    events-search/                 ← event search
-    events-generate-matches/       ← networking/matching
-    events-send-match-emails/      ← match notification emails
-
-MODULE: event-speakers (already defined in gatewaze-modules)
-  Edge functions (already declared in module config):
-    events-speaker-confirm/
-    events-speaker-submission/
-    events-speaker-submissions/
-    events-speaker-tracking-link/
-    events-speaker-update/
-    events-speaker-update-notify/
-
-MODULE: luma-integration (already defined in gatewaze-modules)
-  Edge functions (already declared in module config):
-    integrations-luma-issue-discount/
-    integrations-luma-process-csv/
-    integrations-luma-process-registration/
-    integrations-luma-webhook/
-
-CORE (supabase/functions/ — always present):
-    _shared/
-    admin-add-first/
-    admin-nl-query/
-    admin-send-magic-link/
-    email-generate-encoded/
-    email-send/
-    email-send-push/
-    email-send-reminders/
-    email-sendgrid-webhook/
-    people-classify-job-titles/
-    people-enrichment/
-    people-normalize-location/
-    people-profile-update/
-    people-signup/
-    people-track-attribute/
-    people-track-subscription/
-    people-validate-linkedin/
-    platform-generate-download-token/
-    platform-generate-embeddings/
-    platform-main/
-    platform-setup/
+┌─────────────────────────────────────────────────────┐
+│                    Portal (Next.js 15)              │
+│  ┌─────────────┐  ┌──────────────┐  ┌────────────┐ │
+│  │ JSON-LD     │  │ AI Chat      │  │ llms.txt   │ │
+│  │ Components  │  │ (Vercel AI)  │  │ Route      │ │
+│  └─────────────┘  └──────┬───────┘  └────────────┘ │
+│                          │                          │
+│  ┌───────────────────────▼──────────────────────┐   │
+│  │         /api/chat (streaming endpoint)       │   │
+│  │         /api/ai-search (existing)            │   │
+│  │    /.well-known/openapi.json                 │   │
+│  │         /api/mcp (Streamable HTTP)           │   │
+│  └──────────────────────┬───────────────────────┘   │
+└─────────────────────────┼───────────────────────────┘
+                          │
+          ┌───────────────┼───────────────┐
+          ▼               ▼               ▼
+   ┌────────────┐  ┌────────────┐  ┌────────────┐
+   │ Express API│  │ Supabase   │  │ Anthropic  │
+   │ (existing) │  │ (DB/Auth)  │  │ Claude API │
+   │ + HATEOAS  │  │ + RLS      │  │            │
+   └────────────┘  └────────────┘  └────────────┘
 ```
 
-### Edge Function Lifecycle (Per Module)
-
-1. Admin installs/enables a module (e.g., `event-speakers`) via admin UI
-2. API server calls `deployEdgeFunctions()` which:
-   a. Reads `edgeFunctions` array from the module config
-   b. Copies each function directory from the module's `functions/` to `supabase/functions/`
-   c. Copies module's `functions/_shared/` contents if present (additive)
-   d. Calls `regeneratePlatformMain()` to add imports for the new functions
-   e. Optionally deploys to Supabase cloud via CLI
-   f. Restarts the edge runtime container
-3. Each module's functions are deployed independently — enabling `event-speakers` only deploys speaker functions
-
-### `platform-main/index.ts` Generation
-
-After migration, `platform-main/index.ts` will be generated in two layers:
-
-1. **Core functions** — Always present (admin-*, email-*, people-*, platform-*)
-2. **Module functions** — Added by `regeneratePlatformMain()` as each module is enabled
-
-The existing `regeneratePlatformMain()` implementation already handles this — it preserves existing imports and merges new ones.
-
-**Important limitations:**
-- `regeneratePlatformMain()` currently only **adds** imports — disabling a module does not remove its edge functions from the router. A future `undeployEdgeFunctions()` function is needed.
-- On a **fresh clone**, `platform-main/index.ts` ships with only core function imports. Module functions are added on top when modules are enabled.
+**Key flows**:
+- Human users interact via the chat widget (browser) or standard portal pages
+- AI agents interact via MCP (`/api/mcp`), OpenAPI-documented REST endpoints, or the chat API
+- All write operations (registration) flow through Supabase with RLS enforcement using the caller's JWT
 
 ## Component Design
 
-### 1. Module Rename: `core-events` → `events`
+### 1. JSON-LD Structured Data Components
 
-#### References to update
+**Location**: `packages/portal/components/structured-data/`
 
-| Location | Change |
-|----------|--------|
-| Module `index.ts` | Change `id: 'core-events'` to `id: 'events'` |
-| `packages/portal/lib/modules/enabledModules.ts` | Change `enabledIds.has('core-events')` to `enabledIds.has('events')` |
-| `packages/portal/app/(main)/events/layout.tsx` | Change `modules.enabledIds.has('core-events')` to `modules.enabledIds.has('events')` |
-| `packages/admin/src/app/pages/people/detail.tsx` | Change `useHasModule('core-events')` to `useHasModule('events')` |
-| `supabase/migrations/00006_rls_policies.sql` | Comments referencing `core-events` module |
-| `installed_modules` DB row | Update `id` from `core-events` to `events` |
-| `module_migrations` DB rows | Update `module_id` from `core-events` to `events` |
-| Submodule `dependencies` arrays | If any reference `core-events`, update to `events` |
+Three React server components that render `<script type="application/ld+json">` tags:
 
-### 2. Edge Function Migration — Base `events` Module
+#### `EventJsonLd`
+- Renders on event detail pages (`/events/[identifier]`)
+- Schema: `https://schema.org/Event`
+- Fields mapped from existing event data:
+  - `name` ← `event.title`
+  - `startDate` / `endDate` ← `event.start_date` / `event.end_date` (ISO 8601)
+  - `location` ← `event.venue` (as `Place` with `name` and `address` from `event.venue_address`). If the event has no physical venue (online), use `VirtualLocation` with `event.event_link` as `url`.
+  - `description` ← `event.description` (HTML stripped to plain text via `htmlToText()` from `html-to-text` library, truncated to 5000 chars on a word boundary)
+  - `image` ← `event.screenshot_url || event.event_logo`
+  - `organizer` ← `event.organizer_name` as `Organization` with `event.organizer_url`. Falls back to `brandConfig.organization_name` if event-level organizer is not set.
+  - `offers` ← registration pricing (as `Offer` with `price`, `priceCurrency`, `availability` mapped from registration status: `InStock` if open, `SoldOut` if full, `PreOrder` if upcoming)
+  - `eventStatus` ← mapped from event status field:
+    - `scheduled` / `published` → `EventScheduled`
+    - `cancelled` → `EventCancelled`
+    - `postponed` → `EventPostponed`
+    - `draft` → omit field (draft events should not have JSON-LD at all)
+  - `eventAttendanceMode` ← `OnlineEventAttendanceMode` | `OfflineEventAttendanceMode` | `MixedEventAttendanceMode`
+- **Graceful handling**: If `name` or `startDate` is missing (required by Schema.org), omit the entire JSON-LD block.
 
-The base `events` module needs a `functions/` directory with the 5 core event functions.
+#### `OrganizationJsonLd`
+- Renders on the root layout
+- Schema: `https://schema.org/Organization`
+- Fields from brand config: `name`, `url`, `logo`, `description`, `sameAs` (social links array)
 
-#### Create `events/functions/` directory:
-```
-events/functions/
-  events/index.ts
-  events-registration/index.ts
-  events-search/index.ts
-  events-generate-matches/index.ts
-  events-send-match-emails/index.ts
-```
+#### `PersonJsonLd`
+- Renders on speaker pages (`/events/[identifier]/speakers/[id]`)
+- Schema: `https://schema.org/Person`
+- Fields: `name`, `jobTitle`, `worksFor` (as `Organization`), `image`, `url`
+- **Graceful handling**: If `name` is missing, omit the block.
 
-#### Update module config:
+**Integration**: Import into respective page components. No client-side JS — pure SSR `<script>` tags.
+
+### 2. Vercel AI SDK Chat Interface
+
+**Dependencies**: `ai` (Vercel AI SDK), `@ai-sdk/anthropic`, `@ai-sdk/openai`
+
+**Graceful degradation**: If `ANTHROPIC_API_KEY` is not set, the chat endpoint returns `503 Service Unavailable` and the chat widget is not rendered (checked via `NEXT_PUBLIC_ENABLE_CHAT` env var).
+
+**`brandConfig` loading**: Brand configuration is loaded once at module scope via `unstable_cache` (Next.js) with a 5-minute TTL and `brandConfig` cache tag. This avoids a database round-trip on every chat request while keeping configuration reasonably fresh. The same cached loader is shared with JSON-LD components and `llms.txt`.
+
+#### API Route: `/api/chat`
+
+**Location**: `packages/portal/app/(main)/api/chat/route.ts`
+
 ```typescript
-const module: GatewazeModule = {
-  id: 'events',
-  name: 'Events',
-  edgeFunctions: [
-    'events',
-    'events-registration',
-    'events-search',
-    'events-generate-matches',
-    'events-send-match-emails',
-  ],
-  // ...
+import { streamText, tool } from 'ai';
+import { anthropic } from '@ai-sdk/anthropic';
+import { createClient } from '@supabase/supabase-js';
+import { z } from 'zod';
+
+export async function POST(req: Request) {
+  // Extract user JWT from Authorization header or cookie
+  // Extract JWT from Authorization header or Supabase session cookie
+  const authHeader = req.headers.get('authorization');
+  const token = authHeader?.startsWith('Bearer ')
+    ? authHeader.slice(7)
+    : parseCookies(req.headers.get('cookie') ?? '').get('sb-access-token') ?? null;
+  // parseCookies: parses "key=val; key2=val2" into Map<string, string>
+
+  // Create Supabase client scoped to the user's session (RLS-enforced)
+  // Uses anon key + user JWT, NOT service role key
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { global: { headers: { Authorization: `Bearer ${token}` } } }
+  );
+
+  const { messages } = await req.json();
+
+  const result = streamText({
+    model: anthropic('claude-sonnet-4-20250514'),
+    system: `You are the Gatewaze assistant for ${brandConfig.organization_name}.
+             Help users discover events, register, find networking opportunities,
+             and navigate the platform. Be concise and helpful.
+             Today's date: ${new Date().toISOString().split('T')[0]}`,
+    messages,
+    tools: {
+      searchEvents: tool({
+        description: 'Search for events by topic, date, or location',
+        parameters: z.object({
+          query: z.string().describe('Search query text'),
+          startDate: z.string().optional().describe('ISO 8601 date filter start'),
+          endDate: z.string().optional().describe('ISO 8601 date filter end'),
+          location: z.string().optional().describe('City or venue name'),
+        }),
+        execute: async ({ query, startDate, endDate, location }) => {
+          // Reuses existing ai-search embedding logic
+          // Returns: Array<{ id, title, date, location, description, url }>
+        },
+      }),
+      getEventDetails: tool({
+        description: 'Get full details for a specific event by ID or slug',
+        parameters: z.object({
+          identifier: z.string().describe('Event ID (UUID) or URL slug'),
+        }),
+        execute: async ({ identifier }) => {
+          // Returns: { id, title, description, startDate, endDate, venue,
+          //   registrationStatus, speakerCount, ticketPrice, url }
+        },
+      }),
+      registerForEvent: tool({
+        description: 'Register the authenticated user for an event. Requires login.',
+        parameters: z.object({
+          eventId: z.string().uuid().describe('Event UUID'),
+        }),
+        execute: async ({ eventId }) => {
+          if (!token) {
+            return { error: 'Authentication required. Please log in to register.' };
+          }
+          // Uses the user-scoped Supabase client (RLS enforced)
+          // Pulls name/email from the authenticated user's profile
+          // Returns: { success: boolean, confirmationId?: string, error?: string }
+        },
+      }),
+      findNetworkingMatches: tool({
+        description: 'Find recommended networking connections at an event',
+        parameters: z.object({
+          eventId: z.string().uuid().describe('Event UUID'),
+        }),
+        execute: async ({ eventId }) => {
+          // Returns: Array<{ name, title, company, matchScore, reason }>
+        },
+      }),
+    },
+    maxSteps: 5,
+  });
+
+  return result.toDataStreamResponse();
 }
 ```
 
-#### Source: Move from `supabase/functions/`
-- Move (not copy) each function directory from `supabase/functions/` to the module's `functions/` directory
-- Delete the originals from `supabase/functions/`
-- These functions only exist at `supabase/functions/` after `deployEdgeFunctions()` copies them
+**Key design decisions**:
+- Tools use the **user-scoped Supabase client** (anon key + user JWT), not the service role key. This ensures RLS policies are enforced automatically.
+- `registerForEvent` pulls user data from the authenticated profile rather than accepting name/email as parameters. This prevents registration impersonation.
+- Tool return types are documented inline so the LLM can format them for the user.
 
-### 3. Edge Function Migration — `event-speakers` Module
+#### Chat UI Component
 
-Already properly configured:
-- `edgeFunctions` array lists all 6 speaker functions
-- `functions/` directory exists with source code
+**Location**: `packages/portal/components/chat/`
 
-**Action needed**: Verify the source in `event-speakers/functions/` matches the current code in `supabase/functions/`. The 4 functions fixed in this session (converted from `serve()`/`Deno.serve()` to `export default`) need those fixes applied to the module's copy too.
+- `ChatWidget.tsx` — Floating chat button (bottom-right), expandable panel. Only rendered when `NEXT_PUBLIC_ENABLE_CHAT=true`.
+- `ChatMessages.tsx` — Message list with markdown rendering
+- `ChatInput.tsx` — Text input with send button
+- Uses `useChat()` hook from `ai/react`
+- Renders tool results inline (event cards, registration confirmations)
+- Respects brand theming (colors, fonts from brand config)
+- Lazy-loaded via `next/dynamic` — zero impact on initial page load
+- Persists conversation in `sessionStorage` (ephemeral, per-tab)
+- Available on all portal pages (rendered in root layout, gated by feature flag)
 
-Functions to verify/sync:
-- `events-speaker-confirm` — was fixed (removed `serve()`, added `export default`)
-- `events-speaker-submissions` — was fixed (removed `Deno.serve()`, added `export default`)
-- `events-speaker-tracking-link` — was fixed (removed `Deno.serve()`, added `export default`)
-- `events-speaker-update-notify` — was fixed (removed `serve()`, added `export default`)
-- `events-speaker-submission` — verify has `export default`
-- `events-speaker-update` — verify has `export default`
+### 3. OpenAPI 3.1 Specification
 
-### 4. Edge Function Migration — `luma-integration` Module
+**Location**: `packages/portal/app/(main)/.well-known/openapi.json/route.ts`
 
-Already properly configured:
-- `edgeFunctions` array lists all 4 luma functions
-- `functions/` directory exists with source code (including `_shared/lumaRegistration.ts`)
+A Next.js route handler that serves a generated OpenAPI 3.1 spec. The spec is defined as a TypeScript object and serialized to JSON.
 
-**Action needed**: Verify the source in `luma-integration/functions/` matches the current code in `supabase/functions/`. Ensure all functions use `export default async function(req: Request)` pattern.
+**Endpoints documented**:
 
-### 5. Remove Event Functions from Core
+| Method | Path | Description | Auth | Request Body | Response (200) | Errors |
+|--------|------|-------------|------|-------------|----------------|--------|
+| GET | /api/health | Health check | None | — | `{ status: "ok" }` | 500 |
+| POST | /api/ai-search | Semantic event search | None | `SearchRequest` | `SearchResult[]` | 400, 500 |
+| POST | /api/chat | AI chat (streaming) | Optional Bearer | `ChatRequest` | SSE stream | 401, 429, 500, 503 |
+| GET | /api/events | List upcoming events | None | — | `EventSummary[]` | 500 |
+| GET | /api/events/{identifier} | Event details | None | — | `EventDetail` | 404, 500 |
+| GET | /api/calendars/{slug} | Calendar events | None | — | `CalendarEvent[]` | 404, 500 |
+| POST | /api/registrations | Register for an event | Bearer | `RegistrationRequest` | `Registration` | 401, 404, 409, 500 |
+| POST | /api/mcp | MCP Streamable HTTP | Optional Bearer | MCP JSON-RPC | MCP JSON-RPC | 401, 500 |
 
-After confirming module copies are correct:
+**Schema definitions**:
 
-1. **Delete from `supabase/functions/`**:
-   - `events/`
-   - `events-registration/`
-   - `events-search/`
-   - `events-generate-matches/`
-   - `events-send-match-emails/`
-   - `events-speaker-confirm/`
-   - `events-speaker-submission/`
-   - `events-speaker-submissions/`
-   - `events-speaker-tracking-link/`
-   - `events-speaker-update/`
-   - `events-speaker-update-notify/`
-   - `integrations-luma-issue-discount/`
-   - `integrations-luma-process-csv/`
-   - `integrations-luma-process-registration/`
-   - `integrations-luma-webhook/`
+```typescript
+// SearchRequest
+{ query: string; location?: string; startDate?: string; endDate?: string }
 
-2. **Update `platform-main/index.ts`**: Remove all event/luma function imports. Only core functions remain in the seed version.
+// SearchResult
+{ id: string; type: "event" | "blog"; title: string; description: string;
+  date?: string; location?: string; score: number; url: string }
 
-### 6. Shared Code Audit (`_shared/`)
+// ChatRequest
+{ messages: Array<{ role: "user" | "assistant"; content: string }> }
 
-| Module | Classification | Used By |
-|--------|---------------|---------|
-| `integrationEvents.ts` | **SHARED** | Core: people-signup, people-track-attribute, people-track-subscription, people-enrichment. Events: events-registration |
-| `email.ts` | **CORE-ONLY** | admin-add-first, admin-send-magic-link, people-signup |
-| `cors.ts` | **CORE-ONLY** | admin-add-first, admin-send-magic-link, platform-setup |
-| `supabase.ts` | **CORE-ONLY** | admin-add-first, admin-send-magic-link, platform-setup |
-| `lumaRegistration.ts` | **EVENTS-ONLY** | integrations-luma-* functions |
-| `customerio.ts` | **UNUSED** | No current imports (deprecated) |
-| `imageProcessor.ts` | **UNUSED** | No current imports |
+// EventSummary
+{ id: string; title: string; slug: string; startDate: string;
+  endDate?: string; location?: string; imageUrl?: string }
 
-**Actions:**
-- **Keep in core `_shared/`**: `integrationEvents.ts`, `email.ts`, `cors.ts`, `supabase.ts`
-- **Already in module**: `lumaRegistration.ts` is already in `luma-integration/functions/_shared/`
-- **Delete from core**: `customerio.ts`, `imageProcessor.ts` — unused
-- **Note**: Event functions create Supabase clients inline rather than using the shared `supabase.ts`, so no import path changes needed
-- **Note**: `deployEdgeFunctions()` copies module `_shared/` additively into the platform `_shared/` — no collision risk as long as filenames don't overlap
+// EventDetail extends EventSummary
+{ description: string; venue?: Place; organizer: Organization;
+  registrationStatus: "open" | "closed" | "full" | "upcoming";
+  ticketPrice?: { amount: number; currency: string };
+  speakerCount: number; attendeeCount: number;
+  _links: HATEOASLinks }
 
-### 7. Database Migration
+// Calendar
+{ slug: string; name: string; description?: string; eventCount: number; url: string }
 
-```sql
--- Migration: rename core-events to events
-BEGIN;
+// CalendarEvent
+{ id: string; title: string; startDate: string; endDate?: string; url: string }
 
-UPDATE public.module_migrations
-SET module_id = 'events'
-WHERE module_id = 'core-events';
+// Place
+{ name: string; address?: string; latitude?: number; longitude?: number }
 
-UPDATE public.installed_modules
-SET id = 'events'
-WHERE id = 'core-events';
+// Organization
+{ name: string; url?: string }
 
-COMMIT;
+// HATEOASLinks
+{ self: Link; register?: Link; speakers?: Link; calendar?: Link }
+
+// Link
+{ href: string; method?: string }
+
+// RegistrationRequest
+{ eventId: string }
+// (User identity is derived from JWT, not passed in body)
+
+// Registration
+{ id: string; eventId: string; userId: string; status: "confirmed" | "pending";
+  createdAt: string }
+
+// ErrorResponse
+{ error: string; code?: string }
 ```
 
-**Alternative for local dev**: Delete old rows and let reconciliation recreate:
-```sql
-DELETE FROM public.module_migrations WHERE module_id = 'core-events';
-DELETE FROM public.installed_modules WHERE id = 'core-events';
+**Note**: The OpenAPI spec documents the **Express API endpoints** (prefixed with `/api/`), which are the programmatic interface for agents. The Next.js portal pages (`/events/[slug]`, `/calendars/[slug]`) are SSR-rendered HTML pages for human users and are not part of the OpenAPI spec. JSON-LD on those pages serves as the structured data layer for agents browsing via web tools.
+
+**Served with**: `Content-Type: application/json`, `Access-Control-Allow-Origin: *`, `Cache-Control: public, max-age=3600`.
+
+**Security schemes**: Bearer token (JWT) defined as optional `securitySchemes` entry.
+
+### 4. `llms.txt` Route
+
+**Location**: `packages/portal/app/(main)/llms.txt/route.ts`
+
+Returns a plain text file following the `llms.txt` standard:
+
 ```
-Then re-enable through admin UI.
+# {organization_name} - Powered by Gatewaze
+
+> Event and community management platform
+
+## About
+{organization_name} uses Gatewaze, an open-source platform for managing events,
+communities, and member engagement.
+
+## Capabilities
+- Browse and search upcoming events (semantic search supported)
+- Register for events (requires authentication)
+- View event calendars and schedules
+- AI-powered event discovery and networking recommendations
+
+## API
+- OpenAPI spec: /.well-known/openapi.json
+- Semantic search: POST /api/ai-search (no auth required)
+- AI chat: POST /api/chat (streaming, optional auth)
+- MCP server: POST /api/mcp (Streamable HTTP, optional auth)
+
+## Authentication
+- Public endpoints: event listing, search, calendars, event details
+- Authenticated endpoints: registration, profile management, networking matches
+- Auth method: Supabase Auth — obtain JWT via POST /auth/callback
+- Pass JWT as: Authorization: Bearer <token>
+
+## Data Formats
+- All API responses are JSON
+- Structured data: Schema.org JSON-LD on event and profile pages
+- Event dates: ISO 8601
+```
+
+Dynamic — pulls organization name and enabled features from brand config.
+
+### 5. MCP Server
+
+**Location**: `packages/portal/app/(main)/api/mcp/route.ts`
+
+Uses `@modelcontextprotocol/sdk` with **Streamable HTTP transport** (the current recommended MCP transport, replacing deprecated SSE transport) over the Next.js API route.
+
+**Resources exposed**:
+
+| URI | Description | Returns |
+|-----|-------------|---------|
+| `events://upcoming` | List of upcoming events | `EventSummary[]` |
+| `events://{id}` | Single event details | `EventDetail` |
+| `calendars://list` | Available calendars | `Calendar[]` |
+| `calendars://{slug}` | Calendar events | `CalendarEvent[]` |
+
+**Tools exposed**:
+
+| Tool | Parameters | Returns | Auth Required |
+|------|-----------|---------|---------------|
+| `search_events` | `query: string, location?: string, startDate?: string, endDate?: string` | `SearchResult[]` | No |
+| `get_event` | `identifier: string` | `EventDetail` | No |
+| `register` | `eventId: string` | `{ success, confirmationId?, error? }` | Yes |
+| `list_calendars` | — | `Calendar[]` | No |
+
+**Prompts exposed**:
+- `discover_events` — "What events are coming up that match my interests?"
+- `plan_attendance` — "Help me plan which events to attend this month"
+
+**Authentication**: Agents pass JWT Bearer token in the initial HTTP request. The MCP server creates a user-scoped Supabase client (same pattern as `/api/chat`). Unauthenticated agents can use read-only tools and resources.
+
+### 6. HATEOAS-lite API Responses
+
+Modify Express API responses to include `_links` objects.
+
+**Implementation**: Express middleware (`hateoasMiddleware`) that intercepts `res.json()` calls, inspects the response body for known resource types, and injects `_links`.
+
+**Resource type identification**:
+- **Event**: response has `id` + `title` + `start_date` fields
+- **Registration**: response has `id` + `event_id` + `registrant_id` fields
+- **Calendar**: response has `slug` + `name` + `events` (array) fields
+- **Person**: response has `id` + `first_name` + `last_name` fields
+
+**Conditional link logic**:
+- `register` link: only included when `registrationStatus === "open"`
+- `speakers` link: only included when the event has speakers (speaker count > 0)
+- `calendar` link: only included when the event belongs to a calendar
+
+**Affected routes**: `/api/events`, `/api/events/:id`, `/api/registrations`, `/api/calendars`
+
+**Event response example**:
+```json
+{
+  "id": "evt_123",
+  "title": "Tech Meetup",
+  "start_date": "2026-04-15T18:00:00Z",
+  "registration_status": "open",
+  "_links": {
+    "self": { "href": "/api/events/evt_123" },
+    "register": { "href": "/api/registrations", "method": "POST" },
+    "speakers": { "href": "/api/events/evt_123/speakers" },
+    "calendar": { "href": "/api/calendars/tech-meetup" }
+  }
+}
+```
+
+### 7. Semantic HTML Improvements
+
+Audit and update portal components to use:
+- `<article>` for event cards and blog posts
+- `<nav>` for navigation (already likely in place)
+- `<main>` for primary content area
+- `<time datetime="...">` for all date displays
+- `<address>` for venue information
+- `aria-label` on interactive elements lacking visible text
+- `role="search"` on search forms
+
+No new components — modifications to existing ones.
 
 ## API Design
 
-No new API endpoints. Existing module management endpoints work as-is — they're generic and operate on module IDs.
+### POST `/api/chat`
 
-### Module enable flow (example: enabling `event-speakers`)
+**Request**:
+```json
+{
+  "messages": [
+    { "role": "user", "content": "Find me AI events in London next month" }
+  ]
+}
+```
 
-1. `POST /api/modules/event-speakers/enable`
-2. Server loads `event-speakers` module config
-3. Checks dependencies: `events` and `event-sponsors` must be enabled first
-4. Runs migrations from `event-speakers/migrations/`
-5. Calls `deployEdgeFunctions()` — copies 6 speaker functions to `supabase/functions/`
-6. Regenerates `platform-main/index.ts` with speaker function imports
-7. Updates `installed_modules` status to `enabled`
+**Headers**:
+- `Content-Type: application/json` (required)
+- `Authorization: Bearer <jwt>` (optional — enables registration and personalized results)
 
-### Edge function endpoints (unchanged paths)
+**Response**: `Content-Type: text/event-stream`. Uses the Vercel AI SDK Data Stream Protocol. Each SSE message is prefixed with a type code:
 
-All edge functions maintain their existing paths under `/functions/v1/`:
-- `POST /functions/v1/events-registration`
-- `GET /functions/v1/events-speaker-confirm?token=...`
-- etc.
+| Code | Type | Data Format | Description |
+|------|------|-------------|-------------|
+| `0:` | Text | `"string"` | Incremental text content from the LLM |
+| `9:` | Tool Call | `{ toolCallId, toolName, args }` | LLM invokes a tool (e.g., `searchEvents`) |
+| `a:` | Tool Result | `{ toolCallId, result }` | Tool execution result returned to LLM |
+| `e:` | Error | `{ error: string }` | Tool execution error (user-friendly message) |
+| `d:` | Finish | `{ finishReason, usage: { promptTokens, completionTokens } }` | Stream complete |
 
-## Data Models / Database Schema
+Tool execution errors surface as `e:` events in the stream with user-friendly messages (e.g., `"Authentication required to register"`), never stack traces. The `useChat()` hook on the client handles all parsing automatically.
 
-No schema changes. The only data change is the module ID rename in `installed_modules` and `module_migrations`.
+For agents consuming this API directly (not via `useChat()`), see the [Vercel AI SDK Data Stream Protocol documentation](https://sdk.vercel.ai/docs/ai-sdk-ui/stream-protocol#data-stream-protocol).
+
+**Error responses**:
+- `401 Unauthorized` — invalid JWT token
+- `429 Too Many Requests` — rate limit exceeded, includes `Retry-After` header
+- `500 Internal Server Error` — `{ error: "Internal server error" }` (no stack traces)
+- `503 Service Unavailable` — chat feature disabled (no `ANTHROPIC_API_KEY`)
+
+**Rate limiting**: 20 requests/minute per IP (unauthenticated), 60/minute per user ID (authenticated). Returns `429` with `Retry-After` header. Implemented via Next.js middleware using an in-memory sliding window counter for single-instance deployments. For horizontally scaled deployments, swap to a Redis-backed counter (e.g., `@upstash/ratelimit`) — the middleware interface remains the same.
+
+### GET `/.well-known/openapi.json`
+
+**Response**: OpenAPI 3.1 JSON document
+
+**Cache**: `Cache-Control: public, max-age=3600`
+
+**CORS**: `Access-Control-Allow-Origin: *`
+
+### GET `/llms.txt`
+
+**Response**: `text/plain; charset=utf-8`
+
+**Cache**: `Cache-Control: public, max-age=3600`
+
+**CORS**: `Access-Control-Allow-Origin: *`
+
+### POST `/api/mcp`
+
+**Transport**: Streamable HTTP (MCP specification 2025-03-26)
+
+**Request**: MCP JSON-RPC messages
+
+**Response**: MCP JSON-RPC responses (may include SSE streaming for long-running operations)
+
+**Authentication**: Optional `Authorization: Bearer <jwt>` header
+
+**CORS**: Restricted to configured domains via `ALLOWED_MCP_ORIGINS` env var.
+
+## Data Models
+
+No new database tables required. All features build on existing Supabase schema:
+- `events` — event data for JSON-LD, search, chat tools
+- `registrations` — registration for chat tools
+- `people` — profiles for JSON-LD, matching
+- `brand_config` — organization data for JSON-LD, llms.txt
+
+Chat conversations are ephemeral (stored in browser `sessionStorage`). No `chat_sessions` database table is needed for the initial implementation. If persistent chat history is needed in the future, it can be added as a follow-up.
 
 ## Infrastructure Requirements
 
-No new infrastructure. The existing Docker setup (Supabase + edge runtime) is unchanged.
+**New dependencies** (portal `package.json`):
+- `ai` (Vercel AI SDK) — ~50KB
+- `@ai-sdk/anthropic` — Anthropic provider
+- `@ai-sdk/openai` — OpenAI provider (for embeddings in chat tools)
+- `@modelcontextprotocol/sdk` — MCP server
+- `zod` — already in use for validation
 
-The edge runtime container mounts `supabase/functions/` from the host. After `deployEdgeFunctions()` copies module functions into this directory, the container picks them up on restart.
+**Environment variables** (new):
+- `ANTHROPIC_API_KEY` — for chat endpoint (Claude). If unset, chat endpoint returns 503 and widget is hidden.
+- `NEXT_PUBLIC_ENABLE_CHAT` — feature flag for chat widget rendering (`true`/`false`)
+- `ALLOWED_MCP_ORIGINS` — comma-separated list of allowed origins for MCP CORS (defaults to same-origin)
+- `ALLOWED_CHAT_ORIGINS` — comma-separated list of allowed origins for chat CORS (defaults to same-origin)
+
+**No new infrastructure** — runs within existing Next.js deployment.
 
 ## Security Considerations
 
-- **No change to auth model** — Edge functions continue to use service role keys and user JWTs
-- **Module deployment** — Only admin users can enable/disable modules
-- **Edge function access** — Functions are only routable when registered in `platform-main/index.ts`
-- **Post-move verification** — After moving edge functions, verify that relative import paths (e.g., `../_shared/integrationEvents.ts`) resolve correctly from `supabase/functions/` (where they're copied to at deploy time)
+1. **Chat endpoint abuse**: Rate limiting via in-memory sliding window (20/min unauthenticated, 60/min authenticated). All tool parameters validated via Zod schemas before execution.
+2. **Tool execution context**: Tools use a Supabase client initialized with the **anon key + user's JWT** (not service role key). RLS policies are enforced automatically. If no JWT is present, the client operates as anonymous — write operations will be denied by RLS.
+3. **Registration impersonation prevention**: The `registerForEvent` tool does not accept name/email as parameters. It pulls user identity from the authenticated JWT, preventing one user from registering as another.
+4. **MCP server**: Read-only resources and tools are available without authentication. Write tools (`register`) require a valid JWT Bearer token. The MCP server validates the JWT with Supabase before executing write operations.
+5. **Prompt injection**: System prompt is server-side only, not exposed to the client. User messages are passed to the LLM but never interpolated into database queries, API calls, or system instructions. Tool parameters are type-validated via Zod before use.
+6. **Data exposure**: JSON-LD only includes publicly visible event data. Draft events, internal notes, and private profile fields are excluded at the query level (Supabase views/RLS).
+7. **CORS**:
+   - `*` origin: `/.well-known/openapi.json`, `/llms.txt` (public, read-only, no sensitive data)
+   - `ALLOWED_CHAT_ORIGINS`: `/api/chat` (configurable per deployment, defaults to same-origin)
+   - `ALLOWED_MCP_ORIGINS`: `/api/mcp` (configurable per deployment)
 
 ## Error Handling Strategy
 
-### Module enable fails to deploy edge functions
-- `deployEdgeFunctions()` already logs errors and continues
-- Module status should remain `enabled` even if edge function deploy fails
-- Admin UI should surface deployment errors
+| Component | Error Type | Handling |
+|-----------|-----------|----------|
+| Chat | Tool execution failure | Return user-friendly message in stream (e.g., "I couldn't find that event"). Log error server-side. |
+| Chat | Anthropic API down | Return 503 with `{ error: "AI service temporarily unavailable" }` |
+| Chat | Rate limit exceeded | Return 429 with `Retry-After` header |
+| Chat | Invalid JWT | Return 401; tools requiring auth return inline error message |
+| MCP | Invalid JSON-RPC | Standard MCP error response with code `-32600` |
+| MCP | Tool execution failure | MCP error response with descriptive message |
+| MCP | Auth required for write | MCP error response with code `-32001` (custom: auth required) |
+| JSON-LD | Incomplete data | Omit JSON-LD block entirely (no invalid markup) |
+| OpenAPI | Server error | Route handler catches errors and returns last successfully generated response from module-level cache. CDN/browser caches via `Cache-Control: public, max-age=3600`. |
+| llms.txt | Server error | Same caching strategy as OpenAPI |
+| HATEOAS | Middleware error | Pass through original response without `_links` (fail open, log error) |
 
-### Missing dependency
-- If `event-speakers` is enabled without `event-sponsors`, the dependency check should prevent it
-- The topological sort in lifecycle.ts already handles this
+## Performance Requirements
 
-### Stale `platform-main/index.ts`
-- `POST /api/modules/reconcile` regenerates it
-- Container restart picks up changes
-
-## Performance Requirements / SLAs
-
-No change. Edge functions have the same cold-start and execution characteristics regardless of where their source files are stored.
+- **JSON-LD**: Zero client-side cost (SSR `<script>` tags). No measurable impact on page load.
+- **Chat**: Time to first token < 1s (p95). Full response < 10s for single-tool queries, < 30s for multi-tool chains (p95). Measured via server-side logging.
+- **OpenAPI/llms.txt**: < 50ms response time (served from ISR cache after first request).
+- **MCP**: Connection establishment < 500ms. Tool execution < 5s for read operations, < 10s for write operations (p95). Bounded by Supabase query performance.
+- **HATEOAS middleware**: < 2ms overhead per response (measured via middleware timing).
+- **Rate limiter**: < 1ms per check (in-memory, no external calls).
 
 ## Observability
 
-- `deployEdgeFunctions()` logs each function it copies
-- `regeneratePlatformMain()` logs the final function list
-- `platform-main` logs 404s for unknown function routes
-- Each edge function has its own console logging
+- **Chat**:
+  - Log: tool name, parameters (redacted PII), execution duration, success/failure per invocation
+  - Log: total token usage (prompt + completion) per request
+  - Metric: requests per minute, error rate, average response time
+  - Alert: error rate > 10% over 5-minute window, or Anthropic API latency > 5s
+- **MCP**:
+  - Log: tool/resource access with client identifier (IP or agent name from User-Agent)
+  - Metric: requests per minute by tool/resource
+- **Rate limiting**:
+  - Log: rate limit hits with IP/user ID
+  - Metric: rate limit trigger frequency
+- Existing Supabase analytics cover database query performance and auth events.
 
 ## Testing Strategy
 
-### Manual testing checklist
-
-1. **Fresh install (no event modules)**
-   - [ ] `supabase/functions/` contains only core functions
-   - [ ] `platform-main/index.ts` only imports core functions
-   - [ ] Portal shows no events nav
-   - [ ] No errors in API or edge function logs
-
-2. **Enable base `events` module**
-   - [ ] 5 core event functions copied to `supabase/functions/`
-   - [ ] `platform-main/index.ts` regenerated with event function imports
-   - [ ] Event pages work in portal
-   - [ ] `/functions/v1/events-registration` responds
-
-3. **Enable `event-speakers` module (requires `event-sponsors`)**
-   - [ ] Enable `event-sponsors` first (no edge functions to deploy)
-   - [ ] Enable `event-speakers` — 6 speaker functions deployed
-   - [ ] `/functions/v1/events-speaker-confirm?token=...` responds
-   - [ ] Speaker admin tab appears in event detail
-
-4. **Enable `luma-integration` module**
-   - [ ] 4 luma functions deployed independently
-   - [ ] Luma admin slots appear
-
-5. **Disable `event-speakers`**
-   - [ ] Speaker admin tab hidden
-   - [ ] Speaker functions may still be on disk (known limitation)
-
-6. **Module rename verification**
-   - [ ] `installed_modules` shows `id = 'events'`, not `core-events`
-   - [ ] `useHasModule('events')` returns true when enabled
-   - [ ] `enabledIds.has('events')` works in portal
+1. **JSON-LD**: Unit tests validating output against Schema.org Event/Organization/Person specs. Test graceful omission when required fields are missing. Validate with Google Rich Results Test (manual, pre-release).
+2. **Chat**: Integration tests for each tool with mocked Supabase client. Test: successful execution, auth-required rejection, invalid parameters, Supabase query errors. Test rate limiting behavior.
+3. **MCP**: Protocol compliance tests using MCP SDK test client. Test: resource listing, tool execution, auth enforcement, error responses.
+4. **OpenAPI**: Validate spec with `@apidevtools/swagger-parser`. Contract tests: verify actual API responses match declared schemas.
+5. **llms.txt**: Snapshot test for content format. Verify dynamic brand config substitution.
+6. **HATEOAS**: Unit tests for middleware: verify `_links` injection per resource type, conditional link inclusion (registration open/closed), and pass-through on unknown response shapes.
+7. **E2E**: Playwright tests simulating: user opens chat → searches events → views details → registers. Verify the full flow works with real (or mock) AI responses.
 
 ## Deployment Strategy
 
-Since this is a local-only installation:
+All changes deploy within the existing Next.js portal deployment pipeline:
 
-1. Stop all services
-2. Rename the module directory and update module ID
-3. Update all code references (`core-events` → `events`)
-4. Move core event edge functions to `events/functions/`
-5. Sync speaker and luma function source code to match recent fixes
-6. Remove all event/luma functions from `supabase/functions/`
-7. Update `platform-main/index.ts` to only contain core imports
-8. Clear old database rows
-9. Start services
-10. Run reconciliation to re-register all modules
-11. Enable modules through admin UI: events → event-sponsors → event-speakers → luma-integration
-12. Verify all edge functions deploy correctly
+1. **Phase 1 deploy**: Add dependencies, implement JSON-LD components, `llms.txt` route, OpenAPI route, semantic HTML changes. No feature flag needed — all read-only, zero risk.
+2. **Phase 2 deploy**: Chat endpoint + UI widget behind `NEXT_PUBLIC_ENABLE_CHAT=false`. Set `ANTHROPIC_API_KEY` in environment. Test internally, then flip flag to `true`.
+3. **Phase 3 deploy**: MCP server endpoint. Set `ALLOWED_MCP_ORIGINS`. HATEOAS middleware on Express API.
 
-### Rollback
+**Rollback**: Each phase is independently reversible:
+- Phase 1: Remove components from page files (JSON-LD has no side effects)
+- Phase 2: Set `NEXT_PUBLIC_ENABLE_CHAT=false` (instant, no redeploy needed for widget; endpoint still exists but returns 503)
+- Phase 3: Remove MCP route handler; disable HATEOAS middleware
 
-If something breaks:
-1. Revert code changes via git
-2. Re-register modules through reconciliation
+No database migration required.
 
 ## Migration Plan
 
-### Phase 1: Rename (Low Risk)
-1. Rename base events module from `core-events` to `events`
-2. Update `id` in module config
-3. Update all code references (`useHasModule`, `enabledIds.has`, etc.)
-4. Clean up old DB rows, re-reconcile
+1. **Phase 1 — Passive Agent Support** (no user-facing changes):
+   - JSON-LD structured data on all event pages
+   - `llms.txt` route
+   - OpenAPI spec at `/.well-known/openapi.json`
+   - Semantic HTML audit and updates
 
-### Phase 2: Move Core Event Edge Functions (Medium Risk)
-1. Create `events/functions/` directory with 5 base functions
-2. Verify all functions use `export default` pattern
-3. Add `edgeFunctions` array to base `events` module config
-4. Remove these functions from `supabase/functions/`
+2. **Phase 2 — Active Agent Interfaces**:
+   - Vercel AI SDK chat endpoint + UI widget
+   - HATEOAS `_links` in Express API responses
+   - Rate limiting middleware
 
-### Phase 3: Sync Submodule Edge Functions (Medium Risk)
-1. Verify `event-speakers/functions/` matches fixed source code (4 functions were patched)
-2. Verify `luma-integration/functions/` has correct source
-3. Ensure all submodule functions use `export default` pattern
-4. Remove speaker and luma functions from `supabase/functions/`
+3. **Phase 3 — Native Agent Protocol**:
+   - MCP server deployment (Streamable HTTP transport)
+   - Agent-specific documentation and examples
+   - Update `llms.txt` with MCP connection instructions
 
-### Phase 4: Clean Up Core
-1. Remove all event/luma function imports from `platform-main/index.ts`
-2. Delete unused `_shared/` modules (`customerio.ts`, `imageProcessor.ts`)
-3. Verify `platform-main/index.ts` only has core function imports
-4. Restart edge runtime and verify no errors
+## Decisions (Resolved)
 
-## Open Questions / Future Considerations
-
-1. **Should disabling a module remove its edge functions?**
-   - Currently it doesn't — `regeneratePlatformMain()` only adds, not removes
-   - Low risk: functions fail gracefully if their tables don't exist
-
-2. **(Resolved) All event submodules now depend on `events` base module**
-   - Enforces correct install order
-   - Ensures core event tables exist before submodule migrations run
-
-3. **How should `_shared/` code work across modules?**
-   - `deployEdgeFunctions()` copies `_shared/` additively
-   - Need to ensure no naming collisions between module shared code and core shared code
-   - Consider namespacing: `_shared/events/` vs `_shared/core/`
-
-4. **Adding new event submodules in the future**
-   - New modules (e.g., `event-networking`) just need an `index.ts` with `edgeFunctions` array and a `functions/` directory
-   - They declare `dependencies: ['events']` and are independently installable
-   - No changes to core required — the module system handles discovery and deployment
+1. **Chat availability**: Available on all portal pages via root layout, lazy-loaded. Controlled by `NEXT_PUBLIC_ENABLE_CHAT` feature flag.
+2. **MCP transport**: Streamable HTTP only (current MCP recommended transport). No stdio — the MCP server runs as a web endpoint, not a local process.
+3. **Chat persistence**: Ephemeral (`sessionStorage`). No database table. Can be revisited based on user feedback.
+4. **Cost management**: Token usage logging per request enables cost monitoring. Cost budget is an operational concern — set spend alerts in the Anthropic dashboard, not enforced in code.
