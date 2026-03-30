@@ -15,7 +15,7 @@ const FROM_ADDRESSES: Record<string, string> = {
   default: Deno.env.get('SENDGRID_FROM_DEFAULT') || '',
 }
 
-export default async function(_req: Request) {
+async function handler(_req: Request) {
   try {
     console.log('send-reminder-emails: Checking for events needing reminders...')
 
@@ -151,3 +151,6 @@ export default async function(_req: Request) {
     })
   }
 }
+
+export default handler;
+if (import.meta.main) Deno.serve(handler);

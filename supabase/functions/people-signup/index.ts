@@ -45,7 +45,7 @@ interface SignupResponse {
   magic_link_sent?: boolean
 }
 
-export default async function(req: Request) {
+async function handler(req: Request) {
   // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -580,3 +580,6 @@ async function triggerEnrichmentIfEnabled(email: string): Promise<void> {
     console.error('[enrichment] Error checking enrichment module:', err)
   }
 }
+
+export default handler;
+if (import.meta.main) Deno.serve(handler);

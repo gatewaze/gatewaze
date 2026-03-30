@@ -3,7 +3,7 @@ import { createServiceClient } from '../_shared/supabase.ts';
 
 const SETUP_EMAIL = 'admin@setup.localhost';
 
-export default async function(req: Request) {
+async function handler(req: Request) {
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
 
@@ -94,13 +94,21 @@ export default async function(req: Request) {
         { key: 'setup_complete', value: 'true' },
       ], { onConflict: 'key' });
 
-    // Generate magic link for auto-login
+    // Generate magic link for auto-login, redirecting back to the calling app
+    const origin = req.headers.get('origin') || '';
     const { data: linkData } = await supabase.auth.admin.generateLink({
       type: 'magiclink',
       email: SETUP_EMAIL,
+      options: origin ? { redirectTo: origin } : undefined,
     });
 
-    const magicLink = linkData?.properties?.action_link;
+    // Rewrite redirect_to in the link to ensure it points to the admin app
+    let magicLink = linkData?.properties?.action_link;
+    if (magicLink && origin) {
+      const url = new URL(magicLink);
+      url.searchParams.set('redirect_to', origin);
+      magicLink = url.toString();
+    }
 
     return new Response(
       JSON.stringify({ status: 'ok', magicLink }),
@@ -123,3 +131,6 @@ function toNamespace(value: string): string {
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '');
 }
+
+export default handler;
+if (import.meta.main) Deno.serve(handler);
