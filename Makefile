@@ -18,20 +18,10 @@
 ENVIRONMENTS_DIR := ../gatewaze-environments
 TRAEFIK_FILE     := -f docker/docker-compose.traefik.yml
 
-# Detect Supabase mode from the active env file
-SUPABASE_MODE := $(shell grep -E '^SUPABASE_MODE=' "$(if $(BRAND),$(ENVIRONMENTS_DIR)/$(BRAND).local.env,docker/.env)" 2>/dev/null | head -1 | cut -d= -f2-)
-
-# Select base compose stack based on Supabase mode
-ifeq ($(SUPABASE_MODE),cloud)
-  COMPOSE_FILES := -f docker/docker-compose.cloud.yml -f docker/docker-compose.dev.yml
-else
-  COMPOSE_FILES := -f docker/docker-compose.yml -f docker/docker-compose.dev.yml
-endif
-
 # ---------------------------------------------------------------------------
 # Brand detection: supports `make <brand> <action>` syntax
 # ---------------------------------------------------------------------------
-KNOWN_TARGETS := up down reset logs ps help init migrate
+KNOWN_TARGETS := up down reset logs ps help init migrate deploy-functions
 
 CMD_ARGS := $(filter-out $(KNOWN_TARGETS), $(MAKECMDGOALS))
 ifneq ($(CMD_ARGS),)
@@ -43,6 +33,16 @@ ifdef BRAND
   ENV_FILE := $(ENVIRONMENTS_DIR)/$(BRAND).local.env
 else
   ENV_FILE := docker/.env
+endif
+
+# Detect Supabase mode from the resolved env file
+SUPABASE_MODE := $(shell grep -E '^SUPABASE_MODE=' "$(ENV_FILE)" 2>/dev/null | head -1 | cut -d= -f2-)
+
+# Select base compose stack based on Supabase mode
+ifeq ($(SUPABASE_MODE),cloud)
+  COMPOSE_FILES := -f docker/docker-compose.cloud.yml -f docker/docker-compose.dev.yml
+else
+  COMPOSE_FILES := -f docker/docker-compose.yml -f docker/docker-compose.dev.yml
 endif
 
 # ---------------------------------------------------------------------------
@@ -60,9 +60,11 @@ help: ## Show this help
 	@echo "  make logs              Tail logs (Ctrl-C to stop)"
 	@echo "  make ps                Show running containers"
 	@echo ""
-	@echo "Database:"
-	@echo "  make migrate           Push migrations to linked Supabase project"
-	@echo "  make <brand> migrate   Link to brand's project and push migrations"
+	@echo "Cloud deployment:"
+	@echo "  make migrate              Push migrations to linked Supabase project"
+	@echo "  make deploy-functions     Deploy all edge functions to Supabase Cloud"
+	@echo "  make <brand> migrate      Link to brand's project and push migrations"
+	@echo "  make <brand> deploy-functions  Deploy edge functions for a brand"
 	@echo ""
 	@echo "Multi-brand (requires gatewaze-environments):"
 	@echo "  make <brand> up        Start a specific brand"
@@ -101,17 +103,19 @@ logs: _check-env _activate-brand ## Tail service logs
 ps: _check-env _activate-brand ## Show running containers
 	docker compose $(COMPOSE_FILES) ps
 
-migrate: _check-env _activate-brand ## Push migrations to the linked Supabase project
+deploy-functions: _check-env _activate-brand _link-cloud ## Deploy all edge functions to Supabase Cloud
 ifeq ($(SUPABASE_MODE),cloud)
-	@SUPABASE_URL=$$(grep -E '^SUPABASE_URL=' "$(ENV_FILE)" | head -1 | cut -d= -f2-); \
-	PROJECT_REF=$$(echo "$$SUPABASE_URL" | sed -E 's|https://([^.]+)\.supabase\.co.*|\1|'); \
-	if [ -z "$$PROJECT_REF" ]; then \
-		echo "Error: Could not extract project ref from SUPABASE_URL"; \
-		exit 1; \
-	fi; \
-	echo "Linking to Supabase project: $$PROJECT_REF"; \
-	npx supabase link --project-ref "$$PROJECT_REF" && \
-	echo "Pushing migrations..." && \
+	@echo "Deploying edge functions..."
+	npx supabase functions deploy
+else
+	@echo "Error: deploy-functions is only supported in cloud mode (SUPABASE_MODE=cloud)"
+	@echo "For self-hosted, edge functions are served automatically from supabase/functions/."
+	@exit 1
+endif
+
+migrate: _check-env _activate-brand _link-cloud ## Push migrations to the linked Supabase project
+ifeq ($(SUPABASE_MODE),cloud)
+	@echo "Pushing migrations..."
 	npx supabase db push
 else
 	@echo "Error: migrate is only supported in cloud mode (SUPABASE_MODE=cloud)"
@@ -122,7 +126,7 @@ endif
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
-.PHONY: _check-env _activate-brand _ensure-traefik _generate-mcp
+.PHONY: _check-env _activate-brand _link-cloud _ensure-traefik _generate-mcp
 
 _check-env:
 ifdef BRAND
@@ -157,6 +161,18 @@ _activate-brand:
 ifdef BRAND
 	@cp "$(ENV_FILE)" docker/.env
 	@echo "Activated brand: $(BRAND)"
+endif
+
+_link-cloud:
+ifeq ($(SUPABASE_MODE),cloud)
+	@SUPABASE_URL=$$(grep -E '^SUPABASE_URL=' "$(ENV_FILE)" | head -1 | cut -d= -f2-); \
+	PROJECT_REF=$$(echo "$$SUPABASE_URL" | sed -E 's|https://([^.]+)\.supabase\.co.*|\1|'); \
+	if [ -z "$$PROJECT_REF" ]; then \
+		echo "Error: Could not extract project ref from SUPABASE_URL"; \
+		exit 1; \
+	fi; \
+	echo "Linking to Supabase project: $$PROJECT_REF"; \
+	npx supabase link --project-ref "$$PROJECT_REF"
 endif
 
 _ensure-traefik:
