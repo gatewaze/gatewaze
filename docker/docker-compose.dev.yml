@@ -63,7 +63,9 @@ services:
       NODE_ENV: development
       NEXT_PUBLIC_API_URL: ${API_URL:-http://aaif-api.localhost}
       # Internal Supabase URL for module registry generator (DB source lookup)
-      SUPABASE_URL: http://supabase-kong:8000
+      # Self-hosted: http://supabase-kong:8000 (Docker network)
+      # Cloud: same as SUPABASE_URL (set SUPABASE_INTERNAL_URL in .env)
+      SUPABASE_URL: ${SUPABASE_INTERNAL_URL:-http://supabase-kong:8000}
 
   api:
     build:

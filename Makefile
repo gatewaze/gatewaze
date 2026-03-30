@@ -16,13 +16,22 @@
 # ============================================================================
 
 ENVIRONMENTS_DIR := ../gatewaze-environments
-COMPOSE_FILES    := -f docker/docker-compose.yml -f docker/docker-compose.dev.yml
 TRAEFIK_FILE     := -f docker/docker-compose.traefik.yml
+
+# Detect Supabase mode from the active env file
+SUPABASE_MODE := $(shell grep -E '^SUPABASE_MODE=' "$(if $(BRAND),$(ENVIRONMENTS_DIR)/$(BRAND).local.env,docker/.env)" 2>/dev/null | head -1 | cut -d= -f2-)
+
+# Select base compose stack based on Supabase mode
+ifeq ($(SUPABASE_MODE),cloud)
+  COMPOSE_FILES := -f docker/docker-compose.cloud.yml -f docker/docker-compose.dev.yml
+else
+  COMPOSE_FILES := -f docker/docker-compose.yml -f docker/docker-compose.dev.yml
+endif
 
 # ---------------------------------------------------------------------------
 # Brand detection: supports `make <brand> <action>` syntax
 # ---------------------------------------------------------------------------
-KNOWN_TARGETS := up down reset logs ps help init
+KNOWN_TARGETS := up down reset logs ps help init migrate
 
 CMD_ARGS := $(filter-out $(KNOWN_TARGETS), $(MAKECMDGOALS))
 ifneq ($(CMD_ARGS),)
@@ -50,6 +59,10 @@ help: ## Show this help
 	@echo "  make reset             Stop, remove all volumes, and start fresh"
 	@echo "  make logs              Tail logs (Ctrl-C to stop)"
 	@echo "  make ps                Show running containers"
+	@echo ""
+	@echo "Database:"
+	@echo "  make migrate           Push migrations to linked Supabase project"
+	@echo "  make <brand> migrate   Link to brand's project and push migrations"
 	@echo ""
 	@echo "Multi-brand (requires gatewaze-environments):"
 	@echo "  make <brand> up        Start a specific brand"
@@ -87,6 +100,24 @@ logs: _check-env _activate-brand ## Tail service logs
 
 ps: _check-env _activate-brand ## Show running containers
 	docker compose $(COMPOSE_FILES) ps
+
+migrate: _check-env _activate-brand ## Push migrations to the linked Supabase project
+ifeq ($(SUPABASE_MODE),cloud)
+	@SUPABASE_URL=$$(grep -E '^SUPABASE_URL=' "$(ENV_FILE)" | head -1 | cut -d= -f2-); \
+	PROJECT_REF=$$(echo "$$SUPABASE_URL" | sed -E 's|https://([^.]+)\.supabase\.co.*|\1|'); \
+	if [ -z "$$PROJECT_REF" ]; then \
+		echo "Error: Could not extract project ref from SUPABASE_URL"; \
+		exit 1; \
+	fi; \
+	echo "Linking to Supabase project: $$PROJECT_REF"; \
+	npx supabase link --project-ref "$$PROJECT_REF" && \
+	echo "Pushing migrations..." && \
+	npx supabase db push
+else
+	@echo "Error: migrate is only supported in cloud mode (SUPABASE_MODE=cloud)"
+	@echo "For self-hosted, migrations are applied automatically on container startup."
+	@exit 1
+endif
 
 # ---------------------------------------------------------------------------
 # Internal helpers
@@ -129,10 +160,12 @@ ifdef BRAND
 endif
 
 _ensure-traefik:
+ifneq ($(SUPABASE_MODE),cloud)
 	@if ! docker ps --filter "name=gatewaze-traefik" --format '{{.Names}}' | grep -q gatewaze-traefik; then \
 		echo "Starting shared Traefik reverse proxy..."; \
 		docker compose $(TRAEFIK_FILE) up -d; \
 	fi
+endif
 
 _generate-mcp:
 	@SUPABASE_URL=$$(grep -E '^SUPABASE_URL=' "$(ENV_FILE)" | head -1 | cut -d= -f2-); \
