@@ -59,6 +59,13 @@ supabase/functions/integrations-google-sheets-oauth/
 supabase/functions/integrations-gradual-sync/
 supabase/functions/integrations-gradual-webhook/
 supabase/functions/integrations-gradual-import-history/
+supabase/functions/_shared/customerio.ts
+supabase/functions/_shared/lumaRegistration.ts
+supabase/functions/events/
+supabase/functions/events-generate-matches/
+supabase/functions/events-registration/
+supabase/functions/events-search/
+supabase/functions/events-send-match-emails/
 supabase/functions/integrations-luma-issue-discount/
 supabase/functions/integrations-luma-process-csv/
 supabase/functions/integrations-luma-process-registration/

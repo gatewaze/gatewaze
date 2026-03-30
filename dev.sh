@@ -104,11 +104,22 @@ MCPEOF
   echo "Generated .mcp.json for Claude Code"
 }
 
-# Compose files — always include dev overrides for hot reload
-COMPOSE_FILES="-f docker/docker-compose.yml -f docker/docker-compose.dev.yml"
+# Detect Supabase mode from the active env file
+SUPABASE_MODE="$(env_val SUPABASE_MODE)"
 
-# Ensure shared Traefik is running
+# Compose files — select base stack based on Supabase mode
+if [ "$SUPABASE_MODE" = "cloud" ]; then
+  echo "Supabase mode: cloud (no local Supabase containers)"
+  COMPOSE_FILES="-f docker/docker-compose.cloud.yml -f docker/docker-compose.dev.yml"
+else
+  COMPOSE_FILES="-f docker/docker-compose.yml -f docker/docker-compose.dev.yml"
+fi
+
+# Ensure shared Traefik is running (self-hosted only; cloud compose has its own)
 ensure_traefik() {
+  if [ "$SUPABASE_MODE" = "cloud" ]; then
+    return
+  fi
   if ! docker ps --filter "name=gatewaze-traefik" --format '{{.Names}}' | grep -q gatewaze-traefik; then
     echo "Starting shared Traefik reverse proxy..."
     docker compose -f docker/docker-compose.traefik.yml up -d

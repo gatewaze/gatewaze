@@ -125,10 +125,19 @@ CREATE TRIGGER set_installed_modules_updated_at
 
 --------------------------------------------------------------------------------
 -- 6. Storage Bucket (media)
+-- On Supabase Cloud, storage.buckets is managed and columns already exist.
+-- We wrap in a DO block to gracefully skip if permissions are insufficient.
 --------------------------------------------------------------------------------
 
-ALTER TABLE storage.buckets ADD COLUMN IF NOT EXISTS public boolean DEFAULT false;
-ALTER TABLE storage.buckets ADD COLUMN IF NOT EXISTS file_size_limit bigint;
+DO $$
+BEGIN
+  ALTER TABLE storage.buckets ADD COLUMN IF NOT EXISTS public boolean DEFAULT false;
+  ALTER TABLE storage.buckets ADD COLUMN IF NOT EXISTS file_size_limit bigint;
+EXCEPTION
+  WHEN insufficient_privilege THEN
+    RAISE NOTICE 'Skipping storage.buckets ALTER — already managed by Supabase Cloud';
+END;
+$$;
 
 INSERT INTO storage.buckets (id, name, public, file_size_limit)
 VALUES ('media', 'media', true, 52428800)
@@ -155,7 +164,16 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 COMMENT ON FUNCTION public.auto_link_admin_profile()
   IS 'Automatically links admin_profiles to auth.users when email matches';
 
-CREATE TRIGGER auto_link_admin_on_user_create
-  AFTER INSERT ON auth.users
-  FOR EACH ROW
-  EXECUTE FUNCTION public.auto_link_admin_profile();
+-- On Supabase Cloud, creating triggers on auth.users requires elevated
+-- privileges. Wrap so migration doesn't fail on Cloud.
+DO $$
+BEGIN
+  CREATE TRIGGER auto_link_admin_on_user_create
+    AFTER INSERT ON auth.users
+    FOR EACH ROW
+    EXECUTE FUNCTION public.auto_link_admin_profile();
+EXCEPTION
+  WHEN insufficient_privilege THEN
+    RAISE NOTICE 'Skipping auth.users trigger — use a Supabase webhook or database hook instead on Cloud';
+END;
+$$;
