@@ -22,19 +22,28 @@ CREATE EXTENSION IF NOT EXISTS "pg_trgm"   WITH SCHEMA public;
 -- ==========================================================================
 -- Stub: auth.jwt() -- GoTrue/PostgREST creates this on startup, but we need
 -- it available during migrations for RLS policies that reference JWT claims.
+-- On Supabase Cloud the auth schema is managed and this function already
+-- exists, so we skip it when the role lacks permissions on auth.
 -- ==========================================================================
-CREATE OR REPLACE FUNCTION auth.jwt()
-RETURNS jsonb
-LANGUAGE sql
-STABLE
-AS $$
-  SELECT coalesce(
-    nullif(current_setting('request.jwt.claim', true), ''),
-    nullif(current_setting('request.jwt.claims', true), '')
-  )::jsonb
-$$;
+DO $$
+BEGIN
+  CREATE OR REPLACE FUNCTION auth.jwt()
+  RETURNS jsonb
+  LANGUAGE sql
+  STABLE
+  AS $fn$
+    SELECT coalesce(
+      nullif(current_setting('request.jwt.claim', true), ''),
+      nullif(current_setting('request.jwt.claims', true), '')
+    )::jsonb
+  $fn$;
 
-ALTER FUNCTION auth.jwt() OWNER TO supabase_auth_admin;
+  ALTER FUNCTION auth.jwt() OWNER TO supabase_auth_admin;
+EXCEPTION
+  WHEN insufficient_privilege THEN
+    RAISE NOTICE 'Skipping auth.jwt() stub — already managed by Supabase Cloud';
+END;
+$$;
 
 -- ==========================================================================
 -- Utility: auto-update updated_at timestamp
