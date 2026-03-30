@@ -55,7 +55,7 @@ const FILTER_VIEWS = new Set(['upcoming', 'past', 'calendar', 'map'])
 // Module prefixes with portal pages (generated at startup)
 const modulePortalPrefixes = new Set<string>(modulePrefixes as string[])
 
-// Cache for core-events module status
+// Cache for events module status
 let eventsModuleStatus: { enabled: boolean; timestamp: number } | null = null
 const MODULE_CACHE_TTL = 60 * 1000 // 60 seconds
 
@@ -73,7 +73,7 @@ async function isEventsModuleEnabled(): Promise<boolean> {
   }
 
   try {
-    const url = `${supabaseUrl}/rest/v1/installed_modules?select=status&id=eq.core-events&limit=1`
+    const url = `${supabaseUrl}/rest/v1/installed_modules?select=status&id=eq.events&limit=1`
     const res = await fetch(url, {
       headers: {
         'apikey': supabaseAnonKey,

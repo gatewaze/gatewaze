@@ -74,14 +74,17 @@ export async function getEnabledModules(): Promise<ModuleState> {
       }
     }
 
-    // Events is a core feature (not a module) — always add its nav item
-    portalNavItems.push({
-      moduleId: '_core_events',
-      label: 'Events',
-      path: '/events/upcoming',
-      icon: 'calendar',
-      order: 10,
-    });
+    // Events nav is provided by the events module via portal_nav.
+    // Fallback: add it if the module is enabled but no nav item was registered.
+    if (enabledIds.has('events') && !portalNavItems.some(n => n.moduleId === 'events')) {
+      portalNavItems.push({
+        moduleId: 'events',
+        label: 'Events',
+        path: '/events/upcoming',
+        icon: 'calendar',
+        order: 10,
+      });
+    }
 
     portalNavItems.sort((a, b) => a.order - b.order);
 

@@ -9,6 +9,7 @@ import { LogoUploadField } from "@/components/shared/branding/LogoUploadField";
 import { EventTypesEditor } from "@/components/shared/branding/EventTypesEditor";
 import { type EventTypeOption, DEFAULT_EVENT_TYPES } from "@/hooks/useEventTypes";
 import { useAuthContext } from "@/app/contexts/auth/context";
+import { useModulesContext } from "@/app/contexts/modules/context";
 import GradientBackground from "@/components/shared/GradientBackground";
 
 type PortalTheme = "blobs" | "gradient_wave" | "basic";
@@ -34,6 +35,8 @@ const THEME_OPTIONS: { value: PortalTheme; label: string; description: string }[
 export default function ThemeSetupStep() {
   const navigate = useNavigate();
   const { user } = useAuthContext();
+  const { isFeatureEnabled } = useModulesContext();
+  const hasEvents = isFeatureEnabled('events');
   const [primaryColor, setPrimaryColor] = useState("#20dd20");
   const [secondaryColor, setSecondaryColor] = useState("#0a0a0a");
   const [logoUrl, setLogoUrl] = useState("");
@@ -50,7 +53,7 @@ export default function ThemeSetupStep() {
         { key: "secondary_color", value: secondaryColor },
         { key: "logo_url", value: logoUrl },
         { key: "portal_theme", value: portalTheme },
-        { key: "event_types", value: JSON.stringify(validTypes) },
+        ...(hasEvents ? [{ key: "event_types", value: JSON.stringify(validTypes) }] : []),
         { key: "onboarding_step", value: "complete" },
       ];
 
@@ -116,17 +119,19 @@ export default function ThemeSetupStep() {
               onChange={setLogoUrl}
             />
 
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Event Types</p>
-              <p className="text-xs text-[var(--gray-a9)]">
-                What kinds of events will you manage? You can change these later
-                in Settings.
-              </p>
-              <EventTypesEditor
-                value={eventTypes}
-                onChange={setEventTypes}
-              />
-            </div>
+            {hasEvents && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Event Types</p>
+                <p className="text-xs text-[var(--gray-a9)]">
+                  What kinds of events will you manage? You can change these later
+                  in Settings.
+                </p>
+                <EventTypesEditor
+                  value={eventTypes}
+                  onChange={setEventTypes}
+                />
+              </div>
+            )}
 
             <div className="space-y-2">
               <p className="text-sm font-medium">Portal Theme</p>

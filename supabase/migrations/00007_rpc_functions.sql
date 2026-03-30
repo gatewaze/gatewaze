@@ -92,7 +92,7 @@ $$;
 COMMENT ON FUNCTION public.admin_get_features(uuid)
   IS 'Return the deduplicated array of feature slugs an admin has access to';
 
--- NOTE: events_get_registration_count has been moved to core-events module migration.
+-- NOTE: events_get_registration_count has been moved to events module migration.
 
 --------------------------------------------------------------------------------
 -- 4. admin_verify_login
@@ -711,7 +711,7 @@ COMMENT ON FUNCTION public.admin_get_user_teams()
   IS 'List all active teams the current auth user belongs to';
 
 -- NOTE: admin_has_event_permission, admin_get_events_permissions, and
--- admin_get_my_assigned_events have been moved to core-events module migration.
+-- admin_get_my_assigned_events have been moved to events module migration.
 
 --------------------------------------------------------------------------------
 -- 27. accounts_get_members

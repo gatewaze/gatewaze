@@ -74,7 +74,7 @@ export function HomepageSearch({ brandConfig }: Props) {
           value={inputValue}
           onChange={(e) => handleChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Search events, posts, and more..."
+          placeholder="Search for content..."
           className="w-full py-4 pl-12 pr-12 text-base text-white placeholder-white/40
                      bg-white/5 border border-white/10 rounded-2xl
                      focus:outline-none focus:border-white/30 focus:bg-white/10
