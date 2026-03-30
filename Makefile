@@ -56,7 +56,7 @@ help: ## Show this help
 	@echo "  make init              Copy example config and prepare for first run"
 	@echo "  make up                Start all services (dev mode with hot reload)"
 	@echo "  make down              Stop all services"
-	@echo "  make reset             Stop, remove all volumes, and start fresh"
+	@echo "  make reset             Stop, remove all volumes, and start fresh (cloud: wipes DB, auth, storage)"
 	@echo "  make logs              Tail logs (Ctrl-C to stop)"
 	@echo "  make ps                Show running containers"
 	@echo ""
@@ -95,6 +95,9 @@ down: _check-env _activate-brand ## Stop services
 
 reset: _check-env _activate-brand ## Stop services, remove volumes, and restart fresh
 	docker compose $(COMPOSE_FILES) down -v
+ifeq ($(SUPABASE_MODE),cloud)
+	@$(MAKE) _cloud-reset
+endif
 	@$(MAKE) up $(if $(BRAND),$(BRAND),)
 
 logs: _check-env _activate-brand ## Tail service logs
@@ -126,7 +129,7 @@ endif
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
-.PHONY: _check-env _activate-brand _link-cloud _sync-secrets _ensure-traefik _generate-mcp
+.PHONY: _check-env _activate-brand _link-cloud _cloud-reset _sync-secrets _ensure-traefik _generate-mcp
 
 # Env vars that edge functions read (beyond the auto-provided SUPABASE_* vars).
 # Only non-empty values from the env file are synced.
@@ -221,6 +224,37 @@ ifeq ($(SUPABASE_MODE),cloud)
 		echo "  Skipping auth config (missing SUPABASE_ACCESS_TOKEN or ADMIN_HOST)"; \
 	fi
 endif
+
+_cloud-reset: _link-cloud
+	@echo "Resetting cloud Supabase project data..."
+	@echo ""
+	@echo "  [1/3] Resetting database (drop public schema & re-apply migrations)..."
+	@npx supabase db reset --linked
+	@SUPABASE_URL=$$(grep -E '^SUPABASE_URL=' "$(ENV_FILE)" | head -1 | cut -d= -f2-); \
+	SERVICE_KEY=$$(grep -E '^SERVICE_ROLE_KEY=' "$(ENV_FILE)" | head -1 | cut -d= -f2-); \
+	echo "  [2/3] Deleting auth users..."; \
+	TOTAL=0; \
+	while true; do \
+		RESP=$$(curl -s "$$SUPABASE_URL/auth/v1/admin/users?per_page=100" \
+			-H "Authorization: Bearer $$SERVICE_KEY" \
+			-H "apikey: $$SERVICE_KEY"); \
+		UIDS=$$(echo "$$RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); [print(u['id']) for u in d.get('users',[])]" 2>/dev/null); \
+		[ -z "$$UIDS" ] && break; \
+		for uid in $$UIDS; do \
+			curl -s -X DELETE "$$SUPABASE_URL/auth/v1/admin/users/$$uid" \
+				-H "Authorization: Bearer $$SERVICE_KEY" \
+				-H "apikey: $$SERVICE_KEY" > /dev/null; \
+			TOTAL=$$((TOTAL + 1)); \
+		done; \
+	done; \
+	echo "    Deleted $$TOTAL auth users."; \
+	echo "  [3/3] Emptying storage bucket..."; \
+	curl -s -X POST "$$SUPABASE_URL/storage/v1/bucket/media/empty" \
+		-H "Authorization: Bearer $$SERVICE_KEY" \
+		-H "apikey: $$SERVICE_KEY" > /dev/null 2>&1 || true; \
+	echo "    Done."
+	@echo ""
+	@echo "Cloud reset complete."
 
 _ensure-traefik:
 ifneq ($(SUPABASE_MODE),cloud)
