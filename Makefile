@@ -183,10 +183,9 @@ endif
 
 _link-cloud:
 ifeq ($(SUPABASE_MODE),cloud)
-	@SUPABASE_URL=$$(grep -E '^SUPABASE_URL=' "$(ENV_FILE)" | head -1 | cut -d= -f2-); \
-	PROJECT_REF=$$(echo "$$SUPABASE_URL" | sed -E 's|https://([^.]+)\.supabase\.co.*|\1|'); \
+	@PROJECT_REF=$$(grep -E '^SUPABASE_PROJECT_REF=' "$(ENV_FILE)" | head -1 | cut -d= -f2-); \
 	if [ -z "$$PROJECT_REF" ]; then \
-		echo "Error: Could not extract project ref from SUPABASE_URL"; \
+		echo "Error: SUPABASE_PROJECT_REF is not set in $(ENV_FILE)"; \
 		exit 1; \
 	fi; \
 	echo "Linking to Supabase project: $$PROJECT_REF"; \
@@ -213,8 +212,7 @@ ifeq ($(SUPABASE_MODE),cloud)
 	@ADMIN_HOST=$$(grep -E '^ADMIN_HOST=' "$(ENV_FILE)" | head -1 | cut -d= -f2-); \
 	PORTAL_HOST=$$(grep -E '^PORTAL_HOST=' "$(ENV_FILE)" | head -1 | cut -d= -f2-); \
 	ACCESS_TOKEN=$$(grep -E '^SUPABASE_ACCESS_TOKEN=' "$(ENV_FILE)" | head -1 | cut -d= -f2-); \
-	SUPABASE_URL=$$(grep -E '^SUPABASE_URL=' "$(ENV_FILE)" | head -1 | cut -d= -f2-); \
-	PROJECT_REF=$$(echo "$$SUPABASE_URL" | sed -E 's|https://([^.]+)\.supabase\.co.*|\1|'); \
+	PROJECT_REF=$$(grep -E '^SUPABASE_PROJECT_REF=' "$(ENV_FILE)" | head -1 | cut -d= -f2-); \
 	if [ -n "$$ACCESS_TOKEN" ] && [ -n "$$ADMIN_HOST" ] && [ -n "$$PROJECT_REF" ]; then \
 		SITE_URL="http://$$ADMIN_HOST"; \
 		ALLOW="http://$$ADMIN_HOST"; \
