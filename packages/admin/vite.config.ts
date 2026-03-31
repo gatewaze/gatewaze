@@ -26,8 +26,10 @@ export default defineConfig({
     port: 5274,
     fs: {
       allow: [
-        // Allow serving files from the gatewaze-modules sibling repo
+        // Allow serving files from module sibling repos
         path.resolve(__dirname, "../../../gatewaze-modules"),
+        path.resolve(__dirname, "../../../premium-gatewaze-modules"),
+        path.resolve(__dirname, "../../../lf-gatewaze-modules"),
         // Default: project root and workspace
         path.resolve(__dirname, "../.."),
       ],
