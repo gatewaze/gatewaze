@@ -1,4 +1,4 @@
-import { useState, useEffect, Fragment, Suspense, lazy, useMemo, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, useRef, Fragment, Suspense, lazy, useMemo, type ReactNode } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import ReactApexChart from 'react-apexcharts';
 import { ApexOptions } from 'apexcharts';
@@ -202,38 +202,37 @@ const EventDetailPage = () => {
   const [allEvents, setAllEvents] = useState<Event[]>([]);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
 
-  // Build tab list dynamically from core tabs + module slots
-  const iconClass = "size-4";
-  const coreTabsBefore = [
-    { id: 'settings', label: 'Settings', icon: <Cog6ToothIcon className={iconClass} />, order: 0 },
-  ];
-  const coreTabsAfter = [
-    { id: 'registrations', label: 'Registrations', icon: <ClipboardDocumentCheckIcon className={iconClass} />, order: 70 },
-    { id: 'attendance', label: 'Attendance', icon: <UsersIcon className={iconClass} />, order: 80 },
-  ];
-
-  const moduleTabDefs = moduleTabSlots.map(s => {
-    const Icon = resolveHeroIcon(s.registration.meta?.icon as string);
-    return {
-      id: s.registration.meta?.tabId as string,
-      label: s.registration.meta?.label as string,
-      icon: <Icon className={iconClass} />,
-      order: s.registration.order ?? 100,
-    };
-  });
-
-  const allTabs = [...coreTabsBefore, ...moduleTabDefs, ...coreTabsAfter]
-    .sort((a, b) => a.order - b.order);
+  // Build tab list dynamically from core tabs + module slots.
+  // Memoised so the Radix Tabs component keeps a stable trigger collection
+  // and doesn't drop click events during unrelated parent re-renders.
+  const allTabs = useMemo(() => {
+    const ic = "size-4";
+    const core = [
+      { id: 'settings', label: 'Settings', icon: <Cog6ToothIcon className={ic} />, order: 0 },
+      { id: 'registrations', label: 'Registrations', icon: <ClipboardDocumentCheckIcon className={ic} />, order: 70 },
+      { id: 'attendance', label: 'Attendance', icon: <UsersIcon className={ic} />, order: 80 },
+    ];
+    const moduleTabs = moduleTabSlots.map(s => {
+      const Icon = resolveHeroIcon(s.registration.meta?.icon as string);
+      return {
+        id: s.registration.meta?.tabId as string,
+        label: s.registration.meta?.label as string,
+        icon: <Icon className={ic} />,
+        order: s.registration.order ?? 100,
+      };
+    });
+    return [...core, ...moduleTabs].sort((a, b) => a.order - b.order);
+  }, [moduleTabSlots]);
 
   // Derive active tab from URL, default to 'settings'
   const validTabIds = allTabs.map(t => t.id);
   type TabType = string;
   const activeTab: TabType = (tab && validTabIds.includes(tab)) ? tab : 'settings';
 
-  // Helper function to navigate to a tab
-  const navigateToTab = (newTab: TabType) => {
+  // Stable callback so the Tabs onChange prop doesn't change on every render
+  const navigateToTab = useCallback((newTab: string) => {
     navigate(`/events/${eventId}/${newTab}`);
-  };
+  }, [navigate, eventId]);
 
   const {
     register,
@@ -690,7 +689,7 @@ const EventDetailPage = () => {
         <Tabs
           fullWidth
           value={activeTab}
-          onChange={(tab) => navigateToTab(tab as TabType)}
+          onChange={navigateToTab}
           tabs={allTabs}
         />
       </div>
@@ -829,9 +828,21 @@ const ModuleTabContent = ({ slots, activeTab, props }: {
 }) => {
   const activeSlot = slots.find(s => s.registration.meta?.tabId === activeTab);
 
+  // Cache lazy wrappers by registration so switching back to a previously
+  // visited module tab reuses the same React component identity instead of
+  // creating a new one (which would remount + re-trigger Suspense, causing
+  // cascading re-renders that destabilise the Tabs trigger collection).
+  const lazyCache = useRef(new WeakMap<object, React.LazyExoticComponent<React.ComponentType<any>>>());
+
   const LazyComponent = useMemo(() => {
     if (!activeSlot) return null;
-    return lazy(activeSlot.registration.component as () => Promise<{ default: React.ComponentType<any> }>);
+    const key = activeSlot.registration;
+    let cached = lazyCache.current.get(key);
+    if (!cached) {
+      cached = lazy(key.component as () => Promise<{ default: React.ComponentType<any> }>);
+      lazyCache.current.set(key, cached);
+    }
+    return cached;
   }, [activeSlot]);
 
   if (!LazyComponent) return null;
