@@ -1125,3 +1125,49 @@ modulesRouter.post('/upload', upload.single('file'), async (req, res) => {
     });
   }
 });
+
+// ---------------------------------------------------------------------------
+// Edge Function Proxy
+//
+// Allows the admin frontend to invoke module-installed edge functions via the
+// API server. The API uses its server-side SUPABASE_URL which reaches the
+// correct endpoint in both self-hosted (local edge runtime) and cloud mode
+// (Supabase Cloud, after `make deploy-functions`).
+// ---------------------------------------------------------------------------
+
+modulesRouter.post('/invoke-function/:name', async (req, res) => {
+  try {
+    const supabaseUrl = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!supabaseUrl || !serviceRoleKey) {
+      return res.status(500).json({ error: 'Missing Supabase credentials' });
+    }
+
+    const functionName = req.params.name;
+
+    const response = await fetch(
+      `${supabaseUrl}/functions/v1/${encodeURIComponent(functionName)}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${serviceRoleKey}`,
+          'apikey': serviceRoleKey,
+        },
+        body: JSON.stringify(req.body),
+      },
+    );
+
+    const contentType = response.headers.get('content-type') ?? '';
+    const body = contentType.includes('application/json')
+      ? await response.json()
+      : await response.text();
+
+    return res.status(response.status).json(body);
+  } catch (err) {
+    console.error(`[modules] Edge function invoke failed:`, err);
+    return res.status(502).json({
+      error: err instanceof Error ? err.message : 'Failed to invoke edge function',
+    });
+  }
+});
