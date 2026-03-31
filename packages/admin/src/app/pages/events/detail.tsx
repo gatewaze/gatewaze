@@ -2885,7 +2885,7 @@ const EventRegistrationsTab = ({ eventId, eventUuid }: { eventId: string; eventU
           <div className="flex items-center gap-2">
             <AddPersonModal eventId={eventId} onComplete={loadRegistrations} />
             <BulkRegistrationUpload eventId={eventId} onComplete={loadRegistrations} />
-            <ModuleSlot name="event-registrations:actions" props={{ eventId, event, brandId: getBrandId(), onComplete: loadRegistrations }} />
+            <ModuleSlot name="event-registrations:actions" props={{ eventId, brandId: getBrandId(), onComplete: loadRegistrations }} />
             <Button variant="secondary" size="sm" onClick={handleExportRegistrationsCSV} disabled={registrations.length === 0}>
               <ArrowDownTrayIcon className="w-4 h-4 mr-1" />
               Export CSV
