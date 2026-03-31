@@ -789,7 +789,7 @@ const EventDetailPage = () => {
           slots={moduleTabSlots}
           activeTab={activeTab}
           props={{
-            eventId: eventId!,
+            eventId: event.id || eventId!,
             eventUuid: event.id,
             event,
             eventTitle: event.eventTitle,

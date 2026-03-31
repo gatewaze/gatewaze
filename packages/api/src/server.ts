@@ -13,6 +13,7 @@ import { redirectsRouter } from './routes/redirects.js';
 import { slackRouter } from './routes/slack.js';
 import { calendarProxyRouter } from './routes/calendar-proxy.js';
 import { modulesRouter } from './routes/modules.js';
+import { hateoasMiddleware } from './lib/hateoas.js';
 import { loadModules, loadModulesWithDbSources } from '@gatewaze/shared/modules';
 import { createClient } from '@supabase/supabase-js';
 import { resolve } from 'path';
@@ -29,6 +30,7 @@ const PORT = parseInt(process.env.PORT ?? '3002', 10);
 app.use(cors({ origin: process.env.CORS_ORIGIN ?? '*', credentials: true }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true }));
+app.use(hateoasMiddleware);
 
 // Routes - existing
 app.use('/api', healthRouter);

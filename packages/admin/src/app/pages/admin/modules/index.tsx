@@ -97,7 +97,6 @@ export default function ModulesPage() {
       toast.error("Failed to load module status");
     }
     setInstalledModules(installed ?? []);
-    setLoading(false);
   }, []);
 
   const loadModuleSources = useCallback(async () => {
@@ -114,10 +113,12 @@ export default function ModulesPage() {
   }, []);
 
   useEffect(() => {
-    loadAvailableModules();
-    loadInstalledModules();
-    loadModuleSources();
-    checkForUpdates();
+    Promise.all([
+      loadAvailableModules(),
+      loadInstalledModules(),
+      loadModuleSources(),
+      checkForUpdates(),
+    ]).finally(() => setLoading(false));
   }, [loadAvailableModules, loadInstalledModules, loadModuleSources, checkForUpdates]);
 
   // Merge config modules with DB status — excludes integration-type modules
@@ -434,6 +435,16 @@ export default function ModulesPage() {
     </Card>
   );
 
+  if (loading) {
+    return (
+      <Page title="Modules">
+        <div className="flex justify-center py-24">
+          <div className="size-6 border-2 border-[var(--accent-9)] border-t-transparent rounded-full animate-spin" />
+        </div>
+      </Page>
+    );
+  }
+
   return (
     <Page title="Modules">
       <div className="p-6">
@@ -569,7 +580,7 @@ export default function ModulesPage() {
         )}
 
         {/* Source Tabs — only shown when modules come from multiple sources */}
-        {!loading && sourceTabs.length > 1 && (
+        {sourceTabs.length > 1 && (
           <div className="mb-6 flex gap-1 border-b border-[var(--gray-a5)]">
             <button
               onClick={() => setActiveSourceTab(ALL_SOURCES_TAB)}
@@ -597,11 +608,7 @@ export default function ModulesPage() {
           </div>
         )}
 
-        {loading ? (
-          <div className="flex justify-center py-12">
-            <div className="size-6 border-2 border-[var(--accent-9)] border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : moduleCards.length === 0 ? (
+        {moduleCards.length === 0 ? (
           <div className="text-center py-16">
             <PuzzlePieceIcon className="mx-auto h-12 w-12 text-gray-400" />
             <h3 className="mt-4 text-lg font-medium text-[var(--gray-12)]">
