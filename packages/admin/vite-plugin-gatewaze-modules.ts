@@ -1,6 +1,6 @@
 import type { Plugin } from 'vite';
 import { readFileSync, existsSync, mkdirSync, readdirSync } from 'fs';
-import { resolve, dirname, isAbsolute } from 'path';
+import { resolve, dirname, isAbsolute, relative } from 'path';
 import { execSync } from 'child_process';
 
 const VIRTUAL_MODULE_ID = 'virtual:gatewaze-modules';
@@ -22,6 +22,7 @@ export function gatewazeModulesPlugin(): Plugin {
 
   return {
     name: 'gatewaze-modules',
+    enforce: 'pre',
 
     config() {
       const configPath = resolve(projectRoot, 'gatewaze.config.ts');
@@ -50,6 +51,47 @@ export function gatewazeModulesPlugin(): Plugin {
       if (id === VIRTUAL_MODULE_ID) {
         return RESOLVED_ID;
       }
+    },
+
+    // Rewrite imports from missing files in .gatewaze-modules source files.
+    // Instead of stubbing at the module level, we transform the importer to
+    // replace broken import statements with inline no-op declarations.
+    transform(code, id) {
+      if (!id.includes('gatewaze-modules')) return;
+
+      const fileDir = dirname(id);
+      // Match all import statements with named imports from relative paths
+      const importRe = /import\s*\{([^}]+)\}\s*from\s*['"](\.[^'"]+)['"]\s*;?/g;
+      let modified = false;
+      let result = code;
+
+      for (const match of code.matchAll(importRe)) {
+        const [fullMatch, specifiers, importPath] = match;
+        const candidate = resolve(fileDir, importPath);
+        const extensions = ['', '.ts', '.tsx', '.js', '.jsx'];
+        const found = extensions.some(ext => existsSync(candidate + ext))
+          || extensions.some(ext => existsSync(resolve(candidate, 'index' + ext)));
+
+        if (!found) {
+          // Parse the named imports and generate inline no-op stubs
+          const stubs: string[] = [];
+          for (const spec of specifiers.split(',')) {
+            const trimmed = spec.trim();
+            if (!trimmed) continue;
+            if (trimmed.startsWith('type ')) continue;
+            // Handle "Foo as Bar" — declare as Bar
+            const asMatch = trimmed.match(/^(\w+)\s+as\s+(\w+)$/);
+            const localName = asMatch ? asMatch[2] : trimmed;
+            stubs.push(`const ${localName} = (() => {}) as any;`);
+          }
+          const replacement = `/* [gatewaze-modules] stubbed missing: ${importPath} */\n${stubs.join('\n')}`;
+          result = result.replace(fullMatch, replacement);
+          modified = true;
+          console.warn(`[gatewaze-modules] Stubbed missing import "${importPath}" in ${relative(projectRoot, id)} → [${stubs.length} exports]`);
+        }
+      }
+
+      if (modified) return { code: result, map: null };
     },
 
     load(id) {
@@ -401,3 +443,4 @@ function parseConfig(configPath: string): {
     return { moduleIds: [], sources: [] };
   }
 }
+

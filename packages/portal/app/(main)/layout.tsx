@@ -19,7 +19,9 @@ import { PersistentBackground } from '@/components/ui/PersistentBackground'
 import { ProfileCompletionWrapper } from '@/components/wizard'
 import { AnalyticsProvider } from '@/components/AnalyticsProvider'
 import { getServerBrandConfig, buildGoogleFontsUrl, buildFontStack, isLightColor, getThemeBackgroundColor, resolveEventTheme } from '@/config/brand'
+import { OrganizationJsonLd } from '@/components/structured-data'
 import { createServerSupabase } from '@/lib/supabase/server'
+import { ChatWidgetLoader } from '@/components/chat/ChatWidgetLoader'
 import '@/styles/globals.css'
 
 async function getCustomDomainEvent(eventIdentifier: string, brandId: string) {
@@ -123,6 +125,11 @@ export default async function MainLayout({
         {brandConfig.trackingHead && (
           <script dangerouslySetInnerHTML={{ __html: brandConfig.trackingHead }} />
         )}
+        <OrganizationJsonLd
+          name={brandConfig.name}
+          url={`https://${brandConfig.domain}`}
+          logoUrl={brandConfig.logoUrl}
+        />
       </head>
       <body className="flex flex-col min-h-screen" style={{ backgroundColor: getThemeBackgroundColor(brandConfig.portalTheme, brandConfig.themeColors, brandConfig.secondaryColor) }} suppressHydrationWarning>
         {(() => {
@@ -161,6 +168,7 @@ export default async function MainLayout({
           </TrackingProvider>
         </AnalyticsProvider>
         {complianceEnabled && <CookieConsentLoader />}
+        {process.env.NEXT_PUBLIC_ENABLE_CHAT === 'true' && <ChatWidgetLoader />}
         {brandConfig.trackingBody && (
           <script dangerouslySetInnerHTML={{ __html: brandConfig.trackingBody }} />
         )}

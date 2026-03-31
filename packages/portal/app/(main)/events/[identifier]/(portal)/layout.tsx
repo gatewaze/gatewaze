@@ -4,6 +4,7 @@ import { createServerSupabase } from '@/lib/supabase/server'
 import { EventLayoutClient } from '@/components/event/EventLayoutClient'
 import { AdPixels } from '@/components/tracking/AdPixels'
 import { extractEventIdFromSlug } from '@/lib/slugify'
+import { EventJsonLd } from '@/components/structured-data'
 import type { Event } from '@/types/event'
 
 interface Props {
@@ -243,6 +244,11 @@ export default async function EventDetailLayout({ children, params }: Props) {
 
   return (
     <>
+      <EventJsonLd
+        event={event}
+        organizationName={brandConfig.name}
+        siteUrl={`https://${brandConfig.domain}`}
+      />
       {/* Ad tracking pixels (Reddit, Meta) - only load if configured */}
       {(adPixelConfig.reddit || adPixelConfig.meta) && (
         <AdPixels config={adPixelConfig} />

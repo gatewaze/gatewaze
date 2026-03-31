@@ -140,7 +140,7 @@ export class EventQrService {
         .from('events_sponsors')
         .select(`
           *,
-          sponsor:events_sponsor_profiles (
+          sponsor:events_sponsor_profiles!events_sponsors_sponsor_id_fkey (
             id,
             name,
             slug,
@@ -273,7 +273,6 @@ export class EventQrService {
    */
   static async createSponsor(params: {
     name: string;
-    account_id?: string;
   }): Promise<Sponsor> {
     try {
       // Generate slug from name
@@ -284,7 +283,6 @@ export class EventQrService {
         .insert([{
           name: params.name,
           slug,
-          account_id: params.account_id || null,
           is_active: true,
         }])
         .select('*')
@@ -314,7 +312,7 @@ export class EventQrService {
         .insert([params])
         .select(`
           *,
-          sponsor:events_sponsor_profiles (
+          sponsor:events_sponsor_profiles!events_sponsors_sponsor_id_fkey (
             id,
             name,
             slug,
@@ -349,7 +347,7 @@ export class EventQrService {
         .eq('id', id)
         .select(`
           *,
-          sponsor:events_sponsor_profiles (
+          sponsor:events_sponsor_profiles!events_sponsors_sponsor_id_fkey (
             id,
             name,
             slug,
