@@ -193,6 +193,29 @@ modulesRouter.post('/select', async (req, res) => {
       }
     }
 
+    // Deploy edge functions for newly enabled modules
+    if (enabled?.length) {
+      const enabledSet = new Set(enabled);
+      const enabledModulesWithFunctions = modules.filter(
+        (m) => enabledSet.has(m.config.id) && m.config.edgeFunctions?.length
+      );
+      if (enabledModulesWithFunctions.length > 0) {
+        const deployResult = await deployEdgeFunctions({
+          projectRoot: PROJECT_ROOT,
+          modules: enabledModulesWithFunctions,
+          deploy: shouldDeployEdgeFunctions(),
+          projectRef: process.env.SUPABASE_PROJECT_REF,
+        });
+        if (deployResult.copied.length > 0) {
+          console.log(`[modules] Deployed ${deployResult.copied.length} edge function(s) during onboarding`);
+          await restartEdgeRuntime();
+        }
+        if (deployResult.errors.length > 0) {
+          console.warn('[modules] Edge function deployment warnings:', deployResult.errors);
+        }
+      }
+    }
+
     // Also update the onboarding step
     await supabase
       .from('platform_settings')
