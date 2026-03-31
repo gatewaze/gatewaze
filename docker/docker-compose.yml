@@ -358,6 +358,9 @@ services:
       NEXT_PUBLIC_API_URL: ${API_URL:-http://gatewaze-api.localhost}
       SUPABASE_URL: ${SUPABASE_INTERNAL_URL:-http://supabase-kong:8000}
       SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      NEXT_PUBLIC_ENABLE_CHAT: ${NEXT_PUBLIC_ENABLE_CHAT:-false}
       INSTANCE_NAME: ${INSTANCE_NAME:-gatewaze}
       NODE_ENV: production
     depends_on:

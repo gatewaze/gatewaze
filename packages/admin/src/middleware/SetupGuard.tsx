@@ -18,16 +18,13 @@ export function SetupGuard() {
           headers: { apikey: ANON_KEY },
         });
 
-        // Treat server errors (5xx) as transient — only bypass if
-        // setup was previously completed (session cache). Otherwise
-        // redirect to setup so the user sees a useful error.
+        // Treat server errors (5xx) as transient — let the user through
+        // to the login page rather than redirecting to /setup, which
+        // would cause a redirect loop when SetupPage gets a different
+        // result from the same flaky endpoint.
         if (res.status >= 500) {
           console.warn(`[SetupGuard] platform-setup returned ${res.status}`);
-          if (cached) {
-            setStatus('ready');
-          } else {
-            setStatus('needs_setup');
-          }
+          setStatus('ready');
           return;
         }
 
@@ -41,13 +38,9 @@ export function SetupGuard() {
           setStatus('ready');
         }
       } catch {
-        // Network failure — if we previously completed setup, stay ready
-        if (cached) {
-          setStatus('ready');
-        } else {
-          sessionStorage.removeItem(CACHE_KEY);
-          setStatus('needs_setup');
-        }
+        // Network failure — let the user through to login rather than
+        // redirecting to /setup (which would loop if SetupPage disagrees).
+        setStatus('ready');
       }
     };
 

@@ -35,6 +35,15 @@ export function SetupPage() {
         const res = await fetch(`${SUPABASE_URL}/functions/v1/platform-setup`, {
           headers: { apikey: ANON_KEY },
         });
+
+        // Only trust a successful response — a 5xx may return JSON
+        // without a needsSetup field, which would incorrectly redirect
+        // to /login and cause a loop with SetupGuard.
+        if (!res.ok) {
+          setStep('welcome');
+          return;
+        }
+
         const data = await res.json();
 
         if (data.needsSetup) {
