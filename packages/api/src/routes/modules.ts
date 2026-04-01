@@ -16,7 +16,6 @@ import type { InstalledModuleRow, LoadedModule } from '@gatewaze/shared/modules'
 import { resolve } from 'path';
 import { existsSync, mkdirSync, readdirSync, unlinkSync } from 'fs';
 import { execSync } from 'child_process';
-import http from 'http';
 import multer from 'multer';
 import _configImport from '../../../../gatewaze.config.js';
 // Unwrap CJS→ESM double-default wrapping (root package.json has no "type":"module")
@@ -55,32 +54,6 @@ async function loadAllModules() {
     // module_sources table may not exist yet
   }
   return loadModulesWithDbSources(config, dbSources as never[], PROJECT_ROOT);
-}
-
-/** Should we deploy edge functions to Supabase (cloud/self-hosted)? */
-function shouldDeployEdgeFunctions(): boolean {
-  return !!(process.env.DEPLOY_EDGE_FUNCTIONS === 'true' || process.env.SUPABASE_PROJECT_REF);
-}
-
-/** Restart the edge runtime container so it picks up newly deployed functions. */
-function restartEdgeRuntime(): Promise<void> {
-  const container = process.env.EDGE_FUNCTIONS_CONTAINER;
-  if (!container) return Promise.resolve();
-
-  return new Promise((resolve) => {
-    const req = http.request(
-      { socketPath: '/var/run/docker.sock', path: `/containers/${container}/restart`, method: 'POST' },
-      (res) => {
-        console.log(`[modules] Edge runtime restart: ${res.statusCode === 204 ? 'OK' : res.statusCode}`);
-        resolve();
-      },
-    );
-    req.on('error', (err) => {
-      console.warn('[modules] Failed to restart edge runtime:', err.message);
-      resolve();
-    });
-    req.end();
-  });
 }
 
 /**
@@ -175,17 +148,43 @@ modulesRouter.post('/select', async (req, res) => {
     }
 
     if (enabled?.length) {
-      // Enable each module in dependency order and apply migrations
-      for (const moduleId of enabled) {
-        const mod = modules.find((m) => m.config.id === moduleId);
-        if (mod) {
-          try {
-            await applyModuleMigrations(mod, supabase as never);
-          } catch (migErr) {
-            console.error(`[modules] Migration failed for "${moduleId}" during selection:`, migErr);
-          }
+      // Sort enabled modules in dependency order so migrations run in the right sequence
+      // (e.g., 'events' before 'luma-integration' which depends on events_registrations)
+      const enabledSet = new Set(enabled);
+      const enabledModules = modules.filter((m) => enabledSet.has(m.config.id));
+      const sorted: typeof enabledModules = [];
+      const visited = new Set<string>();
+
+      function visit(mod: (typeof enabledModules)[number]) {
+        if (visited.has(mod.config.id)) return;
+        visited.add(mod.config.id);
+        for (const depId of mod.config.dependencies ?? []) {
+          const dep = enabledModules.find((m) => m.config.id === depId);
+          if (dep) visit(dep);
+        }
+        sorted.push(mod);
+      }
+      for (const mod of enabledModules) visit(mod);
+
+      // Also include any enabled IDs that didn't match a loaded module (enable by ID only)
+      const sortedIds = sorted.map((m) => m.config.id);
+      const remainingIds = enabled.filter((id) => !sortedIds.includes(id));
+
+      for (const mod of sorted) {
+        try {
+          await applyModuleMigrations(mod, supabase as never);
+        } catch (migErr) {
+          console.error(`[modules] Migration failed for "${mod.config.id}" during selection:`, migErr);
         }
 
+        await supabase
+          .from('installed_modules')
+          .update({ status: 'enabled' })
+          .eq('id', mod.config.id);
+      }
+
+      // Enable remaining modules that had no loaded config (just set status)
+      for (const moduleId of remainingIds) {
         await supabase
           .from('installed_modules')
           .update({ status: 'enabled' })
@@ -203,12 +202,11 @@ modulesRouter.post('/select', async (req, res) => {
         const deployResult = await deployEdgeFunctions({
           projectRoot: PROJECT_ROOT,
           modules: enabledModulesWithFunctions,
-          deploy: shouldDeployEdgeFunctions(),
-          projectRef: process.env.SUPABASE_PROJECT_REF,
+          allModules: modules,
         });
         if (deployResult.copied.length > 0) {
           console.log(`[modules] Deployed ${deployResult.copied.length} edge function(s) during onboarding`);
-          await restartEdgeRuntime();
+
         }
         if (deployResult.errors.length > 0) {
           console.warn('[modules] Edge function deployment warnings:', deployResult.errors);
@@ -310,12 +308,10 @@ modulesRouter.post('/reconcile', async (_req, res) => {
       const deployResult = await deployEdgeFunctions({
         projectRoot: PROJECT_ROOT,
         modules: enabledModulesWithFunctions,
-        deploy: shouldDeployEdgeFunctions(),
-        projectRef: process.env.SUPABASE_PROJECT_REF,
+        allModules: modules,
       });
-      if (deployResult.copied.length > 0) {
-        console.log(`[modules] Deployed ${deployResult.copied.length} edge function(s) during reconciliation`);
-        await restartEdgeRuntime();
+      if (deployResult.copied.length > 0 || deployResult.deployed.length > 0) {
+        console.log(`[modules] Deployed ${deployResult.copied.length + deployResult.deployed.length} edge function(s) during reconciliation`);
       }
     }
 
@@ -410,6 +406,32 @@ modulesRouter.post('/:id/enable', async (req, res) => {
 
     const modules = await loadAllModules();
     const mod = modules.find((m) => m.config.id === moduleId);
+
+    // Check dependencies: all required modules must be enabled first
+    if (mod?.config.dependencies?.length) {
+      const { data: installed } = await supabase
+        .from('installed_modules')
+        .select('id, status');
+
+      const enabledIds = new Set(
+        (installed ?? [])
+          .filter((r: Record<string, unknown>) => r.status === 'enabled')
+          .map((r: Record<string, unknown>) => r.id as string)
+      );
+
+      const missingDeps = mod.config.dependencies.filter((depId) => !enabledIds.has(depId));
+      if (missingDeps.length > 0) {
+        const depNames = missingDeps.map((depId) => {
+          const dep = modules.find((m) => m.config.id === depId);
+          return dep ? `"${dep.config.name}"` : `"${depId}"`;
+        });
+        return res.status(409).json({
+          error: `Module "${mod.config.name}" requires ${depNames.join(', ')} to be enabled first.`,
+          code: 'MISSING_DEPENDENCIES',
+          missingDependencies: missingDeps,
+        });
+      }
+    }
 
     // Check platform version compatibility
     if (mod?.config.minPlatformVersion && config.platformVersion) {
@@ -511,18 +533,13 @@ modulesRouter.post('/:id/enable', async (req, res) => {
         const deployResult = await deployEdgeFunctions({
           projectRoot: PROJECT_ROOT,
           modules: [mod],
-          deploy: shouldDeployEdgeFunctions(),
-          projectRef: process.env.SUPABASE_PROJECT_REF,
+          allModules: modules,
         });
 
-        edgeFunctionsDeployed = deployResult.copied.map((r) => r.functionName);
+        edgeFunctionsDeployed = [...deployResult.copied, ...deployResult.deployed].map((r) => r.functionName);
 
         if (deployResult.errors.length > 0) {
           console.warn('[modules] Edge function deployment warnings:', deployResult.errors);
-        }
-
-        if (edgeFunctionsDeployed.length > 0) {
-          await restartEdgeRuntime();
         }
       }
 
@@ -770,13 +787,9 @@ modulesRouter.post('/:id/update', async (req, res) => {
       const deployResult = await deployEdgeFunctions({
         projectRoot: PROJECT_ROOT,
         modules: [mod],
-        deploy: shouldDeployEdgeFunctions(),
-        projectRef: process.env.SUPABASE_PROJECT_REF,
+        allModules: modules,
       });
-      edgeFunctionsDeployed = deployResult.copied.map((r) => r.functionName);
-      if (edgeFunctionsDeployed.length > 0) {
-        await restartEdgeRuntime();
-      }
+      edgeFunctionsDeployed = [...deployResult.copied, ...deployResult.deployed].map((r) => r.functionName);
     }
 
     console.log(`[modules] Updated "${mod.config.name}" from v${previousVersion} to v${mod.config.version}`);
@@ -873,13 +886,9 @@ modulesRouter.post('/update-all', async (_req, res) => {
       const deployResult = await deployEdgeFunctions({
         projectRoot: PROJECT_ROOT,
         modules: modulesToDeploy,
-        deploy: shouldDeployEdgeFunctions(),
-        projectRef: process.env.SUPABASE_PROJECT_REF,
+        allModules: modules,
       });
-      edgeFunctionsDeployed = deployResult.copied.map((r) => r.functionName);
-      if (edgeFunctionsDeployed.length > 0) {
-        await restartEdgeRuntime();
-      }
+      edgeFunctionsDeployed = [...deployResult.copied, ...deployResult.deployed].map((r) => r.functionName);
     }
 
     return res.json({
@@ -1166,7 +1175,39 @@ modulesRouter.post('/invoke-function/:name', async (req, res) => {
       return res.status(500).json({ error: 'Missing Supabase credentials' });
     }
 
+    // Authenticate: verify the caller has a valid Supabase session
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(401).json({ error: 'Missing authorization header' });
+    }
+    const supabase = createClient(supabaseUrl, serviceRoleKey);
+    const token = authHeader.replace(/^Bearer\s+/i, '');
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !user) {
+      return res.status(401).json({ error: 'Invalid or expired session' });
+    }
+
+    // Validate function name: must belong to an enabled module
     const functionName = req.params.name;
+    const { data: enabledModules } = await supabase
+      .from('installed_modules')
+      .select('id, config')
+      .eq('status', 'enabled');
+
+    const modules = await loadAllModules();
+    const allowedFunctions = new Set<string>();
+    for (const row of enabledModules ?? []) {
+      const mod = modules.find((m) => m.config.id === (row as Record<string, unknown>).id);
+      if (mod?.config.edgeFunctions) {
+        for (const fn of mod.config.edgeFunctions) {
+          allowedFunctions.add(fn);
+        }
+      }
+    }
+
+    if (!allowedFunctions.has(functionName)) {
+      return res.status(404).json({ error: `Function not found: ${functionName}` });
+    }
 
     const response = await fetch(
       `${supabaseUrl}/functions/v1/${encodeURIComponent(functionName)}`,
