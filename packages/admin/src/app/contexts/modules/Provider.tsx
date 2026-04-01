@@ -144,7 +144,7 @@ export function ModulesProviderWrapper({ children }: Props) {
       isModuleEnabled,
       isFeatureEnabled,
       activeThemeModule,
-      refresh: fetchAndSeed,
+      refresh: async () => { await fetchAndSeed(); await checkUpdates(); },
       availableUpdates,
       checkUpdates,
     }),
