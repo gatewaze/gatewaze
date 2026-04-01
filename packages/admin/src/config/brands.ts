@@ -126,7 +126,7 @@ export function getBrandConfig(): BrandConfig {
     },
 
     ui: {
-      primaryColor: import.meta.env.VITE_PRIMARY_COLOR || '#20dd20',
+      primaryColor: import.meta.env.VITE_PRIMARY_COLOR || '#00a2c7',
       secondaryColor: import.meta.env.VITE_SECONDARY_COLOR || '#0a0a0a',
     },
 

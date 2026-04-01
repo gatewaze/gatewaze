@@ -8,7 +8,7 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        'gatewaze-primary': '#20dd20',
+        'gatewaze-primary': '#00a2c7',
         'gatewaze-secondary': '#0a0a0a',
       },
     },

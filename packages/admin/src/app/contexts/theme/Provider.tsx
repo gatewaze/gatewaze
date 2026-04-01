@@ -29,6 +29,7 @@ const RADIX_ACCENT_REFS: { name: PrimaryColor; r: number; g: number; b: number }
   { name: "violet",  r: 110, g: 86,  b: 207 },
   { name: "indigo",  r: 62,  g: 99,  b: 214 },
   { name: "blue",    r: 59,  g: 130, b: 246 },
+  { name: "cyan",    r: 0,   g: 162, b: 199 },
   { name: "teal",    r: 18,  g: 165, b: 148 },
   { name: "green",   r: 34,  g: 197, b: 94  },
   { name: "amber",   r: 245, g: 158, b: 11  },
@@ -126,7 +127,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
         // Accent color
         const brandHex = map.primary_color;
-        const accent = brandHex ? closestRadixAccent(brandHex) : "green";
+        const accent = brandHex ? closestRadixAccent(brandHex) : "cyan";
         if (settings.primaryColorScheme?.name !== accent) {
           setSettings((prev) => ({
             ...prev,

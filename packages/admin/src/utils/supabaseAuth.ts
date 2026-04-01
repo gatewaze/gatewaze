@@ -22,6 +22,7 @@ export interface MagicLinkResponse {
   success: boolean
   error?: string
   message?: string
+  magicLink?: string
 }
 
 export class SupabaseAuthService {
@@ -57,6 +58,7 @@ export class SupabaseAuthService {
       return {
         success: true,
         message: 'Magic link sent! Check your email for the login link.',
+        magicLink: data.magicLink,
       }
     } catch (error) {
       console.error('Send magic link error:', error)

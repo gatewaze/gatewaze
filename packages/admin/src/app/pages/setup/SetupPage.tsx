@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { ArrowRight, Check, Loader2 } from 'lucide-react';
+import { ArrowRight, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Form/Input';
-import GradientBackground from '@/components/shared/GradientBackground';
+import OnboardingWizardLayout from '@/app/pages/onboarding/OnboardingWizardLayout';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -28,7 +27,6 @@ export function SetupPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  // Redirect to login if setup is not needed (instance already configured)
   useEffect(() => {
     const checkSetup = async () => {
       try {
@@ -36,9 +34,6 @@ export function SetupPage() {
           headers: { apikey: ANON_KEY },
         });
 
-        // Only trust a successful response — a 5xx may return JSON
-        // without a needsSetup field, which would incorrectly redirect
-        // to /login and cause a loop with SetupGuard.
         if (!res.ok) {
           setStep('welcome');
           return;
@@ -52,7 +47,6 @@ export function SetupPage() {
           navigate('/login', { replace: true });
         }
       } catch {
-        // Can't reach backend — show setup so user sees a useful error on submit
         setStep('welcome');
       }
     };
@@ -92,12 +86,13 @@ export function SetupPage() {
         return;
       }
 
-      if (data.magicLink) {
-        window.location.href = data.magicLink;
-        return;
-      }
+      // Clear the setup cache so SetupGuard won't redirect back here
+      sessionStorage.setItem('gatewaze-setup-complete', 'true');
 
-      setStep('done');
+      // Navigate to onboarding to create the admin account.
+      // The user is already signed in as the temp setup admin,
+      // so we can go directly — no magic link redirect needed.
+      navigate('/onboarding', { replace: true });
     } catch {
       setError('Failed to connect to the server. Please check your configuration.');
     } finally {
@@ -105,93 +100,85 @@ export function SetupPage() {
     }
   };
 
+  if (step === 'checking') {
+    return (
+      <OnboardingWizardLayout currentStep={0} hideFooter hideSteps>
+        <div className="flex h-full items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-[var(--gray-a9)]" />
+        </div>
+      </OnboardingWizardLayout>
+    );
+  }
+
+  if (step === 'welcome') {
+    return (
+      <OnboardingWizardLayout currentStep={0} hideFooter hideSteps>
+        <div className="flex h-full flex-col items-center justify-center text-center">
+          <h1 className="text-2xl font-bold tracking-tight">
+            Let's get you up and running...
+          </h1>
+          <p className="mt-2 text-sm text-[var(--gray-a9)]">
+            Complete this simple onboarding to get your instance of Gatewaze set up.
+          </p>
+          <div className="mt-10">
+            <Button
+              onClick={() => setStep('app')}
+              size="3"
+            >
+              Get Started
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </OnboardingWizardLayout>
+    );
+  }
+
+  if (step === 'done') {
+    return (
+      <OnboardingWizardLayout currentStep={0} hideFooter>
+        <div className="flex h-full flex-col items-center justify-center text-center">
+          <h1 className="text-2xl font-semibold tracking-tight">Setup Complete</h1>
+          <p className="mt-2 text-sm text-[var(--gray-a9)]">
+            Your platform has been configured. Redirecting...
+          </p>
+          <Loader2 className="mt-4 h-6 w-6 animate-spin text-[var(--gray-a9)]" />
+        </div>
+      </OnboardingWizardLayout>
+    );
+  }
+
   return (
-    <>
-    <GradientBackground />
-    <div className="flex min-h-[100svh] items-center justify-center p-4">
-      <div className="w-full max-w-[520px] space-y-4">
-        {step === 'checking' && (
-          <div className="flex justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-[var(--gray-a9)]" />
+    <OnboardingWizardLayout
+      currentStep={0}
+      onNext={handleSubmit}
+      nextLabel="Continue"
+      nextDisabled={isSubmitting}
+      nextLoading={isSubmitting}
+      showPrevious={false}
+    >
+      <div className="space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">Platform Name</h2>
+          <p className="mt-1 text-sm text-[var(--gray-a9)]">
+            Choose a name for your platform. This will be displayed in the sidebar and browser title.
+          </p>
+        </div>
+
+        {error && (
+          <div className="rounded-md bg-[var(--red-a3)] p-3 text-sm text-[var(--red-11)]">
+            {error}
           </div>
         )}
 
-        {step === 'welcome' && (
-          <Card className="p-6">
-            <div className="space-y-4 text-center">
-              <h1 className="text-2xl font-semibold tracking-tight">
-                Welcome to your platform
-              </h1>
-              <p className="text-sm text-[var(--gray-a9)]">
-                Let's set up your community management platform. This will only take a moment.
-              </p>
-              <Button onClick={() => setStep('app')} size="3" className="w-full">
-                Get Started
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </div>
-          </Card>
-        )}
-
-        {step === 'app' && (
-          <Card className="p-6">
-            <div className="space-y-4">
-              <div>
-                <h2 className="text-lg font-semibold tracking-tight">Platform Name</h2>
-                <p className="mt-1 text-sm text-[var(--gray-a9)]">
-                  Choose a name for your platform. This will be displayed in the sidebar and browser title.
-                </p>
-              </div>
-
-              {error && (
-                <div className="rounded-md bg-[var(--red-a3)] p-3 text-sm text-[var(--red-11)]">
-                  {error}
-                </div>
-              )}
-
-              <Input
-                label="App Name"
-                value={appName}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAppName(e.target.value)}
-                placeholder="Gatewaze"
-              />
-
-              <div>
-                <Button onClick={handleSubmit} disabled={isSubmitting} size="3" className="w-full">
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Setting up...
-                    </>
-                  ) : (
-                    <>
-                      <Check className="mr-2 h-4 w-4" />
-                      Complete Setup
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-          </Card>
-        )}
-
-        {step === 'done' && (
-          <Card className="p-6">
-            <div className="space-y-4 text-center">
-              <h1 className="text-2xl font-semibold tracking-tight">Setup Complete</h1>
-              <p className="text-sm text-[var(--gray-a9)]">
-                Your platform has been configured. Redirecting...
-              </p>
-              <Loader2 className="mx-auto h-6 w-6 animate-spin text-[var(--gray-a9)]" />
-            </div>
-          </Card>
-        )}
-        <div className="mt-6 flex justify-center">
-          <img src="/theme/gatewaze/gatewaze-poweredby-white.svg" alt="Powered by Gatewaze" className="h-6 opacity-50" />
-        </div>
+        <Input
+          label="App Name"
+          value={appName}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAppName(e.target.value)}
+          placeholder="Gatewaze"
+        />
       </div>
-    </div>
-    </>
+    </OnboardingWizardLayout>
   );
 }
 

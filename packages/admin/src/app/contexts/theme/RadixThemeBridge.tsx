@@ -19,13 +19,14 @@ const accentColorMap: Record<PrimaryColor, React.ComponentProps<typeof Theme>["a
   violet: "violet",
   purple: "purple",
   plum: "plum",
+  cyan: "cyan",
   rose: "pink", // Tailwind's rose ≈ Radix's pink
 };
 
 export function RadixThemeBridge({ children }: { children: ReactNode }) {
   const { isDark, primaryColorScheme } = useThemeContext();
   const activeTheme = useActiveThemeModule();
-  const accentColor = accentColorMap[primaryColorScheme?.name] ?? "pink";
+  const accentColor = accentColorMap[primaryColorScheme?.name] ?? "cyan";
 
   const radixOverrides = activeTheme?.themeOverrides.admin?.radixThemeProps ?? {};
 

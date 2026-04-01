@@ -301,3 +301,17 @@
   --color-primary-900: #53195d;
   --color-primary-950: #38103f;
 }
+
+[data-theme-primary="cyan"] {
+  --color-primary-50: #f2fcfd;
+  --color-primary-100: #e2f9fc;
+  --color-primary-200: #c2eef7;
+  --color-primary-300: #a5e3f2;
+  --color-primary-400: #6ec9e5;
+  --color-primary-500: #00a2c7;
+  --color-primary-600: #0894b3;
+  --color-primary-700: #0c7792;
+  --color-primary-800: #0c6478;
+  --color-primary-900: #0d3c48;
+  --color-primary-950: #082830;
+}

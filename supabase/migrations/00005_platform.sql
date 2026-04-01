@@ -73,7 +73,7 @@ CREATE TRIGGER platform_settings_updated_at
 
 INSERT INTO platform_settings (key, value) VALUES
   ('app_name', 'Gatewaze'),
-  ('primary_color', '#20dd20'),
+  ('primary_color', '#00a2c7'),
   ('secondary_color', '#0a0a0a'),
   ('tertiary_color', '#1a1a1a'),
   ('font_heading', 'Poppins'),

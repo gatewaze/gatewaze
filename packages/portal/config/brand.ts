@@ -32,8 +32,8 @@ export interface BasicThemeColors {
 export type ThemeColors = BlobsThemeColors | GradientWaveThemeColors | BasicThemeColors
 
 export const DEFAULT_THEME_COLORS: Record<PortalTheme, ThemeColors> = {
-  blobs: { background: '#0a0a0a', blob1: '#20dd20', blob2: '#0d6e0d', blob3: '#1a1a1a' },
-  gradient_wave: { start: '#20dd20', middle: '#0d6e0d', end: '#0a0a0a' },
+  blobs: { background: '#0a0a0a', blob1: '#00a2c7', blob2: '#0e7490', blob3: '#1a1a1a' },
+  gradient_wave: { start: '#00a2c7', middle: '#0e7490', end: '#0a0a0a' },
   basic: { background: '#0a0a0a' },
 }
 
@@ -96,7 +96,7 @@ const defaults: BrandConfig = {
   name: 'Gatewaze',
   supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || '',
   supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
-  primaryColor: '#20dd20',
+  primaryColor: '#00a2c7',
   secondaryColor: '#0a0a0a',
   tertiaryColor: '#1a1a1a',
   portalTheme: 'blobs',

@@ -13,8 +13,8 @@ type BrandKey = 'gatewaze'
 
 const brandColors: Record<BrandKey, { color1: string; color2: string; color3: string }> = {
   gatewaze: {
-    color1: '#20dd20',
-    color2: '#0d6e0d',
+    color1: '#00a2c7',
+    color2: '#0e7490',
     color3: '#0a0a0a',
   },
 }
@@ -184,7 +184,7 @@ export default function TestFluidPage() {
                 padding: '8px 16px',
                 borderRadius: '6px',
                 border: activeBrand === 'gatewaze' ? '2px solid white' : '2px solid transparent',
-                background: '#20dd20',
+                background: '#00a2c7',
                 color: 'white',
                 cursor: 'pointer',
                 fontSize: '13px',

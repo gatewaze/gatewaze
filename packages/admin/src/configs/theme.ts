@@ -10,7 +10,7 @@ const DEFAULT_LIGHT_COLOR: LightColor = "slate";
 
 // Get brand-specific default accent color (Radix color names)
 const getBrandPrimaryColor = (): PrimaryColor => {
-  return "green";
+  return "cyan";
 };
 
 const DEFAULT_PRIMARY_COLOR: PrimaryColor = getBrandPrimaryColor();
