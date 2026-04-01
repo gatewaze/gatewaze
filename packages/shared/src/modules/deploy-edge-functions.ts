@@ -98,13 +98,16 @@ export async function deployEdgeFunctions(
         continue;
       }
 
-      // Deploy via CLI if requested
+      // Deploy via CLI if requested (cloud mode)
       if (opts.deploy) {
         try {
           const refFlag = opts.projectRef ? ` --project-ref ${opts.projectRef}` : '';
-          execSync(`npx supabase functions deploy ${fnName}${refFlag}`, {
+          // Try 'supabase' binary first (installed in container), fall back to 'npx supabase'
+          const cmd = existsSync('/usr/bin/supabase') ? 'supabase' : 'npx supabase';
+          execSync(`${cmd} functions deploy ${fnName}${refFlag}`, {
             cwd: opts.projectRoot,
             stdio: 'pipe',
+            env: { ...process.env },
           });
           result.deployed.push({ module: mod.config.id, functionName: fnName });
         } catch (err) {
