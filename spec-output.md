@@ -1,618 +1,680 @@
-# Technical Specification: Agent-First Portal Architecture
+# Technical Specification: Module Edge Function Deployment
 
 ## Overview / Context
 
-Gatewaze is an open-source event and community management platform. The portal (public-facing app) is built with Next.js 15, React 19, TypeScript, and Supabase. It currently supports event browsing, AI-powered semantic search (OpenAI embeddings), registration (Stripe), attendee networking (Claude-powered matching), user profiles, blog, and embeddable calendars.
+Gatewaze is a modular event management platform. Users enable modules (e.g., luma-integration, events, event-speakers) from an admin UI, and each module can declare Supabase edge functions that need to be deployed. The platform must support deploying these functions across all target environments without requiring CLI tools, Docker socket access, or host filesystem operations in production deployments.
 
-The portal already integrates OpenAI (`text-embedding-3-small` for embeddings, GPT for NL queries) and has `@anthropic-ai/sdk` as a dependency (currently unused in portal code). Metadata is limited to Open Graph and Twitter Cards — no structured data (JSON-LD/Schema.org) exists.
+### Current State
 
-This spec defines the architecture for making the portal **agent-first**: optimized for both human users and AI agents to discover, understand, and interact with the platform programmatically.
+Today, module edge function deployment works as follows:
 
-### Architectural Rationale
+1. Module config declares `edgeFunctions: ['function-name-1', 'function-name-2']`
+2. Module source directories contain `functions/<name>/index.ts` and `functions/_shared/` files
+3. When a module is enabled, `deployEdgeFunctions()`:
+   - Copies function directories from module source to `supabase/functions/`
+   - Copies `_shared/` files into the platform `_shared/` directory
+   - Regenerates `platform-main/index.ts` (a router that imports all functions for the self-hosted edge runtime)
+   - Optionally shells out to `npx supabase functions deploy` (fails in containers without the CLI)
+4. Self-hosted mode: A single Deno edge runtime container serves all functions via `platform-main`
+5. Cloud mode: Each function is deployed individually to Supabase Cloud and runs standalone
 
-- **Vercel AI SDK** over raw Anthropic SDK: provides streaming UI primitives, multi-provider abstraction, and tool calling that maps directly to Next.js server components and API routes. Eliminates boilerplate for SSE streaming and tool result rendering.
-- **MCP over custom agent API**: MCP is an open standard with growing adoption across Claude, Cursor, and other agent tooling. Building an MCP server provides compatibility with the broadest agent ecosystem without maintaining custom SDKs.
-- **JSON-LD over Microdata/RDFa**: JSON-LD is Google's recommended format, doesn't require modifying HTML structure, and is the most widely consumed structured data format by LLM agents browsing via web tools.
-- **OpenAPI 3.1 over 3.0**: Native JSON Schema support, better alignment with TypeScript type generation, and broader agent framework compatibility.
+### Problem
+
+The current approach has several failure modes:
+- **Cloud deployment fails silently**: The API container lacks the Supabase CLI, so `supabase functions deploy` fails. Functions are copied to disk but never reach Supabase Cloud.
+- **Self-hosted Kubernetes**: No volume mount from host to edge runtime pod. Functions copied to disk inside the API pod are invisible to the edge runtime pod.
+- **No portable deployment mechanism**: The system depends on filesystem operations and CLI tools that are environment-specific for production deployments.
 
 ## Goals
 
-1. **Agent Discoverability**: AI agents can discover Gatewaze capabilities via `llms.txt`, OpenAPI spec, and MCP server without prior knowledge of the platform.
-2. **Structured Data**: All portal pages emit Schema.org JSON-LD markup, enabling search engines and LLM agents to parse event, organization, and person data.
-3. **Conversational Interface**: An embedded AI assistant in the portal allows users (human or agent) to search events, register, and get recommendations via natural language.
-4. **Programmatic API Access**: A published OpenAPI 3.1 spec at `/.well-known/openapi.json` enables agent frameworks (LangChain, CrewAI, AutoGPT) to auto-generate tool definitions.
-5. **MCP Integration**: An MCP server wraps the existing REST API so Claude and other MCP-compatible agents can natively interact with Gatewaze.
-6. **HATEOAS-lite API Responses**: API responses include `_links` for agent discoverability of related actions.
+1. When a user enables a module from the admin UI, its edge functions become operational without manual CLI commands — in any environment
+2. When a user disables a module, its associated edge functions are removed from the deployment target
+3. Support all environment combinations:
+   - Local Docker dev + self-hosted Supabase (current primary dev environment)
+   - Local Docker dev + Supabase Cloud
+   - Kubernetes + Supabase Cloud
+   - Kubernetes + self-hosted Supabase (edge runtime in same cluster)
+4. No dependency on Supabase CLI binary, Docker socket, or host filesystem in production deployment environments (Kubernetes, Supabase Cloud). These dependencies are acceptable for local development environments.
+5. Shared files (`_shared/*.ts`) are deployed alongside the functions that import them
+6. Graceful degradation: if deployment fails, the module is still enabled (DB migrations applied) but the user is informed via the admin UI and structured error responses
+7. Module-specific secrets are synced to the deployment target when a module is enabled or its configuration is updated
 
 ## Non-Goals
 
-- Replacing the existing human UI — agent features augment, not replace.
-- Building a standalone chatbot product — the assistant is scoped to portal interactions.
-- Supporting real-time bidirectional agent communication via WebSocket. Server-to-client streaming (SSE) is used for the chat UI and MCP transport.
-- Migrating away from Supabase or the existing Express API.
-- Implementing agent authentication beyond standard JWT Bearer tokens via Supabase Auth.
+- Building a custom edge function runtime (we use Supabase's edge runtime)
+- Supporting non-Supabase function providers (AWS Lambda, Cloudflare Workers)
+- Hot-reload of edge functions in production (dev-only concern)
+- Automatic rollback of function deployments on failure (operators can redeploy the latest successful version)
+- Multi-tenant function isolation (each Gatewaze instance is single-tenant)
 
 ## System Architecture
 
+### Deployment Strategies
+
+The system uses a **strategy pattern** to handle different deployment targets. The correct strategy is selected at runtime based on environment detection.
+
 ```
-┌─────────────────────────────────────────────────────┐
-│                    Portal (Next.js 15)              │
-│  ┌─────────────┐  ┌──────────────┐  ┌────────────┐ │
-│  │ JSON-LD     │  │ AI Chat      │  │ llms.txt   │ │
-│  │ Components  │  │ (Vercel AI)  │  │ Route      │ │
-│  └─────────────┘  └──────┬───────┘  └────────────┘ │
-│                          │                          │
-│  ┌───────────────────────▼──────────────────────┐   │
-│  │         /api/chat (streaming endpoint)       │   │
-│  │         /api/ai-search (existing)            │   │
-│  │    /.well-known/openapi.json                 │   │
-│  │         /api/mcp (Streamable HTTP)           │   │
-│  └──────────────────────┬───────────────────────┘   │
-└─────────────────────────┼───────────────────────────┘
-                          │
-          ┌───────────────┼───────────────┐
-          ▼               ▼               ▼
-   ┌────────────┐  ┌────────────┐  ┌────────────┐
-   │ Express API│  │ Supabase   │  │ Anthropic  │
-   │ (existing) │  │ (DB/Auth)  │  │ Claude API │
-   │ + HATEOAS  │  │ + RLS      │  │            │
-   └────────────┘  └────────────┘  └────────────┘
+┌─────────────────────────────────────────────┐
+│           Module Enable/Disable Flow        │
+│                                             │
+│  1. Apply/revert migrations                 │
+│  2. Detect deployment environment           │
+│  3. Execute deployment strategy             │
+│     (deploy or remove functions + secrets)  │
+│  4. Report result to admin UI               │
+└─────────────────────────────────────────────┘
+                    │
+        ┌───────────┼───────────┐
+        ▼           ▼           ▼
+  ┌──────────┐ ┌──────────┐ ┌──────────┐
+  │  Local   │ │  Cloud   │ │   K8s    │
+  │ Filesystem│ │   API    │ │  Shared  │
+  │ Strategy │ │ Strategy │ │ Storage  │
+  │ (DEV ONLY)│ │          │ │ Strategy │
+  └──────────┘ └──────────┘ └──────────┘
+       │             │             │
+       ▼             ▼             ▼
+  Write to disk  POST/DELETE   Write to PVC
+  + restart      to Supabase   + K8s rollout
+  edge runtime   Management    restart of
+  container      API           edge runtime pod
 ```
 
-**Key flows**:
-- Human users interact via the chat widget (browser) or standard portal pages
-- AI agents interact via MCP (`/api/mcp`), OpenAPI-documented REST endpoints, or the chat API
-- All write operations (registration) flow through Supabase with RLS enforcement using the caller's JWT
+**Environment Detection Precedence** (evaluated top-to-bottom, first match wins):
+1. **Cloud API** — `SUPABASE_PROJECT_REF` and `SUPABASE_ACCESS_TOKEN` are set
+2. **K8s Shared Storage** — `EDGE_FUNCTIONS_SHARED_DIR` is set and `SUPABASE_PROJECT_REF` is not
+3. **Local Filesystem** — fallback (uses `EDGE_FUNCTIONS_CONTAINER` for restart)
+
+### Strategy 1: Local Filesystem (Self-hosted Docker Dev) — DEVELOPMENT ONLY
+
+**When**: Neither cloud nor K8s env vars are set. `EDGE_FUNCTIONS_CONTAINER` identifies the Docker container to restart.
+
+**How it works**:
+1. Copy function files from module source to `supabase/functions/` (volume-mounted from host)
+2. Copy `_shared/` files
+3. Regenerate `platform-main/index.ts`
+4. Restart the edge runtime container via Docker socket
+5. On module disable: remove function directory and regenerate `platform-main`
+
+**Detection**: `!process.env.SUPABASE_PROJECT_REF && !process.env.EDGE_FUNCTIONS_SHARED_DIR`
+
+**Note**: This strategy depends on Docker socket access and host volume mounts. It is not suitable for production.
+
+### Strategy 2: Cloud API (Supabase Cloud)
+
+**When**: `SUPABASE_PROJECT_REF` and `SUPABASE_ACCESS_TOKEN` are set. Takes precedence over all other strategies.
+
+**How it works — Deployment**:
+1. For each edge function in the module, concurrently:
+   a. Read the function's `index.ts` from the module source directory
+   b. Collect all `_shared/*.ts` files that the function imports (transitive)
+   c. POST to `https://api.supabase.com/v1/projects/{ref}/functions/deploy?slug={name}` with multipart form data containing all source files
+2. Sync module-specific secrets via `POST /v1/projects/{ref}/secrets`
+3. No CLI binary needed — pure HTTP from Node.js
+
+**How it works — Removal** (module disable):
+1. For each edge function in the module:
+   a. DELETE `https://api.supabase.com/v1/projects/{ref}/functions/{slug}`
+2. Note: Secrets are NOT removed on disable (they may be shared with other modules or platform functions)
+
+**Detection**: `process.env.SUPABASE_PROJECT_REF && process.env.SUPABASE_ACCESS_TOKEN`
+
+**API Request Format (Deployment)**:
+```
+POST /v1/projects/{project-ref}/functions/deploy?slug={function-name}
+Authorization: Bearer {SUPABASE_ACCESS_TOKEN}
+Content-Type: multipart/form-data
+
+Parts:
+- metadata: {"entrypoint_path": "index.ts", "name": "{function-name}", "verify_jwt": false}
+  // verify_jwt defaults to false (API proxy handles auth via service role key).
+  // Modules can override this per-function via edgeFunctionConfig in their module definition.
+- file (filename="index.ts") — the function entry point
+- file (filename="_shared/lumaRegistration.ts") — shared dependency
+- file (filename="_shared/integrationEvents.ts") — shared dependency
+```
+
+**Key Assumption**: The Supabase Management API accepts multiple `file` parts with relative paths in `filename` and handles bundling server-side. This must be verified during Phase 1 implementation.
+
+**Fallback if assumption is false**: If the API requires a single pre-bundled file, the deployer must add an `esbuild` bundling step before upload:
+1. Add `esbuild` as a dependency to `@gatewaze/shared`
+2. Bundle the function's `index.ts` and all `_shared/` imports into a single output file targeting Deno
+3. Upload the single bundled file instead of multiple source files
+4. The `DeployFunctionRequest.sourceFiles` field would be replaced by `bundledSource: string`
+
+**API Response Format**:
+```json
+// Success (200)
+{ "id": "uuid", "slug": "function-name", "version": 7, "status": "ACTIVE" }
+
+// Error (4xx/5xx)
+{ "message": "error description" }
+```
+
+**API Request Format (Deletion)**:
+```
+DELETE /v1/projects/{project-ref}/functions/{slug}
+Authorization: Bearer {SUPABASE_ACCESS_TOKEN}
+```
+
+**Dependency Resolution**:
+The deployer scans each function's source for import statements referencing `_shared/` files. It handles two import patterns:
+- `from '../_shared/filename.ts'` — function importing shared file
+- `from './filename.ts'` — shared file importing another shared file in the same directory
+
+Resolution is transitive: if `_shared/lumaRegistration.ts` imports `_shared/integrationEvents.ts`, both are included.
+
+### Strategy 3: Shared Storage (Kubernetes Self-hosted)
+
+**When**: `EDGE_FUNCTIONS_SHARED_DIR` is set and `SUPABASE_PROJECT_REF` is not set.
+
+**How it works**:
+1. The API pod and edge runtime pod share a PersistentVolumeClaim (PVC) mounted at a known path
+2. When a module is enabled, the API pod writes function files to the shared volume
+3. Regenerates `platform-main/index.ts` on the shared volume
+4. Triggers a rollout restart of the edge runtime deployment via the Kubernetes API
+5. On module disable: removes function files and triggers another rollout restart
+
+**Edge Runtime Restart Mechanism**: The API pod uses the Kubernetes API (`PATCH /apis/apps/v1/namespaces/{ns}/deployments/{name}` with a `kubectl.kubernetes.io/restartedAt` annotation) to trigger a rolling restart of the edge runtime deployment. This requires the API pod's ServiceAccount to have `patch` permission on the edge runtime Deployment resource.
+
+**Detection**: `process.env.EDGE_FUNCTIONS_SHARED_DIR && !process.env.SUPABASE_PROJECT_REF`
+
+**Required RBAC**:
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gatewaze-api-edge-restart
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: ["gatewaze-edge-runtime"]
+    verbs: ["get", "patch"]
+```
+
+**Kubernetes Manifest (example)**:
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gatewaze-edge-functions
+spec:
+  accessModes: [ReadWriteMany]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gatewaze-api
+spec:
+  template:
+    spec:
+      serviceAccountName: gatewaze-api
+      containers:
+        - name: api
+          env:
+            - name: EDGE_FUNCTIONS_SHARED_DIR
+              value: /shared/functions
+            - name: EDGE_RUNTIME_DEPLOYMENT
+              value: gatewaze-edge-runtime
+            - name: EDGE_RUNTIME_NAMESPACE
+              value: default
+          volumeMounts:
+            - name: edge-functions
+              mountPath: /shared/functions
+      volumes:
+        - name: edge-functions
+          persistentVolumeClaim:
+            claimName: gatewaze-edge-functions
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gatewaze-edge-runtime
+spec:
+  template:
+    spec:
+      containers:
+        - name: edge-runtime
+          image: supabase/edge-runtime:v1.70.3
+          command: ["start", "--main-service", "/shared/functions/platform-main"]
+          volumeMounts:
+            - name: edge-functions
+              mountPath: /shared/functions
+              readOnly: true
+      volumes:
+        - name: edge-functions
+          persistentVolumeClaim:
+            claimName: gatewaze-edge-functions
+```
 
 ## Component Design
 
-### 1. JSON-LD Structured Data Components
-
-**Location**: `packages/portal/components/structured-data/`
-
-Three React server components that render `<script type="application/ld+json">` tags:
-
-#### `EventJsonLd`
-- Renders on event detail pages (`/events/[identifier]`)
-- Schema: `https://schema.org/Event`
-- Fields mapped from existing event data:
-  - `name` ← `event.title`
-  - `startDate` / `endDate` ← `event.start_date` / `event.end_date` (ISO 8601)
-  - `location` ← `event.venue` (as `Place` with `name` and `address` from `event.venue_address`). If the event has no physical venue (online), use `VirtualLocation` with `event.event_link` as `url`.
-  - `description` ← `event.description` (HTML stripped to plain text via `htmlToText()` from `html-to-text` library, truncated to 5000 chars on a word boundary)
-  - `image` ← `event.screenshot_url || event.event_logo`
-  - `organizer` ← `event.organizer_name` as `Organization` with `event.organizer_url`. Falls back to `brandConfig.organization_name` if event-level organizer is not set.
-  - `offers` ← registration pricing (as `Offer` with `price`, `priceCurrency`, `availability` mapped from registration status: `InStock` if open, `SoldOut` if full, `PreOrder` if upcoming)
-  - `eventStatus` ← mapped from event status field:
-    - `scheduled` / `published` → `EventScheduled`
-    - `cancelled` → `EventCancelled`
-    - `postponed` → `EventPostponed`
-    - `draft` → omit field (draft events should not have JSON-LD at all)
-  - `eventAttendanceMode` ← `OnlineEventAttendanceMode` | `OfflineEventAttendanceMode` | `MixedEventAttendanceMode`
-- **Graceful handling**: If `name` or `startDate` is missing (required by Schema.org), omit the entire JSON-LD block.
-
-#### `OrganizationJsonLd`
-- Renders on the root layout
-- Schema: `https://schema.org/Organization`
-- Fields from brand config: `name`, `url`, `logo`, `description`, `sameAs` (social links array)
-
-#### `PersonJsonLd`
-- Renders on speaker pages (`/events/[identifier]/speakers/[id]`)
-- Schema: `https://schema.org/Person`
-- Fields: `name`, `jobTitle`, `worksFor` (as `Organization`), `image`, `url`
-- **Graceful handling**: If `name` is missing, omit the block.
-
-**Integration**: Import into respective page components. No client-side JS — pure SSR `<script>` tags.
-
-### 2. Vercel AI SDK Chat Interface
-
-**Dependencies**: `ai` (Vercel AI SDK), `@ai-sdk/anthropic`, `@ai-sdk/openai`
-
-**Graceful degradation**: If `ANTHROPIC_API_KEY` is not set, the chat endpoint returns `503 Service Unavailable` and the chat widget is not rendered (checked via `NEXT_PUBLIC_ENABLE_CHAT` env var).
-
-**`brandConfig` loading**: Brand configuration is loaded once at module scope via `unstable_cache` (Next.js) with a 5-minute TTL and `brandConfig` cache tag. This avoids a database round-trip on every chat request while keeping configuration reasonably fresh. The same cached loader is shared with JSON-LD components and `llms.txt`.
-
-#### API Route: `/api/chat`
-
-**Location**: `packages/portal/app/(main)/api/chat/route.ts`
+### DeploymentStrategy Interface
 
 ```typescript
-import { streamText, tool } from 'ai';
-import { anthropic } from '@ai-sdk/anthropic';
-import { createClient } from '@supabase/supabase-js';
-import { z } from 'zod';
+// packages/shared/src/modules/deploy-strategies/types.ts
 
-export async function POST(req: Request) {
-  // Extract user JWT from Authorization header or cookie
-  // Extract JWT from Authorization header or Supabase session cookie
-  const authHeader = req.headers.get('authorization');
-  const token = authHeader?.startsWith('Bearer ')
-    ? authHeader.slice(7)
-    : parseCookies(req.headers.get('cookie') ?? '').get('sb-access-token') ?? null;
-  // parseCookies: parses "key=val; key2=val2" into Map<string, string>
+export interface DeployFunctionRequest {
+  functionName: string;
+  entrypointPath: string;   // e.g., 'index.ts'
+  sourceFiles: Map<string, string>;  // relativePath → file content
+}
 
-  // Create Supabase client scoped to the user's session (RLS-enforced)
-  // Uses anon key + user JWT, NOT service role key
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { headers: { Authorization: `Bearer ${token}` } } }
-  );
+export interface DeployFunctionResult {
+  functionName: string;
+  success: boolean;
+  error?: string;
+  errorCode?: 'NETWORK_ERROR' | 'AUTH_ERROR' | 'DEPLOY_ERROR' | 'NOT_FOUND' | 'INVALID_SOURCE';
+}
 
-  const { messages } = await req.json();
+export interface DeploymentStrategy {
+  /** Deploy a single edge function */
+  deploy(request: DeployFunctionRequest): Promise<DeployFunctionResult>;
 
-  const result = streamText({
-    model: anthropic('claude-sonnet-4-20250514'),
-    system: `You are the Gatewaze assistant for ${brandConfig.organization_name}.
-             Help users discover events, register, find networking opportunities,
-             and navigate the platform. Be concise and helpful.
-             Today's date: ${new Date().toISOString().split('T')[0]}`,
-    messages,
-    tools: {
-      searchEvents: tool({
-        description: 'Search for events by topic, date, or location',
-        parameters: z.object({
-          query: z.string().describe('Search query text'),
-          startDate: z.string().optional().describe('ISO 8601 date filter start'),
-          endDate: z.string().optional().describe('ISO 8601 date filter end'),
-          location: z.string().optional().describe('City or venue name'),
-        }),
-        execute: async ({ query, startDate, endDate, location }) => {
-          // Reuses existing ai-search embedding logic
-          // Returns: Array<{ id, title, date, location, description, url }>
-        },
-      }),
-      getEventDetails: tool({
-        description: 'Get full details for a specific event by ID or slug',
-        parameters: z.object({
-          identifier: z.string().describe('Event ID (UUID) or URL slug'),
-        }),
-        execute: async ({ identifier }) => {
-          // Returns: { id, title, description, startDate, endDate, venue,
-          //   registrationStatus, speakerCount, ticketPrice, url }
-        },
-      }),
-      registerForEvent: tool({
-        description: 'Register the authenticated user for an event. Requires login.',
-        parameters: z.object({
-          eventId: z.string().uuid().describe('Event UUID'),
-        }),
-        execute: async ({ eventId }) => {
-          if (!token) {
-            return { error: 'Authentication required. Please log in to register.' };
-          }
-          // Uses the user-scoped Supabase client (RLS enforced)
-          // Pulls name/email from the authenticated user's profile
-          // Returns: { success: boolean, confirmationId?: string, error?: string }
-        },
-      }),
-      findNetworkingMatches: tool({
-        description: 'Find recommended networking connections at an event',
-        parameters: z.object({
-          eventId: z.string().uuid().describe('Event UUID'),
-        }),
-        execute: async ({ eventId }) => {
-          // Returns: Array<{ name, title, company, matchScore, reason }>
-        },
-      }),
-    },
-    maxSteps: 5,
-  });
+  /** Remove a previously deployed edge function */
+  remove(functionName: string): Promise<DeployFunctionResult>;
 
-  return result.toDataStreamResponse();
+  /** Signal the edge runtime to reload (if applicable) */
+  reload(): Promise<void>;
+
+  /** Sync secrets required by edge functions */
+  syncSecrets(secrets: Array<{ name: string; value: string }>): Promise<void>;
+
+  /** Check if this strategy can operate in the current environment */
+  isAvailable(): boolean;
 }
 ```
 
-**Key design decisions**:
-- Tools use the **user-scoped Supabase client** (anon key + user JWT), not the service role key. This ensures RLS policies are enforced automatically.
-- `registerForEvent` pulls user data from the authenticated profile rather than accepting name/email as parameters. This prevents registration impersonation.
-- Tool return types are documented inline so the LLM can format them for the user.
-
-#### Chat UI Component
-
-**Location**: `packages/portal/components/chat/`
-
-- `ChatWidget.tsx` — Floating chat button (bottom-right), expandable panel. Only rendered when `NEXT_PUBLIC_ENABLE_CHAT=true`.
-- `ChatMessages.tsx` — Message list with markdown rendering
-- `ChatInput.tsx` — Text input with send button
-- Uses `useChat()` hook from `ai/react`
-- Renders tool results inline (event cards, registration confirmations)
-- Respects brand theming (colors, fonts from brand config)
-- Lazy-loaded via `next/dynamic` — zero impact on initial page load
-- Persists conversation in `sessionStorage` (ephemeral, per-tab)
-- Available on all portal pages (rendered in root layout, gated by feature flag)
-
-### 3. OpenAPI 3.1 Specification
-
-**Location**: `packages/portal/app/(main)/.well-known/openapi.json/route.ts`
-
-A Next.js route handler that serves a generated OpenAPI 3.1 spec. The spec is defined as a TypeScript object and serialized to JSON.
-
-**Endpoints documented**:
-
-| Method | Path | Description | Auth | Request Body | Response (200) | Errors |
-|--------|------|-------------|------|-------------|----------------|--------|
-| GET | /api/health | Health check | None | — | `{ status: "ok" }` | 500 |
-| POST | /api/ai-search | Semantic event search | None | `SearchRequest` | `SearchResult[]` | 400, 500 |
-| POST | /api/chat | AI chat (streaming) | Optional Bearer | `ChatRequest` | SSE stream | 401, 429, 500, 503 |
-| GET | /api/events | List upcoming events | None | — | `EventSummary[]` | 500 |
-| GET | /api/events/{identifier} | Event details | None | — | `EventDetail` | 404, 500 |
-| GET | /api/calendars/{slug} | Calendar events | None | — | `CalendarEvent[]` | 404, 500 |
-| POST | /api/registrations | Register for an event | Bearer | `RegistrationRequest` | `Registration` | 401, 404, 409, 500 |
-| POST | /api/mcp | MCP Streamable HTTP | Optional Bearer | MCP JSON-RPC | MCP JSON-RPC | 401, 500 |
-
-**Schema definitions**:
+### DeploymentStrategyFactory
 
 ```typescript
-// SearchRequest
-{ query: string; location?: string; startDate?: string; endDate?: string }
+// packages/shared/src/modules/deploy-strategies/factory.ts
 
-// SearchResult
-{ id: string; type: "event" | "blog"; title: string; description: string;
-  date?: string; location?: string; score: number; url: string }
+export type DeploymentEnvironment = 'local-filesystem' | 'cloud-api' | 'k8s-shared-storage';
 
-// ChatRequest
-{ messages: Array<{ role: "user" | "assistant"; content: string }> }
+export function detectEnvironment(): DeploymentEnvironment {
+  if (process.env.SUPABASE_PROJECT_REF) {
+    if (!process.env.SUPABASE_ACCESS_TOKEN) {
+      console.error(
+        '[modules] SUPABASE_PROJECT_REF is set but SUPABASE_ACCESS_TOKEN is missing. ' +
+        'Cloud deployment will not work. Set SUPABASE_ACCESS_TOKEN in your environment.'
+      );
+      // Do NOT silently fall through to local-filesystem — that would mask a misconfiguration
+      throw new Error('SUPABASE_PROJECT_REF requires SUPABASE_ACCESS_TOKEN for cloud deployment');
+    }
+    return 'cloud-api';
+  }
+  if (process.env.EDGE_FUNCTIONS_SHARED_DIR) {
+    return 'k8s-shared-storage';
+  }
+  return 'local-filesystem';
+}
 
-// EventSummary
-{ id: string; title: string; slug: string; startDate: string;
-  endDate?: string; location?: string; imageUrl?: string }
-
-// EventDetail extends EventSummary
-{ description: string; venue?: Place; organizer: Organization;
-  registrationStatus: "open" | "closed" | "full" | "upcoming";
-  ticketPrice?: { amount: number; currency: string };
-  speakerCount: number; attendeeCount: number;
-  _links: HATEOASLinks }
-
-// Calendar
-{ slug: string; name: string; description?: string; eventCount: number; url: string }
-
-// CalendarEvent
-{ id: string; title: string; startDate: string; endDate?: string; url: string }
-
-// Place
-{ name: string; address?: string; latitude?: number; longitude?: number }
-
-// Organization
-{ name: string; url?: string }
-
-// HATEOASLinks
-{ self: Link; register?: Link; speakers?: Link; calendar?: Link }
-
-// Link
-{ href: string; method?: string }
-
-// RegistrationRequest
-{ eventId: string }
-// (User identity is derived from JWT, not passed in body)
-
-// Registration
-{ id: string; eventId: string; userId: string; status: "confirmed" | "pending";
-  createdAt: string }
-
-// ErrorResponse
-{ error: string; code?: string }
-```
-
-**Note**: The OpenAPI spec documents the **Express API endpoints** (prefixed with `/api/`), which are the programmatic interface for agents. The Next.js portal pages (`/events/[slug]`, `/calendars/[slug]`) are SSR-rendered HTML pages for human users and are not part of the OpenAPI spec. JSON-LD on those pages serves as the structured data layer for agents browsing via web tools.
-
-**Served with**: `Content-Type: application/json`, `Access-Control-Allow-Origin: *`, `Cache-Control: public, max-age=3600`.
-
-**Security schemes**: Bearer token (JWT) defined as optional `securitySchemes` entry.
-
-### 4. `llms.txt` Route
-
-**Location**: `packages/portal/app/(main)/llms.txt/route.ts`
-
-Returns a plain text file following the `llms.txt` standard:
-
-```
-# {organization_name} - Powered by Gatewaze
-
-> Event and community management platform
-
-## About
-{organization_name} uses Gatewaze, an open-source platform for managing events,
-communities, and member engagement.
-
-## Capabilities
-- Browse and search upcoming events (semantic search supported)
-- Register for events (requires authentication)
-- View event calendars and schedules
-- AI-powered event discovery and networking recommendations
-
-## API
-- OpenAPI spec: /.well-known/openapi.json
-- Semantic search: POST /api/ai-search (no auth required)
-- AI chat: POST /api/chat (streaming, optional auth)
-- MCP server: POST /api/mcp (Streamable HTTP, optional auth)
-
-## Authentication
-- Public endpoints: event listing, search, calendars, event details
-- Authenticated endpoints: registration, profile management, networking matches
-- Auth method: Supabase Auth — obtain JWT via POST /auth/callback
-- Pass JWT as: Authorization: Bearer <token>
-
-## Data Formats
-- All API responses are JSON
-- Structured data: Schema.org JSON-LD on event and profile pages
-- Event dates: ISO 8601
-```
-
-Dynamic — pulls organization name and enabled features from brand config.
-
-### 5. MCP Server
-
-**Location**: `packages/portal/app/(main)/api/mcp/route.ts`
-
-Uses `@modelcontextprotocol/sdk` with **Streamable HTTP transport** (the current recommended MCP transport, replacing deprecated SSE transport) over the Next.js API route.
-
-**Resources exposed**:
-
-| URI | Description | Returns |
-|-----|-------------|---------|
-| `events://upcoming` | List of upcoming events | `EventSummary[]` |
-| `events://{id}` | Single event details | `EventDetail` |
-| `calendars://list` | Available calendars | `Calendar[]` |
-| `calendars://{slug}` | Calendar events | `CalendarEvent[]` |
-
-**Tools exposed**:
-
-| Tool | Parameters | Returns | Auth Required |
-|------|-----------|---------|---------------|
-| `search_events` | `query: string, location?: string, startDate?: string, endDate?: string` | `SearchResult[]` | No |
-| `get_event` | `identifier: string` | `EventDetail` | No |
-| `register` | `eventId: string` | `{ success, confirmationId?, error? }` | Yes |
-| `list_calendars` | — | `Calendar[]` | No |
-
-**Prompts exposed**:
-- `discover_events` — "What events are coming up that match my interests?"
-- `plan_attendance` — "Help me plan which events to attend this month"
-
-**Authentication**: Agents pass JWT Bearer token in the initial HTTP request. The MCP server creates a user-scoped Supabase client (same pattern as `/api/chat`). Unauthenticated agents can use read-only tools and resources.
-
-### 6. HATEOAS-lite API Responses
-
-Modify Express API responses to include `_links` objects.
-
-**Implementation**: Express middleware (`hateoasMiddleware`) that intercepts `res.json()` calls, inspects the response body for known resource types, and injects `_links`.
-
-**Resource type identification**:
-- **Event**: response has `id` + `title` + `start_date` fields
-- **Registration**: response has `id` + `event_id` + `registrant_id` fields
-- **Calendar**: response has `slug` + `name` + `events` (array) fields
-- **Person**: response has `id` + `first_name` + `last_name` fields
-
-**Conditional link logic**:
-- `register` link: only included when `registrationStatus === "open"`
-- `speakers` link: only included when the event has speakers (speaker count > 0)
-- `calendar` link: only included when the event belongs to a calendar
-
-**Affected routes**: `/api/events`, `/api/events/:id`, `/api/registrations`, `/api/calendars`
-
-**Event response example**:
-```json
-{
-  "id": "evt_123",
-  "title": "Tech Meetup",
-  "start_date": "2026-04-15T18:00:00Z",
-  "registration_status": "open",
-  "_links": {
-    "self": { "href": "/api/events/evt_123" },
-    "register": { "href": "/api/registrations", "method": "POST" },
-    "speakers": { "href": "/api/events/evt_123/speakers" },
-    "calendar": { "href": "/api/calendars/tech-meetup" }
+export function createStrategy(env: DeploymentEnvironment): DeploymentStrategy {
+  switch (env) {
+    case 'cloud-api': return new CloudApiStrategy();
+    case 'k8s-shared-storage': return new SharedStorageStrategy();
+    default: return new LocalFilesystemStrategy();
   }
 }
 ```
 
-### 7. Semantic HTML Improvements
+### Source File Resolution
 
-Audit and update portal components to use:
-- `<article>` for event cards and blog posts
-- `<nav>` for navigation (already likely in place)
-- `<main>` for primary content area
-- `<time datetime="...">` for all date displays
-- `<address>` for venue information
-- `aria-label` on interactive elements lacking visible text
-- `role="search"` on search forms
+```typescript
+// packages/shared/src/modules/deploy-strategies/resolve-sources.ts
 
-No new components — modifications to existing ones.
+import { join } from 'path';
+import { readFileSync, existsSync } from 'fs';
 
-## API Design
+/**
+ * Given a function's entry point, resolve all source files needed for deployment.
+ * Scans imports to find _shared/ dependencies transitively.
+ */
+export function resolveSourceFiles(
+  functionDir: string,
+  sharedDir: string,
+): Map<string, string> {
+  const files = new Map<string, string>();
+  const visited = new Set<string>();
 
-### POST `/api/chat`
+  const entryContent = readFileSync(join(functionDir, 'index.ts'), 'utf-8');
+  files.set('index.ts', entryContent);
 
-**Request**:
-```json
-{
-  "messages": [
-    { "role": "user", "content": "Find me AI events in London next month" }
-  ]
+  // Resolve _shared/ imports from the entry point
+  resolveSharedImports(entryContent, sharedDir, files, visited);
+
+  return files;
+}
+
+function resolveSharedImports(
+  content: string,
+  sharedDir: string,
+  files: Map<string, string>,
+  visited: Set<string>,
+): void {
+  // Match imports from ../_shared/ (function → shared) or ./ (shared → shared)
+  const sharedImportRegex = /from\s+['"](?:\.\.?\/_shared\/|\.\/)([\w.-]+\.ts)['"]/g;
+  let match;
+
+  while ((match = sharedImportRegex.exec(content)) !== null) {
+    const fileName = match[1];
+    if (visited.has(fileName)) continue;
+    visited.add(fileName);
+
+    const filePath = join(sharedDir, fileName);
+    if (existsSync(filePath)) {
+      const sharedContent = readFileSync(filePath, 'utf-8');
+      files.set(`_shared/${fileName}`, sharedContent);
+      // Recurse: shared files may import other shared files via ./
+      resolveSharedImports(sharedContent, sharedDir, files, visited);
+    }
+  }
 }
 ```
 
-**Headers**:
-- `Content-Type: application/json` (required)
-- `Authorization: Bearer <jwt>` (optional — enables registration and personalized results)
+### Updated deployEdgeFunctions
 
-**Response**: `Content-Type: text/event-stream`. Uses the Vercel AI SDK Data Stream Protocol. Each SSE message is prefixed with a type code:
+The existing function is refactored to use strategies. Functions within a module are deployed concurrently for performance.
 
-| Code | Type | Data Format | Description |
-|------|------|-------------|-------------|
-| `0:` | Text | `"string"` | Incremental text content from the LLM |
-| `9:` | Tool Call | `{ toolCallId, toolName, args }` | LLM invokes a tool (e.g., `searchEvents`) |
-| `a:` | Tool Result | `{ toolCallId, result }` | Tool execution result returned to LLM |
-| `e:` | Error | `{ error: string }` | Tool execution error (user-friendly message) |
-| `d:` | Finish | `{ finishReason, usage: { promptTokens, completionTokens } }` | Stream complete |
+```typescript
+export async function deployEdgeFunctions(opts: DeployEdgeFunctionsOptions): Promise<DeployResult> {
+  const functionsDir = resolve(opts.projectRoot, 'supabase/functions');
+  const result: DeployResult = { copied: [], deployed: [], errors: [] };
 
-Tool execution errors surface as `e:` events in the stream with user-friendly messages (e.g., `"Authentication required to register"`), never stack traces. The `useChat()` hook on the client handles all parsing automatically.
+  const env = detectEnvironment();
+  const strategy = createStrategy(env);
 
-For agents consuming this API directly (not via `useChat()`), see the [Vercel AI SDK Data Stream Protocol documentation](https://sdk.vercel.ai/docs/ai-sdk-ui/stream-protocol#data-stream-protocol).
+  for (const mod of opts.modules) {
+    const edgeFunctions = mod.config.edgeFunctions;
+    if (!edgeFunctions?.length) continue;
 
-**Error responses**:
-- `401 Unauthorized` — invalid JWT token
-- `429 Too Many Requests` — rate limit exceeded, includes `Retry-After` header
-- `500 Internal Server Error` — `{ error: "Internal server error" }` (no stack traces)
-- `503 Service Unavailable` — chat feature disabled (no `ANTHROPIC_API_KEY`)
+    const moduleDir = mod.resolvedDir;
+    if (!moduleDir) {
+      for (const fnName of edgeFunctions) {
+        result.errors.push({
+          module: mod.config.id,
+          functionName: fnName,
+          error: `Cannot resolve module directory for "${mod.config.id}"`,
+        });
+      }
+      continue;
+    }
 
-**Rate limiting**: 20 requests/minute per IP (unauthenticated), 60/minute per user ID (authenticated). Returns `429` with `Retry-After` header. Implemented via Next.js middleware using an in-memory sliding window counter for single-instance deployments. For horizontally scaled deployments, swap to a Redis-backed counter (e.g., `@upstash/ratelimit`) — the middleware interface remains the same.
+    const moduleFunctionsDir = join(moduleDir, 'functions');
+    const moduleSharedDir = join(moduleFunctionsDir, '_shared');
 
-### GET `/.well-known/openapi.json`
+    // For local/k8s: copy _shared files to platform _shared
+    if (env !== 'cloud-api') {
+      const targetSharedDir = env === 'k8s-shared-storage'
+        ? join(process.env.EDGE_FUNCTIONS_SHARED_DIR!, '_shared')
+        : join(functionsDir, '_shared');
 
-**Response**: OpenAPI 3.1 JSON document
+      if (existsSync(moduleSharedDir)) {
+        mkdirSync(targetSharedDir, { recursive: true });
+        cpSync(moduleSharedDir, targetSharedDir, { recursive: true });
+      }
+    }
 
-**Cache**: `Cache-Control: public, max-age=3600`
+    // Deploy functions concurrently
+    const deployPromises = edgeFunctions.map(async (fnName) => {
+      const srcDir = join(moduleFunctionsDir, fnName);
+      if (!existsSync(srcDir)) {
+        result.errors.push({
+          module: mod.config.id,
+          functionName: fnName,
+          error: `Source directory not found: ${srcDir}`,
+        });
+        return;
+      }
 
-**CORS**: `Access-Control-Allow-Origin: *`
+      // For local/k8s: copy to disk
+      if (env !== 'cloud-api') {
+        const destDir = env === 'k8s-shared-storage'
+          ? join(process.env.EDGE_FUNCTIONS_SHARED_DIR!, fnName)
+          : join(functionsDir, fnName);
+        mkdirSync(destDir, { recursive: true });
+        cpSync(srcDir, destDir, { recursive: true });
+        result.copied.push({ module: mod.config.id, functionName: fnName });
+      }
 
-### GET `/llms.txt`
+      // Deploy via strategy (cloud API or no-op for local/k8s since files are on disk)
+      if (env === 'cloud-api' && strategy.isAvailable()) {
+        const sourceFiles = resolveSourceFiles(srcDir, moduleSharedDir);
+        const deployResult = await strategy.deploy({
+          functionName: fnName,
+          entrypointPath: 'index.ts',
+          sourceFiles,
+        });
 
-**Response**: `text/plain; charset=utf-8`
+        if (deployResult.success) {
+          result.deployed.push({ module: mod.config.id, functionName: fnName });
+        } else {
+          result.errors.push({
+            module: mod.config.id,
+            functionName: fnName,
+            error: deployResult.error!,
+          });
+        }
+      }
+    });
 
-**Cache**: `Cache-Control: public, max-age=3600`
+    await Promise.all(deployPromises);
 
-**CORS**: `Access-Control-Allow-Origin: *`
+    // Sync module-specific secrets
+    if (mod.config.configSchema) {
+      const secrets = resolveModuleSecrets(mod);
+      if (secrets.length > 0) {
+        await strategy.syncSecrets(secrets);
+      }
+    }
+  }
 
-### POST `/api/mcp`
+  // Regenerate platform-main for local/k8s
+  if (env !== 'cloud-api' && result.copied.length > 0) {
+    const targetDir = env === 'k8s-shared-storage'
+      ? process.env.EDGE_FUNCTIONS_SHARED_DIR!
+      : functionsDir;
+    regeneratePlatformMain(targetDir, result.copied.map(r => r.functionName));
+  }
 
-**Transport**: Streamable HTTP (MCP specification 2025-03-26)
+  // Reload edge runtime
+  await strategy.reload();
 
-**Request**: MCP JSON-RPC messages
+  return result;
+}
+```
 
-**Response**: MCP JSON-RPC responses (may include SSE streaming for long-running operations)
+## Edge Function Entry Point Convention
 
-**Authentication**: Optional `Authorization: Bearer <jwt>` header
+All edge functions must support both standalone execution (Supabase Cloud) and import by `platform-main` (self-hosted):
 
-**CORS**: Restricted to configured domains via `ALLOWED_MCP_ORIGINS` env var.
+```typescript
+async function handler(req: Request) {
+  // ... function logic ...
+}
 
-## Data Models
+export default handler
+if (import.meta.main) Deno.serve(handler)
+```
 
-No new database tables required. All features build on existing Supabase schema:
-- `events` — event data for JSON-LD, search, chat tools
-- `registrations` — registration for chat tools
-- `people` — profiles for JSON-LD, matching
-- `brand_config` — organization data for JSON-LD, llms.txt
+- `export default handler` — allows `platform-main` to import and route to it
+- `if (import.meta.main) Deno.serve(handler)` — starts the server only when run standalone on Supabase Cloud
 
-Chat conversations are ephemeral (stored in browser `sessionStorage`). No `chat_sessions` database table is needed for the initial implementation. If persistent chat history is needed in the future, it can be added as a follow-up.
+## Environment Variables
 
-## Infrastructure Requirements
+| Variable | Required For | Description |
+|---|---|---|
+| `SUPABASE_PROJECT_REF` | Cloud API strategy | Supabase project reference (e.g., `zlzfpgczmvhvxfscqnwi`) |
+| `SUPABASE_ACCESS_TOKEN` | Cloud API strategy | Supabase Management API token (e.g., `sbp_...`) |
+| `EDGE_FUNCTIONS_CONTAINER` | Local filesystem strategy | Docker container name for edge runtime restart |
+| `EDGE_FUNCTIONS_SHARED_DIR` | K8s shared storage strategy | Path to shared PVC mount for edge functions |
+| `EDGE_RUNTIME_DEPLOYMENT` | K8s shared storage strategy | Name of the edge runtime K8s Deployment (for rollout restart) |
+| `EDGE_RUNTIME_NAMESPACE` | K8s shared storage strategy | Namespace of the edge runtime Deployment (defaults to `default`) |
 
-**New dependencies** (portal `package.json`):
-- `ai` (Vercel AI SDK) — ~50KB
-- `@ai-sdk/anthropic` — Anthropic provider
-- `@ai-sdk/openai` — OpenAI provider (for embeddings in chat tools)
-- `@modelcontextprotocol/sdk` — MCP server
-- `zod` — already in use for validation
+## Edge Function Secrets Management
 
-**Environment variables** (new):
-- `ANTHROPIC_API_KEY` — for chat endpoint (Claude). If unset, chat endpoint returns 503 and widget is hidden.
-- `NEXT_PUBLIC_ENABLE_CHAT` — feature flag for chat widget rendering (`true`/`false`)
-- `ALLOWED_MCP_ORIGINS` — comma-separated list of allowed origins for MCP CORS (defaults to same-origin)
-- `ALLOWED_CHAT_ORIGINS` — comma-separated list of allowed origins for chat CORS (defaults to same-origin)
+Edge functions require environment-specific secrets (API keys, credentials) that are not bundled with the source code.
 
-**No new infrastructure** — runs within existing Next.js deployment.
+### Secret Sources
 
-## Security Considerations
+Modules declare required secrets in their `configSchema`:
 
-1. **Chat endpoint abuse**: Rate limiting via in-memory sliding window (20/min unauthenticated, 60/min authenticated). All tool parameters validated via Zod schemas before execution.
-2. **Tool execution context**: Tools use a Supabase client initialized with the **anon key + user's JWT** (not service role key). RLS policies are enforced automatically. If no JWT is present, the client operates as anonymous — write operations will be denied by RLS.
-3. **Registration impersonation prevention**: The `registerForEvent` tool does not accept name/email as parameters. It pulls user identity from the authenticated JWT, preventing one user from registering as another.
-4. **MCP server**: Read-only resources and tools are available without authentication. Write tools (`register`) require a valid JWT Bearer token. The MCP server validates the JWT with Supabase before executing write operations.
-5. **Prompt injection**: System prompt is server-side only, not exposed to the client. User messages are passed to the LLM but never interpolated into database queries, API calls, or system instructions. Tool parameters are type-validated via Zod before use.
-6. **Data exposure**: JSON-LD only includes publicly visible event data. Draft events, internal notes, and private profile fields are excluded at the query level (Supabase views/RLS).
-7. **CORS**:
-   - `*` origin: `/.well-known/openapi.json`, `/llms.txt` (public, read-only, no sensitive data)
-   - `ALLOWED_CHAT_ORIGINS`: `/api/chat` (configurable per deployment, defaults to same-origin)
-   - `ALLOWED_MCP_ORIGINS`: `/api/mcp` (configurable per deployment)
+```typescript
+configSchema: {
+  LUMA_API_KEY: { key: 'LUMA_API_KEY', type: 'secret', required: true },
+  LUMA_WEBHOOK_SECRET: { key: 'LUMA_WEBHOOK_SECRET', type: 'secret', required: false },
+}
+```
+
+Platform-level secrets (shared across all functions) are defined in the environment:
+
+```
+SENDGRID_API_KEY, CUSTOMERIO_SITE_ID, CUSTOMERIO_API_KEY, OPENAI_API_KEY, etc.
+```
+
+### Secret Resolution
+
+```typescript
+function resolveModuleSecrets(mod: LoadedModule): Array<{ name: string; value: string }> {
+  const secrets: Array<{ name: string; value: string }> = [];
+  const configSchema = mod.config.configSchema;
+  if (!configSchema) return secrets;
+
+  for (const [, schema] of Object.entries(configSchema)) {
+    if (schema.type !== 'secret') continue;
+    // Module-specific secrets from DB config take priority over env vars
+    const moduleConfigValue = mod.moduleConfig?.[schema.key] as string | undefined;
+    const envValue = process.env[schema.key];
+    const value = moduleConfigValue || envValue;
+    if (value) {
+      secrets.push({ name: schema.key, value });
+    }
+  }
+
+  return secrets;
+}
+```
+
+### Per-Strategy Secret Handling
+
+**Local Filesystem**: Secrets are environment variables on the edge runtime container (set in `docker-compose.yml`). No sync action needed. Module-specific secrets configured via admin UI are stored in `installed_modules.config` and must be added to the compose environment manually or via `make deploy-functions`.
+
+**Cloud API**: Synced via `POST https://api.supabase.com/v1/projects/{ref}/secrets` with `Authorization: Bearer {SUPABASE_ACCESS_TOKEN}`. The API accepts an array of `{ name, value }` objects and is idempotent (creates or updates).
+
+**K8s Shared Storage**: Secrets are managed via Kubernetes Secrets mounted on the edge runtime pod. The API pod updates the Secret via the Kubernetes API (`PATCH /api/v1/namespaces/{ns}/secrets/{name}`). Requires RBAC permission:
+
+```yaml
+- apiGroups: [""]
+  resources: ["secrets"]
+  resourceNames: ["gatewaze-edge-function-secrets"]
+  verbs: ["get", "patch"]
+```
+
+### Secret Lifecycle
+
+- **On module enable**: Module-specific secrets are synced to the deployment target
+- **On module config update**: Changed secrets are re-synced
+- **On module disable**: Secrets are NOT removed (they may be referenced by other modules or shared platform functions). Orphaned secrets are low-risk since they are just unused env vars.
 
 ## Error Handling Strategy
 
-| Component | Error Type | Handling |
-|-----------|-----------|----------|
-| Chat | Tool execution failure | Return user-friendly message in stream (e.g., "I couldn't find that event"). Log error server-side. |
-| Chat | Anthropic API down | Return 503 with `{ error: "AI service temporarily unavailable" }` |
-| Chat | Rate limit exceeded | Return 429 with `Retry-After` header |
-| Chat | Invalid JWT | Return 401; tools requiring auth return inline error message |
-| MCP | Invalid JSON-RPC | Standard MCP error response with code `-32600` |
-| MCP | Tool execution failure | MCP error response with descriptive message |
-| MCP | Auth required for write | MCP error response with code `-32001` (custom: auth required) |
-| JSON-LD | Incomplete data | Omit JSON-LD block entirely (no invalid markup) |
-| OpenAPI | Server error | Route handler catches errors and returns last successfully generated response from module-level cache. CDN/browser caches via `Cache-Control: public, max-age=3600`. |
-| llms.txt | Server error | Same caching strategy as OpenAPI |
-| HATEOAS | Middleware error | Pass through original response without `_links` (fail open, log error) |
+### Error Codes
 
-## Performance Requirements
+| Code | Meaning |
+|---|---|
+| `NETWORK_ERROR` | Could not reach the deployment target (DNS, timeout, connection refused) |
+| `AUTH_ERROR` | Invalid or expired `SUPABASE_ACCESS_TOKEN` (HTTP 401/403) |
+| `DEPLOY_ERROR` | Function deployment failed (invalid source, bundling error, quota exceeded) |
+| `NOT_FOUND` | Function or project not found (HTTP 404) |
+| `INVALID_SOURCE` | Source file resolution failed (missing entry point or shared dependency) |
+| `RELOAD_ERROR` | Edge runtime restart/rollout failed |
 
-- **JSON-LD**: Zero client-side cost (SSR `<script>` tags). No measurable impact on page load.
-- **Chat**: Time to first token < 1s (p95). Full response < 10s for single-tool queries, < 30s for multi-tool chains (p95). Measured via server-side logging.
-- **OpenAPI/llms.txt**: < 50ms response time (served from ISR cache after first request).
-- **MCP**: Connection establishment < 500ms. Tool execution < 5s for read operations, < 10s for write operations (p95). Bounded by Supabase query performance.
-- **HATEOAS middleware**: < 2ms overhead per response (measured via middleware timing).
-- **Rate limiter**: < 1ms per check (in-memory, no external calls).
+### Scenarios
+
+1. **Migration succeeds, deployment fails**: Module status is set to `enabled`. The API response includes `edgeFunctionErrors: [{ functionName, error, errorCode }]`. The admin UI shows a warning banner: "Module enabled but some edge functions could not be deployed."
+
+2. **Partial deployment failure**: Successfully deployed functions are live. Failed functions are reported in `edgeFunctionErrors`. The module is still marked `enabled`.
+
+3. **Network timeout**: Cloud API calls have a 30-second timeout per function. On timeout, the error is reported with `errorCode: 'NETWORK_ERROR'`.
+
+4. **Missing credentials**: If `SUPABASE_PROJECT_REF` is set but `SUPABASE_ACCESS_TOKEN` is not, `detectEnvironment()` throws an error rather than silently falling back to local-filesystem. This prevents misconfigured cloud deployments from appearing to succeed.
+
+5. **Reload failure**: If `strategy.reload()` fails (e.g., Docker socket unavailable, K8s API unreachable), the error is logged but does not prevent the module from being enabled. Functions will become available on next edge runtime restart.
 
 ## Observability
 
-- **Chat**:
-  - Log: tool name, parameters (redacted PII), execution duration, success/failure per invocation
-  - Log: total token usage (prompt + completion) per request
-  - Metric: requests per minute, error rate, average response time
-  - Alert: error rate > 10% over 5-minute window, or Anthropic API latency > 5s
-- **MCP**:
-  - Log: tool/resource access with client identifier (IP or agent name from User-Agent)
-  - Metric: requests per minute by tool/resource
-- **Rate limiting**:
-  - Log: rate limit hits with IP/user ID
-  - Metric: rate limit trigger frequency
-- Existing Supabase analytics cover database query performance and auth events.
+### Logging
+
+All deployment operations are logged with structured context:
+
+```
+[modules] Deploying 4 edge function(s) for "luma-integration" via cloud-api strategy
+[modules] Deployed integrations-luma-process-csv (1.2s)
+[modules] Deployed integrations-luma-webhook (0.9s)
+[modules] Failed integrations-luma-issue-discount: AUTH_ERROR — HTTP 401
+[modules] Synced 2 secret(s) for "luma-integration"
+[modules] Deployment complete: 3 succeeded, 1 failed
+```
+
+### Metrics
+
+Track via application metrics (e.g., Prometheus counters/histograms):
+
+| Metric | Type | Labels |
+|---|---|---|
+| `gatewaze_edge_function_deploy_total` | Counter | `strategy`, `module`, `status` (success/error) |
+| `gatewaze_edge_function_deploy_duration_seconds` | Histogram | `strategy`, `module` |
+| `gatewaze_edge_function_remove_total` | Counter | `strategy`, `module`, `status` |
+| `gatewaze_module_secrets_sync_total` | Counter | `strategy`, `module`, `status` |
+
+### Alerting
+
+- Alert if `gatewaze_edge_function_deploy_total{status="error"}` exceeds threshold
+- Alert if deployment duration exceeds 2 minutes for any single function
+
+## Security Considerations
+
+- `SUPABASE_ACCESS_TOKEN` grants full project management access. It must be stored as a Kubernetes Secret, Docker secret, or env file — never in source control or client-side code.
+- The Management API token is only used server-side in the API container. It is never exposed to the admin frontend.
+- Edge functions deployed via the Management API inherit the project's JWT verification settings. The spec sets `verify_jwt: false` because the API proxy route uses the service role key. If direct browser access is needed, `verify_jwt` should be set per-function.
+- `_shared/` files may contain business logic but should never contain secrets or credentials. Secrets are passed via environment variables, not source code.
+- In K8s, the API pod's ServiceAccount has minimal RBAC: only `patch` on the specific edge runtime Deployment and Secret resources.
+
+## Performance Requirements
+
+- Deploying a single edge function to Supabase Cloud: < 30 seconds
+- Deploying all functions for a module concurrently (typically 2-5): < 60 seconds
+- Local filesystem deployment (copy + restart): < 5 seconds
+- Source file resolution (import scanning): < 100ms per function
+
+Functions within a module are deployed concurrently via `Promise.all` to minimize total deployment time.
 
 ## Testing Strategy
 
-1. **JSON-LD**: Unit tests validating output against Schema.org Event/Organization/Person specs. Test graceful omission when required fields are missing. Validate with Google Rich Results Test (manual, pre-release).
-2. **Chat**: Integration tests for each tool with mocked Supabase client. Test: successful execution, auth-required rejection, invalid parameters, Supabase query errors. Test rate limiting behavior.
-3. **MCP**: Protocol compliance tests using MCP SDK test client. Test: resource listing, tool execution, auth enforcement, error responses.
-4. **OpenAPI**: Validate spec with `@apidevtools/swagger-parser`. Contract tests: verify actual API responses match declared schemas.
-5. **llms.txt**: Snapshot test for content format. Verify dynamic brand config substitution.
-6. **HATEOAS**: Unit tests for middleware: verify `_links` injection per resource type, conditional link inclusion (registration open/closed), and pass-through on unknown response shapes.
-7. **E2E**: Playwright tests simulating: user opens chat → searches events → views details → registers. Verify the full flow works with real (or mock) AI responses.
-
-## Deployment Strategy
-
-All changes deploy within the existing Next.js portal deployment pipeline:
-
-1. **Phase 1 deploy**: Add dependencies, implement JSON-LD components, `llms.txt` route, OpenAPI route, semantic HTML changes. No feature flag needed — all read-only, zero risk.
-2. **Phase 2 deploy**: Chat endpoint + UI widget behind `NEXT_PUBLIC_ENABLE_CHAT=false`. Set `ANTHROPIC_API_KEY` in environment. Test internally, then flip flag to `true`.
-3. **Phase 3 deploy**: MCP server endpoint. Set `ALLOWED_MCP_ORIGINS`. HATEOAS middleware on Express API.
-
-**Rollback**: Each phase is independently reversible:
-- Phase 1: Remove components from page files (JSON-LD has no side effects)
-- Phase 2: Set `NEXT_PUBLIC_ENABLE_CHAT=false` (instant, no redeploy needed for widget; endpoint still exists but returns 503)
-- Phase 3: Remove MCP route handler; disable HATEOAS middleware
-
-No database migration required.
+1. **Unit tests**: `resolveSourceFiles()` correctly finds transitive `_shared/` imports, including shared-to-shared imports via `./`
+2. **Unit tests**: `detectEnvironment()` returns correct strategy for each env var combination, including edge cases (conflicting vars, missing vars)
+3. **Unit tests**: `resolveModuleSecrets()` correctly prioritizes module config over env vars
+4. **Integration tests**: `CloudApiStrategy.deploy()` against a test Supabase project — verify function is callable after deploy
+5. **Integration tests**: `CloudApiStrategy.remove()` — verify function returns 404 after removal
+6. **Integration tests**: `LocalFilesystemStrategy` copies files and regenerates `platform-main` correctly
+7. **E2E tests**: Enable a module via the admin UI and verify the edge function responds in both cloud and self-hosted modes
+8. **Performance tests**: Verify concurrent deployment of 5 functions completes within the 60-second SLA
+9. **Misconfiguration tests**: Verify `detectEnvironment()` throws when `SUPABASE_PROJECT_REF` is set without `SUPABASE_ACCESS_TOKEN`
+10. **Security tests**: Verify `SUPABASE_ACCESS_TOKEN` is never logged, included in error messages, or exposed in API responses
 
 ## Migration Plan
 
-1. **Phase 1 — Passive Agent Support** (no user-facing changes):
-   - JSON-LD structured data on all event pages
-   - `llms.txt` route
-   - OpenAPI spec at `/.well-known/openapi.json`
-   - Semantic HTML audit and updates
+1. **Phase 1**: Refactor `deployEdgeFunctions` to use the strategy pattern. Implement `LocalFilesystemStrategy` (existing code) and `CloudApiStrategy` (replaces CLI shell-out). Remove Supabase CLI from API Dockerfile.dev.
+2. **Phase 2**: Implement `SharedStorageStrategy` for Kubernetes self-hosted. Add K8s manifests and RBAC configuration.
+3. **Phase 3**: Add function removal on module disable. Implement `remove()` for all strategies.
+4. **Phase 4**: Add observability (structured logging, metrics).
 
-2. **Phase 2 — Active Agent Interfaces**:
-   - Vercel AI SDK chat endpoint + UI widget
-   - HATEOAS `_links` in Express API responses
-   - Rate limiting middleware
+## Open Questions / Risks
 
-3. **Phase 3 — Native Agent Protocol**:
-   - MCP server deployment (Streamable HTTP transport)
-   - Agent-specific documentation and examples
-   - Update `llms.txt` with MCP connection instructions
-
-## Decisions (Resolved)
-
-1. **Chat availability**: Available on all portal pages via root layout, lazy-loaded. Controlled by `NEXT_PUBLIC_ENABLE_CHAT` feature flag.
-2. **MCP transport**: Streamable HTTP only (current MCP recommended transport). No stdio — the MCP server runs as a web endpoint, not a local process.
-3. **Chat persistence**: Ephemeral (`sessionStorage`). No database table. Can be revisited based on user feedback.
-4. **Cost management**: Token usage logging per request enables cost monitoring. Cost budget is an operational concern — set spend alerts in the Anthropic dashboard, not enforced in code.
+1. **Supabase Management API bundling**: The biggest implementation risk. The Cloud API strategy assumes the Management API accepts multiple source files and bundles them server-side. If it requires a pre-bundled file, Phase 1 must include an `esbuild` step. This will be validated as the first task of Phase 1.
+2. **K8s edge runtime image command**: The `supabase/edge-runtime` Docker image may use a custom entrypoint (`start --main-service`) rather than raw `deno run`. The exact command must be verified against the image version used.
+3. **Platform-level secrets in K8s**: When a module requires a platform-level secret (e.g., `SENDGRID_API_KEY`) that isn't already in the K8s Secret, the admin UI should surface which secrets are missing rather than failing silently at function invocation time.
