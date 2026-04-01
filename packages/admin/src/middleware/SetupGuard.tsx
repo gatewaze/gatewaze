@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Outlet } from 'react-router';
+import { SplashScreen } from '@/components/template/SplashScreen';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const CACHE_KEY = 'gatewaze-setup-complete';
 
 export function SetupGuard() {
+  // Use cache only to avoid the loading flash — still always verify with server
   const cached = sessionStorage.getItem(CACHE_KEY) === 'true';
   const [status, setStatus] = useState<'loading' | 'needs_setup' | 'ready'>(
     cached ? 'ready' : 'loading',
@@ -48,11 +50,7 @@ export function SetupGuard() {
   }, []);
 
   if (status === 'loading') {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-      </div>
-    );
+    return <SplashScreen />;
   }
 
   if (status === 'needs_setup') {

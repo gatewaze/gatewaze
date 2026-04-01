@@ -115,11 +115,8 @@ else
   COMPOSE_FILES="-f docker/docker-compose.yml -f docker/docker-compose.dev.yml"
 fi
 
-# Ensure shared Traefik is running (self-hosted only; cloud compose has its own)
+# Ensure shared Traefik is running (single instance for all brands)
 ensure_traefik() {
-  if [ "$SUPABASE_MODE" = "cloud" ]; then
-    return
-  fi
   if ! docker ps --filter "name=gatewaze-traefik" --format '{{.Names}}' | grep -q gatewaze-traefik; then
     echo "Starting shared Traefik reverse proxy..."
     docker compose -f docker/docker-compose.traefik.yml up -d

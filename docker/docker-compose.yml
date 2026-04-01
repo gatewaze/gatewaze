@@ -221,6 +221,7 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       GW_APP_NAME: ${GW_APP_NAME:-}
+      CI_MODE: "${CI_MODE:-false}"
     volumes:
       - ../supabase/functions:/home/deno/functions:ro
     command:

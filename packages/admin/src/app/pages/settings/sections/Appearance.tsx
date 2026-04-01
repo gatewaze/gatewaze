@@ -28,6 +28,7 @@ const primaryColors: PrimaryColor[] = [
   "orange",
   "amber",
   "green",
+  "cyan",
   "teal",
   "blue",
   "indigo",

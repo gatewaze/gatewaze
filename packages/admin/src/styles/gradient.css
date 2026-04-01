@@ -11,7 +11,7 @@
 .gradient-blob {
   position: absolute;
   border-radius: 50%;
-  background: var(--blob-color, #20dd20);
+  background: var(--blob-color, #00a2c7);
   opacity: 0.12;
   filter: blur(80px);
   will-change: transform;

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { getSupabase } from '@/lib/supabase';
 
-const DEFAULT_PRIMARY = '#20dd20';
+const DEFAULT_PRIMARY = '#00a2c7';
 
 export default function GradientBackground() {
   const [color, setColor] = useState(DEFAULT_PRIMARY);

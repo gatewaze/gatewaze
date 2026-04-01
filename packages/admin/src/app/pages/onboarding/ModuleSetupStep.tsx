@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router";
 import { CheckCircle2, Loader2, AlertCircle, Package } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 import { ModuleService } from "@/utils/moduleService";
 import { useModulesContext } from "@/app/contexts/modules/context";
-import GradientBackground from "@/components/shared/GradientBackground";
+import OnboardingWizardLayout from "./OnboardingWizardLayout";
 
 type SetupStatus = "running" | "done" | "error";
 
@@ -23,8 +24,6 @@ export default function ModuleSetupStep() {
       try {
         setStatusText("Verifying module configuration...");
 
-        // Modules were already reconciled and migrations applied by /select
-        // in the previous step. Fetch current state to confirm.
         const { modules: installed, error: fetchErr } = await ModuleService.getInstalledModules();
 
         if (fetchErr) {
@@ -41,10 +40,8 @@ export default function ModuleSetupStep() {
         );
         setStatus("done");
 
-        // Refresh module context so nav items appear immediately
         await refreshModulesContext();
 
-        // Update onboarding step via API (service_role) to bypass RLS
         const apiUrl = import.meta.env.VITE_API_URL ?? "";
         await fetch(`${apiUrl}/api/modules/settings`, {
           method: "POST",
@@ -52,7 +49,6 @@ export default function ModuleSetupStep() {
           body: JSON.stringify({ settings: [{ key: "onboarding_step", value: "modules_setup" }] }),
         });
 
-        // Short delay so user sees the success state
         setTimeout(() => {
           navigate("/onboarding/theme", { replace: true });
         }, 1500);
@@ -83,71 +79,54 @@ export default function ModuleSetupStep() {
   };
 
   return (
-    <>
-      <GradientBackground />
-      <div className="flex min-h-[100svh] items-center justify-center p-4">
-        <div className="w-full max-w-md text-center space-y-6">
-          <div className="flex justify-center">
-            {status === "running" && (
-              <div className="relative">
-                <Package className="h-12 w-12 text-[var(--accent-9)]" />
-                <Loader2 className="absolute -bottom-1 -right-1 h-5 w-5 animate-spin text-[var(--accent-9)]" />
-              </div>
-            )}
-            {status === "done" && (
-              <CheckCircle2 className="h-12 w-12 text-green-500" />
-            )}
-            {status === "error" && (
-              <AlertCircle className="h-12 w-12 text-red-500" />
-            )}
-          </div>
-
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">
-              {status === "running" && "Setting up modules"}
-              {status === "done" && "Modules ready"}
-              {status === "error" && "Setup failed"}
-            </h1>
-            <p className="mt-2 text-sm text-[var(--gray-a9)]">{statusText}</p>
-          </div>
-
+    <OnboardingWizardLayout currentStep={3} hideFooter>
+      <div className="flex h-full flex-col items-center justify-center text-center space-y-6">
+        <div className="flex justify-center">
           {status === "running" && (
-            <div className="flex justify-center">
-              <div className="h-1.5 w-48 rounded-full bg-[var(--gray-a3)] overflow-hidden">
-                <div className="h-full w-full rounded-full bg-[var(--accent-9)] animate-pulse" />
-              </div>
+            <div className="relative">
+              <Package className="h-12 w-12 text-[var(--accent-9)]" />
+              <Loader2 className="absolute -bottom-1 -right-1 h-5 w-5 animate-spin text-[var(--accent-9)]" />
             </div>
           )}
-
+          {status === "done" && (
+            <CheckCircle2 className="h-12 w-12 text-[var(--accent-9)]" />
+          )}
           {status === "error" && (
-            <div className="space-y-3">
-              <p className="text-sm text-red-400">{errorMessage}</p>
-              <div className="flex justify-center gap-3">
-                <button
-                  onClick={handleRetry}
-                  className="px-4 py-2 text-sm font-medium rounded-md bg-[var(--accent-9)] text-white hover:bg-[var(--accent-10)]"
-                >
-                  Retry
-                </button>
-                <button
-                  onClick={handleSkip}
-                  className="px-4 py-2 text-sm font-medium rounded-md bg-[var(--gray-a3)] text-[var(--gray-11)] hover:bg-[var(--gray-a4)]"
-                >
-                  Skip for now
-                </button>
-              </div>
-            </div>
+            <AlertCircle className="h-12 w-12 text-red-500" />
           )}
-
-          <div className="flex justify-center">
-            <img
-              src="/theme/gatewaze/gatewaze-poweredby-white.svg"
-              alt="Powered by Gatewaze"
-              className="h-6 opacity-50"
-            />
-          </div>
         </div>
+
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">
+            {status === "running" && "Setting up modules"}
+            {status === "done" && "Modules ready"}
+            {status === "error" && "Setup failed"}
+          </h2>
+          <p className="mt-2 text-sm text-[var(--gray-a9)]">{statusText}</p>
+        </div>
+
+        {status === "running" && (
+          <div className="flex justify-center">
+            <div className="h-1.5 w-48 rounded-full bg-[var(--gray-a3)] overflow-hidden">
+              <div className="h-full w-full rounded-full bg-[var(--accent-9)] animate-pulse" />
+            </div>
+          </div>
+        )}
+
+        {status === "error" && (
+          <div className="space-y-3">
+            <p className="text-sm text-red-500">{errorMessage}</p>
+            <div className="flex justify-center gap-3">
+              <Button onClick={handleRetry} size="2">
+                Retry
+              </Button>
+              <Button onClick={handleSkip} variant="ghost" size="2">
+                Skip for now
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
-    </>
+    </OnboardingWizardLayout>
   );
 }

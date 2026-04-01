@@ -55,7 +55,7 @@ class GatewazeCookieConsent {
 
     const brandColors = {
       gatewaze: {
-        primary: '#20dd20',
+        primary: '#00a2c7',
         primaryHover: '#1bc41b'
       },
     };

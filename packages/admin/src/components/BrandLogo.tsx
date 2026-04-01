@@ -25,7 +25,7 @@ export function BrandLogo({ type = 'logo', className = '' }: BrandLogoProps) {
 
   return (
     <img
-      src="/theme/gatewaze/gatewaze-icon-512.png"
+      src="/theme/gatewaze/logo_black.svg"
       alt="Gatewaze"
       className={className}
       style={{ objectFit: 'contain' }}

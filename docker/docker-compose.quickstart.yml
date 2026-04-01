@@ -4,12 +4,15 @@
 # Uses pre-built container images from ghcr.io/gatewaze for instant startup.
 # No build step required.
 #
-# Uses Traefik reverse proxy for clean .localhost domains:
+# Uses a shared Traefik reverse proxy for clean .localhost domains:
 #   - http://gatewaze-admin.localhost   → Admin dashboard
 #   - http://gatewaze-app.localhost     → Public portal
 #   - http://gatewaze-api.localhost     → API server
 #   - http://gatewaze-supabase.localhost → Supabase API (Kong)
 #   - http://gatewaze-studio.localhost  → Supabase Studio
+#
+# Start Traefik first (if not already running):
+#   docker compose -f docker-compose.traefik.yml up -d
 #
 # Usage:
 #   cp .env.example .env   # edit values
@@ -18,33 +21,12 @@
 
 services:
   # ---------------------------------------------------------------------------
-  # Traefik Reverse Proxy
-  # ---------------------------------------------------------------------------
-
-  traefik:
-    image: traefik:v2.11
-    container_name: gatewaze-traefik
-    restart: unless-stopped
-    command:
-      - "--api.insecure=true"
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.web.address=:80"
-    ports:
-      - "80:80"
-      - "8080:8080"   # Traefik dashboard
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    networks:
-      - gatewaze
-
-  # ---------------------------------------------------------------------------
   # Supabase Infrastructure
   # ---------------------------------------------------------------------------
 
   supabase-db:
     image: supabase/postgres:15.8.1.085
-    container_name: gatewaze-supabase-db
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-supabase-db
     restart: unless-stopped
     ports:
       - "${POSTGRES_PORT:-54322}:5432"
@@ -73,7 +55,7 @@ services:
 
   supabase-auth:
     image: supabase/gotrue:v2.186.0
-    container_name: gatewaze-supabase-auth
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-supabase-auth
     restart: unless-stopped
     depends_on:
       supabase-db:
@@ -111,7 +93,7 @@ services:
 
   supabase-rest:
     image: postgrest/postgrest:v14.5
-    container_name: gatewaze-supabase-rest
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-supabase-rest
     restart: unless-stopped
     depends_on:
       supabase-db:
@@ -131,7 +113,7 @@ services:
 
   supabase-realtime:
     image: supabase/realtime:v2.76.5
-    container_name: gatewaze-supabase-realtime
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-supabase-realtime
     restart: unless-stopped
     depends_on:
       supabase-db:
@@ -157,7 +139,7 @@ services:
 
   supabase-storage:
     image: supabase/storage-api:v1.37.8
-    container_name: gatewaze-supabase-storage
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-supabase-storage
     restart: unless-stopped
     depends_on:
       supabase-db:
@@ -185,13 +167,13 @@ services:
 
   supabase-kong:
     image: kong:2.8.1
-    container_name: gatewaze-supabase-kong
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-supabase-kong
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.supabase.rule=Host(`${SUPABASE_HOST:-gatewaze-supabase.localhost}`)"
-      - "traefik.http.routers.supabase.entrypoints=web"
-      - "traefik.http.services.supabase.loadbalancer.server.port=8000"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-supabase.rule=Host(`${SUPABASE_HOST:-gatewaze-supabase.localhost}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-supabase.entrypoints=web"
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME:-gatewaze}-supabase.loadbalancer.server.port=8000"
     environment:
       KONG_DATABASE: "off"
       KONG_DECLARATIVE_CONFIG: /var/lib/kong/kong.yml
@@ -210,10 +192,11 @@ services:
         condition: service_started
     networks:
       - gatewaze
+      - traefik
 
   supabase-edge-functions:
     image: supabase/edge-runtime:v1.70.3
-    container_name: gatewaze-supabase-edge-functions
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-supabase-edge-functions
     restart: unless-stopped
     depends_on:
       supabase-kong:
@@ -236,13 +219,13 @@ services:
 
   supabase-studio:
     image: supabase/studio:latest
-    container_name: gatewaze-supabase-studio
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-supabase-studio
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.studio.rule=Host(`${STUDIO_HOST:-gatewaze-studio.localhost}`)"
-      - "traefik.http.routers.studio.entrypoints=web"
-      - "traefik.http.services.studio.loadbalancer.server.port=3000"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-studio.rule=Host(`${STUDIO_HOST:-gatewaze-studio.localhost}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-studio.entrypoints=web"
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME:-gatewaze}-studio.loadbalancer.server.port=3000"
     environment:
       STUDIO_PG_META_URL: http://supabase-meta:8080
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -257,6 +240,7 @@ services:
         condition: service_started
     networks:
       - gatewaze
+      - traefik
 
   # ---------------------------------------------------------------------------
   # Application Infrastructure
@@ -264,7 +248,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: gatewaze-redis
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-redis
     restart: unless-stopped
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-gatewaze}
     volumes:
@@ -283,13 +267,13 @@ services:
 
   admin:
     image: ghcr.io/gatewaze/admin:latest
-    container_name: gatewaze-admin
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-admin
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.admin.rule=Host(`${ADMIN_HOST:-gatewaze-admin.localhost}`)"
-      - "traefik.http.routers.admin.entrypoints=web"
-      - "traefik.http.services.admin.loadbalancer.server.port=80"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-admin.rule=Host(`${ADMIN_HOST:-gatewaze-admin.localhost}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-admin.entrypoints=web"
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME:-gatewaze}-admin.loadbalancer.server.port=80"
     environment:
       VITE_SUPABASE_URL: ${SUPABASE_URL:-http://gatewaze-supabase.localhost}
       VITE_SUPABASE_ANON_KEY: ${ANON_KEY}
@@ -299,16 +283,17 @@ services:
         condition: service_started
     networks:
       - gatewaze
+      - traefik
 
   portal:
     image: ghcr.io/gatewaze/portal:latest
-    container_name: gatewaze-portal
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-portal
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.portal.rule=Host(`${PORTAL_HOST:-gatewaze-app.localhost}`)"
-      - "traefik.http.routers.portal.entrypoints=web"
-      - "traefik.http.services.portal.loadbalancer.server.port=3100"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-portal.rule=Host(`${PORTAL_HOST:-gatewaze-app.localhost}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-portal.entrypoints=web"
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME:-gatewaze}-portal.loadbalancer.server.port=3100"
     environment:
       NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_URL:-http://gatewaze-supabase.localhost}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${ANON_KEY}
@@ -319,16 +304,17 @@ services:
         condition: service_started
     networks:
       - gatewaze
+      - traefik
 
   api:
     image: ghcr.io/gatewaze/api:latest
-    container_name: gatewaze-api
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-api
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.api.rule=Host(`${API_HOST:-gatewaze-api.localhost}`)"
-      - "traefik.http.routers.api.entrypoints=web"
-      - "traefik.http.services.api.loadbalancer.server.port=3002"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-api.rule=Host(`${API_HOST:-gatewaze-api.localhost}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-api.entrypoints=web"
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME:-gatewaze}-api.loadbalancer.server.port=3002"
     environment:
       PORT: "3002"
       NODE_ENV: production
@@ -351,10 +337,11 @@ services:
         condition: service_healthy
     networks:
       - gatewaze
+      - traefik
 
   worker:
     image: ghcr.io/gatewaze/worker:latest
-    container_name: gatewaze-worker
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-worker
     restart: unless-stopped
     environment:
       NODE_ENV: production
@@ -380,7 +367,7 @@ services:
 
   scheduler:
     image: ghcr.io/gatewaze/api:latest
-    container_name: gatewaze-scheduler
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-scheduler
     restart: unless-stopped
     command: ["node", "packages/api/dist/scheduler/start-scheduler.js"]
     environment:
@@ -416,3 +403,5 @@ volumes:
 networks:
   gatewaze:
     driver: bridge
+  traefik:
+    external: true
