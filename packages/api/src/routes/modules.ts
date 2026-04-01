@@ -59,12 +59,10 @@ async function loadAllModules() {
 
 /** Build the list of all _shared/ dirs across loaded modules for hash computation */
 function buildSharedDirs(modules: LoadedModule[]): string[] {
-  const { join } = require('path');
-  const { existsSync } = require('fs');
   const dirs: string[] = [];
   for (const mod of modules) {
     if (mod.resolvedDir) {
-      const sharedDir = join(mod.resolvedDir, 'functions', '_shared');
+      const sharedDir = resolve(mod.resolvedDir, 'functions', '_shared');
       if (existsSync(sharedDir)) {
         dirs.push(sharedDir);
       }
@@ -169,27 +167,26 @@ modulesRouter.post('/select', async (req, res) => {
     }
 
     if (enabled?.length) {
-      // Sort enabled modules in dependency order so migrations run in the right sequence
-      // (e.g., 'events' before 'luma-integration' which depends on events_registrations)
+      // Sort in dependency order, auto-including hidden dependencies (e.g., scrapers)
       const enabledSet = new Set(enabled);
-      const enabledModules = modules.filter((m) => enabledSet.has(m.config.id));
-      const sorted: typeof enabledModules = [];
+      const sorted: LoadedModule[] = [];
       const visited = new Set<string>();
 
-      function visit(mod: (typeof enabledModules)[number]) {
+      function visit(mod: LoadedModule) {
         if (visited.has(mod.config.id)) return;
         visited.add(mod.config.id);
         for (const depId of mod.config.dependencies ?? []) {
-          const dep = enabledModules.find((m) => m.config.id === depId);
+          const dep = modules.find((m) => m.config.id === depId);
           if (dep) visit(dep);
         }
         sorted.push(mod);
       }
-      for (const mod of enabledModules) visit(mod);
+      for (const mod of modules) {
+        if (enabledSet.has(mod.config.id)) visit(mod);
+      }
 
-      // Also include any enabled IDs that didn't match a loaded module (enable by ID only)
-      const sortedIds = sorted.map((m) => m.config.id);
-      const remainingIds = enabled.filter((id) => !sortedIds.includes(id));
+      const sortedIds = new Set(sorted.map((m) => m.config.id));
+      const remainingIds = enabled.filter((id) => !sortedIds.has(id));
 
       for (const mod of sorted) {
         try {
@@ -258,6 +255,182 @@ modulesRouter.post('/select', async (req, res) => {
     return res.status(500).json({
       error: err instanceof Error ? err.message : 'Module selection failed',
     });
+  }
+});
+
+/**
+ * POST /api/modules/select-stream
+ *
+ * SSE version of /select — streams progress events during module installation.
+ * Used by the onboarding UI for real-time progress reporting.
+ *
+ * Events:
+ *   progress: { step, module?, message, current, total }
+ *   module-complete: { module, status: 'ok'|'warning'|'error', message? }
+ *   complete: { success, enabledCount, deployedCount, errors }
+ *   error: { message }
+ */
+modulesRouter.post('/select-stream', async (req, res) => {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+
+  const send = (event: string, data: Record<string, unknown>) => {
+    if (res.destroyed) return;
+    try { res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); } catch { /* client disconnected */ }
+  };
+
+  try {
+    const supabaseUrl = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !serviceRoleKey) {
+      send('error', { message: 'Missing Supabase credentials' });
+      res.end();
+      return;
+    }
+
+    const supabase = createClient(supabaseUrl, serviceRoleKey);
+    const { enabled, disabled } = req.body as { enabled?: string[]; disabled?: string[] };
+
+    // Phase 1: Reconcile
+    send('progress', { step: 'reconcile', message: 'Loading modules...', current: 0, total: 0 });
+    const modules = await loadAllModules();
+    send('progress', { step: 'reconcile', message: `Reconciling ${modules.length} modules...`, current: 0, total: 0 });
+    await reconcileModules(modules, supabase as never);
+
+    // Phase 2: Disable
+    if (disabled?.length) {
+      send('progress', { step: 'disable', message: `Disabling ${disabled.length} modules...`, current: 0, total: disabled.length });
+      await supabase.from('installed_modules').update({ status: 'disabled' }).in('id', disabled);
+    }
+
+    // Phase 3: Enable (with dependency sort)
+    const migrationErrors: Array<{ module: string; error: string }> = [];
+
+    if (enabled?.length) {
+      const enabledSet = new Set(enabled);
+
+      // Topological sort — search ALL modules for dependencies (not just selected ones)
+      // so hidden dependency modules (e.g., scrapers) are auto-included
+      const sorted: LoadedModule[] = [];
+      const visited = new Set<string>();
+      function visit(mod: LoadedModule) {
+        if (visited.has(mod.config.id)) return;
+        visited.add(mod.config.id);
+        for (const depId of mod.config.dependencies ?? []) {
+          const dep = modules.find((m) => m.config.id === depId);
+          if (dep) visit(dep);
+        }
+        sorted.push(mod);
+      }
+      // Start from user-selected modules, pulling in dependencies automatically
+      for (const mod of modules) {
+        if (enabledSet.has(mod.config.id)) visit(mod);
+      }
+
+      const sortedIds = new Set(sorted.map((m) => m.config.id));
+      const remainingIds = enabled.filter((id) => !sortedIds.has(id));
+
+      // Apply migrations one by one with progress
+      for (let i = 0; i < sorted.length; i++) {
+        const mod = sorted[i];
+        send('progress', {
+          step: 'migrate',
+          module: mod.config.id,
+          message: `Applying migrations for ${mod.config.name}...`,
+          current: i + 1,
+          total: sorted.length,
+        });
+
+        try {
+          await applyModuleMigrations(mod, supabase as never);
+          await supabase.from('installed_modules').update({ status: 'enabled' }).eq('id', mod.config.id);
+          send('module-complete', { module: mod.config.id, name: mod.config.name, status: 'ok' });
+        } catch (migErr) {
+          const errMsg = migErr instanceof Error ? migErr.message : String(migErr);
+          console.error(`[modules] Migration failed for "${mod.config.id}":`, migErr);
+          migrationErrors.push({ module: mod.config.id, error: errMsg });
+          // Still enable the module (migrations may be partially applied)
+          await supabase.from('installed_modules').update({ status: 'enabled' }).eq('id', mod.config.id);
+          send('module-complete', { module: mod.config.id, name: mod.config.name, status: 'warning', message: errMsg });
+        }
+      }
+
+      for (const moduleId of remainingIds) {
+        await supabase.from('installed_modules').update({ status: 'enabled' }).eq('id', moduleId);
+      }
+
+      // Phase 4: Deploy edge functions
+      const enabledModulesWithFunctions = modules.filter(
+        (m) => enabledSet.has(m.config.id) && m.config.edgeFunctions?.length
+      );
+
+      if (enabledModulesWithFunctions.length > 0) {
+        const totalFunctions = enabledModulesWithFunctions.reduce(
+          (sum, m) => sum + (m.config.edgeFunctions?.length ?? 0), 0
+        );
+        send('progress', {
+          step: 'deploy',
+          message: `Deploying ${totalFunctions} edge functions...`,
+          current: 0,
+          total: totalFunctions,
+        });
+
+        const deployResult = await deployEdgeFunctions({
+          projectRoot: PROJECT_ROOT,
+          modules: enabledModulesWithFunctions,
+          allModules: modules,
+        });
+
+        const totalDeployed = deployResult.copied.length + deployResult.deployed.length;
+        send('progress', {
+          step: 'deploy',
+          message: `Deployed ${totalDeployed} of ${totalFunctions} edge functions`,
+          current: totalDeployed,
+          total: totalFunctions,
+        });
+
+        if (deployResult.errors.length > 0) {
+          for (const err of deployResult.errors) {
+            send('module-complete', {
+              module: err.module,
+              name: err.functionName,
+              status: 'warning',
+              message: `Edge function failed: ${err.error}`,
+            });
+          }
+        }
+
+        // Store hashes
+        const sharedDirs = buildSharedDirs(modules);
+        for (const mod of enabledModulesWithFunctions) {
+          const hash = computeEdgeFunctionsHash(mod, sharedDirs);
+          if (hash) {
+            await supabase.from('installed_modules').update({ edge_functions_hash: hash }).eq('id', mod.config.id);
+          }
+        }
+      }
+    }
+
+    // Phase 5: Finalize
+    await supabase
+      .from('platform_settings')
+      .upsert({ key: 'onboarding_step', value: 'modules_selected' }, { onConflict: 'key' });
+
+    send('complete', {
+      success: true,
+      enabledCount: enabled?.length ?? 0,
+      migrationErrors,
+    });
+  } catch (err) {
+    console.error('[modules] Selection stream failed:', err);
+    send('error', { message: err instanceof Error ? err.message : 'Module selection failed' });
+  } finally {
+    res.end();
   }
 });
 

@@ -63,7 +63,7 @@ interface SpeakerSubmissionResponse {
   error?: string
 }
 
-export default async function(req: Request) {
+async function handler(req: Request) {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -415,6 +415,9 @@ export default async function(req: Request) {
     })
   }
 }
+
+export default handler
+if (import.meta.main) Deno.serve(handler)
 
 /**
  * Find existing person or create new one
