@@ -57,23 +57,6 @@ async function loadAllModules() {
   return loadModulesWithDbSources(config, dbSources as never[], PROJECT_ROOT);
 }
 
-/** Build the list of all _shared/ dirs across loaded modules for hash computation */
-function buildSharedDirs(modules: LoadedModule[]): string[] {
-  const dirs: string[] = [];
-  for (const mod of modules) {
-    if (mod.resolvedDir) {
-      const sharedDir = resolve(mod.resolvedDir, 'functions', '_shared');
-      if (existsSync(sharedDir)) {
-        dirs.push(sharedDir);
-      }
-    }
-  }
-  const platformShared = resolve(PROJECT_ROOT, 'supabase/functions/_shared');
-  if (existsSync(platformShared)) {
-    dirs.push(platformShared);
-  }
-  return dirs;
-}
 
 /**
  * GET /api/modules/bootstrap-check
@@ -231,9 +214,8 @@ modulesRouter.post('/select', async (req, res) => {
         }
 
         // Store edge function hashes for all deployed modules
-        const sharedDirs = buildSharedDirs(modules);
         for (const mod of enabledModulesWithFunctions) {
-          const hash = computeEdgeFunctionsHash(mod, sharedDirs);
+          const hash = computeEdgeFunctionsHash(mod);
           if (hash) {
             await supabase
               .from('installed_modules')
@@ -406,9 +388,8 @@ modulesRouter.post('/select-stream', async (req, res) => {
         }
 
         // Store hashes
-        const sharedDirs = buildSharedDirs(modules);
         for (const mod of enabledModulesWithFunctions) {
-          const hash = computeEdgeFunctionsHash(mod, sharedDirs);
+          const hash = computeEdgeFunctionsHash(mod);
           if (hash) {
             await supabase.from('installed_modules').update({ edge_functions_hash: hash }).eq('id', mod.config.id);
           }
@@ -750,8 +731,7 @@ modulesRouter.post('/:id/enable', async (req, res) => {
       }
 
       // Store edge functions hash for change detection
-      const sharedDirs = buildSharedDirs(modules);
-      const hash = computeEdgeFunctionsHash(mod, sharedDirs);
+      const hash = computeEdgeFunctionsHash(mod);
       if (hash) {
         await supabase
           .from('installed_modules')
@@ -889,7 +869,6 @@ modulesRouter.get('/check-updates', async (_req, res) => {
       (installed ?? []).map((r: Record<string, unknown>) => [r.id as string, r])
     );
 
-    const sharedDirs = buildSharedDirs(modules);
 
     const updates: {
       id: string;
@@ -930,7 +909,7 @@ modulesRouter.get('/check-updates', async (_req, res) => {
         row.status === 'enabled' &&
         mod.config.edgeFunctions?.length
       ) {
-        const currentHash = computeEdgeFunctionsHash(mod, sharedDirs);
+        const currentHash = computeEdgeFunctionsHash(mod);
         const installedHash = row.edge_functions_hash;
         if (currentHash && currentHash !== installedHash) {
           updates.push({
@@ -998,9 +977,8 @@ modulesRouter.post('/:id/update', async (req, res) => {
     const previousVersion = (row as Record<string, unknown>).version as string;
     const hasVersionUpdate = isNewerVersion(mod.config.version, previousVersion);
 
-    // Check for edge function source changes
-    const sharedDirs = buildSharedDirs(modules);
-    const currentHash = computeEdgeFunctionsHash(mod, sharedDirs);
+    // Check for any source changes in the module
+    const currentHash = computeEdgeFunctionsHash(mod);
     const installedHash = (row as Record<string, unknown>).edge_functions_hash as string | null;
     const hasEdgeFunctionChanges = currentHash !== null && currentHash !== installedHash;
 
@@ -1085,13 +1063,13 @@ modulesRouter.post('/update-all', async (_req, res) => {
 
     const { data: installed } = await supabase
       .from('installed_modules')
-      .select('id, version, status');
+      .select('id, version, status, edge_functions_hash');
 
     const installedMap = new Map(
       (installed ?? []).map((r: Record<string, unknown>) => [r.id as string, r])
     );
 
-    const updated: { id: string; name: string; previousVersion: string; newVersion: string }[] = [];
+    const updated: { id: string; name: string; previousVersion: string; newVersion: string; reason: string }[] = [];
     const skipped: { id: string; name: string; reason: string }[] = [];
     const modulesToDeploy: LoadedModule[] = [];
 
@@ -1099,10 +1077,14 @@ modulesRouter.post('/update-all', async (_req, res) => {
       const row = installedMap.get(mod.config.id) as InstalledModuleRow | undefined;
       if (!row) continue;
 
-      if (!isNewerVersion(mod.config.version, row.version)) continue;
+      const hasVersionUpdate = isNewerVersion(mod.config.version, row.version);
+      const currentHash = computeEdgeFunctionsHash(mod);
+      const hasSourceChanges = currentHash !== null && currentHash !== row.edge_functions_hash;
+
+      if (!hasVersionUpdate && !hasSourceChanges) continue;
 
       // Skip modules that require a newer platform version
-      if (mod.config.minPlatformVersion && config.platformVersion) {
+      if (hasVersionUpdate && mod.config.minPlatformVersion && config.platformVersion) {
         if (compareSemver(config.platformVersion, mod.config.minPlatformVersion) < 0) {
           skipped.push({
             id: mod.config.id,
@@ -1115,25 +1097,35 @@ modulesRouter.post('/update-all', async (_req, res) => {
 
       const previousVersion = row.version;
 
-      // Apply migrations
-      await applyModuleMigrations(mod, supabase as never);
+      // Apply migrations (only if version changed)
+      if (hasVersionUpdate) {
+        await applyModuleMigrations(mod, supabase as never);
+      }
 
       // Update DB
+      const dbUpdate: Record<string, unknown> = {
+        name: mod.config.name,
+        description: mod.config.description,
+      };
+      if (hasVersionUpdate) {
+        dbUpdate.version = mod.config.version;
+        dbUpdate.features = mod.config.features;
+      }
+      if (currentHash) {
+        dbUpdate.edge_functions_hash = currentHash;
+      }
       await supabase
         .from('installed_modules')
-        .update({
-          version: mod.config.version,
-          features: mod.config.features,
-          name: mod.config.name,
-          description: mod.config.description,
-        })
+        .update(dbUpdate)
         .eq('id', mod.config.id);
 
+      const reason = hasVersionUpdate ? 'version' : 'source_changed';
       updated.push({
         id: mod.config.id,
         name: mod.config.name,
         previousVersion,
         newVersion: mod.config.version,
+        reason,
       });
 
       if (row.status === 'enabled' && mod.config.edgeFunctions?.length) {
