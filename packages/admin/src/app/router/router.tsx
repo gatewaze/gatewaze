@@ -30,6 +30,9 @@ const router = createBrowserRouter([
       },
       {
         path: "onboarding",
+        lazy: async () => ({
+          Component: (await import("@/app/pages/onboarding/OnboardingStepGuard")).default,
+        }),
         children: [
           {
             index: true,

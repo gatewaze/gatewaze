@@ -16,6 +16,7 @@ export type PrimaryColor =
   | "violet"
   | "purple"
   | "plum"
+  | "cyan"
   | "rose";
 
 export type ThemeMode = "light" | "dark" | "system";

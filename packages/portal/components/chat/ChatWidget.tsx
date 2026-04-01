@@ -9,7 +9,7 @@ export function ChatWidget() {
   const [input, setInput] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const brandConfig = getClientBrandConfig()
-  const primaryColor = brandConfig.primaryColor || '#20dd20'
+  const primaryColor = brandConfig.primaryColor || '#00a2c7'
 
   const { messages, sendMessage, status, error } = useChat({ api: '/api/chat' })
 

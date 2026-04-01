@@ -295,6 +295,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const result = await SupabaseAuthService.sendMagicLink(credentials.email);
 
       if (result.success) {
+        if (result.magicLink) {
+          // CI mode: magic link returned directly — auto-authenticate
+          window.location.href = result.magicLink;
+          return;
+        }
+
         // Clear loading state when magic link is sent successfully
         // The actual authentication will be handled by the auth state listener
         dispatch({

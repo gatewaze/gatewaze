@@ -103,18 +103,18 @@
   --color-dark-800: #15161a;
   --color-dark-900: #0e0f11;
 
-  /* Default primary palette (pink — Radix light-mode values) */
-  --color-primary-50: #fef7fb;
-  --color-primary-100: #fee9f5;
-  --color-primary-200: #fbdcef;
-  --color-primary-300: #f6cee7;
-  --color-primary-400: #e7acd0;
-  --color-primary-500: #d6409f;
-  --color-primary-600: #cf3897;
-  --color-primary-700: #c2298a;
-  --color-primary-800: #9b2071;
-  --color-primary-900: #651249;
-  --color-primary-950: #460d33;
+  /* Default primary palette (cyan — Radix light-mode values) */
+  --color-primary-50: #f2fcfd;
+  --color-primary-100: #e2f9fc;
+  --color-primary-200: #c2eef7;
+  --color-primary-300: #a5e3f2;
+  --color-primary-400: #6ec9e5;
+  --color-primary-500: #00a2c7;
+  --color-primary-600: #0894b3;
+  --color-primary-700: #0c7792;
+  --color-primary-800: #0c6478;
+  --color-primary-900: #0d3c48;
+  --color-primary-950: #082830;
 
   @keyframes shimmer {
     from {

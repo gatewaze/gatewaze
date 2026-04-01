@@ -1,12 +1,11 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router";
-import { ArrowRight, Loader2, Puzzle } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Switch } from "@/components/ui";
-import GradientBackground from "@/components/shared/GradientBackground";
 import { ModuleService } from "@/utils/moduleService";
+import OnboardingWizardLayout from "./OnboardingWizardLayout";
 
 const SECTION_LABELS: Record<string, string> = {
   events: "Event Features",
@@ -36,13 +35,11 @@ export default function ModuleSelectionStep() {
     loadAvailableModules();
   }, [loadAvailableModules]);
 
-  // Only show public modules
   const visibleModules = useMemo(
     () => availableModules.filter((m) => (m.visibility ?? "public") !== "hidden"),
     [availableModules]
   );
 
-  // Group by group field first, then fall back to type
   const grouped = useMemo(() => {
     const groups: Record<string, typeof visibleModules> = {};
     for (const mod of visibleModules) {
@@ -80,7 +77,6 @@ export default function ModuleSelectionStep() {
       const enabled = visibleModules.filter((m) => selected.has(m.id)).map((m) => m.id);
       const disabled = visibleModules.filter((m) => !selected.has(m.id)).map((m) => m.id);
 
-      // Use API (service_role) to bypass RLS during onboarding
       const apiUrl = import.meta.env.VITE_API_URL ?? "";
       const res = await fetch(`${apiUrl}/api/modules/select`, {
         method: "POST",
@@ -102,97 +98,72 @@ export default function ModuleSelectionStep() {
 
   if (loadingModules) {
     return (
-      <>
-        <GradientBackground />
-        <div className="flex min-h-[100svh] items-center justify-center p-4">
+      <OnboardingWizardLayout currentStep={2} hideFooter>
+        <div className="flex h-full items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-[var(--gray-a9)]" />
         </div>
-      </>
+      </OnboardingWizardLayout>
     );
   }
 
   return (
-    <>
-      <GradientBackground />
-      <div className="flex min-h-[100svh] items-center justify-center p-4">
-        <div className="w-full max-w-3xl space-y-6">
-          <div className="text-center">
-            <Puzzle className="mx-auto h-10 w-10 text-[var(--accent-9)]" />
-            <h1 className="mt-3 text-2xl font-semibold tracking-tight">
-              Choose your modules
-            </h1>
-            <p className="mt-1 text-sm text-[var(--gray-a9)]">
-              Select the features and integrations you need. You can change
-              these anytime in Settings &rarr; Modules.
-            </p>
-          </div>
-
-          {sortedSections.map((section) => (
-            <div key={section}>
-              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[var(--gray-a9)]">
-                {SECTION_LABELS[section] ?? section}
-              </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {grouped[section].map((mod) => (
-                  <Card
-                    key={mod.id}
-                    className={`p-4 cursor-pointer transition-colors ${
-                      selected.has(mod.id)
-                        ? "ring-2 ring-[var(--accent-9)] bg-[var(--accent-a2)]"
-                        : ""
-                    }`}
-                    onClick={() => toggle(mod.id)}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <h3 className="font-semibold text-[var(--gray-12)] text-sm">
-                          {mod.name}
-                        </h3>
-                        <p className="mt-1 text-xs text-[var(--gray-11)] line-clamp-2">
-                          {mod.description}
-                        </p>
-                      </div>
-                      <Switch
-                        checked={selected.has(mod.id)}
-                        onClick={(e) => e.stopPropagation()}
-                        onChange={() => toggle(mod.id)}
-                        color="primary"
-                      />
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          ))}
-
-          <div className="space-y-2 pt-2">
-            <p className="text-sm text-[var(--gray-a9)]">
-              {selected.size} module{selected.size !== 1 ? "s" : ""} selected
-            </p>
-            <Button onClick={handleContinue} disabled={isSubmitting} size="3" className="w-full">
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  Continue
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </>
-              )}
-            </Button>
-          </div>
-
-          <div className="flex justify-center">
-            <img
-              src="/theme/gatewaze/gatewaze-poweredby-white.svg"
-              alt="Powered by Gatewaze"
-              className="h-6 opacity-50"
-            />
-          </div>
+    <OnboardingWizardLayout
+      currentStep={2}
+      onNext={handleContinue}
+      onPrevious={() => navigate("/onboarding", { replace: true })}
+      nextLabel={`Continue (${selected.size} selected)`}
+      nextDisabled={isSubmitting}
+      nextLoading={isSubmitting}
+    >
+      <div className="space-y-5">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">
+            Choose your modules
+          </h2>
+          <p className="mt-1 text-sm text-[var(--gray-a9)]">
+            Select the features and integrations you need. You can change
+            these anytime in Settings &rarr; Modules.
+          </p>
         </div>
+
+        {sortedSections.map((section) => (
+          <div key={section}>
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--gray-a9)]">
+              {SECTION_LABELS[section] ?? section}
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {grouped[section].map((mod) => (
+                <Card
+                  key={mod.id}
+                  className={`p-3 cursor-pointer transition-colors ${
+                    selected.has(mod.id)
+                      ? "ring-2 ring-[var(--accent-9)] bg-[var(--accent-a2)]"
+                      : ""
+                  }`}
+                  onClick={() => toggle(mod.id)}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h4 className="font-semibold text-[var(--gray-12)] text-sm">
+                        {mod.name}
+                      </h4>
+                      <p className="mt-0.5 text-xs text-[var(--gray-11)] line-clamp-2">
+                        {mod.description}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={selected.has(mod.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={() => toggle(mod.id)}
+                      color="primary"
+                    />
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
-    </>
+    </OnboardingWizardLayout>
   );
 }

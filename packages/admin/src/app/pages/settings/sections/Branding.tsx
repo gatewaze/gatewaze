@@ -48,11 +48,11 @@ interface ThemeColorsMap {
 const DEFAULT_THEME_COLORS: ThemeColorsMap = {
   blobs: {
     background: "#0a0a0a",
-    blob1: "#20dd20",
-    blob2: "#0d6e0d",
+    blob1: "#00a2c7",
+    blob2: "#0e7490",
     blob3: "#1a1a1a",
   },
-  gradient_wave: { start: "#20dd20", middle: "#0d6e0d", end: "#0a0a0a" },
+  gradient_wave: { start: "#00a2c7", middle: "#0e7490", end: "#0a0a0a" },
   basic: { background: "#0a0a0a" },
 };
 
@@ -76,7 +76,7 @@ interface BrandingSettings {
 
 const BRANDING_DEFAULTS: BrandingSettings = {
   app_name: "Gatewaze",
-  primary_color: "#20dd20",
+  primary_color: "#00a2c7",
   secondary_color: "#0a0a0a",
   tertiary_color: "#1a1a1a",
   font_heading: "Poppins",
