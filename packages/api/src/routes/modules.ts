@@ -6,6 +6,7 @@ import {
   seedModuleSources,
   applyModuleMigrations,
   deployEdgeFunctions,
+  computeEdgeFunctionsHash,
   isNewerVersion,
   compareSemver,
   bootstrapCheck,
@@ -16,7 +17,6 @@ import type { InstalledModuleRow, LoadedModule } from '@gatewaze/shared/modules'
 import { resolve } from 'path';
 import { existsSync, mkdirSync, readdirSync, unlinkSync } from 'fs';
 import { execSync } from 'child_process';
-import http from 'http';
 import multer from 'multer';
 import _configImport from '../../../../gatewaze.config.js';
 // Unwrap CJS→ESM double-default wrapping (root package.json has no "type":"module")
@@ -57,31 +57,6 @@ async function loadAllModules() {
   return loadModulesWithDbSources(config, dbSources as never[], PROJECT_ROOT);
 }
 
-/** Should we deploy edge functions to Supabase (cloud/self-hosted)? */
-function shouldDeployEdgeFunctions(): boolean {
-  return !!(process.env.DEPLOY_EDGE_FUNCTIONS === 'true' || process.env.SUPABASE_PROJECT_REF);
-}
-
-/** Restart the edge runtime container so it picks up newly deployed functions. */
-function restartEdgeRuntime(): Promise<void> {
-  const container = process.env.EDGE_FUNCTIONS_CONTAINER;
-  if (!container) return Promise.resolve();
-
-  return new Promise((resolve) => {
-    const req = http.request(
-      { socketPath: '/var/run/docker.sock', path: `/containers/${container}/restart`, method: 'POST' },
-      (res) => {
-        console.log(`[modules] Edge runtime restart: ${res.statusCode === 204 ? 'OK' : res.statusCode}`);
-        resolve();
-      },
-    );
-    req.on('error', (err) => {
-      console.warn('[modules] Failed to restart edge runtime:', err.message);
-      resolve();
-    });
-    req.end();
-  });
-}
 
 /**
  * GET /api/modules/bootstrap-check
@@ -175,17 +150,42 @@ modulesRouter.post('/select', async (req, res) => {
     }
 
     if (enabled?.length) {
-      // Enable each module in dependency order and apply migrations
-      for (const moduleId of enabled) {
-        const mod = modules.find((m) => m.config.id === moduleId);
-        if (mod) {
-          try {
-            await applyModuleMigrations(mod, supabase as never);
-          } catch (migErr) {
-            console.error(`[modules] Migration failed for "${moduleId}" during selection:`, migErr);
-          }
+      // Sort in dependency order, auto-including hidden dependencies (e.g., scrapers)
+      const enabledSet = new Set(enabled);
+      const sorted: LoadedModule[] = [];
+      const visited = new Set<string>();
+
+      function visit(mod: LoadedModule) {
+        if (visited.has(mod.config.id)) return;
+        visited.add(mod.config.id);
+        for (const depId of mod.config.dependencies ?? []) {
+          const dep = modules.find((m) => m.config.id === depId);
+          if (dep) visit(dep);
+        }
+        sorted.push(mod);
+      }
+      for (const mod of modules) {
+        if (enabledSet.has(mod.config.id)) visit(mod);
+      }
+
+      const sortedIds = new Set(sorted.map((m) => m.config.id));
+      const remainingIds = enabled.filter((id) => !sortedIds.has(id));
+
+      for (const mod of sorted) {
+        try {
+          await applyModuleMigrations(mod, supabase as never);
+        } catch (migErr) {
+          console.error(`[modules] Migration failed for "${mod.config.id}" during selection:`, migErr);
         }
 
+        await supabase
+          .from('installed_modules')
+          .update({ status: 'enabled' })
+          .eq('id', mod.config.id);
+      }
+
+      // Enable remaining modules that had no loaded config (just set status)
+      for (const moduleId of remainingIds) {
         await supabase
           .from('installed_modules')
           .update({ status: 'enabled' })
@@ -203,15 +203,25 @@ modulesRouter.post('/select', async (req, res) => {
         const deployResult = await deployEdgeFunctions({
           projectRoot: PROJECT_ROOT,
           modules: enabledModulesWithFunctions,
-          deploy: shouldDeployEdgeFunctions(),
-          projectRef: process.env.SUPABASE_PROJECT_REF,
+          allModules: modules,
         });
-        if (deployResult.copied.length > 0) {
-          console.log(`[modules] Deployed ${deployResult.copied.length} edge function(s) during onboarding`);
-          await restartEdgeRuntime();
+        const totalDeployed = deployResult.copied.length + deployResult.deployed.length;
+        if (totalDeployed > 0) {
+          console.log(`[modules] Deployed ${totalDeployed} edge function(s) during onboarding`);
         }
         if (deployResult.errors.length > 0) {
           console.warn('[modules] Edge function deployment warnings:', deployResult.errors);
+        }
+
+        // Store edge function hashes for all deployed modules
+        for (const mod of enabledModulesWithFunctions) {
+          const hash = computeEdgeFunctionsHash(mod);
+          if (hash) {
+            await supabase
+              .from('installed_modules')
+              .update({ edge_functions_hash: hash })
+              .eq('id', mod.config.id);
+          }
         }
       }
     }
@@ -227,6 +237,181 @@ modulesRouter.post('/select', async (req, res) => {
     return res.status(500).json({
       error: err instanceof Error ? err.message : 'Module selection failed',
     });
+  }
+});
+
+/**
+ * POST /api/modules/select-stream
+ *
+ * SSE version of /select — streams progress events during module installation.
+ * Used by the onboarding UI for real-time progress reporting.
+ *
+ * Events:
+ *   progress: { step, module?, message, current, total }
+ *   module-complete: { module, status: 'ok'|'warning'|'error', message? }
+ *   complete: { success, enabledCount, deployedCount, errors }
+ *   error: { message }
+ */
+modulesRouter.post('/select-stream', async (req, res) => {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+
+  const send = (event: string, data: Record<string, unknown>) => {
+    if (res.destroyed) return;
+    try { res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); } catch { /* client disconnected */ }
+  };
+
+  try {
+    const supabaseUrl = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !serviceRoleKey) {
+      send('error', { message: 'Missing Supabase credentials' });
+      res.end();
+      return;
+    }
+
+    const supabase = createClient(supabaseUrl, serviceRoleKey);
+    const { enabled, disabled } = req.body as { enabled?: string[]; disabled?: string[] };
+
+    // Phase 1: Reconcile
+    send('progress', { step: 'reconcile', message: 'Loading modules...', current: 0, total: 0 });
+    const modules = await loadAllModules();
+    send('progress', { step: 'reconcile', message: `Reconciling ${modules.length} modules...`, current: 0, total: 0 });
+    await reconcileModules(modules, supabase as never);
+
+    // Phase 2: Disable
+    if (disabled?.length) {
+      send('progress', { step: 'disable', message: `Disabling ${disabled.length} modules...`, current: 0, total: disabled.length });
+      await supabase.from('installed_modules').update({ status: 'disabled' }).in('id', disabled);
+    }
+
+    // Phase 3: Enable (with dependency sort)
+    const migrationErrors: Array<{ module: string; error: string }> = [];
+
+    if (enabled?.length) {
+      const enabledSet = new Set(enabled);
+
+      // Topological sort — search ALL modules for dependencies (not just selected ones)
+      // so hidden dependency modules (e.g., scrapers) are auto-included
+      const sorted: LoadedModule[] = [];
+      const visited = new Set<string>();
+      function visit(mod: LoadedModule) {
+        if (visited.has(mod.config.id)) return;
+        visited.add(mod.config.id);
+        for (const depId of mod.config.dependencies ?? []) {
+          const dep = modules.find((m) => m.config.id === depId);
+          if (dep) visit(dep);
+        }
+        sorted.push(mod);
+      }
+      // Start from user-selected modules, pulling in dependencies automatically
+      for (const mod of modules) {
+        if (enabledSet.has(mod.config.id)) visit(mod);
+      }
+
+      const sortedIds = new Set(sorted.map((m) => m.config.id));
+      const remainingIds = enabled.filter((id) => !sortedIds.has(id));
+
+      // Apply migrations one by one with progress
+      for (let i = 0; i < sorted.length; i++) {
+        const mod = sorted[i];
+        send('progress', {
+          step: 'migrate',
+          module: mod.config.id,
+          message: `Applying migrations for ${mod.config.name}...`,
+          current: i + 1,
+          total: sorted.length,
+        });
+
+        try {
+          await applyModuleMigrations(mod, supabase as never);
+          await supabase.from('installed_modules').update({ status: 'enabled' }).eq('id', mod.config.id);
+          send('module-complete', { module: mod.config.id, name: mod.config.name, status: 'ok' });
+        } catch (migErr) {
+          const errMsg = migErr instanceof Error ? migErr.message : String(migErr);
+          console.error(`[modules] Migration failed for "${mod.config.id}":`, migErr);
+          migrationErrors.push({ module: mod.config.id, error: errMsg });
+          // Still enable the module (migrations may be partially applied)
+          await supabase.from('installed_modules').update({ status: 'enabled' }).eq('id', mod.config.id);
+          send('module-complete', { module: mod.config.id, name: mod.config.name, status: 'warning', message: errMsg });
+        }
+      }
+
+      for (const moduleId of remainingIds) {
+        await supabase.from('installed_modules').update({ status: 'enabled' }).eq('id', moduleId);
+      }
+
+      // Phase 4: Deploy edge functions
+      const enabledModulesWithFunctions = modules.filter(
+        (m) => enabledSet.has(m.config.id) && m.config.edgeFunctions?.length
+      );
+
+      if (enabledModulesWithFunctions.length > 0) {
+        const totalFunctions = enabledModulesWithFunctions.reduce(
+          (sum, m) => sum + (m.config.edgeFunctions?.length ?? 0), 0
+        );
+        send('progress', {
+          step: 'deploy',
+          message: `Deploying ${totalFunctions} edge functions...`,
+          current: 0,
+          total: totalFunctions,
+        });
+
+        const deployResult = await deployEdgeFunctions({
+          projectRoot: PROJECT_ROOT,
+          modules: enabledModulesWithFunctions,
+          allModules: modules,
+        });
+
+        const totalDeployed = deployResult.copied.length + deployResult.deployed.length;
+        send('progress', {
+          step: 'deploy',
+          message: `Deployed ${totalDeployed} of ${totalFunctions} edge functions`,
+          current: totalDeployed,
+          total: totalFunctions,
+        });
+
+        if (deployResult.errors.length > 0) {
+          for (const err of deployResult.errors) {
+            send('module-complete', {
+              module: err.module,
+              name: err.functionName,
+              status: 'warning',
+              message: `Edge function failed: ${err.error}`,
+            });
+          }
+        }
+
+        // Store hashes
+        for (const mod of enabledModulesWithFunctions) {
+          const hash = computeEdgeFunctionsHash(mod);
+          if (hash) {
+            await supabase.from('installed_modules').update({ edge_functions_hash: hash }).eq('id', mod.config.id);
+          }
+        }
+      }
+    }
+
+    // Phase 5: Finalize
+    await supabase
+      .from('platform_settings')
+      .upsert({ key: 'onboarding_step', value: 'modules_selected' }, { onConflict: 'key' });
+
+    send('complete', {
+      success: true,
+      enabledCount: enabled?.length ?? 0,
+      migrationErrors,
+    });
+  } catch (err) {
+    console.error('[modules] Selection stream failed:', err);
+    send('error', { message: err instanceof Error ? err.message : 'Module selection failed' });
+  } finally {
+    res.end();
   }
 });
 
@@ -310,12 +495,10 @@ modulesRouter.post('/reconcile', async (_req, res) => {
       const deployResult = await deployEdgeFunctions({
         projectRoot: PROJECT_ROOT,
         modules: enabledModulesWithFunctions,
-        deploy: shouldDeployEdgeFunctions(),
-        projectRef: process.env.SUPABASE_PROJECT_REF,
+        allModules: modules,
       });
-      if (deployResult.copied.length > 0) {
-        console.log(`[modules] Deployed ${deployResult.copied.length} edge function(s) during reconciliation`);
-        await restartEdgeRuntime();
+      if (deployResult.copied.length > 0 || deployResult.deployed.length > 0) {
+        console.log(`[modules] Deployed ${deployResult.copied.length + deployResult.deployed.length} edge function(s) during reconciliation`);
       }
     }
 
@@ -410,6 +593,32 @@ modulesRouter.post('/:id/enable', async (req, res) => {
 
     const modules = await loadAllModules();
     const mod = modules.find((m) => m.config.id === moduleId);
+
+    // Check dependencies: all required modules must be enabled first
+    if (mod?.config.dependencies?.length) {
+      const { data: installed } = await supabase
+        .from('installed_modules')
+        .select('id, status');
+
+      const enabledIds = new Set(
+        (installed ?? [])
+          .filter((r: Record<string, unknown>) => r.status === 'enabled')
+          .map((r: Record<string, unknown>) => r.id as string)
+      );
+
+      const missingDeps = mod.config.dependencies.filter((depId) => !enabledIds.has(depId));
+      if (missingDeps.length > 0) {
+        const depNames = missingDeps.map((depId) => {
+          const dep = modules.find((m) => m.config.id === depId);
+          return dep ? `"${dep.config.name}"` : `"${depId}"`;
+        });
+        return res.status(409).json({
+          error: `Module "${mod.config.name}" requires ${depNames.join(', ')} to be enabled first.`,
+          code: 'MISSING_DEPENDENCIES',
+          missingDependencies: missingDeps,
+        });
+      }
+    }
 
     // Check platform version compatibility
     if (mod?.config.minPlatformVersion && config.platformVersion) {
@@ -511,19 +720,23 @@ modulesRouter.post('/:id/enable', async (req, res) => {
         const deployResult = await deployEdgeFunctions({
           projectRoot: PROJECT_ROOT,
           modules: [mod],
-          deploy: shouldDeployEdgeFunctions(),
-          projectRef: process.env.SUPABASE_PROJECT_REF,
+          allModules: modules,
         });
 
-        edgeFunctionsDeployed = deployResult.copied.map((r) => r.functionName);
+        edgeFunctionsDeployed = [...deployResult.copied, ...deployResult.deployed].map((r) => r.functionName);
 
         if (deployResult.errors.length > 0) {
           console.warn('[modules] Edge function deployment warnings:', deployResult.errors);
         }
+      }
 
-        if (edgeFunctionsDeployed.length > 0) {
-          await restartEdgeRuntime();
-        }
+      // Store edge functions hash for change detection
+      const hash = computeEdgeFunctionsHash(mod);
+      if (hash) {
+        await supabase
+          .from('installed_modules')
+          .update({ edge_functions_hash: hash })
+          .eq('id', moduleId);
       }
 
       // Run lifecycle hook
@@ -650,17 +863,19 @@ modulesRouter.get('/check-updates', async (_req, res) => {
 
     const { data: installed } = await supabase
       .from('installed_modules')
-      .select('id, name, version, status');
+      .select('id, name, version, status, edge_functions_hash');
 
     const installedMap = new Map(
       (installed ?? []).map((r: Record<string, unknown>) => [r.id as string, r])
     );
+
 
     const updates: {
       id: string;
       name: string;
       installedVersion: string;
       availableVersion: string;
+      reason: 'version' | 'edge_functions_changed';
       minPlatformVersion?: string;
       platformCompatible: boolean;
     }[] = [];
@@ -670,20 +885,42 @@ modulesRouter.get('/check-updates', async (_req, res) => {
       if (!row) continue;
 
       const installedVersion = row.version;
-      if (isNewerVersion(mod.config.version, installedVersion)) {
-        const platformCompatible =
-          !mod.config.minPlatformVersion ||
-          !config.platformVersion ||
-          compareSemver(config.platformVersion, mod.config.minPlatformVersion) >= 0;
+      const platformCompatible =
+        !mod.config.minPlatformVersion ||
+        !config.platformVersion ||
+        compareSemver(config.platformVersion, mod.config.minPlatformVersion) >= 0;
 
+      // Check for version bump
+      if (isNewerVersion(mod.config.version, installedVersion)) {
         updates.push({
           id: mod.config.id,
           name: mod.config.name,
           installedVersion,
           availableVersion: mod.config.version,
+          reason: 'version',
           minPlatformVersion: mod.config.minPlatformVersion,
           platformCompatible,
         });
+        continue;
+      }
+
+      // Check for edge function source changes (only for enabled modules with edge functions)
+      if (
+        row.status === 'enabled' &&
+        mod.config.edgeFunctions?.length
+      ) {
+        const currentHash = computeEdgeFunctionsHash(mod);
+        const installedHash = row.edge_functions_hash;
+        if (currentHash && currentHash !== installedHash) {
+          updates.push({
+            id: mod.config.id,
+            name: mod.config.name,
+            installedVersion,
+            availableVersion: mod.config.version,
+            reason: 'edge_functions_changed',
+            platformCompatible,
+          });
+        }
       }
     }
 
@@ -726,10 +963,10 @@ modulesRouter.post('/:id/update', async (req, res) => {
       }
     }
 
-    // Get current installed version
+    // Get current installed state
     const { data: row } = await supabase
       .from('installed_modules')
-      .select('version, status')
+      .select('version, status, edge_functions_hash')
       .eq('id', moduleId)
       .single();
 
@@ -738,8 +975,14 @@ modulesRouter.post('/:id/update', async (req, res) => {
     }
 
     const previousVersion = (row as Record<string, unknown>).version as string;
+    const hasVersionUpdate = isNewerVersion(mod.config.version, previousVersion);
 
-    if (!isNewerVersion(mod.config.version, previousVersion)) {
+    // Check for any source changes in the module
+    const currentHash = computeEdgeFunctionsHash(mod);
+    const installedHash = (row as Record<string, unknown>).edge_functions_hash as string | null;
+    const hasEdgeFunctionChanges = currentHash !== null && currentHash !== installedHash;
+
+    if (!hasVersionUpdate && !hasEdgeFunctionChanges) {
       return res.json({
         success: true,
         message: 'Already up to date',
@@ -747,42 +990,51 @@ modulesRouter.post('/:id/update', async (req, res) => {
       });
     }
 
-    // 1. Apply pending migrations
-    await applyModuleMigrations(mod, supabase as never);
+    // 1. Apply pending migrations (only if version changed)
+    if (hasVersionUpdate) {
+      await applyModuleMigrations(mod, supabase as never);
 
-    // 2. Update version and features in DB
-    await supabase
-      .from('installed_modules')
-      .update({
-        version: mod.config.version,
-        features: mod.config.features,
-        name: mod.config.name,
-        description: mod.config.description,
-      })
-      .eq('id', moduleId);
+      // Update version and features in DB
+      await supabase
+        .from('installed_modules')
+        .update({
+          version: mod.config.version,
+          features: mod.config.features,
+          name: mod.config.name,
+          description: mod.config.description,
+        })
+        .eq('id', moduleId);
+    }
 
-    // 3. Deploy edge functions if module is enabled
+    // 2. Deploy edge functions if module is enabled and has changes
     let edgeFunctionsDeployed: string[] = [];
     if (
       (row as Record<string, unknown>).status === 'enabled' &&
-      mod.config.edgeFunctions?.length
+      mod.config.edgeFunctions?.length &&
+      (hasVersionUpdate || hasEdgeFunctionChanges)
     ) {
       const deployResult = await deployEdgeFunctions({
         projectRoot: PROJECT_ROOT,
         modules: [mod],
-        deploy: shouldDeployEdgeFunctions(),
-        projectRef: process.env.SUPABASE_PROJECT_REF,
+        allModules: modules,
       });
-      edgeFunctionsDeployed = deployResult.copied.map((r) => r.functionName);
-      if (edgeFunctionsDeployed.length > 0) {
-        await restartEdgeRuntime();
+      edgeFunctionsDeployed = [...deployResult.copied, ...deployResult.deployed].map((r) => r.functionName);
+
+      // Update hash after successful deployment
+      if (currentHash) {
+        await supabase
+          .from('installed_modules')
+          .update({ edge_functions_hash: currentHash })
+          .eq('id', moduleId);
       }
     }
 
-    console.log(`[modules] Updated "${mod.config.name}" from v${previousVersion} to v${mod.config.version}`);
+    const reason = hasVersionUpdate ? 'version' : 'edge_functions_changed';
+    console.log(`[modules] Updated "${mod.config.name}" (${reason})${hasVersionUpdate ? ` v${previousVersion} → v${mod.config.version}` : ' (edge functions redeployed)'}`);
 
     return res.json({
       success: true,
+      reason,
       module: {
         id: moduleId,
         name: mod.config.name,
@@ -811,13 +1063,13 @@ modulesRouter.post('/update-all', async (_req, res) => {
 
     const { data: installed } = await supabase
       .from('installed_modules')
-      .select('id, version, status');
+      .select('id, version, status, edge_functions_hash');
 
     const installedMap = new Map(
       (installed ?? []).map((r: Record<string, unknown>) => [r.id as string, r])
     );
 
-    const updated: { id: string; name: string; previousVersion: string; newVersion: string }[] = [];
+    const updated: { id: string; name: string; previousVersion: string; newVersion: string; reason: string }[] = [];
     const skipped: { id: string; name: string; reason: string }[] = [];
     const modulesToDeploy: LoadedModule[] = [];
 
@@ -825,10 +1077,14 @@ modulesRouter.post('/update-all', async (_req, res) => {
       const row = installedMap.get(mod.config.id) as InstalledModuleRow | undefined;
       if (!row) continue;
 
-      if (!isNewerVersion(mod.config.version, row.version)) continue;
+      const hasVersionUpdate = isNewerVersion(mod.config.version, row.version);
+      const currentHash = computeEdgeFunctionsHash(mod);
+      const hasSourceChanges = currentHash !== null && currentHash !== row.edge_functions_hash;
+
+      if (!hasVersionUpdate && !hasSourceChanges) continue;
 
       // Skip modules that require a newer platform version
-      if (mod.config.minPlatformVersion && config.platformVersion) {
+      if (hasVersionUpdate && mod.config.minPlatformVersion && config.platformVersion) {
         if (compareSemver(config.platformVersion, mod.config.minPlatformVersion) < 0) {
           skipped.push({
             id: mod.config.id,
@@ -841,25 +1097,35 @@ modulesRouter.post('/update-all', async (_req, res) => {
 
       const previousVersion = row.version;
 
-      // Apply migrations
-      await applyModuleMigrations(mod, supabase as never);
+      // Apply migrations (only if version changed)
+      if (hasVersionUpdate) {
+        await applyModuleMigrations(mod, supabase as never);
+      }
 
       // Update DB
+      const dbUpdate: Record<string, unknown> = {
+        name: mod.config.name,
+        description: mod.config.description,
+      };
+      if (hasVersionUpdate) {
+        dbUpdate.version = mod.config.version;
+        dbUpdate.features = mod.config.features;
+      }
+      if (currentHash) {
+        dbUpdate.edge_functions_hash = currentHash;
+      }
       await supabase
         .from('installed_modules')
-        .update({
-          version: mod.config.version,
-          features: mod.config.features,
-          name: mod.config.name,
-          description: mod.config.description,
-        })
+        .update(dbUpdate)
         .eq('id', mod.config.id);
 
+      const reason = hasVersionUpdate ? 'version' : 'source_changed';
       updated.push({
         id: mod.config.id,
         name: mod.config.name,
         previousVersion,
         newVersion: mod.config.version,
+        reason,
       });
 
       if (row.status === 'enabled' && mod.config.edgeFunctions?.length) {
@@ -873,13 +1139,9 @@ modulesRouter.post('/update-all', async (_req, res) => {
       const deployResult = await deployEdgeFunctions({
         projectRoot: PROJECT_ROOT,
         modules: modulesToDeploy,
-        deploy: shouldDeployEdgeFunctions(),
-        projectRef: process.env.SUPABASE_PROJECT_REF,
+        allModules: modules,
       });
-      edgeFunctionsDeployed = deployResult.copied.map((r) => r.functionName);
-      if (edgeFunctionsDeployed.length > 0) {
-        await restartEdgeRuntime();
-      }
+      edgeFunctionsDeployed = [...deployResult.copied, ...deployResult.deployed].map((r) => r.functionName);
     }
 
     return res.json({
@@ -1166,7 +1428,39 @@ modulesRouter.post('/invoke-function/:name', async (req, res) => {
       return res.status(500).json({ error: 'Missing Supabase credentials' });
     }
 
+    // Authenticate: verify the caller has a valid Supabase session
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(401).json({ error: 'Missing authorization header' });
+    }
+    const supabase = createClient(supabaseUrl, serviceRoleKey);
+    const token = authHeader.replace(/^Bearer\s+/i, '');
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !user) {
+      return res.status(401).json({ error: 'Invalid or expired session' });
+    }
+
+    // Validate function name: must belong to an enabled module
     const functionName = req.params.name;
+    const { data: enabledModules } = await supabase
+      .from('installed_modules')
+      .select('id, config')
+      .eq('status', 'enabled');
+
+    const modules = await loadAllModules();
+    const allowedFunctions = new Set<string>();
+    for (const row of enabledModules ?? []) {
+      const mod = modules.find((m) => m.config.id === (row as Record<string, unknown>).id);
+      if (mod?.config.edgeFunctions) {
+        for (const fn of mod.config.edgeFunctions) {
+          allowedFunctions.add(fn);
+        }
+      }
+    }
+
+    if (!allowedFunctions.has(functionName)) {
+      return res.status(404).json({ error: `Function not found: ${functionName}` });
+    }
 
     const response = await fetch(
       `${supabaseUrl}/functions/v1/${encodeURIComponent(functionName)}`,
