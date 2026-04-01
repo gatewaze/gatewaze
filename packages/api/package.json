@@ -5,7 +5,7 @@
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "tsx watch --ignore '/gatewaze-modules/**' --ignore '/premium-gatewaze-modules/**' --ignore '/lf-gatewaze-modules/**' --ignore '/app/.gatewaze-modules/**' --ignore '/app/supabase/**' --ignore '/app/data/**' src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
     "start:worker": "node dist/workers/job-worker.js",

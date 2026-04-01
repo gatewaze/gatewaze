@@ -1,12 +1,7 @@
 FROM node:20-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates curl unzip && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@latest --activate
-
-# Install Supabase CLI for cloud edge function deployments
-RUN ARCH=$(dpkg --print-architecture) \
-    && curl -fsSL "https://github.com/supabase/cli/releases/latest/download/supabase_linux_${ARCH}.deb" -o /tmp/supabase.deb \
-    && dpkg -i /tmp/supabase.deb && rm /tmp/supabase.deb
 
 WORKDIR /app
 

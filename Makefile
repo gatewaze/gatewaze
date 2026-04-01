@@ -243,11 +243,21 @@ _cloud-reset: _link-cloud
 	@echo "Resetting cloud Supabase project data..."
 	@echo ""
 	@echo "  [1/5] Deleting edge functions..."
-	@for dir in supabase/functions/*/; do \
-		fname=$$(basename "$$dir"); \
-		[ "$$fname" = "_shared" ] && continue; \
-		npx supabase functions delete "$$fname" 2>/dev/null || true; \
-	done
+	@PROJECT_REF=$$(grep -E '^SUPABASE_PROJECT_REF=' "$(ENV_FILE)" | head -1 | cut -d= -f2-); \
+	ACCESS_TOKEN=$$(grep -E '^SUPABASE_ACCESS_TOKEN=' "$(ENV_FILE)" | head -1 | cut -d= -f2-); \
+	if [ -n "$$PROJECT_REF" ] && [ -n "$$ACCESS_TOKEN" ]; then \
+		echo "    Fetching function list from Supabase Cloud..."; \
+		SLUGS=$$(curl -s "https://api.supabase.com/v1/projects/$$PROJECT_REF/functions" \
+			-H "Authorization: Bearer $$ACCESS_TOKEN" \
+			| python3 -c "import sys,json; [print(f['slug']) for f in json.load(sys.stdin)]" 2>/dev/null); \
+		for slug in $$SLUGS; do \
+			echo "    Deleting $$slug..."; \
+			curl -s -X DELETE "https://api.supabase.com/v1/projects/$$PROJECT_REF/functions/$$slug" \
+				-H "Authorization: Bearer $$ACCESS_TOKEN" > /dev/null; \
+		done; \
+	else \
+		echo "    Warning: SUPABASE_PROJECT_REF or SUPABASE_ACCESS_TOKEN not set, skipping cloud function deletion"; \
+	fi
 	@echo "    Done."
 	@echo "  [2/5] Emptying storage..."
 	@SUPABASE_URL=$$(grep -E '^SUPABASE_URL=' "$(ENV_FILE)" | head -1 | cut -d= -f2-); \
