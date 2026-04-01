@@ -173,6 +173,7 @@ services:
       - "${KONG_PORT:-54321}:8000"
     labels:
       - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-supabase.rule=Host(`${SUPABASE_HOST:-gatewaze-supabase.localhost}`)"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-supabase.entrypoints=web"
       - "traefik.http.services.${COMPOSE_PROJECT_NAME:-gatewaze}-supabase.loadbalancer.server.port=8000"
@@ -252,6 +253,7 @@ services:
       - "${STUDIO_PORT:-54323}:3000"
     labels:
       - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-studio.rule=Host(`${STUDIO_HOST:-gatewaze-studio.localhost}`)"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-studio.entrypoints=web"
       - "traefik.http.services.${COMPOSE_PROJECT_NAME:-gatewaze}-studio.loadbalancer.server.port=3000"
@@ -323,6 +325,7 @@ services:
       - "${ADMIN_PORT:-5274}:80"
     labels:
       - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-admin.rule=Host(`${ADMIN_HOST:-gatewaze-admin.localhost}`)"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-admin.entrypoints=web"
       - "traefik.http.services.${COMPOSE_PROJECT_NAME:-gatewaze}-admin.loadbalancer.server.port=80"
@@ -350,6 +353,7 @@ services:
       - "${PORTAL_PORT:-3100}:3100"
     labels:
       - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-portal.rule=Host(`${PORTAL_HOST:-gatewaze-app.localhost}`)"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-portal.entrypoints=web"
       - "traefik.http.services.${COMPOSE_PROJECT_NAME:-gatewaze}-portal.loadbalancer.server.port=3100"
@@ -381,6 +385,7 @@ services:
       - "${API_PORT:-3002}:3002"
     labels:
       - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-api.rule=Host(`${API_HOST:-gatewaze-api.localhost}`)"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-api.entrypoints=web"
       - "traefik.http.services.${COMPOSE_PROJECT_NAME:-gatewaze}-api.loadbalancer.server.port=3002"
