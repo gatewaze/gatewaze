@@ -6,6 +6,7 @@ import {
   seedModuleSources,
   applyModuleMigrations,
   deployEdgeFunctions,
+  computeEdgeFunctionsHash,
   isNewerVersion,
   compareSemver,
   bootstrapCheck,
@@ -54,6 +55,26 @@ async function loadAllModules() {
     // module_sources table may not exist yet
   }
   return loadModulesWithDbSources(config, dbSources as never[], PROJECT_ROOT);
+}
+
+/** Build the list of all _shared/ dirs across loaded modules for hash computation */
+function buildSharedDirs(modules: LoadedModule[]): string[] {
+  const { join } = require('path');
+  const { existsSync } = require('fs');
+  const dirs: string[] = [];
+  for (const mod of modules) {
+    if (mod.resolvedDir) {
+      const sharedDir = join(mod.resolvedDir, 'functions', '_shared');
+      if (existsSync(sharedDir)) {
+        dirs.push(sharedDir);
+      }
+    }
+  }
+  const platformShared = resolve(PROJECT_ROOT, 'supabase/functions/_shared');
+  if (existsSync(platformShared)) {
+    dirs.push(platformShared);
+  }
+  return dirs;
 }
 
 /**
@@ -204,12 +225,24 @@ modulesRouter.post('/select', async (req, res) => {
           modules: enabledModulesWithFunctions,
           allModules: modules,
         });
-        if (deployResult.copied.length > 0) {
-          console.log(`[modules] Deployed ${deployResult.copied.length} edge function(s) during onboarding`);
-
+        const totalDeployed = deployResult.copied.length + deployResult.deployed.length;
+        if (totalDeployed > 0) {
+          console.log(`[modules] Deployed ${totalDeployed} edge function(s) during onboarding`);
         }
         if (deployResult.errors.length > 0) {
           console.warn('[modules] Edge function deployment warnings:', deployResult.errors);
+        }
+
+        // Store edge function hashes for all deployed modules
+        const sharedDirs = buildSharedDirs(modules);
+        for (const mod of enabledModulesWithFunctions) {
+          const hash = computeEdgeFunctionsHash(mod, sharedDirs);
+          if (hash) {
+            await supabase
+              .from('installed_modules')
+              .update({ edge_functions_hash: hash })
+              .eq('id', mod.config.id);
+          }
         }
       }
     }
@@ -543,6 +576,16 @@ modulesRouter.post('/:id/enable', async (req, res) => {
         }
       }
 
+      // Store edge functions hash for change detection
+      const sharedDirs = buildSharedDirs(modules);
+      const hash = computeEdgeFunctionsHash(mod, sharedDirs);
+      if (hash) {
+        await supabase
+          .from('installed_modules')
+          .update({ edge_functions_hash: hash })
+          .eq('id', moduleId);
+      }
+
       // Run lifecycle hook
       if (mod.config.onEnable) {
         await mod.config.onEnable();
@@ -667,17 +710,20 @@ modulesRouter.get('/check-updates', async (_req, res) => {
 
     const { data: installed } = await supabase
       .from('installed_modules')
-      .select('id, name, version, status');
+      .select('id, name, version, status, edge_functions_hash');
 
     const installedMap = new Map(
       (installed ?? []).map((r: Record<string, unknown>) => [r.id as string, r])
     );
+
+    const sharedDirs = buildSharedDirs(modules);
 
     const updates: {
       id: string;
       name: string;
       installedVersion: string;
       availableVersion: string;
+      reason: 'version' | 'edge_functions_changed';
       minPlatformVersion?: string;
       platformCompatible: boolean;
     }[] = [];
@@ -687,20 +733,42 @@ modulesRouter.get('/check-updates', async (_req, res) => {
       if (!row) continue;
 
       const installedVersion = row.version;
-      if (isNewerVersion(mod.config.version, installedVersion)) {
-        const platformCompatible =
-          !mod.config.minPlatformVersion ||
-          !config.platformVersion ||
-          compareSemver(config.platformVersion, mod.config.minPlatformVersion) >= 0;
+      const platformCompatible =
+        !mod.config.minPlatformVersion ||
+        !config.platformVersion ||
+        compareSemver(config.platformVersion, mod.config.minPlatformVersion) >= 0;
 
+      // Check for version bump
+      if (isNewerVersion(mod.config.version, installedVersion)) {
         updates.push({
           id: mod.config.id,
           name: mod.config.name,
           installedVersion,
           availableVersion: mod.config.version,
+          reason: 'version',
           minPlatformVersion: mod.config.minPlatformVersion,
           platformCompatible,
         });
+        continue;
+      }
+
+      // Check for edge function source changes (only for enabled modules with edge functions)
+      if (
+        row.status === 'enabled' &&
+        mod.config.edgeFunctions?.length
+      ) {
+        const currentHash = computeEdgeFunctionsHash(mod, sharedDirs);
+        const installedHash = row.edge_functions_hash;
+        if (currentHash && currentHash !== installedHash) {
+          updates.push({
+            id: mod.config.id,
+            name: mod.config.name,
+            installedVersion,
+            availableVersion: mod.config.version,
+            reason: 'edge_functions_changed',
+            platformCompatible,
+          });
+        }
       }
     }
 
@@ -743,10 +811,10 @@ modulesRouter.post('/:id/update', async (req, res) => {
       }
     }
 
-    // Get current installed version
+    // Get current installed state
     const { data: row } = await supabase
       .from('installed_modules')
-      .select('version, status')
+      .select('version, status, edge_functions_hash')
       .eq('id', moduleId)
       .single();
 
@@ -755,8 +823,15 @@ modulesRouter.post('/:id/update', async (req, res) => {
     }
 
     const previousVersion = (row as Record<string, unknown>).version as string;
+    const hasVersionUpdate = isNewerVersion(mod.config.version, previousVersion);
 
-    if (!isNewerVersion(mod.config.version, previousVersion)) {
+    // Check for edge function source changes
+    const sharedDirs = buildSharedDirs(modules);
+    const currentHash = computeEdgeFunctionsHash(mod, sharedDirs);
+    const installedHash = (row as Record<string, unknown>).edge_functions_hash as string | null;
+    const hasEdgeFunctionChanges = currentHash !== null && currentHash !== installedHash;
+
+    if (!hasVersionUpdate && !hasEdgeFunctionChanges) {
       return res.json({
         success: true,
         message: 'Already up to date',
@@ -764,25 +839,28 @@ modulesRouter.post('/:id/update', async (req, res) => {
       });
     }
 
-    // 1. Apply pending migrations
-    await applyModuleMigrations(mod, supabase as never);
+    // 1. Apply pending migrations (only if version changed)
+    if (hasVersionUpdate) {
+      await applyModuleMigrations(mod, supabase as never);
 
-    // 2. Update version and features in DB
-    await supabase
-      .from('installed_modules')
-      .update({
-        version: mod.config.version,
-        features: mod.config.features,
-        name: mod.config.name,
-        description: mod.config.description,
-      })
-      .eq('id', moduleId);
+      // Update version and features in DB
+      await supabase
+        .from('installed_modules')
+        .update({
+          version: mod.config.version,
+          features: mod.config.features,
+          name: mod.config.name,
+          description: mod.config.description,
+        })
+        .eq('id', moduleId);
+    }
 
-    // 3. Deploy edge functions if module is enabled
+    // 2. Deploy edge functions if module is enabled and has changes
     let edgeFunctionsDeployed: string[] = [];
     if (
       (row as Record<string, unknown>).status === 'enabled' &&
-      mod.config.edgeFunctions?.length
+      mod.config.edgeFunctions?.length &&
+      (hasVersionUpdate || hasEdgeFunctionChanges)
     ) {
       const deployResult = await deployEdgeFunctions({
         projectRoot: PROJECT_ROOT,
@@ -790,12 +868,22 @@ modulesRouter.post('/:id/update', async (req, res) => {
         allModules: modules,
       });
       edgeFunctionsDeployed = [...deployResult.copied, ...deployResult.deployed].map((r) => r.functionName);
+
+      // Update hash after successful deployment
+      if (currentHash) {
+        await supabase
+          .from('installed_modules')
+          .update({ edge_functions_hash: currentHash })
+          .eq('id', moduleId);
+      }
     }
 
-    console.log(`[modules] Updated "${mod.config.name}" from v${previousVersion} to v${mod.config.version}`);
+    const reason = hasVersionUpdate ? 'version' : 'edge_functions_changed';
+    console.log(`[modules] Updated "${mod.config.name}" (${reason})${hasVersionUpdate ? ` v${previousVersion} → v${mod.config.version}` : ' (edge functions redeployed)'}`);
 
     return res.json({
       success: true,
+      reason,
       module: {
         id: moduleId,
         name: mod.config.name,

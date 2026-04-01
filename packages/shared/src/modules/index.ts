@@ -3,6 +3,7 @@ export { reconcileModules, seedModuleSources, detectCircularDependencies } from 
 export { applyModuleMigrations } from './migrations';
 export { compareSemver, isNewerVersion } from './semver';
 export { deployEdgeFunctions, removeEdgeFunctions } from './deploy-edge-functions';
+export { computeEdgeFunctionsHash } from './edge-functions-hash';
 export { detectDeploymentEnvironment, createDeploymentStrategy, resolveSourceFiles, resolveModuleSecrets } from './deploy-strategies';
 export { detectEnvironment, checkExecSqlExists, validateCloudCredentials, applyCoreMigrations, bootstrapCheck } from './bootstrap';
 export type { BootstrapResult } from './bootstrap';
