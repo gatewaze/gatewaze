@@ -41,8 +41,11 @@ export function getEmailConfig(): EmailConfig | null {
 
 /**
  * Check if email sending is configured.
+ * Returns false when CI_MODE is enabled so magic links are returned
+ * directly instead of being emailed.
  */
 export function isEmailConfigured(): boolean {
+  if (Deno.env.get('CI_MODE')?.toLowerCase() === 'true') return false;
   const config = getEmailConfig();
   if (!config) return false;
   if (config.provider === 'sendgrid') return !!config.sendgridApiKey;
