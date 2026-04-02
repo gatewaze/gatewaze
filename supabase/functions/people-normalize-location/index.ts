@@ -80,7 +80,7 @@ async function geocodeLocation(city: string, country: string, state?: string): P
 
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'GatewazeAdmin/1.0 (contact@gatewaze.com)'
+        'User-Agent': 'GatewazeAdmin/1.0 (contact@gatewaze.io)'
       }
     })
 
@@ -112,7 +112,7 @@ async function reverseGeocode(lat: number, lng: number): Promise<LocationData | 
 
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'GatewazeAdmin/1.0 (contact@gatewaze.com)'
+        'User-Agent': 'GatewazeAdmin/1.0 (contact@gatewaze.io)'
       }
     })
 

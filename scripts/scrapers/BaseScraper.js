@@ -156,7 +156,7 @@ export class BaseScraper {
         method: 'HEAD',
         timeout: this.globalConfig.urlValidation.timeout,
         headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; EventsBot/1.0; +https://gatewaze.com/bot)'
+          'User-Agent': 'Mozilla/5.0 (compatible; EventsBot/1.0; +https://gatewaze.io/bot)'
         }
       });
 

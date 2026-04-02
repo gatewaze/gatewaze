@@ -36,7 +36,7 @@ export function WhiteLabelFooter({ className = '' }: Props) {
           </Link>
           <span className="text-white/30">|</span>
           <a
-            href="https://gatewaze.com"
+            href="https://gatewaze.io"
             target="_blank"
             rel="noopener noreferrer"
             className="cursor-pointer relative hover:text-white transition-colors group"

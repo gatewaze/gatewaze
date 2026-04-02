@@ -52,7 +52,7 @@ export const templateVariableScopes: TemplateVariableScope[] = [
       { field: 'talk_synopsis', label: 'Talk Synopsis', description: 'Synopsis of the speaker\'s talk', example: 'In this talk, we will explore...' },
       { field: 'company', label: 'Company', description: 'Speaker\'s company name', example: 'Tech Corp' },
       { field: 'job_title', label: 'Job Title', description: 'Speaker\'s job title', example: 'Senior Engineer' },
-      { field: 'confirmation_link', label: 'Confirmation Link', description: 'Link for speaker to confirm attendance. Use {{speaker.confirmation_link}} for current event, or {{speaker.confirmation_link:EVENT_ID}} to confirm for a different event (e.g., offering rejected speakers a slot at another event)', example: 'https://app.gatewaze.com/speaker-confirm?token=abc123' },
+      { field: 'confirmation_link', label: 'Confirmation Link', description: 'Link for speaker to confirm attendance. Use {{speaker.confirmation_link}} for current event, or {{speaker.confirmation_link:EVENT_ID}} to confirm for a different event (e.g., offering rejected speakers a slot at another event)', example: 'https://app.gatewaze.io/speaker-confirm?token=abc123' },
       { field: 'edit_link', label: 'Edit Link', description: 'Relative link to the speaker dashboard where confirmed speakers can view their status, upload presentations, and edit their talk. Prepend your portal domain when using in emails.', example: '/events/abc123/talks/success/xyz789' },
     ],
   },
