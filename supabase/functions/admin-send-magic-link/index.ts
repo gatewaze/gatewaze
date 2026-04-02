@@ -81,9 +81,9 @@ async function handler(req: Request) {
       html: `
         <h2>Sign In</h2>
         <p>Click the link below to sign in to your account:</p>
-        <p><a href="${magicLink}" style="display:inline-block;padding:12px 24px;background:#000;color:#fff;text-decoration:none;border-radius:6px;">Sign In</a></p>
+        <p><a clicktracking="off" href="${magicLink}" style="display:inline-block;padding:12px 24px;background:#000;color:#fff;text-decoration:none;border-radius:6px;">Sign In</a></p>
         <p>Or copy this URL into your browser:</p>
-        <p style="word-break:break-all;color:#666;">${magicLink}</p>
+        <p style="word-break:break-all;color:#666;"><a clicktracking="off" href="${magicLink}" style="color:#666;">${magicLink}</a></p>
         <p style="color:#999;font-size:12px;">This link expires in 1 hour. If you didn't request this, you can safely ignore this email.</p>
       `,
       text: `Sign in to your account:\n\n${magicLink}\n\nThis link expires in 1 hour.`,
