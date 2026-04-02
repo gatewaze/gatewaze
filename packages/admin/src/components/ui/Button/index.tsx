@@ -40,7 +40,13 @@ const colorMap: Record<string, RadixButtonProps["color"]> = {
   gray: "gray",
 };
 
-export type ButtonProps = RadixButtonProps & {
+type SemanticColor = "primary" | "secondary" | "info" | "success" | "warning" | "error" | "neutral";
+type LegacyVariant = "filled" | "outlined" | "flat";
+
+export type ButtonProps = Omit<RadixButtonProps, "color" | "variant" | "size"> & {
+  color?: RadixButtonProps["color"] | SemanticColor;
+  variant?: RadixButtonProps["variant"] | LegacyVariant;
+  size?: RadixButtonProps["size"] | "sm" | "xs" | "md" | "lg";
   /** @deprecated Use `variant="solid"` instead */
   isIcon?: boolean;
   /** @deprecated No longer supported */
@@ -49,16 +55,30 @@ export type ButtonProps = RadixButtonProps & {
   isGlow?: boolean;
   /** @deprecated Use `asChild` instead */
   component?: any;
+  /** Polymorphic: pass-through props (e.g. `to` for Link) */
+  [key: string]: any;
+};
+
+const sizeMap: Record<string, RadixButtonProps["size"]> = {
+  xs: "1",
+  sm: "1",
+  md: "2",
+  lg: "3",
+  "1": "1",
+  "2": "2",
+  "3": "3",
+  "4": "4",
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ variant = "solid", color, isIcon, unstyled, isGlow, component, ...rest }, ref) => {
+  ({ variant = "solid", color, size, isIcon, unstyled, isGlow, component, ...rest }, ref) => {
     const mappedVariant = variantMap[variant as string] ?? "solid";
     const mappedColor = color ? (colorMap[color as string] ?? (color as RadixButtonProps["color"])) : undefined;
+    const mappedSize = size ? (sizeMap[size as string] ?? (size as RadixButtonProps["size"])) : undefined;
 
     // unstyled -> ghost with no color
     if (unstyled) {
-      return <RadixButton ref={ref} variant="ghost" highContrast {...rest} />;
+      return <RadixButton ref={ref} variant="ghost" highContrast {...(mappedSize ? { size: mappedSize } : {})} {...rest as any} />;
     }
 
     if (isIcon) {
@@ -67,6 +87,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           ref={ref}
           variant={mappedVariant as RadixIconButtonProps["variant"]}
           {...(mappedColor ? { color: mappedColor } : {})}
+          {...(mappedSize ? { size: mappedSize } : {})}
           {...(rest as any)}
         />
       );
@@ -77,7 +98,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         variant={mappedVariant}
         {...(mappedColor ? { color: mappedColor } : {})}
-        {...rest}
+        {...(mappedSize ? { size: mappedSize } : {})}
+        {...(rest as any)}
       />
     );
   },

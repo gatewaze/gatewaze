@@ -37,7 +37,7 @@ export default function Error404() {
               to="/"
               ref={btnRef}
               isGlow={btnHovered}
-              color="primary"
+              color="cyan"
               className="h-11 text-base"
             >
               Back To Home

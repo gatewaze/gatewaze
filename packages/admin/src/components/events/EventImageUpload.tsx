@@ -308,7 +308,7 @@ export const EventImageUpload: React.FC<EventImageUploadProps> = ({
               disabled={disabled}
               className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
             />
-            <Button type="button" onClick={handleUrlSubmit} disabled={disabled} variant="outlined">
+            <Button type="button" onClick={handleUrlSubmit} disabled={disabled} variant="outline">
               Set URL
             </Button>
           </div>

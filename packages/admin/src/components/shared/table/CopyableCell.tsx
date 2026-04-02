@@ -34,7 +34,7 @@ export function CopyableCell({
         data-tooltip-content={copied ? "Copied" : "Copy"}
         onClick={() => copy(val)}
         isIcon
-        variant="flat"
+        variant="ghost"
         className="size-5 rounded-full opacity-0 group-hover/td:opacity-100"
         aria-label="Copy Button"
       >

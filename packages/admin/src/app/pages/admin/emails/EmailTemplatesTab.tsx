@@ -240,7 +240,7 @@ export function EmailTemplatesTab() {
             Create and manage reusable email templates with template variables
           </p>
         </div>
-        <Button onClick={() => handleOpenModal()} color="primary" className="gap-2">
+        <Button onClick={() => handleOpenModal()} color="cyan" className="gap-2">
           <PlusIcon className="size-4" />
           New Template
         </Button>
@@ -251,8 +251,8 @@ export function EmailTemplatesTab() {
         {/* Type filter */}
         <div className="flex gap-2">
           <Button
-            variant={filterType === 'all' ? 'filled' : 'outlined'}
-            size="sm"
+            variant={filterType === 'all' ? 'solid' : 'outline'}
+            size="1"
             onClick={() => setFilterType('all')}
           >
             All Types
@@ -260,8 +260,8 @@ export function EmailTemplatesTab() {
           {Object.entries(templateTypeLabels).map(([type, label]) => (
             <Button
               key={type}
-              variant={filterType === type ? 'filled' : 'outlined'}
-              size="sm"
+              variant={filterType === type ? 'solid' : 'outline'}
+              size="1"
               onClick={() => setFilterType(type)}
             >
               {label}
@@ -272,22 +272,22 @@ export function EmailTemplatesTab() {
         {/* Ownership filter */}
         <div className="flex gap-2 ml-auto">
           <Button
-            variant={filterOwnership === 'all' ? 'filled' : 'outlined'}
-            size="sm"
+            variant={filterOwnership === 'all' ? 'solid' : 'outline'}
+            size="1"
             onClick={() => setFilterOwnership('all')}
           >
             All
           </Button>
           <Button
-            variant={filterOwnership === 'mine' ? 'filled' : 'outlined'}
-            size="sm"
+            variant={filterOwnership === 'mine' ? 'solid' : 'outline'}
+            size="1"
             onClick={() => setFilterOwnership('mine')}
           >
             My Templates
           </Button>
           <Button
-            variant={filterOwnership === 'shared' ? 'filled' : 'outlined'}
-            size="sm"
+            variant={filterOwnership === 'shared' ? 'solid' : 'outline'}
+            size="1"
             onClick={() => setFilterOwnership('shared')}
           >
             Shared
@@ -300,7 +300,7 @@ export function EmailTemplatesTab() {
         <div className="text-center py-12">
           <DocumentTextIcon className="mx-auto h-12 w-12 text-gray-400" />
           <p className="mt-2 text-gray-500 dark:text-gray-400">No templates found</p>
-          <Button onClick={() => handleOpenModal()} color="primary" className="mt-4 gap-2">
+          <Button onClick={() => handleOpenModal()} color="cyan" className="mt-4 gap-2">
             <PlusIcon className="size-4" />
             Create First Template
           </Button>
@@ -342,8 +342,8 @@ export function EmailTemplatesTab() {
 
               <div className="flex gap-2 pt-3 border-t border-gray-200 dark:border-gray-700">
                 <Button
-                  variant="outlined"
-                  size="sm"
+                  variant="outline"
+                  size="1"
                   onClick={() => handlePreview(template)}
                   className="gap-1"
                 >
@@ -351,8 +351,8 @@ export function EmailTemplatesTab() {
                   Preview
                 </Button>
                 <Button
-                  variant="outlined"
-                  size="sm"
+                  variant="outline"
+                  size="1"
                   onClick={() => handleOpenModal(template)}
                   className="gap-1"
                 >
@@ -360,17 +360,17 @@ export function EmailTemplatesTab() {
                   Edit
                 </Button>
                 <Button
-                  variant="outlined"
-                  size="sm"
+                  variant="outline"
+                  size="1"
                   onClick={() => handleDuplicate(template)}
                   className="gap-1"
                 >
                   <DocumentDuplicateIcon className="size-3" />
                 </Button>
                 <Button
-                  variant="outlined"
-                  size="sm"
-                  color="error"
+                  variant="outline"
+                  size="1"
+                  color="red"
                   onClick={() => setDeleteTemplate(template)}
                   className="gap-1"
                 >
@@ -390,10 +390,10 @@ export function EmailTemplatesTab() {
         size="xl"
         footer={
           <div className="flex justify-end gap-3 px-6 py-4">
-            <Button type="button" variant="outlined" onClick={handleCloseModal}>
+            <Button type="button" variant="outline" onClick={handleCloseModal}>
               Cancel
             </Button>
-            <Button type="submit" color="primary" disabled={submitting} onClick={form.handleSubmit(onSubmit)}>
+            <Button type="submit" color="cyan" disabled={submitting} onClick={form.handleSubmit(onSubmit)}>
               {submitting ? 'Saving...' : isEditing ? 'Update Template' : 'Create Template'}
             </Button>
           </div>

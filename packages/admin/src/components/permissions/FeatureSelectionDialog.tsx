@@ -376,7 +376,7 @@ export function FeatureSelectionDialog({
                 >
                   {saving ? (
                     <span className="flex items-center justify-center gap-2">
-                      <LoadingSpinner size="xs" />
+                      <LoadingSpinner size="sm" />
                       Saving...
                     </span>
                   ) : (

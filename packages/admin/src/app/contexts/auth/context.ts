@@ -11,9 +11,12 @@ export interface ImpersonationState {
 export interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
+  loading?: boolean;
   isInitialized: boolean;
   errorMessage: string | null;
   user: User | null;
+  adminProfile?: any;
+  isAdmin?: boolean;
   login: (credentials: { email: string }) => Promise<void>;
   logout: () => Promise<void>;
   impersonation: ImpersonationState;

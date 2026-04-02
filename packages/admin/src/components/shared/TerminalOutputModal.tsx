@@ -66,17 +66,17 @@ export function TerminalOutputModal({
   const footer = (
     <div className="flex justify-between items-center w-full">
       <div className="flex items-center gap-2">
-        <Button variant="flat" onClick={copyToClipboard} title="Copy output to clipboard">
+        <Button variant="ghost" onClick={copyToClipboard} title="Copy output to clipboard">
           <DocumentTextIcon className="size-4 mr-1" />
           Copy
         </Button>
         {onClear && (
-          <Button variant="flat" onClick={onClear}>
+          <Button variant="ghost" onClick={onClear}>
             Clear
           </Button>
         )}
         {onBrowserlessGeneration && !isRunning && (
-          <Button variant="outlined" onClick={onBrowserlessGeneration}>
+          <Button variant="outline" onClick={onBrowserlessGeneration}>
             Force BrowserLess.io
           </Button>
         )}
@@ -86,7 +86,7 @@ export function TerminalOutputModal({
           {output.length} lines{isRunning ? ' | Running...' : ''}
         </span>
         {!isRunning && (
-          <Button variant="outlined" onClick={onClose}>
+          <Button variant="outline" onClick={onClose}>
             Close
           </Button>
         )}
@@ -137,7 +137,7 @@ export function TerminalOutputModal({
           {!autoScroll && (
             <div className="p-2 border-t border-gray-700 flex justify-start">
               <Button
-                variant="outlined"
+                variant="outline"
                 onClick={scrollToBottom}
                 className="text-xs text-gray-400 border-gray-600 hover:border-gray-500"
               >

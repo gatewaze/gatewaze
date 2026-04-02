@@ -585,7 +585,7 @@ export default function EventsManagement() {
           isLiveInProduction: true,
           eventCity: data.eventCity,
           eventCountryCode: data.eventCountryCode,
-          eventLink: data.eventLink,
+          eventLink: data.eventLink ?? undefined,
           eventLogo: data.eventLogo,
           offerSlug: data.offerSlug,
           offerCloseDate: data.offerCloseDate,
@@ -597,7 +597,7 @@ export default function EventsManagement() {
           venueAddress: data.venueAddress,
           scrapedBy: data.scrapedBy,
           sourceType: 'manual',
-          sourceDetails: null,
+          sourceDetails: undefined,
           screenshotUrl: undefined,
           accountId: data.accountId || undefined,
         }, userInfo);
@@ -1566,7 +1566,7 @@ export default function EventsManagement() {
               <span className="text-sm font-medium text-[var(--accent-11)]">
                 Filtered by scraper:
               </span>
-              <Badge color="primary" variant="soft">
+              <Badge color="cyan" variant="soft">
                 {filterScraperName}
               </Badge>
             </div>

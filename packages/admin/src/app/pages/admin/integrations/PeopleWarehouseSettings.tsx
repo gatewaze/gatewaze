@@ -257,7 +257,7 @@ export default function PeopleWarehouseSettings() {
                     config.SYNC_ON_CREATE === "true" ? "false" : "true"
                   )
                 }
-                color="primary"
+                color="cyan"
               />
             </div>
             <div className="flex items-center justify-between">
@@ -277,7 +277,7 @@ export default function PeopleWarehouseSettings() {
                     config.SYNC_ON_UPDATE === "true" ? "false" : "true"
                   )
                 }
-                color="primary"
+                color="cyan"
               />
             </div>
             <div className="flex items-center justify-between">
@@ -298,7 +298,7 @@ export default function PeopleWarehouseSettings() {
                     config.IMPORT_SEGMENTS === "true" ? "false" : "true"
                   )
                 }
-                color="primary"
+                color="cyan"
               />
             </div>
           </div>

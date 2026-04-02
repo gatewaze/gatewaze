@@ -67,7 +67,7 @@ export function SelectedRowsActions({
           <Button
             onClick={handleDeleteRows}
             className="text-xs-plus w-7 gap-1.5 rounded-full px-3 py-1.5 sm:w-auto sm:rounded-sm"
-            color="error"
+            color="red"
             disabled={deleteLoading || selectedRows.length <= 0}
           >
             {deleteLoading ? (

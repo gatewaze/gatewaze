@@ -5,7 +5,7 @@
 
 import { ReactNode } from 'react';
 import { Navigate } from 'react-router';
-import { useFeaturePermissions } from '@/hooks/useFeaturePermissions';
+import { useFeaturePermissions, useHasFeature } from '@/hooks/useFeaturePermissions';
 import type { AdminFeature } from '@/lib/permissions/types';
 
 interface FeatureGuardProps {

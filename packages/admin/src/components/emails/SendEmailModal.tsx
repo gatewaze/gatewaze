@@ -125,14 +125,14 @@ export function SendEmailModal({
       footer={
         <div className="flex justify-end gap-2">
           <Button
-            variant="outlined"
+            variant="outline"
             onClick={handleClose}
             disabled={isSending}
           >
             Cancel
           </Button>
           <Button
-            color="primary"
+            color="cyan"
             onClick={handleSend}
             disabled={isSending}
           >

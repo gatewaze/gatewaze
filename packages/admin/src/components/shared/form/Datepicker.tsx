@@ -61,7 +61,7 @@ const DatePicker = forwardRef<FlatpickrRef, DatePickerProps>(
       const loadLocale = async () => {
         const currentLocale = locales[locale];
         if (currentLocale?.flatpickr) {
-          const loadedLocale = await currentLocale.flatpickr();
+          const loadedLocale = await (currentLocale.flatpickr as any)();
           setLocaleData(loadedLocale);
         } else {
           setLocaleData(null);

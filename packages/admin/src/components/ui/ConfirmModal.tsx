@@ -2,7 +2,7 @@ import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { Modal } from './Modal';
 import { Button } from './Button';
 
-interface ConfirmModalProps {
+export interface ConfirmModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: () => void;
@@ -10,7 +10,9 @@ interface ConfirmModalProps {
   message: string;
   confirmText?: string;
   confirmColor?: 'red' | 'blue' | 'green';
+  confirmVariant?: string;
   cancelText?: string;
+  isProcessing?: boolean;
 }
 
 
@@ -50,7 +52,7 @@ export function ConfirmModal({
 
         <div className="flex gap-3 justify-end w-full">
           <Button
-            variant="outlined"
+            variant="outline"
             onClick={onClose}
           >
             {cancelText}

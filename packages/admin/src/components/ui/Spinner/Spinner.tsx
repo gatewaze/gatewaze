@@ -14,10 +14,7 @@ export type SpinnerProps = {
   className?: string;
 } & ComponentPropsWithoutRef<"div">;
 
-const colorMap: Record<
-  string,
-  React.ComponentProps<typeof RadixSpinner>["color"] | undefined
-> = {
+const colorMap: Record<string, string | undefined> = {
   primary: undefined, // uses accent color (brand default)
   secondary: "blue",
   info: "cyan",

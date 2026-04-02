@@ -302,7 +302,7 @@ export function TopicLabelsTab() {
           </p>
         </div>
         <Button
-          color="primary"
+          color="cyan"
           onClick={() => setAddModalOpen(true)}
           className="gap-2"
         >
@@ -377,7 +377,7 @@ export function TopicLabelsTab() {
                 >
                   <Badge
                     variant="soft"
-                    color={topic.default_subscribed ? 'success' : 'warning'}
+                    color={topic.default_subscribed ? 'green' : 'orange'}
                     className="gap-1.5 cursor-pointer hover:opacity-80 transition-opacity"
                   >
                     {togglingDefault === topic.list_id ? (
@@ -388,7 +388,7 @@ export function TopicLabelsTab() {
                 </Button>
               </Td>
               <Td className="text-center">
-                <Badge variant="soft" color="info">
+                <Badge variant="soft" color="blue">
                   {topic.subscriber_count.toLocaleString()}
                 </Badge>
               </Td>
@@ -396,8 +396,8 @@ export function TopicLabelsTab() {
                 {editingTopic === topic.list_id ? (
                   <div className="flex items-center justify-end gap-1">
                     <Button
-                      variant="flat"
-                      color="success"
+                      variant="ghost"
+                      color="green"
                       isIcon
                       className="size-8"
                       onClick={() => handleSave(topic.list_id)}
@@ -407,8 +407,8 @@ export function TopicLabelsTab() {
                       {saving ? <Spinner className="size-4" /> : <CheckIcon className="size-4" />}
                     </Button>
                     <Button
-                      variant="flat"
-                      color="neutral"
+                      variant="ghost"
+                      color="gray"
                       isIcon
                       className="size-8"
                       onClick={handleCancel}
@@ -420,8 +420,8 @@ export function TopicLabelsTab() {
                   </div>
                 ) : (
                   <Button
-                    variant="flat"
-                    color="info"
+                    variant="ghost"
+                    color="blue"
                     isIcon
                     className="size-8"
                     onClick={() => handleEdit(topic)}
@@ -464,7 +464,7 @@ export function TopicLabelsTab() {
             Cancel
           </Button>
           <Button
-            color="primary"
+            color="cyan"
             onClick={handleAddTopic}
             disabled={adding}
           >

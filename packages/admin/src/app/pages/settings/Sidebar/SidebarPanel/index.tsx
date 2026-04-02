@@ -49,7 +49,7 @@ export function SidebarPanel() {
               <Button
                 component={Link}
                 to="/docs/getting-started"
-                variant="flat"
+                variant="ghost"
                 className="group text-xs-plus w-full justify-start gap-2 p-2"
               >
                 <DocumentMagnifyingGlassIcon className="size-4.5 text-[var(--gray-a8)] transition-colors group-hover:text-[var(--gray-11)] group-focus:text-[var(--gray-11)]" />
@@ -58,7 +58,7 @@ export function SidebarPanel() {
             </li>
             <li>
               <Button
-                variant="flat"
+                variant="ghost"
                 className="group text-xs-plus w-full justify-start gap-2 p-2"
               >
                 <QuestionMarkCircleIcon className="size-4.5 text-[var(--gray-a8)] transition-colors group-hover:text-[var(--gray-11)] group-focus:text-[var(--gray-11)]" />
@@ -99,7 +99,7 @@ function MenuItem({
     <NavLink to={path} {...rest}>
       {({ isActive, isPending }) => (
         <Button
-          variant="flat"
+          variant="ghost"
           color={isActive ? "primary" : "neutral"}
           className={clsx(
             "group text-xs-plus w-full justify-start gap-2 p-2",
