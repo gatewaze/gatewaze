@@ -42,25 +42,10 @@ async function handler(req: Request) {
       );
     }
 
-    // Send magic link via Supabase Auth (respects emailRedirectTo for correct redirect)
-    const origin = req.headers.get('origin') || '';
-    const { error: otpError } = await supabase.auth.signInWithOtp({
-      email: normalizedEmail,
-      options: {
-        emailRedirectTo: origin || undefined,
-        shouldCreateUser: false,
-      },
-    });
-
-    if (otpError) {
-      return new Response(
-        JSON.stringify({ error: otpError.message }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-      );
-    }
-
+    // Admin verified — tell client to send OTP from browser
+    // (client-side signInWithOtp respects emailRedirectTo for correct redirect)
     return new Response(
-      JSON.stringify({ success: true }),
+      JSON.stringify({ success: true, verifyOnly: true }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   } catch (err) {
