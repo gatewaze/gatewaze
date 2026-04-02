@@ -2,8 +2,25 @@ apiVersion: v1
 entries:
   gatewaze:
   - apiVersion: v2
+    appVersion: 1.0.25
+    created: "2026-04-02T23:27:12.895544898Z"
+    description: Open-source event management platform
+    digest: 9c0d368e8d995988887b38fef7cf26d986f75f52148bf7ad3bc823372fb12a52
+    home: https://github.com/gatewaze/gatewaze
+    keywords:
+    - events
+    - management
+    - supabase
+    name: gatewaze
+    sources:
+    - https://github.com/gatewaze/gatewaze
+    type: application
+    urls:
+    - https://gatewaze.github.io/gatewaze/gatewaze-1.0.25.tgz
+    version: 1.0.25
+  - apiVersion: v2
     appVersion: 1.0.24
-    created: "2026-04-02T23:13:25.656364606Z"
+    created: "2026-04-02T23:27:12.895030308Z"
     description: Open-source event management platform
     digest: fd04ddded91f0afc14b26997d99adf6166c8e0e3bec17d424e76a4a06799d071
     home: https://github.com/gatewaze/gatewaze
@@ -20,7 +37,7 @@ entries:
     version: 1.0.24
   - apiVersion: v2
     appVersion: 1.0.23
-    created: "2026-04-02T23:13:25.655858422Z"
+    created: "2026-04-02T23:27:12.894487406Z"
     description: Open-source event management platform
     digest: 7910e92c6b3f67594d127dcef8ad72acef88305a6344bdb0ac214ee2f0f5c626
     home: https://github.com/gatewaze/gatewaze
@@ -37,7 +54,7 @@ entries:
     version: 1.0.23
   - apiVersion: v2
     appVersion: 1.0.22
-    created: "2026-04-02T23:13:25.655360496Z"
+    created: "2026-04-02T23:27:12.8939587Z"
     description: Open-source event management platform
     digest: ff9ad04296cedb9386711308c37e8cbfa573bd302164feaf2defe9af41c8cedc
     home: https://github.com/gatewaze/gatewaze
@@ -54,7 +71,7 @@ entries:
     version: 1.0.22
   - apiVersion: v2
     appVersion: 1.0.21
-    created: "2026-04-02T23:13:25.654841644Z"
+    created: "2026-04-02T23:27:12.893431827Z"
     description: Open-source event management platform
     digest: 3e51490c91b1b00d7d4ff325c8e4fce6771a12d2943601b8373bbb8230a9f653
     home: https://github.com/gatewaze/gatewaze
@@ -71,7 +88,7 @@ entries:
     version: 1.0.21
   - apiVersion: v2
     appVersion: 1.0.20
-    created: "2026-04-02T23:13:25.654306065Z"
+    created: "2026-04-02T23:27:12.892910285Z"
     description: Open-source event management platform
     digest: 24c7758ae8a29ac10fe558a6f3c98fd6ae4e0a37734082a4a5f2c39aed10c047
     home: https://github.com/gatewaze/gatewaze
@@ -88,7 +105,7 @@ entries:
     version: 1.0.20
   - apiVersion: v2
     appVersion: 1.0.19
-    created: "2026-04-02T23:13:25.653266697Z"
+    created: "2026-04-02T23:27:12.891873332Z"
     description: Open-source event management platform
     digest: 137da09a78aee0b7e1a9c45a8ec27bb6e50c6f72d6344739e07441c55c0e263a
     home: https://github.com/gatewaze/gatewaze
@@ -105,7 +122,7 @@ entries:
     version: 1.0.19
   - apiVersion: v2
     appVersion: 1.0.18
-    created: "2026-04-02T23:13:25.652736851Z"
+    created: "2026-04-02T23:27:12.89135247Z"
     description: Open-source event management platform
     digest: 52c4ce06f288ab703cc0152f352f7f9757ea264825642d94944735054fc48fd1
     home: https://github.com/gatewaze/gatewaze
@@ -122,7 +139,7 @@ entries:
     version: 1.0.18
   - apiVersion: v2
     appVersion: 1.0.17
-    created: "2026-04-02T23:13:25.652172378Z"
+    created: "2026-04-02T23:27:12.890788999Z"
     description: Open-source event management platform
     digest: ad6807d80a3098d335b7091b22e639ee130c983af66457766b0f5125884b3f13
     home: https://github.com/gatewaze/gatewaze
@@ -139,7 +156,7 @@ entries:
     version: 1.0.17
   - apiVersion: v2
     appVersion: 1.0.16
-    created: "2026-04-02T23:13:25.651618569Z"
+    created: "2026-04-02T23:27:12.890239555Z"
     description: Open-source event management platform
     digest: 73061153e34eb4f428ef0d7d6942f5bc1fdbbe37bca6fbae699f1d4975bfe861
     home: https://github.com/gatewaze/gatewaze
@@ -156,7 +173,7 @@ entries:
     version: 1.0.16
   - apiVersion: v2
     appVersion: 1.0.15
-    created: "2026-04-02T23:13:25.650333084Z"
+    created: "2026-04-02T23:27:12.888894449Z"
     description: Open-source event management platform
     digest: 747d1dc6c1d102e15ac0c753b54f71f82a7221e892011bda091901759e0226eb
     home: https://github.com/gatewaze/gatewaze
@@ -173,7 +190,7 @@ entries:
     version: 1.0.15
   - apiVersion: v2
     appVersion: 1.0.14
-    created: "2026-04-02T23:13:25.649803318Z"
+    created: "2026-04-02T23:27:12.888387133Z"
     description: Open-source event management platform
     digest: c6b8ce32f36b331104144704ea3155944e07b914d0ea613c5500cd1d4bfb5f8f
     home: https://github.com/gatewaze/gatewaze
@@ -190,7 +207,7 @@ entries:
     version: 1.0.14
   - apiVersion: v2
     appVersion: 1.0.13
-    created: "2026-04-02T23:13:25.649274334Z"
+    created: "2026-04-02T23:27:12.887834282Z"
     description: Open-source event management platform
     digest: 9053618e33587a584815c5c52153e9cf4d1b3bc8ead423725352617ea5853d4e
     home: https://github.com/gatewaze/gatewaze
@@ -207,7 +224,7 @@ entries:
     version: 1.0.13
   - apiVersion: v2
     appVersion: 1.0.12
-    created: "2026-04-02T23:13:25.648719953Z"
+    created: "2026-04-02T23:27:12.887290097Z"
     description: Open-source event management platform
     digest: 5472e068a39b623a8cc0a16566f449e95be0ca97bdba3c89edfdd334ff428904
     home: https://github.com/gatewaze/gatewaze
@@ -224,7 +241,7 @@ entries:
     version: 1.0.12
   - apiVersion: v2
     appVersion: 1.0.11
-    created: "2026-04-02T23:13:25.648158648Z"
+    created: "2026-04-02T23:27:12.886727859Z"
     description: Open-source event management platform
     digest: 59a6a29a36cd935dfd8d2c17ad47a11a7b498a3d8fd4ae7808a3fc5ba344d713
     home: https://github.com/gatewaze/gatewaze
@@ -241,7 +258,7 @@ entries:
     version: 1.0.11
   - apiVersion: v2
     appVersion: 1.0.10
-    created: "2026-04-02T23:13:25.64763739Z"
+    created: "2026-04-02T23:27:12.886186128Z"
     description: Open-source event management platform
     digest: bb177aecfff3b0fe7de0429534aae0b6be71660dca87e2d805fcf4d4113f6034
     home: https://github.com/gatewaze/gatewaze
@@ -258,7 +275,7 @@ entries:
     version: 1.0.10
   - apiVersion: v2
     appVersion: 1.0.9
-    created: "2026-04-02T23:13:25.661020074Z"
+    created: "2026-04-02T23:27:12.900384246Z"
     description: Open-source event management platform
     digest: 22401af4859c03c8ca574343330389bd91a84ada0bf613535ca32d80c7878eea
     home: https://github.com/gatewaze/gatewaze
@@ -275,7 +292,7 @@ entries:
     version: 1.0.9
   - apiVersion: v2
     appVersion: 1.0.8
-    created: "2026-04-02T23:13:25.660515273Z"
+    created: "2026-04-02T23:27:12.899837276Z"
     description: Open-source event management platform
     digest: 92baf089fdaa1045a217b5b3eff4326173a3c197c1b9ad741ac1cc2a95c1d52b
     home: https://github.com/gatewaze/gatewaze
@@ -292,7 +309,7 @@ entries:
     version: 1.0.8
   - apiVersion: v2
     appVersion: 1.0.7
-    created: "2026-04-02T23:13:25.659994136Z"
+    created: "2026-04-02T23:27:12.899335691Z"
     description: Open-source event management platform
     digest: e0355148d7f7ae63fd9b0b1e5f7d6e71f1870740058c6d733341776941c5b2db
     home: https://github.com/gatewaze/gatewaze
@@ -309,7 +326,7 @@ entries:
     version: 1.0.7
   - apiVersion: v2
     appVersion: 1.0.6
-    created: "2026-04-02T23:13:25.659453997Z"
+    created: "2026-04-02T23:27:12.898765257Z"
     description: Open-source event management platform
     digest: 0d693e25019f0135c4352687d1a6159d24f97f10a35cf216dd187e4b608a0a10
     home: https://github.com/gatewaze/gatewaze
@@ -326,7 +343,7 @@ entries:
     version: 1.0.6
   - apiVersion: v2
     appVersion: 1.0.5
-    created: "2026-04-02T23:13:25.658900839Z"
+    created: "2026-04-02T23:27:12.898211284Z"
     description: Open-source event management platform
     digest: 9a8ebead6f25c003316fa3e8170ae222a3e26c4635582826250b3e2f0d6cf5eb
     home: https://github.com/gatewaze/gatewaze
@@ -343,7 +360,7 @@ entries:
     version: 1.0.5
   - apiVersion: v2
     appVersion: 1.0.4
-    created: "2026-04-02T23:13:25.658346469Z"
+    created: "2026-04-02T23:27:12.897598501Z"
     description: Open-source event management platform
     digest: 007b9df4ec43ec3b97b4aa72487c86c0a17ec44482b823a909a6aa478d7c7a6a
     home: https://github.com/gatewaze/gatewaze
@@ -360,7 +377,7 @@ entries:
     version: 1.0.4
   - apiVersion: v2
     appVersion: 1.0.3
-    created: "2026-04-02T23:13:25.656856329Z"
+    created: "2026-04-02T23:27:12.896740357Z"
     description: Open-source event management platform
     digest: 5079c32ff0fa0fe00753eab2b6799846b9b8323d56158a6faacecd57818f714c
     home: https://github.com/gatewaze/gatewaze
@@ -377,7 +394,7 @@ entries:
     version: 1.0.3
   - apiVersion: v2
     appVersion: 1.0.2
-    created: "2026-04-02T23:13:25.653778413Z"
+    created: "2026-04-02T23:27:12.892410763Z"
     description: Open-source event management platform
     digest: 0b3d12864b60a4e07bf1531b64bf451caedebacc6bc734ed904368d6711d13c1
     home: https://github.com/gatewaze/gatewaze
@@ -394,7 +411,7 @@ entries:
     version: 1.0.2
   - apiVersion: v2
     appVersion: 1.0.1
-    created: "2026-04-02T23:13:25.64706467Z"
+    created: "2026-04-02T23:27:12.885587091Z"
     description: Open-source event management platform
     digest: 4e50383261659deea571200effd0e376e1e44863efd53cf429b22e13d9d0789c
     home: https://github.com/gatewaze/gatewaze
@@ -411,7 +428,7 @@ entries:
     version: 1.0.1
   - apiVersion: v2
     appVersion: 1.0.0
-    created: "2026-04-02T23:13:25.646503835Z"
+    created: "2026-04-02T23:27:12.885051323Z"
     description: Open-source event management platform
     digest: f6d846cb1a6f4bd6d21295038f8b86222ba83dc666ead27b25ea924e670cb4b3
     home: https://github.com/gatewaze/gatewaze
@@ -426,4 +443,4 @@ entries:
     urls:
     - https://gatewaze.github.io/gatewaze/gatewaze-1.0.0.tgz
     version: 1.0.0
-generated: "2026-04-02T23:13:25.645785604Z"
+generated: "2026-04-02T23:27:12.884326881Z"
