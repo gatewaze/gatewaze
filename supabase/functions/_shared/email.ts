@@ -93,9 +93,6 @@ async function sendViaSendGrid(
         ...(params.text ? [{ type: 'text/plain', value: params.text }] : []),
         { type: 'text/html', value: params.html },
       ],
-      tracking_settings: {
-        click_tracking: { enable: false, enable_text: false },
-      },
     }),
   });
 

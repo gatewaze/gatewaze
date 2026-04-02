@@ -150,9 +150,9 @@ async function handler(req: Request) {
             <h2>Welcome to ${appName}!</h2>
             <p>Hi ${name},</p>
             <p>Your admin account has been created. Click the link below to sign in:</p>
-            <p><a href="${magicLink}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">Sign In</a></p>
+            <p><a clicktracking="off" href="${magicLink}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">Sign In</a></p>
             <p>Or copy and paste this URL into your browser:</p>
-            <p style="word-break:break-all;color:#6b7280;">${magicLink}</p>
+            <p style="word-break:break-all;color:#6b7280;"><a clicktracking="off" href="${magicLink}" style="color:#6b7280;">${magicLink}</a></p>
             <p style="color:#9ca3af;font-size:12px;">This link expires in 1 hour.</p>
           `,
           text: `Welcome to ${appName}!\n\nHi ${name},\n\nYour admin account has been created. Sign in here:\n${magicLink}\n\nThis link expires in 1 hour.`,
