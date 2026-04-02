@@ -128,7 +128,7 @@ export function EmailLogsTab() {
         if (searchQuery) {
           cioQuery = cioQuery.or(`email.ilike.%${searchQuery}%,subject.ilike.%${searchQuery}%`);
         }
-        cioQueryPromise = cioQuery;
+        cioQueryPromise = cioQuery as any;
       }
 
       const [sendgridResult, cioResult] = await Promise.all([
@@ -359,7 +359,7 @@ export function EmailLogsTab() {
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 className="flex-1"
               />
-              <Button onClick={handleSearch} variant="outlined" className="gap-1">
+              <Button onClick={handleSearch} variant="outline" className="gap-1">
                 <MagnifyingGlassIcon className="size-4" />
                 Search
               </Button>
@@ -472,16 +472,16 @@ export function EmailLogsTab() {
             </div>
             <div className="flex gap-2">
               <Button
-                variant="outlined"
-                size="sm"
+                variant="outline"
+                size="1"
                 onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={page === 1}
               >
                 Previous
               </Button>
               <Button
-                variant="outlined"
-                size="sm"
+                variant="outline"
+                size="1"
                 onClick={() => setPage(p => p + 1)}
                 disabled={!hasMore}
               >

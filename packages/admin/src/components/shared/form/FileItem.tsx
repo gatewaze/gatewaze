@@ -68,7 +68,7 @@ export function FileItem({ file, handleRemove, className = '' }: FileItemProps) 
       </div>
       <Button
         onClick={handleRemove}
-        variant="flat"
+        variant="ghost"
         className="-mr-1 size-7 shrink-0 p-0"
       >
         <TrashIcon className="size-4.5" />

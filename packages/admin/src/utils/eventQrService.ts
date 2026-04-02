@@ -82,6 +82,7 @@ export interface EventAttendance {
   full_name?: string;
   email?: string;
   company?: string;
+  scan_count?: number;
 }
 
 export interface DiscountCodeClaim {
@@ -476,6 +477,7 @@ export class EventQrService {
             email: code.issued_to,
             company: customer?.attributes?.company,
             job_title: customer?.attributes?.job_title,
+            ticket_quantity: 1,
             sponsor_team_id: code.events_registrations?.sponsor_team_id || null,
           };
         });
@@ -738,7 +740,7 @@ export class EventQrService {
         return {
           id: interaction.id,
           customer_id: interaction.customer_cio_id,
-          discount_code_id: null, // Not used in this data model
+          discount_code_id: 0, // Not used in this data model
           event_id: eventId,
           claimed_at: interaction.timestamp,
           used_for_purchase: interaction.offer_status === 'converted',

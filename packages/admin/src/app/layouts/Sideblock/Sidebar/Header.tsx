@@ -19,7 +19,7 @@ export function Header() {
       <div className="absolute right-3 pt-5 xl:hidden">
         <Button
           onClick={close}
-          variant="flat"
+          variant="ghost"
           isIcon
           className="size-6 rounded-full"
         >

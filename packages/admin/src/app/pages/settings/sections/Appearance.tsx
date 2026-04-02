@@ -605,7 +605,7 @@ export default function Appearance() {
         </div>
       </div>
       <div className="mt-10">
-        <Button color="primary" onClick={theme.resetTheme}>
+        <Button color="cyan" onClick={theme.resetTheme}>
           Reset Theme
         </Button>
       </div>

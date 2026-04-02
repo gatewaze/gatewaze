@@ -48,12 +48,12 @@ const LanguageSelector = () => {
       <div className="relative">
         <ListboxButton
           as={Button}
-          variant="flat"
+          variant="ghost"
           isIcon
           className="size-9 rounded-full"
         >
           {loading ? (
-            <Spinner color="primary" className="size-5" />
+            <Spinner color="cyan" className="size-5" />
           ) : (
             <img
               className="size-6"

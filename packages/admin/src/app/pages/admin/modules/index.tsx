@@ -422,7 +422,7 @@ export default function ModulesPage() {
               handleToggle(mod.id, mod.status === "enabled")
             }
             disabled={!isSuperAdmin || togglingId === mod.id}
-            color="primary"
+            color="cyan"
           />
         </div>
       )}
@@ -551,7 +551,7 @@ export default function ModulesPage() {
                           >
                             {source.origin}
                           </Badge>
-                          {(source as Record<string, unknown>).hasToken && (
+                          {!!(source as any).hasToken && (
                             <Badge color="purple">authenticated</Badge>
                           )}
                         </div>

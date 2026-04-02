@@ -22,4 +22,6 @@ export type {
   WorkerDefinition,
   SchedulerDefinition,
   ConfigField,
+  ThemeOverrides,
+  SlotRegistration,
 } from '../types/modules';

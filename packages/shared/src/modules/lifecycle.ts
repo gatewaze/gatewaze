@@ -108,8 +108,8 @@ export async function reconcileModules(
     throw new Error(`Failed to query installed_modules: ${JSON.stringify(error)}`);
   }
 
-  const installedMap = new Map(
-    (installed ?? []).map((m) => [m.id, m])
+  const installedMap = new Map<string, InstalledModuleRow>(
+    (installed ?? []).map((m) => [m.id as string, m as unknown as InstalledModuleRow])
   );
   const loadedIds = new Set(loaded.map((m) => m.config.id));
 
@@ -144,12 +144,12 @@ export async function reconcileModules(
       }
 
       console.log(`[modules] Registered "${mod.config.name}" v${mod.config.version}`);
-    } else if ((existing as InstalledModuleRow).status === 'disabled' || (existing as InstalledModuleRow).status === 'not_installed') {
+    } else if (existing.status === 'disabled' || existing.status === 'not_installed') {
       // Module exists but is not active — update metadata (version, features)
       // but do NOT run migrations. Migrations are applied when the module is
       // explicitly enabled via the admin UI or onboarding /select endpoint.
-      if (isNewerVersion(mod.config.version, (existing as InstalledModuleRow).version)) {
-        console.log(`[modules] Updating metadata for inactive module "${mod.config.name}" (v${(existing as InstalledModuleRow).version} → v${mod.config.version})...`);
+      if (isNewerVersion(mod.config.version, existing.version)) {
+        console.log(`[modules] Updating metadata for inactive module "${mod.config.name}" (v${existing.version} → v${mod.config.version})...`);
         await supabase
           .from('installed_modules')
           .update({ version: mod.config.version, features: mod.config.features, portal_nav: mod.config.portalNav || null })
@@ -160,8 +160,8 @@ export async function reconcileModules(
       // and run lifecycle hooks for freshly enabled modules.
       await applyModuleMigrations(mod, supabase);
 
-      if (isNewerVersion(mod.config.version, (existing as InstalledModuleRow).version)) {
-        console.log(`[modules] Upgrading "${mod.config.name}" from v${(existing as InstalledModuleRow).version} to v${mod.config.version}...`);
+      if (isNewerVersion(mod.config.version, existing.version)) {
+        console.log(`[modules] Upgrading "${mod.config.name}" from v${existing.version} to v${mod.config.version}...`);
         await supabase
           .from('installed_modules')
           .update({ version: mod.config.version, features: mod.config.features, portal_nav: mod.config.portalNav || null })
@@ -170,7 +170,7 @@ export async function reconcileModules(
       } else {
         // Always sync portal_nav (may have been added/changed without a version bump)
         const newNav = mod.config.portalNav || null;
-        const existingNav = (existing as InstalledModuleRow).portal_nav || null;
+        const existingNav = existing.portal_nav || null;
         if (JSON.stringify(newNav) !== JSON.stringify(existingNav)) {
           await supabase
             .from('installed_modules')
@@ -183,15 +183,15 @@ export async function reconcileModules(
 
   // Disable removed modules
   for (const [id, row] of installedMap) {
-    if (!loadedIds.has(id) && (row as InstalledModuleRow).status === 'enabled') {
-      console.log(`[modules] Disabling "${(row as InstalledModuleRow).name}" (removed from config)...`);
+    if (!loadedIds.has(id) && row.status === 'enabled') {
+      console.log(`[modules] Disabling "${row.name}" (removed from config)...`);
 
       await supabase
         .from('installed_modules')
         .update({ status: 'disabled' as const })
         .eq('id', id);
 
-      console.log(`[modules] Disabled "${(row as InstalledModuleRow).name}"`);
+      console.log(`[modules] Disabled "${row.name}"`);
     }
   }
 }

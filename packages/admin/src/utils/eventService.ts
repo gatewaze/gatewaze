@@ -103,6 +103,7 @@ export interface Event {
   // Added page content (configurable title, e.g. Workshops)
   addedpageContent?: string | null;
   addedpageTitle?: string | null;
+  eventDescription?: string | null;
 }
 
 export interface EventServiceResponse<T = any> {

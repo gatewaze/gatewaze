@@ -101,7 +101,7 @@ export async function runFullImport(): Promise<void> {
       const batch = eventsData.slice(i, i + batchSize);
       console.log(`📦 Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(eventsData.length / batchSize)}`);
 
-      for (const rawEventData of batch) {
+      for (const rawEventData of batch as any[]) {
         try {
           // Clean the data first
           const cleanedData = cleanEventData(rawEventData);

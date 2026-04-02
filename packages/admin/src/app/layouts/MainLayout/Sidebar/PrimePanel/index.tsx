@@ -38,7 +38,7 @@ export function PrimePanel({ currentSegment, pathname, close }: PrimePanelProps)
           <Button
             onClick={close}
             isIcon
-            variant="flat"
+            variant="ghost"
             className="size-7 rounded-full xl:hidden"
           >
             <ChevronLeftIcon className="size-6 rtl:rotate-180" />

@@ -4,7 +4,7 @@ import { getPathStyles } from "./getPathStyles";
 import { randomId } from "@/utils/randomId";
 import { ColorType } from "@/constants/app";
 
-const radixColorPrefix: Record<Exclude<ColorType, "neutral">, string> = {
+const radixColorPrefix: Record<string, string> = {
   primary: "accent",
   secondary: "blue",
   info: "cyan",

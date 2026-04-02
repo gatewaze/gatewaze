@@ -10,7 +10,7 @@ import { useHasPermission } from '@/hooks/usePermissions';
 import type { AdminFeature } from '@/lib/permissions/types';
 
 interface FeatureGuardProps {
-  feature: AdminFeature;
+  feature?: AdminFeature | string;
   accountId?: string | null;
   children: React.ReactNode;
   fallback?: React.ReactNode;
@@ -41,7 +41,7 @@ export function FeatureGuard({
 }: FeatureGuardProps) {
   const { user, loading: authLoading } = useAuth();
   const { hasPermission, loading: permissionLoading } = useHasPermission(
-    feature,
+    feature as AdminFeature,
     accountId
   );
 

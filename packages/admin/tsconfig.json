@@ -6,7 +6,7 @@
     "allowImportingTsExtensions": true,
     "moduleDetection": "force",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "types": ["vite/client"],
+    "types": ["vite/client", "node"],
     "jsx": "react-jsx",
     "strict": true,
     "esModuleInterop": true,

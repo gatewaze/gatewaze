@@ -11,7 +11,7 @@ export function SelectHeader({ table }: { table: Table<any> }) {
     <div className="flex items-center justify-center">
       <Checkbox
         className="size-4.5"
-        color="error"
+        color="red"
         checked={table.getIsAllRowsSelected()}
         indeterminate={table.getIsSomeRowsSelected()}
         onChange={table.getToggleAllRowsSelectedHandler()}

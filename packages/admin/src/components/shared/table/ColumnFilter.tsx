@@ -46,7 +46,7 @@ export function ColumnFilter({ column }: { column: Column<any> }) {
                 onClick={() => column.setFilterValue([null, null])}
                 className="pointer-events-auto size-5 rounded-full"
                 isIcon
-                variant="flat"
+                variant="ghost"
               >
                 <XMarkIcon className="size-4" />
               </Button>

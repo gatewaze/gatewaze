@@ -76,7 +76,7 @@ export const AddPersonModal = ({ eventId, onComplete }: AddPersonModalProps) => 
 
     try {
       // Get or create member profile
-      const peopleProfile = await BulkRegistrationService.getOrCreatePeopleProfile(selectedPerson.id);
+      const peopleProfile = await BulkRegistrationService.getOrCreatePeopleProfile(selectedPerson.id as any);
 
       if (!peopleProfile) {
         toast.error('Failed to create member profile');
@@ -121,7 +121,7 @@ export const AddPersonModal = ({ eventId, onComplete }: AddPersonModalProps) => 
   return (
     <>
       <Button
-        variant="primary"
+        variant="solid"
         onClick={() => setShowModal(true)}
         className="flex items-center gap-2"
       >
@@ -170,7 +170,7 @@ export const AddPersonModal = ({ eventId, onComplete }: AddPersonModalProps) => 
                 />
               </div>
               <Button
-                variant="secondary"
+                variant="soft"
                 onClick={handleSearch}
                 disabled={searching || registering || !searchQuery.trim()}
                 className="flex items-center gap-2"

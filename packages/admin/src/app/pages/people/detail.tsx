@@ -95,6 +95,14 @@ interface Relationship {
   created_at: string;
 }
 
+interface CompetitionEvent {
+  event_id?: string;
+  event_title?: string;
+  event_city?: string;
+  event_start?: string;
+  [key: string]: any;
+}
+
 interface CompetitionWin {
   winner: CompetitionWinner;
   competition: CompetitionEvent | null;
@@ -253,7 +261,7 @@ export default function MemberDetailPage() {
     setIsSaving(true);
     try {
       const result = await PeopleService.updatePerson(
-        parseInt(person.id),
+        Number(person.id),
         {
           email: editFormData.email,
           attributes: {
@@ -477,6 +485,7 @@ export default function MemberDetailPage() {
         }
 
         // Group competition interactions by offer_id
+        const fetchedEvents: any[] = []; // TODO: load events data
         const competitionActivities: CompetitionActivity[] = [];
         const compMap = new Map<string, CompetitionActivity>();
 
@@ -571,9 +580,10 @@ export default function MemberDetailPage() {
           .order('created_at', { ascending: false });
 
         if (winnersData && winnersData.length > 0) {
+          const fetchedEvents: any[] = []; // TODO: load events data
           const wins: CompetitionWin[] = winnersData.map(winner => ({
             winner,
-            competition: fetchedEvents.find(e => e.eventId === winner.event_id) || null
+            competition: fetchedEvents.find((e: any) => e.eventId === winner.event_id) || null
           }));
 
           setCompetitionWins(wins);
@@ -815,8 +825,8 @@ export default function MemberDetailPage() {
         <label className="block text-sm font-medium text-[var(--gray-11)]">
           {label}
           {hasValidTimestamp && (
-            <span className="ml-2 text-[10px] font-normal text-[var(--gray-a8)]" title={formatUnixTimestamp(timestamp)}>
-              {formatTimeAgo(new Date(timestamp * 1000).toISOString())}
+            <span className="ml-2 text-[10px] font-normal text-[var(--gray-a8)]" title={formatUnixTimestamp(timestamp!)}>
+              {formatTimeAgo(new Date(timestamp! * 1000).toISOString())}
             </span>
           )}
         </label>
@@ -920,8 +930,8 @@ export default function MemberDetailPage() {
               />
               <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                 <Button
-                  variant="filled"
-                  color="neutral"
+                  variant="solid"
+                  color="gray"
                   isIcon
                   className="size-8 bg-white hover:bg-gray-100"
                   onClick={() => fileInputRef.current?.click()}
@@ -932,8 +942,8 @@ export default function MemberDetailPage() {
                 </Button>
                 {person.avatar_storage_path && person.avatar_source === 'uploaded' && (
                   <Button
-                    variant="filled"
-                    color="neutral"
+                    variant="solid"
+                    color="gray"
                     isIcon
                     className="size-8 bg-white hover:bg-gray-100"
                     onClick={handleDeleteAvatar}
@@ -952,8 +962,8 @@ export default function MemberDetailPage() {
               />
               {person.avatar_source && (
                 <Badge
-                  variant="filled"
-                  color="info"
+                  variant="solid"
+                  color="blue"
                   className="absolute -bottom-1 -right-1"
                 >
                   {person.avatar_source}
@@ -1030,8 +1040,8 @@ export default function MemberDetailPage() {
                 {isEditMode ? (
                   <>
                     <Button
-                      variant="secondary"
-                      size="sm"
+                      variant="soft"
+                      size="1"
                       onClick={handleEditToggle}
                       disabled={isSaving}
                     >
@@ -1039,8 +1049,8 @@ export default function MemberDetailPage() {
                       Cancel
                     </Button>
                     <Button
-                      variant="primary"
-                      size="sm"
+                      variant="solid"
+                      size="1"
                       onClick={handleSaveEdit}
                       disabled={isSaving}
                     >
@@ -1056,8 +1066,8 @@ export default function MemberDetailPage() {
                   </>
                 ) : (
                   <Button
-                    variant="primary"
-                    size="sm"
+                    variant="solid"
+                    size="1"
                     onClick={handleEditToggle}
                   >
                     <PencilIcon className="w-4 h-4 mr-2" />
@@ -1080,9 +1090,9 @@ export default function MemberDetailPage() {
                   </h4>
                   {emailSubscriptions.some(sub => sub.subscribed) && (
                     <Button
-                      variant="flat"
-                      color="error"
-                      size="xs"
+                      variant="ghost"
+                      color="red"
+                      size="1"
                       onClick={handleUnsubscribeAll}
                       disabled={unsubscribingAll}
                       className="gap-1.5"
@@ -1107,8 +1117,8 @@ export default function MemberDetailPage() {
                     return (
                       <Badge
                         key={sub.id}
-                        variant={sub.isDefault ? 'outlined' : 'soft'}
-                        color={sub.subscribed ? 'success' : 'neutral'}
+                        variant={sub.isDefault ? 'outline' : 'soft'}
+                        color={sub.subscribed ? 'green' : 'gray'}
                         className={`gap-1.5 cursor-pointer hover:opacity-70 transition-opacity${isToggling || unsubscribingAll ? ' pointer-events-none opacity-50' : ''}`}
                         onClick={() => handleToggleSubscription(sub)}
                         title={sub.subscribed
@@ -1325,8 +1335,8 @@ export default function MemberDetailPage() {
                           <label className="block text-sm font-medium text-[var(--gray-11)]">
                             {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                             {hasValidTimestamp && (
-                              <span className="ml-2 text-[10px] font-normal text-[var(--gray-a8)]" title={formatUnixTimestamp(timestamp)}>
-                                {formatTimeAgo(new Date(timestamp * 1000).toISOString())}
+                              <span className="ml-2 text-[10px] font-normal text-[var(--gray-a8)]" title={formatUnixTimestamp(timestamp!)}>
+                                {formatTimeAgo(new Date(timestamp! * 1000).toISOString())}
                               </span>
                             )}
                           </label>
@@ -1402,7 +1412,7 @@ export default function MemberDetailPage() {
                           </Td>
                           <Td className="text-center">
                             {viewedStatus ? (
-                              <Badge variant="soft" color="success" title={formatTimestamp(viewedStatus.timestamp)}>
+                              <Badge variant="soft" color="green" title={formatTimestamp(viewedStatus.timestamp)}>
                                 <CheckCircleIcon className="size-4" />
                               </Badge>
                             ) : (
@@ -1411,7 +1421,7 @@ export default function MemberDetailPage() {
                           </Td>
                           <Td className="text-center">
                             {acceptedStatus ? (
-                              <Badge variant="soft" color="success" title={formatTimestamp(acceptedStatus.timestamp)}>
+                              <Badge variant="soft" color="green" title={formatTimestamp(acceptedStatus.timestamp)}>
                                 <CheckCircleIcon className="size-4" />
                               </Badge>
                             ) : (
@@ -1477,7 +1487,7 @@ export default function MemberDetailPage() {
                           </Td>
                           <Td className="text-center">
                             {viewedStatus ? (
-                              <Badge variant="soft" color="success" title={formatTimestamp(viewedStatus.timestamp)}>
+                              <Badge variant="soft" color="green" title={formatTimestamp(viewedStatus.timestamp)}>
                                 <CheckCircleIcon className="size-4" />
                               </Badge>
                             ) : (
@@ -1486,7 +1496,7 @@ export default function MemberDetailPage() {
                           </Td>
                           <Td className="text-center">
                             {acceptedStatus ? (
-                              <Badge variant="soft" color="success" title={formatTimestamp(acceptedStatus.timestamp)}>
+                              <Badge variant="soft" color="green" title={formatTimestamp(acceptedStatus.timestamp)}>
                                 <CheckCircleIcon className="size-4" />
                               </Badge>
                             ) : (
@@ -1532,7 +1542,7 @@ export default function MemberDetailPage() {
                           </p>
                         )}
                         {segment.type && (
-                          <Badge variant="soft" color="info" className="mt-2">
+                          <Badge variant="soft" color="blue" className="mt-2">
                             {segment.type}
                           </Badge>
                         )}
@@ -1579,7 +1589,7 @@ export default function MemberDetailPage() {
                       <div className="flex gap-2 mb-4 flex-wrap border-b border-gray-200 dark:border-gray-700">
                         <Button
                           variant={activeActivityTab === 'all' ? 'soft' : 'ghost'}
-                          size="sm"
+                          size="1"
                           onClick={() => setActiveActivityTab('all')}
                         >
                           All ({activities.length})
@@ -1590,7 +1600,7 @@ export default function MemberDetailPage() {
                             <Button
                               key={type}
                               variant={activeActivityTab === type ? 'soft' : 'ghost'}
-                              size="sm"
+                              size="1"
                               onClick={() => setActiveActivityTab(type)}
                             >
                               {type.replace(/_/g, ' ')} ({count})
@@ -1612,7 +1622,7 @@ export default function MemberDetailPage() {
                                   <span className="font-medium text-[var(--gray-12)]">
                                     {activity.activity_name || activity.activity_type}
                                   </span>
-                                  <Badge variant="soft" color="neutral" className="capitalize">
+                                  <Badge variant="soft" color="gray" className="capitalize">
                                     {activity.activity_type.replace(/_/g, ' ')}
                                   </Badge>
                                 </div>
@@ -1670,7 +1680,7 @@ export default function MemberDetailPage() {
                           )}
                         </div>
                         <div className="flex flex-col items-end gap-1 shrink-0">
-                          <Badge variant="soft" color={reg.status === 'confirmed' ? 'success' : reg.status === 'cancelled' ? 'error' : 'warning'}>
+                          <Badge variant="soft" color={reg.status === 'confirmed' ? 'green' : reg.status === 'cancelled' ? 'red' : 'orange'}>
                             {reg.status}
                           </Badge>
                           {reg.registered_at && (
@@ -1750,7 +1760,7 @@ export default function MemberDetailPage() {
                           )}
                         </div>
                         <div className="flex flex-col items-end gap-1 shrink-0">
-                          <Badge variant="soft" color={sub.status === 'approved' || sub.status === 'confirmed' ? 'success' : sub.status === 'rejected' ? 'error' : 'warning'}>
+                          <Badge variant="soft" color={sub.status === 'approved' || sub.status === 'confirmed' ? 'green' : sub.status === 'rejected' ? 'red' : 'orange'}>
                             {sub.status}
                           </Badge>
                           {sub.submitted_at && (
@@ -1917,8 +1927,8 @@ export default function MemberDetailPage() {
               Email History
             </h2>
             <EmailHistorySection
-              customerEmail={person.email}
-              customerId={person.id ? parseInt(person.id) : undefined}
+              customerEmail={person.email || ''}
+              customerId={person.id ? Number(person.id) : undefined}
             />
           </Card>
         )}

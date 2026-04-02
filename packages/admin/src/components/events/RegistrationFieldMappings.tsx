@@ -326,10 +326,10 @@ export function RegistrationFieldMappings({ eventId }: RegistrationFieldMappings
             )}
           </div>
           <Button
-            color="primary"
+            color="cyan"
             variant="soft"
             className="text-xs px-3 py-1.5 cursor-pointer"
-            onClick={(e) => {
+            onClick={(e: any) => {
               e.stopPropagation();
               handleDetectQuestions();
             }}
@@ -430,8 +430,8 @@ export function RegistrationFieldMappings({ eventId }: RegistrationFieldMappings
                 {configuredCount} mapping{configuredCount !== 1 ? 's' : ''} configured
               </span>
               <Button
-                color="primary"
-                variant="filled"
+                color="cyan"
+                variant="solid"
                 className="text-sm px-4 py-2 cursor-pointer"
                 onClick={handleSave}
                 disabled={isSaving}
@@ -461,8 +461,8 @@ export function RegistrationFieldMappings({ eventId }: RegistrationFieldMappings
                   </p>
                 </div>
                 <Button
-                  color="primary"
-                  variant="outlined"
+                  color="cyan"
+                  variant="outline"
                   className="text-sm px-4 py-2 cursor-pointer"
                   onClick={handleApplyMappings}
                   disabled={isApplying}

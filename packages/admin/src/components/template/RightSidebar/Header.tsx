@@ -19,7 +19,7 @@ export function Header({ close }: { close: () => void }) {
       </div>
       <Button
         onClick={close}
-        variant="flat"
+        variant="ghost"
         isIcon
         className="size-6 rounded-full ltr:-mr-1 rtl:-ml-1"
       >

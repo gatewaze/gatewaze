@@ -54,7 +54,7 @@ export function Profile() {
         role="button"
         alt="Profile"
         indicator={
-          <AvatarDot color="success" className="ltr:right-0 rtl:left-0" />
+          <AvatarDot color="green" className="ltr:right-0 rtl:left-0" />
         }
         className="cursor-pointer"
       >

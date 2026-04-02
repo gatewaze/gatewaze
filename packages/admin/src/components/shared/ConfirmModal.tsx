@@ -172,7 +172,7 @@ function Confirm({
         {state === "success" ? (
           <Button
             onClick={onClose}
-            color="success"
+            color="green"
             className="mt-12 h-9 min-w-[7rem]"
           >
             {mergedMessages[state].actionText}
@@ -181,7 +181,7 @@ function Confirm({
           <div className="mt-12 flex justify-center space-x-3 rtl:space-x-reverse">
             <Button
               onClick={onClose}
-              variant="outlined"
+              variant="outline"
               className="h-9 min-w-[7rem]"
             >
               Cancel
@@ -191,7 +191,7 @@ function Confirm({
               <Button
                 ref={focusRef}
                 onClick={onOk}
-                color="primary"
+                color="cyan"
                 className="h-9 min-w-[7rem] space-x-2 rtl:space-x-reverse"
               >
                 {confirmLoading && spinner}
@@ -202,7 +202,7 @@ function Confirm({
             {state === "error" && (
               <Button
                 onClick={onOk}
-                color="error"
+                color="red"
                 className="h-9 min-w-[7rem] space-x-2 rtl:space-x-reverse"
               >
                 {confirmLoading && spinner}

@@ -207,14 +207,14 @@ const ImageUploadModal: React.FC<ImageUploadModalProps> = ({
         <div className="flex justify-end space-x-3 pt-4">
           <Button
             type="button"
-            variant="outlined"
+            variant="outline"
             onClick={handleCancel}
           >
             Cancel
           </Button>
           <Button
             type="button"
-            color="primary"
+            color="cyan"
             onClick={handleInsert}
             disabled={!imageUrl}
           >

@@ -307,7 +307,7 @@ export default function ModuleSelectionStep() {
                       checked={selected.has(mod.id)}
                       onClick={(e) => e.stopPropagation()}
                       onChange={() => toggle(mod.id)}
-                      color="primary"
+                      color="cyan"
                     />
                   </div>
                 </Card>

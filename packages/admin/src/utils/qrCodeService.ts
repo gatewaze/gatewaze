@@ -80,7 +80,7 @@ export class QRCodeService {
           resolve(reader.result as string);
         };
         reader.onerror = reject;
-        reader.readAsDataURL(blob);
+        reader.readAsDataURL(blob as Blob);
       }).catch(reject);
     });
   }

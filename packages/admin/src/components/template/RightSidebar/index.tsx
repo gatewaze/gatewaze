@@ -21,7 +21,7 @@ export function RightSidebar() {
     <>
       <Button
         onClick={open}
-        variant="flat"
+        variant="ghost"
         isIcon
         className="relative size-9 rounded-full"
       >

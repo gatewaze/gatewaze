@@ -120,7 +120,7 @@ export function TableSettings({ table }: { table: Table<any> }) {
                 (column.getIsPinned() ? (
                   <Button
                     onClick={() => column.pin(false)}
-                    variant="flat"
+                    variant="ghost"
                     className="size-6 rounded-full"
                     isIcon
                     title="UnPin Column"
@@ -134,7 +134,7 @@ export function TableSettings({ table }: { table: Table<any> }) {
                       onClick={() => {
                         column.pin("left");
                       }}
-                      variant="flat"
+                      variant="ghost"
                       className="size-6 rounded-full rtl:rotate-180"
                       isIcon
                       title="Pin Left"
@@ -147,7 +147,7 @@ export function TableSettings({ table }: { table: Table<any> }) {
                       onClick={() => {
                         column.pin("right");
                       }}
-                      variant="flat"
+                      variant="ghost"
                       className="size-6 -rotate-90 rounded-full"
                       isIcon
                       title="Pin Right"
@@ -162,7 +162,7 @@ export function TableSettings({ table }: { table: Table<any> }) {
       </div>
 
       <Button
-        variant="flat"
+        variant="ghost"
         className="text-xs-plus h-9 w-full shrink-0 rounded-t-none border-t border-[var(--gray-a5)] leading-none"
         onClick={() => table.resetColumnVisibility()}
       >

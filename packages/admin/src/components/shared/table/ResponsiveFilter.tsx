@@ -72,7 +72,7 @@ const MobileView = ({
   return (
     <>
       <Button
-        variant="outlined"
+        variant="outline"
         className={clsx(
           "h-8 gap-2 px-2.5 text-xs whitespace-nowrap",
           isOpen
@@ -130,7 +130,7 @@ const DesktopView = ({
         <>
           <PopoverButton
             as={Button}
-            variant="outlined"
+            variant="outline"
             className={clsx(
               "h-8 gap-2 px-2.5 text-xs whitespace-nowrap",
               open

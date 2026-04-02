@@ -63,9 +63,9 @@ export function ImpersonationBanner() {
           <div className="flex-shrink-0">
             <Button
               onClick={handleStopImpersonation}
-              size="sm"
+              size="1"
               className="bg-white/20 hover:bg-white/30 text-white border-white/30 gap-2 whitespace-nowrap"
-              variant="outlined"
+              variant="outline"
             >
               <XMarkIcon className="h-4 w-4" />
               Exit Impersonation
