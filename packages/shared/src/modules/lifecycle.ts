@@ -149,11 +149,25 @@ export async function reconcileModules(
       // Module exists but is not active — update metadata (version, features)
       // but do NOT run migrations. Migrations are applied when the module is
       // explicitly enabled via the admin UI or onboarding /select endpoint.
+      const metadataUpdates: Record<string, unknown> = {};
       if (isNewerVersion(mod.config.version, existing.version)) {
         console.log(`[modules] Updating metadata for inactive module "${mod.config.name}" (v${existing.version} → v${mod.config.version})...`);
+        metadataUpdates.version = mod.config.version;
+        metadataUpdates.features = mod.config.features;
+      }
+      // Always sync nav fields
+      const newPortalNav = mod.config.portalNav || null;
+      const newAdminNav = mod.config.adminNavItems || null;
+      if (JSON.stringify(newPortalNav) !== JSON.stringify(existing.portal_nav || null)) {
+        metadataUpdates.portal_nav = newPortalNav;
+      }
+      if (JSON.stringify(newAdminNav) !== JSON.stringify(existing.admin_nav || null)) {
+        metadataUpdates.admin_nav = newAdminNav;
+      }
+      if (Object.keys(metadataUpdates).length > 0) {
         await supabase
           .from('installed_modules')
-          .update({ version: mod.config.version, features: mod.config.features, portal_nav: mod.config.portalNav || null, admin_nav: mod.config.adminNavItems || null })
+          .update(metadataUpdates)
           .eq('id', mod.config.id);
       }
     } else {
@@ -169,13 +183,20 @@ export async function reconcileModules(
           .eq('id', mod.config.id);
         console.log(`[modules] Upgraded "${mod.config.name}" to v${mod.config.version}`);
       } else {
-        // Always sync portal_nav (may have been added/changed without a version bump)
-        const newNav = mod.config.portalNav || null;
-        const existingNav = existing.portal_nav || null;
-        if (JSON.stringify(newNav) !== JSON.stringify(existingNav)) {
+        // Always sync nav fields (may have been added/changed without a version bump)
+        const updates: Record<string, unknown> = {};
+        const newPortalNav = mod.config.portalNav || null;
+        const newAdminNav = mod.config.adminNavItems || null;
+        if (JSON.stringify(newPortalNav) !== JSON.stringify(existing.portal_nav || null)) {
+          updates.portal_nav = newPortalNav;
+        }
+        if (JSON.stringify(newAdminNav) !== JSON.stringify(existing.admin_nav || null)) {
+          updates.admin_nav = newAdminNav;
+        }
+        if (Object.keys(updates).length > 0) {
           await supabase
             .from('installed_modules')
-            .update({ portal_nav: newNav })
+            .update(updates)
             .eq('id', mod.config.id);
         }
       }

@@ -96,6 +96,17 @@ async function registerModuleRoutes() {
     if (modules.length > 0) {
       console.log(`[modules] ${modules.length} module(s) loaded`);
     }
+
+    // Reconcile modules with DB (syncs admin_nav, portal_nav, features, etc.)
+    if (supabaseUrl && serviceRoleKey) {
+      try {
+        const { reconcileModules } = await import('@gatewaze/shared/modules');
+        const supabase = createClient(supabaseUrl, serviceRoleKey);
+        await reconcileModules(modules, supabase as never);
+      } catch (err) {
+        console.warn('[modules] Reconciliation failed:', err instanceof Error ? err.message : err);
+      }
+    }
   } catch (err) {
     console.error('[modules] Failed to load module routes:', err);
   }
