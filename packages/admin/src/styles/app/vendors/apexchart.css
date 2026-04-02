@@ -1,0 +1,113 @@
+.apexcharts-text {
+  @apply fill-current font-sans!;
+  color: var(--gray-11);
+}
+
+.apexcharts-text.apexcharts-yaxis-label,
+.apexcharts-text.apexcharts-xaxis-label {
+  @apply fill-current!;
+  color: var(--gray-a8);
+}
+
+.apexcharts-legend-text {
+  color: var(--gray-11) !important;
+}
+
+.apexcharts-tooltip {
+  background-color: var(--color-background) !important;
+  border-color: var(--gray-a5) !important;
+  color: var(--gray-12) !important;
+  @apply shadow-none!;
+}
+
+.apexcharts-tooltip-title {
+  background-color: var(--gray-a3) !important;
+  border-color: var(--gray-a3) !important;
+}
+
+.apexcharts-xaxistooltip,
+.apexcharts-yaxistooltip {
+  @apply rounded-sm!;
+  background-color: var(--gray-a3) !important;
+  border-color: var(--gray-a6) !important;
+  color: var(--gray-11) !important;
+}
+
+.apexcharts-xaxistooltip:before {
+  border-bottom-color: var(--gray-a6) !important;
+}
+
+.apexcharts-xaxistooltip:after {
+  border-bottom-color: var(--gray-a3) !important;
+}
+
+.apexcharts-yaxistooltip:before {
+  border-left-color: var(--gray-a6) !important;
+}
+
+.apexcharts-yaxistooltip:after {
+  border-left-color: var(--gray-a3) !important;
+}
+
+.apexcharts-canvas .apexcharts-heatmap-rect,
+.apexcharts-canvas .apexcharts-xaxis-tick,
+.apexcharts-canvas line {
+  @apply stroke-current!;
+  color: var(--gray-a5);
+}
+
+.apexcharts-canvas .apexcharts-marker {
+  @apply stroke-current!;
+  color: var(--gray-a3);
+}
+
+.apexcharts-canvas .apexcharts-radialbar-track .apexcharts-radialbar-area {
+  @apply stroke-current!;
+  color: var(--gray-a3);
+}
+
+.apexcharts-canvas .apexcharts-datalabels-group .apexcharts-datalabel-label {
+  @apply font-sans;
+  fill: var(--gray-11);
+}
+
+.apexcharts-canvas .apexcharts-datalabels-group .apexcharts-datalabel-value,
+.apexcharts-canvas .apexcharts-datalabels .apexcharts-datalabel {
+  @apply font-sans;
+  fill: var(--gray-11);
+}
+
+.apexcharts-canvas .apexcharts-radar-series polygon {
+  fill: var(--gray-a3);
+  stroke: var(--gray-a5);
+}
+
+.apexcharts-canvas .apexcharts-pie .apexcharts-pie-series .apexcharts-pie-area {
+  stroke: none;
+}
+
+.apexcharts-canvas line[stroke="transparent"] {
+  @apply hidden;
+}
+
+.apexcharts-menu {
+  @apply rounded-sm!;
+  background-color: var(--color-background) !important;
+  border-color: var(--gray-a5) !important;
+}
+
+.apexcharts-menu .apexcharts-menu-item:hover {
+  background-color: var(--gray-a3) !important;
+}
+
+.ax-transparent-gridline .apexcharts-gridline {
+  stroke: transparent !important;
+}
+
+.ax-rounded-b-lg .apexcharts-svg {
+  @apply rounded-b-lg;
+}
+
+.apexcharts-legend-marker {
+  @apply ltr:mr-2! rtl:ml-2!;
+}

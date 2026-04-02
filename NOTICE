@@ -1,0 +1,45 @@
+Gatewaze
+Copyright 2026 Gatewaze Contributors
+
+This product is licensed under the Apache License, Version 2.0 (the "License").
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+This product includes software developed by the Gatewaze open-source community.
+
+---
+
+This project is built with the following open-source technologies:
+
+- Supabase (https://supabase.com) — Database, authentication, storage, and edge functions.
+  Licensed under the Apache License 2.0.
+
+- React (https://react.dev) — User interface library.
+  Copyright (c) Meta Platforms, Inc. and affiliates.
+  Licensed under the MIT License.
+
+- Next.js (https://nextjs.org) — React framework for the public event portal.
+  Copyright (c) Vercel, Inc.
+  Licensed under the MIT License.
+
+- Vite (https://vitejs.dev) — Build tool for the admin application.
+  Copyright (c) Evan You and Vite contributors.
+  Licensed under the MIT License.
+
+- Express (https://expressjs.com) — Node.js web framework for the API server.
+  Copyright (c) TJ Holowaychuk and Express contributors.
+  Licensed under the MIT License.
+
+- BullMQ (https://bullmq.io) — Redis-based queue for background job processing.
+  Licensed under the MIT License.
+
+- Radix Themes (https://www.radix-ui.com/themes) — UI component library.
+  Copyright (c) WorkOS.
+  Licensed under the MIT License.
+
+- Tailwind CSS (https://tailwindcss.com) — Utility-first CSS framework.
+  Licensed under the MIT License.
+
+For a complete list of dependencies and their licenses, see the package.json files
+in each workspace package.

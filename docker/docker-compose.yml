@@ -1,0 +1,494 @@
+###############################################################################
+# Gatewaze Full Stack — Self-Hosted Supabase + Application Services
+#
+# Uses Traefik reverse proxy for clean .localhost domains:
+#   - http://gatewaze-admin.localhost   → Admin dashboard
+#   - http://gatewaze-app.localhost     → Public portal
+#   - http://gatewaze-api.localhost     → API server
+#   - http://gatewaze-supabase.localhost → Supabase API (Kong)
+#   - http://gatewaze-studio.localhost  → Supabase Studio
+#
+# Usage:
+#   cp .env.example .env   # edit values
+#   docker compose up -d
+###############################################################################
+
+services:
+  # ---------------------------------------------------------------------------
+  # Supabase Infrastructure
+  # ---------------------------------------------------------------------------
+
+  supabase-db:
+    image: supabase/postgres:15.8.1.085
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-supabase-db
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:-54322}:5432"
+    environment:
+      POSTGRES_HOST: /var/run/postgresql
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      PGPORT: "5432"
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXP: ${JWT_EXP:-3600}
+    volumes:
+      - supabase-db-data:/var/lib/postgresql/data
+      - ./supabase/00-set-admin-password.sh:/docker-entrypoint-initdb.d/00-set-admin-password.sh:ro
+      - ../supabase/migrations:/gatewaze-migrations:ro
+      - ./supabase/zz-gatewaze-init.sh:/docker-entrypoint-initdb.d/zz-gatewaze-init.sh:ro
+      - ./supabase/db-healthcheck.sh:/usr/local/bin/db-healthcheck.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "sh /usr/local/bin/db-healthcheck.sh"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 300s
+    networks:
+      - gatewaze
+
+  supabase-auth:
+    image: supabase/gotrue:v2.186.0
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-supabase-auth
+    restart: unless-stopped
+    depends_on:
+      supabase-db:
+        condition: service_healthy
+    environment:
+      GOTRUE_API_HOST: "0.0.0.0"
+      GOTRUE_API_PORT: "9999"
+      API_EXTERNAL_URL: ${API_EXTERNAL_URL:-http://gatewaze-supabase.localhost}
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${POSTGRES_PASSWORD}@supabase-db:5432/${POSTGRES_DB:-postgres}
+      GOTRUE_SITE_URL: ${SITE_URL:-http://gatewaze-admin.localhost}
+      GOTRUE_URI_ALLOW_LIST: ${ADDITIONAL_REDIRECT_URLS:-}
+      GOTRUE_DISABLE_SIGNUP: ${DISABLE_SIGNUP:-false}
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_EXP: ${JWT_EXP:-3600}
+      GOTRUE_JWT_SECRET: ${JWT_SECRET}
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: ${ENABLE_EMAIL_SIGNUP:-true}
+      GOTRUE_MAILER_AUTOCONFIRM: ${ENABLE_EMAIL_AUTOCONFIRM:-false}
+      # GoTrue SMTP is not used — magic links are sent via edge functions
+      # using email credentials stored in the database (app_settings table)
+      GOTRUE_SMTP_HOST: ""
+      GOTRUE_SMTP_PORT: "587"
+      GOTRUE_SMTP_USER: ""
+      GOTRUE_SMTP_PASS: ""
+      GOTRUE_SMTP_ADMIN_EMAIL: ${SMTP_ADMIN_EMAIL:-admin@localhost}
+      GOTRUE_SMTP_MAX_FREQUENCY: 1ns
+      GOTRUE_MAILER_URLPATHS_INVITE: /auth/v1/verify
+      GOTRUE_MAILER_URLPATHS_CONFIRMATION: /auth/v1/verify
+      GOTRUE_MAILER_URLPATHS_RECOVERY: /auth/v1/verify
+      GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: /auth/v1/verify
+      GOTRUE_EXTERNAL_PHONE_ENABLED: "false"
+      GOTRUE_SMS_AUTOCONFIRM: "true"
+    networks:
+      - gatewaze
+
+  supabase-rest:
+    image: postgrest/postgrest:v14.5
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-supabase-rest
+    restart: unless-stopped
+    depends_on:
+      supabase-db:
+        condition: service_healthy
+    environment:
+      PGRST_DB_URI: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@supabase-db:5432/${POSTGRES_DB:-postgres}
+      PGRST_DB_SCHEMAS: ${PGRST_DB_SCHEMAS:-public,storage,graphql_public}
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+      PGRST_DB_USE_LEGACY_GUCS: "false"
+      PGRST_APP_SETTINGS_JWT_SECRET: ${JWT_SECRET}
+      PGRST_APP_SETTINGS_JWT_EXP: ${JWT_EXP:-3600}
+      PGRST_DB_CHANNEL_ENABLED: "true"
+    command: postgrest
+    networks:
+      - gatewaze
+
+  supabase-realtime:
+    image: supabase/realtime:v2.76.5
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-supabase-realtime
+    restart: unless-stopped
+    depends_on:
+      supabase-db:
+        condition: service_healthy
+    environment:
+      PORT: "4000"
+      DB_HOST: supabase-db
+      DB_PORT: "5432"
+      DB_USER: supabase_admin
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB:-postgres}
+      DB_AFTER_CONNECT_QUERY: "SET search_path TO _realtime"
+      DB_ENC_KEY: supabaserealtime
+      API_JWT_SECRET: ${JWT_SECRET}
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:-UpNVntn3cDxHJpq99YMc1T1AQgQpc8kfYTuRgBiYa15BLrx8etQoXz3gZv1/u2oq}
+      ERL_AFLAGS: "-proto_dist inet_tcp"
+      ENABLE_TAILSCALE: "false"
+      DNS_NODES: "''"
+      APP_NAME: realtime
+      SEED_SELF_HOST: "true"
+    networks:
+      - gatewaze
+
+  supabase-storage:
+    image: supabase/storage-api:v1.37.8
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-supabase-storage
+    restart: unless-stopped
+    depends_on:
+      supabase-db:
+        condition: service_healthy
+      supabase-rest:
+        condition: service_started
+    environment:
+      ANON_KEY: ${ANON_KEY}
+      SERVICE_KEY: ${SERVICE_ROLE_KEY}
+      POSTGREST_URL: http://supabase-rest:3000
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+      DATABASE_URL: postgres://supabase_storage_admin:${POSTGRES_PASSWORD}@supabase-db:5432/${POSTGRES_DB:-postgres}
+      FILE_SIZE_LIMIT: 52428800
+      STORAGE_BACKEND: ${STORAGE_BACKEND:-file}
+      FILE_STORAGE_BACKEND_PATH: /var/lib/storage
+      TENANT_ID: stub
+      REGION: ${S3_REGION:-stub}
+      GLOBAL_S3_BUCKET: ${S3_BUCKET:-stub}
+      GLOBAL_S3_ENDPOINT: ${S3_ENDPOINT:-}
+      GLOBAL_S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-false}
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY:-}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:-}
+      ENABLE_IMAGE_TRANSFORMATION: "true"
+      IMGPROXY_URL: http://supabase-imgproxy:5001
+    volumes:
+      - supabase-storage-data:/var/lib/storage
+    networks:
+      - gatewaze
+
+  supabase-kong:
+    image: kong:2.8.1
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-supabase-kong
+    restart: unless-stopped
+    ports:
+      - "${KONG_PORT:-54321}:8000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-supabase.rule=Host(`${SUPABASE_HOST:-gatewaze-supabase.localhost}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-supabase.entrypoints=web"
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME:-gatewaze}-supabase.loadbalancer.server.port=8000"
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /var/lib/kong/kong.yml
+      KONG_DNS_ORDER: LAST,A,CNAME
+      KONG_PLUGINS: request-transformer,cors,key-auth,acl
+      KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: 160k
+      KONG_NGINX_PROXY_PROXY_BUFFERS: 64 160k
+      SUPABASE_ANON_KEY: ${ANON_KEY}
+      SUPABASE_SERVICE_KEY: ${SERVICE_ROLE_KEY}
+    volumes:
+      - ./supabase/kong.yml:/var/lib/kong/kong.yml.template:ro
+      - ./supabase/kong-entrypoint.sh:/kong-entrypoint.sh:ro
+    entrypoint: /kong-entrypoint.sh
+    depends_on:
+      supabase-auth:
+        condition: service_started
+      supabase-rest:
+        condition: service_started
+    networks:
+      - gatewaze
+      - traefik
+
+  supabase-edge-functions:
+    image: supabase/edge-runtime:v1.70.3
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-supabase-edge-functions
+    restart: unless-stopped
+    depends_on:
+      supabase-kong:
+        condition: service_started
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+      SUPABASE_URL: http://supabase-kong:8000
+      SUPABASE_ANON_KEY: ${ANON_KEY}
+      SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
+      SUPABASE_DB_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@supabase-db:5432/${POSTGRES_DB:-postgres}
+      VERIFY_JWT: "${VERIFY_JWT:-false}"
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-none}
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-noreply@localhost}
+      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-Gatewaze}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      GW_APP_NAME: ${GW_APP_NAME:-}
+      CI_MODE: "${CI_MODE:-false}"
+    volumes:
+      - ../supabase/functions:/home/deno/functions:ro
+    command:
+      - start
+      - --main-service
+      - /home/deno/functions/platform-main
+    networks:
+      - gatewaze
+
+  supabase-meta:
+    image: supabase/postgres-meta:v0.96.1
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-supabase-meta
+    restart: unless-stopped
+    environment:
+      PG_META_PORT: 8080
+      PG_META_DB_URL: postgresql://supabase_admin:${POSTGRES_PASSWORD}@supabase-db:5432/${POSTGRES_DB:-postgres}
+    depends_on:
+      supabase-db:
+        condition: service_healthy
+    networks:
+      - gatewaze
+
+  supabase-studio:
+    image: supabase/studio:2026.02.16-sha-26c615c
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-supabase-studio
+    restart: unless-stopped
+    ports:
+      - "${STUDIO_PORT:-54323}:3000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-studio.rule=Host(`${STUDIO_HOST:-gatewaze-studio.localhost}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-studio.entrypoints=web"
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME:-gatewaze}-studio.loadbalancer.server.port=3000"
+    environment:
+      HOSTNAME: "0.0.0.0"
+      STUDIO_PG_META_URL: http://supabase-meta:8080
+      POSTGRES_HOST: supabase-db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      AUTH_JWT_SECRET: ${JWT_SECRET}
+      DEFAULT_ORGANIZATION_NAME: ${STUDIO_DEFAULT_ORGANIZATION:-Gatewaze}
+      DEFAULT_PROJECT_NAME: ${STUDIO_DEFAULT_PROJECT:-Gatewaze}
+      SUPABASE_URL: http://supabase-kong:8000
+      SUPABASE_PUBLIC_URL: ${API_EXTERNAL_URL:-http://gatewaze-supabase.localhost}
+      SUPABASE_ANON_KEY: ${ANON_KEY}
+      SUPABASE_SERVICE_KEY: ${SERVICE_ROLE_KEY}
+      NEXT_PUBLIC_ENABLE_LOGS: "false"
+      NEXT_ANALYTICS_BACKEND_PROVIDER: postgres
+      EDGE_FUNCTIONS_MANAGEMENT_FOLDER: /app/edge-functions
+    volumes:
+      - ../supabase/functions:/app/edge-functions:ro
+    depends_on:
+      supabase-meta:
+        condition: service_started
+      supabase-kong:
+        condition: service_started
+    networks:
+      - gatewaze
+      - traefik
+
+  # ---------------------------------------------------------------------------
+  # Application Infrastructure
+  # ---------------------------------------------------------------------------
+
+  redis:
+    image: redis:7-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-gatewaze}
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-gatewaze}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gatewaze
+
+  # ---------------------------------------------------------------------------
+  # Gatewaze Application Services
+  # ---------------------------------------------------------------------------
+
+  admin:
+    build:
+      context: ..
+      dockerfile: docker/admin/Dockerfile
+      args:
+        VITE_SUPABASE_URL: ${SUPABASE_URL:-http://gatewaze-supabase.localhost}
+        VITE_SUPABASE_ANON_KEY: ${ANON_KEY}
+        VITE_API_URL: ${API_URL:-http://gatewaze-api.localhost}
+        VITE_AUTH_PROVIDER: ${AUTH_PROVIDER:-supabase}
+        VITE_DISABLE_BRANDING: ${DISABLE_BRANDING:-false}
+        VITE_APP_NAME: ${GW_APP_NAME:-}
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-admin
+    restart: unless-stopped
+    ports:
+      - "${ADMIN_PORT:-5274}:80"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-admin.rule=Host(`${ADMIN_HOST:-gatewaze-admin.localhost}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-admin.entrypoints=web"
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME:-gatewaze}-admin.loadbalancer.server.port=80"
+    environment:
+      VITE_SUPABASE_URL: ${SUPABASE_URL:-http://gatewaze-supabase.localhost}
+      VITE_SUPABASE_ANON_KEY: ${ANON_KEY}
+      VITE_API_URL: ${API_URL:-http://gatewaze-api.localhost}
+      VITE_PORTAL_DOMAIN: ${PORTAL_HOST:-gatewaze-app.localhost}
+      VITE_APP_URL: http://${PORTAL_HOST:-gatewaze-app.localhost}
+      VITE_APP_NAME: ${GW_APP_NAME:-}
+    depends_on:
+      supabase-kong:
+        condition: service_started
+    networks:
+      - gatewaze
+      - traefik
+
+  portal:
+    build:
+      context: ..
+      dockerfile: docker/portal/Dockerfile
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-portal
+    restart: unless-stopped
+    ports:
+      - "${PORTAL_PORT:-3100}:3100"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-portal.rule=Host(`${PORTAL_HOST:-gatewaze-app.localhost}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-portal.entrypoints=web"
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME:-gatewaze}-portal.loadbalancer.server.port=3100"
+    environment:
+      NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_URL:-http://gatewaze-supabase.localhost}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${ANON_KEY}
+      NEXT_PUBLIC_API_URL: ${API_URL:-http://gatewaze-api.localhost}
+      SUPABASE_URL: ${SUPABASE_INTERNAL_URL:-http://supabase-kong:8000}
+      SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      NEXT_PUBLIC_ENABLE_CHAT: ${NEXT_PUBLIC_ENABLE_CHAT:-false}
+      INSTANCE_NAME: ${INSTANCE_NAME:-gatewaze}
+      NODE_ENV: production
+    depends_on:
+      supabase-kong:
+        condition: service_started
+    networks:
+      - gatewaze
+      - traefik
+
+  api:
+    build:
+      context: ..
+      dockerfile: docker/api/Dockerfile
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-api
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-3002}:3002"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-api.rule=Host(`${API_HOST:-gatewaze-api.localhost}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-api.entrypoints=web"
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME:-gatewaze}-api.loadbalancer.server.port=3002"
+    volumes:
+      # Persist runtime git clones and uploaded modules across restarts
+      - api-modules-cache:/app/.gatewaze-modules
+      - api-data:/app/data
+    environment:
+      PORT: "3002"
+      NODE_ENV: production
+      SUPABASE_URL: http://supabase-kong:8000
+      SUPABASE_ANON_KEY: ${ANON_KEY}
+      SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-gatewaze}@redis:6379
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@supabase-db:5432/${POSTGRES_DB:-postgres}
+      JWT_SECRET: ${JWT_SECRET}
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      EMAIL_FROM: ${EMAIL_FROM:-noreply@localhost}
+    depends_on:
+      redis:
+        condition: service_healthy
+      supabase-db:
+        condition: service_healthy
+    networks:
+      - gatewaze
+      - traefik
+
+  worker:
+    build:
+      context: ..
+      dockerfile: docker/worker/Dockerfile
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-worker
+    restart: unless-stopped
+    shm_size: '1gb'
+    environment:
+      NODE_ENV: production
+      BRAND: ${BRAND:-default}
+      SUPABASE_URL: http://supabase-kong:8000
+      SUPABASE_PUBLIC_URL: ${API_EXTERNAL_URL:-http://gatewaze-supabase.localhost}
+      VITE_SUPABASE_URL: http://supabase-kong:8000
+      SUPABASE_ANON_KEY: ${ANON_KEY}
+      VITE_SUPABASE_ANON_KEY: ${ANON_KEY}
+      SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-gatewaze}@redis:6379
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@supabase-db:5432/${POSTGRES_DB:-postgres}
+      JWT_SECRET: ${JWT_SECRET}
+    depends_on:
+      redis:
+        condition: service_healthy
+      supabase-db:
+        condition: service_healthy
+    networks:
+      - gatewaze
+
+  scheduler:
+    build:
+      context: ..
+      dockerfile: docker/scheduler/Dockerfile
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-scheduler
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      BRAND: ${BRAND:-default}
+      SUPABASE_URL: http://supabase-kong:8000
+      VITE_SUPABASE_URL: http://supabase-kong:8000
+      SUPABASE_ANON_KEY: ${ANON_KEY}
+      VITE_SUPABASE_ANON_KEY: ${ANON_KEY}
+      SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-gatewaze}@redis:6379
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@supabase-db:5432/${POSTGRES_DB:-postgres}
+      JWT_SECRET: ${JWT_SECRET}
+    depends_on:
+      redis:
+        condition: service_healthy
+      supabase-db:
+        condition: service_healthy
+    networks:
+      - gatewaze
+
+# ---------------------------------------------------------------------------
+# Volumes
+# ---------------------------------------------------------------------------
+volumes:
+  supabase-db-data:
+    driver: local
+  supabase-storage-data:
+    driver: local
+  redis-data:
+    driver: local
+  api-modules-cache:
+    driver: local
+  api-data:
+    driver: local
+
+# ---------------------------------------------------------------------------
+# Networks
+# ---------------------------------------------------------------------------
+networks:
+  gatewaze:
+    driver: bridge
+  traefik:
+    external: true
