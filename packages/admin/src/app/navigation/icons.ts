@@ -38,6 +38,13 @@ const aliases: Record<string, ElementType> = {
   Hash: HeroOutline.HashtagIcon,
   DollarSign: HeroOutline.CurrencyDollarIcon,
   Trophy: HeroOutline.TrophyIcon,
+  BadgeCheck: HeroOutline.CheckBadgeIcon,
+  Workflow: HeroOutline.ArrowPathIcon,
+  ListOrdered: HeroOutline.NumberedListIcon,
+  Library: HeroOutline.BuildingLibraryIcon,
+  Tags: HeroOutline.TagIcon,
+  Radar: HeroOutline.SignalIcon,
+  Lightbulb: HeroOutline.LightBulbIcon,
 };
 
 export const navigationIcons: Record<string, ElementType> = {
