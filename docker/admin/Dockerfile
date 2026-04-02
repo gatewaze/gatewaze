@@ -1,20 +1,13 @@
 # ---- Stage 1: Build ----
 FROM node:20-slim AS builder
 
-RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 
-# Clone open-source modules so Vite plugin can discover them at build time
-ARG MODULES_REPO_URL=https://github.com/gatewaze/gatewaze-modules.git
-ARG MODULES_REPO_BRANCH=main
-RUN git clone --depth 1 --branch ${MODULES_REPO_BRANCH} ${MODULES_REPO_URL} /gatewaze-modules
-
 # Copy workspace root files
 COPY package.json ./
 COPY tsconfig.json ./
-COPY gatewaze.config.ts ./
 
 # Use a workspace config that only includes local packages
 RUN printf 'packages:\n  - "packages/*"\n' > pnpm-workspace.yaml

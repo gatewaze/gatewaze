@@ -2,9 +2,14 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { ModulesProvider as ContextProvider } from './context';
 import type { ModuleUpdateInfo, ActiveThemeModule } from './context';
 import { supabase } from '@/lib/supabase';
-import modules from 'virtual:gatewaze-modules';
 import type { InstalledModuleRow } from '@gatewaze/shared/modules';
 import { ModuleService } from '@/utils/moduleService';
+
+// Build-time module list — may be empty in Docker where the modules repo
+// is not available at image build time.  Used **only** for seeding new
+// modules into the DB on first run; all runtime behaviour (features, nav,
+// theme) derives from the DB rows.
+import buildTimeModules from 'virtual:gatewaze-modules';
 
 interface Props {
   children: React.ReactNode;
@@ -48,7 +53,7 @@ export function ModulesProviderWrapper({ children }: Props) {
     const existingIds = new Set(existing.map((r) => r.id));
 
     // 3. Seed any bundled modules that are missing from the DB
-    const missing = modules.filter((m) => !existingIds.has(m.id));
+    const missing = buildTimeModules.filter((m) => !existingIds.has(m.id));
 
     if (missing.length > 0) {
       const newRows = missing.map((m) => ({
@@ -91,26 +96,54 @@ export function ModulesProviderWrapper({ children }: Props) {
     [rows],
   );
 
+  // Derive enabled features entirely from DB rows — works even when the
+  // build-time module list is empty (Docker / no modules repo at build).
   const enabledFeatures = useMemo(() => {
     const features = new Set<string>();
-    for (const mod of modules) {
-      if (enabledIds.has(mod.id)) {
-        for (const f of mod.features) {
+    for (const row of rows) {
+      if (row.status === 'enabled') {
+        for (const f of row.features) {
           features.add(f);
         }
       }
     }
     return features;
-  }, [enabledIds]);
+  }, [rows]);
 
+  // Set of *all* module features (enabled or not) — used by navigation
+  // permissions to distinguish module-owned features from core features.
+  const allModuleFeatures = useMemo(() => {
+    const features = new Set<string>();
+    for (const row of rows) {
+      for (const f of row.features) {
+        features.add(f);
+      }
+    }
+    return features;
+  }, [rows]);
+
+  // Derive active theme from DB rows.  The `config` column stores
+  // themeOverrides for theme-type modules (seeded from the build-time
+  // module definition).  Fall back to the build-time module list so
+  // local dev keeps working even before the theme config is persisted.
   const activeThemeModule = useMemo<ActiveThemeModule | null>(() => {
-    for (const mod of modules) {
+    // First, try DB rows
+    for (const row of rows) {
+      if (row.type === 'theme' && row.status === 'enabled') {
+        const overrides = (row.config as any)?.themeOverrides;
+        if (overrides) {
+          return { id: row.id, name: row.name, themeOverrides: overrides };
+        }
+      }
+    }
+    // Fall back to build-time modules (local dev)
+    for (const mod of buildTimeModules) {
       if (mod.type === 'theme' && enabledIds.has(mod.id) && mod.themeOverrides) {
         return { id: mod.id, name: mod.name, themeOverrides: mod.themeOverrides };
       }
     }
     return null;
-  }, [enabledIds]);
+  }, [rows, enabledIds]);
 
   const checkUpdates = useCallback(async () => {
     try {
@@ -141,6 +174,8 @@ export function ModulesProviderWrapper({ children }: Props) {
   const value = useMemo(
     () => ({
       ready,
+      rows,
+      allModuleFeatures,
       isModuleEnabled,
       isFeatureEnabled,
       activeThemeModule,
@@ -148,7 +183,7 @@ export function ModulesProviderWrapper({ children }: Props) {
       availableUpdates,
       checkUpdates,
     }),
-    [ready, isModuleEnabled, isFeatureEnabled, activeThemeModule, fetchAndSeed, availableUpdates, checkUpdates],
+    [ready, rows, allModuleFeatures, isModuleEnabled, isFeatureEnabled, activeThemeModule, fetchAndSeed, availableUpdates, checkUpdates],
   );
 
   return <ContextProvider value={value}>{children}</ContextProvider>;
