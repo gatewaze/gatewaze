@@ -37,7 +37,7 @@ jobs:
           context: .
           file: docker/admin/Dockerfile
           push: true
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           tags: |
             ghcr.io/gatewaze/admin:${{ steps.version.outputs.VERSION }}
             ghcr.io/gatewaze/admin:latest
@@ -50,7 +50,7 @@ jobs:
           context: .
           file: docker/portal/Dockerfile
           push: true
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           tags: |
             ghcr.io/gatewaze/portal:${{ steps.version.outputs.VERSION }}
             ghcr.io/gatewaze/portal:latest
@@ -63,7 +63,7 @@ jobs:
           context: .
           file: docker/api/Dockerfile
           push: true
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           tags: |
             ghcr.io/gatewaze/api:${{ steps.version.outputs.VERSION }}
             ghcr.io/gatewaze/api:latest
@@ -76,7 +76,7 @@ jobs:
           context: .
           file: docker/worker/Dockerfile
           push: true
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           tags: |
             ghcr.io/gatewaze/worker:${{ steps.version.outputs.VERSION }}
             ghcr.io/gatewaze/worker:latest
@@ -89,7 +89,7 @@ jobs:
           context: .
           file: docker/scheduler/Dockerfile
           push: true
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           tags: |
             ghcr.io/gatewaze/scheduler:${{ steps.version.outputs.VERSION }}
             ghcr.io/gatewaze/scheduler:latest
