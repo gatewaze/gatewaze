@@ -29,7 +29,7 @@ gatewaze/
     admin/              # React + Vite admin application
       src/
         app/            # Page components and route layouts
-        components/     # Reusable UI components (shadcn/ui based)
+        components/     # Reusable UI components (Radix Themes based)
         config/         # App configuration and constants
         hooks/          # Custom React hooks
         lib/            # Utility functions and Supabase client
@@ -594,7 +594,7 @@ describe('formatEventDate', () => {
 ### React
 
 - Use functional components with hooks.
-- Use shadcn/ui as the foundation for all UI components.
+- Use Radix Themes as the foundation for all UI components.
 - Keep components small and focused. Extract logic into custom hooks.
 
 ### Formatting
@@ -760,7 +760,7 @@ function EventTable({ data }: { data: Event[] }) {
     getPaginationRowModel: getPaginationRowModel(),
   });
 
-  // Render table using shadcn/ui Table components
+  // Render table using Radix Themes Table components
 }
 ```
 
