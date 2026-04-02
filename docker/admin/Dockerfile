@@ -47,7 +47,7 @@ RUN printf "VITE_SUPABASE_URL=%s\nVITE_SUPABASE_ANON_KEY=%s\nVITE_API_URL=%s\nVI
   > packages/admin/.env.production
 
 # Build shared library first, then admin
-RUN pnpm --filter shared build 2>/dev/null || true
+RUN pnpm --filter shared build
 RUN pnpm --filter admin build
 
 # ---- Stage 2: Serve ----

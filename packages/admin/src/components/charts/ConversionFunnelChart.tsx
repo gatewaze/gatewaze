@@ -63,7 +63,7 @@ export function ConversionFunnelChart({
       enabled: true,
       textAnchor: 'middle',
       distributed: false,
-      formatter: function(val, opt) {
+      formatter: function(val: number, opt: { dataPointIndex: number }) {
         const labels = ['Claimed', 'Registered', 'Attended'];
         const values = [claimed, registered, attended];
         const currentValue = values[opt.dataPointIndex];
@@ -113,7 +113,7 @@ export function ConversionFunnelChart({
     tooltip: {
       enabled: true,
       y: {
-        formatter: function(value, { dataPointIndex }) {
+        formatter: function(value: number, { dataPointIndex }: { dataPointIndex: number }) {
           const stages = [
             { name: 'Claimed', prev: null, current: claimed },
             { name: 'Registered', prev: claimed, current: registered },
