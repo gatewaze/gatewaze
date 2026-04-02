@@ -8,6 +8,12 @@ const KNOWN_HOSTS = [
   'events.gatewaze.com',
   'app.gatewaze.com',
   'admin.gatewaze.com',
+  'example.com',
+  'admin.example.com',
+  'app.example.com',
+  'admin.example.com',
+  'events.tech.tickets',
+  'admin.tech.tickets',
 ]
 
 // Valid sub-paths under a custom domain event
