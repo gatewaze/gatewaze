@@ -1,0 +1,24 @@
+.filepond--credits {
+  @apply /* hidden*/ text-tiny! font-light! opacity-[.1]!;
+}
+
+.fp-grid .filepond--item {
+  width: calc(calc(1 / var(--fp-grid)) * 100% - 0.5rem);
+}
+
+.fp-bordered .filepond--panel-root {
+  @apply border-2 border-dashed bg-transparent!;
+  border-color: var(--gray-a6) !important;
+}
+
+.fp-filled .filepond--panel-root {
+  background-color: var(--gray-a4) !important;
+}
+
+.filepond--drop-label label {
+  color: var(--gray-11);
+}
+
+.filepond.label-icon .filepond--drop-label label {
+  color: var(--gray-a8);
+}

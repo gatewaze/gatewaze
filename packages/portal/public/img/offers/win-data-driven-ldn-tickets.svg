@@ -1,0 +1,51 @@
+<svg width="800" height="600" viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Define a distressed/grunge texture pattern -->
+    <filter id="roughen">
+      <feTurbulence baseFrequency="0.02" numOctaves="3" result="noise" seed="1"/>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="2"/>
+    </filter>
+    
+    <!-- Text shadow -->
+    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="4" dy="4" stdDeviation="3" flood-color="rgba(0,0,0,0.3)"/>
+    </filter>
+  </defs>
+  
+  <!-- Background - transparent -->
+  
+  <!-- Main text -->
+  <g filter="url(#shadow)">
+    <!-- DATA -->
+    <text x="400" y="180" 
+          font-family="Arial Black, Arial, sans-serif" 
+          font-size="120" 
+          font-weight="900" 
+          text-anchor="middle" 
+          fill="white" 
+          filter="url(#roughen)">DATA</text>
+    
+    <!-- DRIVEN -->
+    <text x="400" y="310" 
+          font-family="Arial Black, Arial, sans-serif" 
+          font-size="120" 
+          font-weight="900" 
+          text-anchor="middle" 
+          fill="white" 
+          filter="url(#roughen)">DRIVEN</text>
+    
+    <!-- LDN -->
+    <text x="400" y="440" 
+          font-family="Arial Black, Arial, sans-serif" 
+          font-size="120" 
+          font-weight="900" 
+          text-anchor="middle" 
+          fill="white" 
+          filter="url(#roughen)">LDN</text>
+  </g>
+  
+  <!-- Add some distressed overlay effects -->
+  <g opacity="0.1">
+    <rect x="0" y="0" width="800" height="600" fill="none" stroke="white" stroke-width="2" stroke-dasharray="10,5"/>
+  </g>
+</svg> 

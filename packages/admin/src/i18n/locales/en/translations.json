@@ -1,0 +1,44 @@
+{
+  "nav": {
+    "dashboards": {
+      "dashboards": "Dashboards",
+      "home": "Home",
+      "competitions": "Competitions",
+      "discounts": "Discounts",
+      "offers": "Offers",
+      "calendars": "Calendars",
+      "events": "Events",
+      "scrapers": "Scrapers",
+      "surveys": "Surveys",
+      "newsletters": "Newsletters",
+      "slack": "Slack"
+    },
+    "admin": {
+      "admin": "Admin",
+      "users": "Team Members",
+      "accounts": "Accounts",
+      "budget-categories": "Budget Categories",
+      "topics": "Topics",
+      "scrapers": "Scrapers",
+      "emails": "Emails",
+      "events": "Events",
+      "compliance": "Compliance",
+      "payments": "Payments",
+      "payments.customers": "Customers",
+      "payments.products": "Products",
+      "payments.invoices": "Invoices",
+      "payments.transactions": "Transactions",
+      "scheduler": "Scheduler",
+      "redirects": "Redirects",
+      "redirects.all": "All Redirects",
+      "redirects.shortcodes": "Shortcode Config",
+      "redirects.review": "Needs Review",
+      "settings": "Settings"
+    },
+    "blog": {
+      "blog": "Blog",
+      "posts": "Posts",
+      "categories": "Categories"
+    }
+  }
+}

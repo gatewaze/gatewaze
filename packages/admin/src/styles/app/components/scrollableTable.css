@@ -1,0 +1,5 @@
+/* Ensure sticky cells keep the row divider line (Radix uses box-shadow for this) */
+[data-sticky-left],
+[data-sticky-right] {
+  box-shadow: var(--table-row-box-shadow) !important;
+}
