@@ -104,7 +104,7 @@ export function Toc({ wrapperSelector }: TocProps) {
         <div className="fixed bottom-3 right-3 z-10 rounded-full bg-[var(--gray-3)]">
           <Button
             onClick={open}
-            color="primary"
+            color="cyan"
             className="size-14 rounded-full"
             isIcon
           >
@@ -122,7 +122,7 @@ export function Toc({ wrapperSelector }: TocProps) {
               <Button
                 onClick={close}
                 isIcon
-                variant="flat"
+                variant="ghost"
                 className="size-6 rounded-full"
               >
                 <XMarkIcon className="size-4.5" />

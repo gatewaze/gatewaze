@@ -9,7 +9,7 @@ import { useLocaleContext } from "@/app/contexts/locale/context";
 import { TimelineVariant, useTimelineContext } from "./context";
 import { ColorType } from "@/constants/app";
 
-const radixColorPrefix: Record<Exclude<ColorType, "neutral">, string> = {
+const radixColorPrefix: Record<string, string> = {
   primary: "accent",
   secondary: "blue",
   info: "cyan",

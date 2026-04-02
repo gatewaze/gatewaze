@@ -23,7 +23,11 @@ const colorMap: Record<string, RadixBadgeProps["color"] | undefined> = {
   neutral: "gray",
 };
 
-export type BadgeProps = RadixBadgeProps & {
+type SemanticColor = "primary" | "secondary" | "info" | "success" | "warning" | "error" | "neutral";
+
+export type BadgeProps = Omit<RadixBadgeProps, "color" | "variant"> & {
+  color?: RadixBadgeProps["color"] | SemanticColor;
+  variant?: RadixBadgeProps["variant"] | "filled" | "outlined" | "success" | "secondary" | "primary" | "default";
   /** @deprecated No longer supported */
   unstyled?: boolean;
   /** @deprecated No longer supported */

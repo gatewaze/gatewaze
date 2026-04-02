@@ -50,7 +50,7 @@ export function ContextualHelp(props: ContextualHelpProps) {
     <>
       <Button
         onClick={openModal}
-        variant="flat"
+        variant="ghost"
         isIcon
         className="contextual-trigger pointer-events-auto size-6 rounded-full"
       >
@@ -94,7 +94,7 @@ export function ContextualHelp(props: ContextualHelpProps) {
                 </DialogTitle>
                 <Button
                   onClick={closeModal}
-                  variant="flat"
+                  variant="ghost"
                   isIcon
                   className="size-6 rounded-full ltr:-mr-1.5 rtl:-ml-1.5"
                 >
@@ -111,7 +111,7 @@ export function ContextualHelp(props: ContextualHelpProps) {
     <Popover className="relative">
       <PopoverButton
         as={Button}
-        variant="flat"
+        variant="ghost"
         isIcon
         className="contextual-trigger pointer-events-auto size-6 rounded-full"
       >

@@ -1106,7 +1106,7 @@ export default function MembersPage() {
             {/* Add Person button */}
             <Button
               onClick={() => setAddPersonModalOpen(true)}
-              color="primary"
+              color="cyan"
               className="gap-2"
             >
               <PlusIcon className="size-4" />
@@ -1126,7 +1126,7 @@ export default function MembersPage() {
                 />
                 <Button
                   onClick={() => fileInputRef.current?.click()}
-                  variant="outlined"
+                  variant="outline"
                   disabled={isImporting}
                   className="gap-2 text-[var(--green-11)] border-[var(--green-a6)] hover:bg-[var(--green-a3)]"
                 >
@@ -1140,7 +1140,7 @@ export default function MembersPage() {
               <>
                 <Button
                   onClick={handleExportCSV}
-                  variant="outlined"
+                  variant="outline"
                   className="gap-2 text-[var(--accent-11)] border-[var(--accent-a6)] hover:bg-[var(--accent-a3)]"
                 >
                   <ArrowDownTrayIcon className="size-4" />
@@ -1148,7 +1148,7 @@ export default function MembersPage() {
                 </Button>
                 <Button
                   onClick={handleBulkDelete}
-                  variant="outlined"
+                  variant="outline"
                   className="gap-2 text-[var(--red-11)] border-[var(--red-a6)] hover:bg-[var(--red-a3)]"
                 >
                   <TrashIcon className="size-4" />
@@ -1274,7 +1274,7 @@ export default function MembersPage() {
                 </p>
                 <Button
                   variant="ghost"
-                  size="sm"
+                  size="1"
                   onClick={() => {
                     setSelectedPersonIds(new Set());
                     setSelectAllMode(false);
@@ -1343,7 +1343,7 @@ export default function MembersPage() {
           title="Person Details"
           footer={
             <div className="flex justify-end">
-              <Button variant="outlined" onClick={() => setViewModalOpen(false)}>
+              <Button variant="outline" onClick={() => setViewModalOpen(false)}>
                 Close
               </Button>
             </div>
@@ -1420,7 +1420,7 @@ export default function MembersPage() {
           title="Edit Person"
           footer={
             <div className="flex justify-end gap-2">
-              <Button variant="outlined" onClick={() => setEditModalOpen(false)}>
+              <Button variant="outline" onClick={() => setEditModalOpen(false)}>
                 Cancel
               </Button>
               <Button onClick={handleSaveEdit}>
@@ -1511,7 +1511,7 @@ export default function MembersPage() {
           footer={
             <div className="flex justify-end gap-2">
               <Button
-                variant="outlined"
+                variant="outline"
                 onClick={() => {
                   setAddPersonModalOpen(false);
                   setAddPersonFormData({ email: '', first_name: '', last_name: '', job_title: '', company: '' });
@@ -1595,7 +1595,7 @@ export default function MembersPage() {
                           disabled={addingMember}
                           data={[
                             { label: `Select ${attr.label}...`, value: '', disabled: true },
-                            ...(attr.options || []).map(opt => ({ label: opt, value: opt })),
+                            ...(attr.options || []).map((opt: any) => ({ label: opt, value: opt })),
                           ]}
                         />
                       );
@@ -1607,7 +1607,7 @@ export default function MembersPage() {
                         <div key={attr.key} className="flex flex-col">
                           <span className="text-sm font-medium text-[var(--gray-12)] mb-1">{fieldLabel}</span>
                           <div className="flex flex-wrap gap-1.5 rounded-lg border border-[var(--gray-6)] bg-[var(--color-surface)] p-2 min-h-[38px]">
-                            {(attr.options || []).map(opt => {
+                            {(attr.options || []).map((opt: any) => {
                               const isSelected = selected.includes(opt);
                               return (
                                 <button

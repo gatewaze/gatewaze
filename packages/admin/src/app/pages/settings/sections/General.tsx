@@ -178,7 +178,7 @@ export default function General() {
           <Button
             type="submit"
             className="min-w-[7rem]"
-            color="primary"
+            color="cyan"
             disabled={isLoadingProfile}
           >
             Save Profile
@@ -198,7 +198,7 @@ export default function General() {
           </div>
           <Button
             onClick={() => setShowPasswordForm(!showPasswordForm)}
-            variant="outlined"
+            variant="outline"
             className="min-w-[7rem]"
           >
             {showPasswordForm ? 'Cancel' : 'Change Password'}
@@ -250,7 +250,7 @@ export default function General() {
               <Button
                 type="submit"
                 className="min-w-[7rem]"
-                color="primary"
+                color="cyan"
                 disabled={isLoadingPassword}
               >
                 Update Password

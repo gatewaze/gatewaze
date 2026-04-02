@@ -83,7 +83,7 @@ export function PeopleAttributesEditor({ value, onChange }: Props) {
   const removeOption = (attrIndex: number, optionIndex: number) => {
     const next = [...value];
     const attr = { ...next[attrIndex] };
-    attr.options = (attr.options || []).filter((_, i) => i !== optionIndex);
+    attr.options = (attr.options || []).filter((_: any, i: any) => i !== optionIndex);
     next[attrIndex] = attr;
     onChange(next);
   };
@@ -133,7 +133,7 @@ export function PeopleAttributesEditor({ value, onChange }: Props) {
                 {locked ? (
                   <div className="flex-1 flex items-center gap-1.5">
                     <span className="text-sm">{attr.label}</span>
-                    <Lock className="h-3 w-3 text-[var(--gray-8)]" title="Always enabled and required" />
+                    <Lock className="h-3 w-3 text-[var(--gray-8)]" aria-label="Always enabled and required" />
                   </div>
                 ) : (
                   <div className="flex-1 flex items-center gap-1">
@@ -227,7 +227,7 @@ export function PeopleAttributesEditor({ value, onChange }: Props) {
                       <p className="text-xs font-medium text-[var(--gray-9)]">Options</p>
                       {(attr.options || []).length > 0 && (
                         <div className="flex flex-wrap gap-1.5">
-                          {(attr.options || []).map((opt, oi) => (
+                          {(attr.options || []).map((opt: any, oi: any) => (
                             <span
                               key={oi}
                               className="inline-flex items-center gap-1 rounded-md bg-[var(--gray-3)] border border-[var(--gray-6)] px-2 py-1 text-xs"

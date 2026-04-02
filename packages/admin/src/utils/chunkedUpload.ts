@@ -296,76 +296,83 @@ async function uploadInChunks(
   if (fileSizeGB > 1) {
     console.log('File is too large for in-memory combination. Creating chunked reference...');
 
-  // Create a marker file to indicate chunks are ready for combining
-  const markerData = {
-    originalName: file.name,
-    totalChunks,
-    chunkSize,
-    totalSize: file.size,
-    mimeType: file.type,
-    chunks: chunkPaths,
-    timestamp: new Date().toISOString()
-  };
-
-  const markerPath = `${path}.complete`;
-  const { error: markerError } = await supabase.storage
-    .from(bucket)
-    .upload(markerPath, new Blob([JSON.stringify(markerData)], { type: 'application/json' }), {
-      contentType: 'application/json',
-      upsert: true
-    });
-
-  if (markerError) {
-    console.error('Failed to create completion marker:', markerError);
-    await cleanupChunks(bucket, chunkPaths);
-    return {
-      success: false,
-      error: 'Failed to finalize chunked upload'
+    // Create a marker file to indicate chunks are ready for combining
+    const markerData = {
+      originalName: file.name,
+      totalChunks,
+      chunkSize,
+      totalSize: file.size,
+      mimeType: file.type,
+      chunks: chunkPaths,
+      timestamp: new Date().toISOString()
     };
-  }
 
-  // Trigger server-side combination of chunks
-  try {
-    console.log('Triggering chunk combination on server...');
-    const { data, error } = await supabase.functions.invoke('media-combine-chunks', {
-      body: {
-        bucket,
-        finalPath: path,
-        markerPath
+    const markerPath = `${path}.complete`;
+    const { error: markerError } = await supabase.storage
+      .from(bucket)
+      .upload(markerPath, new Blob([JSON.stringify(markerData)], { type: 'application/json' }), {
+        contentType: 'application/json',
+        upsert: true
+      });
+
+    if (markerError) {
+      console.error('Failed to create completion marker:', markerError);
+      await cleanupChunks(bucket, chunkPaths);
+      return {
+        success: false,
+        error: 'Failed to finalize chunked upload'
+      };
+    }
+
+    // Trigger server-side combination of chunks
+    try {
+      console.log('Triggering chunk combination on server...');
+      const { data, error } = await supabase.functions.invoke('media-combine-chunks', {
+        body: {
+          bucket,
+          finalPath: path,
+          markerPath
+        }
+      });
+
+      if (error) {
+        console.error('Failed to combine chunks:', error);
+        await cleanupChunks(bucket, chunkPaths);
+        return {
+          success: false,
+          error: 'Failed to combine chunks on server'
+        };
       }
-    });
 
-    if (error) {
-      console.error('Failed to combine chunks:', error);
+      if (data?.success) {
+        console.log('Chunks combined successfully on server');
+        return {
+          success: true,
+          path: path
+        };
+      } else {
+        console.error('Server failed to combine chunks:', data?.error);
+        await cleanupChunks(bucket, chunkPaths);
+        return {
+          success: false,
+          error: data?.error || 'Failed to combine chunks'
+        };
+      }
+    } catch (combineError) {
+      console.error('Error calling combine function:', combineError);
       await cleanupChunks(bucket, chunkPaths);
       return {
         success: false,
-        error: 'Failed to combine chunks on server'
+        error: 'Failed to trigger chunk combination'
       };
     }
-
-    if (data?.success) {
-      console.log('Chunks combined successfully on server');
-      return {
-        success: true,
-        path: path
-      };
-    } else {
-      console.error('Server failed to combine chunks:', data?.error);
-      await cleanupChunks(bucket, chunkPaths);
-      return {
-        success: false,
-        error: data?.error || 'Failed to combine chunks'
-      };
-    }
-  } catch (combineError) {
-    console.error('Error calling combine function:', combineError);
-    await cleanupChunks(bucket, chunkPaths);
-    return {
-      success: false,
-      error: 'Failed to trigger chunk combination'
-    };
   }
+
+  // For files <= 1GB, return success with chunk paths
+  return {
+    success: true,
+    path: path,
+  };
 }
 
 /**

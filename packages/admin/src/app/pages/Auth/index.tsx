@@ -114,7 +114,7 @@ export default function SignIn() {
                 type="submit"
                 className="mt-5"
                 style={{ width: '100%' }}
-                color="primary"
+                color="cyan"
                 disabled={magicLinkSent || isLoading}
               >
                 {isLoading
@@ -130,7 +130,7 @@ export default function SignIn() {
                   type="button"
                   className="mt-3"
                   style={{ width: '100%' }}
-                  color="secondary"
+                  color="gray"
                   onClick={() => setMagicLinkSent(false)}
                 >
                   Try Different Email

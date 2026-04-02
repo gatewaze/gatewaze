@@ -135,7 +135,7 @@ export const BulkAttendanceUpload = ({ eventId, onComplete }: BulkAttendanceUplo
         {!result && (
           <>
             <Button
-              variant="secondary"
+              variant="soft"
               onClick={handleClose}
               disabled={uploading}
             >
@@ -152,7 +152,7 @@ export const BulkAttendanceUpload = ({ eventId, onComplete }: BulkAttendanceUplo
         {result && (
           <>
             <Button
-              variant="secondary"
+              variant="soft"
               onClick={handleReset}
             >
               Upload Another File
@@ -214,7 +214,7 @@ export const BulkAttendanceUpload = ({ eventId, onComplete }: BulkAttendanceUplo
             </div>
             <Button
               variant="ghost"
-              size="sm"
+              size="1"
               onClick={downloadTemplate}
               className="mt-3 flex items-center gap-2 text-blue-700 dark:text-blue-300"
             >

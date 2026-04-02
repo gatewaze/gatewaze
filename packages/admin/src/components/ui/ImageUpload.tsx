@@ -294,7 +294,7 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
               type="button"
               onClick={handleUrlSubmit}
               disabled={disabled}
-              variant="outlined"
+              variant="outline"
             >
               Set URL
             </Button>

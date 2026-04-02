@@ -53,7 +53,7 @@ export function Profile() {
         role="button"
         indicator={
           <AvatarDot
-            color="success"
+            color="green"
             className="-m-0.5 size-3 ltr:right-0 rtl:left-0"
           />
         }

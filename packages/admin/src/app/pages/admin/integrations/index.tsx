@@ -279,7 +279,7 @@ export default function IntegrationsPage() {
                         handleToggle(mod.id, mod.status === "enabled")
                       }
                       disabled={!isSuperAdmin || togglingId === mod.id}
-                      color="primary"
+                      color="cyan"
                     />
                   </div>
                   {mod.status === "enabled" && mod.hasSettings && (

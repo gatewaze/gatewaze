@@ -19,7 +19,7 @@ export default defineConfig({
       "sonner", "@heroicons/react", "@headlessui/react", "@dnd-kit/core",
       "@dnd-kit/sortable", "@dnd-kit/utilities", "@supabase/supabase-js",
       "@tanstack/react-table", "react-hook-form", "@hookform/resolvers",
-      "@radix-ui/themes", "yup",
+      "@radix-ui/themes", "yup", "apexcharts", "react-apexcharts",
     ],
   },
   server: {

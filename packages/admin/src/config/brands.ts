@@ -197,4 +197,3 @@ export function getSurveyBaseUrl(): string {
   return getBrandConfig().domains.surveyBase;
 }
 
-export type { BrandConfig, BrandFeatures };

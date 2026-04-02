@@ -518,7 +518,7 @@ export class PermissionsService {
    * Create audit log entry
    */
   private static async createAuditLog(
-    log: Omit<PermissionAuditLog, 'id' | 'created_at'>
+    log: Partial<Omit<PermissionAuditLog, 'id' | 'created_at'>> & { admin_id: string; action: PermissionAuditLog['action'] }
   ): Promise<void> {
     try {
       await supabase.from('admin_permission_audit').insert(log);

@@ -195,7 +195,7 @@ export default function PeopleEnrichmentSettings() {
                     config.AUTO_ENRICH_ON_CREATE === "true" ? "false" : "true"
                   )
                 }
-                color="primary"
+                color="cyan"
               />
             </div>
             <div>

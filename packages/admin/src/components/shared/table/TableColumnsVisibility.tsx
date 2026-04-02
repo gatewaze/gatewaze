@@ -27,7 +27,7 @@ export function TableColumnVisibility({
     <Popover className="relative w-full">
       <PopoverButton
         isIcon
-        variant="flat"
+        variant="ghost"
         className="size-8 rounded-full"
         as={Button}
       >
@@ -63,7 +63,7 @@ export function TableColumnVisibility({
             </div>
           </div>
           <Button
-            variant="flat"
+            variant="ghost"
             className="text-xs-plus h-9 w-full rounded-t-none border-t border-[var(--gray-a5)] leading-none"
             onClick={() => table.resetColumnVisibility()}
           >

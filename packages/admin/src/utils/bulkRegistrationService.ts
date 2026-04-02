@@ -582,10 +582,10 @@ export class BulkRegistrationService {
 
       // Update customer attributes in both CIO and Supabase
       const attributes = {
-        first_name: row.first_name,
-        last_name: row.last_name,
-        company: row.company,
-        job_title: row.job_title,
+        first_name: row.first_name || '',
+        last_name: row.last_name || '',
+        company: row.company || '',
+        job_title: row.job_title || '',
         linkedin_url: row.linkedin_url,
       };
 

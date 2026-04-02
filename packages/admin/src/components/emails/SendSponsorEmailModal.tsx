@@ -197,10 +197,10 @@ export function SendSponsorEmailModal({
       size="lg"
       footer={
         <div className="flex justify-end gap-2">
-          <Button variant="outlined" onClick={handleClose} disabled={isSending}>
+          <Button variant="outline" onClick={handleClose} disabled={isSending}>
             Cancel
           </Button>
-          <Button color="primary" onClick={handleSend} disabled={isSending}>
+          <Button color="cyan" onClick={handleSend} disabled={isSending}>
             {isSending ? (
               <span className="flex items-center gap-2">
                 <Spinner className="size-4" />

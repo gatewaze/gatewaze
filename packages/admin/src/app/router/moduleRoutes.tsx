@@ -27,7 +27,6 @@ function buildRouteObject(route: {
         return {
           Component: () => (
             <FeatureGuard feature={route.requiredFeature}>
-              {/* @ts-expect-error -- module component typing */}
               <component.default />
             </FeatureGuard>
           ),
@@ -47,8 +46,7 @@ function buildRouteObject(route: {
           return {
             Component: () => (
               <FeatureGuard feature={route.requiredFeature}>
-                {/* @ts-expect-error -- module component typing */}
-                <component.default />
+                  <component.default />
               </FeatureGuard>
             ),
           };
@@ -69,7 +67,7 @@ function collectRoutes(guardFilter: string | undefined): RouteObject[] {
       const effectiveGuard = guard === 'none' ? undefined : guard;
       if (effectiveGuard !== guardFilter) continue;
 
-      const routeObj = buildRouteObject(route);
+      const routeObj = buildRouteObject(route as any);
       const topPath = routeObj.path!;
 
       // Merge children if we already have a route for this top-level path

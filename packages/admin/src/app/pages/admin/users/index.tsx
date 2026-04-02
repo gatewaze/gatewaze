@@ -278,16 +278,16 @@ export default function AdminUsers() {
     }
   };
 
-  const getRoleBadgeColor = (role: string) => {
+  const getRoleBadgeColor = (role: string): "red" | "cyan" | "orange" | "gray" => {
     switch (role) {
       case 'super_admin':
-        return 'error';
+        return 'red';
       case 'admin':
-        return 'primary';
+        return 'cyan';
       case 'editor':
-        return 'warning';
+        return 'orange';
       default:
-        return 'secondary';
+        return 'gray';
     }
   };
 
@@ -335,7 +335,7 @@ export default function AdminUsers() {
           {isSuperAdmin && (
             <Button
               onClick={() => handleOpenModal()}
-              color="primary"
+              color="cyan"
               className="gap-2"
             >
               <PlusIcon className="size-4" />
@@ -390,7 +390,7 @@ export default function AdminUsers() {
                       <Td>
                         <div className="flex items-center gap-2">
                           {user.role === 'super_admin' ? (
-                            <Badge color="success">All Features</Badge>
+                            <Badge color="green">All Features</Badge>
                           ) : (
                             <span className="text-sm text-[var(--gray-12)]">
                               {user.featureCount !== undefined ? (
@@ -515,14 +515,14 @@ export default function AdminUsers() {
             <div className="flex justify-end space-x-3 pt-4">
               <Button
                 type="button"
-                variant="outlined"
+                variant="outline"
                 onClick={handleCloseModal}
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
-                color="primary"
+                color="cyan"
                 disabled={submitting}
               >
                 {isEditing ? 'Update User' : 'Create User'}

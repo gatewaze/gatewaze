@@ -49,7 +49,7 @@ export function CollapsibleSearch({
       />
       <Button
         onClick={toggle}
-        variant="flat"
+        variant="ghost"
         isIcon
         className="size-8 rounded-full"
         aria-label="Toggle Search"

@@ -35,7 +35,7 @@ export function Modal({ isOpen, onClose, title, size = 'md', children, footer }:
               {title}
             </Dialog.Title>
             <Button
-              variant="flat"
+              variant="ghost"
               isIcon
               onClick={onClose}
               className="text-[var(--gray-a8)] hover:text-[var(--gray-12)]"

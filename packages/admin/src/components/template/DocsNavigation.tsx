@@ -42,7 +42,7 @@ export function DocsNavigation({ prefix, items, title }: DocsNavigationProps) {
         <div className="fixed bottom-3 right-3 z-10 rounded-full bg-[var(--gray-3)]">
           <Button
             onClick={open}
-            color="primary"
+            color="cyan"
             className="size-14 rounded-full"
             isIcon
           >
@@ -60,7 +60,7 @@ export function DocsNavigation({ prefix, items, title }: DocsNavigationProps) {
               <Button
                 onClick={close}
                 isIcon
-                variant="flat"
+                variant="ghost"
                 className="size-6 rounded-full"
               >
                 <XMarkIcon className="size-4.5" />

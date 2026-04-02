@@ -120,14 +120,14 @@ export function Notifications() {
     <Popover className="relative flex">
       <PopoverButton
         as={Button}
-        variant="flat"
+        variant="ghost"
         isIcon
         className="relative size-9 rounded-full"
       >
         <AlarmIcon className="size-6 text-[var(--gray-12)]" />
         {notifications.length > 0 && (
           <AvatarDot
-            color="error"
+            color="red"
             isPing
             className="top-0 ltr:right-0 rtl:left-0"
           />
@@ -155,7 +155,7 @@ export function Notifications() {
                     </h3>
                     {notifications.length > 0 && (
                       <Badge
-                        color="primary"
+                        color="cyan"
                         className="h-5 rounded-full px-1.5"
                         variant="soft"
                       >
@@ -168,7 +168,7 @@ export function Notifications() {
                     to="/settings/notifications"
                     className="size-7 rounded-full ltr:-mr-1.5 rtl:-ml-1.5"
                     isIcon
-                    variant="flat"
+                    variant="ghost"
                     onClick={close}
                   >
                     <Cog6ToothIcon className="size-4.5" />
@@ -264,7 +264,7 @@ export function Notifications() {
                 filteredNotifications.length > 0) && (
                 <div className="shrink-0 overflow-hidden rounded-b-lg bg-[var(--gray-a3)]">
                   <Button
-                    // variant="flat"
+                    // variant="ghost"
                     className="w-full rounded-t-none"
                     onClick={clearNotifications}
                   >
@@ -326,7 +326,7 @@ function NotificationItem({ data, remove }: NotificationItemProps) {
         </div>
       </div>
       <Button
-        variant="flat"
+        variant="ghost"
         isIcon
         onClick={() => remove(data.id)}
         className="size-7 rounded-full opacity-0 group-hover:opacity-100 ltr:-mr-2 rtl:-ml-2"
