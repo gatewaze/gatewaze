@@ -33,7 +33,8 @@ COPY gatewaze.config.ts ./
 COPY packages/shared/ packages/shared/
 COPY packages/api/ packages/api/
 
-# Build api (includes shared and gatewaze.config via tsconfig.build.json)
+# Build shared (CJS output) then api
+RUN pnpm --filter shared build
 RUN pnpm --filter api build
 
 # ---- Stage 2: Run ----
@@ -60,9 +61,9 @@ COPY packages/shared/package.json packages/shared/
 RUN --mount=type=cache,id=pnpm-api,target=/root/.local/share/pnpm/store \
     pnpm install --no-frozen-lockfile --prod
 
-# Copy built output (rootDir is monorepo root, so dist mirrors the repo structure)
+# Copy built output
 COPY --from=builder /app/packages/api/dist/packages/api/src packages/api/dist
-COPY --from=builder /app/packages/api/dist/packages/shared/src packages/shared/dist
+COPY --from=builder /app/packages/shared/dist packages/shared/dist
 COPY --from=builder /app/packages/api/dist/gatewaze.config.js ./
 
 # Link shared package to root node_modules so Node ESM resolver can find it
