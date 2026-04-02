@@ -11,7 +11,7 @@ export function ChatWidget() {
   const brandConfig = getClientBrandConfig()
   const primaryColor = brandConfig.primaryColor || '#00a2c7'
 
-  const { messages, sendMessage, status, error } = useChat({ api: '/api/chat' })
+  const { messages, sendMessage, status, error } = useChat()
 
   const isLoading = status === 'submitted' || status === 'streaming'
 
@@ -24,7 +24,7 @@ export function ChatWidget() {
     const text = input.trim()
     if (!text || isLoading) return
     setInput('')
-    sendMessage({ role: 'user', content: text })
+    sendMessage({ text })
   }
 
   if (!isOpen) {
