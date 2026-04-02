@@ -5,7 +5,7 @@ import {
   Transition,
   TransitionChild,
 } from "@headlessui/react";
-import { Fragment, useEffect, useRef } from "react";
+import { Fragment, useEffect, useMemo, useRef } from "react";
 import {
   MagnifyingGlassIcon,
   ChevronRightIcon,
@@ -24,7 +24,7 @@ import { Avatar, Button, Input } from "@/components/ui";
 import { useDisclosure, useFuse } from "@/hooks";
 import { useThemeContext } from "@/app/contexts/theme/context";
 import { createScopedKeydownHandler } from "@/utils/dom/createScopedKeydownHandler";
-import { navigation } from "@/app/navigation";
+import { useNavigation } from "@/hooks/useNavigation";
 import { Highlight } from "@/components/shared/Highlight";
 import { settings } from "@/app/navigation/segments/settings";
 import { ColorType } from "@/constants/app";
@@ -112,8 +112,6 @@ const popular: PopularSearchItem[] = [
   },
 ];
 
-const data = flattenNav([...navigation, settings]);
-
 export function Search({ renderButton }: SearchProps) {
   const [isOpen, { open, close }] = useDisclosure(false);
 
@@ -164,6 +162,8 @@ export function Search({ renderButton }: SearchProps) {
 
 export function SearchDialog({ close }: SearchDialogProps) {
   const { isDark } = useThemeContext();
+  const navigation = useNavigation();
+  const data = useMemo(() => flattenNav([...navigation, settings]), [navigation]);
   const searchInputId = useRef(
     `search-input-${Math.random().toString(36).substring(2, 11)}`,
   ).current;

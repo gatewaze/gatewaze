@@ -5,7 +5,6 @@ import SimpleBar from "simplebar-react";
 
 // Local Imports
 import { useDidUpdate } from "@/hooks";
-import { navigation } from "@/app/navigation";
 import { Accordion } from "@/components/ui";
 import { isRouteActive } from "@/utils/isRouteActive";
 import { Group } from "./Group";
@@ -13,6 +12,7 @@ import { MenuItem } from "./Group/MenuItem";
 import { useFeaturePermissions } from "@/hooks/useFeaturePermissions";
 import { filterNavigationByPermissions } from "@/utils/navigationPermissions";
 import { useModulesContext } from "@/app/contexts/modules/context";
+import { useNavigation } from "@/hooks/useNavigation";
 
 // ----------------------------------------------------------------------
 
@@ -20,7 +20,8 @@ export function Menu() {
   const { pathname } = useLocation();
   const ref = useRef<HTMLDivElement | null>(null);
   const { permissions, isSuperAdmin, isLoading } = useFeaturePermissions();
-  const { isFeatureEnabled, ready: modulesReady } = useModulesContext();
+  const { isFeatureEnabled, allModuleFeatures, ready: modulesReady } = useModulesContext();
+  const navigation = useNavigation();
 
   // Filter navigation based on user permissions and enabled modules
   const filteredNavigation = useMemo(() => {
@@ -30,8 +31,8 @@ export function Menu() {
     }
 
     // Filter navigation tree based on permissions and module state
-    return filterNavigationByPermissions(navigation, permissions, isSuperAdmin, isFeatureEnabled);
-  }, [permissions, isSuperAdmin, isLoading, modulesReady, isFeatureEnabled]);
+    return filterNavigationByPermissions(navigation, permissions, isSuperAdmin, isFeatureEnabled, allModuleFeatures);
+  }, [navigation, permissions, isSuperAdmin, isLoading, modulesReady, isFeatureEnabled, allModuleFeatures]);
 
   const activeGroup = filteredNavigation.find((item) => {
     if (item.path) return isRouteActive(item.path, pathname);
