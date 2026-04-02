@@ -137,6 +137,7 @@ export async function reconcileModules(
           status: 'disabled',
           config: mod.moduleConfig,
           portal_nav: mod.config.portalNav || null,
+          admin_nav: mod.config.adminNavItems || null,
         });
 
       if (insertErr) {
@@ -152,7 +153,7 @@ export async function reconcileModules(
         console.log(`[modules] Updating metadata for inactive module "${mod.config.name}" (v${existing.version} → v${mod.config.version})...`);
         await supabase
           .from('installed_modules')
-          .update({ version: mod.config.version, features: mod.config.features, portal_nav: mod.config.portalNav || null })
+          .update({ version: mod.config.version, features: mod.config.features, portal_nav: mod.config.portalNav || null, admin_nav: mod.config.adminNavItems || null })
           .eq('id', mod.config.id);
       }
     } else {
@@ -164,7 +165,7 @@ export async function reconcileModules(
         console.log(`[modules] Upgrading "${mod.config.name}" from v${existing.version} to v${mod.config.version}...`);
         await supabase
           .from('installed_modules')
-          .update({ version: mod.config.version, features: mod.config.features, portal_nav: mod.config.portalNav || null })
+          .update({ version: mod.config.version, features: mod.config.features, portal_nav: mod.config.portalNav || null, admin_nav: mod.config.adminNavItems || null })
           .eq('id', mod.config.id);
         console.log(`[modules] Upgraded "${mod.config.name}" to v${mod.config.version}`);
       } else {
