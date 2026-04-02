@@ -96,7 +96,7 @@ The shared package provides the foundation that all other packages depend on.
 
 ### `packages/admin`
 
-The admin dashboard is a single-page React application for event organizers.
+The admin dashboard is a single-page React application for administrators.
 
 | Concern | Technology |
 |---------|------------|
@@ -108,16 +108,13 @@ The admin dashboard is a single-page React application for event organizers.
 | Supabase | Client-side `@supabase/supabase-js` with RLS |
 
 Key responsibilities:
-- Event CRUD (create, edit, publish, archive)
-- Speaker and session management
-- Registration and attendee management
+- People and member management
 - Email template editing and sending
-- Calendar configuration
 - Analytics dashboards
 
 ### `packages/portal`
 
-The public-facing website where attendees browse and interact with events.
+The public-facing website where users browse and interact with your organization.
 
 | Concern | Technology |
 |---------|------------|
@@ -127,10 +124,8 @@ The public-facing website where attendees browse and interact with events.
 | Supabase | Server client via `@supabase/ssr` |
 
 Key responsibilities:
-- Event listing with upcoming, past, calendar, and map views
-- Event detail pages with speaker bios and session schedules
-- Calendar pages (`/calendars/[identifier]/*`)
-- Event registration flow
+- Public-facing pages for members and content
+- Module-provided routes (events, calendars, registration, etc.)
 - SEO-optimized pages with server-rendered metadata
 
 Architecture notes:
@@ -309,7 +304,7 @@ Modules are discovered from sources listed in `gatewaze.config.ts`:
 
 | Type | Behavior |
 |------|----------|
-| **Core features** | Always enabled -- events, speakers, categories, calendars, members, basic auth, email |
+| **Core features** | Always enabled -- people/members, auth, email, admin dashboard, public portal |
 | **Module features** | Gated by feature flags -- each module declares the features it provides, and routes/nav/slots are only rendered when those features are enabled |
 
 This allows self-hosted instances to enable only the features they need, keeping the platform lightweight and focused. See the [Module System Guide](./modules.md) for full documentation.

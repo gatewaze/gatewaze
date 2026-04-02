@@ -71,6 +71,9 @@ supabase/functions/_shared/*
 !supabase/functions/platform-main/
 !supabase/functions/platform-setup/
 
+# Claude Code agent memory
+.claude/agent-memory/
+
 # Module source cache (git-cloned modules)
 .gatewaze-modules/
 

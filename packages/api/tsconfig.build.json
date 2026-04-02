@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "../..",
+    "outDir": "dist",
+    "paths": {
+      "@gatewaze/shared": ["../shared/src"],
+      "@gatewaze/shared/*": ["../shared/src/*"]
+    }
+  },
+  "include": ["src", "../../gatewaze.config.ts", "../shared/src"]
+}
