@@ -34,16 +34,8 @@ RUN --mount=type=cache,id=pnpm-admin,target=/root/.local/share/pnpm/store \
 COPY packages/shared/ packages/shared/
 COPY packages/admin/ packages/admin/
 
-# Build args for Vite (inlined at build time via .env file)
-ARG VITE_SUPABASE_URL=http://gatewaze-supabase.localhost
-ARG VITE_SUPABASE_ANON_KEY
-ARG VITE_API_URL=http://gatewaze-api.localhost
-ARG VITE_AUTH_PROVIDER=supabase
-ARG VITE_DISABLE_BRANDING=false
-
-# Write .env file for Vite to read during build
-RUN printf "VITE_SUPABASE_URL=%s\nVITE_SUPABASE_ANON_KEY=%s\nVITE_API_URL=%s\nVITE_AUTH_PROVIDER=%s\nVITE_DISABLE_BRANDING=%s\n" \
-  "$VITE_SUPABASE_URL" "$VITE_SUPABASE_ANON_KEY" "$VITE_API_URL" "$VITE_AUTH_PROVIDER" "$VITE_DISABLE_BRANDING" \
+# Build with placeholder values that get replaced at container start
+RUN printf "VITE_SUPABASE_URL=__VITE_SUPABASE_URL__\nVITE_SUPABASE_ANON_KEY=__VITE_SUPABASE_ANON_KEY__\nVITE_API_URL=__VITE_API_URL__\nVITE_AUTH_PROVIDER=__VITE_AUTH_PROVIDER__\nVITE_DISABLE_BRANDING=__VITE_DISABLE_BRANDING__\n" \
   > packages/admin/.env.production
 
 # Build with Vite only (skip tsc -b which has issues with project references in Docker)
@@ -61,8 +53,10 @@ COPY docker/admin/nginx.conf /etc/nginx/conf.d/default.conf
 # Copy built assets from builder stage
 COPY --from=builder /app/packages/admin/dist /usr/share/nginx/html
 
-# Expose port 80
+# Runtime env injection script — replaces __VITE_*__ placeholders in JS
+RUN printf '#!/bin/sh\nset -e\nfor f in /usr/share/nginx/html/assets/*.js; do\n  sed -i \\\n    -e "s|__VITE_SUPABASE_URL__|${VITE_SUPABASE_URL}|g" \\\n    -e "s|__VITE_SUPABASE_ANON_KEY__|${VITE_SUPABASE_ANON_KEY}|g" \\\n    -e "s|__VITE_API_URL__|${VITE_API_URL}|g" \\\n    -e "s|__VITE_AUTH_PROVIDER__|${VITE_AUTH_PROVIDER:-supabase}|g" \\\n    -e "s|__VITE_DISABLE_BRANDING__|${VITE_DISABLE_BRANDING:-false}|g" \\\n    "$f"\ndone\nexec nginx -g "daemon off;"\n' > /docker-entrypoint.sh \
+    && chmod +x /docker-entrypoint.sh
+
 EXPOSE 80
 
-# Nginx runs in foreground by default with this base image
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["/docker-entrypoint.sh"]
