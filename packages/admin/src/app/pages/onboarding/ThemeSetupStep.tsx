@@ -39,7 +39,7 @@ export default function ThemeSetupStep() {
   const [primaryColor, setPrimaryColor] = useState("#00a2c7");
   const [secondaryColor, setSecondaryColor] = useState("#0a0a0a");
   const [logoUrl, setLogoUrl] = useState("");
-  const [portalTheme, setPortalTheme] = useState<PortalTheme>("blobs");
+  const [portalTheme, setPortalTheme] = useState<PortalTheme>("gradient_wave");
   const [eventTypes, setEventTypes] = useState<EventTypeOption[]>(DEFAULT_EVENT_TYPES);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
