@@ -1,0 +1,66 @@
+/* Main Layout Styles */
+[data-layout="main-layout"] {
+  @apply [--main-panel-width:3.5rem] [--margin-x:1rem] [--prime-panel-min-width:64px] [--prime-panel-width:180px] md:[--margin-x:1.5rem] lg:[--main-panel-width:3.5rem] lg:[--prime-panel-width:180px] xl:[--margin-x:2.5rem];
+}
+
+[data-layout="main-layout"] #root {
+  @apply grid min-h-full [grid-template-rows:auto_1fr];
+}
+
+[data-layout="main-layout"].is-sidebar-open {
+  @apply xl:[--margin-x:1.5rem];
+}
+
+[data-layout="main-layout"] main.main-content,
+[data-layout="main-layout"] .app-header {
+  @apply md:ltr:ml-(--main-panel-width) md:rtl:mr-(--main-panel-width);
+}
+
+[data-layout="main-layout"].is-sidebar-open main.main-content,
+[data-layout="main-layout"].is-sidebar-open .app-header {
+  @apply xl:ltr:ml-[calc(var(--main-panel-width)+var(--prime-panel-width))] xl:rtl:mr-[calc(var(--main-panel-width)+var(--prime-panel-width))];
+}
+
+[data-layout="main-layout"] .prime-panel {
+  @apply invisible fixed top-0 z-30 h-full w-[calc(var(--main-panel-width)+var(--prime-panel-width))] -translate-x-full transform-gpu transition-[transform,translate,visibility] delay-150 duration-[.25s] ease-in md:delay-[unset] ltr:left-0 rtl:right-0 rtl:translate-x-full;
+}
+
+[data-layout="main-layout"].is-sidebar-open .prime-panel {
+  @apply visible translate-x-0 ease-out;
+}
+
+[data-layout="main-layout"] .main-panel {
+  @apply invisible fixed top-0 z-40 h-full w-(--main-panel-width) shrink-0 -translate-x-full transform-gpu transition-[transform,visibility] duration-200 ease-in md:visible md:z-60 md:translate-x-0 ltr:left-0 rtl:right-0 rtl:translate-x-full md:rtl:translate-x-0;
+}
+
+[data-layout="main-layout"].is-sidebar-open .main-panel {
+  @apply visible translate-x-0;
+}
+
+/* Capture brand accent color before sidebar's gray theme overrides it */
+.sidebar-panel,
+.main-panel {
+  --brand-accent: var(--accent-9);
+}
+
+/* Sideblock */
+[data-layout="sideblock"] {
+  @apply [--margin-x:1rem] [--sidebar-panel-width:14rem] md:[--margin-x:1.5rem] 2xl:[--margin-x:2.5rem];
+}
+
+[data-layout="sideblock"] #root {
+  @apply grid min-h-full [grid-template-rows:auto_1fr];
+}
+
+[data-layout="sideblock"] main.main-content,
+[data-layout="sideblock"] .app-header {
+  @apply xl:ltr:ml-(--sidebar-panel-width) xl:rtl:mr-(--sidebar-panel-width);
+}
+
+[data-layout="sideblock"] .sidebar-panel {
+  @apply invisible fixed top-0 z-30 h-full w-full -translate-x-full transform-gpu transition-[transform,visibility,width] duration-[.25s] ease-in xl:visible xl:w-(--sidebar-panel-width) ltr:left-0 xl:ltr:translate-x-0 rtl:right-0 rtl:translate-x-full xl:rtl:translate-x-0;
+}
+
+[data-layout="sideblock"].is-sidebar-open .sidebar-panel {
+  @apply visible translate-x-0 ease-out;
+}

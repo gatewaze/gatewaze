@@ -1,0 +1,11 @@
+.simplebar-scrollbar:before {
+  background-color: var(--gray-a6) !important;
+}
+
+.simplebar-content-wrapper {
+  @apply outline-hidden;
+}
+
+[data-root-menu] .simplebar-offset {
+  top: 20px;
+}

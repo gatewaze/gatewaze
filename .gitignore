@@ -1,0 +1,81 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+.next/
+.turbo/
+out/
+
+# Environment
+.env
+.env.local
+.env.*.local
+docker/.env
+docker/.env.*
+!docker/.env.example
+
+# IDE / AI tools
+.vscode/
+.idea/
+.mcp.json
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Testing
+coverage/
+
+# Docker
+docker/data/
+
+# Supabase
+supabase/.temp/
+supabase/.branches/
+
+# Edge functions: ignore everything, then whitelist core functions.
+# Module-installed functions are automatically excluded without needing updates.
+supabase/functions/*/
+supabase/functions/_shared/*
+!supabase/functions/_shared/
+!supabase/functions/_shared/cors.ts
+!supabase/functions/_shared/email.ts
+!supabase/functions/_shared/integrationEvents.ts
+!supabase/functions/_shared/supabase.ts
+!supabase/functions/admin-add-first/
+!supabase/functions/admin-nl-query/
+!supabase/functions/admin-send-magic-link/
+!supabase/functions/email-generate-encoded/
+!supabase/functions/email-send/
+!supabase/functions/email-send-push/
+!supabase/functions/email-send-reminders/
+!supabase/functions/email-sendgrid-webhook/
+!supabase/functions/events-speaker-submission/
+!supabase/functions/health-check/
+!supabase/functions/people-classify-job-titles/
+!supabase/functions/people-enrichment/
+!supabase/functions/people-normalize-location/
+!supabase/functions/people-profile-update/
+!supabase/functions/people-signup/
+!supabase/functions/people-track-attribute/
+!supabase/functions/people-track-subscription/
+!supabase/functions/people-validate-linkedin/
+!supabase/functions/platform-generate-download-token/
+!supabase/functions/platform-generate-embeddings/
+!supabase/functions/platform-main/
+!supabase/functions/platform-setup/
+
+# Claude Code agent memory
+.claude/agent-memory/
+
+# Module source cache (git-cloned modules)
+.gatewaze-modules/
+
+# Uploaded module packages
+data/uploaded-modules/

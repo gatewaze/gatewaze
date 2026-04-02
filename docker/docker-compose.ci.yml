@@ -1,0 +1,120 @@
+###############################################################################
+# Gatewaze CI — Minimal Supabase stack for E2E testing
+#
+# Only includes services needed for E2E tests:
+#   - PostgreSQL (with migrations and seed data)
+#   - GoTrue (authentication)
+#   - PostgREST (REST API)
+#   - Kong (API gateway)
+#   - Redis (job queue)
+#
+# Excluded for speed: Studio, Realtime, Storage, Edge Functions, Meta
+#
+# Usage:
+#   docker compose -f docker/docker-compose.ci.yml up -d --wait
+###############################################################################
+
+services:
+  supabase-db:
+    image: supabase/postgres:15.8.1.085
+    restart: "no"
+    ports:
+      - "54322:5432"
+    environment:
+      POSTGRES_HOST: /var/run/postgresql
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: testpassword123
+      PGPORT: "5432"
+      JWT_SECRET: super-secret-jwt-token-with-at-least-32-characters-long
+      JWT_EXP: "3600"
+    volumes:
+      - ./supabase/00-set-admin-password.sh:/docker-entrypoint-initdb.d/00-set-admin-password.sh:ro
+      - ../supabase/migrations:/gatewaze-migrations:ro
+      - ./supabase/zz-gatewaze-init.sh:/docker-entrypoint-initdb.d/zz-gatewaze-init.sh:ro
+      - ./supabase/db-healthcheck.sh:/usr/local/bin/db-healthcheck.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "sh /usr/local/bin/db-healthcheck.sh"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 120s
+
+  supabase-auth:
+    image: supabase/gotrue:v2.186.0
+    restart: "no"
+    depends_on:
+      supabase-db:
+        condition: service_healthy
+    ports:
+      - "9999:9999"
+    environment:
+      GOTRUE_API_HOST: "0.0.0.0"
+      GOTRUE_API_PORT: "9999"
+      API_EXTERNAL_URL: http://localhost:54321
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:testpassword123@supabase-db:5432/postgres
+      GOTRUE_SITE_URL: http://localhost:5274
+      GOTRUE_DISABLE_SIGNUP: "false"
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_EXP: "3600"
+      GOTRUE_JWT_SECRET: super-secret-jwt-token-with-at-least-32-characters-long
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
+      GOTRUE_MAILER_AUTOCONFIRM: "true"
+      GOTRUE_SMTP_HOST: ""
+      GOTRUE_SMTP_PORT: "587"
+      GOTRUE_SMTP_USER: ""
+      GOTRUE_SMTP_PASS: ""
+      GOTRUE_SMTP_ADMIN_EMAIL: "admin@localhost"
+      GOTRUE_SMTP_MAX_FREQUENCY: 1ns
+
+  supabase-rest:
+    image: postgrest/postgrest:v14.5.0.0
+    restart: "no"
+    depends_on:
+      supabase-db:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      PGRST_DB_URI: postgres://authenticator:testpassword123@supabase-db:5432/postgres
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: super-secret-jwt-token-with-at-least-32-characters-long
+      PGRST_DB_USE_LEGACY_GUCS: "false"
+      PGRST_DB_CHANNEL_ENABLED: "true"
+
+  supabase-kong:
+    image: kong:2.8.1
+    restart: "no"
+    depends_on:
+      supabase-rest:
+        condition: service_started
+      supabase-auth:
+        condition: service_started
+    ports:
+      - "54321:8000"
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /var/lib/kong/kong.yml
+      KONG_DNS_ORDER: LAST,A,CNAME
+      KONG_PLUGINS: request-transformer,cors,key-auth,acl,basic-auth
+      KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: 160k
+      KONG_NGINX_PROXY_PROXY_BUFFERS: 64 160k
+      SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+      SUPABASE_SERVICE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
+    volumes:
+      - ./supabase/kong.yml:/var/lib/kong/kong.yml:ro
+
+  redis:
+    image: redis:7-alpine
+    restart: "no"
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
