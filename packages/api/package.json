@@ -16,6 +16,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@gatewaze/shared": "workspace:*",
     "@supabase/supabase-js": "^2.49.0",
     "adm-zip": "^0.5.16",
     "bullmq": "^5.25.0",
