@@ -262,7 +262,7 @@ Create a post-login Action or Rule that adds roles to the token:
 ```javascript
 // Auth0 Action: Add roles to token
 exports.onExecutePostLogin = async (event, api) => {
-  const namespace = 'https://gatewaze.com';
+  const namespace = 'https://gatewaze.io';
   const roles = event.authorization?.roles || [];
   api.idToken.setCustomClaim(`${namespace}/roles`, roles);
   api.accessToken.setCustomClaim(`${namespace}/roles`, roles);
@@ -287,7 +287,7 @@ auth: {
     clientSecret: process.env.OIDC_CLIENT_SECRET,
     scopes: ['openid', 'profile', 'email'],
     roleMapping: {
-      claimPath: 'https://gatewaze.com/roles',
+      claimPath: 'https://gatewaze.io/roles',
       superAdmin: 'gatewaze-super-admin',
       admin: 'gatewaze-admin',
       editor: 'gatewaze-editor',

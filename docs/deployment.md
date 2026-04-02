@@ -477,7 +477,7 @@ For production deployments at scale, Gatewaze provides a Helm chart for Kubernet
 #### 1. Add the Gatewaze Helm repository
 
 ```bash
-helm repo add gatewaze https://charts.gatewaze.com
+helm repo add gatewaze https://charts.gatewaze.io
 helm repo update
 ```
 
