@@ -1,0 +1,5 @@
+# Generated at dev/build time by scripts/generate-module-registry.ts
+lib/modules/generated-portal-modules.ts
+lib/modules/generated-portal-rewrites.json
+lib/modules/generated-modules-dirs.json
+lib/modules/generated-module-prefixes.json
