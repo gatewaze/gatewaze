@@ -34,12 +34,8 @@ This project is built with the following open-source technologies:
 - BullMQ (https://bullmq.io) — Redis-based queue for background job processing.
   Licensed under the MIT License.
 
-- shadcn/ui (https://ui.shadcn.com) — UI component library.
-  Licensed under the MIT License.
-
-- shadcn-admin (https://github.com/satnaing/shadcn-admin) — Admin dashboard template.
-  Copyright (c) Sat Naing.
-  Admin UI layout and components adapted from this template.
+- Radix Themes (https://www.radix-ui.com/themes) — UI component library.
+  Copyright (c) WorkOS.
   Licensed under the MIT License.
 
 - Tailwind CSS (https://tailwindcss.com) — Utility-first CSS framework.

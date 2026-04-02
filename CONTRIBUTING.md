@@ -172,7 +172,7 @@ All code is formatted with Prettier. The configuration is defined in the reposit
 ### React
 
 - Use **functional components** with hooks.
-- Use **shadcn/ui** components as the foundation for all UI elements.
+- Use **Radix Themes** components as the foundation for all UI elements.
 - Keep components small and focused. Extract logic into custom hooks.
 
 ## Commit Message Format
