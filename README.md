@@ -4,44 +4,24 @@
 
 **Open-source people management platform.**
 
-Gatewaze is a modular platform for managing people, events, and communities. Out of the box it gives you member management, event scheduling, registrations, and a public portal — then you extend it with modules to fit your exact workflow. Whether you're running a developer community, a professional association, or a conference series, Gatewaze adapts to how you work.
+Gatewaze is a modular platform for managing people and communities. Out of the box it gives you people management, a public portal, and an admin dashboard — then you extend it with modules to add the capabilities you need. Whether you're running a developer community, a professional association, or any organization, Gatewaze adapts to how you work.
 
 ---
 
 ## Features
 
 - **People & Member Management** -- Manage profiles, organizations, membership tiers, and track engagement across your community.
-- **Event Management** -- Create, edit, and organize events with rich metadata, speaker assignments, venue details, and scheduling.
-- **Calendar Publishing** -- Publish curated event calendars that can be embedded or shared publicly.
-- **Registration** -- Handle event registrations with configurable forms, approval workflows, and attendee tracking.
-- **Public Portal** -- A fast, SEO-friendly public site for browsing events, viewing calendars, and registering.
+- **Admin Dashboard** -- Full-featured admin interface for managing your organization and members.
+- **Public Portal** -- A fast, SEO-friendly public site powered by Next.js.
 - **Configurable Authentication** -- Supports Supabase Auth and OIDC providers for flexible identity management.
 - **Email** -- Transactional and bulk email via SendGrid or any SMTP provider, with template management.
-- **Module System** -- Extend the platform through self-contained modules that add UI, API routes, background jobs, and database migrations.
+- **Module System** -- Extend the platform through self-contained modules that add UI, API routes, background jobs, and database migrations. Add event management, calendars, registrations, speakers, payments, and more.
 
 ## Modules
 
-Gatewaze's module system lets you pick the capabilities you need. Modules are selected during onboarding and can be enabled or disabled at any time. Example modules:
+Gatewaze's module system lets you pick the capabilities you need. Modules are selected during onboarding and can be enabled or disabled at any time.
 
-| Module | Description |
-|--------|-------------|
-| **Event Speakers** | Speaker submissions, confirmations, and profile management |
-| **Event Sponsors** | Sponsor tiers, logos, and placement across events |
-| **Event Agenda** | Session scheduling with tracks, rooms, and time slots |
-| **Calendars** | Curated, embeddable event calendars |
-| **Cohorts** | Group members into cohorts for programs or courses |
-| **Competitions** | Run hackathons, pitch contests, and judging workflows |
-| **Bulk Emailing** | Campaign-style email sends with template management |
-| **Newsletters** | Newsletter creation and subscriber management |
-| **Stripe Payments** | Paid registrations, memberships, and invoicing |
-| **Slack Integration** | Post event updates and notifications to Slack channels |
-| **Badge Scanning** | QR code check-in and badge scanning at events |
-| **Blog** | Publish articles and news on your public portal |
-| **Offers** | Discount codes and promotional offers for events |
-| **Event Media** | Photo and video galleries, YouTube integration |
-| **Compliance** | GDPR and data handling workflows |
-
-Modules live in a separate [gatewaze-modules](https://github.com/gatewaze/gatewaze-modules) repository. You can also build your own — see [Module Development](./docs/modules.md).
+The official open-source module collection lives in the [gatewaze-modules](https://github.com/gatewaze/gatewaze-modules) repository. You can also create your own modules and load them from local paths, git repos, or uploaded packages. See the [Module System Guide](./docs/modules.md) for full documentation on creating and managing modules.
 
 ## Tech Stack
 
@@ -139,17 +119,17 @@ If you manage multiple brands, place brand configs in a sibling `gatewaze-enviro
 parent-directory/
   gatewaze/               # This repo
   gatewaze-environments/  # Brand-specific .env files
-    aaif.local.env
-    mlops.local.env
+    brand1.local.env
+    brand2.local.env
 ```
 
 Then pass the brand name before the command:
 
 ```bash
-make aaif up        # Start the "aaif" brand
-make aaif down      # Stop the "aaif" brand
-make aaif reset     # Reset the "aaif" brand
-make mlops up       # Start a different brand
+make brand1 up        # Start the "brand1" brand
+make brand1 down      # Stop the "brand1" brand
+make brand1 reset     # Reset the "brand1" brand
+make brand2 up        # Start a different brand
 ```
 
 ### Access the Services

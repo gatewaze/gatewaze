@@ -94,8 +94,8 @@ serve(async (req) => {
     const notificationPayload = {
       title: notification.title,
       body: notification.body || notification.message || '',
-      icon: notification.icon || '/img/favicon/techtickets/android-icon-192x192.png',
-      badge: notification.badge || '/img/favicon/techtickets/android-icon-96x96.png',
+      icon: notification.icon || '/img/favicon/android-icon-192x192.png',
+      badge: notification.badge || '/img/favicon/android-icon-96x96.png',
       url: notification.url || '/',
       tag: notification.tag || 'default',
       requireInteraction: notification.requireInteraction || false,

@@ -198,7 +198,7 @@ export class LumaICalScraper extends BaseScraper {
 
   /**
    * Convert Luma calendar URL to iCal feed URL
-   * Input: https://lu.ma/nyc.mlops
+   * Input: https://lu.ma/example-calendar
    * Output: https://api2.luma.com/ics/get?entity=calendar&id=cal-uwop1v1UeYlgAqe
    */
   async getICalUrl(calendarUrl) {

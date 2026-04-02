@@ -33,13 +33,8 @@ COPY gatewaze.config.ts ./
 COPY packages/shared/ packages/shared/
 COPY packages/api/ packages/api/
 
-# Build shared library first, then api
-RUN pnpm --filter shared build
+# Build api (includes shared and gatewaze.config via tsconfig.build.json)
 RUN pnpm --filter api build
-
-# Compile root config file (referenced by API at runtime)
-RUN npx tsc --module ESNext --moduleResolution bundler --target ES2022 \
-    --esModuleInterop --skipLibCheck --outDir . gatewaze.config.ts
 
 # ---- Stage 2: Run ----
 FROM node:20-slim
@@ -65,12 +60,10 @@ COPY packages/shared/package.json packages/shared/
 RUN --mount=type=cache,id=pnpm-api,target=/root/.local/share/pnpm/store \
     pnpm install --no-frozen-lockfile --prod
 
-# Copy built output
-COPY --from=builder /app/packages/api/dist packages/api/dist
-COPY --from=builder /app/packages/shared/dist packages/shared/dist
-
-# Copy compiled config
-COPY --from=builder /app/gatewaze.config.js ./
+# Copy built output (rootDir is monorepo root, so dist mirrors the repo structure)
+COPY --from=builder /app/packages/api/dist/packages/api/src packages/api/dist
+COPY --from=builder /app/packages/api/dist/packages/shared/src packages/shared/dist
+COPY --from=builder /app/packages/api/dist/gatewaze.config.js ./
 
 # Copy default modules (cloned at build time)
 COPY --from=builder /gatewaze-modules/modules /gatewaze-modules/modules

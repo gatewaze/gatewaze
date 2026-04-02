@@ -123,7 +123,7 @@ async function updateInvitationStatus(invitationId, status, errorMessage = null)
 /**
  * Add an invitation to the queue
  */
-export async function addToQueue(email, account = 'mlops', metadata = {}) {
+export async function addToQueue(email, account = 'default', metadata = {}) {
   const { data, error } = await supabase
     .rpc('integrations_request_slack_invitation', {
       p_email: email,

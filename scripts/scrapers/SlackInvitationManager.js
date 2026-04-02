@@ -279,7 +279,7 @@ export class SlackInvitationManager {
 
       // Navigate to Slack app (not admin page) - works for regular members
       // Extract team ID from workspace URL if needed, or use direct client URL
-      const teamId = 'T7FHA770F'; // MLOps.community team ID
+      const teamId = 'TXXXXXXXXX'; // Your Slack workspace team ID
       const appUrl = `https://app.slack.com/client/${teamId}`;
       console.log(`📍 Navigating to Slack app: ${appUrl}`);
 

@@ -9,10 +9,10 @@
 #   make ps                  — show running services
 #
 # Multi-brand (requires gatewaze-environments repo alongside this repo):
-#   make aaif up             — start the "aaif" brand
-#   make aaif down           — stop the "aaif" brand
-#   make aaif reset          — reset the "aaif" brand
-#   make aaif logs           — tail logs for the "aaif" brand
+#   make brand1 up           — start the "brand1" brand
+#   make brand1 down         — stop the "brand1" brand
+#   make brand1 reset        — reset the "brand1" brand
+#   make brand1 logs         — tail logs for the "brand1" brand
 # ============================================================================
 
 ENVIRONMENTS_DIR := ../gatewaze-environments

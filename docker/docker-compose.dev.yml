@@ -61,7 +61,7 @@ services:
       - ../../lf-gatewaze-modules:/lf-gatewaze-modules
     environment:
       NODE_ENV: development
-      NEXT_PUBLIC_API_URL: ${API_URL:-http://aaif-api.localhost}
+      NEXT_PUBLIC_API_URL: ${API_URL:-http://gatewaze-api.localhost}
       # Internal Supabase URL for module registry generator (DB source lookup)
       # Self-hosted: http://supabase-kong:8000 (Docker network)
       # Cloud: same as SUPABASE_URL (set SUPABASE_INTERNAL_URL in .env)
