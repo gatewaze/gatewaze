@@ -7,15 +7,6 @@ import type { NavigationTree } from '@/@types/navigation';
 import type { AdminFeature, AdminPermissionsMap } from '@/lib/permissions/types';
 import { isFeatureEnabled } from '@/config/brands';
 import type { BrandFeatures } from '@/config/brands';
-import modules from 'virtual:gatewaze-modules';
-
-/**
- * Set of all feature strings owned by modules.
- * Used to distinguish module features from core features when filtering navigation.
- */
-const MODULE_FEATURES = new Set<string>(
-  modules.flatMap((m) => m.features)
-);
 
 /**
  * Map navigation paths to required features
@@ -109,7 +100,14 @@ export function filterNavigationByPermissions(
   navigation: NavigationTree[],
   permissionsMap: AdminPermissionsMap,
   isSuperAdmin: boolean = false,
-  isModuleFeatureEnabled?: (feature: string) => boolean
+  isModuleFeatureEnabled?: (feature: string) => boolean,
+  /**
+   * Set of all feature strings owned by any module in the DB.
+   * Used to distinguish module features from core features.
+   * When omitted, every feature with a truthy `isModuleFeatureEnabled`
+   * callback is treated as module-owned (safe fallback).
+   */
+  allModuleFeatures?: Set<string>,
 ): NavigationTree[] {
   return navigation
     .map((item) => {
@@ -126,7 +124,9 @@ export function filterNavigationByPermissions(
         // Core features (not owned by any module) won't be in the set, so we only
         // hide items whose feature is known to the module system but not enabled.
         if (isModuleFeatureEnabled) {
-          const isModuleOwned = MODULE_FEATURES.has(item.requiredFeature);
+          const isModuleOwned = allModuleFeatures
+            ? allModuleFeatures.has(item.requiredFeature)
+            : true; // conservative: treat as module-owned when set unavailable
           if (isModuleOwned && !isModuleFeatureEnabled(item.requiredFeature)) {
             return null;
           }
@@ -139,7 +139,7 @@ export function filterNavigationByPermissions(
         if (item.childs && item.childs.length > 0) {
           return {
             ...item,
-            childs: filterNavigationByPermissions(item.childs, permissionsMap, isSuperAdmin, isModuleFeatureEnabled),
+            childs: filterNavigationByPermissions(item.childs, permissionsMap, isSuperAdmin, isModuleFeatureEnabled, allModuleFeatures),
           };
         }
         return item;
@@ -166,7 +166,8 @@ export function filterNavigationByPermissions(
           item.childs,
           permissionsMap,
           isSuperAdmin,
-          isModuleFeatureEnabled
+          isModuleFeatureEnabled,
+          allModuleFeatures,
         );
 
         // If all children are filtered out, hide the parent too
