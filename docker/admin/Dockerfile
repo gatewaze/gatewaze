@@ -46,7 +46,8 @@ RUN printf "VITE_SUPABASE_URL=%s\nVITE_SUPABASE_ANON_KEY=%s\nVITE_API_URL=%s\nVI
   "$VITE_SUPABASE_URL" "$VITE_SUPABASE_ANON_KEY" "$VITE_API_URL" "$VITE_AUTH_PROVIDER" "$VITE_DISABLE_BRANDING" \
   > packages/admin/.env.production
 
-# Build admin (tsc -b handles shared via project references, then vite builds)
+# Build shared first (emits dist/ for project references), then admin
+RUN pnpm --filter shared build
 RUN pnpm --filter admin build
 
 # ---- Stage 2: Serve ----
