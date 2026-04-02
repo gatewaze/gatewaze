@@ -1,7 +1,7 @@
 // Import Dependencies
 import { Navigate } from "react-router";
 import { useFeaturePermissions } from "@/hooks/useFeaturePermissions";
-import { navigation } from "@/app/navigation";
+import { useNavigation } from "@/hooks/useNavigation";
 import { getFirstAvailableRoute } from "@/utils/navigationPermissions";
 
 /**
@@ -10,6 +10,7 @@ import { getFirstAvailableRoute } from "@/utils/navigationPermissions";
  */
 export function RoleBasedRedirect() {
   const { permissions, isSuperAdmin, isLoading } = useFeaturePermissions();
+  const navigation = useNavigation();
 
   // Wait for permissions to load before redirecting
   if (isLoading) {

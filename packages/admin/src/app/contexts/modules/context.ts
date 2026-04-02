@@ -1,5 +1,5 @@
 import { createSafeContext } from '@/utils/createSafeContext';
-import type { ThemeOverrides } from '@gatewaze/shared/modules';
+import type { ThemeOverrides, InstalledModuleRow } from '@gatewaze/shared/modules';
 
 export interface ModuleUpdateInfo {
   id: string;
@@ -19,6 +19,10 @@ export interface ActiveThemeModule {
 export interface ModulesContextType {
   /** True once the initial DB fetch has completed */
   ready: boolean;
+  /** Raw DB rows from installed_modules (for navigation, feature checks, etc.) */
+  rows: InstalledModuleRow[];
+  /** Set of all feature strings across all modules (enabled or not) in the DB */
+  allModuleFeatures: Set<string>;
   /** Check if a module is enabled (status === 'enabled' in DB) */
   isModuleEnabled: (moduleId: string) => boolean;
   /** Check if a specific feature flag is enabled across all enabled modules */

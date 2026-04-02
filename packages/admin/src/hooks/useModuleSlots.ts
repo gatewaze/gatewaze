@@ -1,4 +1,7 @@
 import { useMemo } from 'react';
+// Build-time module list — may be empty in Docker.  Slot components require
+// bundled code, so this must remain a build-time import.  When empty, the
+// hook simply returns no slots (graceful degradation).
 import modules from 'virtual:gatewaze-modules';
 import { useModulesContext } from '@/app/contexts/modules/context';
 import type { SlotRegistration } from '@gatewaze/shared/modules';

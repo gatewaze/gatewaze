@@ -8,6 +8,9 @@
  */
 
 import { RouteObject } from 'react-router';
+// Build-time module list — may be empty in Docker.  Route components require
+// bundled code, so this must remain a build-time import.  When empty, the
+// exported route arrays are simply empty (graceful degradation).
 import modules from 'virtual:gatewaze-modules';
 import { FeatureGuard } from '@/middleware/FeatureGuard';
 

@@ -6,11 +6,11 @@ import { useLocation } from "react-router";
 import { useBreakpointsContext } from "@/app/contexts/breakpoint/context";
 import { useSidebarContext } from "@/app/contexts/sidebar/context";
 import { useAuthContext } from "@/app/contexts/auth/context";
-import { navigation } from "@/app/navigation";
 import { useDidUpdate } from "@/hooks";
 import { useFeaturePermissions } from "@/hooks/useFeaturePermissions";
 import { filterNavigationByPermissions } from "@/utils/navigationPermissions";
 import { useModulesContext } from "@/app/contexts/modules/context";
+import { useNavigation } from "@/hooks/useNavigation";
 import { isRouteActive } from "@/utils/isRouteActive";
 import { MainPanel } from "./MainPanel";
 import { PrimePanel } from "./PrimePanel";
@@ -24,7 +24,8 @@ export function Sidebar() {
   const { name, lgAndDown } = useBreakpointsContext();
   const { isExpanded, close } = useSidebarContext();
   const { permissions, isSuperAdmin, isLoading } = useFeaturePermissions();
-  const { isFeatureEnabled, ready: modulesReady } = useModulesContext();
+  const { isFeatureEnabled, allModuleFeatures, ready: modulesReady } = useModulesContext();
+  const navigation = useNavigation();
 
   // Hide sidebar while loading permissions or modules to prevent flash of wrong content
   if (isLoading || !modulesReady) {
@@ -33,8 +34,8 @@ export function Sidebar() {
 
   // Filter navigation based on user permissions and module state
   const filteredNavigation = useMemo(() => {
-    return filterNavigationByPermissions(navigation, permissions, isSuperAdmin, isFeatureEnabled);
-  }, [permissions, isSuperAdmin, isFeatureEnabled]);
+    return filterNavigationByPermissions(navigation, permissions, isSuperAdmin, isFeatureEnabled, allModuleFeatures);
+  }, [navigation, permissions, isSuperAdmin, isFeatureEnabled, allModuleFeatures]);
 
   const initialSegment = useMemo(
     () => filteredNavigation.find((item) => isRouteActive(item.path, pathname)),
