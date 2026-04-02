@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "gatewaze.fullname" . }}-scheduler
+  labels:
+    {{- include "gatewaze.labels" . | nindent 4 }}
+    app.kubernetes.io/component: scheduler
+spec:
+  replicas: {{ .Values.replicaCount.scheduler }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "gatewaze.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: scheduler
+  template:
+    metadata:
+      labels:
+        {{- include "gatewaze.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: scheduler
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "gatewaze.serviceAccountName" . }}
+      containers:
+        - name: scheduler
+          image: "{{ .Values.image.registry }}/api:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["node", "packages/api/dist/scheduler/start-scheduler.js"]
+          envFrom:
+            - configMapRef:
+                name: {{ include "gatewaze.fullname" . }}-config
+            - secretRef:
+                name: {{ include "gatewaze.fullname" . }}-secret
+          livenessProbe:
+            exec:
+              command:
+                - pgrep
+                - -f
+                - "node.*scheduler"
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.resources.scheduler | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
