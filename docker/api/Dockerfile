@@ -34,7 +34,7 @@ COPY packages/shared/ packages/shared/
 COPY packages/api/ packages/api/
 
 # Build shared library first, then api
-RUN pnpm --filter shared build 2>/dev/null || true
+RUN pnpm --filter shared build
 RUN pnpm --filter api build
 
 # Compile root config file (referenced by API at runtime)

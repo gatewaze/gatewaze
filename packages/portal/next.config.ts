@@ -55,6 +55,14 @@ const nextConfig: NextConfig = {
   // Standalone output for containerized deployment
   output: 'standalone',
 
+  // Skip type checking in build (handled separately in CI)
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+
   // Image optimization domains
   images: {
     remotePatterns: [

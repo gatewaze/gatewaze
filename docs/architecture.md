@@ -258,45 +258,61 @@ This ensures that even if application-level checks are bypassed, the database en
 
 ### Overview
 
-Gatewaze uses a module system to organize features into composable, independently-enableable units. This replaces the earlier multi-brand `BrandFeatures` approach with a cleaner registry pattern.
+Gatewaze uses a module system to organize features into composable, independently-enableable units. Modules are self-contained packages that live outside the core repository and are loaded at build time and runtime from configurable sources (local paths or git repos).
 
 ### GatewazeModule Interface
 
-Each module implements the `GatewazeModule` interface, declaring what it contributes to the platform:
+Each module exports a default object implementing the `GatewazeModule` interface, which declares everything the module contributes to the platform:
 
 ```typescript
 interface GatewazeModule {
+  id: string;
   name: string;
   description: string;
-  enabled: boolean;
+  version: string;
+  features: string[];              // Feature flags this module provides
+  type?: 'feature' | 'integration' | 'theme';
+  dependencies?: string[];         // Other module IDs this module requires
 
-  // Extension points
-  adminRoutes?: RouteDefinition[];
-  portalRoutes?: RouteDefinition[];
-  apiRoutes?: RouteDefinition[];
+  // UI extension points
+  adminRoutes?: AdminRouteDefinition[];
+  adminNavItems?: NavigationItem[];
+  adminSlots?: SlotRegistration[];   // Inject UI into named extension points
+  portalRoutes?: PortalRouteDefinition[];
+  portalNav?: { label, path, icon, order };
+  portalSlots?: SlotRegistration[];
+
+  // Backend extension points
+  apiRoutes?: (app, context?) => void | Promise<void>;
   workers?: WorkerDefinition[];
-  edgeFunctions?: EdgeFunctionDefinition[];
-  migrations?: MigrationDefinition[];
+  schedulers?: SchedulerDefinition[];
+  edgeFunctions?: string[];
+  migrations?: string[];
+
+  // Configuration and lifecycle
+  configSchema?: Record<string, ConfigField>;
+  themeOverrides?: ThemeOverrides;   // For theme-type modules
+  onInstall?: () => Promise<void>;
+  onEnable?: () => Promise<void>;
+  onDisable?: () => Promise<void>;
 }
 ```
 
-### ModuleRegistry
+### Module Loading
 
-The `ModuleRegistry` is the central registry that manages all modules:
+Modules are discovered from sources listed in `gatewaze.config.ts`:
 
-- Registers modules at application startup
-- Queries which modules are enabled for the current instance
-- Collects routes, workers, and other contributions from enabled modules
-- Provides a `isModuleEnabled(name)` check for conditional logic
+- **Client-side (admin):** A Vite plugin resolves modules at build time and generates a virtual module with static imports. Route components are lazy-loaded and code-split.
+- **Server-side (API, CLI):** The shared `loadModules()` function resolves source directories, imports each module, and validates it against the interface.
 
 ### Core vs. Module Features
 
 | Type | Behavior |
 |------|----------|
-| **Core features** | Always enabled -- events, speakers, categories, calendars, basic auth |
-| **Module features** | Gated by the registry -- registrations, email campaigns, integrations (Cvent), analytics |
+| **Core features** | Always enabled -- events, speakers, categories, calendars, members, basic auth, email |
+| **Module features** | Gated by feature flags -- each module declares the features it provides, and routes/nav/slots are only rendered when those features are enabled |
 
-This allows self-hosted instances to enable only the features they need, keeping the platform lightweight and focused.
+This allows self-hosted instances to enable only the features they need, keeping the platform lightweight and focused. See the [Module System Guide](./modules.md) for full documentation.
 
 ---
 

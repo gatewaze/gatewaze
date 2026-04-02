@@ -26,7 +26,7 @@ COPY packages/shared/ packages/shared/
 COPY packages/portal/ packages/portal/
 
 # Build shared library first, then portal
-RUN pnpm --filter shared build 2>/dev/null || true
+RUN pnpm --filter shared build
 
 # Next.js standalone output mode
 ENV NEXT_TELEMETRY_DISABLED=1
