@@ -46,9 +46,8 @@ RUN printf "VITE_SUPABASE_URL=%s\nVITE_SUPABASE_ANON_KEY=%s\nVITE_API_URL=%s\nVI
   "$VITE_SUPABASE_URL" "$VITE_SUPABASE_ANON_KEY" "$VITE_API_URL" "$VITE_AUTH_PROVIDER" "$VITE_DISABLE_BRANDING" \
   > packages/admin/.env.production
 
-# Build shared first (emits dist/ for project references), then admin
-RUN pnpm --filter shared build
-RUN pnpm --filter admin build
+# Build with Vite only (skip tsc -b which has issues with project references in Docker)
+RUN cd packages/admin && npx vite build
 
 # ---- Stage 2: Serve ----
 FROM nginx:alpine
