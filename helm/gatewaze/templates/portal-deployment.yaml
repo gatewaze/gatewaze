@@ -35,6 +35,9 @@ spec:
                 name: {{ include "gatewaze.fullname" . }}-config
             - secretRef:
                 name: {{ include "gatewaze.fullname" . }}-secret
+          env:
+            - name: PORT
+              value: "3100"
           livenessProbe:
             httpGet:
               path: /api/health
