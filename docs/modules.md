@@ -13,12 +13,17 @@ Gatewaze uses a module architecture that allows you to extend the platform with 
 - [Build Pipeline](#build-pipeline)
 - [Route & Navigation Integration](#route--navigation-integration)
 - [Module Lifecycle & Reconciliation](#module-lifecycle--reconciliation)
-- [Installing a Paid Module](#installing-a-paid-module)
-- [Available Paid Modules](#available-paid-modules)
+- [Installing a Module](#installing-a-module)
 - [Creating a Custom Module](#creating-a-custom-module)
 - [GatewazeModule Interface](#gatewazemodule-interface)
+- [Module Types and Visibility](#module-types-and-visibility)
+- [Dependencies](#dependencies)
+- [UI Slots](#ui-slots)
+- [Portal Routes and Navigation](#portal-routes-and-navigation)
+- [Theme Modules](#theme-modules)
 - [Example Custom Module](#example-custom-module)
 - [Module Lifecycle Hooks](#module-lifecycle-hooks)
+- [Managing Module Sources](#managing-module-sources)
 - [Key Files Reference](#key-files-reference)
 
 ---
@@ -264,23 +269,18 @@ const result = await ModuleService.reconcileModules();
 
 ---
 
-## Installing a Paid Module
+## Installing a Module
 
-### Step 1: Install the package
+### Step 1: Add the module source
 
-```bash
-pnpm add @gatewaze-modules/stripe-payments
-```
-
-### Step 2: Register in gatewaze.config.ts
-
-Add the module package name to the `modules` array in your configuration:
+Modules live outside the main repository. Add the source to your `gatewaze.config.ts`:
 
 ```typescript
 import type { GatewazeConfig } from './packages/shared/src/types/modules';
 
 const config: GatewazeConfig = {
   name: 'My Events Platform',
+  platformVersion: '1.0.0',
 
   auth: {
     provider: 'supabase',
@@ -290,6 +290,12 @@ const config: GatewazeConfig = {
     provider: 'sendgrid',
   },
 
+  // Where to find modules (local path or git repo)
+  moduleSources: [
+    '../gatewaze-modules/modules',
+  ],
+
+  // Which modules to enable
   modules: [
     '@gatewaze-modules/stripe-payments',
   ],
@@ -308,15 +314,15 @@ const config: GatewazeConfig = {
 export default config;
 ```
 
-### Step 3: Run module migrations
+### Step 2: Run module migrations
 
 If the module includes database migrations, apply them:
 
 ```bash
-pnpm db:migrate
+pnpm modules:migrate
 ```
 
-### Step 4: Restart the application
+### Step 3: Restart the application
 
 ```bash
 pnpm dev
@@ -324,23 +330,7 @@ pnpm dev
 docker compose up -d --build
 ```
 
-The module's admin pages, API routes, and background jobs are automatically registered on startup.
-
----
-
-## Available Paid Modules
-
-| Module                                  | Description                                           | Key Features                                                       |
-|-----------------------------------------|-------------------------------------------------------|--------------------------------------------------------------------|
-| `@gatewaze-modules/stripe-payments`     | Stripe payment processing for paid events             | Checkout integration, refunds, payment history, revenue reporting  |
-| `@gatewaze-modules/analytics`           | Advanced event analytics and reporting                | Attendance tracking, engagement metrics, export to CSV/PDF         |
-| `@gatewaze-modules/crm-sync`            | CRM integration (Salesforce, HubSpot)                 | Bi-directional contact sync, event activity tracking               |
-| `@gatewaze-modules/video-hosting`       | Integrated video hosting for virtual events           | Live streaming, on-demand replay, viewer analytics                 |
-| `@gatewaze-modules/white-label`         | White-label branding for the public portal            | Custom domains, theme editor, branded emails                       |
-| `@gatewaze-modules/cvent-integration`   | Cvent integration for enterprise event management     | Event sync, registration import, attendee matching                 |
-| `@gatewaze-modules/marketing-automation`| Marketing automation and drip campaigns               | Email sequences, audience segmentation, A/B testing                |
-
-Contact [sales@gatewaze.com](mailto:sales@gatewaze.com) for pricing and access to paid modules.
+The module's admin pages, API routes, and background jobs are automatically registered on startup. Modules can also be enabled and disabled at runtime through the admin UI without editing config files.
 
 ---
 
@@ -354,7 +344,7 @@ Every module must export a default object that implements the `GatewazeModule` i
 
 ```typescript
 export interface GatewazeModule {
-  /** Unique identifier for this module */
+  /** Unique identifier for this module (e.g., 'calendars', 'event-speakers') */
   id: string;
 
   /** Human-readable name */
@@ -366,8 +356,24 @@ export interface GatewazeModule {
   /** Semantic version */
   version: string;
 
+  /** Minimum platform version required (semver). If set, the module cannot be enabled
+      unless the core platform meets this version. Example: '1.2.0' */
+  minPlatformVersion?: string;
+
+  /** Module classification */
+  type?: 'feature' | 'integration' | 'theme';
+
+  /** Controls visibility in the module marketplace UI */
+  visibility?: 'public' | 'hidden' | 'premium';
+
+  /** Category grouping for organizing modules in the UI */
+  group?: string;
+
   /** List of feature flags this module provides */
   features: string[];
+
+  /** Other module IDs that must be installed before this one */
+  dependencies?: string[];
 
   /** Admin panel routes (lazy-loaded React components) */
   adminRoutes?: AdminRouteDefinition[];
@@ -375,11 +381,20 @@ export interface GatewazeModule {
   /** Sidebar navigation items for the admin panel */
   adminNavItems?: NavigationItem[];
 
+  /** UI slot registrations for injecting components into admin extension points */
+  adminSlots?: SlotRegistration[];
+
   /** Public portal routes */
   portalRoutes?: PortalRouteDefinition[];
 
+  /** Portal header navigation entry — persisted in installed_modules on enable */
+  portalNav?: { label: string; path: string; icon: string; order: number };
+
+  /** UI slot registrations for injecting components into portal extension points */
+  portalSlots?: SlotRegistration[];
+
   /** Express middleware function that registers API routes */
-  apiRoutes?: (app: unknown) => void;
+  apiRoutes?: (app: unknown, context?: ModuleContext) => void | Promise<void>;
 
   /** BullMQ worker definitions */
   workers?: WorkerDefinition[];
@@ -387,7 +402,7 @@ export interface GatewazeModule {
   /** Cron-based scheduler definitions */
   schedulers?: SchedulerDefinition[];
 
-  /** Supabase Edge Function directory names */
+  /** Supabase Edge Function directory names (from the module's functions/ dir) */
   edgeFunctions?: string[];
 
   /** SQL migration file paths (applied in order) */
@@ -395,6 +410,9 @@ export interface GatewazeModule {
 
   /** Configuration schema for module-specific settings */
   configSchema?: Record<string, ConfigField>;
+
+  /** Theme overrides — only meaningful when type is 'theme' */
+  themeOverrides?: ThemeOverrides;
 
   /** Called once when the module is first installed */
   onInstall?: () => Promise<void>;
@@ -520,12 +538,12 @@ Migrations are run once during installation and tracked to prevent duplicate exe
 
 ### Adding API Routes
 
-Register Express routes by providing a function that receives the Express app:
+Register Express routes by providing a function that receives the Express app and an optional `ModuleContext` with the project root and module directory paths:
 
 ```typescript
 const myModule: GatewazeModule = {
   // ...
-  apiRoutes: (app: any) => {
+  apiRoutes: (app: any, context?: ModuleContext) => {
     const router = require('express').Router();
 
     router.get('/custom/data', async (req, res) => {
@@ -541,6 +559,16 @@ const myModule: GatewazeModule = {
     app.use('/api/modules', router);
   },
 };
+```
+
+The `ModuleContext` provides:
+
+```typescript
+interface ModuleContext {
+  projectRoot: string;  // Absolute path to the Gatewaze project root
+  moduleDir: string;    // Absolute path to this module's directory on disk
+}
+```
 ```
 
 ### Adding Background Jobs
@@ -623,6 +651,217 @@ moduleConfig: {
   },
 },
 ```
+
+---
+
+## Module Types and Visibility
+
+Modules can declare a `type` and `visibility` to control how they appear in the admin UI:
+
+### Types
+
+| Type | Description |
+|------|-------------|
+| `feature` | Adds new functionality to the platform (default) |
+| `integration` | Connects to an external service (e.g., Stripe, Slack) |
+| `theme` | Overrides platform styling. Only one theme module can be active at a time |
+
+### Visibility
+
+| Visibility | Description |
+|------------|-------------|
+| `public` | Shown on the Modules page and available for all users to enable (default) |
+| `hidden` | Not shown in the UI but can be auto-included as a dependency of another module |
+| `premium` | Shown in the UI but requires a license or payment to enable |
+
+```typescript
+const myModule: GatewazeModule = {
+  id: 'slack-integration',
+  name: 'Slack Integration',
+  type: 'integration',
+  visibility: 'public',
+  group: 'integrations',
+  // ...
+};
+```
+
+---
+
+## Dependencies
+
+Modules can declare dependencies on other modules. Dependencies are automatically resolved in topological order — dependent modules are installed and migrated first.
+
+```typescript
+const eventSpeakersModule: GatewazeModule = {
+  id: 'event-speakers',
+  name: 'Event Speakers',
+  dependencies: ['events', 'event-sponsors'],
+  // ...
+};
+```
+
+When a module is enabled:
+- All of its dependencies are automatically enabled first (even if they are `hidden`)
+- Migrations are applied in dependency order
+- Circular dependencies are detected and rejected
+
+When a module is disabled:
+- Modules that depend on it are **not** automatically disabled — the admin is warned
+
+---
+
+## UI Slots
+
+Slots allow modules to inject UI components into named extension points defined by the host application, without adding new routes.
+
+### How slots work
+
+1. The host application renders a `<ModuleSlot name="event-detail:tabs" />` component at the extension point
+2. All enabled modules that registered components for that slot name have their components rendered (lazy-loaded, sorted by `order`)
+
+### Registering a slot
+
+```typescript
+const myModule: GatewazeModule = {
+  id: 'event-speakers',
+  // ...
+  adminSlots: [
+    {
+      slotName: 'event-detail:tabs',
+      component: () => import('./admin/EventSpeakersTab'),
+      order: 20,                          // Lower numbers render first (default: 100)
+      requiredFeature: 'event-speakers',  // Only render when this feature is enabled
+      meta: {                             // Lightweight metadata — available without loading the component
+        tabId: 'speakers',
+        label: 'Speakers',
+        icon: 'MicrophoneIcon',
+      },
+    },
+  ],
+};
+```
+
+### SlotRegistration interface
+
+```typescript
+interface SlotRegistration {
+  slotName: string;                           // Dot-delimited, e.g. 'event-detail:tabs'
+  component: () => Promise<{ default: unknown }>;  // Lazy-loaded component
+  order?: number;                             // Sort weight (default: 100)
+  requiredFeature?: string;                   // Feature flag gate
+  meta?: Record<string, unknown>;             // Metadata for the host (no component load needed)
+}
+```
+
+The `meta` field is useful when the host needs information about the slot entry (like tab labels or icons) without lazy-loading the full component.
+
+Slots work identically in both the admin app (`adminSlots`) and the public portal (`portalSlots`).
+
+---
+
+## Portal Routes and Navigation
+
+Modules can add pages to the public portal (Next.js app) and register navigation entries in the portal header.
+
+### Portal routes
+
+```typescript
+const myModule: GatewazeModule = {
+  // ...
+  portalRoutes: [
+    {
+      path: '/blog',
+      component: () => import('./portal/BlogIndex'),
+    },
+    {
+      path: '/blog/:slug',
+      component: () => import('./portal/BlogPost'),
+    },
+  ],
+};
+```
+
+### Portal navigation
+
+The `portalNav` field adds an entry to the portal's header navigation. This value is persisted to the `installed_modules.portal_nav` column when the module is enabled:
+
+```typescript
+const myModule: GatewazeModule = {
+  // ...
+  portalNav: {
+    label: 'Blog',
+    path: '/blog',
+    icon: 'FileText',   // Lucide icon name
+    order: 50,           // Lower numbers appear first
+  },
+};
+```
+
+---
+
+## Theme Modules
+
+Modules with `type: 'theme'` can override the platform's visual styling for both the admin app and the public portal.
+
+Only one theme module can be active at a time (enforced by a database constraint).
+
+### Theme overrides
+
+```typescript
+const myTheme: GatewazeModule = {
+  id: 'dark-corporate-theme',
+  name: 'Dark Corporate',
+  type: 'theme',
+  version: '1.0.0',
+  features: ['dark-corporate-theme'],
+
+  themeOverrides: {
+    admin: {
+      themeMode: 'dark',
+      primaryColor: 'blue',
+      cardSkin: 'bordered',
+      customCss: './theme.css',   // Bundled by Vite at build time
+    },
+    portal: {
+      portalTheme: 'gradient_wave',
+      themeColors: {
+        gradient_wave: {
+          primary: '#1e40af',
+          secondary: '#7c3aed',
+        },
+      },
+      cornerStyle: 'rounded',
+      htmlClassName: 'dark-corporate',
+    },
+    // Settings UI shows these as read-only when the theme is active
+    lockedSettings: ['primary_color', 'font_heading'],
+  },
+};
+```
+
+### Admin theme options
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `themeMode` | `'light' \| 'dark' \| 'system'` | Force a theme mode |
+| `primaryColor` | `string` | Radix color name for the primary accent |
+| `lightColor` | `string` | Force light color scheme |
+| `darkColor` | `string` | Force dark color scheme |
+| `cardSkin` | `'shadow' \| 'bordered'` | Card styling |
+| `themeLayout` | `'main-layout' \| 'sideblock'` | Layout style |
+| `customCss` | `string` | Path to a CSS file relative to the module directory |
+| `radixThemeProps` | `Record<string, unknown>` | Additional Radix `<Theme>` props |
+
+### Portal theme options
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `brandingDefaults` | `Record<string, string>` | Override platform_settings branding keys |
+| `portalTheme` | `'blobs' \| 'gradient_wave' \| 'basic'` | Force a portal theme |
+| `themeColors` | `Record<string, Record<string, string>>` | Override theme colors per portal theme type |
+| `cornerStyle` | `'square' \| 'rounded' \| 'pill'` | Override corner style |
+| `htmlClassName` | `string` | CSS class added to the portal `<html>` element |
+| `customCssUrl` | `string` | URL to a custom CSS file |
 
 ---
 
@@ -852,6 +1091,56 @@ Module removed:
 
 ---
 
+## Managing Module Sources
+
+Beyond the `moduleSources` in `gatewaze.config.ts`, module sources can be managed at runtime through the admin UI and API.
+
+### API endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/modules/available` | List all modules found across all sources |
+| `POST` | `/api/modules/reconcile` | Sync database state with config (apply migrations, run hooks) |
+| `POST` | `/api/modules/select` | Batch enable/disable modules (used during onboarding) |
+| `POST` | `/api/modules/:moduleId/enable` | Enable a specific module |
+| `POST` | `/api/modules/:moduleId/disable` | Disable a specific module |
+| `PUT` | `/api/modules/:moduleId/config` | Update module configuration |
+| `GET` | `/api/modules/check-updates` | Compare installed vs available versions |
+| `POST` | `/api/modules/:moduleId/update` | Update a module to a new version |
+| `GET` | `/api/modules/sources` | List user-added module sources |
+| `POST` | `/api/modules/sources` | Add a new module source (git URL or local path) |
+| `DELETE` | `/api/modules/sources/:id` | Remove a user-added source |
+| `POST` | `/api/modules/upload` | Upload a module as a .zip file |
+
+### User-added sources
+
+Admins can add module sources through the admin UI. These are stored in the `module_sources` database table and merged with the config-defined sources at load time:
+
+```sql
+-- module_sources table
+id uuid PRIMARY KEY,
+url text,              -- Git URL or local path
+path text,             -- Subdirectory within the repo
+branch text,           -- Git branch (default: main)
+label text,            -- Display name
+origin text,           -- 'config', 'user', or 'upload'
+created_at timestamptz
+```
+
+### Uploading modules
+
+Modules can be uploaded as `.zip` files via `POST /api/modules/upload`. Uploaded modules are extracted to `data/uploaded-modules/` and automatically added as a module source.
+
+### Database tables
+
+| Table | Purpose |
+|-------|---------|
+| `installed_modules` | Tracks each module's status, version, features, config, and portal nav |
+| `module_migrations` | Tracks applied SQL migrations (filename + SHA256 checksum) to prevent re-execution |
+| `module_sources` | Stores user-added module sources (git repos, uploaded modules) |
+
+---
+
 ## Key Files Reference
 
 | File | Purpose |
@@ -865,6 +1154,7 @@ Module removed:
 | `packages/admin/src/app/router/moduleRoutes.tsx` | Dynamic React Router route generation from modules |
 | `packages/admin/src/app/navigation/segments/modules.ts` | Sidebar navigation generation from modules |
 | `packages/admin/src/utils/moduleService.ts` | Frontend API client for module operations |
-| `packages/api/src/routes/modules.ts` | `POST /api/modules/reconcile` endpoint |
+| `packages/api/src/routes/modules.ts` | Module management API endpoints (`/api/modules/*`) |
+| `packages/shared/src/modules/deploy-edge-functions.ts` | Edge function deployment logic |
 | `scripts/modules/run-migrations.ts` | CLI migration runner (`pnpm modules:migrate`) |
 | `scripts/modules/deploy-functions.ts` | Edge function deployment (`pnpm modules:deploy-functions`) |

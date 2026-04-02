@@ -6,7 +6,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { GlassPanel } from '@/components/ui/GlassPanel'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { PortalButton } from '@/components/ui/PortalButton'
-import { createClient } from '@/lib/supabase/client'
+import { getSupabaseClient } from '@/lib/supabase/client'
 
 interface TopicLabel {
   id: string
@@ -27,7 +27,7 @@ interface SubscriptionContentProps {
 
 export function SubscriptionContent({ brandConfig }: SubscriptionContentProps) {
   const { user } = useAuth()
-  const supabase = createClient()
+  const supabase = getSupabaseClient()
 
   const [topics, setTopics] = useState<TopicLabel[]>([])
   const [subscriptions, setSubscriptions] = useState<Map<string, boolean>>(new Map())

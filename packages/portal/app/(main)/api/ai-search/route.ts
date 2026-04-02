@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import OpenAI from 'openai'
 import { calculateDistance, getCityCoordinates } from '@/lib/location'
 
@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
 // ── Event search logic (extracted from previous implementation) ─────────
 
 async function searchEventsContent(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   queryLower: string,
   searchPattern: string,
   stemPattern: string,
@@ -300,7 +300,7 @@ async function searchEventsContent(
 // ── Blog search logic ───────────────────────────────────────────────────
 
 async function searchBlogContent(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   queryLower: string,
   searchPattern: string,
   stemPattern: string,
