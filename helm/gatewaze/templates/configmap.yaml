@@ -29,8 +29,12 @@ data:
   OIDC_CALLBACK_URL: {{ .Values.auth.oidc.callbackUrl | quote }}
   {{- end }}
 
-  # API URL (for admin frontend)
+  # Hostnames (for middleware known-host detection and frontend URLs)
   {{- if .Values.ingress.enabled }}
+  PORTAL_HOST: {{ .Values.ingress.hosts.portal | quote }}
+  ADMIN_HOST: {{ .Values.ingress.hosts.admin | quote }}
+  NEXT_PUBLIC_APP_URL: {{ printf "https://%s" .Values.ingress.hosts.portal | quote }}
+  ADMIN_BASE_URL: {{ printf "https://%s" .Values.ingress.hosts.admin | quote }}
   VITE_API_URL: {{ printf "https://%s" .Values.ingress.hosts.api | quote }}
   {{- else }}
   VITE_API_URL: {{ printf "http://%s-api:3002" (include "gatewaze.fullname" .) | quote }}
