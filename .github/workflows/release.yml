@@ -83,6 +83,19 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Build and push scheduler image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/scheduler/Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ghcr.io/gatewaze/scheduler:${{ steps.version.outputs.VERSION }}
+            ghcr.io/gatewaze/scheduler:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
