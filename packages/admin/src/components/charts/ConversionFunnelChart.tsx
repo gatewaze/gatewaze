@@ -63,13 +63,14 @@ export function ConversionFunnelChart({
       enabled: true,
       textAnchor: 'middle',
       distributed: false,
-      formatter: function(val: number, opt: { dataPointIndex: number }) {
+      formatter: function(val: string | number | number[], opt?: any) {
         const labels = ['Claimed', 'Registered', 'Attended'];
         const values = [claimed, registered, attended];
-        const currentValue = values[opt.dataPointIndex];
+        const idx = opt?.dataPointIndex ?? 0;
+        const currentValue = values[idx];
         const percent = claimed > 0 ? (currentValue / claimed * 100).toFixed(1) : '0';
 
-        return labels[opt.dataPointIndex] + ': ' + currentValue + ' (' + percent + '%)';
+        return labels[idx] + ': ' + currentValue + ' (' + percent + '%)';
       },
       style: {
         fontSize: '14px',
@@ -113,7 +114,7 @@ export function ConversionFunnelChart({
     tooltip: {
       enabled: true,
       y: {
-        formatter: function(value: number, { dataPointIndex }: { dataPointIndex: number }) {
+        formatter: function(value: number, { dataPointIndex }: any) {
           const stages = [
             { name: 'Claimed', prev: null, current: claimed },
             { name: 'Registered', prev: claimed, current: registered },
