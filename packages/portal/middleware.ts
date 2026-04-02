@@ -2,19 +2,19 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import modulePrefixes from './lib/modules/generated-module-prefixes.json'
 
-// Known brand hostnames that should pass through normally
-const KNOWN_HOSTS = [
-  'www.gatewaze.io',
-  'events.gatewaze.io',
-  'app.gatewaze.io',
-  'admin.gatewaze.io',
-  'aaif.live',
-  'admin.aaif.live',
-  'app.mlops.community',
-  'admin.mlops.community',
-  'events.tech.tickets',
-  'admin.tech.tickets',
-]
+// Known brand hostnames that should pass through normally.
+// Derived from PORTAL_HOST / ADMIN_HOST env vars (set per deployment),
+// plus any extra hosts in KNOWN_HOSTS (comma-separated).
+const KNOWN_HOSTS: string[] = (() => {
+  const hosts = new Set<string>()
+  const portalHost = process.env.PORTAL_HOST || process.env.NEXT_PUBLIC_APP_URL?.replace(/^https?:\/\//, '')
+  const adminHost = process.env.ADMIN_HOST || process.env.ADMIN_BASE_URL?.replace(/^https?:\/\//, '')
+  if (portalHost) hosts.add(portalHost)
+  if (adminHost) hosts.add(adminHost)
+  const extra = process.env.KNOWN_HOSTS?.split(',').map(h => h.trim()).filter(Boolean)
+  if (extra) extra.forEach(h => hosts.add(h))
+  return Array.from(hosts)
+})()
 
 // Valid sub-paths under a custom domain event
 const VALID_EVENT_SUBPATHS = ['/', '/agenda', '/speakers', '/sponsors', '/register', '/talks']
@@ -309,7 +309,7 @@ export async function middleware(request: NextRequest) {
 
   // If events module is disabled, custom domains can't resolve to events
   if (!eventsEnabled) {
-    return NextResponse.redirect(new URL('https://www.gatewaze.io'))
+    return NextResponse.redirect(new URL(process.env.NEXT_PUBLIC_APP_URL || '/'))
   }
 
   // Look up the event for this custom domain
@@ -317,7 +317,7 @@ export async function middleware(request: NextRequest) {
 
   if (!eventIdentifier) {
     // Unknown domain with no matching event — redirect to main site
-    return NextResponse.redirect(new URL('https://www.gatewaze.io'))
+    return NextResponse.redirect(new URL(process.env.NEXT_PUBLIC_APP_URL || '/'))
   }
 
   // Passthrough paths (auth, legal pages, API, profile)
