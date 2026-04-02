@@ -65,6 +65,9 @@ COPY --from=builder /app/packages/api/dist/packages/api/src packages/api/dist
 COPY --from=builder /app/packages/api/dist/packages/shared/src packages/shared/dist
 COPY --from=builder /app/packages/api/dist/gatewaze.config.js ./
 
+# Link shared package to root node_modules so Node ESM resolver can find it
+RUN mkdir -p node_modules/@gatewaze && ln -s ../../packages/shared node_modules/@gatewaze/shared
+
 # Copy default modules (cloned at build time)
 COPY --from=builder /gatewaze-modules/modules /gatewaze-modules/modules
 
