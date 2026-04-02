@@ -28,7 +28,7 @@ spec:
         - name: scheduler
           image: "{{ .Values.image.registry }}/api:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command: ["node", "packages/api/dist/scheduler.js"]
+          command: ["node", "packages/api/dist/scheduler/start-scheduler.js"]
           envFrom:
             - configMapRef:
                 name: {{ include "gatewaze.fullname" . }}-config
