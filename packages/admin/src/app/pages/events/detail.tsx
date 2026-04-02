@@ -863,7 +863,7 @@ const getAbsoluteImageUrl = (url: string | undefined): string | undefined => {
 
   // If it's a relative path, prepend the base URL
   if (url.startsWith('/')) {
-    const portalDomain = import.meta.env.VITE_PORTAL_DOMAIN || 'gatewaze.com';
+    const portalDomain = import.meta.env.VITE_PORTAL_DOMAIN || 'gatewaze.io';
     return `https://${portalDomain}${url}`;
   }
 
@@ -1595,7 +1595,7 @@ const EventDetailsTab = ({ event, isEditMode, register, errors, watch, setValue,
                           Add a CNAME record pointing to:
                         </p>
                         <code className="text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 px-2 py-0.5 rounded mt-1 inline-block">
-                          custom.gatewaze.com
+                          custom.gatewaze.io
                         </code>
                         {event.customDomainStatus && (
                           <div className="mt-2">

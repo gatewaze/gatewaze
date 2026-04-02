@@ -4,10 +4,10 @@ import modulePrefixes from './lib/modules/generated-module-prefixes.json'
 
 // Known brand hostnames that should pass through normally
 const KNOWN_HOSTS = [
-  'www.gatewaze.com',
-  'events.gatewaze.com',
-  'app.gatewaze.com',
-  'admin.gatewaze.com',
+  'www.gatewaze.io',
+  'events.gatewaze.io',
+  'app.gatewaze.io',
+  'admin.gatewaze.io',
   'aaif.live',
   'admin.aaif.live',
   'app.mlops.community',
@@ -309,7 +309,7 @@ export async function middleware(request: NextRequest) {
 
   // If events module is disabled, custom domains can't resolve to events
   if (!eventsEnabled) {
-    return NextResponse.redirect(new URL('https://www.gatewaze.com'))
+    return NextResponse.redirect(new URL('https://www.gatewaze.io'))
   }
 
   // Look up the event for this custom domain
@@ -317,7 +317,7 @@ export async function middleware(request: NextRequest) {
 
   if (!eventIdentifier) {
     // Unknown domain with no matching event — redirect to main site
-    return NextResponse.redirect(new URL('https://www.gatewaze.com'))
+    return NextResponse.redirect(new URL('https://www.gatewaze.io'))
   }
 
   // Passthrough paths (auth, legal pages, API, profile)
