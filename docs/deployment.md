@@ -595,41 +595,41 @@ Gatewaze supports multi-brand deployments where each brand runs as a separate in
 Create a brand-specific values file:
 
 ```yaml
-# values-acme.yaml
+# values-brand2.yaml
 global:
-  domain: acme.io
+  domain: brand2.example.com
 
 admin:
   ingress:
-    host: admin.acme.io
+    host: admin.brand2.example.com
   env:
-    VITE_SUPABASE_URL: "https://acme.supabase.co"
-    VITE_SUPABASE_ANON_KEY: "acme-anon-key"
-    VITE_API_URL: "https://api.acme.io"
+    VITE_SUPABASE_URL: "https://brand2-project.supabase.co"
+    VITE_SUPABASE_ANON_KEY: "brand2-anon-key"
+    VITE_API_URL: "https://api.brand2.example.com"
 
 portal:
   ingress:
-    host: acme.io
+    host: brand2.example.com
   env:
-    NEXT_PUBLIC_SUPABASE_URL: "https://acme.supabase.co"
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: "acme-anon-key"
+    NEXT_PUBLIC_SUPABASE_URL: "https://brand2-project.supabase.co"
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: "brand2-anon-key"
 
 api:
   ingress:
-    host: api.acme.io
+    host: api.brand2.example.com
   secretEnv:
-    DATABASE_URL: "postgresql://postgres:password@acme-db:5432/postgres"
-    REDIS_URL: "redis://:password@acme-redis:6379"
+    DATABASE_URL: "postgresql://postgres:password@brand2-db:5432/postgres"
+    REDIS_URL: "redis://:password@brand2-redis:6379"
     # ... other secrets
 ```
 
 Install into a separate namespace:
 
 ```bash
-helm install acme helm/gatewaze/ \
-  --namespace acme \
+helm install brand2 helm/gatewaze/ \
+  --namespace brand2 \
   --create-namespace \
-  -f values-acme.yaml
+  -f values-brand2.yaml
 ```
 
 Each namespace is fully isolated with its own database, Redis instance, and configuration.

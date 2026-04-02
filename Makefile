@@ -9,10 +9,10 @@
 #   make ps                  — show running services
 #
 # Multi-brand (requires gatewaze-environments repo alongside this repo):
-#   make example up             — start the "example" brand
-#   make example down           — stop the "example" brand
-#   make example reset          — reset the "example" brand
-#   make example logs           — tail logs for the "example" brand
+#   make brand1 up           — start the "brand1" brand
+#   make brand1 down         — stop the "brand1" brand
+#   make brand1 reset        — reset the "brand1" brand
+#   make brand1 logs         — tail logs for the "brand1" brand
 # ============================================================================
 
 ENVIRONMENTS_DIR := ../gatewaze-environments

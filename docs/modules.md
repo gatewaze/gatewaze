@@ -68,15 +68,10 @@ The following features are always available and do not require any modules:
 
 | Feature              | Description                                                  |
 |----------------------|--------------------------------------------------------------|
-| Event Management     | Create, edit, and organize events with metadata and scheduling |
-| Calendar Publishing  | Publish curated event calendars with public URLs             |
-| Speaker Management   | Manage speaker profiles and assign speakers to events        |
-| Member Management    | Track member profiles, organizations, and tiers              |
-| Registration         | Handle event registrations with forms and approval workflows |
+| People & Members     | Manage profiles, organizations, membership tiers, and engagement |
 | Email                | Send transactional and bulk email via SendGrid or SMTP       |
-| Categories & Tags    | Organize events with categories, topics, and tags            |
 | File Storage         | Upload and manage images and documents via Supabase Storage  |
-| Public Portal        | SEO-friendly public site for browsing and registering        |
+| Public Portal        | SEO-friendly public site powered by Next.js                  |
 | Admin Dashboard      | Full-featured admin interface for platform management        |
 | Permissions          | Role-based and feature-based access control                  |
 
