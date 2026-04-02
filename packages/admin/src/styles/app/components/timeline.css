@@ -1,0 +1,40 @@
+.timeline {
+  @apply [--timeline-line-width:1px] [--timeline-point-size:.75rem];
+}
+
+.timeline.line-space {
+  --timeline-line-space: 0.75rem;
+}
+
+.timeline-item {
+  @apply relative flex flex-1 pb-8;
+}
+
+.timeline-item-content-wrappper {
+  @apply flex-1 ltr:pl-4 sm:ltr:pl-8 rtl:pr-4 sm:rtl:pr-8;
+}
+
+.timeline-item-point {
+  @apply m-0 h-(--timeline-point-size) w-(--timeline-point-size);
+}
+
+.timeline-item {
+  @apply before:absolute before:inset-x-0 before:top-(--timeline-point-size) before:bottom-0 before:order-[-1] before:w-(--timeline-line-width) before:translate-x-[calc((var(--timeline-point-size)/2)-(var(--timeline-line-width)/2))] before:content-[''] rtl:before:-translate-x-[calc((var(--timeline-point-size)/2)-(var(--timeline-line-width)/2))];
+}
+
+.timeline-item:not(:last-child) {
+  &::before { background-color: var(--gray-a6); }
+}
+
+.timeline-item:last-child {
+  @apply before:bg-linear-to-b before:to-transparent;
+  &::before { --tw-gradient-from: var(--gray-a6); }
+}
+
+.timeline-item:last-child {
+  @apply pb-0;
+}
+
+.timeline.line-space .timeline-item::before {
+  @apply top-[calc(var(--timeline-point-size)+var(--timeline-line-space))] bottom-(--timeline-line-space);
+}

@@ -1,0 +1,184 @@
+###############################################################################
+# Gatewaze — Supabase Cloud Configuration
+#
+# Use this compose file when connecting to Supabase Cloud (hosted).
+# No Supabase services are started locally; all Supabase URLs and keys
+# point to your Supabase Cloud project via .env variables.
+#
+# Uses Traefik reverse proxy for clean .localhost domains:
+#   - http://gatewaze-admin.localhost   → Admin dashboard
+#   - http://gatewaze-app.localhost     → Public portal
+#   - http://gatewaze-api.localhost     → API server
+#
+# Usage:
+#   cp .env.example .env   # configure SUPABASE_URL, keys, etc.
+#   docker compose -f docker-compose.cloud.yml up -d
+###############################################################################
+
+services:
+  # ---------------------------------------------------------------------------
+  # Application Infrastructure
+  # ---------------------------------------------------------------------------
+
+  redis:
+    image: redis:7-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-gatewaze}
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-gatewaze}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gatewaze
+
+  # ---------------------------------------------------------------------------
+  # Gatewaze Application Services
+  # ---------------------------------------------------------------------------
+
+  admin:
+    build:
+      context: ..
+      dockerfile: docker/admin/Dockerfile
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-admin
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-admin.rule=Host(`${ADMIN_HOST:-gatewaze-admin.localhost}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-admin.entrypoints=web"
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME:-gatewaze}-admin.loadbalancer.server.port=80"
+    environment:
+      VITE_SUPABASE_URL: ${SUPABASE_URL}
+      VITE_SUPABASE_ANON_KEY: ${ANON_KEY}
+      VITE_API_URL: ${API_URL:-http://gatewaze-api.localhost}
+      VITE_APP_URL: ${APP_URL:-http://${PORTAL_HOST:-gatewaze-app.localhost}}
+    networks:
+      - gatewaze
+      - traefik
+
+  portal:
+    build:
+      context: ..
+      dockerfile: docker/portal/Dockerfile
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-portal
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-portal.rule=Host(`${PORTAL_HOST:-gatewaze-app.localhost}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-portal.entrypoints=web"
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME:-gatewaze}-portal.loadbalancer.server.port=3100"
+    environment:
+      NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_URL}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${ANON_KEY}
+      SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
+      NEXT_PUBLIC_ENABLE_CHAT: ${NEXT_PUBLIC_ENABLE_CHAT:-false}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      NODE_ENV: production
+    networks:
+      - gatewaze
+      - traefik
+
+  api:
+    build:
+      context: ..
+      dockerfile: docker/api/Dockerfile
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-api
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-api.rule=Host(`${API_HOST:-gatewaze-api.localhost}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-api.entrypoints=web"
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME:-gatewaze}-api.loadbalancer.server.port=3002"
+    environment:
+      PORT: "3002"
+      NODE_ENV: production
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_ANON_KEY: ${ANON_KEY}
+      SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
+      SUPABASE_PROJECT_REF: ${SUPABASE_PROJECT_REF:-}
+      SUPABASE_ACCESS_TOKEN: ${SUPABASE_ACCESS_TOKEN:-}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-gatewaze}@redis:6379
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      EMAIL_FROM: ${EMAIL_FROM:-noreply@localhost}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - gatewaze
+      - traefik
+
+  worker:
+    build:
+      context: ..
+      dockerfile: docker/worker/Dockerfile
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-worker
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_ANON_KEY: ${ANON_KEY}
+      SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-gatewaze}@redis:6379
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      EMAIL_FROM: ${EMAIL_FROM:-noreply@localhost}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - gatewaze
+
+  scheduler:
+    build:
+      context: ..
+      dockerfile: docker/api/Dockerfile
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-scheduler
+    restart: unless-stopped
+    command: ["node", "packages/api/dist/scheduler/start-scheduler.js"]
+    environment:
+      NODE_ENV: production
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_ANON_KEY: ${ANON_KEY}
+      SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-gatewaze}@redis:6379
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - gatewaze
+
+# ---------------------------------------------------------------------------
+# Volumes
+# ---------------------------------------------------------------------------
+volumes:
+  redis-data:
+    driver: local
+
+# ---------------------------------------------------------------------------
+# Networks
+# ---------------------------------------------------------------------------
+networks:
+  gatewaze:
+    driver: bridge
+  traefik:
+    external: true

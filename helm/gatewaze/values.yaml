@@ -1,0 +1,210 @@
+###############################################################################
+# Gatewaze Helm Chart — Default Values
+###############################################################################
+
+# -- Instance name used for resource naming
+instanceName: gatewaze
+
+# =============================================================================
+# Container Images
+# =============================================================================
+image:
+  registry: ghcr.io/gatewaze
+  tag: latest
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# =============================================================================
+# Replica Counts
+# =============================================================================
+replicaCount:
+  admin: 2
+  portal: 2
+  api: 2
+  worker: 1
+  scheduler: 1
+
+# =============================================================================
+# Supabase Configuration
+# =============================================================================
+supabase:
+  # -- Mode: "self-hosted" or "cloud"
+  mode: cloud
+
+  # -- Supabase project URL
+  url: ""
+
+  # -- Supabase anonymous (public) key
+  anonKey: ""
+
+  # -- Supabase service role key (privileged)
+  serviceRoleKey: ""
+
+  # -- JWT secret for token signing/verification
+  jwtSecret: ""
+
+  # -- Direct database connection URL (required for cloud mode)
+  databaseUrl: ""
+
+# =============================================================================
+# Redis Configuration
+# =============================================================================
+redis:
+  # -- Deploy a Redis instance as part of the chart
+  enabled: true
+
+  # -- External Redis URL (used when redis.enabled is false)
+  externalUrl: ""
+
+  # -- Redis password
+  password: gatewaze
+
+  # -- Redis image
+  image: redis:7-alpine
+
+  # -- Redis storage size
+  storageSize: 2Gi
+
+  # -- Redis resource requests/limits
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# =============================================================================
+# Authentication
+# =============================================================================
+auth:
+  # -- Auth provider: "supabase" (default built-in) or "oidc"
+  provider: supabase
+
+  # -- OIDC configuration (when provider is "oidc")
+  oidc:
+    issuerUrl: ""
+    clientId: ""
+    clientSecret: ""
+    scopes: "openid profile email"
+    callbackUrl: ""
+
+# =============================================================================
+# Email Configuration
+# =============================================================================
+email:
+  # -- Email provider: "smtp" or "sendgrid"
+  provider: smtp
+
+  # -- From address for outgoing emails
+  from: "noreply@localhost"
+
+  # -- SendGrid API key (when provider is "sendgrid")
+  sendgridApiKey: ""
+
+  # -- SMTP settings (when provider is "smtp")
+  smtp:
+    host: ""
+    port: 587
+    user: ""
+    password: ""
+
+# =============================================================================
+# Ingress Configuration
+# =============================================================================
+ingress:
+  # -- Enable ingress resource creation
+  enabled: false
+
+  # -- Ingress class name (e.g., "nginx", "traefik")
+  className: nginx
+
+  # -- Annotations for the ingress resource
+  annotations: {}
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+    # nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+
+  # -- Host configuration for each service
+  hosts:
+    admin: admin.example.com
+    portal: events.example.com
+    api: api.example.com
+
+  # -- TLS configuration
+  tls:
+    enabled: false
+    secretName: gatewaze-tls
+    hosts:
+      - admin.example.com
+      - events.example.com
+      - api.example.com
+
+# =============================================================================
+# Service Account
+# =============================================================================
+serviceAccount:
+  # -- Create a service account
+  create: true
+  # -- Annotations for the service account
+  annotations: {}
+  # -- Service account name (auto-generated if empty)
+  name: ""
+
+# =============================================================================
+# Resource Requests & Limits
+# =============================================================================
+resources:
+  admin:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+  portal:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  api:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  worker:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+  scheduler:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+# =============================================================================
+# Pod Disruption Budgets (optional)
+# =============================================================================
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+
+# =============================================================================
+# Node Selector, Tolerations, Affinity
+# =============================================================================
+nodeSelector: {}
+tolerations: []
+affinity: {}

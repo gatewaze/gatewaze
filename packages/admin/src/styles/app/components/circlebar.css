@@ -1,0 +1,53 @@
+.circlebar-wrapper {
+  vertical-align: middle;
+}
+
+.circlebar-active-path {
+  animation: circlebar-active 2s var(--ease-elastic)
+    infinite;
+}
+
+.circlebar-indeterminate-wrapper {
+  animation: 2s linear 0s infinite normal none running
+    circlebar-indeterminate-wrapper;
+}
+
+.circlebar-indeterminate {
+  animation: 1.5s linear 0s infinite normal none running circlebar-indeterminate;
+}
+
+@keyframes circlebar-active {
+  0% {
+    opacity: 0.5;
+    stroke-dashoffset: var(--dashoffset);
+  }
+
+  100% {
+    opacity: 0;
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes circlebar-indeterminate-wrapper {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes circlebar-indeterminate {
+  0% {
+    stroke-dasharray: 1, 800;
+    stroke-dashoffset: 0;
+  }
+  50% {
+    stroke-dasharray: 800, 800;
+    stroke-dashoffset: -130;
+  }
+  100% {
+    stroke-dasharray: 800, 800;
+    stroke-dashoffset: -312;
+  }
+}

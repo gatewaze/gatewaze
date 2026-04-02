@@ -1,0 +1,40 @@
+FROM node:20-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+WORKDIR /app
+
+# Copy workspace root files (lockfile excluded – external workspace packages
+# from ../gatewaze-modules are not available at build time)
+COPY package.json ./
+COPY tsconfig.json ./
+
+# Use a workspace config that only includes local packages
+RUN printf 'packages:\n  - "packages/*"\n' > pnpm-workspace.yaml
+
+# Copy package manifests for dependency resolution
+COPY packages/api/package.json packages/api/
+COPY packages/shared/package.json packages/shared/
+
+# Install dependencies (cache pnpm store between builds)
+RUN --mount=type=cache,id=pnpm-api-dev,target=/root/.local/share/pnpm/store \
+    pnpm install --no-frozen-lockfile
+
+# Copy root config file (referenced by API at runtime via tsx)
+COPY gatewaze.config.ts ./
+# tsx doesn't resolve .js→.ts for non-project files; create a .js re-export shim
+# Root package.json has no "type":"module", so .js files are CJS.
+# The API (ESM) imports gatewaze.config.js — CJS→ESM interop wraps default.
+# Fix: unwrap the double-default at the CJS layer.
+RUN printf 'const m = require("./gatewaze.config.ts");\nconst c = m.default || m;\nObject.defineProperty(c, "__esModule", { value: true });\nmodule.exports = c;\nmodule.exports.default = c;\n' > gatewaze.config.js
+
+# Copy shared source (referenced directly, no build step)
+COPY packages/shared/ packages/shared/
+
+# Copy api source (will be overridden by volume mount)
+COPY packages/api/ packages/api/
+
+EXPOSE 3002
+
+CMD ["pnpm", "--filter", "api", "dev"]

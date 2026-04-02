@@ -1,0 +1,44 @@
+FROM node:20-slim
+
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+WORKDIR /app
+
+# Copy workspace root files (lockfile excluded – external workspace packages
+# from ../gatewaze-modules are not available at build time and would stall pnpm)
+COPY package.json ./
+COPY tsconfig.json ./
+COPY gatewaze.config.ts ./
+COPY .npmrc ./
+
+# Use a workspace config that excludes external modules (not available at build time).
+# External modules are volume-mounted at runtime and resolved by the Vite plugin directly.
+RUN printf 'packages:\n  - "packages/*"\n' > pnpm-workspace.yaml
+
+# Copy package manifests for dependency resolution
+COPY packages/admin/package.json packages/admin/
+COPY packages/shared/package.json packages/shared/
+
+# Strip @gatewaze-modules/* deps from admin package.json (not available at build time;
+# the Vite plugin resolves them from the filesystem at runtime via volume mount)
+RUN node -e " \
+  const pkg = require('./packages/admin/package.json'); \
+  pkg.dependencies = Object.fromEntries( \
+    Object.entries(pkg.dependencies || {}).filter(([k]) => !k.startsWith('@gatewaze-modules/')) \
+  ); \
+  require('fs').writeFileSync('./packages/admin/package.json', JSON.stringify(pkg, null, 2) + '\n'); \
+"
+
+# Install dependencies (cache pnpm store between builds)
+RUN --mount=type=cache,id=pnpm-admin-dev,target=/root/.local/share/pnpm/store \
+    pnpm install --no-frozen-lockfile
+
+# Copy shared source (referenced directly, no build step)
+COPY packages/shared/ packages/shared/
+
+# Copy admin source (will be overridden by volume mount)
+COPY packages/admin/ packages/admin/
+
+EXPOSE 80
+
+CMD ["pnpm", "--filter", "admin", "dev", "--host", "0.0.0.0", "--port", "80"]

@@ -1,0 +1,2 @@
+[function.sendgrid-webhook]
+verify_jwt = false

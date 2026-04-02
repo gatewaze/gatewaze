@@ -1,0 +1,75 @@
+{
+  "version": "1.0",
+  "categories": {
+    "necessary": {
+      "label": "Necessary Cookies",
+      "description": "These cookies are essential for the website to function properly and cannot be disabled. They enable core functionality such as security, consent management, and session handling.",
+      "cookies": [
+        {
+          "name": "gatewaze-consent",
+          "purpose": "Cookie consent preferences storage",
+          "duration": "Persistent (1 year)",
+          "type": "First-party",
+          "description": "Stores user cookie consent preferences and privacy choices. Essential for GDPR compliance.",
+          "firstParty": true,
+          "verified": true
+        },
+        {
+          "name": "gatewaze-anonymous-id",
+          "purpose": "Anonymous user identification for consent tracking",
+          "duration": "Persistent",
+          "type": "First-party",
+          "description": "Links anonymous consent records to users when they provide their email.",
+          "firstParty": true,
+          "verified": true
+        },
+        {
+          "name": "__cf_bm",
+          "purpose": "Cloudflare bot management",
+          "duration": "30 minutes",
+          "type": "Third-party",
+          "description": "Essential security cookie used by Cloudflare to distinguish between humans and bots.",
+          "provider": "Cloudflare",
+          "firstParty": false,
+          "verified": true
+        },
+        {
+          "name": "cf_clearance",
+          "purpose": "Cloudflare security clearance",
+          "duration": "1 year",
+          "type": "Third-party",
+          "description": "Essential security cookie that proves the user passed Cloudflare security challenges.",
+          "provider": "Cloudflare",
+          "firstParty": false,
+          "verified": true
+        }
+      ]
+    },
+    "analytics": {
+      "label": "Analytics Cookies",
+      "description": "These cookies help us understand how visitors interact with the website by collecting and reporting information anonymously.",
+      "cookies": []
+    },
+    "marketing": {
+      "label": "Marketing Cookies",
+      "description": "These cookies are used for ad conversion tracking. They help measure the effectiveness of advertising campaigns. Only set when you consent to marketing cookies.",
+      "cookies": [
+        {
+          "name": "gw_tracking_session",
+          "purpose": "Ad conversion tracking session",
+          "duration": "7 days",
+          "type": "First-party",
+          "description": "Tracks ad click sessions for conversion attribution. Only set when marketing consent is given.",
+          "firstParty": true,
+          "verified": true
+        }
+      ]
+    },
+    "functional": {
+      "label": "Functional Cookies",
+      "description": "These cookies enable enhanced functionality and personalisation, such as remembering your preferences.",
+      "cookies": []
+    }
+  },
+  "thirdPartyServices": ["Cloudflare"]
+}

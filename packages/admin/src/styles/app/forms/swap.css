@@ -1,0 +1,43 @@
+.swap .swap-on {
+  @apply opacity-0;
+}
+
+.swap.swap-active .swap-off {
+  @apply opacity-0;
+}
+
+.swap-active .swap-on {
+  @apply opacity-100;
+}
+
+.swap-rotate .swap-on {
+  @apply rotate-45;
+}
+
+.swap-rotate.swap-active .swap-off {
+  @apply -rotate-45;
+}
+
+.swap-rotate.swap-active .swap-on {
+  @apply rotate-0;
+}
+
+.swap-flip {
+  transform-style: preserve-3d;
+  perspective: 16em;
+}
+.swap-flip .swap-on {
+  transform: rotateY(180deg);
+  backface-visibility: hidden;
+  @apply opacity-100;
+}
+
+.swap-flip.swap-active .swap-off {
+  transform: rotateY(-180deg);
+  backface-visibility: hidden;
+  @apply opacity-100;
+}
+
+.swap-flip.swap-active .swap-on {
+  transform: rotateY(0deg);
+}
