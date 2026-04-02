@@ -59,18 +59,16 @@ export function getModuleNavItemsFromRows(rows: InstalledModuleRow[]): Navigatio
   for (const row of rows) {
     if (row.status !== "enabled") continue;
 
-    // portal_nav provides a single top-level nav entry per module
-    if (row.portal_nav) {
-      const nav = row.portal_nav;
-      const item = buildNavItem(row.id, {
-        path: nav.path,
-        label: nav.label,
-        icon: nav.icon,
-        order: nav.order,
-      });
-      items.push(item);
-      if (nav.order !== undefined) {
-        orderMap.set(item.id, nav.order);
+    // admin_nav contains admin sidebar navigation items per module
+    if (row.admin_nav) {
+      for (const nav of row.admin_nav) {
+        // Only include items for the main dashboards group (admin group items go elsewhere)
+        if (nav.parentGroup && nav.parentGroup !== "dashboards") continue;
+        const item = buildNavItem(row.id, nav);
+        items.push(item);
+        if (nav.order !== undefined) {
+          orderMap.set(item.id, nav.order);
+        }
       }
     }
   }
@@ -80,17 +78,28 @@ export function getModuleNavItemsFromRows(rows: InstalledModuleRow[]): Navigatio
 
 /**
  * Build admin-section navigation items from DB rows.
- *
- * The `installed_modules` table does not have a dedicated admin_nav column,
- * so admin nav items are still sourced from the build-time module list when
- * available.  When the build-time list is empty (Docker), admin nav items
- * contributed by modules simply won't appear — module admin pages are not
- * routable in that scenario anyway since the component code is not bundled.
  */
-export function getModuleAdminNavItemsFromRows(_rows: InstalledModuleRow[]): NavigationTree[] {
-  // Admin nav items require bundled component code, so they must come from
-  // the build-time module list.  Return whatever the build-time list provides.
-  return getModuleAdminNavItemsStatic();
+export function getModuleAdminNavItemsFromRows(rows: InstalledModuleRow[]): NavigationTree[] {
+  const items: NavigationTree[] = [];
+  const orderMap = new Map<string, number>();
+
+  for (const row of rows) {
+    if (row.status !== "enabled") continue;
+    if (row.admin_nav) {
+      for (const nav of row.admin_nav) {
+        if (nav.parentGroup !== "admin") continue;
+        const item = buildNavItem(row.id, nav);
+        items.push(item);
+        if (nav.order !== undefined) {
+          orderMap.set(item.id, nav.order);
+        }
+      }
+    }
+  }
+
+  // Fall back to build-time list if no DB items
+  if (items.length === 0) return getModuleAdminNavItemsStatic();
+  return sortByOrder(items, orderMap);
 }
 
 // ---------------------------------------------------------------------------

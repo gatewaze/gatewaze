@@ -269,6 +269,14 @@ export interface InstalledModuleRow {
     icon: string;
     order: number;
   } | null;
+  admin_nav?: Array<{
+    path: string;
+    label: string;
+    icon: string;
+    requiredFeature?: string;
+    parentGroup?: string;
+    order?: number;
+  }> | null;
   edge_functions_hash?: string | null;
   installed_at: string;
   updated_at: string;
