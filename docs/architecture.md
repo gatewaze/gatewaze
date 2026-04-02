@@ -101,7 +101,7 @@ The admin dashboard is a single-page React application for administrators.
 | Concern | Technology |
 |---------|------------|
 | Build | Vite (dev server on port 5173; Docker: http://gatewaze-admin.localhost via Traefik) |
-| UI Components | shadcn/ui + Tailwind CSS |
+| UI Components | Radix Themes + Tailwind CSS |
 | Routing | React Router v7 |
 | Data Tables | TanStack Table |
 | State | React Query (TanStack Query) for server state |
@@ -442,7 +442,7 @@ Images are built on every release and tagged with both `latest` and the semantic
 | **Language** | TypeScript | Used across all packages |
 | **Admin UI** | React | Single-page application |
 | **Admin Build** | Vite | Dev server on port 5173; Docker via Traefik |
-| **Admin Components** | shadcn/ui | Built on Radix UI primitives |
+| **Admin Components** | Radix Themes | Radix UI component library |
 | **Admin Routing** | React Router v7 | Client-side routing |
 | **Admin Tables** | TanStack Table | Headless data table library |
 | **Portal** | Next.js 15 | App Router with SSR |

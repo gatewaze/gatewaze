@@ -43,7 +43,7 @@ The official open-source module collection lives in the [gatewaze-modules](https
 | Storage        | Supabase Storage                    |
 | Edge Functions | Supabase Edge Functions (Deno)      |
 | Job Queue      | Redis + BullMQ                      |
-| UI Components  | shadcn/ui + Tailwind CSS            |
+| UI Components  | Radix Themes + Tailwind CSS         |
 | Package Manager| pnpm (monorepo workspaces)          |
 
 ## Architecture
@@ -282,5 +282,5 @@ Gatewaze is made possible by these outstanding open-source projects:
 - [Vite](https://vitejs.dev) -- Fast build tooling for the admin app.
 - [Express](https://expressjs.com) -- The API server framework.
 - [BullMQ](https://bullmq.io) -- Reliable job queue for background processing.
-- [shadcn/ui](https://ui.shadcn.com) -- Beautiful, accessible UI components.
+- [Radix Themes](https://www.radix-ui.com/themes) -- Beautiful, accessible UI components.
 - [Tailwind CSS](https://tailwindcss.com) -- Utility-first CSS framework.
