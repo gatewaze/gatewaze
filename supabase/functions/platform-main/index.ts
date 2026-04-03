@@ -7,11 +7,6 @@ import adminSendMagicLink from '../admin-send-magic-link/index.ts';
 import emailSend from '../email-send/index.ts';
 import emailSendReminders from '../email-send-reminders/index.ts';
 import emailSendgridWebhook from '../email-sendgrid-webhook/index.ts';
-import events from '../events/index.ts';
-import eventsGenerateMatches from '../events-generate-matches/index.ts';
-import eventsRegistration from '../events-registration/index.ts';
-import eventsSearch from '../events-search/index.ts';
-import eventsSendMatchEmails from '../events-send-match-emails/index.ts';
 import peopleProfileUpdate from '../people-profile-update/index.ts';
 import peopleSignup from '../people-signup/index.ts';
 import platformGenerateDownloadToken from '../platform-generate-download-token/index.ts';
@@ -23,16 +18,20 @@ const functions: Record<string, (req: Request) => Response | Promise<Response>> 
   'email-send': emailSend,
   'email-send-reminders': emailSendReminders,
   'email-sendgrid-webhook': emailSendgridWebhook,
-  'events': events,
-  'events-generate-matches': eventsGenerateMatches,
-  'events-registration': eventsRegistration,
-  'events-search': eventsSearch,
-  'events-send-match-emails': eventsSendMatchEmails,
   'people-profile-update': peopleProfileUpdate,
   'people-signup': peopleSignup,
   'platform-generate-download-token': platformGenerateDownloadToken,
   'platform-setup': platformSetup,
 };
+
+// Module edge functions loaded dynamically (gracefully skipped if not yet deployed)
+await (async () => {
+  try { functions['events'] = (await import('../events/index.ts')).default; } catch { /* module not deployed yet */ }
+  try { functions['events-generate-matches'] = (await import('../events-generate-matches/index.ts')).default; } catch { /* module not deployed yet */ }
+  try { functions['events-registration'] = (await import('../events-registration/index.ts')).default; } catch { /* module not deployed yet */ }
+  try { functions['events-search'] = (await import('../events-search/index.ts')).default; } catch { /* module not deployed yet */ }
+  try { functions['events-send-match-emails'] = (await import('../events-send-match-emails/index.ts')).default; } catch { /* module not deployed yet */ }
+})();
 
 serve(async (req: Request) => {
   const url = new URL(req.url);
