@@ -3,6 +3,12 @@ set -e
 
 echo "[admin] Starting admin container..."
 
+# Configure git authentication if GITHUB_TOKEN is set
+if [ -n "$GITHUB_TOKEN" ]; then
+  git config --global url."https://x-token:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
+  echo "[admin] Git authentication configured"
+fi
+
 # Clone module sources from MODULE_SOURCES env var (comma-separated git URLs)
 # Format: url[@branch][#path] e.g. https://github.com/org/repo.git@main#modules
 if [ -n "$MODULE_SOURCES" ]; then
@@ -20,7 +26,7 @@ if [ -n "$MODULE_SOURCES" ]; then
     target="/gatewaze-modules/$dirname"
 
     echo "[admin] Cloning $url (branch: $branch) → $target"
-    git clone --depth 1 --branch "$branch" "$url" "$target" 2>/dev/null || {
+    git clone --depth 1 --branch "$branch" "$url" "$target" || {
       echo "[admin] Warning: failed to clone $url"
       continue
     }
