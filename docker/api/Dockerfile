@@ -69,22 +69,22 @@ COPY --from=builder /app/packages/api/dist/gatewaze.config.js ./
 # Link shared package to root node_modules so Node ESM resolver can find it
 RUN mkdir -p node_modules/@gatewaze && ln -s ../../packages/shared node_modules/@gatewaze/shared
 
-# Copy default modules (cloned at build time)
+# Copy default modules (cloned at build time) and config
 COPY --from=builder /gatewaze-modules/modules /gatewaze-modules/modules
+COPY --from=builder /app/gatewaze.config.ts ./gatewaze.config.ts
 
 # Create writable directories for runtime git clones and uploaded modules
-RUN mkdir -p /app/.gatewaze-modules /app/data
+RUN mkdir -p /app/.gatewaze-modules /app/data /tmp/module-repos
 
-# Create non-root user and grant access to writable directories
-RUN addgroup --system --gid 1001 appgroup && \
-    adduser --system --uid 1001 appuser && \
-    chown -R appuser:appgroup /app/.gatewaze-modules /app/data
-USER appuser
+# Copy entrypoint script (clones additional module repos at startup)
+COPY docker/api/entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 
 EXPOSE 3002
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD node -e "const http = require('http'); http.get('http://localhost:3002/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1); }).on('error', () => process.exit(1));" || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD node -e "const http = require('http'); http.get('http://localhost:3002/api/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1); }).on('error', () => process.exit(1));" || exit 1
 
-# Use tsx to support dynamic import of TypeScript module files at runtime
+# Use entrypoint to clone modules, then start with tsx
+ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["npx", "tsx", "packages/api/dist/server.js"]
