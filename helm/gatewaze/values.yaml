@@ -15,6 +15,10 @@ image:
 
 imagePullSecrets: []
 
+# -- Module sources (comma-separated git URLs cloned at admin startup)
+# Format: url[@branch][#path] e.g. https://github.com/org/repo.git@main#modules
+moduleSources: "https://github.com/gatewaze/gatewaze-modules.git@main#modules"
+
 # =============================================================================
 # Replica Counts
 # =============================================================================

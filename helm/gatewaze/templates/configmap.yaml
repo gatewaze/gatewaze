@@ -39,3 +39,8 @@ data:
   {{- else }}
   VITE_API_URL: {{ printf "http://%s-api:3002" (include "gatewaze.fullname" .) | quote }}
   {{- end }}
+
+  # Module sources (comma-separated git URLs for admin startup clone)
+  {{- if .Values.moduleSources }}
+  MODULE_SOURCES: {{ .Values.moduleSources | quote }}
+  {{- end }}
