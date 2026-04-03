@@ -21,9 +21,9 @@ if [ -n "$MODULE_SOURCES" ]; then
     subpath=$(echo "$source" | grep -o '#.*' | sed 's/#//' || echo "")
     [ -z "$branch" ] && branch="main"
 
-    # Generate a directory name from the URL
-    dirname=$(echo "$url" | sed 's|https://||; s|\.git$||; s|/|-|g')
-    target="/gatewaze-modules/$dirname"
+    # Extract repo name from URL (e.g. gatewaze-modules from https://github.com/gatewaze/gatewaze-modules.git)
+    reponame=$(echo "$url" | sed 's|.*/||; s|\.git$||')
+    target="/tmp/module-repos/$reponame"
 
     echo "[admin] Cloning $url (branch: $branch) → $target"
     git clone --depth 1 --branch "$branch" "$url" "$target" || {
@@ -31,10 +31,10 @@ if [ -n "$MODULE_SOURCES" ]; then
       continue
     }
 
-    # If subpath specified, create a symlink at the expected location
-    if [ -n "$subpath" ] && [ -d "$target/$subpath" ]; then
-      ln -sf "$target/$subpath" "/gatewaze-modules/$(basename $dirname)-modules"
-    fi
+    # Create symlink that matches local dev layout: /<reponame> → cloned repo
+    # This makes ../gatewaze-modules/modules resolve correctly from /app
+    ln -sf "$target" "/$reponame"
+    echo "[admin] Symlinked /$reponame → $target"
   done
   unset IFS
   echo "[admin] Module cloning complete"
@@ -47,6 +47,7 @@ VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
 VITE_API_URL=${VITE_API_URL}
 VITE_AUTH_PROVIDER=${VITE_AUTH_PROVIDER:-supabase}
 VITE_DISABLE_BRANDING=${VITE_DISABLE_BRANDING:-false}
+EXTRA_MODULE_SOURCES=${EXTRA_MODULE_SOURCES:-}
 EOF
 
 # Build admin with Vite (modules are now available on disk)

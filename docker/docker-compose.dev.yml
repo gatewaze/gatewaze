@@ -31,6 +31,7 @@ services:
       API_PROXY_TARGET: http://api:3002
       VITE_PORTAL_DOMAIN: ${PORTAL_HOST:-gatewaze-app.localhost}
       VITE_API_URL: ${API_URL:-http://gatewaze-api.localhost}
+      EXTRA_MODULE_SOURCES: ${EXTRA_MODULE_SOURCES:-}
 
   portal:
     build:
@@ -90,6 +91,7 @@ services:
     environment:
       NODE_ENV: development
       EDGE_FUNCTIONS_CONTAINER: ${COMPOSE_PROJECT_NAME:-gatewaze}-supabase-edge-functions
+      EXTRA_MODULE_SOURCES: ${EXTRA_MODULE_SOURCES:-}
 
   worker:
     build:
