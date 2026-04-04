@@ -39,7 +39,7 @@ spec:
             httpGet:
               path: /healthz
               port: http
-            initialDelaySeconds: 120
+            initialDelaySeconds: 300
             periodSeconds: 15
             timeoutSeconds: 3
             failureThreshold: 3
@@ -47,10 +47,10 @@ spec:
             httpGet:
               path: /healthz
               port: http
-            initialDelaySeconds: 90
+            initialDelaySeconds: 240
             periodSeconds: 10
             timeoutSeconds: 3
-            failureThreshold: 6
+            failureThreshold: 10
           resources:
             {{- toYaml .Values.resources.admin | nindent 12 }}
       {{- with .Values.nodeSelector }}
