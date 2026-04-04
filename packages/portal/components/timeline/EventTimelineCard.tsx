@@ -3,7 +3,7 @@
 import { useRef, useCallback } from 'react'
 import Link from 'next/link'
 import type { Event } from '@/types/event'
-import type { BrandConfig } from '@/config/brand'
+import type { BrandConfig, ContentCategoryOption } from '@/config/brand'
 import { isLightColor } from '@/config/brand'
 import { formatEventTime, formatEventDate } from './utils'
 import { type UserLocation, getDistanceToEventByCity, formatUserDistance, usesImperialUnits } from '@/lib/location'
@@ -33,6 +33,11 @@ export function EventTimelineCard({ event, brandConfig, userLocation, showDate }
 
   const timeStr = formatEventTime(event.event_start)
   const dateStr = showDate ? formatEventDate(event.event_start) : null
+
+  // Resolve category label from brand config
+  const categoryLabel = event.content_category && brandConfig.contentCategories.length > 0
+    ? brandConfig.contentCategories.find((c: ContentCategoryOption) => c.value === event.content_category)?.label ?? null
+    : null
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (!glowRef.current) return
@@ -74,6 +79,18 @@ export function EventTimelineCard({ event, brandConfig, userLocation, showDate }
 
         {/* Event Details */}
         <div className="flex-1 min-w-0 p-3 flex flex-col justify-center">
+          {/* Category badge */}
+          {categoryLabel && (
+            <span
+              className="inline-flex self-start px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded-sm mb-1"
+              style={{
+                backgroundColor: `${brandConfig.primaryColor}20`,
+                color: brandConfig.primaryColor,
+              }}
+            >
+              {categoryLabel}
+            </span>
+          )}
           {/* Title */}
           <h3
             className="text-white font-semibold text-sm sm:text-base

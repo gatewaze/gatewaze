@@ -13,15 +13,20 @@ import {
   Info,
   Users,
   Lock,
+  Tags,
 } from "lucide-react";
 import { useActiveThemeModule } from "@/hooks/useActiveThemeModule";
 import { EventTypesEditor } from "@/components/shared/branding/EventTypesEditor";
+import { ContentCategoriesEditor } from "@/components/shared/branding/ContentCategoriesEditor";
 import { PeopleAttributesEditor } from "@/components/shared/branding/PeopleAttributesEditor";
 import {
   type EventTypeOption,
   DEFAULT_EVENT_TYPES,
   saveEventTypes,
 } from "@/hooks/useEventTypes";
+import {
+  type ContentCategoryOption,
+} from "@/hooks/useContentCategories";
 import {
   type PeopleAttributeConfig,
   DEFAULT_PEOPLE_ATTRIBUTES,
@@ -124,6 +129,10 @@ function BrandingCard() {
     useState<EventTypeOption[]>(DEFAULT_EVENT_TYPES);
   const [originalEventTypes, setOriginalEventTypes] =
     useState<EventTypeOption[]>(DEFAULT_EVENT_TYPES);
+  const [contentCategories, setContentCategories] =
+    useState<ContentCategoryOption[]>([]);
+  const [originalContentCategories, setOriginalContentCategories] =
+    useState<ContentCategoryOption[]>([]);
   const [peopleAttributes, setPeopleAttributes] =
     useState<PeopleAttributeConfig[]>(DEFAULT_PEOPLE_ATTRIBUTES);
   const [originalPeopleAttributes, setOriginalPeopleAttributes] =
@@ -145,6 +154,7 @@ function BrandingCard() {
         "theme_colors",
         "corner_style",
         "event_types",
+        "content_categories",
         "people_attributes",
       ]);
 
@@ -154,6 +164,7 @@ function BrandingCard() {
       let loadedColors: ThemeColorsMap = { ...DEFAULT_THEME_COLORS };
       let loadedCornerStyle: CornerStyle = "rounded";
       let loadedEventTypes: EventTypeOption[] = DEFAULT_EVENT_TYPES;
+      let loadedContentCategories: ContentCategoryOption[] = [];
       let loadedPeopleAttributes: PeopleAttributeConfig[] = DEFAULT_PEOPLE_ATTRIBUTES;
 
       for (const row of data) {
@@ -176,6 +187,15 @@ function BrandingCard() {
             const parsed = JSON.parse(row.value);
             if (Array.isArray(parsed) && parsed.length > 0) {
               loadedEventTypes = parsed;
+            }
+          } catch {
+            /* use defaults */
+          }
+        } else if (row.key === "content_categories") {
+          try {
+            const parsed = JSON.parse(row.value);
+            if (Array.isArray(parsed)) {
+              loadedContentCategories = parsed;
             }
           } catch {
             /* use defaults */
@@ -239,6 +259,8 @@ function BrandingCard() {
       setOriginalCornerStyle(loadedCornerStyle);
       setEventTypes(loadedEventTypes);
       setOriginalEventTypes(loadedEventTypes);
+      setContentCategories(loadedContentCategories);
+      setOriginalContentCategories(loadedContentCategories);
       setPeopleAttributes(loadedPeopleAttributes);
       setOriginalPeopleAttributes(loadedPeopleAttributes);
     }
@@ -255,6 +277,7 @@ function BrandingCard() {
     JSON.stringify(themeColors) !== JSON.stringify(originalThemeColors) ||
     cornerStyle !== originalCornerStyle ||
     JSON.stringify(eventTypes) !== JSON.stringify(originalEventTypes) ||
+    JSON.stringify(contentCategories) !== JSON.stringify(originalContentCategories) ||
     JSON.stringify(peopleAttributes) !== JSON.stringify(originalPeopleAttributes);
 
   const handleSave = async () => {
@@ -270,6 +293,9 @@ function BrandingCard() {
       allSettings.theme_colors = JSON.stringify(themeColors);
       allSettings.event_types = JSON.stringify(
         eventTypes.filter((t) => t.value && t.label)
+      );
+      allSettings.content_categories = JSON.stringify(
+        contentCategories.filter((c) => c.value && c.label)
       );
       allSettings.people_attributes = JSON.stringify(
         peopleAttributes.filter((a) => a.key && a.label)
@@ -300,6 +326,7 @@ function BrandingCard() {
       setOriginalThemeColors(themeColors);
       setOriginalCornerStyle(cornerStyle);
       setOriginalEventTypes(eventTypes);
+      setOriginalContentCategories(contentCategories);
       setOriginalPeopleAttributes(peopleAttributes);
       setSaved(true);
       setTimeout(() => setSaved(false), 5000);
@@ -367,6 +394,7 @@ function BrandingCard() {
           <RadixTabs.Trigger value="branding">Branding</RadixTabs.Trigger>
           <RadixTabs.Trigger value="theme">Theme</RadixTabs.Trigger>
           {hasEvents && <RadixTabs.Trigger value="event-types">Event Types</RadixTabs.Trigger>}
+          <RadixTabs.Trigger value="categories">Categories</RadixTabs.Trigger>
           <RadixTabs.Trigger value="tracking">Tracking</RadixTabs.Trigger>
           <RadixTabs.Trigger value="pages">Pages</RadixTabs.Trigger>
         </RadixTabs.List>
@@ -875,6 +903,68 @@ function BrandingCard() {
               <EventTypesEditor
                 value={eventTypes}
                 onChange={setEventTypes}
+              />
+            </div>
+
+            <hr className="border-[var(--gray-5)]" />
+
+            {/* Save */}
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={handleSave}
+                disabled={!hasChanges || saving}
+                variant="solid"
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...
+                  </>
+                ) : saved ? (
+                  <>
+                    <Check className="mr-2 h-4 w-4" /> Saved
+                  </>
+                ) : (
+                  "Save Changes"
+                )}
+              </Button>
+              {hasChanges && !saving && !saveError && (
+                <Text size="1" color="gray">
+                  You have unsaved changes
+                </Text>
+              )}
+              {saveError && (
+                <Text size="1" color="red">
+                  Error: {saveError}
+                </Text>
+              )}
+            </div>
+            {saved && (
+              <div className="flex items-center gap-2 rounded-md bg-[var(--accent-2)] border border-[var(--accent-6)] px-3 py-2">
+                <Info className="h-4 w-4 shrink-0 text-[var(--accent-9)]" />
+                <Text size="1" color="gray">
+                  Changes may take up to a minute to appear on the portal.
+                </Text>
+              </div>
+            )}
+          </div>
+        </RadixTabs.Content>
+
+        {/* ── Categories Tab ── */}
+        <RadixTabs.Content value="categories">
+          <div className="space-y-6">
+            <div>
+              <Heading size="3" className="mb-2">
+                Content Categories
+              </Heading>
+              <Text as="p" size="2" color="gray" className="mb-4">
+                Define categories for your content (events, blogs, etc.).
+                The order determines priority — category #1 is the most
+                important and its content will be featured first on the portal.
+                Use the arrows to reorder.
+              </Text>
+              <ContentCategoriesEditor
+                value={contentCategories}
+                onChange={setContentCategories}
               />
             </div>
 
