@@ -197,6 +197,7 @@ export default function EventsManagement() {
   const [selectedEventType, setSelectedEventType] = useState<string>('');
   const [selectedSourceType, setSelectedSourceType] = useState<string>('');
   const [selectedScrapedBy, setSelectedScrapedBy] = useState<string>('');
+  const [selectedContentCategory, setSelectedContentCategory] = useState<string>('');
   const [eventLogoPath, setEventLogoPath] = useState<string | undefined>(undefined);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [activeTab, setActiveTab] = useState<'basic' | 'location' | 'dates' | 'discount' | 'competition' | 'topics' | 'source'>('basic');
@@ -397,8 +398,13 @@ export default function EventsManagement() {
       filtered = filtered.filter(event => event.scrapedBy === selectedScrapedBy);
     }
 
+    // Filter by content category
+    if (selectedContentCategory) {
+      filtered = filtered.filter(event => event.contentCategory === selectedContentCategory);
+    }
+
     return filtered;
-  }, [events, searchTerm, hidePastEvents, hideEventsWithScreenshots, selectedEventType, selectedSourceType, selectedScrapedBy, filterScraperName]);
+  }, [events, searchTerm, hidePastEvents, hideEventsWithScreenshots, selectedEventType, selectedSourceType, selectedScrapedBy, selectedContentCategory, filterScraperName]);
 
   const loadEvents = async () => {
     setLoading(true);
@@ -1519,6 +1525,21 @@ export default function EventsManagement() {
             ))}
           </select>
 
+          {contentCategories.length > 0 && (
+            <select
+              value={selectedContentCategory}
+              onChange={(e) => setSelectedContentCategory(e.target.value)}
+              className={`px-2.5 py-1.5 text-sm rounded-lg border bg-[var(--gray-a3)] focus:ring-2 focus:ring-[var(--accent-8)] cursor-pointer ${selectedContentCategory ? 'border-[var(--accent-8)] text-[var(--accent-11)]' : 'border-[var(--gray-a5)] text-[var(--gray-11)]'}`}
+            >
+              <option value="">Category</option>
+              {contentCategories.map((cat) => (
+                <option key={cat.value} value={cat.value}>
+                  {cat.label}
+                </option>
+              ))}
+            </select>
+          )}
+
           {/* Toggle Filters */}
           <div className="flex items-center gap-1.5">
             <Button
@@ -1542,7 +1563,7 @@ export default function EventsManagement() {
           </div>
 
           {/* Reset */}
-          {(searchTerm || hidePastEvents || hideEventsWithScreenshots || selectedEventType || selectedSourceType || selectedScrapedBy || filterScraperName) && (
+          {(searchTerm || hidePastEvents || hideEventsWithScreenshots || selectedEventType || selectedSourceType || selectedScrapedBy || selectedContentCategory || filterScraperName) && (
             <Button
               size="1"
               variant="ghost"
@@ -1554,6 +1575,7 @@ export default function EventsManagement() {
                 setSelectedEventType('');
                 setSelectedSourceType('');
                 setSelectedScrapedBy('');
+                setSelectedContentCategory('');
                 setFilterScraperName(null);
                 window.history.replaceState({}, '', window.location.pathname);
               }}
