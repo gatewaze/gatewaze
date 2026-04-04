@@ -303,6 +303,18 @@ export class LumaICalScraper extends BaseScraper {
               continue;
             }
 
+            // Apply title filters (from config.titleFilters)
+            const titleFilters = this.config?.config?.titleFilters;
+            if (Array.isArray(titleFilters) && titleFilters.length > 0) {
+              const titleLower = (parsedEvent.eventTitle || '').toLowerCase();
+              const matches = titleFilters.some(f => titleLower.includes(f.toLowerCase()));
+              if (!matches) {
+                console.log(`🔍 Filtered out: ${parsedEvent.eventTitle} (no title filter match)`);
+                this.stats.filtered = (this.stats.filtered || 0) + 1;
+                continue;
+              }
+            }
+
             // Add to seen URLs set
             if (parsedEvent.eventLink) {
               seenEventUrls.add(parsedEvent.eventLink);
@@ -318,7 +330,7 @@ export class LumaICalScraper extends BaseScraper {
       }
 
       console.log(`✅ Found ${parsedEvents.length} future events from iCal feed`);
-      console.log(`📊 Stats: ${this.stats.found} found, ${this.stats.skipped} skipped (past events), ${this.stats.failed} failed`);
+      console.log(`📊 Stats: ${this.stats.found} found, ${this.stats.skipped} skipped (past events), ${this.stats.filtered || 0} filtered (title), ${this.stats.failed} failed`);
       this.events = parsedEvents;
 
     } catch (error) {
