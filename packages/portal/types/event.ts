@@ -45,6 +45,7 @@ export interface Event {
   addedpage_content: string | null
   addedpage_title: string | null
   event_type: string | null
+  content_category: string | null
   event_topics: string[] | null
   custom_domain: string | null
   custom_domain_status: string | null

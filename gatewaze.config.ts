@@ -27,6 +27,8 @@ const config: GatewazeConfig = {
   moduleSources: [
     // Local sibling repos (development — skipped if not present on disk)
     '../gatewaze-modules/modules',
+    '../premium-gatewaze-modules/modules',
+    '../lf-gatewaze-modules/modules',
     // Git source for production — seeded into module_sources DB table on first run
     { url: 'https://github.com/gatewaze/gatewaze-modules.git', path: 'modules', branch: 'main' },
     // Additional sources from EXTRA_MODULE_SOURCES env var (comma-separated local paths)

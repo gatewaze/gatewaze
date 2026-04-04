@@ -9,6 +9,7 @@ import { EventTimelineGroup } from './EventTimelineGroup'
 import { EventCalendar } from './EventCalendar'
 import { EventMap } from './EventMap'
 import { EventFilters } from './EventFilters'
+import { FeaturedContent } from './FeaturedContent'
 import { SearchResults } from './SearchResults'
 import { groupEventsByDate } from './utils'
 import { useEventSearch } from '@/hooks/useEventSearch'
@@ -124,10 +125,32 @@ function TimelineContentInner({ events, upcomingEvents, pastEvents, brandConfig,
       .map(({ event }) => event)
   }, [activeEvents, nearMe, userLocation, nearMeRadiusKm])
 
-  const groupedEvents = useMemo(
-    () => groupEventsByDate(nearMeEvents, isPastView),
-    [nearMeEvents, isPastView]
-  )
+  // Build category priority map: category value -> priority index (0 = highest)
+  const categoryPriorityMap = useMemo(() => {
+    const map = new Map<string, number>()
+    if (brandConfig.contentCategories) {
+      brandConfig.contentCategories.forEach((cat, i) => map.set(cat.value, i))
+    }
+    return map
+  }, [brandConfig.contentCategories])
+
+  const groupedEvents = useMemo(() => {
+    const groups = groupEventsByDate(nearMeEvents, isPastView)
+    // If categories are configured, sort events within each group by category priority
+    if (categoryPriorityMap.size > 0) {
+      const noPriority = categoryPriorityMap.size // uncategorised events go last
+      for (const group of groups) {
+        group.events.sort((a, b) => {
+          const aPriority = a.content_category ? (categoryPriorityMap.get(a.content_category) ?? noPriority) : noPriority
+          const bPriority = b.content_category ? (categoryPriorityMap.get(b.content_category) ?? noPriority) : noPriority
+          if (aPriority !== bPriority) return aPriority - bPriority
+          // Same priority — keep time-based order
+          return new Date(a.event_start).getTime() - new Date(b.event_start).getTime()
+        })
+      }
+    }
+    return groups
+  }, [nearMeEvents, isPastView, categoryPriorityMap])
 
   // Show Near Me option only on list views when location is available
   const showNearMe = (view === 'upcoming' || view === 'past') && !locationLoading && userLocation !== null
@@ -156,6 +179,15 @@ function TimelineContentInner({ events, upcomingEvents, pastEvents, brandConfig,
 
   return (
     <div className="w-full">
+      {/* Featured content — shown above timeline when categories are configured */}
+      {!isShowingSearchResults && !isInitialSearchPending && view === 'upcoming' && (
+        <FeaturedContent
+          events={upcomingEvents}
+          brandConfig={brandConfig}
+          userLocation={userLocation}
+        />
+      )}
+
       {/* Header with tabs + search — hidden when showing search results (search moves into SearchResults) */}
       {!isShowingSearchResults && !isInitialSearchPending && (
         <TimelineHeader

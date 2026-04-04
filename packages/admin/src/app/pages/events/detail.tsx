@@ -79,6 +79,7 @@ import { analyzeGradientColors } from '@/utils/colorUtils';
 import { RichTextEditor } from '@/components/ui/RichTextEditor';
 import { RegistrationFieldMappings } from '@/components/events/RegistrationFieldMappings';
 import { useEventTypes } from '@/hooks/useEventTypes';
+import { useContentCategories } from '@/hooks/useContentCategories';
 import { useModuleSlots, type ResolvedSlot } from '@/hooks/useModuleSlots';
 import { useModulesContext } from '@/app/contexts/modules/context';
 import { resolveHeroIcon } from '@/utils/heroIconResolver';
@@ -95,6 +96,7 @@ const eventSchema = yup.object({
   eventEnd: yup.string().optional(),
   eventTimezone: yup.string().optional(),
   eventType: yup.string().optional(),
+  contentCategory: yup.string().optional(),
   eventRegion: yup.string().optional(),
   eventDescription: yup.string().optional(),
   listingIntro: yup.string().optional(),
@@ -188,6 +190,7 @@ const EventDetailPage = () => {
   const navigate = useNavigate();
   const { adminProfile, isAdmin } = useAuthContext();
   const { eventTypes } = useEventTypes();
+  const { contentCategories } = useContentCategories();
   const moduleTabSlots = useModuleSlots('event-detail:tab');
 
   const [event, setEvent] = useState<Event | null>(null);
@@ -386,6 +389,7 @@ const EventDetailPage = () => {
       eventEnd: toDatetimeLocal(eventData.eventEnd, eventData.eventTimezone),
       eventTimezone: eventData.eventTimezone || 'UTC',
       eventType: eventData.eventType || '',
+      contentCategory: eventData.contentCategory || '',
       eventRegion: eventData.eventRegion || '',
       eventDescription: eventData.eventDescription || '',
       listingIntro: eventData.listingIntro || '',
@@ -445,6 +449,7 @@ const EventDetailPage = () => {
         eventEnd: fromDatetimeLocal(data.eventEnd, data.eventTimezone),
         eventTimezone: data.eventTimezone || 'UTC',
         eventType: data.eventType || null,
+        contentCategory: data.contentCategory || null,
         eventRegion: data.eventRegion || null,
         eventDescription: data.eventDescription || null,
         listingIntro: data.listingIntro || null,
@@ -766,6 +771,7 @@ const EventDetailPage = () => {
               allEvents={allEvents}
               qrCodeDataUrl={qrCodeDataUrl}
               eventTypes={eventTypes}
+              contentCategories={contentCategories}
             />
           </div>
         )}
@@ -1061,6 +1067,26 @@ const EventDetailsTab = ({ event, isEditMode, register, errors, watch, setValue,
                     </label>
                     <p className="text-[var(--gray-12)] capitalize">{event.eventType || 'N/A'}</p>
                   </div>
+                )}
+                {contentCategories.length > 0 && (
+                  isEditMode ? (
+                    <Select
+                      label="Content Category"
+                      {...register('contentCategory')}
+                    >
+                      <option value="">No category</option>
+                      {contentCategories.map((c: any) => (
+                        <option key={c.value} value={c.value}>{c.label}</option>
+                      ))}
+                    </Select>
+                  ) : (
+                    <div>
+                      <label className="block text-sm font-medium text-[var(--gray-11)] mb-1">
+                        Content Category
+                      </label>
+                      <p className="text-[var(--gray-12)] capitalize">{event.contentCategory || 'N/A'}</p>
+                    </div>
+                  )
                 )}
               </div>
 
