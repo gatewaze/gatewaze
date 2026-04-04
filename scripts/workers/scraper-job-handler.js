@@ -439,7 +439,8 @@ export async function runScraperJob(jobId, logger) {
               p_luma_event_id: dbEvent.luma_event_id,
               p_source_event_id: dbEvent.source_event_id,
               p_luma_page_data: dbEvent.luma_page_data,
-              p_meetup_page_data: dbEvent.meetup_page_data
+              p_meetup_page_data: dbEvent.meetup_page_data,
+              p_content_category: scraperData.content_category || null
             };
             const result = await supabase.rpc('events_update', updateParams);
             error = result.error;
@@ -474,7 +475,8 @@ export async function runScraperJob(jobId, logger) {
               p_luma_event_id: dbEvent.luma_event_id,
               p_source_event_id: dbEvent.source_event_id,
               p_luma_page_data: dbEvent.luma_page_data,
-              p_meetup_page_data: dbEvent.meetup_page_data
+              p_meetup_page_data: dbEvent.meetup_page_data,
+              p_content_category: scraperData.content_category || null
             };
             const result = await supabase.rpc('events_create', createParams);
             error = result.error;
