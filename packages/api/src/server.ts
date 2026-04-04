@@ -14,7 +14,7 @@ import { slackRouter } from './routes/slack.js';
 import { calendarProxyRouter } from './routes/calendar-proxy.js';
 import { modulesRouter } from './routes/modules.js';
 import { hateoasMiddleware } from './lib/hateoas.js';
-import { loadModules, loadModulesWithDbSources } from '@gatewaze/shared/modules';
+import { loadModules, loadModulesWithDbSources, reconcileModules } from '@gatewaze/shared/modules';
 import { createClient } from '@supabase/supabase-js';
 import { resolve } from 'path';
 import _configImport from '../../../gatewaze.config.js';
@@ -100,7 +100,6 @@ async function registerModuleRoutes() {
     // Reconcile modules with DB (syncs admin_nav, portal_nav, features, etc.)
     if (supabaseUrl && serviceRoleKey) {
       try {
-        const { reconcileModules } = await import('@gatewaze/shared/modules');
         const supabase = createClient(supabaseUrl, serviceRoleKey);
         await reconcileModules(modules, supabase as never);
       } catch (err) {
