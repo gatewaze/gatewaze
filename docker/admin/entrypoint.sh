@@ -52,19 +52,21 @@ EOF
 
 # Strip @gatewaze-modules/* workspace deps and re-install
 echo "[admin] Ensuring all dependencies are installed..."
-cd /app && node -e "
-  const pkg = require('./packages/admin/package.json');
-  for (const field of ['dependencies', 'devDependencies']) {
-    if (pkg[field]) {
-      pkg[field] = Object.fromEntries(
-        Object.entries(pkg[field]).filter(([k]) => !k.startsWith('@gatewaze-modules/'))
-      );
-    }
+cd /app && node --input-type=module -e "
+import { readFileSync, writeFileSync } from 'fs';
+const pkg = JSON.parse(readFileSync('./packages/admin/package.json', 'utf8'));
+for (const field of ['dependencies', 'devDependencies']) {
+  if (pkg[field]) {
+    pkg[field] = Object.fromEntries(
+      Object.entries(pkg[field]).filter(([k]) => !k.startsWith('@gatewaze-modules/'))
+    );
   }
-  require('fs').writeFileSync('./packages/admin/package.json', JSON.stringify(pkg, null, 2) + '\n');
+}
+writeFileSync('./packages/admin/package.json', JSON.stringify(pkg, null, 2) + '\n');
+console.log('[admin] Stripped @gatewaze-modules deps. Remaining deps:', Object.keys(pkg.dependencies || {}).length);
 "
 echo "[admin] Installing dependencies..."
-cd /app && pnpm install --no-frozen-lockfile 2>&1 | tail -3
+cd /app && pnpm install --no-frozen-lockfile 2>&1 | tail -5
 
 # Build admin with Vite (modules are now available on disk)
 echo "[admin] Building admin frontend..."
