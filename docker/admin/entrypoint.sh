@@ -50,9 +50,19 @@ VITE_DISABLE_BRANDING=${VITE_DISABLE_BRANDING:-false}
 EXTRA_MODULE_SOURCES=${EXTRA_MODULE_SOURCES:-}
 EOF
 
-# Re-install deps to pick up any that pnpm may have skipped due to missing peer deps
+# Strip @gatewaze-modules/* workspace deps and re-install
 echo "[admin] Ensuring all dependencies are installed..."
-cd /app && pnpm install --no-frozen-lockfile 2>/dev/null || true
+cd /app && node -e "
+  const pkg = require('./packages/admin/package.json');
+  for (const field of ['dependencies', 'devDependencies']) {
+    if (pkg[field]) {
+      pkg[field] = Object.fromEntries(
+        Object.entries(pkg[field]).filter(([k]) => !k.startsWith('@gatewaze-modules/'))
+      );
+    }
+  }
+  require('fs').writeFileSync('./packages/admin/package.json', JSON.stringify(pkg, null, 2) + '\n');
+" && pnpm install --no-frozen-lockfile 2>/dev/null || true
 
 # Build admin with Vite (modules are now available on disk)
 echo "[admin] Building admin frontend..."
