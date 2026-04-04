@@ -921,7 +921,7 @@ const ScrapedDataSection = ({ title, data, colorClass }: { title: string; data: 
 };
 
 // Event Details Tab Component
-const EventDetailsTab = ({ event, isEditMode, register, errors, watch, setValue, onGenerateQrCode, isGeneratingQr, isSaving, accounts, allEvents, qrCodeDataUrl, eventTypes }: any) => {
+const EventDetailsTab = ({ event, isEditMode, register, errors, watch, setValue, onGenerateQrCode, isGeneratingQr, isSaving, accounts, allEvents, qrCodeDataUrl, eventTypes, contentCategories }: any) => {
   const { isModuleEnabled } = useModulesContext();
   const hasTopicsModule = isModuleEnabled('event-topics');
   const hasSpeakersModule = isModuleEnabled('event-speakers');
