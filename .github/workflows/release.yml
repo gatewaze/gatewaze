@@ -41,8 +41,7 @@ jobs:
           tags: |
             ghcr.io/gatewaze/admin:${{ steps.version.outputs.VERSION }}
             ghcr.io/gatewaze/admin:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          no-cache: true
 
       - name: Build and push portal image
         uses: docker/build-push-action@v6
