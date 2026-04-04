@@ -14,9 +14,12 @@ COPY gatewaze.config.ts ./
 # Use a workspace config that only includes local packages
 RUN printf 'packages:\n  - "packages/*"\n' > pnpm-workspace.yaml
 
-# Copy source code and package manifests
+# Copy source code and package manifests (includes unmodified package.json with all deps)
 COPY packages/admin/ packages/admin/
 COPY packages/shared/ packages/shared/
+
+# Verify react-leaflet is in package.json (catch Docker cache issues)
+RUN grep -q react-leaflet packages/admin/package.json || (echo "ERROR: react-leaflet missing from package.json - Docker cache is stale" && exit 1)
 
 # Copy nginx config
 COPY docker/admin/nginx.conf /etc/nginx/conf.d/default.conf
