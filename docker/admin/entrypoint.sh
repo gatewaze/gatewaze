@@ -62,7 +62,9 @@ cd /app && node -e "
     }
   }
   require('fs').writeFileSync('./packages/admin/package.json', JSON.stringify(pkg, null, 2) + '\n');
-" && pnpm install --no-frozen-lockfile 2>/dev/null || true
+"
+echo "[admin] Installing dependencies..."
+cd /app && pnpm install --no-frozen-lockfile 2>&1 | tail -3
 
 # Build admin with Vite (modules are now available on disk)
 echo "[admin] Building admin frontend..."
