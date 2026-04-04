@@ -533,7 +533,8 @@ async function runWorker() {
               p_scraper_id: job.scraper_id,
               p_source_type: dbEvent.source_type,
               p_source_details: dbEvent.source_details,
-              p_event_timezone: dbEvent.event_timezone || 'UTC'
+              p_event_timezone: dbEvent.event_timezone || 'UTC',
+              p_content_category: scraperData.content_category || null
             };
             const result = await supabase.rpc('events_update', updateParams);
             error = result.error;
@@ -564,7 +565,8 @@ async function runWorker() {
               p_scraped_by: cleanedEvent.scraperName || job.scraper_name || 'worker_scraper',
               p_scraper_id: job.scraper_id,
               p_source_type: dbEvent.source_type,
-              p_source_details: dbEvent.source_details
+              p_source_details: dbEvent.source_details,
+              p_content_category: scraperData.content_category || null
             };
             const result = await supabase.rpc('events_create', createParams);
             error = result.error;
