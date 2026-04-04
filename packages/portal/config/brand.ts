@@ -44,6 +44,11 @@ export interface EventTypeOption {
   label: string
 }
 
+export interface ContentCategoryOption {
+  value: string
+  label: string
+}
+
 export const DEFAULT_EVENT_TYPES: EventTypeOption[] = [
   { value: 'conference', label: 'Conference' },
   { value: 'workshop', label: 'Workshop' },
@@ -76,6 +81,7 @@ export interface BrandConfig {
   trackingHead: string
   trackingBody: string
   eventTypes: EventTypeOption[]
+  contentCategories: ContentCategoryOption[]
   eventTopicsEnabled: boolean
 }
 
@@ -115,6 +121,7 @@ const defaults: BrandConfig = {
   trackingHead: '',
   trackingBody: '',
   eventTypes: DEFAULT_EVENT_TYPES,
+  contentCategories: [],
   eventTopicsEnabled: false,
 }
 
@@ -233,6 +240,19 @@ export async function getServerBrandConfig(): Promise<BrandConfig> {
           }
         } catch {
           // use defaults
+        }
+      }
+
+      // Parse content categories
+      const contentCategoriesValue = kvMap.get('content_categories')
+      if (contentCategoriesValue) {
+        try {
+          const parsed = JSON.parse(contentCategoriesValue)
+          if (Array.isArray(parsed)) {
+            config.contentCategories = parsed
+          }
+        } catch {
+          // no categories
         }
       }
 

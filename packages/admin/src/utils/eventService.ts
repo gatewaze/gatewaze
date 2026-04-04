@@ -26,6 +26,7 @@ export interface Event {
   eventLocation?: string;
   eventTopicsUpdatedAt?: number;
   eventType?: string;
+  contentCategory?: string | null;
   venueAddress?: string;
   scrapedBy?: string;
   scraperId?: number;
@@ -155,6 +156,7 @@ export class EventService {
         eventLocation: data.event_location,
         eventTopicsUpdatedAt: data.event_topics_updated_at,
         eventType: data.event_type,
+        contentCategory: data.content_category,
         screenshotUrl: data.screenshot_url,
         screenshotGenerated: data.screenshot_generated,
         screenshotGeneratedAt: data.screenshot_generated_at,
@@ -252,6 +254,7 @@ export class EventService {
         eventLocation: data.event_location,
         eventTopicsUpdatedAt: data.event_topics_updated_at,
         eventType: data.event_type,
+        contentCategory: data.content_category,
         screenshotUrl: data.screenshot_url,
         screenshotGenerated: data.screenshot_generated,
         screenshotGeneratedAt: data.screenshot_generated_at,
@@ -373,6 +376,7 @@ export class EventService {
         eventLocation: event.event_location,
         eventTopicsUpdatedAt: event.event_topics_updated_at,
         eventType: event.event_type,
+        contentCategory: event.content_category,
         scrapedBy: event.scraped_by,
         scraperId: event.scraper_id,
         createdAt: event.created_at,
@@ -492,6 +496,7 @@ static async createEvent(eventData: Omit<Event, 'id' | 'createdAt' | 'updatedAt'
         event_location: eventLocation || null,
         event_topics_updated_at: eventData.eventTopicsUpdatedAt || null,
         event_type: eventData.eventType || null,
+        content_category: eventData.contentCategory || null,
         event_timezone: eventData.eventTimezone || 'UTC', // Default to UTC if not provided
         scraper_id: null,
         source_type: sourceType,
@@ -612,6 +617,7 @@ static async createEvent(eventData: Omit<Event, 'id' | 'createdAt' | 'updatedAt'
       if (eventData.venueAddress !== undefined) updateData.venue_address = eventData.venueAddress || null;
       if (eventData.eventTopicsUpdatedAt !== undefined) updateData.event_topics_updated_at = eventData.eventTopicsUpdatedAt || null;
       if (eventData.eventType !== undefined) updateData.event_type = eventData.eventType || null;
+      if (eventData.contentCategory !== undefined) updateData.content_category = eventData.contentCategory || null;
       if (eventData.eventTimezone !== undefined) updateData.event_timezone = eventData.eventTimezone || 'UTC';
       if (eventData.scrapedBy !== undefined) updateData.scraped_by = eventData.scrapedBy || null;
       if (eventData.scraperId !== undefined) updateData.scraper_id = eventData.scraperId || null;

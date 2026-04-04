@@ -60,6 +60,7 @@ import { AccountService } from '@/utils/accountService';
 import { Account } from '@/lib/supabase';
 import { getApiBaseUrl } from '@/config/brands';
 import { useEventTypes } from '@/hooks/useEventTypes';
+import { useContentCategories } from '@/hooks/useContentCategories';
 import { useHasModule } from '@/hooks/useModuleFeature';
 
 // Form validation schema
@@ -71,6 +72,7 @@ const eventSchema = yup.object({
   eventStart: yup.string().required('Start date is required'),
   eventEnd: yup.string().required('End date is required'),
   eventType: yup.string().optional(),
+  contentCategory: yup.string().optional(),
   eventRegion: yup.string().optional(),
   listingIntro: yup.string().optional(),
   offerResult: yup.string().optional(),
@@ -166,6 +168,7 @@ export default function EventsManagement() {
   const { user } = useAuthContext();
   const { isAccountUser, accounts: userAccounts } = useAccountAccess();
   const { eventTypes } = useEventTypes();
+  const { contentCategories } = useContentCategories();
   const hasTopicsModule = useHasModule('event-topics');
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
@@ -502,6 +505,7 @@ export default function EventsManagement() {
     setValue('eventRegion', event.eventRegion || '');
     setValue('eventLocation', event.eventLocation || '');
     setValue('eventType', event.eventType || '');
+    setValue('contentCategory', event.contentCategory || '');
     setValue('venueAddress', event.venueAddress || '');
     setValue('scrapedBy', event.scrapedBy || '');
     setValue('sourceType', event.sourceType || '');
@@ -551,6 +555,7 @@ export default function EventsManagement() {
           updateData.offerSlug = data.offerSlug;
           updateData.offerCloseDate = data.offerCloseDate;
           updateData.eventType = data.eventType;
+          updateData.contentCategory = data.contentCategory || null;
           updateData.scrapedBy = data.scrapedBy;
           // Don't pass sourceType when editing via UI - let EventService determine it's a UI edit
           // updateData.sourceType = data.sourceType as 'manual' | 'scraper' | 'user_submission';
@@ -594,6 +599,7 @@ export default function EventsManagement() {
           eventRegion: data.eventRegion,
           eventLocation: data.eventLocation,
           eventType: data.eventType,
+          contentCategory: data.contentCategory || null,
           venueAddress: data.venueAddress,
           scrapedBy: data.scrapedBy,
           sourceType: 'manual',
@@ -1755,6 +1761,25 @@ export default function EventsManagement() {
                         <p className="mt-1 text-sm text-error-600">{errors.eventType.message}</p>
                       )}
                     </div>
+
+                    {contentCategories.length > 0 && (
+                      <div>
+                        <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">
+                          Content Category
+                        </label>
+                        <select
+                          {...register('contentCategory')}
+                          className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        >
+                          <option value="">No category</option>
+                          {contentCategories.map(cat => (
+                            <option key={cat.value} value={cat.value}>
+                              {cat.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
 
                   </div>
                 </div>
