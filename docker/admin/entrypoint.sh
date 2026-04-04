@@ -50,6 +50,10 @@ VITE_DISABLE_BRANDING=${VITE_DISABLE_BRANDING:-false}
 EXTRA_MODULE_SOURCES=${EXTRA_MODULE_SOURCES:-}
 EOF
 
+# Re-install deps to pick up any that pnpm may have skipped due to missing peer deps
+echo "[admin] Ensuring all dependencies are installed..."
+cd /app && pnpm install --no-frozen-lockfile 2>/dev/null || true
+
 # Build admin with Vite (modules are now available on disk)
 echo "[admin] Building admin frontend..."
 cd /app/packages/admin && npx vite build
