@@ -205,9 +205,26 @@ export function gatewazeModulesPlugin(): Plugin {
         }
       }
 
+      // Auto-detect guide.md files and attach as raw string to each module
+      const guideAssignments: string[] = [];
+      for (let i = 0; i < moduleIds.length; i++) {
+        const moduleId = moduleIds[i];
+        const slug = moduleId.replace(/^@gatewaze-modules\//, '');
+        for (const sourceDir of resolvedSources) {
+          const guidePath = resolve(sourceDir, slug, 'guide.md');
+          if (existsSync(guidePath)) {
+            const guideVarName = `guide${i}`;
+            imports.push(`import ${guideVarName} from '${guidePath}?raw';`);
+            guideAssignments.push(`mod${i}.guide = ${guideVarName};`);
+            break;
+          }
+        }
+      }
+
       return [
         ...imports,
         ...cssImports,
+        ...guideAssignments,
         `export default [${refs.join(', ')}];`,
         '',
       ].join('\n');

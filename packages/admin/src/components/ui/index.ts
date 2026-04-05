@@ -18,4 +18,6 @@ export * from "./CopyButton";
 export * from "./Form";
 export * from "./Modal";
 export * from "./ConfirmModal";
+export * from "./ModuleInfoModal";
+export * from "./ModuleCard";
 export * from "./ImageUpload";

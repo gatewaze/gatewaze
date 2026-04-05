@@ -87,6 +87,13 @@ export interface GatewazeModule {
   migrations?: string[];
   dependencies?: string[];
   configSchema?: Record<string, ConfigField>;
+  /**
+   * Module guide/documentation content (markdown string).
+   * When present, the modules page shows an info button that opens a
+   * modal rendering this content.  Typically auto-populated by the Vite
+   * plugin from a `guide.md` file in the module directory.
+   */
+  guide?: string;
   /** Theme overrides — only meaningful when type === 'theme' */
   themeOverrides?: ThemeOverrides;
   onInstall?: () => Promise<void>;
