@@ -123,7 +123,7 @@ export default async function MainLayout({
           }}
         />
         {brandConfig.trackingHead && (
-          <script dangerouslySetInnerHTML={{ __html: brandConfig.trackingHead }} />
+          <script suppressHydrationWarning dangerouslySetInnerHTML={{ __html: brandConfig.trackingHead }} />
         )}
         <OrganizationJsonLd
           name={brandConfig.name}
