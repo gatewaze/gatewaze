@@ -1,18 +1,21 @@
 'use client'
 
-import { createClient, SupabaseClient } from '@supabase/supabase-js'
+import { createBrowserClient } from '@supabase/ssr'
+import { SupabaseClient } from '@supabase/supabase-js'
 import { getClientBrandConfig } from '@/config/brand'
 
 let supabaseClient: SupabaseClient | null = null
 
 /**
- * Get or create a Supabase client for client-side use
- * Singleton pattern - creates client once and reuses
+ * Get or create a Supabase client for client-side use.
+ * Uses @supabase/ssr's createBrowserClient which stores auth tokens
+ * in cookies (instead of localStorage), making them available to
+ * server components via createAuthenticatedServerSupabase().
  */
 export function getSupabaseClient(): SupabaseClient {
   if (!supabaseClient) {
     const config = getClientBrandConfig()
-    supabaseClient = createClient(config.supabaseUrl, config.supabaseAnonKey)
+    supabaseClient = createBrowserClient(config.supabaseUrl, config.supabaseAnonKey)
   }
   return supabaseClient
 }
