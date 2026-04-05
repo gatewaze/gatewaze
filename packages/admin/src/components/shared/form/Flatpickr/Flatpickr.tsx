@@ -9,6 +9,7 @@ import {
   useMemo,
 } from "react";
 import flatpickr from "flatpickr";
+import "flatpickr/dist/flatpickr.min.css";
 import type { Instance } from "flatpickr/dist/types/instance";
 
 import { FlatpickrProps, FlatpickrRef, hooks, callbacks } from "./types";
