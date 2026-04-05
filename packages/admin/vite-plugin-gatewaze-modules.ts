@@ -87,6 +87,17 @@ export function gatewazeModulesPlugin(): Plugin {
       if (id.startsWith('\0stub:')) {
         return id.endsWith('.css') ? '' : 'export default {};';
       }
+      // Catch resolved paths that don't exist on disk (e.g. @/ alias imports
+      // from module files that point to admin components not in this build)
+      if (id.startsWith('/') && !id.includes('node_modules') && !existsSync(id)) {
+        const extensions = ['.ts', '.tsx', '.js', '.jsx'];
+        const exists = extensions.some(ext => existsSync(id + ext))
+          || extensions.some(ext => existsSync(resolve(id, 'index' + ext)));
+        if (!exists) {
+          console.warn(`[gatewaze-modules] Stubbing missing resolved path: ${id}`);
+          return 'export default {};';
+        }
+      }
     },
 
     // Rewrite imports from missing files in .gatewaze-modules source files.
