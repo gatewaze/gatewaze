@@ -29,12 +29,9 @@ await (async () => {
   try { functions['calendars-api'] = (await import('../calendars-api/index.ts')).default; } catch { /* module not deployed yet */ }
   try { functions['calendars-discover'] = (await import('../calendars-discover/index.ts')).default; } catch { /* module not deployed yet */ }
   try { functions['calendars-process-csv'] = (await import('../calendars-process-csv/index.ts')).default; } catch { /* module not deployed yet */ }
-  try { functions['events-speaker-confirm'] = (await import('../events-speaker-confirm/index.ts')).default; } catch { /* module not deployed yet */ }
-  try { functions['events-speaker-submission'] = (await import('../events-speaker-submission/index.ts')).default; } catch { /* module not deployed yet */ }
-  try { functions['events-speaker-submissions'] = (await import('../events-speaker-submissions/index.ts')).default; } catch { /* module not deployed yet */ }
-  try { functions['events-speaker-tracking-link'] = (await import('../events-speaker-tracking-link/index.ts')).default; } catch { /* module not deployed yet */ }
-  try { functions['events-speaker-update'] = (await import('../events-speaker-update/index.ts')).default; } catch { /* module not deployed yet */ }
-  try { functions['events-speaker-update-notify'] = (await import('../events-speaker-update-notify/index.ts')).default; } catch { /* module not deployed yet */ }
+  try { functions['email-batch-send'] = (await import('../email-batch-send/index.ts')).default; } catch { /* module not deployed yet */ }
+  try { functions['email-retry-send'] = (await import('../email-retry-send/index.ts')).default; } catch { /* module not deployed yet */ }
+  try { functions['email-webhook'] = (await import('../email-webhook/index.ts')).default; } catch { /* module not deployed yet */ }
   try { functions['integrations-track-offer'] = (await import('../integrations-track-offer/index.ts')).default; } catch { /* module not deployed yet */ }
 })();
 
