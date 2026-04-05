@@ -71,7 +71,7 @@ export function gatewazeModulesPlugin(): Plugin {
     load(id) {
       // Return empty module for stubbed packages
       if (id.startsWith('\0stub:')) {
-        return 'export default {}; export const __stub = true;';
+        return id.endsWith('.css') ? '' : 'export default {};';
       }
     },
 
@@ -119,7 +119,7 @@ export function gatewazeModulesPlugin(): Plugin {
     load(id) {
       // Return empty module for stubbed packages
       if (id.startsWith('\0stub:')) {
-        return 'export default {}; export const __stub = true;';
+        return id.endsWith('.css') ? '' : 'export default {};';
       }
       if (id !== RESOLVED_ID) return;
 
