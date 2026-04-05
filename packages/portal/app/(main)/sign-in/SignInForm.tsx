@@ -104,6 +104,7 @@ export function SignInForm({ brandConfig, enabledModuleIds = [], enabledFeatures
         headers: {
           'Content-Type': 'application/json',
           'apikey': config.supabaseAnonKey,
+          'Authorization': `Bearer ${config.supabaseAnonKey}`,
         },
         body: JSON.stringify({
           email: trimmedEmail,
