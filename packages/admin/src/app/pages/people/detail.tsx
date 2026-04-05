@@ -1006,9 +1006,6 @@ export default function MemberDetailPage() {
         </div>
       </div>
 
-      {/* Module extension point: subscription badges, etc. */}
-      <ModuleSlot name="person-detail:header" props={{ person, personId: id }} />
-
       <div className="-mx-(--margin-x)">
         <Tabs
           fullWidth
@@ -1021,7 +1018,7 @@ export default function MemberDetailPage() {
             competitions.length > 0 && { id: 'competitions', label: 'Competitions', icon: <TrophyIcon className="size-4" />, count: competitions.length },
             offers.length > 0 && { id: 'offers', label: 'Offers', icon: <CalendarIcon className="size-4" />, count: offers.length },
             hasCIO && { id: 'activities', label: 'Activities', icon: <ClockIcon className="size-4" />, count: activities.length },
-            hasEvents && { id: 'events', label: 'Events', icon: <CalendarIcon className="size-4" />, count: eventRegistrations.length + speakerSubmissions.length },
+            hasEvents && { id: 'events', label: 'Events', icon: <CalendarIcon className="size-4" /> },
             hasCIO && { id: 'relationships', label: 'Relationships', icon: <LinkIcon className="size-4" />, count: relationships.length },
             competitionWins.length > 0 && { id: 'wins', label: 'Wins', icon: <TrophyIcon className="size-4" />, count: competitionWins.length },
             { id: 'emails', label: 'Emails', icon: <EnvelopeIcon className="size-4" /> },
@@ -1035,6 +1032,9 @@ export default function MemberDetailPage() {
         {/* Profile Tab */}
         {activeTab === 'profile' && (
           <div>
+            {/* Module extension point: subscription badges, etc. */}
+            <ModuleSlot name="person-detail:subscriptions" props={{ person, personId: id }} />
+
             {/* Edit/Save Controls */}
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-semibold text-[var(--gray-12)]">
@@ -1654,132 +1654,7 @@ export default function MemberDetailPage() {
 
         {/* Events Tab */}
         {activeTab === 'events' && (
-          <div className="space-y-6">
-            {/* Registrations */}
-            <Card variant="surface" className="p-6">
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <CalendarIcon className="size-5" />
-                Registered ({eventRegistrations.length})
-              </h2>
-              {eventRegistrations.length === 0 ? (
-                <p className="text-sm text-[var(--gray-11)]">No event registrations found.</p>
-              ) : (
-                <div className="space-y-2">
-                  {eventRegistrations.map((reg) => (
-                    <div key={reg.id} className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-[var(--gray-12)] truncate">
-                            {reg.event?.event_title || reg.event_id}
-                          </p>
-                          {(reg.event?.event_city || reg.event?.event_country_code) && (
-                            <p className="text-sm text-[var(--gray-11)] mt-0.5">
-                              {[reg.event.event_city, reg.event.event_country_code].filter(Boolean).join(', ')}
-                            </p>
-                          )}
-                          {reg.event?.event_start && (
-                            <p className="text-xs text-[var(--gray-a8)] mt-0.5">
-                              {new Date(reg.event.event_start).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex flex-col items-end gap-1 shrink-0">
-                          <Badge variant="soft" color={reg.status === 'confirmed' ? 'green' : reg.status === 'cancelled' ? 'red' : 'orange'}>
-                            {reg.status}
-                          </Badge>
-                          {reg.registered_at && (
-                            <span className="text-xs text-[var(--gray-a8)]">
-                              {formatTimeAgo(reg.registered_at)}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Card>
-
-            {/* Attended */}
-            <Card variant="surface" className="p-6">
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <CheckCircleIcon className="size-5" />
-                Attended ({eventAttendances.length})
-              </h2>
-              {eventAttendances.length === 0 ? (
-                <p className="text-sm text-[var(--gray-11)]">No event attendance records found.</p>
-              ) : (
-                <div className="space-y-2">
-                  {eventAttendances.map((att) => (
-                    <div key={att.id} className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-[var(--gray-12)] truncate">
-                            {att.event?.event_title || att.event_id}
-                          </p>
-                          {(att.event?.event_city || att.event?.event_country_code) && (
-                            <p className="text-sm text-[var(--gray-11)] mt-0.5">
-                              {[att.event.event_city, att.event.event_country_code].filter(Boolean).join(', ')}
-                            </p>
-                          )}
-                        </div>
-                        {att.checked_in_at && (
-                          <span className="text-xs text-[var(--gray-a8)] shrink-0">
-                            Checked in {formatTimeAgo(att.checked_in_at)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Card>
-
-            {/* Speaker submissions */}
-            <Card variant="surface" className="p-6">
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Square3Stack3DIcon className="size-5" />
-                Speaker submissions ({speakerSubmissions.length})
-              </h2>
-              {speakerSubmissions.length === 0 ? (
-                <p className="text-sm text-[var(--gray-11)]">No speaker submissions found.</p>
-              ) : (
-                <div className="space-y-2">
-                  {speakerSubmissions.map((sub) => (
-                    <div key={sub.id} className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-[var(--gray-12)] truncate">
-                            {sub.event?.event_title || sub.event_uuid}
-                          </p>
-                          {sub.talk_title && (
-                            <p className="text-sm text-[var(--gray-11)] mt-0.5 italic truncate">
-                              "{sub.talk_title}"
-                            </p>
-                          )}
-                          {(sub.event?.event_city || sub.event?.event_country_code) && (
-                            <p className="text-sm text-[var(--gray-11)] mt-0.5">
-                              {[sub.event.event_city, sub.event.event_country_code].filter(Boolean).join(', ')}
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex flex-col items-end gap-1 shrink-0">
-                          <Badge variant="soft" color={sub.status === 'approved' || sub.status === 'confirmed' ? 'green' : sub.status === 'rejected' ? 'red' : 'orange'}>
-                            {sub.status}
-                          </Badge>
-                          {sub.submitted_at && (
-                            <span className="text-xs text-[var(--gray-a8)]">
-                              {formatTimeAgo(sub.submitted_at)}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Card>
-          </div>
+          <ModuleSlot name="person-detail:events" props={{ person, personId: id }} />
         )}
 
         {/* Relationships Tab (Customer.io module) */}
