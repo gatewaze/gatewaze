@@ -34,6 +34,7 @@ import { CompetitionWinnerService, CompetitionWinner } from '@/utils/competition
 import { supabase } from '@/lib/supabase';
 import { EmailHistorySection } from '@/components/emails/EmailHistorySection';
 import { useHasModule } from '@/hooks/useModuleFeature';
+import { ModuleSlot } from '@/components/ModuleSlot';
 
 // Helper function to get avatar URL with fallback
 function getAvatarUrl(person: Person, size: number = 80): string {
@@ -1004,6 +1005,9 @@ export default function MemberDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Module extension point: subscription badges, etc. */}
+      <ModuleSlot name="person-detail:header" props={{ person, personId: id }} />
 
       <div className="-mx-(--margin-x)">
         <Tabs
