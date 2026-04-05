@@ -96,7 +96,8 @@ export function gatewazeModulesPlugin(): Plugin {
     load(id) {
       // Return empty module for stubbed packages
       if (id.startsWith('\0stub:')) {
-        return id.endsWith('.css') ? '' : 'export default {};';
+        if (id.endsWith('.css')) return '';
+        return { code: 'export default {};', syntheticNamedExports: true };
       }
       // Catch resolved paths that don't exist on disk (e.g. @/ alias imports
       // from module files that point to admin components not in this build)
@@ -110,7 +111,8 @@ export function gatewazeModulesPlugin(): Plugin {
         });
         if (!fileExists) {
           console.warn(`[gatewaze-modules] Stubbing missing resolved path: ${id}`);
-          return id.endsWith('.css') ? '' : 'export default {};';
+          if (id.endsWith('.css')) return '';
+        return { code: 'export default {};', syntheticNamedExports: true };
         }
       }
     },
@@ -159,7 +161,8 @@ export function gatewazeModulesPlugin(): Plugin {
     load(id) {
       // Return empty module for stubbed packages
       if (id.startsWith('\0stub:')) {
-        return id.endsWith('.css') ? '' : 'export default {};';
+        if (id.endsWith('.css')) return '';
+        return { code: 'export default {};', syntheticNamedExports: true };
       }
       if (id !== RESOLVED_ID) return;
 
