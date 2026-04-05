@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import type { BrandConfig } from '@/config/brand'
 import { getClientBrandConfig } from '@/config/brand'
 import { useAuth } from '@/hooks/useAuth'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import { GlassPanel } from '@/components/ui/GlassPanel'
 import { GlowInput } from '@/components/ui/GlowInput'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -56,11 +57,11 @@ export function ProfileContent({ brandConfig }: Props) {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [saveSuccess, setSaveSuccess] = useState(false)
 
-  // Communication preferences state
-  const [marketingConsent, setMarketingConsent] = useState(false)
-  const [isSavingPreferences, setIsSavingPreferences] = useState(false)
-  const [preferencesSuccess, setPreferencesSuccess] = useState(false)
-  const [preferencesError, setPreferencesError] = useState<string | null>(null)
+  // Subscription preferences state
+  const [subTopics, setSubTopics] = useState<Array<{ id: string; list_id: string; label: string; description: string | null; default_subscribed: boolean }>>([])
+  const [subscriptions, setSubscriptions] = useState<Map<string, boolean>>(new Map())
+  const [subLoading, setSubLoading] = useState(true)
+  const [savingSubId, setSavingSubId] = useState<string | null>(null)
 
   // Profile image state
   const [profileImage, setProfileImage] = useState<File | null>(null)
@@ -152,7 +153,6 @@ export function ProfileContent({ brandConfig }: Props) {
         }
 
         setProfileData(profile)
-        setMarketingConsent(String(personAttrs.marketing_consent) === 'true')
         setFormData({
           first_name: profile.first_name,
           last_name: profile.last_name,
@@ -175,6 +175,53 @@ export function ProfileContent({ brandConfig }: Props) {
       fetchProfile()
     }
   }, [session])
+
+  // Load subscription topics and user's subscription state
+  useEffect(() => {
+    async function loadSubscriptions() {
+      if (!user?.email) return
+      try {
+        const sb = getSupabaseClient()
+        const { data: topicData } = await sb.from('email_topic_labels').select('*').order('label')
+        setSubTopics(topicData || [])
+
+        const { data: subData } = await sb.from('email_subscriptions').select('list_id, subscribed').eq('email', user.email)
+        const subMap = new Map<string, boolean>()
+        for (const sub of subData || []) subMap.set(sub.list_id, sub.subscribed)
+        for (const topic of topicData || []) {
+          if (!subMap.has(topic.list_id)) subMap.set(topic.list_id, topic.default_subscribed)
+        }
+        setSubscriptions(subMap)
+      } catch (err) {
+        console.error('Error loading subscriptions:', err)
+      } finally {
+        setSubLoading(false)
+      }
+    }
+    loadSubscriptions()
+  }, [user?.email])
+
+  const handleToggleSubscription = useCallback(async (listId: string, subscribed: boolean) => {
+    if (!user?.email) return
+    setSavingSubId(listId)
+    try {
+      const sb = getSupabaseClient()
+      const sess = await sb.auth.getSession()
+      await fetch(`${getClientBrandConfig().supabaseUrl}/functions/v1/people-track-subscription`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sess.data.session?.access_token}`,
+        },
+        body: JSON.stringify({ email: user.email, list_id: listId, subscribed, source: 'portal' }),
+      })
+      setSubscriptions(prev => { const next = new Map(prev); next.set(listId, subscribed); return next })
+    } catch (err) {
+      console.error('Error updating subscription:', err)
+    } finally {
+      setSavingSubId(null)
+    }
+  }, [user?.email])
 
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {}
@@ -356,42 +403,8 @@ export function ProfileContent({ brandConfig }: Props) {
     }
   }
 
-  const handleSavePreferences = async (consent: boolean) => {
-    if (!session?.access_token) return
-
-    setIsSavingPreferences(true)
-    setPreferencesError(null)
-    setPreferencesSuccess(false)
-
-    try {
-      const config = getClientBrandConfig()
-
-      const response = await fetch(`${config.supabaseUrl}/functions/v1/profile-update`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': config.supabaseAnonKey,
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ marketing_consent: consent }),
-      })
-
-      const result = await response.json()
-
-      if (!result.success) {
-        setPreferencesError(result.error || 'Failed to update preferences')
-        setMarketingConsent(!consent) // Revert on failure
-        return
-      }
-
-      setPreferencesSuccess(true)
-    } catch (err) {
-      console.error('Error updating preferences:', err)
-      setPreferencesError('An unexpected error occurred')
-      setMarketingConsent(!consent) // Revert on failure
-    } finally {
-      setIsSavingPreferences(false)
-    }
+  const handleSavePreferences = async (_consent: boolean) => {
+    // Legacy — preferences are now managed per-subscription via handleToggleSubscription
   }
 
   // Loading state
@@ -649,66 +662,48 @@ export function ProfileContent({ brandConfig }: Props) {
             </form>
           </GlassPanel>
 
-          {/* Communication Preferences */}
+          {/* Subscriptions */}
           <GlassPanel padding="p-6 sm:p-8" className="mt-6">
-            <h2 className="text-lg font-semibold text-white mb-4">Communication Preferences</h2>
+            <h2 className="text-lg font-semibold text-white mb-4">Subscriptions</h2>
 
-            {preferencesError && (
-              <div className="mb-4 p-3 bg-red-500/20 border border-red-400/50 rounded-lg text-red-300 text-sm">
-                {preferencesError}
+            {subLoading ? (
+              <div className="flex items-center gap-3 py-4">
+                <div className="animate-spin w-5 h-5 border-2 border-white/30 border-t-white rounded-full" />
+                <span className="text-white/50 text-sm">Loading subscriptions...</span>
               </div>
-            )}
-
-            {preferencesSuccess && (
-              <div className="mb-4 p-3 rounded-lg text-white text-sm" style={{ backgroundColor: `${primaryColor}33`, border: `1px solid ${primaryColor}80` }}>
-                Your communication preferences have been updated.
+            ) : subTopics.length === 0 ? (
+              <p className="text-white/50 text-sm">No subscriptions available.</p>
+            ) : (
+              <div className="space-y-4">
+                {subTopics.map((topic) => {
+                  const isSubscribed = subscriptions.get(topic.list_id) ?? topic.default_subscribed
+                  const isSaving = savingSubId === topic.list_id
+                  return (
+                    <div key={topic.id} className="flex items-center justify-between">
+                      <div className="flex-1 mr-4">
+                        <span className="text-white text-sm font-medium">{topic.label}</span>
+                        {topic.description && (
+                          <p className="text-white/50 text-xs mt-0.5">{topic.description}</p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => handleToggleSubscription(topic.list_id, !isSubscribed)}
+                        disabled={isSaving}
+                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${
+                          isSubscribed ? '' : 'bg-white/20'
+                        } ${isSaving ? 'opacity-50' : ''}`}
+                        style={isSubscribed ? { backgroundColor: primaryColor } : {}}
+                        role="switch"
+                        aria-checked={isSubscribed}
+                      >
+                        <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200 ${
+                          isSubscribed ? 'translate-x-5' : 'translate-x-0'
+                        }`} />
+                      </button>
+                    </div>
+                  )
+                })}
               </div>
-            )}
-
-            <label className="flex items-start gap-3 cursor-pointer">
-              <div className="relative flex-shrink-0 mt-0.5">
-                <input
-                  type="checkbox"
-                  checked={marketingConsent}
-                  onChange={(e) => {
-                    setMarketingConsent(e.target.checked)
-                    setPreferencesSuccess(false)
-                    handleSavePreferences(e.target.checked)
-                  }}
-                  disabled={isSavingPreferences}
-                  className="sr-only peer"
-                />
-                <div
-                  className="w-5 h-5 rounded border-2 transition-colors"
-                  style={{
-                    borderColor: marketingConsent ? primaryColor : 'rgba(255,255,255,0.4)',
-                    backgroundColor: marketingConsent ? primaryColor : 'transparent',
-                    opacity: isSavingPreferences ? 0.5 : 1,
-                  }}
-                >
-                  {marketingConsent && (
-                    <svg className="w-full h-full text-white" viewBox="0 0 20 20" fill="currentColor">
-                      <path
-                        fillRule="evenodd"
-                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                  )}
-                </div>
-              </div>
-              <div>
-                <span className="text-white text-sm font-medium">
-                  Marketing emails and updates
-                </span>
-                <p className="text-white/50 text-xs mt-1">
-                  Receive occasional updates about events, community news, and relevant content.
-                </p>
-              </div>
-            </label>
-
-            {isSavingPreferences && (
-              <p className="text-white/50 text-xs mt-3">Saving...</p>
             )}
           </GlassPanel>
       </div>
