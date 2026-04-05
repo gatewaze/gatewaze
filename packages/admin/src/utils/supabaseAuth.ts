@@ -33,7 +33,7 @@ export class SupabaseAuthService {
     try {
       console.log('SupabaseAuthService - Sending magic link for:', email)
 
-      // Step 1: Verify admin exists via edge function
+      // Edge function verifies admin + sends magic link email via platform email service
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
       const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
@@ -43,7 +43,7 @@ export class SupabaseAuthService {
           'Content-Type': 'application/json',
           apikey: anonKey,
         },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, redirectTo: window.location.origin }),
       })
 
       const data = await res.json()
@@ -55,8 +55,8 @@ export class SupabaseAuthService {
         }
       }
 
-      // Step 2: If edge function returned verifyOnly, send OTP from client
-      // (client-side signInWithOtp respects emailRedirectTo)
+      // Fallback: if edge function couldn't send email (no SMTP configured),
+      // it returns verifyOnly — try client-side OTP via GoTrue
       if (data.verifyOnly) {
         const { error: otpError } = await supabase.auth.signInWithOtp({
           email,

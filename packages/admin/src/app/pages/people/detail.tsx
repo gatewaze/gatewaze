@@ -422,9 +422,14 @@ export default function MemberDetailPage() {
         .from('people')
         .select('*')
         .eq('id', id)
-        .single();
+        .maybeSingle();
 
       if (customerError) throw customerError;
+      if (!customerData) {
+        toast.error('Person not found');
+        navigate('/people');
+        return;
+      }
 
       setPerson(customerData);
 
