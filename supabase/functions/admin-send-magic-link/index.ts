@@ -99,13 +99,13 @@ async function handler(req: Request) {
               Click the button below to sign in to your admin account.
             </p>
             <div style="margin: 32px 0;">
-              <a href="${magicLink}" style="display: inline-block; padding: 12px 32px; background: #111; color: #fff; text-decoration: none; border-radius: 6px; font-weight: 500;">
+              <a clicktracking="off" href="${magicLink}" style="display: inline-block; padding: 12px 32px; background: #111; color: #fff; text-decoration: none; border-radius: 6px; font-weight: 500;">
                 Sign In
               </a>
             </div>
             <p style="color: #999; font-size: 13px; line-height: 1.5;">
               If the button doesn't work, copy and paste this link into your browser:<br>
-              <a href="${magicLink}" style="color: #999; word-break: break-all;">${magicLink}</a>
+              <a clicktracking="off" href="${magicLink}" style="color: #999; word-break: break-all;">${magicLink}</a>
             </p>
             <p style="color: #999; font-size: 13px;">This link expires in 1 hour.</p>
           </div>
