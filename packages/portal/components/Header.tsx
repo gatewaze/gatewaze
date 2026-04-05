@@ -114,9 +114,9 @@ export function Header({ brandConfig, navItems = [] }: Props) {
 
   return (
     <header className="relative z-50">
-      <div className="flex items-center justify-between p-4">
+      <div className="relative flex items-center justify-between p-4 min-h-[56px]">
         {/* Logo — both images overlap in a grid cell, crossfade via opacity only */}
-        <Link href="/" className="grid hover:opacity-80 transition-opacity ml-2" style={{ gridTemplate: '1fr / 1fr' }}>
+        <Link href="/" className="grid hover:opacity-80 transition-opacity ml-2 shrink-0" style={{ gridTemplate: '1fr / 1fr' }}>
           {brandConfig.logoIconUrl && !iconError ? (
             <img
               src={brandConfig.logoIconUrl}
@@ -153,9 +153,9 @@ export function Header({ brandConfig, navItems = [] }: Props) {
           )}
         </Link>
 
-        {/* Content Navigation — only shown when 2+ content types are enabled */}
+        {/* Content Navigation — centered horizontally regardless of logo/button width */}
         {navItems.length >= 2 && (
-          <nav className="flex items-center gap-8 overflow-x-auto">
+          <nav className="absolute left-1/2 -translate-x-1/2 flex items-center gap-8 overflow-x-auto">
             {[{ moduleId: '_home', label: 'Home', path: '/', icon: 'home', order: 0 }, ...navItems].map((item) => {
               const isActive = item.path === '/'
                 ? pathname === '/'
@@ -164,9 +164,10 @@ export function Header({ brandConfig, navItems = [] }: Props) {
                 <Link
                   key={item.moduleId}
                   href={item.path}
-                  className={`relative text-base whitespace-nowrap transition-colors group ${
+                  className={`relative whitespace-nowrap transition-colors group ${
                     isActive ? 'text-white' : 'text-white/60 hover:text-white'
                   }`}
+                  style={{ fontSize: 'max(1rem, 16px)' }}
                 >
                   {item.label}
                   <span className={`absolute bottom-0 left-0 h-0.5 bg-white/60 transition-all duration-300 ${
@@ -178,8 +179,8 @@ export function Header({ brandConfig, navItems = [] }: Props) {
           </nav>
         )}
 
-        {/* Auth Navigation */}
-        <nav className="flex items-center gap-4">
+        {/* Auth Navigation — fixed height so header doesn't shift when button is absent */}
+        <nav className="flex items-center gap-4 min-h-[40px]">
           {isLoading ? (
             // Loading skeleton
             <div className="w-20 h-8 bg-white/10 rounded animate-pulse" />

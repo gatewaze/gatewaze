@@ -237,11 +237,20 @@ export function SignInForm({ brandConfig, enabledModuleIds = [], enabledFeatures
     <>
       {/* Logo and header - shown only in form state */}
       <div className="text-center mb-8">
-        {brandConfig.logoIconUrl ? (
+        {brandConfig.logoUrl ? (
+          <img
+            src={brandConfig.logoUrl}
+            alt={brandConfig.name}
+            className="h-10 w-auto mx-auto mb-4"
+            style={{ filter: 'brightness(0) invert(1)' }}
+            onError={(e) => { e.currentTarget.style.display = 'none' }}
+          />
+        ) : brandConfig.logoIconUrl ? (
           <img
             src={brandConfig.logoIconUrl}
             alt={brandConfig.name}
-            className="w-12 h-12 mx-auto mb-4"
+            className="h-10 w-auto mx-auto mb-4"
+            style={{ filter: 'brightness(0) invert(1)' }}
             onError={(e) => { e.currentTarget.style.display = 'none' }}
           />
         ) : (
