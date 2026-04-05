@@ -697,11 +697,22 @@ modulesRouter.post('/:id/enable', async (req, res) => {
       };
     }
 
-    // Update status and portal_nav in DB
+    // Upsert status and metadata in DB (handles both new installs and re-enables)
+    const upsertPayload: Record<string, unknown> = {
+      id: moduleId,
+      ...updatePayload,
+      name: mod?.config.name || moduleId,
+      description: mod?.config.description || '',
+      version: mod?.config.version || '1.0.0',
+      features: mod?.config.features || [],
+      type: mod?.config.type || 'feature',
+      visibility: mod?.config.visibility || 'public',
+      admin_nav: mod?.config.adminNavItems || null,
+    };
+
     const { error: updateErr } = await supabase
       .from('installed_modules')
-      .update(updatePayload)
-      .eq('id', moduleId);
+      .upsert(upsertPayload, { onConflict: 'id' });
 
     if (updateErr) {
       return res.status(500).json({ error: updateErr.message });
