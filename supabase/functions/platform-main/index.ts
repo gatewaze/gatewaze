@@ -26,13 +26,9 @@ const functions: Record<string, (req: Request) => Response | Promise<Response>> 
 
 // Module edge functions loaded dynamically (gracefully skipped if not yet deployed)
 await (async () => {
-  try { functions['calendars-api'] = (await import('../calendars-api/index.ts')).default; } catch { /* module not deployed yet */ }
-  try { functions['calendars-discover'] = (await import('../calendars-discover/index.ts')).default; } catch { /* module not deployed yet */ }
-  try { functions['calendars-process-csv'] = (await import('../calendars-process-csv/index.ts')).default; } catch { /* module not deployed yet */ }
-  try { functions['email-batch-send'] = (await import('../email-batch-send/index.ts')).default; } catch { /* module not deployed yet */ }
-  try { functions['email-retry-send'] = (await import('../email-retry-send/index.ts')).default; } catch { /* module not deployed yet */ }
-  try { functions['email-webhook'] = (await import('../email-webhook/index.ts')).default; } catch { /* module not deployed yet */ }
-  try { functions['integrations-track-offer'] = (await import('../integrations-track-offer/index.ts')).default; } catch { /* module not deployed yet */ }
+  try { functions['newsletter-gdoc-import'] = (await import('../newsletter-gdoc-import/index.ts')).default; } catch { /* module not deployed yet */ }
+  try { functions['newsletter-send'] = (await import('../newsletter-send/index.ts')).default; } catch { /* module not deployed yet */ }
+  try { functions['newsletter-unsubscribe'] = (await import('../newsletter-unsubscribe/index.ts')).default; } catch { /* module not deployed yet */ }
 })();
 
 serve(async (req: Request) => {
