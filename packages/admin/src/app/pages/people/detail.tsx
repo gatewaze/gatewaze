@@ -596,60 +596,59 @@ export default function MemberDetailPage() {
         }
       }
 
-      // Fetch email subscriptions (only if bulk-emailing module is enabled)
+      // Legacy email subscriptions (bulk-emailing module) — tables may not exist
+      // if the lists module has replaced them. Fail silently.
       if (hasBulkEmailing && customerData?.email) {
-        const { data: subscriptionsData } = await supabase
-          .from('email_subscriptions')
-          .select('id, list_id, subscribed, subscribed_at, unsubscribed_at')
-          .eq('customer_id', customerData.id)
-          .order('list_id', { ascending: true });
+        try {
+          const { data: subscriptionsData } = await supabase
+            .from('email_subscriptions')
+            .select('id, list_id, subscribed, subscribed_at, unsubscribed_at')
+            .eq('customer_id', customerData.id)
+            .order('list_id', { ascending: true });
 
-        // Fetch topic labels for display (including default_subscribed)
-        const { data: labelsData } = await supabase
-          .from('email_topic_labels')
-          .select('list_id, label, default_subscribed');
+          const { data: labelsData } = await supabase
+            .from('email_topic_labels')
+            .select('list_id, label, default_subscribed');
 
-        // Build label map
-        const labelMap: Record<string, TopicLabelInfo> = {};
-        if (labelsData) {
-          labelsData.forEach((item: { list_id: string; label: string; default_subscribed: boolean }) => {
-            labelMap[item.list_id] = {
-              label: item.label,
-              default_subscribed: item.default_subscribed,
-            };
-          });
-        }
-        setTopicLabels(labelMap);
-
-        // Get list of list_ids the user already has subscriptions for
-        const existingListIds = new Set((subscriptionsData || []).map(sub => sub.list_id));
-
-        // Create synthetic subscriptions for topics the user doesn't have explicit subscriptions for
-        const syntheticSubscriptions: EmailSubscription[] = [];
-        Object.entries(labelMap).forEach(([list_id, info]) => {
-          if (!existingListIds.has(list_id)) {
-            syntheticSubscriptions.push({
-              id: `default_${list_id}`, // Synthetic ID
-              list_id,
-              subscribed: info.default_subscribed,
-              isDefault: true,
+          const labelMap: Record<string, TopicLabelInfo> = {};
+          if (labelsData) {
+            labelsData.forEach((item: { list_id: string; label: string; default_subscribed: boolean }) => {
+              labelMap[item.list_id] = {
+                label: item.label,
+                default_subscribed: item.default_subscribed,
+              };
             });
           }
-        });
+          setTopicLabels(labelMap);
 
-        // Combine real and synthetic subscriptions
-        const allSubscriptions = [
-          ...(subscriptionsData || []),
-          ...syntheticSubscriptions,
-        ].sort((a, b) => {
-          // Natural sort for topic_1, topic_2, etc.
-          const numA = parseInt(a.list_id.replace('topic_', '')) || 0;
-          const numB = parseInt(b.list_id.replace('topic_', '')) || 0;
-          if (numA !== numB) return numA - numB;
-          return a.list_id.localeCompare(b.list_id);
-        });
+          const existingListIds = new Set((subscriptionsData || []).map(sub => sub.list_id));
 
-        setEmailSubscriptions(allSubscriptions);
+          const syntheticSubscriptions: EmailSubscription[] = [];
+          Object.entries(labelMap).forEach(([list_id, info]) => {
+            if (!existingListIds.has(list_id)) {
+              syntheticSubscriptions.push({
+                id: `default_${list_id}`,
+                list_id,
+                subscribed: info.default_subscribed,
+                isDefault: true,
+              });
+            }
+          });
+
+          const allSubscriptions = [
+            ...(subscriptionsData || []),
+            ...syntheticSubscriptions,
+          ].sort((a, b) => {
+            const numA = parseInt(a.list_id.replace('topic_', '')) || 0;
+            const numB = parseInt(b.list_id.replace('topic_', '')) || 0;
+            if (numA !== numB) return numA - numB;
+            return a.list_id.localeCompare(b.list_id);
+          });
+
+          setEmailSubscriptions(allSubscriptions);
+        } catch {
+          // Tables don't exist — subscriptions handled by lists module slot instead
+        }
       }
 
       // Fetch event registrations, attendance, and speaker submissions via member_profiles
