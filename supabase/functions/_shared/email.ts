@@ -1,4 +1,6 @@
-import { SMTPClient } from 'https://deno.land/x/denomailer@1.6.0/mod.ts';
+// Dynamic import — only loaded when SMTP provider is actually used.
+// Top-level import of denomailer can fail in some Supabase Edge Runtime environments.
+let SMTPClient: any = null;
 
 interface EmailConfig {
   provider: 'sendgrid' | 'smtp';
@@ -108,6 +110,12 @@ async function sendViaSmtp(
 ): Promise<void> {
   if (!config.smtpHost) {
     throw new Error('SMTP host is not configured');
+  }
+
+  // Lazy-load denomailer only when SMTP is actually used
+  if (!SMTPClient) {
+    const mod = await import('https://deno.land/x/denomailer@1.6.0/mod.ts');
+    SMTPClient = mod.SMTPClient;
   }
 
   const client = new SMTPClient({
