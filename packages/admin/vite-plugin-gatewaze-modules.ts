@@ -59,7 +59,8 @@ export function gatewazeModulesPlugin(): Plugin {
           try {
             const pkgName = id.startsWith('@') ? id.split('/').slice(0, 2).join('/') : id.split('/')[0];
             const pkgPath = resolve(projectRoot, 'node_modules', pkgName);
-            if (!existsSync(pkgPath)) {
+            const adminPkgPath = resolve(__dirname, 'node_modules', pkgName);
+            if (!existsSync(pkgPath) && !existsSync(adminPkgPath)) {
               console.warn(`[gatewaze-modules] Stubbing unresolvable package "${id}" imported from module`);
               return `\0stub:${id}`;
             }
