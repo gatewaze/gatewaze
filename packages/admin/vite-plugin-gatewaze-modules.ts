@@ -79,6 +79,17 @@ export function gatewazeModulesPlugin(): Plugin {
             return `\0stub:${id}`;
           }
         }
+
+        // Resolved absolute paths that don't exist (after alias resolution by other plugins)
+        if (id.startsWith('/') && !id.includes('node_modules')) {
+          const extensions = ['', '.ts', '.tsx', '.js', '.jsx'];
+          const fileExists = extensions.some(ext => existsSync(id + ext))
+            || extensions.some(ext => existsSync(resolve(id, 'index' + ext)));
+          if (!fileExists) {
+            console.warn(`[gatewaze-modules] Stubbing missing resolved path "${id}" from module`);
+            return `\0stub:${id}`;
+          }
+        }
       }
     },
 
@@ -89,13 +100,17 @@ export function gatewazeModulesPlugin(): Plugin {
       }
       // Catch resolved paths that don't exist on disk (e.g. @/ alias imports
       // from module files that point to admin components not in this build)
-      if (id.startsWith('/') && !id.includes('node_modules') && !existsSync(id)) {
-        const extensions = ['.ts', '.tsx', '.js', '.jsx'];
-        const exists = extensions.some(ext => existsSync(id + ext))
-          || extensions.some(ext => existsSync(resolve(id, 'index' + ext)));
-        if (!exists) {
+      if (id.startsWith('/') && !id.includes('node_modules') && !id.includes('\0')) {
+        // Check if file exists with any extension
+        const extensions = ['', '.ts', '.tsx', '.js', '.jsx'];
+        const fileExists = extensions.some(ext => {
+          try { return existsSync(id + ext); } catch { return false; }
+        }) || extensions.some(ext => {
+          try { return existsSync(resolve(id, 'index' + ext)); } catch { return false; }
+        });
+        if (!fileExists) {
           console.warn(`[gatewaze-modules] Stubbing missing resolved path: ${id}`);
-          return 'export default {};';
+          return id.endsWith('.css') ? '' : 'export default {};';
         }
       }
     },
