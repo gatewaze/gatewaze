@@ -500,7 +500,18 @@ async function sendMagicLinkIfRequested(
       return false
     }
 
-    const magicLink = linkData.properties.action_link
+    // The generated action_link may have redirect_to set to the default site_url.
+    // Replace it with the actual portal redirect URL if one was requested.
+    let magicLink = linkData.properties.action_link
+    if (redirectTo) {
+      try {
+        const linkUrl = new URL(magicLink)
+        linkUrl.searchParams.set('redirect_to', redirectTo)
+        magicLink = linkUrl.toString()
+      } catch {
+        // If URL parsing fails, use as-is
+      }
+    }
 
     // Fetch brand name for email template
     const { data: brandSetting } = await supabase
