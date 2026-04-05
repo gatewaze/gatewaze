@@ -1289,7 +1289,7 @@ export default function MembersPage() {
 
           {/* Pagination */}
           {!loading && table.getRowModel().rows.length > 0 && (
-            <div className="px-6 py-4 bg-[var(--gray-a3)] border-t border-[var(--gray-a6)]">
+            <div className="px-6 py-4 border-t border-[var(--gray-a5)]">
               <div className="flex items-center justify-between">
                 <div className="text-sm text-[var(--gray-11)]">
                   Showing{' '}
