@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { updateSupabaseSession } from './lib/supabase/middleware'
 import modulePrefixes from './lib/modules/generated-module-prefixes.json'
 
 // Known brand hostnames that should pass through normally.
@@ -207,6 +208,13 @@ export async function middleware(request: NextRequest) {
   // Health check endpoint — always pass through for K8s probes
   if (pathname === '/api/health') {
     return NextResponse.next()
+  }
+
+  // Refresh Supabase auth session (syncs cookies for server components).
+  // updateSupabaseSession mutates request.cookies so all downstream
+  // NextResponse.next({ request }) calls will carry the refreshed tokens.
+  if (!pathname.startsWith('/_next') && !pathname.startsWith('/api') && !/\.\w+$/.test(pathname)) {
+    await updateSupabaseSession(request)
   }
 
   // Check events module status once (used in both known host and custom domain sections)
