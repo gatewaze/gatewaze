@@ -29,15 +29,14 @@ export function Header({ brandConfig, navItems = [] }: Props) {
   // Hide sign-in button when already on sign-in page
   const isOnSignInPage = pathname === '/sign-in'
 
-  // Show full logo on main pages (homepage, event listings), icon on individual event pages
-  // Individual event pages match /events/<identifier>/... where identifier is not a known section
-  const knownSections = ['upcoming', 'past', 'calendar', 'map', 'search']
-  const eventPathSegment = pathname.startsWith('/events/') ? pathname.split('/')[2] : null
-  const isIndividualEventPage = !!eventPathSegment && !knownSections.includes(eventPathSegment)
+  // Always show full logo when available for consistent branding
   const [iconError, setIconError] = useState(false)
   const [logoError, setLogoError] = useState(false)
   const hasFullLogo = !!brandConfig.logoUrl && !logoError
-  const showFullLogo = hasFullLogo && !isIndividualEventPage
+  const showFullLogo = hasFullLogo
+
+  // Detect if portal is on a light background to style logo accordingly
+  const isLightBg = typeof document !== 'undefined' && document.documentElement.classList.contains('light-brand')
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -122,14 +121,20 @@ export function Header({ brandConfig, navItems = [] }: Props) {
             <img
               src={brandConfig.logoIconUrl}
               alt={brandConfig.name}
-              className="h-8 w-8 col-start-1 row-start-1 self-center transition-opacity duration-300"
-              style={{ opacity: showFullLogo ? 0 : 1 }}
+              className="h-8 w-auto col-start-1 row-start-1 self-center transition-opacity duration-300"
+              style={{
+                opacity: showFullLogo ? 0 : 1,
+                filter: isLightBg ? 'none' : 'brightness(0) invert(1)',
+              }}
               onError={() => setIconError(true)}
             />
           ) : (
             <span
-              className="h-8 col-start-1 row-start-1 self-center text-white font-semibold text-xl transition-opacity duration-300"
-              style={{ opacity: showFullLogo ? 0 : 1 }}
+              className="h-8 col-start-1 row-start-1 self-center font-semibold text-xl transition-opacity duration-300"
+              style={{
+                opacity: showFullLogo ? 0 : 1,
+                color: isLightBg ? '#000000' : '#ffffff',
+              }}
             >
               {brandConfig.name}
             </span>
@@ -138,8 +143,11 @@ export function Header({ brandConfig, navItems = [] }: Props) {
             <img
               src={brandConfig.logoUrl}
               alt={brandConfig.name}
-              className="h-6 w-auto col-start-1 row-start-1 self-center transition-opacity duration-300"
-              style={{ opacity: showFullLogo ? 1 : 0 }}
+              className="h-8 w-auto col-start-1 row-start-1 self-center transition-opacity duration-300"
+              style={{
+                opacity: showFullLogo ? 1 : 0,
+                filter: isLightBg ? 'none' : 'brightness(0) invert(1)',
+              }}
               onError={() => setLogoError(true)}
             />
           )}
