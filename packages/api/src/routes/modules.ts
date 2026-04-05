@@ -15,7 +15,7 @@ import {
 } from '@gatewaze/shared/modules';
 import type { InstalledModuleRow, LoadedModule } from '@gatewaze/shared/modules';
 import { resolve } from 'path';
-import { existsSync, mkdirSync, readdirSync, unlinkSync } from 'fs';
+import { existsSync, mkdirSync, readdirSync, unlinkSync, readFileSync } from 'fs';
 import { execSync } from 'child_process';
 import multer from 'multer';
 import _configImport from '../../../../gatewaze.config.js';
@@ -840,18 +840,28 @@ modulesRouter.post('/:id/disable', async (req, res) => {
 modulesRouter.get('/available', async (_req, res) => {
   try {
     const modules = await loadAllModules();
-    const available = modules.map((m) => ({
-      id: m.config.id,
-      name: m.config.name,
-      description: m.config.description,
-      version: m.config.version,
-      type: m.config.type ?? 'feature',
-      group: m.config.group ?? m.config.type ?? 'feature',
-      visibility: m.config.visibility ?? 'public',
-      features: m.config.features ?? [],
-      minPlatformVersion: m.config.minPlatformVersion,
-      sourceLabel: m.sourceLabel,
-    }));
+    const available = modules.map((m) => {
+      let guide: string | undefined;
+      if (m.resolvedDir) {
+        const guidePath = resolve(m.resolvedDir, 'guide.md');
+        if (existsSync(guidePath)) {
+          try { guide = readFileSync(guidePath, 'utf-8'); } catch { /* skip */ }
+        }
+      }
+      return {
+        id: m.config.id,
+        name: m.config.name,
+        description: m.config.description,
+        version: m.config.version,
+        type: m.config.type ?? 'feature',
+        group: m.config.group ?? m.config.type ?? 'feature',
+        visibility: m.config.visibility ?? 'public',
+        features: m.config.features ?? [],
+        minPlatformVersion: m.config.minPlatformVersion,
+        sourceLabel: m.sourceLabel,
+        guide,
+      };
+    });
     return res.json({ modules: available });
   } catch (err) {
     console.error('[modules] Failed to load available modules:', err);
