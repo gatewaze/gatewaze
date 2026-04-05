@@ -161,11 +161,11 @@ serviceAccount:
 resources:
   admin:
     requests:
-      cpu: 200m
-      memory: 512Mi
+      cpu: 500m
+      memory: 1Gi
     limits:
-      cpu: "1"
-      memory: 1536Mi
+      cpu: "2"
+      memory: 3Gi
 
   portal:
     requests:
