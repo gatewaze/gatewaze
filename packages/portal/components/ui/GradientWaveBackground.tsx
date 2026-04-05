@@ -126,6 +126,108 @@ export function GradientWaveBackground({
     }
   }, [mounted])
 
+  // Mobile accelerometer: map device tilt to camera position (replaces mouse interaction)
+  useEffect(() => {
+    if (!mounted) return
+    if (typeof window === 'undefined') return
+
+    // Only enable on touch devices with accelerometer
+    const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0
+    if (!isTouchDevice) return
+
+    let camera: any = null
+    let baseX = 0
+    let baseY = 0
+    let hasBase = false
+    let animRafId: number
+
+    // Find the Three.js camera from the R3F store
+    function findCamera(): boolean {
+      const container = containerRef.current
+      if (!container) return false
+      const canvas = container.querySelector('canvas')
+      if (!canvas) return false
+      const r3f = (canvas as any).__r3f
+      if (!r3f?.store) return false
+      const state = r3f.store.getState()
+      if (!state.camera) return false
+      camera = state.camera
+      baseX = camera.position.x
+      baseY = camera.position.y
+      return true
+    }
+
+    // Retry finding camera
+    let attempts = 0
+    let findRafId: number
+    function tryFindCamera() {
+      if (findCamera()) return
+      if (attempts++ < 30) findRafId = requestAnimationFrame(tryFindCamera)
+    }
+
+    const findTimer = setTimeout(() => {
+      findRafId = requestAnimationFrame(tryFindCamera)
+    }, 200)
+
+    // Smooth interpolation values
+    let targetOffsetX = 0
+    let targetOffsetY = 0
+    let currentOffsetX = 0
+    let currentOffsetY = 0
+
+    function handleOrientation(event: DeviceOrientationEvent) {
+      if (!camera) return
+      if (!hasBase) {
+        baseX = camera.position.x
+        baseY = camera.position.y
+        hasBase = true
+      }
+
+      // beta: front-back tilt (-180 to 180), gamma: left-right tilt (-90 to 90)
+      const beta = event.beta ?? 0
+      const gamma = event.gamma ?? 0
+
+      // Map tilt to camera offset (subtle movement, ±0.5 units)
+      const range = 0.5
+      targetOffsetX = (gamma / 45) * range
+      targetOffsetY = ((beta - 45) / 45) * range
+    }
+
+    // Smooth animation loop
+    function animate() {
+      if (camera && hasBase) {
+        currentOffsetX += (targetOffsetX - currentOffsetX) * 0.05
+        currentOffsetY += (targetOffsetY - currentOffsetY) * 0.05
+        camera.position.x = baseX + currentOffsetX
+        camera.position.y = baseY + currentOffsetY
+      }
+      animRafId = requestAnimationFrame(animate)
+    }
+
+    // Request permission on iOS 13+ (requires user gesture)
+    const startAccelerometer = async () => {
+      if (typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
+        try {
+          const permission = await (DeviceOrientationEvent as any).requestPermission()
+          if (permission !== 'granted') return
+        } catch {
+          return
+        }
+      }
+      window.addEventListener('deviceorientation', handleOrientation, { passive: true })
+      animRafId = requestAnimationFrame(animate)
+    }
+
+    startAccelerometer()
+
+    return () => {
+      clearTimeout(findTimer)
+      cancelAnimationFrame(findRafId)
+      cancelAnimationFrame(animRafId)
+      window.removeEventListener('deviceorientation', handleOrientation)
+    }
+  }, [mounted])
+
   return (
     <>
       {/* Static gradient placeholder - always present, fades out when WebGL is ready */}
