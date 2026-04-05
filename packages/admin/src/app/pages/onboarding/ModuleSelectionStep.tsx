@@ -2,8 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router";
 import { Loader2, CheckCircle2, AlertTriangle, XCircle } from "lucide-react";
 import { toast } from "sonner";
-import { Card } from "@/components/ui/Card";
-import { Switch } from "@/components/ui";
+import { ModuleCard } from "@/components/ui";
 import { ModuleService } from "@/utils/moduleService";
 import OnboardingWizardLayout from "./OnboardingWizardLayout";
 
@@ -285,32 +284,14 @@ export default function ModuleSelectionStep() {
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {grouped[section].map((mod) => (
-                <Card
+                <ModuleCard
                   key={mod.id}
-                  className={`p-3 cursor-pointer transition-colors ${
-                    selected.has(mod.id)
-                      ? "ring-2 ring-[var(--accent-9)] bg-[var(--accent-a2)]"
-                      : ""
-                  }`}
-                  onClick={() => toggle(mod.id)}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <h4 className="font-semibold text-[var(--gray-12)] text-sm">
-                        {mod.name}
-                      </h4>
-                      <p className="mt-0.5 text-xs text-[var(--gray-11)] line-clamp-2">
-                        {mod.description}
-                      </p>
-                    </div>
-                    <Switch
-                      checked={selected.has(mod.id)}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={() => toggle(mod.id)}
-                      color="cyan"
-                    />
-                  </div>
-                </Card>
+                  id={mod.id}
+                  name={mod.name}
+                  description={mod.description}
+                  enabled={selected.has(mod.id)}
+                  onToggle={() => toggle(mod.id)}
+                />
               ))}
             </div>
           </div>

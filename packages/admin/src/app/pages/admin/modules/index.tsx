@@ -1,9 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   PuzzlePieceIcon,
-  CheckCircleIcon,
-  XCircleIcon,
-  ExclamationTriangleIcon,
   PlusIcon,
   TrashIcon,
   ArrowUpTrayIcon,
@@ -12,7 +9,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 
-import { Card, Badge, Switch, Modal } from "@/components/ui";
+import { Badge, Card, Modal, ModuleInfoModal, ModuleCard } from "@/components/ui";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Form/Input";
 import { Page } from "@/components/shared/Page";
@@ -54,6 +51,7 @@ interface ModuleCardData {
   updateAvailable: boolean;
   platformCompatible: boolean;
   minPlatformVersion?: string;
+  guide?: string;
 }
 
 const ALL_SOURCES_TAB = "__all__";
@@ -78,6 +76,7 @@ export default function ModulesPage() {
   const [availableUpdates, setAvailableUpdates] = useState<ModuleUpdateInfo[]>([]);
   const [availableModules, setAvailableModules] = useState<{ id: string; name: string; description: string; version: string; type: string; group: string; features: string[]; sourceLabel?: string }[]>([]);
   const [activeSourceTab, setActiveSourceTab] = useState<string>(ALL_SOURCES_TAB);
+  const [infoModule, setInfoModule] = useState<ModuleCardData | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadAvailableModules = useCallback(async () => {
@@ -149,6 +148,7 @@ export default function ModulesPage() {
         updateAvailable: !!update,
         platformCompatible: update?.platformCompatible ?? true,
         minPlatformVersion: update?.minPlatformVersion,
+        guide: mod.guide,
       };
     });
 
@@ -304,136 +304,33 @@ export default function ModulesPage() {
     setIsUploading(false);
   };
 
-  const statusBadge = (status: ModuleCardData["status"]) => {
-    switch (status) {
-      case "enabled":
-        return <Badge color="green">Enabled</Badge>;
-      case "disabled":
-        return <Badge color="gray">Disabled</Badge>;
-      case "error":
-        return <Badge color="red">Error</Badge>;
-      case "not_installed":
-        return <Badge color="orange">Not Installed</Badge>;
-    }
+  const renderModuleCard = (mod: ModuleCardData) => {
+    const isEnabled = mod.status === "enabled";
+    const isInstalled = mod.status !== "not_installed";
+
+    return (
+      <ModuleCard
+        key={mod.id}
+        id={mod.id}
+        name={mod.name}
+        description={mod.description}
+        version={mod.installedVersion}
+        enabled={isEnabled}
+        disabled={!isSuperAdmin}
+        toggling={togglingId === mod.id}
+        onToggle={() => handleToggle(mod.id, isEnabled)}
+        onInfo={mod.guide ? () => setInfoModule(mod) : undefined}
+        update={mod.updateAvailable ? {
+          fromVersion: mod.installedVersion,
+          toVersion: mod.version,
+          compatible: mod.platformCompatible,
+          minPlatformVersion: mod.minPlatformVersion,
+          updating: updatingId === mod.id,
+          onUpdate: () => handleUpdate(mod.id),
+        } : undefined}
+      />
+    );
   };
-
-  const statusIcon = (status: ModuleCardData["status"]) => {
-    switch (status) {
-      case "enabled":
-        return <CheckCircleIcon className="size-5 text-green-500" />;
-      case "disabled":
-        return <XCircleIcon className="size-5 text-gray-400" />;
-      case "error":
-        return <ExclamationTriangleIcon className="size-5 text-red-500" />;
-      case "not_installed":
-        return <ExclamationTriangleIcon className="size-5 text-orange-400" />;
-    }
-  };
-
-  const renderModuleCard = (mod: ModuleCardData) => (
-    <Card key={mod.id} className="p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          {statusIcon(mod.status)}
-          <div className="min-w-0">
-            <h3 className="font-semibold text-[var(--gray-12)] truncate">
-              {mod.name}
-            </h3>
-            <div className="flex items-center gap-2">
-              <p className="text-xs text-[var(--gray-a9)]">v{mod.installedVersion}</p>
-              {mod.source !== "bundled" && (
-                <Badge color="blue">Custom</Badge>
-              )}
-            </div>
-          </div>
-        </div>
-        {statusBadge(mod.status)}
-      </div>
-
-      <p className="mt-3 text-sm text-[var(--gray-11)] line-clamp-2">
-        {mod.description}
-      </p>
-
-      {mod.updateAvailable && (
-        <div className={`mt-3 flex items-center justify-between gap-3 rounded-md px-3 py-2 ${
-          mod.platformCompatible
-            ? "bg-blue-500/10 border border-blue-500/20"
-            : "bg-amber-500/10 border border-amber-500/20"
-        }`}>
-          <div>
-            <p className={`text-xs font-medium ${mod.platformCompatible ? "text-blue-400" : "text-amber-400"}`}>
-              {mod.platformCompatible ? "Update available" : "Update blocked"}
-            </p>
-            <p className="text-xs text-[var(--gray-a9)]">
-              v{mod.installedVersion} → v{mod.version}
-            </p>
-            {!mod.platformCompatible && mod.minPlatformVersion && (
-              <p className="text-xs text-amber-400/80 mt-0.5">
-                Requires platform v{mod.minPlatformVersion}
-              </p>
-            )}
-          </div>
-          <Button
-            onClick={() => handleUpdate(mod.id)}
-            size="1"
-            disabled={updatingId === mod.id || !mod.platformCompatible}
-            title={!mod.platformCompatible ? `Requires platform v${mod.minPlatformVersion}` : undefined}
-          >
-            <ArrowPathIcon className={`size-3.5 mr-1 ${updatingId === mod.id ? "animate-spin" : ""}`} />
-            {updatingId === mod.id ? "Updating..." : "Update"}
-          </Button>
-        </div>
-      )}
-
-      {mod.features.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {mod.features.map((feature) => (
-            <span
-              key={feature}
-              className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-[var(--gray-a3)] text-[var(--gray-11)]"
-            >
-              {feature}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {mod.status === "not_installed" && (
-        <div className="mt-4 pt-4 border-t border-[var(--gray-a5)] flex items-center justify-between">
-          <span className="text-sm text-[var(--gray-11)]">Not installed</span>
-          <Button
-            size="1"
-            onClick={() => handleToggle(mod.id, false)}
-            disabled={!isSuperAdmin || togglingId === mod.id}
-          >
-            {togglingId === mod.id ? "Installing..." : "Install"}
-          </Button>
-        </div>
-      )}
-
-      {(mod.status === "enabled" || mod.status === "disabled") && (
-        <div className="mt-4 pt-4 border-t border-[var(--gray-a5)] flex items-center justify-between">
-          <span className="text-sm text-[var(--gray-11)]">
-            {mod.status === "enabled" ? "Active" : "Inactive"}
-          </span>
-          <Switch
-            checked={mod.status === "enabled"}
-            onChange={() =>
-              handleToggle(mod.id, mod.status === "enabled")
-            }
-            disabled={!isSuperAdmin || togglingId === mod.id}
-            color="cyan"
-          />
-        </div>
-      )}
-
-      {mod.installed_at && (
-        <p className="mt-2 text-xs text-[var(--gray-a9)]">
-          Installed {new Date(mod.installed_at).toLocaleDateString()}
-        </p>
-      )}
-    </Card>
-  );
 
   if (loading) {
     return (
@@ -640,6 +537,25 @@ export default function ModulesPage() {
             onInstalled={async () => {
               setShowInstallModal(false);
               await Promise.all([loadInstalledModules(), refreshModulesContext()]);
+            }}
+          />
+        )}
+
+        {infoModule?.guide && (
+          <ModuleInfoModal
+            isOpen
+            onClose={() => setInfoModule(null)}
+            moduleName={infoModule.name}
+            guide={infoModule.guide}
+            enabled={infoModule.status === "enabled"}
+            toggleDisabled={!isSuperAdmin || togglingId === infoModule.id}
+            onToggle={() => {
+              const isEnabled = infoModule.status === "enabled";
+              handleToggle(infoModule.id, isEnabled);
+              // Update local state so the modal reflects the change
+              setInfoModule((prev) =>
+                prev ? { ...prev, status: isEnabled ? "disabled" : "enabled" } : null
+              );
             }}
           />
         )}

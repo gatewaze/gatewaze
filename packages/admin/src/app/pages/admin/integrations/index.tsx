@@ -1,15 +1,12 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
-  CheckCircleIcon,
-  XCircleIcon,
-  ExclamationTriangleIcon,
-  Cog6ToothIcon,
   ArrowsRightLeftIcon,
+  Cog6ToothIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 import { useNavigate } from "react-router";
 
-import { Card, Badge, Switch } from "@/components/ui";
+import { ModuleCard, ModuleInfoModal } from "@/components/ui";
 import { Button } from "@/components/ui/Button";
 import { Page } from "@/components/shared/Page";
 import { useAuthContext } from "@/app/contexts/auth/context";
@@ -28,10 +25,9 @@ interface IntegrationCardData {
   installedVersion: string;
   status: "enabled" | "disabled" | "error" | "not_installed";
   hasSettings: boolean;
-  configuredKeys: number;
-  totalKeys: number;
   installed_at?: string;
   source: string;
+  guide?: string;
 }
 
 export default function IntegrationsPage() {
@@ -43,9 +39,10 @@ export default function IntegrationsPage() {
   const [installedModules, setInstalledModules] = useState<
     InstalledModuleRow[]
   >([]);
-  const [availableModules, setAvailableModules] = useState<{ id: string; name: string; description: string; version: string; type: string; group: string; features: string[] }[]>([]);
+  const [availableModules, setAvailableModules] = useState<{ id: string; name: string; description: string; version: string; type: string; group: string; features: string[]; guide?: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [infoModule, setInfoModule] = useState<IntegrationCardData | null>(null);
 
   const loadInstalledModules = useCallback(async () => {
     const { modules: installed, error } =
@@ -70,7 +67,6 @@ export default function IntegrationsPage() {
     loadAvailableModules();
   }, [loadInstalledModules, loadAvailableModules]);
 
-  // Build card data from integration-type modules available from sources
   const integrationCards: IntegrationCardData[] = useMemo(() => {
     const cards: IntegrationCardData[] = [];
     const availableSet = new Set(availableModules.map((m) => m.id));
@@ -90,14 +86,12 @@ export default function IntegrationsPage() {
         installedVersion: installed?.version ?? mod.version,
         status: installed?.status ?? "not_installed",
         hasSettings: SETTINGS_ROUTES.has(mod.id),
-        configuredKeys: 0,
-        totalKeys: 0,
         installed_at: installed?.installed_at,
         source: "source",
+        guide: mod.guide,
       });
     }
 
-    // Also include installed integration modules not in current sources
     for (const installed of installedModules) {
       if ((installed.type ?? "feature") !== "integration") continue;
       if (availableSet.has(installed.id)) continue;
@@ -110,14 +104,11 @@ export default function IntegrationsPage() {
         installedVersion: installed.version,
         status: installed.status,
         hasSettings: SETTINGS_ROUTES.has(installed.id),
-        configuredKeys: 0,
-        totalKeys: 0,
         installed_at: installed.installed_at,
         source: installed.source ?? "custom",
       });
     }
 
-    // Sort: enabled first, then alphabetically
     cards.sort((a, b) => {
       if (a.status === "enabled" && b.status !== "enabled") return -1;
       if (a.status !== "enabled" && b.status === "enabled") return 1;
@@ -154,61 +145,6 @@ export default function IntegrationsPage() {
     setTogglingId(null);
   };
 
-  const statusBadge = (status: IntegrationCardData["status"]) => {
-    switch (status) {
-      case "enabled":
-        return <Badge color="green">Active</Badge>;
-      case "disabled":
-        return <Badge color="gray">Disabled</Badge>;
-      case "error":
-        return <Badge color="red">Error</Badge>;
-      case "not_installed":
-        return <Badge color="orange">Not Installed</Badge>;
-    }
-  };
-
-  const statusIcon = (status: IntegrationCardData["status"]) => {
-    switch (status) {
-      case "enabled":
-        return <CheckCircleIcon className="size-5 text-green-500" />;
-      case "disabled":
-        return <XCircleIcon className="size-5 text-gray-400" />;
-      case "error":
-        return (
-          <ExclamationTriangleIcon className="size-5 text-red-500" />
-        );
-      case "not_installed":
-        return (
-          <ExclamationTriangleIcon className="size-5 text-orange-400" />
-        );
-    }
-  };
-
-  const configStatus = (mod: IntegrationCardData) => {
-    if (mod.status !== "enabled") return null;
-    if (mod.totalKeys === 0) return null;
-
-    const isConfigured = mod.configuredKeys >= mod.totalKeys;
-    return (
-      <div
-        className={`mt-3 flex items-center gap-2 text-xs ${
-          isConfigured ? "text-green-500" : "text-amber-500"
-        }`}
-      >
-        {isConfigured ? (
-          <CheckCircleIcon className="size-3.5" />
-        ) : (
-          <ExclamationTriangleIcon className="size-3.5" />
-        )}
-        <span>
-          {isConfigured
-            ? "API keys configured"
-            : `${mod.totalKeys - mod.configuredKeys} API key(s) need configuration`}
-        </span>
-      </div>
-    );
-  };
-
   return (
     <Page title="Integrations">
       <div className="p-6">
@@ -217,8 +153,8 @@ export default function IntegrationsPage() {
             Integrations
           </h1>
           <p className="text-[var(--gray-11)] mt-1">
-            Integration modules for connecting Gatewaze with external platforms.
-            Enable a module and configure its settings to get started.
+            Connect Gatewaze with external platforms.
+            Click a card for details, or use the toggle to enable.
           </p>
         </div>
 
@@ -239,72 +175,57 @@ export default function IntegrationsPage() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            {integrationCards.map((mod) => (
-              <Card key={mod.id} className="p-6">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    {statusIcon(mod.status)}
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-[var(--gray-12)] truncate">
-                          {mod.name}
-                        </h3>
-                        {mod.source !== "bundled" && (
-                          <Badge color="blue">Custom</Badge>
-                        )}
-                      </div>
-                      <p className="text-xs text-[var(--gray-a9)]">
-                        v{mod.installedVersion}
-                      </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {integrationCards.map((mod) => {
+              const isEnabled = mod.status === "enabled";
+
+              return (
+                <ModuleCard
+                  key={mod.id}
+                  id={mod.id}
+                  name={mod.name}
+                  description={mod.description}
+                  version={mod.installedVersion}
+                  enabled={isEnabled}
+                  disabled={!isSuperAdmin}
+                  toggling={togglingId === mod.id}
+                  onToggle={() => handleToggle(mod.id, isEnabled)}
+                  onInfo={mod.guide ? () => setInfoModule(mod) : undefined}
+                >
+                  {isEnabled && mod.hasSettings && (
+                    <div className="mt-3 pt-3 border-t border-[var(--gray-a5)]" onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        onClick={() => navigate(`/admin/integrations/${mod.id}`)}
+                        variant="outline"
+                        size="1"
+                      >
+                        <Cog6ToothIcon className="size-3.5 mr-1" />
+                        Settings
+                      </Button>
                     </div>
-                  </div>
-                  {statusBadge(mod.status)}
-                </div>
-
-                <p className="mt-3 text-sm text-[var(--gray-11)] line-clamp-2">
-                  {mod.description}
-                </p>
-
-                {configStatus(mod)}
-
-                <div className="mt-4 pt-4 border-t border-[var(--gray-a5)] flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-[var(--gray-11)]">
-                      {mod.status === "enabled" ? "Active" : "Inactive"}
-                    </span>
-                    <Switch
-                      checked={mod.status === "enabled"}
-                      onChange={() =>
-                        handleToggle(mod.id, mod.status === "enabled")
-                      }
-                      disabled={!isSuperAdmin || togglingId === mod.id}
-                      color="cyan"
-                    />
-                  </div>
-                  {mod.status === "enabled" && mod.hasSettings && (
-                    <Button
-                      onClick={() =>
-                        navigate(`/admin/integrations/${mod.id}`)
-                      }
-                      variant="outline"
-                      size="1"
-                    >
-                      <Cog6ToothIcon className="size-3.5 mr-1" />
-                      Settings
-                    </Button>
                   )}
-                </div>
-
-                {mod.installed_at && (
-                  <p className="mt-2 text-xs text-[var(--gray-a9)]">
-                    Installed{" "}
-                    {new Date(mod.installed_at).toLocaleDateString()}
-                  </p>
-                )}
-              </Card>
-            ))}
+                </ModuleCard>
+              );
+            })}
           </div>
+        )}
+
+        {infoModule?.guide && (
+          <ModuleInfoModal
+            isOpen
+            onClose={() => setInfoModule(null)}
+            moduleName={infoModule.name}
+            guide={infoModule.guide}
+            enabled={infoModule.status === "enabled"}
+            toggleDisabled={!isSuperAdmin || togglingId === infoModule.id}
+            onToggle={() => {
+              const isEnabled = infoModule.status === "enabled";
+              handleToggle(infoModule.id, isEnabled);
+              setInfoModule((prev) =>
+                prev ? { ...prev, status: isEnabled ? "disabled" : "enabled" } : null
+              );
+            }}
+          />
         )}
       </div>
     </Page>
