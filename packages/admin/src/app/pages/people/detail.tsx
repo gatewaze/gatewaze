@@ -596,60 +596,8 @@ export default function MemberDetailPage() {
         }
       }
 
-      // Legacy email subscriptions (bulk-emailing module) — tables may not exist
-      // if the lists module has replaced them. Fail silently.
-      if (hasBulkEmailing && customerData?.email) {
-        try {
-          const { data: subscriptionsData } = await supabase
-            .from('email_subscriptions')
-            .select('id, list_id, subscribed, subscribed_at, unsubscribed_at')
-            .eq('customer_id', customerData.id)
-            .order('list_id', { ascending: true });
-
-          const { data: labelsData } = await supabase
-            .from('email_topic_labels')
-            .select('list_id, label, default_subscribed');
-
-          const labelMap: Record<string, TopicLabelInfo> = {};
-          if (labelsData) {
-            labelsData.forEach((item: { list_id: string; label: string; default_subscribed: boolean }) => {
-              labelMap[item.list_id] = {
-                label: item.label,
-                default_subscribed: item.default_subscribed,
-              };
-            });
-          }
-          setTopicLabels(labelMap);
-
-          const existingListIds = new Set((subscriptionsData || []).map(sub => sub.list_id));
-
-          const syntheticSubscriptions: EmailSubscription[] = [];
-          Object.entries(labelMap).forEach(([list_id, info]) => {
-            if (!existingListIds.has(list_id)) {
-              syntheticSubscriptions.push({
-                id: `default_${list_id}`,
-                list_id,
-                subscribed: info.default_subscribed,
-                isDefault: true,
-              });
-            }
-          });
-
-          const allSubscriptions = [
-            ...(subscriptionsData || []),
-            ...syntheticSubscriptions,
-          ].sort((a, b) => {
-            const numA = parseInt(a.list_id.replace('topic_', '')) || 0;
-            const numB = parseInt(b.list_id.replace('topic_', '')) || 0;
-            if (numA !== numB) return numA - numB;
-            return a.list_id.localeCompare(b.list_id);
-          });
-
-          setEmailSubscriptions(allSubscriptions);
-        } catch {
-          // Tables don't exist — subscriptions handled by lists module slot instead
-        }
-      }
+      // Subscriptions are now handled by the lists module's PersonSubscriptions slot component.
+      // Legacy email_subscriptions/email_topic_labels tables are no longer queried here.
 
       // Fetch event registrations, attendance, and speaker submissions via member_profiles
       // Only when events module is installed
