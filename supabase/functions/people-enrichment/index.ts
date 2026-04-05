@@ -560,7 +560,7 @@ async function handleFullMode(
   })
 }
 
-Deno.serve(async (req) => {
+async function handler(req: Request) {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -661,4 +661,7 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   }
-})
+}
+
+export default handler;
+if (import.meta.main) Deno.serve(handler);

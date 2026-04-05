@@ -13,7 +13,7 @@ interface TrackSubscriptionRequest {
   source?: string
 }
 
-Deno.serve(async (req) => {
+async function handler(req: Request) {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -135,4 +135,7 @@ Deno.serve(async (req) => {
       }
     )
   }
-})
+}
+
+export default handler;
+if (import.meta.main) Deno.serve(handler);

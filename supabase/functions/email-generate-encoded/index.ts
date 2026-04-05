@@ -57,7 +57,7 @@ function encodeEmail(email: string, passphrase = 'HideMe'): string {
   return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
 }
 
-Deno.serve(async (req) => {
+async function handler(req: Request) {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -169,4 +169,7 @@ Deno.serve(async (req) => {
       }
     )
   }
-})
+}
+
+export default handler;
+if (import.meta.main) Deno.serve(handler);
