@@ -53,22 +53,6 @@ export default defineConfig({
         if (warning.code === 'UNRESOLVED_IMPORT') return;
         warn(warning);
       },
-      // Externalize packages that may not be installed (optional module deps)
-      external: (id) => {
-        // Only externalize during build, and only for known optional deps
-        if (process.env.NODE_ENV === 'production' || process.env.VITE_BUILD) {
-          try {
-            require.resolve(id);
-            return false;
-          } catch {
-            // Package not installed — externalize it so the build doesn't fail
-            if (!id.startsWith('.') && !id.startsWith('/') && !id.startsWith('@/')) {
-              return true;
-            }
-          }
-        }
-        return false;
-      },
     },
   },
 });

@@ -47,9 +47,31 @@ export function gatewazeModulesPlugin(): Plugin {
       };
     },
 
-    resolveId(id) {
+    resolveId(id, importer) {
       if (id === VIRTUAL_MODULE_ID) {
         return RESOLVED_ID;
+      }
+      // For bare imports from module files that can't be resolved,
+      // return an empty stub module instead of failing the build
+      if (importer && importer.includes('gatewaze-modules') && !id.startsWith('.') && !id.startsWith('/') && !id.startsWith('\0')) {
+        try {
+          // Check if the package exists in node_modules
+          const pkgName = id.startsWith('@') ? id.split('/').slice(0, 2).join('/') : id.split('/')[0];
+          const pkgPath = resolve(projectRoot, 'node_modules', pkgName);
+          if (!existsSync(pkgPath)) {
+            console.warn(`[gatewaze-modules] Stubbing unresolvable package "${id}" imported from module`);
+            return `\0stub:${id}`;
+          }
+        } catch {
+          // Let Vite handle it normally
+        }
+      }
+    },
+
+    load(id) {
+      // Return empty module for stubbed packages
+      if (id.startsWith('\0stub:')) {
+        return 'export default {}; export const __stub = true;';
       }
     },
 
@@ -95,6 +117,10 @@ export function gatewazeModulesPlugin(): Plugin {
     },
 
     load(id) {
+      // Return empty module for stubbed packages
+      if (id.startsWith('\0stub:')) {
+        return 'export default {}; export const __stub = true;';
+      }
       if (id !== RESOLVED_ID) return;
 
       const configPath = resolve(projectRoot, 'gatewaze.config.ts');
