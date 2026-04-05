@@ -51,19 +51,32 @@ export function gatewazeModulesPlugin(): Plugin {
       if (id === VIRTUAL_MODULE_ID) {
         return RESOLVED_ID;
       }
-      // For bare imports from module files that can't be resolved,
+      // For imports from module files that can't be resolved,
       // return an empty stub module instead of failing the build
-      if (importer && importer.includes('gatewaze-modules') && !id.startsWith('.') && !id.startsWith('/') && !id.startsWith('\0')) {
-        try {
-          // Check if the package exists in node_modules
-          const pkgName = id.startsWith('@') ? id.split('/').slice(0, 2).join('/') : id.split('/')[0];
-          const pkgPath = resolve(projectRoot, 'node_modules', pkgName);
-          if (!existsSync(pkgPath)) {
-            console.warn(`[gatewaze-modules] Stubbing unresolvable package "${id}" imported from module`);
+      if (importer && importer.includes('gatewaze-modules') && !id.startsWith('\0')) {
+        // Bare package imports (react-leaflet, etc.)
+        if (!id.startsWith('.') && !id.startsWith('/') && !id.startsWith('@/')) {
+          try {
+            const pkgName = id.startsWith('@') ? id.split('/').slice(0, 2).join('/') : id.split('/')[0];
+            const pkgPath = resolve(projectRoot, 'node_modules', pkgName);
+            if (!existsSync(pkgPath)) {
+              console.warn(`[gatewaze-modules] Stubbing unresolvable package "${id}" imported from module`);
+              return `\0stub:${id}`;
+            }
+          } catch {
+            // Let Vite handle it normally
+          }
+        }
+        // @/ alias imports that resolve to non-existent files
+        if (id.startsWith('@/')) {
+          const resolved = resolve(projectRoot, 'packages/admin/src', id.slice(2));
+          const extensions = ['.ts', '.tsx', '.js', '.jsx', ''];
+          const exists = extensions.some(ext => existsSync(resolved + ext))
+            || extensions.some(ext => existsSync(resolve(resolved, 'index' + ext)));
+          if (!exists) {
+            console.warn(`[gatewaze-modules] Stubbing missing @/ import "${id}" from module`);
             return `\0stub:${id}`;
           }
-        } catch {
-          // Let Vite handle it normally
         }
       }
     },
