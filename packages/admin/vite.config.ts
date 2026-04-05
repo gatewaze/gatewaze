@@ -48,6 +48,8 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
+      // Externalize Node built-ins that get pulled in via shared module system barrel exports
+      external: ['fs', 'path', 'crypto', 'child_process', 'os', 'http', 'https', 'zlib', 'stream', 'util', 'net', 'tls', 'events', 'url', 'querystring', 'buffer'],
       onwarn(warning, warn) {
         // Suppress unresolved import warnings for module deps that may not be installed
         if (warning.code === 'UNRESOLVED_IMPORT') return;
