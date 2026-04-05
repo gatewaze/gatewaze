@@ -127,7 +127,7 @@ function extractSpeakers(lumaPageData: any, speakers: any[]): string[] {
   return [...new Set(speakerNames)] // Deduplicate
 }
 
-Deno.serve(async (req) => {
+async function handler(req: Request) {
   try {
     // Handle CORS
     if (req.method === 'OPTIONS') {
@@ -489,4 +489,7 @@ Deno.serve(async (req) => {
       { status: 400, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
     )
   }
-})
+}
+
+export default handler;
+if (import.meta.main) Deno.serve(handler);

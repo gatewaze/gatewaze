@@ -12,7 +12,7 @@ interface ValidationResult {
   error?: string;
 }
 
-Deno.serve(async (req: Request) => {
+async function handler(req: Request) {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -100,4 +100,7 @@ Deno.serve(async (req: Request) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     );
   }
-});
+}
+
+export default handler;
+if (import.meta.main) Deno.serve(handler);
