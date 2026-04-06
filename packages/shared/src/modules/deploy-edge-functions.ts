@@ -151,7 +151,7 @@ export async function deployEdgeFunctions(
     }
 
     // Deploy functions concurrently
-    const deployPromises = edgeFunctions.map(async (fnName) => {
+    const deployPromises = (edgeFunctions ?? []).map(async (fnName) => {
       const srcDir = join(moduleFunctionsDir, fnName);
 
       if (!existsSync(srcDir)) {
