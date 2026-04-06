@@ -227,18 +227,23 @@ const imageWorker = createWorker('image-processing', async (job) => {
 console.log('Gatewaze workers started');
 
 // Module workers
-const moduleWorkers: Awaited<ReturnType<typeof createWorker>>[] = [];
-
 async function registerModuleWorkers() {
   try {
     const modules = await loadModules(config, PROJECT_ROOT);
     for (const mod of modules) {
       for (const workerDef of mod.config.workers ?? []) {
-        const handlerModule = await import(workerDef.handler);
-        const handler = handlerModule.default ?? handlerModule;
-        const worker = createWorker(workerDef.name, handler, workerDef.concurrency);
-        moduleWorkers.push(worker);
-        console.log(`[modules] Registered worker "${workerDef.name}" from ${mod.config.name}`);
+        try {
+          // Resolve handler path relative to the module's directory
+          const handlerPath = mod.resolvedDir
+            ? resolve(mod.resolvedDir, workerDef.handler)
+            : workerDef.handler;
+          const handlerModule = await import(handlerPath);
+          const handler = handlerModule.default ?? handlerModule;
+          moduleJobHandlers.set(workerDef.name, handler);
+          console.log(`[modules] Registered job handler "${workerDef.name}" from ${mod.config.name}`);
+        } catch (err) {
+          console.error(`[modules] Failed to load worker "${workerDef.name}" from ${mod.config.name}:`, err);
+        }
       }
     }
   } catch (err) {
