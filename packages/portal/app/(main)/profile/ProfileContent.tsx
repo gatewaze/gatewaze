@@ -183,28 +183,20 @@ export function ProfileContent({ brandConfig }: Props) {
       try {
         const sb = getSupabaseClient()
 
-        // Fetch user's subscriptions and all active lists in parallel
-        const [subsRes, publicListsRes, allListsRes] = await Promise.all([
+        // Fetch all active lists and user's subscriptions in parallel
+        const [listsRes, subsRes] = await Promise.all([
+          sb.from('lists').select('id, slug, name, description, is_public, default_subscribed').eq('is_active', true).order('name'),
           sb.from('list_subscriptions').select('list_id, subscribed').eq('email', user.email),
-          sb.from('lists').select('id, slug, name, description, default_subscribed').eq('is_active', true).eq('is_public', true).order('name'),
-          // Also fetch lists the user is subscribed to (even if not public)
-          sb.from('lists').select('id, slug, name, description, default_subscribed').eq('is_active', true).order('name'),
         ])
 
+        const allLists = listsRes.data || []
         const subData = subsRes.data || []
         const subscribedListIds = new Set(subData.map(s => s.list_id))
 
-        // Merge: public lists + any non-public lists the user is subscribed to
-        const publicLists = publicListsRes.data || []
-        const allLists = allListsRes.data || []
-        const publicIds = new Set(publicLists.map(l => l.id))
-        const mergedLists = [
-          ...publicLists,
-          ...allLists.filter(l => !publicIds.has(l.id) && subscribedListIds.has(l.id)),
-        ]
+        // Show public lists + any non-public lists the user is already subscribed to
+        const visibleLists = allLists.filter(l => l.is_public || subscribedListIds.has(l.id))
 
-        // Map lists to the topic format used by the UI
-        const topics = mergedLists.map((l: any) => ({
+        const topics = visibleLists.map((l: any) => ({
           id: l.id,
           list_id: l.id,
           label: l.name,
@@ -327,9 +319,7 @@ export function ProfileContent({ brandConfig }: Props) {
 
     setIsUploadingImage(true)
     try {
-      const { createClient } = await import('@supabase/supabase-js')
-      const config = getClientBrandConfig()
-      const supabase = createClient(config.supabaseUrl, config.supabaseAnonKey)
+      const supabase = getSupabaseClient()
 
       const fileExt = profileImage.name.split('.').pop() || 'jpg'
       const timestamp = Date.now()
@@ -386,7 +376,7 @@ export function ProfileContent({ brandConfig }: Props) {
 
       const config = getClientBrandConfig()
 
-      const response = await fetch(`${config.supabaseUrl}/functions/v1/profile-update`, {
+      const response = await fetch(`${config.supabaseUrl}/functions/v1/people-profile-update`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -413,9 +403,7 @@ export function ProfileContent({ brandConfig }: Props) {
 
       // Update local state with new avatar if uploaded
       if (avatarStoragePath) {
-        const { createClient } = await import('@supabase/supabase-js')
-        const supabase = createClient(config.supabaseUrl, config.supabaseAnonKey)
-        const { data: { publicUrl } } = supabase.storage
+        const { data: { publicUrl } } = getSupabaseClient().storage
           .from('media')
           .getPublicUrl(avatarStoragePath)
 
