@@ -727,7 +727,7 @@ export class PeopleService {
    * Cascades deletion through people_profiles, event_registrations, event_attendance
    */
   static async deletePerson(
-    id: number
+    id: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
       // First, get the person to retrieve cio_id and people_profile_id

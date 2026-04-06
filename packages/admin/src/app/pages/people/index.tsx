@@ -716,7 +716,7 @@ export default function MembersPage() {
         if (!person.id) return;
 
         try {
-          const result = await PeopleService.deletePerson(parseInt(person.id));
+          const result = await PeopleService.deletePerson(person.id);
 
           if (result.success) {
             toast.success('Person deleted successfully');
@@ -831,7 +831,7 @@ export default function MembersPage() {
       message: `Are you sure you want to delete ${selectedPersonIds.size} person(s)? This will also remove their Supabase Auth accounts. This action cannot be undone.`,
       onConfirm: async () => {
         const promises = Array.from(selectedPersonIds).map(id =>
-          PeopleService.deletePerson(parseInt(id))
+          PeopleService.deletePerson(id)
         );
 
         try {
