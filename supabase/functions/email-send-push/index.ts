@@ -1,4 +1,3 @@
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 // Import web-push for Deno
@@ -16,7 +15,7 @@ webpush.setVapidDetails(
   VAPID_PRIVATE_KEY
 );
 
-serve(async (req) => {
+const handler = async (req: Request): Promise<Response> => {
   try {
     // CORS headers
     if (req.method === 'OPTIONS') {
@@ -191,4 +190,7 @@ serve(async (req) => {
       }
     );
   }
-});
+}
+
+export default handler;
+if (import.meta.main) Deno.serve(handler);

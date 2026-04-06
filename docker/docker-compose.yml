@@ -200,7 +200,7 @@ services:
       - traefik
 
   supabase-edge-functions:
-    image: supabase/edge-runtime:v1.70.3
+    image: supabase/edge-runtime:v1.71.2
     container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-supabase-edge-functions
     restart: unless-stopped
     depends_on:
@@ -232,11 +232,12 @@ services:
       GOOGLE_SHEETS_CLIENT_SECRET: ${GOOGLE_SHEETS_CLIENT_SECRET:-}
       GOOGLE_SHEETS_REFRESH_TOKEN: ${GOOGLE_SHEETS_REFRESH_TOKEN:-}
     volumes:
-      - ../supabase/functions:/home/deno/functions:ro
+      - ../supabase/functions:/home/deno/functions
+      - deno-cache:/root/.cache/deno
     command:
       - start
       - --main-service
-      - /home/deno/functions/platform-main
+      - /home/deno/functions/main
     networks:
       - gatewaze
 
@@ -493,6 +494,8 @@ volumes:
   api-modules-cache:
     driver: local
   api-data:
+    driver: local
+  deno-cache:
     driver: local
 
 # ---------------------------------------------------------------------------

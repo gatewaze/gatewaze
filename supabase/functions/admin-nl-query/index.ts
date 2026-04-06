@@ -1,4 +1,3 @@
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import OpenAI from 'https://deno.land/x/openai@v4.24.0/mod.ts'
 
@@ -276,7 +275,7 @@ IMPORTANT: When users ask about a city "and surrounding area" or "metro area":
 - We do NOT have latitude/longitude data, so you must use city name matching
 `
 
-serve(async (req) => {
+const handler = async (req: Request) => {
   try {
     // Handle CORS
     if (req.method === 'OPTIONS') {
@@ -518,7 +517,10 @@ A: "AI Summit 2024 has the most registrations with 450 people signed up. DevCon 
       }
     )
   }
-})
+}
+
+export default handler;
+if (import.meta.main) Deno.serve(handler);
 
 // Semantic search handler
 async function handleSemanticSearch(query: string, model: string, openai: any, supabaseClient: any) {
