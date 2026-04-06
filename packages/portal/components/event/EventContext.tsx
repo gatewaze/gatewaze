@@ -48,8 +48,9 @@ interface Props {
 }
 
 export function EventProvider({ event, brandConfig, eventIdentifier, speakerCount, sponsorCount, competitionCount, discountCount, mediaCount, recommendedEvent, useDarkText, children }: Props) {
-  const primaryColor = event.gradient_color_1 || brandConfig.primaryColor
-  const secondaryColor = event.gradient_color_2 || brandConfig.secondaryColor
+  // Always use brand primary color for buttons and UI accents
+  const primaryColor = brandConfig.primaryColor
+  const secondaryColor = brandConfig.secondaryColor
   const userState = useEventUserState(event)
 
   const theme = useMemo(() => ({

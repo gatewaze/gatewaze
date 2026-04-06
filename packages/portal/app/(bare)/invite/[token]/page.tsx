@@ -132,8 +132,8 @@ export default async function InvitePage({ params }: Props) {
   }
 
   const event = await getEventDetails(invite.event_id, brand)
-  const primaryColor = event?.gradient_color_1 || brandConfig.primaryColor
-  const secondaryColor = event?.gradient_color_2 || brandConfig.secondaryColor
+  const primaryColor = brandConfig.primaryColor
+  const secondaryColor = brandConfig.secondaryColor
 
   return (
     <div className="min-h-screen flex items-center" style={{ backgroundColor: secondaryColor }}>

@@ -160,8 +160,8 @@ export default async function RedditLandingPage({ params }: Props) {
     )
   }
 
-  const primaryColor = event.gradient_color_1 || brandConfig.primaryColor
-  const secondaryColor = event.gradient_color_2 || brandConfig.secondaryColor
+  const primaryColor = brandConfig.primaryColor
+  const secondaryColor = brandConfig.secondaryColor
   const useDarkText = shouldUseDarkText(primaryColor, secondaryColor)
 
   return (

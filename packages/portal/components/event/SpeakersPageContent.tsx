@@ -49,8 +49,8 @@ export function SpeakersPageContent({ event, brandConfig, initialStatus = 'pendi
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [deletingTalkId, setDeletingTalkId] = useState<string | null>(null)
   const hasCheckedRef = useRef(false)
-  const primaryColor = event.gradient_color_1 || brandConfig.primaryColor
-  const secondaryColor = event.gradient_color_2 || brandConfig.secondaryColor
+  const primaryColor = brandConfig.primaryColor
+  const secondaryColor = brandConfig.secondaryColor
 
   const useDarkText = useMemo(
     () => shouldUseDarkText(primaryColor, secondaryColor),

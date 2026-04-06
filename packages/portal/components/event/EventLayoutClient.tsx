@@ -67,7 +67,9 @@ function TrackingParamsCapture() {
 export function EventLayoutClient({ event, brandConfig, eventIdentifier, speakerCount, sponsorCount, competitionCount, discountCount, mediaCount, recommendedEvent, children }: Props) {
   // Resolve theme from event overrides or brand defaults
   const resolved = useMemo(() => resolveEventTheme(event, brandConfig), [event, brandConfig])
-  const { theme, colors, primaryColor, secondaryColor } = resolved
+  const { theme, colors, secondaryColor } = resolved
+  // Always use brand primary color for buttons and UI accents (not event gradient colors)
+  const primaryColor = brandConfig.primaryColor
   const bgColor = getThemeBackgroundColor(theme, colors, secondaryColor)
 
   // Determine if we need dark text (for light backgrounds)
