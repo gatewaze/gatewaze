@@ -13,13 +13,18 @@ const PROJECT_ROOT = resolve(import.meta.dirname ?? __dirname, '../../../..');
 const BRAND = process.env.BRAND || 'default';
 const jobsQueueName = `jobs-${BRAND}`;
 
+// Module job handlers registered at startup — keyed by job type name
+const moduleJobHandlers = new Map<string, (job: Job) => Promise<void>>();
+
 const jobsWorker = new Worker(
   jobsQueueName,
   async (job: Job) => {
     if (job.name === 'screenshot:generate') {
       await handleScreenshotJob(job);
+    } else if (moduleJobHandlers.has(job.name)) {
+      await moduleJobHandlers.get(job.name)!(job);
     } else {
-      console.log(`[jobs] Unhandled job type: ${job.name}`);
+      throw new Error(`Unknown job type: ${job.name}`);
     }
   },
   { connection: createRedisConnection() as never, concurrency: 2 },
