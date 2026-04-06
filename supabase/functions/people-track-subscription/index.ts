@@ -72,16 +72,14 @@ async function handler(req: Request) {
     }
 
     const personId = person?.id
-    // Use customer_id,list_id constraint if we found the person, otherwise fall back to email,list_id
-    const onConflict = personId ? 'customer_id,list_id' : 'email,list_id'
 
-    console.log(`   Person ID: ${personId || 'not found'}, using onConflict: ${onConflict}`)
+    console.log(`   Person ID: ${personId || 'not found'}`)
 
     // Write to Supabase (source of truth)
     const { data, error } = await supabaseClient
-      .from('email_subscriptions')
+      .from('list_subscriptions')
       .upsert({
-        customer_id: personId || null,
+        person_id: personId || null,
         email: normalizedEmail,
         list_id,
         subscribed,
@@ -89,7 +87,7 @@ async function handler(req: Request) {
         unsubscribed_at: subscribed ? null : now,
         source: source || 'frontend',
         updated_at: now
-      }, { onConflict })
+      }, { onConflict: 'list_id,email' })
       .select()
       .single()
 

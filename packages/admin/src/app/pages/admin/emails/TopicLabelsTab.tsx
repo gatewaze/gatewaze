@@ -54,7 +54,7 @@ export function TopicLabelsTab() {
 
         // Get distinct topics
         const { data: distinctTopics } = await supabase
-          .from('email_subscriptions')
+          .from('list_subscriptions')
           .select('list_id')
           .limit(1000);
 
@@ -63,7 +63,7 @@ export function TopicLabelsTab() {
         // Get count for each topic using count query
         for (const list_id of uniqueListIds) {
           const { count } = await supabase
-            .from('email_subscriptions')
+            .from('list_subscriptions')
             .select('*', { count: 'exact', head: true })
             .eq('list_id', list_id)
             .eq('subscribed', true);

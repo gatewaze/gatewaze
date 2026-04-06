@@ -597,7 +597,6 @@ export default function MemberDetailPage() {
       }
 
       // Subscriptions are now handled by the lists module's PersonSubscriptions slot component.
-      // Legacy email_subscriptions/email_topic_labels tables are no longer queried here.
 
       // Fetch event registrations, attendance, and speaker submissions via member_profiles
       // Only when events module is installed
