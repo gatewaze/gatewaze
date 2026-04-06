@@ -176,19 +176,38 @@ export function ProfileContent({ brandConfig }: Props) {
     }
   }, [session])
 
-  // Load subscription topics and user's subscription state
+  // Load subscription lists and user's subscription state
   useEffect(() => {
     async function loadSubscriptions() {
       if (!user?.email) return
       try {
         const sb = getSupabaseClient()
-        const { data: topicData } = await sb.from('email_topic_labels').select('*').order('label')
-        setSubTopics(topicData || [])
+        // Query the lists module tables instead of legacy email_topic_labels
+        const { data: listsData } = await sb
+          .from('lists')
+          .select('id, slug, name, description, default_subscribed')
+          .eq('is_active', true)
+          .eq('is_public', true)
+          .order('name')
 
-        const { data: subData } = await sb.from('email_subscriptions').select('list_id, subscribed').eq('email', user.email)
+        // Map lists to the topic format used by the UI
+        const topics = (listsData || []).map((l: any) => ({
+          id: l.id,
+          list_id: l.id,
+          label: l.name,
+          description: l.description,
+          default_subscribed: l.default_subscribed ?? false,
+        }))
+        setSubTopics(topics)
+
+        const { data: subData } = await sb
+          .from('list_subscriptions')
+          .select('list_id, subscribed')
+          .eq('email', user.email)
+
         const subMap = new Map<string, boolean>()
         for (const sub of subData || []) subMap.set(sub.list_id, sub.subscribed)
-        for (const topic of topicData || []) {
+        for (const topic of topics) {
           if (!subMap.has(topic.list_id)) subMap.set(topic.list_id, topic.default_subscribed)
         }
         setSubscriptions(subMap)
@@ -206,16 +225,24 @@ export function ProfileContent({ brandConfig }: Props) {
     setSavingSubId(listId)
     try {
       const sb = getSupabaseClient()
-      const sess = await sb.auth.getSession()
-      await fetch(`${getClientBrandConfig().supabaseUrl}/functions/v1/people-track-subscription`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sess.data.session?.access_token}`,
-        },
-        body: JSON.stringify({ email: user.email, list_id: listId, subscribed, source: 'portal' }),
-      })
-      setSubscriptions(prev => { const next = new Map(prev); next.set(listId, subscribed); return next })
+      const now = new Date().toISOString()
+      const { error } = await sb
+        .from('list_subscriptions')
+        .upsert({
+          list_id: listId,
+          email: user.email,
+          subscribed,
+          subscribed_at: subscribed ? now : null,
+          unsubscribed_at: subscribed ? null : now,
+          source: 'portal',
+          updated_at: now,
+        }, { onConflict: 'list_id,email' })
+
+      if (error) {
+        console.error('Error updating subscription:', error)
+      } else {
+        setSubscriptions(prev => { const next = new Map(prev); next.set(listId, subscribed); return next })
+      }
     } catch (err) {
       console.error('Error updating subscription:', err)
     } finally {

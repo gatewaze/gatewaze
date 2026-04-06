@@ -42,18 +42,27 @@ export function SubscriptionContent({ brandConfig }: SubscriptionContentProps) {
 
   async function loadData() {
     try {
-      // Load topic labels
-      const { data: topicData } = await supabase
-        .from('email_topic_labels')
-        .select('*')
-        .order('label')
+      // Load active public lists from the lists module
+      const { data: listsData } = await supabase
+        .from('lists')
+        .select('id, slug, name, description, default_subscribed')
+        .eq('is_active', true)
+        .eq('is_public', true)
+        .order('name')
 
-      setTopics(topicData || [])
+      const mappedTopics = (listsData || []).map((l: any) => ({
+        id: l.id,
+        list_id: l.id,
+        label: l.name,
+        description: l.description,
+        default_subscribed: l.default_subscribed ?? false,
+      }))
+      setTopics(mappedTopics)
 
       // Load user's subscriptions
       if (user?.email) {
         const { data: subData } = await supabase
-          .from('email_subscriptions')
+          .from('list_subscriptions')
           .select('list_id, subscribed')
           .eq('email', user.email)
 
@@ -62,8 +71,8 @@ export function SubscriptionContent({ brandConfig }: SubscriptionContentProps) {
           subMap.set(sub.list_id, sub.subscribed)
         }
 
-        // Apply defaults for topics without explicit subscriptions
-        for (const topic of topicData || []) {
+        // Apply defaults for lists without explicit subscriptions
+        for (const topic of mappedTopics) {
           if (!subMap.has(topic.list_id)) {
             subMap.set(topic.list_id, topic.default_subscribed)
           }
@@ -83,26 +92,20 @@ export function SubscriptionContent({ brandConfig }: SubscriptionContentProps) {
 
     setSaving(listId)
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/people-track-subscription`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-          },
-          body: JSON.stringify({
-            email: user.email,
-            list_id: listId,
-            subscribed,
-            source: 'portal',
-          }),
-        }
-      )
+      const now = new Date().toISOString()
+      const { error } = await supabase
+        .from('list_subscriptions')
+        .upsert({
+          list_id: listId,
+          email: user.email,
+          subscribed,
+          subscribed_at: subscribed ? now : null,
+          unsubscribed_at: subscribed ? null : now,
+          source: 'portal',
+          updated_at: now,
+        }, { onConflict: 'list_id,email' })
 
-      if (!response.ok) {
-        throw new Error('Failed to update subscription')
-      }
+      if (error) throw error
 
       setSubscriptions(prev => {
         const next = new Map(prev)
