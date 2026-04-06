@@ -265,7 +265,23 @@ function resolveSources(sources: SourceEntry[], projectRoot: string): string[] {
     const { url, path: subPath, branch } = normalizeSource(source);
 
     if (isGitUrl(url)) {
-      // Clone/update git repo to cache
+      // Check if repo was already cloned by the Docker entrypoint (symlinked at /<reponame>)
+      const repoName = url.replace(/.*\//, '').replace(/\.git$/, '');
+      const symlinkedPath = resolve('/', repoName);
+      const localSiblingPath = resolve(projectRoot, '..', repoName);
+      const preClonedPath = existsSync(symlinkedPath) ? symlinkedPath
+        : existsSync(localSiblingPath) ? localSiblingPath
+        : null;
+
+      if (preClonedPath) {
+        const fullPath = subPath ? resolve(preClonedPath, subPath) : preClonedPath;
+        if (existsSync(fullPath)) {
+          resolved.push(fullPath);
+          continue;
+        }
+      }
+
+      // Fall back to cloning
       const localPath = cloneOrUpdateRepo(url, branch, projectRoot);
       if (localPath) {
         resolved.push(subPath ? resolve(localPath, subPath) : localPath);
