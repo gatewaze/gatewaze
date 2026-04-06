@@ -480,7 +480,8 @@ function parseConfig(configPath: string): {
   try {
     const rawContent = readFileSync(configPath, 'utf-8');
     // Strip single-line comments so commented-out config doesn't get matched
-    const content = rawContent.replace(/\r/g, '').replace(/\/\/.*$/gm, '');
+    // Strip single-line comments but preserve URLs (https://)
+    const content = rawContent.replace(/\r/g, '').replace(/(?<![:'"])\/\/.*$/gm, '');
 
     // Parse modules array (matches "modules:" but not "moduleSources:")
     const modulesMatch = content.match(/\bmodules\s*:\s*\[([\s\S]*?)\]/);
