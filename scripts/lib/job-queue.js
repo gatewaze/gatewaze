@@ -59,6 +59,9 @@ export const JobTypes = {
 
   // Meetup content processing jobs
   MEETUP_CONTENT_PROCESS: 'meetup:content-process',
+
+  // Media processing jobs
+  MEDIA_PROCESS_ZIP: 'media:process-zip',
 };
 
 // Queue names per brand (using hyphen instead of colon - BullMQ doesn't allow colons)
