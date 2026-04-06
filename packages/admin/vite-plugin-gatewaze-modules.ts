@@ -156,8 +156,10 @@ export function gatewazeModulesPlugin(): Plugin {
         ].join('\n');
       }
       // Catch resolved paths that don't exist on disk (e.g. @/ alias imports
-      // from module files that point to admin components not in this build)
-      if (id.startsWith('/') && !id.includes('node_modules') && !id.includes('\0')) {
+      // from module files that point to admin components not in this build).
+      // Only stub paths that look like source file imports (contain /app/, /packages/, or /gatewaze-modules/).
+      if (id.startsWith('/') && !id.includes('node_modules') && !id.includes('\0') &&
+          (id.includes('/app/') || id.includes('/packages/') || id.includes('gatewaze-modules'))) {
         // Check if file exists with any extension
         const extensions = ['', '.ts', '.tsx', '.js', '.jsx'];
         const fileExists = extensions.some(ext => {
