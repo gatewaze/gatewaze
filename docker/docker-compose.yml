@@ -158,8 +158,8 @@ services:
       GLOBAL_S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-false}
       AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY:-}
       AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:-}
-      ENABLE_IMAGE_TRANSFORMATION: "true"
-      IMGPROXY_URL: http://supabase-imgproxy:5001
+      ENABLE_IMAGE_TRANSFORMATION: "${ENABLE_IMAGE_TRANSFORMATION:-false}"
+      IMGPROXY_URL: ${IMGPROXY_URL:-}
     volumes:
       - supabase-storage-data:/var/lib/storage
     networks:

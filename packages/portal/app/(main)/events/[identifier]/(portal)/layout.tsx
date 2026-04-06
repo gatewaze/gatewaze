@@ -234,7 +234,7 @@ export default async function EventDetailLayout({ children, params }: Props) {
     getSponsorCount(event.event_id, brand),
     getCompetitionCount(event.event_id, brand),
     getDiscountCount(event.event_id, brand),
-    getMediaCount(event.event_id, brand),
+    getMediaCount(event.id, brand),
     getAdPixelConfig(event.event_id, brand),
   ])
 
