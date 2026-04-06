@@ -25,8 +25,8 @@ RUN grep -q react-leaflet packages/admin/package.json || (echo "ERROR: react-lea
 COPY docker/admin/nginx.conf /etc/nginx/conf.d/default.conf
 RUN rm -f /etc/nginx/sites-enabled/default
 
-# Create directories for modules and built output
-RUN mkdir -p /gatewaze-modules /usr/share/nginx/html
+# Create directory for built output
+RUN mkdir -p /usr/share/nginx/html
 
 # Copy entrypoint script
 COPY docker/admin/entrypoint.sh /docker-entrypoint.sh
