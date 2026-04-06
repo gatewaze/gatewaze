@@ -124,14 +124,18 @@ export async function deployEdgeFunctions(
       continue;
     }
 
-    // Copy functionFiles (e.g., provider.ts) to supabase/functions/<moduleId>/
+    // Copy functionFiles (e.g., provider.ts) into _shared/providers/ so they're
+    // accessible to the edge runtime's compiled scope (platform-main only sees
+    // its own directory + _shared/, not sibling function directories).
+    // Format: "source.ts" copies as-is, "source.ts:destname.ts" renames.
     if (!isCloudDeploy && hasFunctionFiles) {
-      const destDir = join(targetFunctionsDir, mod.config.id);
-      mkdirSync(destDir, { recursive: true });
-      for (const file of functionFiles) {
-        const srcFile = join(moduleDir, file);
+      const providersDir = join(targetFunctionsDir, '_shared', 'providers');
+      mkdirSync(providersDir, { recursive: true });
+      for (const entry of functionFiles) {
+        const [src, dest] = entry.includes(':') ? entry.split(':') : [entry, entry];
+        const srcFile = join(moduleDir, src);
         if (existsSync(srcFile)) {
-          cpSync(srcFile, join(destDir, file));
+          cpSync(srcFile, join(providersDir, dest));
         }
       }
     }
