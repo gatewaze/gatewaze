@@ -19,8 +19,8 @@ if [ -n "$MODULE_SOURCES" ]; then
     reponame=$(echo "$url" | sed 's|.*/||; s|\.git$||')
     target="/tmp/module-repos/$reponame"
 
-    # Skip if already exists (e.g. open-source repo cloned at build time)
-    if [ -d "/$reponame" ] || [ -d "$target" ]; then
+    # Skip if already cloned this run
+    if [ -d "$target" ]; then
       continue
     fi
 
@@ -30,6 +30,8 @@ if [ -n "$MODULE_SOURCES" ]; then
       continue
     }
 
+    # Remove any existing directory and create symlink
+    rm -rf "/$reponame" 2>/dev/null || true
     ln -sf "$target" "/$reponame"
   done
   unset IFS
