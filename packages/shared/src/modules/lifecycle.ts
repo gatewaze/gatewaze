@@ -233,13 +233,24 @@ export async function seedModuleSources(
     .from('module_sources')
     .select('url,path');
 
+  // Normalize keys to avoid duplicates from different path representations
+  // e.g., "../premium-gatewaze-modules/modules" and "/premium-gatewaze-modules/modules"
+  function normalizeKey(url: string, path?: string | null): string {
+    // Strip leading ../ and / to get a canonical directory name
+    const cleanUrl = url.replace(/^(?:\.\.\/)+/, '').replace(/^\/+/, '');
+    return `${cleanUrl}|${path ?? ''}`;
+  }
+
   const existingKeys = new Set(
-    (existing ?? []).map((r) => `${(r as Record<string, unknown>).url}|${(r as Record<string, unknown>).path ?? ''}`)
+    (existing ?? []).map((r) => normalizeKey(
+      (r as Record<string, unknown>).url as string,
+      (r as Record<string, unknown>).path as string | null
+    ))
   );
 
   for (const source of configSources) {
     const { url, path, branch } = normalizeSource(source);
-    const key = `${url}|${path ?? ''}`;
+    const key = normalizeKey(url, path);
 
     if (existingKeys.has(key)) continue;
 

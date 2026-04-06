@@ -429,47 +429,27 @@ export default function ModulesPage() {
             ) : (
               <div className="space-y-2">
                 {moduleSources.map((source) => (
-                  <Card key={source.id} className="px-4 py-3 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <FolderIcon className="size-5 text-[var(--gray-a9)] shrink-0" />
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium text-[var(--gray-12)] truncate">
-                            {source.label || source.url}
-                          </p>
-                          <Badge
-                            color={
-                              source.origin === "config"
-                                ? "gray"
-                                : source.origin === "upload"
-                                ? "blue"
-                                : "green"
-                            }
-                          >
-                            {source.origin}
-                          </Badge>
-                          {!!(source as any).hasToken && (
-                            <Badge color="purple">authenticated</Badge>
-                          )}
-                        </div>
-                        <p className="text-xs text-[var(--gray-a9)] truncate">
-                          {source.url}
-                          {source.path ? ` / ${source.path}` : ""}
-                          {source.branch ? ` (${source.branch})` : ""}
-                        </p>
-                      </div>
-                    </div>
-                    {source.origin !== "config" && (
-                      <button
-                        onClick={() => handleRemoveSource(source.id)}
-                        disabled={removingSourceId === source.id}
-                        className="p-1.5 rounded hover:bg-[var(--gray-a3)] text-[var(--gray-a9)] hover:text-red-500 transition-colors shrink-0"
-                        title="Remove source"
-                      >
-                        <TrashIcon className="size-4" />
-                      </button>
-                    )}
-                  </Card>
+                  <div key={source.id} className="flex items-center gap-3 px-3 py-2 rounded-lg border border-[var(--gray-a5)] bg-[var(--color-surface)]">
+                    <FolderIcon className="size-4 text-[var(--gray-a9)] shrink-0" />
+                    <span className="text-sm text-[var(--gray-12)] truncate min-w-0 flex-1">
+                      {source.label || source.url}
+                      {source.path ? <span className="text-[var(--gray-a9)]"> / {source.path}</span> : ""}
+                      {source.branch ? <span className="text-[var(--gray-a9)]"> ({source.branch})</span> : ""}
+                    </span>
+                    <Badge
+                      color={source.origin === "config" ? "gray" : source.origin === "upload" ? "blue" : "green"}
+                    >
+                      {source.origin}
+                    </Badge>
+                    <button
+                      onClick={() => handleRemoveSource(source.id)}
+                      disabled={removingSourceId === source.id}
+                      className="p-1 rounded hover:bg-red-500/10 text-[var(--gray-a8)] hover:text-red-500 transition-colors shrink-0"
+                      title="Remove source"
+                    >
+                      <TrashIcon className="size-3.5" />
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
