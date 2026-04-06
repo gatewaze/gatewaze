@@ -182,16 +182,29 @@ export function ProfileContent({ brandConfig }: Props) {
       if (!user?.email) return
       try {
         const sb = getSupabaseClient()
-        // Query the lists module tables instead of legacy email_topic_labels
-        const { data: listsData } = await sb
-          .from('lists')
-          .select('id, slug, name, description, default_subscribed')
-          .eq('is_active', true)
-          .eq('is_public', true)
-          .order('name')
+
+        // Fetch user's subscriptions and all active lists in parallel
+        const [subsRes, publicListsRes, allListsRes] = await Promise.all([
+          sb.from('list_subscriptions').select('list_id, subscribed').eq('email', user.email),
+          sb.from('lists').select('id, slug, name, description, default_subscribed').eq('is_active', true).eq('is_public', true).order('name'),
+          // Also fetch lists the user is subscribed to (even if not public)
+          sb.from('lists').select('id, slug, name, description, default_subscribed').eq('is_active', true).order('name'),
+        ])
+
+        const subData = subsRes.data || []
+        const subscribedListIds = new Set(subData.map(s => s.list_id))
+
+        // Merge: public lists + any non-public lists the user is subscribed to
+        const publicLists = publicListsRes.data || []
+        const allLists = allListsRes.data || []
+        const publicIds = new Set(publicLists.map(l => l.id))
+        const mergedLists = [
+          ...publicLists,
+          ...allLists.filter(l => !publicIds.has(l.id) && subscribedListIds.has(l.id)),
+        ]
 
         // Map lists to the topic format used by the UI
-        const topics = (listsData || []).map((l: any) => ({
+        const topics = mergedLists.map((l: any) => ({
           id: l.id,
           list_id: l.id,
           label: l.name,
@@ -200,13 +213,8 @@ export function ProfileContent({ brandConfig }: Props) {
         }))
         setSubTopics(topics)
 
-        const { data: subData } = await sb
-          .from('list_subscriptions')
-          .select('list_id, subscribed')
-          .eq('email', user.email)
-
         const subMap = new Map<string, boolean>()
-        for (const sub of subData || []) subMap.set(sub.list_id, sub.subscribed)
+        for (const sub of subData) subMap.set(sub.list_id, sub.subscribed)
         for (const topic of topics) {
           if (!subMap.has(topic.list_id)) subMap.set(topic.list_id, topic.default_subscribed)
         }
