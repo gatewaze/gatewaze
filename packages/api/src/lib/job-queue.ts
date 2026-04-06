@@ -45,6 +45,7 @@ export const JobTypes = {
   SCREENSHOT_GENERATE: 'screenshot:generate',
   LUMA_CONTENT_PROCESS: 'luma:content-process',
   MEETUP_CONTENT_PROCESS: 'meetup:content-process',
+  MEDIA_PROCESS_ZIP: 'media:process-zip',
 } as const;
 
 // Queue name — must match scripts/workers/job-worker.js (`jobs-${BRAND}`)
