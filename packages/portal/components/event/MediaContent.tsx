@@ -260,7 +260,7 @@ export function MediaContent() {
 
       const { data: sponsorData } = await supabase
         .from('events_sponsors')
-        .select(`*, sponsor:events_sponsor_profiles(id, name, slug, logo_url)`)
+        .select(`*, sponsor:events_sponsor_profiles!sponsor_id(id, name, slug, logo_url)`)
         .eq('event_id', event.event_id)
         .eq('is_active', true)
         .order('sponsorship_tier')
