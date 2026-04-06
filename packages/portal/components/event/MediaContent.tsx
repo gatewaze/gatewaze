@@ -241,7 +241,7 @@ export function MediaContent() {
         const albumsWithCounts = await Promise.all(
           albumData.map(async (album: EventMediaAlbum) => {
             const { count } = await supabase
-              .from('events_media_album_items')
+              .from('event_media_album_items')
               .select('*', { count: 'exact', head: true })
               .eq('album_id', album.id)
             return { ...album, media_count: count || 0 }
@@ -360,7 +360,7 @@ export function MediaContent() {
       const supabase = await getSupabase()
 
       const { data: albumItems } = await supabase
-        .from('events_media_album_items')
+        .from('event_media_album_items')
         .select('media_id')
         .eq('album_id', albumId)
         .order('sort_order')
@@ -467,7 +467,7 @@ export function MediaContent() {
       const albumsWithCounts = await Promise.all(
         albumData.map(async (album: EventMediaAlbum) => {
           const { data: albumItems } = await supabase
-            .from('events_media_album_items')
+            .from('event_media_album_items')
             .select('media_id')
             .eq('album_id', album.id)
           if (!albumItems) return { ...album, media_count: 0 }
