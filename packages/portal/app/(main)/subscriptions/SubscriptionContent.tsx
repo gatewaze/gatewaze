@@ -42,15 +42,22 @@ export function SubscriptionContent({ brandConfig }: SubscriptionContentProps) {
 
   async function loadData() {
     try {
-      // Load active public lists from the lists module
-      const { data: listsData } = await supabase
-        .from('lists')
-        .select('id, slug, name, description, default_subscribed')
-        .eq('is_active', true)
-        .eq('is_public', true)
-        .order('name')
+      // Load all active lists and user's subscriptions in parallel
+      const [listsRes, subsRes] = await Promise.all([
+        supabase.from('lists').select('id, slug, name, description, is_public, default_subscribed').eq('is_active', true).order('name'),
+        user?.email
+          ? supabase.from('list_subscriptions').select('list_id, subscribed').eq('email', user.email)
+          : Promise.resolve({ data: [] as any[] }),
+      ])
 
-      const mappedTopics = (listsData || []).map((l: any) => ({
+      const allLists = listsRes.data || []
+      const subData = subsRes.data || []
+      const subscribedListIds = new Set(subData.map((s: any) => s.list_id))
+
+      // Show public lists + any non-public lists the user is already subscribed to
+      const visibleLists = allLists.filter((l: any) => l.is_public || subscribedListIds.has(l.id))
+
+      const mappedTopics = visibleLists.map((l: any) => ({
         id: l.id,
         list_id: l.id,
         label: l.name,
@@ -59,27 +66,16 @@ export function SubscriptionContent({ brandConfig }: SubscriptionContentProps) {
       }))
       setTopics(mappedTopics)
 
-      // Load user's subscriptions
-      if (user?.email) {
-        const { data: subData } = await supabase
-          .from('list_subscriptions')
-          .select('list_id, subscribed')
-          .eq('email', user.email)
-
-        const subMap = new Map<string, boolean>()
-        for (const sub of subData || []) {
-          subMap.set(sub.list_id, sub.subscribed)
-        }
-
-        // Apply defaults for lists without explicit subscriptions
-        for (const topic of mappedTopics) {
-          if (!subMap.has(topic.list_id)) {
-            subMap.set(topic.list_id, topic.default_subscribed)
-          }
-        }
-
-        setSubscriptions(subMap)
+      const subMap = new Map<string, boolean>()
+      for (const sub of subData) {
+        subMap.set(sub.list_id, sub.subscribed)
       }
+      for (const topic of mappedTopics) {
+        if (!subMap.has(topic.list_id)) {
+          subMap.set(topic.list_id, topic.default_subscribed)
+        }
+      }
+      setSubscriptions(subMap)
     } catch (error) {
       console.error('Error loading subscriptions:', error)
     } finally {

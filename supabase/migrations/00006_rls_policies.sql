@@ -479,6 +479,11 @@ CREATE POLICY "storage_insert_media_admin"
   ON storage.objects FOR INSERT TO authenticated
   WITH CHECK (bucket_id = 'media' AND public.is_admin());
 
+-- Allow authenticated portal users to upload profile avatars
+CREATE POLICY "storage_insert_media_profiles"
+  ON storage.objects FOR INSERT TO authenticated
+  WITH CHECK (bucket_id = 'media' AND (storage.foldername(name))[1] = 'profiles');
+
 CREATE POLICY "storage_update_media_admin"
   ON storage.objects FOR UPDATE TO authenticated
   USING (bucket_id = 'media' AND public.is_admin());
