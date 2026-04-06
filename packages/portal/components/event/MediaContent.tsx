@@ -164,16 +164,9 @@ export function MediaContent() {
       } : undefined)
     }
 
-    // Fallback: use Supabase image transformation API when transforms are requested
-    if (transform && (transform.width || transform.height)) {
-      const renderUrl = `${storageBaseUrl}/storage/v1/render/image/public/media/${storagePath}`
-      const params = new URLSearchParams()
-      if (transform.width) params.append('width', transform.width.toString())
-      if (transform.height) params.append('height', transform.height.toString())
-      if (transform.quality) params.append('quality', transform.quality.toString())
-      if (transform.resize) params.append('resize', transform.resize)
-      return `${renderUrl}?${params.toString()}`
-    }
+    // Supabase image transformation requires imgproxy. When not available,
+    // fall back to the direct public URL without transforms.
+    // TODO: Re-enable when imgproxy or Bunny CDN module is configured.
 
     return publicUrl
   }, [brandConfig.supabaseUrl])
@@ -203,7 +196,7 @@ export function MediaContent() {
       const { count } = await supabase
         .from('events_media')
         .select('*', { count: 'exact', head: true })
-        .eq('event_id', event.event_id)
+        .eq('event_id', event.id)
         .eq('file_type', 'photo')
 
       setTotalCount(count || 0)
@@ -212,7 +205,7 @@ export function MediaContent() {
       const { data: mediaData } = await supabase
         .from('events_media')
         .select('*')
-        .eq('event_id', event.event_id)
+        .eq('event_id', event.id)
         .eq('file_type', 'photo')
         .order('created_at', { ascending: true })
         .range(0, BATCH_SIZE - 1)
@@ -226,7 +219,7 @@ export function MediaContent() {
     } finally {
       setIsLoading(false)
     }
-  }, [event.event_id, getSupabase, buildGalleryItems])
+  }, [event.id, getSupabase, buildGalleryItems])
 
   const fetchAlbums = useCallback(async () => {
     try {
@@ -234,7 +227,7 @@ export function MediaContent() {
       const { data: albumData } = await supabase
         .from('events_media_albums')
         .select('*')
-        .eq('event_id', event.event_id)
+        .eq('event_id', event.id)
         .order('sort_order')
 
       if (albumData) {
@@ -252,7 +245,7 @@ export function MediaContent() {
     } catch (err) {
       console.error('Error loading albums:', err)
     }
-  }, [event.event_id, getSupabase])
+  }, [event.id, getSupabase])
 
   const fetchSponsors = useCallback(async () => {
     try {
@@ -261,7 +254,7 @@ export function MediaContent() {
       const { data: sponsorData } = await supabase
         .from('events_sponsors')
         .select(`*, sponsor:events_sponsor_profiles!sponsor_id(id, name, slug, logo_url)`)
-        .eq('event_id', event.event_id)
+        .eq('event_id', event.id)
         .eq('is_active', true)
         .order('sponsorship_tier')
 
@@ -269,7 +262,7 @@ export function MediaContent() {
       const { data: allMediaForEvent } = await supabase
         .from('events_media')
         .select('id')
-        .eq('event_id', event.event_id)
+        .eq('event_id', event.id)
         .eq('file_type', 'photo')
 
       const mediaIds = allMediaForEvent?.map((m: { id: string }) => m.id) || []
@@ -305,7 +298,7 @@ export function MediaContent() {
     } catch (err) {
       console.error('Error loading sponsors:', err)
     }
-  }, [event.event_id, getSupabase])
+  }, [event.id, getSupabase])
 
   const fetchVideos = useCallback(async (eventSponsorId?: string | null) => {
     try {
@@ -327,7 +320,7 @@ export function MediaContent() {
       let query = supabase
         .from('events_media')
         .select('*')
-        .eq('event_id', event.event_id)
+        .eq('event_id', event.id)
         .eq('file_type', 'video')
         .order('created_at', { ascending: true })
 
@@ -352,7 +345,7 @@ export function MediaContent() {
     } catch (err) {
       console.error('Error loading videos:', err)
     }
-  }, [event.event_id, getSupabase])
+  }, [event.id, getSupabase])
 
   const fetchAlbumMedia = useCallback(async (albumId: string, eventSponsorId?: string | null) => {
     try {
@@ -456,7 +449,7 @@ export function MediaContent() {
       const { data: albumData } = await supabase
         .from('events_media_albums')
         .select('*')
-        .eq('event_id', event.event_id)
+        .eq('event_id', event.id)
         .order('sort_order')
 
       if (!albumData) {
@@ -481,7 +474,7 @@ export function MediaContent() {
       console.error('Error loading sponsor-filtered albums:', err)
       setSponsorFilteredAlbums([])
     }
-  }, [event.event_id, getSupabase])
+  }, [event.id, getSupabase])
 
   // ─── Load more (infinite scroll) ────────────────────────
 
@@ -495,7 +488,7 @@ export function MediaContent() {
       const { data: mediaData } = await supabase
         .from('events_media')
         .select('*')
-        .eq('event_id', event.event_id)
+        .eq('event_id', event.id)
         .eq('file_type', 'photo')
         .order('created_at', { ascending: true })
         .range(offset, offset + BATCH_SIZE - 1)
@@ -510,19 +503,19 @@ export function MediaContent() {
     } finally {
       setLoadingMore(false)
     }
-  }, [loadingMore, hasMore, mediaItems, event.event_id, totalCount, getSupabase, buildGalleryItems])
+  }, [loadingMore, hasMore, mediaItems, event.id, totalCount, getSupabase, buildGalleryItems])
 
   // ─── Initial load ────────────────────────────────────────
 
   useEffect(() => {
     setMounted(true)
-    if (event.event_id) {
+    if (event.id) {
       fetchInitialMedia()
       fetchAlbums()
       fetchSponsors()
       fetchVideos()
     }
-  }, [event.event_id, fetchInitialMedia, fetchAlbums, fetchSponsors, fetchVideos])
+  }, [event.id, fetchInitialMedia, fetchAlbums, fetchSponsors, fetchVideos])
 
   // ─── Intersection Observer for lazy loading ──────────────
 
