@@ -25,9 +25,12 @@ const config: GatewazeConfig = {
   //   'https://github.com/org/modules.git'        — git repo (cloned at build time)
   //   { url: 'https://github.com/gatewaze/gatewaze-modules.git', path: 'modules', branch: 'main' }
   moduleSources: [
-    // Additional sources from EXTRA_MODULE_SOURCES env var (comma-separated paths)
-    // Used to add private/brand-specific module repos without hardcoding in this file.
-    // Set EXTRA_MODULE_SOURCES in your environment file (e.g., aaif.local.env).
+    // Default open-source modules — included on every fresh install and in production.
+    // Cloned automatically by the admin Docker entrypoint when MODULE_SOURCES is set.
+    { url: 'https://github.com/gatewaze/gatewaze-modules.git', path: 'modules', branch: 'main' },
+    // Additional sources from EXTRA_MODULE_SOURCES env var (comma-separated paths).
+    // Used to add private/brand-specific module repos (local paths or git URLs)
+    // without hardcoding in this file. Set in your environment file.
     ...(process.env.EXTRA_MODULE_SOURCES?.split(',').map(s => s.trim()).filter(Boolean) || []),
   ],
 
