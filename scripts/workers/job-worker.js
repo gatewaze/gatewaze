@@ -404,6 +404,140 @@ const handlers = {
       throw error;
     }
   },
+  // Media zip processing — extracts photos from uploaded ZIP files
+  [JobTypes.MEDIA_PROCESS_ZIP]: async (job) => {
+    const { zipUploadId } = job.data;
+    console.log(`📦 Processing zip upload: ${zipUploadId}`);
+
+    // Update status to processing
+    await supabase
+      .from('events_media_zip_uploads')
+      .update({ status: 'processing', processing_started_at: new Date().toISOString() })
+      .eq('id', zipUploadId);
+
+    const { data: zipUpload, error: fetchError } = await supabase
+      .from('events_media_zip_uploads')
+      .select('*')
+      .eq('id', zipUploadId)
+      .single();
+
+    if (fetchError || !zipUpload) {
+      throw new Error(`Failed to fetch zip upload: ${fetchError?.message}`);
+    }
+
+    // Download zip
+    const { data: zipBlob, error: dlError } = await supabase.storage
+      .from('media')
+      .download(zipUpload.storage_path);
+
+    if (dlError || !zipBlob) {
+      throw new Error(`Failed to download zip: ${dlError?.message}`);
+    }
+
+    console.log(`📦 Downloaded: ${(zipBlob.size / 1024 / 1024).toFixed(1)}MB`);
+
+    // Use JSZip (available in Node.js worker container)
+    const JSZip = (await import('jszip')).default;
+    const zip = await JSZip.loadAsync(await zipBlob.arrayBuffer());
+
+    const files = Object.values(zip.files).filter(f =>
+      !f.dir && !f.name.startsWith('__MACOSX/') && !f.name.includes('/.') && !f.name.startsWith('.')
+    );
+
+    const totalCount = files.length;
+    await supabase.from('events_media_zip_uploads').update({ total_count: totalCount }).eq('id', zipUploadId);
+
+    const MIME_TYPES = {
+      jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif',
+      webp: 'image/webp', bmp: 'image/bmp', mp4: 'video/mp4', mov: 'video/quicktime',
+    };
+    const getMime = (name) => MIME_TYPES[name.split('.').pop()?.toLowerCase()] || null;
+
+    let processedCount = 0;
+    const albumMap = new Map();
+    const errors = [];
+
+    for (const file of files) {
+      try {
+        const fileName = file.name.split('/').pop();
+        const mimeType = getMime(fileName);
+        if (!mimeType) continue;
+
+        const fileType = mimeType.startsWith('image/') ? 'photo' : 'video';
+
+        // Album from folder
+        const parts = file.name.split('/').filter(p => p && p !== '__MACOSX');
+        const folderName = parts.length > 1 ? parts.slice(0, -1).join(' - ') : null;
+
+        let albumId = null;
+        if (folderName) {
+          albumId = albumMap.get(folderName) || null;
+          if (!albumId) {
+            const { data: existing } = await supabase
+              .from('events_media_albums').select('id')
+              .eq('event_id', zipUpload.event_id).eq('name', folderName).maybeSingle();
+            if (existing) {
+              albumId = existing.id;
+            } else {
+              const { data: newAlbum } = await supabase
+                .from('events_media_albums')
+                .insert({ event_id: zipUpload.event_id, name: folderName, description: 'Auto-created from zip upload' })
+                .select().single();
+              albumId = newAlbum?.id || null;
+            }
+            if (albumId) albumMap.set(folderName, albumId);
+          }
+        }
+
+        const content = await file.async('uint8array');
+        const timestamp = Date.now();
+        const sanitized = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const storagePath = `events/${zipUpload.event_id}/${fileType}s/original/${timestamp}-${sanitized}`;
+
+        const { error: upErr } = await supabase.storage
+          .from('media').upload(storagePath, content, { contentType: mimeType, cacheControl: '3600' });
+        if (upErr) throw new Error(`Upload failed: ${upErr.message}`);
+
+        const { data: urlData } = supabase.storage.from('media').getPublicUrl(storagePath);
+
+        const { data: media, error: dbErr } = await supabase
+          .from('events_media')
+          .insert({
+            event_id: zipUpload.event_id, file_name: fileName, storage_path: storagePath,
+            url: urlData.publicUrl, file_type: fileType, mime_type: mimeType, file_size: content.length,
+          })
+          .select().single();
+
+        if (dbErr) throw new Error(`DB insert failed: ${dbErr.message}`);
+
+        if (albumId && media) {
+          await supabase.from('event_media_album_items')
+            .insert({ media_id: media.id, album_id: albumId, sort_order: processedCount });
+        }
+
+        processedCount++;
+        if (processedCount % 5 === 0) {
+          await supabase.from('events_media_zip_uploads').update({ processed_count: processedCount }).eq('id', zipUploadId);
+          await job.updateProgress(Math.round((processedCount / totalCount) * 100));
+        }
+      } catch (err) {
+        errors.push(`${file.name}: ${err.message}`);
+        console.error(`❌ ${file.name}: ${err.message}`);
+      }
+    }
+
+    await supabase.from('events_media_zip_uploads').update({ processed_count: processedCount }).eq('id', zipUploadId);
+    await supabase.from('events_media_zip_uploads').update({
+      status: 'completed', processing_completed_at: new Date().toISOString(),
+      error_message: errors.length > 0 ? errors.join('; ') : null,
+    }).eq('id', zipUploadId);
+
+    // Clean up zip
+    try { await supabase.storage.from('media').remove([zipUpload.storage_path]); } catch {}
+
+    console.log(`✅ Zip processed: ${processedCount}/${totalCount} files`);
+    return { processed: processedCount, total: totalCount, errors: errors.length };
+  },
 };
 
 // Create worker
