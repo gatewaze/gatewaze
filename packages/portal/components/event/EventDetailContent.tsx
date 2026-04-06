@@ -63,9 +63,8 @@ export function EventDetailContent({ event, brandConfig }: Props) {
     setShowRegistrationForm(false)
   }
 
-  // Use event's gradient colors as primary/secondary, falling back to brand colors
-  const primaryColor = event.gradient_color_1 || brandConfig.primaryColor
-  const secondaryColor = event.gradient_color_2 || brandConfig.secondaryColor
+  const primaryColor = brandConfig.primaryColor
+  const secondaryColor = brandConfig.secondaryColor
 
   // Determine if we need dark text (for light backgrounds)
   const useDarkText = useMemo(

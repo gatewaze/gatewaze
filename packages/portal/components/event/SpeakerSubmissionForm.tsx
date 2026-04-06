@@ -69,7 +69,7 @@ interface FormErrors {
 
 export function SpeakerSubmissionForm({ event, brandConfig, onSuccess, onCancel, useDarkTheme = false, initialStatus = 'pending', userProfile, confirmedDurationCounts = {}, isAdditionalTalk = false }: Props) {
   const router = useRouter()
-  const primaryColor = event.gradient_color_1 || brandConfig.primaryColor
+  const primaryColor = brandConfig.primaryColor
 
   // Calculate available duration options based on capacity
   const durationOptions = event.talk_duration_options || []

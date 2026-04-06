@@ -47,8 +47,7 @@ interface FormErrors {
 }
 
 export function RegistrationForm({ event, brandConfig, onSuccess, onCancel, trackingSessionId, useDarkTheme = false, initialData }: Props) {
-  // Use event's gradient color as primary if available
-  const primaryColor = event.gradient_color_1 || brandConfig.primaryColor
+  const primaryColor = brandConfig.primaryColor
 
   // Theme styles - matching SpeakerSubmissionForm glassmorphic style
   const theme = {
