@@ -205,24 +205,18 @@ async function handler(req: Request) {
       // Forward the reply if configured
       if (collection.forward_replies_to && isEmailConfigured()) {
         try {
-          const fwdSubject = subject.startsWith('Fwd:') || subject.startsWith('FW:')
-            ? subject
-            : `Fwd: ${subject}`;
-
-          const fwdBody = `
-            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px;">
-              <p style="color: #666; font-size: 13px; border-bottom: 1px solid #eee; padding-bottom: 8px; margin-bottom: 16px;">
-                Reply to <strong>${collection.name}</strong> from ${fromName ? `${fromName} &lt;${fromEmail}&gt;` : fromEmail}
-              </p>
-              ${html || `<pre style="white-space: pre-wrap;">${text}</pre>`}
-            </div>
-          `;
+          // Send from the newsletter address with the replier's name,
+          // and set reply-to to the original sender so replies go back to them
+          const senderDisplay = fromName || fromEmail.split('@')[0];
 
           await sendEmail({
             to: collection.forward_replies_to,
-            subject: fwdSubject,
-            html: fwdBody,
-            text: `Reply to ${collection.name} from ${fromName || fromEmail}:\n\n${text}`,
+            subject,
+            html: html || `<pre style="white-space: pre-wrap; font-family: sans-serif;">${text}</pre>`,
+            text: text || '',
+            fromEmail: collection.from_email,
+            fromName: `${senderDisplay} (via ${collection.name})`,
+            replyTo: fromEmail,
           });
 
           // Update the reply record with forwarded status

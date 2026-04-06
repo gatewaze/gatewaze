@@ -18,6 +18,9 @@ interface SendEmailParams {
   subject: string;
   html: string;
   text?: string;
+  fromEmail?: string;
+  fromName?: string;
+  replyTo?: string;
 }
 
 /**
@@ -89,7 +92,8 @@ async function sendViaSendGrid(
     },
     body: JSON.stringify({
       personalizations: [{ to: [{ email: params.to }] }],
-      from: { email: config.fromEmail, name: config.fromName },
+      from: { email: params.fromEmail || config.fromEmail, name: params.fromName || config.fromName },
+      ...(params.replyTo ? { reply_to: { email: params.replyTo } } : {}),
       subject: params.subject,
       content: [
         ...(params.text ? [{ type: 'text/plain', value: params.text }] : []),
@@ -130,9 +134,12 @@ async function sendViaSmtp(
   });
 
   try {
+    const senderName = params.fromName || config.fromName;
+    const senderEmail = params.fromEmail || config.fromEmail;
     await client.send({
-      from: `${config.fromName} <${config.fromEmail}>`,
+      from: `${senderName} <${senderEmail}>`,
       to: params.to,
+      ...(params.replyTo ? { replyTo: params.replyTo } : {}),
       subject: params.subject,
       content: params.text || '',
       html: params.html,
