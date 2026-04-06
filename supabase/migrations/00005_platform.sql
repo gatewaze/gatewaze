@@ -140,7 +140,7 @@ END;
 $$;
 
 INSERT INTO storage.buckets (id, name, public, file_size_limit)
-VALUES ('media', 'media', true, 52428800)
+VALUES ('media', 'media', true, 524288000)
 ON CONFLICT (id) DO UPDATE SET public = true, file_size_limit = EXCLUDED.file_size_limit;
 
 -- NOTE: admin_event_permissions table and events_account_id_fkey have been moved
