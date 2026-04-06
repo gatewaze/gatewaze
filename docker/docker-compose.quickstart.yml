@@ -196,7 +196,7 @@ services:
       - traefik
 
   supabase-edge-functions:
-    image: supabase/edge-runtime:v1.70.3
+    image: supabase/edge-runtime:v1.71.2
     container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-supabase-edge-functions
     restart: unless-stopped
     depends_on:
@@ -210,7 +210,7 @@ services:
       SUPABASE_DB_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@supabase-db:5432/${POSTGRES_DB:-postgres}
       VERIFY_JWT: "${VERIFY_JWT:-true}"
     volumes:
-      - ../supabase/functions:/home/deno/functions:ro
+      - ../supabase/functions:/home/deno/functions
     command:
       - start
       - --main-service
