@@ -581,6 +581,8 @@ const worker = new Worker(
   {
     connection: getConnection(),
     concurrency: parseInt(process.env.WORKER_CONCURRENCY || '1', 10),
+    lockDuration: 600000,      // 10 minutes — allows large zip downloads
+    stalledInterval: 300000,   // 5 minutes — don't mark long jobs as stalled
     limiter: {
       max: 10,
       duration: 1000,
