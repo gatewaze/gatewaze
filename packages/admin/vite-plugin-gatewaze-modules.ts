@@ -94,10 +94,66 @@ export function gatewazeModulesPlugin(): Plugin {
     },
 
     load(id) {
-      // Return empty module for stubbed packages
+      // Return empty module for stubbed packages — MUST be first check
       if (id.startsWith('\0stub:')) {
         if (id.endsWith('.css')) return '';
         return { code: 'export default {};', syntheticNamedExports: true };
+      }
+      // Virtual module for gatewaze-modules
+      if (id === RESOLVED_ID) {
+        const configPath = resolve(projectRoot, 'gatewaze.config.ts');
+        const { moduleIds: explicitIds, sources } = parseConfig(configPath);
+        const resolvedSources = resolveSources(sources, projectRoot);
+        const moduleIds = explicitIds.length > 0
+          ? explicitIds
+          : discoverModulesFromSources(resolvedSources);
+
+        if (moduleIds.length === 0) {
+          return 'export default [];\n';
+        }
+
+        const imports: string[] = [];
+        const refs: string[] = [];
+        const cssImports: string[] = [];
+
+        for (let i = 0; i < moduleIds.length; i++) {
+          const moduleId = moduleIds[i];
+          const importPath = resolveModuleImport(moduleId, resolvedSources, projectRoot);
+          if (importPath) {
+            imports.push(`import mod${i} from '${importPath}';`);
+            refs.push(`mod${i}`);
+            const moduleCssPath = resolveThemeCustomCss(importPath, resolvedSources, moduleId);
+            if (moduleCssPath) {
+              cssImports.push(`import '${moduleCssPath}';`);
+              console.log(`[gatewaze-modules] Bundling theme CSS: ${moduleCssPath}`);
+            }
+          } else {
+            console.warn(`[gatewaze-modules] Could not resolve module: ${moduleId}`);
+          }
+        }
+
+        const guideAssignments: string[] = [];
+        for (let i = 0; i < moduleIds.length; i++) {
+          const moduleId = moduleIds[i];
+          const slug = moduleId.replace(/^@gatewaze-modules\//, '');
+          for (const sourceDir of resolvedSources) {
+            const guidePath = resolve(sourceDir, slug, 'guide.md');
+            if (existsSync(guidePath)) {
+              const guideVarName = `guide${i}`;
+              imports.push(`import ${guideVarName} from '${guidePath}?raw';`);
+              guideAssignments.push(`mod${i}.guide = ${guideVarName};`);
+              break;
+            }
+          }
+        }
+
+        return [
+          ...imports,
+          ...cssImports,
+          ...guideAssignments,
+          `export default [${refs.join(', ')}];`,
+          '',
+        ].join('\n');
       }
       // Catch resolved paths that don't exist on disk (e.g. @/ alias imports
       // from module files that point to admin components not in this build)
@@ -158,77 +214,6 @@ export function gatewazeModulesPlugin(): Plugin {
       if (modified) return { code: result, map: null };
     },
 
-    load(id) {
-      // Return empty module for stubbed packages
-      if (id.startsWith('\0stub:')) {
-        if (id.endsWith('.css')) return '';
-        return { code: 'export default {};', syntheticNamedExports: true };
-      }
-      if (id !== RESOLVED_ID) return;
-
-      const configPath = resolve(projectRoot, 'gatewaze.config.ts');
-      const { moduleIds: explicitIds, sources } = parseConfig(configPath);
-
-      // Resolve each source directory to an absolute path (cloning git repos if needed)
-      const resolvedSources = resolveSources(sources, projectRoot);
-
-      // Auto-discover modules from sources if none explicitly listed
-      const moduleIds = explicitIds.length > 0
-        ? explicitIds
-        : discoverModulesFromSources(resolvedSources);
-
-      if (moduleIds.length === 0) {
-        return 'export default [];\n';
-      }
-
-      // Generate imports for each module
-      const imports: string[] = [];
-      const refs: string[] = [];
-      const cssImports: string[] = [];
-
-      for (let i = 0; i < moduleIds.length; i++) {
-        const moduleId = moduleIds[i];
-        const importPath = resolveModuleImport(moduleId, resolvedSources, projectRoot);
-
-        if (importPath) {
-          imports.push(`import mod${i} from '${importPath}';`);
-          refs.push(`mod${i}`);
-
-          // Check for theme module customCss and generate a side-effect import
-          const moduleCssPath = resolveThemeCustomCss(importPath, resolvedSources, moduleId);
-          if (moduleCssPath) {
-            cssImports.push(`import '${moduleCssPath}';`);
-            console.log(`[gatewaze-modules] Bundling theme CSS: ${moduleCssPath}`);
-          }
-        } else {
-          console.warn(`[gatewaze-modules] Could not resolve module: ${moduleId}`);
-        }
-      }
-
-      // Auto-detect guide.md files and attach as raw string to each module
-      const guideAssignments: string[] = [];
-      for (let i = 0; i < moduleIds.length; i++) {
-        const moduleId = moduleIds[i];
-        const slug = moduleId.replace(/^@gatewaze-modules\//, '');
-        for (const sourceDir of resolvedSources) {
-          const guidePath = resolve(sourceDir, slug, 'guide.md');
-          if (existsSync(guidePath)) {
-            const guideVarName = `guide${i}`;
-            imports.push(`import ${guideVarName} from '${guidePath}?raw';`);
-            guideAssignments.push(`mod${i}.guide = ${guideVarName};`);
-            break;
-          }
-        }
-      }
-
-      return [
-        ...imports,
-        ...cssImports,
-        ...guideAssignments,
-        `export default [${refs.join(', ')}];`,
-        '',
-      ].join('\n');
-    },
   };
 }
 
