@@ -1,4 +1,3 @@
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import OpenAI from 'https://deno.land/x/openai@v4.24.0/mod.ts'
 
@@ -77,7 +76,7 @@ function parseContextKey(key: string): { jobTitle: string; country: string } {
   return { jobTitle, country }
 }
 
-serve(async (req) => {
+const handler = async (req: Request): Promise<Response> => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -285,7 +284,10 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   }
-})
+}
+
+export default handler;
+if (import.meta.main) Deno.serve(handler);
 
 // Location-aware classification function
 async function classifyJobTitlesWithContext(
