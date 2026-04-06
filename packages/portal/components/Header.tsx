@@ -155,7 +155,7 @@ export function Header({ brandConfig, navItems = [] }: Props) {
               <img
                 src={brandConfig.logoIconUrl}
                 alt={brandConfig.name}
-                className="h-8 w-auto col-start-1 row-start-1 self-center transition-opacity duration-300"
+                className="h-10 w-auto col-start-1 row-start-1 self-center transition-opacity duration-300"
                 style={{
                   opacity: showFullLogo ? 0 : 1,
                   filter: isLightBg ? 'none' : 'brightness(0) invert(1)',
@@ -164,7 +164,7 @@ export function Header({ brandConfig, navItems = [] }: Props) {
               />
             ) : (
               <span
-                className="h-8 col-start-1 row-start-1 self-center font-semibold text-xl transition-opacity duration-300"
+                className="h-10 col-start-1 row-start-1 self-center font-semibold text-xl transition-opacity duration-300"
                 style={{
                   opacity: showFullLogo ? 0 : 1,
                   color: isLightBg ? '#000000' : '#ffffff',
@@ -177,7 +177,7 @@ export function Header({ brandConfig, navItems = [] }: Props) {
               <img
                 src={brandConfig.logoUrl}
                 alt={brandConfig.name}
-                className="h-8 w-auto col-start-1 row-start-1 self-center transition-opacity duration-300"
+                className="h-10 w-auto col-start-1 row-start-1 self-center transition-opacity duration-300"
                 style={{
                   opacity: showFullLogo ? 1 : 0,
                   filter: isLightBg ? 'none' : 'brightness(0) invert(1)',
