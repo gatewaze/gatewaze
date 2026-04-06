@@ -230,7 +230,7 @@ export function EventHero({ event, brandConfig, useDarkText }: Props) {
   return (
     <div className="pt-2 pb-8 lg:pt-4 lg:pb-8">
       {/* Two Column Layout - Fixed width image, fluid content */}
-      <div className="flex flex-col lg:flex-row gap-6 lg:gap-12 items-start">
+      <div className="flex flex-col lg:flex-row gap-6 lg:gap-12 items-center lg:items-start">
         {/* Left Column - Event Image (full width on mobile, fixed 320px on desktop) */}
         <div className={`order-1 lg:order-1 ${IMAGE_COLUMN_WIDTH} flex-shrink-0`}>
           {(event.event_logo || event.screenshot_url) ? (
@@ -292,7 +292,7 @@ export function EventHero({ event, brandConfig, useDarkText }: Props) {
 
           {/* Date & Location Panel */}
           {/* Use horizontal layout when image is landscape (creates gap below image) */}
-          <div className={`flex items-start ${
+          <div className={`flex items-center lg:items-start ${
             imageAspectRatio && imageAspectRatio > 1.3 && hasLocation
               ? 'flex-col lg:flex-row gap-0 lg:gap-12'
               : 'flex-col'
