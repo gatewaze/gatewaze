@@ -148,7 +148,7 @@ services:
       POSTGREST_URL: http://supabase-rest:3000
       PGRST_JWT_SECRET: ${JWT_SECRET}
       DATABASE_URL: postgres://supabase_storage_admin:${POSTGRES_PASSWORD}@supabase-db:5432/${POSTGRES_DB:-postgres}
-      FILE_SIZE_LIMIT: 52428800
+      FILE_SIZE_LIMIT: 524288000
       STORAGE_BACKEND: ${STORAGE_BACKEND:-file}
       FILE_STORAGE_BACKEND_PATH: /var/lib/storage
       TENANT_ID: stub
