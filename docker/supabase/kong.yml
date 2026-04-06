@@ -201,6 +201,9 @@ services:
   # ---------- Edge Functions ----------
   - name: functions-v1
     url: http://supabase-edge-functions:9000
+    connect_timeout: 10000
+    read_timeout: 300000
+    write_timeout: 300000
     routes:
       - name: functions-v1
         strip_path: true

@@ -344,6 +344,9 @@ services:
       VITE_PORTAL_DOMAIN: ${PORTAL_HOST:-gatewaze-app.localhost}
       VITE_APP_URL: http://${PORTAL_HOST:-gatewaze-app.localhost}
       VITE_APP_NAME: ${GW_APP_NAME:-}
+      EXTRA_MODULE_SOURCES: ${EXTRA_MODULE_SOURCES:-}
+      MODULE_SOURCES: ${MODULE_SOURCES:-}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
     depends_on:
       supabase-kong:
         condition: service_started

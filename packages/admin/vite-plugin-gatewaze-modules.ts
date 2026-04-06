@@ -509,6 +509,16 @@ function parseConfig(configPath: string): {
       sources.push({ url: '../gatewaze-modules/modules' });
     }
 
+    // Also read EXTRA_MODULE_SOURCES env var (comma-separated paths).
+    // The gatewaze.config.ts uses a runtime spread for this, which the
+    // static parser can't evaluate, so we read it directly from the env.
+    const extraSources = process.env.EXTRA_MODULE_SOURCES;
+    if (extraSources) {
+      for (const s of extraSources.split(',').map(p => p.trim()).filter(Boolean)) {
+        sources.push(normalizeSource(s));
+      }
+    }
+
     return { moduleIds, sources };
   } catch {
     return { moduleIds: [], sources: [] };
