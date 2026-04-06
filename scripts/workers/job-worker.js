@@ -425,20 +425,39 @@ const handlers = {
       throw new Error(`Failed to fetch zip upload: ${fetchError?.message}`);
     }
 
-    // Download zip
-    const { data: zipBlob, error: dlError } = await supabase.storage
-      .from('media')
-      .download(zipUpload.storage_path);
+    // Download zip to temp file via streaming (avoids holding entire file in memory)
+    const { createWriteStream, readFileSync, unlinkSync } = await import('fs');
+    const { Readable } = await import('stream');
+    const { pipeline } = await import('stream/promises');
+    const { tmpdir } = await import('os');
+    const { join } = await import('path');
 
-    if (dlError || !zipBlob) {
-      throw new Error(`Failed to download zip: ${dlError?.message}`);
+    const { data: signedUrlData, error: signError } = await supabase.storage
+      .from('media')
+      .createSignedUrl(zipUpload.storage_path, 3600); // 1 hour
+
+    if (signError || !signedUrlData?.signedUrl) {
+      throw new Error(`Failed to get signed URL: ${signError?.message}`);
     }
 
-    console.log(`📦 Downloaded: ${(zipBlob.size / 1024 / 1024).toFixed(1)}MB`);
+    const tempPath = join(tmpdir(), `zip-${zipUploadId}-${Date.now()}.zip`);
+    console.log(`📦 Downloading to temp file: ${tempPath}`);
+
+    const response = await fetch(signedUrlData.signedUrl);
+    if (!response.ok) throw new Error(`Download failed: ${response.status}`);
+
+    const nodeStream = Readable.fromWeb(response.body);
+    await pipeline(nodeStream, createWriteStream(tempPath));
+
+    const zipBuffer = readFileSync(tempPath);
+    console.log(`📦 Downloaded: ${(zipBuffer.length / 1024 / 1024).toFixed(1)}MB`);
 
     // Use JSZip (available in Node.js worker container)
     const JSZip = (await import('jszip')).default;
-    const zip = await JSZip.loadAsync(await zipBlob.arrayBuffer());
+    const zip = await JSZip.loadAsync(zipBuffer);
+
+    // Delete temp file now that zip is loaded
+    try { unlinkSync(tempPath); } catch {}
 
     const files = Object.values(zip.files).filter(f =>
       !f.dir && !f.name.startsWith('__MACOSX/') && !f.name.includes('/.') && !f.name.startsWith('.')
