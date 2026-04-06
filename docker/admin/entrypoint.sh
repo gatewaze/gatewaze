@@ -33,6 +33,8 @@ if [ -n "$MODULE_SOURCES" ]; then
 
     # Create symlink that matches local dev layout: /<reponame> → cloned repo
     # This makes ../gatewaze-modules/modules resolve correctly from /app
+    # Remove any existing directory first (mkdir in Dockerfile creates empty dirs)
+    rm -rf "/$reponame" 2>/dev/null || true
     ln -sf "$target" "/$reponame"
     echo "[admin] Symlinked /$reponame → $target"
   done
