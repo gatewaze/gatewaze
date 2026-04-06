@@ -107,11 +107,14 @@ export async function deployEdgeFunctions(
 
   for (const mod of opts.modules) {
     const edgeFunctions = mod.config.edgeFunctions;
-    if (!edgeFunctions || edgeFunctions.length === 0) continue;
+    const functionFiles = mod.config.functionFiles;
+    const hasEdgeFunctions = edgeFunctions && edgeFunctions.length > 0;
+    const hasFunctionFiles = functionFiles && functionFiles.length > 0;
+    if (!hasEdgeFunctions && !hasFunctionFiles) continue;
 
     const moduleDir = mod.resolvedDir;
     if (!moduleDir) {
-      for (const fnName of edgeFunctions) {
+      for (const fnName of edgeFunctions ?? []) {
         result.errors.push({
           module: mod.config.id,
           functionName: fnName,
@@ -119,6 +122,18 @@ export async function deployEdgeFunctions(
         });
       }
       continue;
+    }
+
+    // Copy functionFiles (e.g., provider.ts) to supabase/functions/<moduleId>/
+    if (!isCloudDeploy && hasFunctionFiles) {
+      const destDir = join(targetFunctionsDir, mod.config.id);
+      mkdirSync(destDir, { recursive: true });
+      for (const file of functionFiles) {
+        const srcFile = join(moduleDir, file);
+        if (existsSync(srcFile)) {
+          cpSync(srcFile, join(destDir, file));
+        }
+      }
     }
 
     const moduleFunctionsDir = join(moduleDir, 'functions');

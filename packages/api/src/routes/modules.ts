@@ -197,7 +197,7 @@ modulesRouter.post('/select', async (req, res) => {
     if (enabled?.length) {
       const enabledSet = new Set(enabled);
       const enabledModulesWithFunctions = modules.filter(
-        (m) => enabledSet.has(m.config.id) && m.config.edgeFunctions?.length
+        (m) => enabledSet.has(m.config.id) && (m.config.edgeFunctions?.length || m.config.functionFiles?.length)
       );
       if (enabledModulesWithFunctions.length > 0) {
         const deployResult = await deployEdgeFunctions({
@@ -348,12 +348,12 @@ modulesRouter.post('/select-stream', async (req, res) => {
 
       // Phase 4: Deploy edge functions
       const enabledModulesWithFunctions = modules.filter(
-        (m) => enabledSet.has(m.config.id) && m.config.edgeFunctions?.length
+        (m) => enabledSet.has(m.config.id) && (m.config.edgeFunctions?.length || m.config.functionFiles?.length)
       );
 
       if (enabledModulesWithFunctions.length > 0) {
         const totalFunctions = enabledModulesWithFunctions.reduce(
-          (sum, m) => sum + (m.config.edgeFunctions?.length ?? 0), 0
+          (sum, m) => sum + ((m.config.edgeFunctions?.length || m.config.functionFiles?.length) ?? 0), 0
         );
         send('progress', {
           step: 'deploy',
@@ -489,7 +489,7 @@ modulesRouter.post('/reconcile', async (_req, res) => {
       (allInstalled ?? []).filter((r: Record<string, unknown>) => r.status === 'enabled').map((r: Record<string, unknown>) => r.id as string)
     );
     const enabledModulesWithFunctions = modules.filter(
-      (m) => enabledIds.has(m.config.id) && m.config.edgeFunctions?.length
+      (m) => enabledIds.has(m.config.id) && (m.config.edgeFunctions?.length || m.config.functionFiles?.length)
     );
     if (enabledModulesWithFunctions.length > 0) {
       const deployResult = await deployEdgeFunctions({
@@ -727,7 +727,7 @@ modulesRouter.post('/:id/enable', async (req, res) => {
       migrationsApplied = mod.config.migrations ?? [];
 
       // Deploy edge functions
-      if (mod.config.edgeFunctions?.length) {
+      if (mod.config.edgeFunctions?.length || mod.config.functionFiles?.length) {
         const deployResult = await deployEdgeFunctions({
           projectRoot: PROJECT_ROOT,
           modules: [mod],
@@ -1031,7 +1031,7 @@ modulesRouter.post('/:id/update', async (req, res) => {
     let edgeFunctionsDeployed: string[] = [];
     if (
       (row as Record<string, unknown>).status === 'enabled' &&
-      mod.config.edgeFunctions?.length &&
+      (mod.config.edgeFunctions?.length || mod.config.functionFiles?.length) &&
       (hasVersionUpdate || hasEdgeFunctionChanges)
     ) {
       const deployResult = await deployEdgeFunctions({

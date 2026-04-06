@@ -84,6 +84,15 @@ export interface GatewazeModule {
   workers?: WorkerDefinition[];
   schedulers?: SchedulerDefinition[];
   edgeFunctions?: string[];
+  /**
+   * Additional files from the module root to deploy into the edge functions
+   * directory under the module ID. Used by provider modules that export a
+   * provider.ts without being a full edge function handler.
+   *
+   * Example: `['provider.ts']` copies `<moduleDir>/provider.ts` to
+   * `supabase/functions/<moduleId>/provider.ts`.
+   */
+  functionFiles?: string[];
   migrations?: string[];
   dependencies?: string[];
   configSchema?: Record<string, ConfigField>;
