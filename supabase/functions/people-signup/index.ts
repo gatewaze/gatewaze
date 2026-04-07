@@ -593,4 +593,4 @@ async function triggerEnrichmentIfEnabled(email: string): Promise<void> {
 }
 
 export default handler;
-if (import.meta.main) Deno.serve(handler);
+Deno.serve(handler);

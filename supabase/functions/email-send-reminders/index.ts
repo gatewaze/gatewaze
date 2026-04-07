@@ -153,4 +153,4 @@ async function handler(_req: Request) {
 }
 
 export default handler;
-if (import.meta.main) Deno.serve(handler);
+Deno.serve(handler);

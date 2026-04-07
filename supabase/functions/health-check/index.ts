@@ -3,4 +3,4 @@ const handler = (_req: Request): Response => new Response(JSON.stringify({ ok: t
 });
 
 export default handler;
-if (import.meta.main) Deno.serve(handler);
+Deno.serve(handler);
