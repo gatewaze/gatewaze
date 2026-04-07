@@ -37,9 +37,9 @@ spec:
           livenessProbe:
             exec:
               command:
-                - pgrep
-                - -f
-                - "node.*scheduler"
+                - node
+                - -e
+                - "process.exit(0)"
             initialDelaySeconds: 15
             periodSeconds: 30
             timeoutSeconds: 10

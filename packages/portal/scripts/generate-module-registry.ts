@@ -272,7 +272,16 @@ function discoverPortalModules(sourceDirs: string[]): PortalPageDef[] {
 async function generate() {
   const configSources = parseConfigSources()
   const dbSources = await fetchDbSources()
-  const allSources = mergeSources(configSources, dbSources)
+
+  // Handle EXTRA_MODULE_SOURCES env var (comma-separated paths)
+  // The config file references this via a spread operator that the regex parser can't evaluate
+  const extraSources: SourceEntry[] = (process.env.EXTRA_MODULE_SOURCES || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean)
+    .map(s => ({ url: s }))
+
+  const allSources = mergeSources([...configSources, ...extraSources], dbSources)
   const sourceDirs = resolveSources(allSources)
 
   console.log(`[generate-module-registry] Resolved ${sourceDirs.length} source dir(s) from ${configSources.length} config + ${dbSources.length} DB source(s):`)
