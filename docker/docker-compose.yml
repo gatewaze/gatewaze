@@ -169,6 +169,12 @@ services:
     image: kong:2.8.1
     container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-supabase-kong
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     ports:
       - "${KONG_PORT:-54321}:8000"
     labels:
@@ -206,7 +212,7 @@ services:
     restart: unless-stopped
     depends_on:
       supabase-kong:
-        condition: service_started
+        condition: service_healthy
     environment:
       JWT_SECRET: ${JWT_SECRET}
       SUPABASE_URL: http://supabase-kong:8000
