@@ -193,4 +193,4 @@ const handler = async (req: Request): Promise<Response> => {
 }
 
 export default handler;
-if (import.meta.main) Deno.serve(handler);
+Deno.serve(handler);
