@@ -259,6 +259,5 @@ process.on('SIGTERM', async () => {
   await jobsWorker.close();
   await emailWorker.close();
   await imageWorker.close();
-  await Promise.all(moduleWorkers.map(w => w.close()));
   process.exit(0);
 });
