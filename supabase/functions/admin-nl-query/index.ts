@@ -520,7 +520,7 @@ A: "AI Summit 2024 has the most registrations with 450 people signed up. DevCon 
 }
 
 export default handler;
-if (import.meta.main) Deno.serve(handler);
+Deno.serve(handler);
 
 // Semantic search handler
 async function handleSemanticSearch(query: string, model: string, openai: any, supabaseClient: any) {

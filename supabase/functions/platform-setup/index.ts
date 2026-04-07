@@ -133,4 +133,4 @@ function toNamespace(value: string): string {
 }
 
 export default handler;
-if (import.meta.main) Deno.serve(handler);
+Deno.serve(handler);
