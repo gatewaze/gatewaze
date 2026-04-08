@@ -120,13 +120,14 @@ export async function POST(req: NextRequest) {
                   if (me.sub_event_id) return q.sub_event_id === me.sub_event_id;
                   return !q.sub_event_id;
                 })
-                .filter(q => q.applies_to === 'all' || (q.applies_to === 'accepted_only' && me.rsvp_status === 'accepted'))
+                // Return all questions — client filters by applies_to based on live RSVP state
                 .map(q => ({
                   id: q.id,
                   question_text: q.question_text,
                   question_type: q.question_type,
                   options: q.options,
                   is_required: q.is_required,
+                  applies_to: q.applies_to || 'all',
                   current_answer: responseMap.get(me.id)?.get(q.id) ?? null,
                 })),
             }
@@ -212,8 +213,8 @@ export async function POST(req: NextRequest) {
       }
 
       // Apply RSVP updates
-      let acceptedCount = 0
-      let declinedCount = 0
+      const acceptedMembers = new Set<string>()
+      const declinedMembers = new Set<string>()
 
       for (const r of responses) {
         await supabase
@@ -221,8 +222,9 @@ export async function POST(req: NextRequest) {
           .update({ rsvp_status: r.rsvp_status, rsvp_responded_at: new Date().toISOString() })
           .eq('id', r.member_event_id)
 
-        if (r.rsvp_status === 'accepted') acceptedCount++
-        else if (r.rsvp_status === 'declined') declinedCount++
+        const me = memberEventMap.get(r.member_event_id)
+        if (me && r.rsvp_status === 'accepted') acceptedMembers.add(me.party_member_id)
+        else if (me && r.rsvp_status === 'declined') declinedMembers.add(me.party_member_id)
 
         // Upsert answers
         for (const answer of r.answers || []) {
@@ -322,7 +324,7 @@ export async function POST(req: NextRequest) {
               }
             }
           }
-          if (rsvpStatus === 'accepted') acceptedCount++
+          if (rsvpStatus === 'accepted') acceptedMembers.add(newMember.id)
         }
       }
 
@@ -350,7 +352,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         success: true,
         version: party.version + 1,
-        summary: { accepted: acceptedCount, declined: declinedCount, plus_ones_added: plusOnesAdded },
+        summary: { accepted: acceptedMembers.size, declined: declinedMembers.size, plus_ones_added: plusOnesAdded },
       })
     }
 

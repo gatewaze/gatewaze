@@ -1,0 +1,56 @@
+{{- if .Values.customDomains.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "gatewaze.fullname" . }}-domain-controller
+  labels:
+    {{- include "gatewaze.labels" . | nindent 4 }}
+    app.kubernetes.io/component: domain-controller
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "gatewaze.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: domain-controller
+  template:
+    metadata:
+      labels:
+        {{- include "gatewaze.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: domain-controller
+    spec:
+      serviceAccountName: {{ include "gatewaze.fullname" . }}-domain-controller
+      containers:
+        - name: controller
+          image: "{{ .Values.customDomains.controller.image.registry }}/{{ .Values.customDomains.controller.image.repository }}:{{ .Values.customDomains.controller.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: SUPABASE_URL
+              value: {{ .Values.supabase.url | quote }}
+            - name: SUPABASE_SERVICE_ROLE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "gatewaze.fullname" . }}-secret
+                  key: SUPABASE_SERVICE_ROLE_KEY
+            - name: CNAME_TARGET
+              value: {{ .Values.customDomains.cnameTarget | quote }}
+            - name: EXPECTED_INGRESS_IP
+              value: {{ .Values.customDomains.expectedIp | quote }}
+            - name: CLUSTER_ISSUER
+              value: {{ .Values.customDomains.clusterIssuer | quote }}
+            - name: PORTAL_SERVICE_NAME
+              value: {{ include "gatewaze.fullname" . }}-portal
+            - name: PORTAL_SERVICE_PORT
+              value: "3100"
+            - name: NAMESPACE
+              value: {{ .Release.Namespace }}
+            - name: POLL_INTERVAL_SECONDS
+              value: {{ .Values.customDomains.pollInterval | quote }}
+          resources:
+            {{- toYaml .Values.customDomains.controller.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

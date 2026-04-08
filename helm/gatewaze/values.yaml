@@ -212,3 +212,33 @@ podDisruptionBudget:
 nodeSelector: {}
 tolerations: []
 affinity: {}
+
+# =============================================================================
+# Custom Domains Module
+# =============================================================================
+customDomains:
+  # -- Enable the custom domain controller
+  enabled: false
+  controller:
+    image:
+      registry: ghcr.io/gatewaze
+      repository: custom-domain-controller
+      tag: latest
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+  # -- CNAME target for DNS verification (e.g., custom.myplatform.com)
+  cnameTarget: ""
+  # -- Expected ingress IP for A record verification
+  expectedIp: ""
+  # -- cert-manager ClusterIssuer name
+  clusterIssuer: "letsencrypt-prod"
+  # -- Poll interval in seconds
+  pollInterval: 60
+  # -- Create RBAC resources for the controller
+  rbac:
+    create: true
