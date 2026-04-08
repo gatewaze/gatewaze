@@ -118,10 +118,16 @@ function isKnownHost(hostname: string): boolean {
 
 // Content type to portal route mapping
 const contentRouteMap: Record<string, (slug: string) => string> = {
+  'events': (slug) => `/events/${slug}`,
   'event': (slug) => `/events/${slug}`,
   'blog': (slug) => `/blog/${slug}`,
+  'newsletters': (slug) => `/newsletters/${slug}`,
   'newsletter': (slug) => `/newsletters/${slug}`,
+  'recipes': (slug) => `/recipes/${slug}`,
   'recipe': (slug) => `/recipes/${slug}`,
+  'cohorts': (slug) => `/cohorts/${slug}`,
+  'competitions': (slug) => `/competitions/${slug}`,
+  'structured_resources': (slug) => `/resources/${slug}`,
 }
 
 interface CustomDomainLookup {
