@@ -27,11 +27,11 @@ async function handler(req: Request) {
 
     const normalizedEmail = email.trim().toLowerCase();
 
-    // Verify admin exists and is active
+    // Verify admin exists and is active (case-insensitive email match)
     const { data: profile } = await supabase
       .from('admin_profiles')
       .select('email, name, is_active')
-      .eq('email', normalizedEmail)
+      .ilike('email', normalizedEmail)
       .eq('is_active', true)
       .maybeSingle();
 
