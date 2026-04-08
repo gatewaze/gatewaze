@@ -34,7 +34,17 @@ interface Props {
   userState?: EventUserState
 }
 
+function useHasInviteToken() {
+  const [hasToken, setHasToken] = useState(false)
+  useEffect(() => {
+    setHasToken(!!localStorage.getItem('invite_short_code'))
+  }, [])
+  return hasToken
+}
+
 function useNavItems(event: Event, basePath: string, speakerCount: number, sponsorCount: number, competitionCount: number, discountCount: number, mediaCount: number, userState?: EventUserState) {
+  const hasInvite = useHasInviteToken()
+
   const navItems: NavItem[] = [
     {
       label: 'Details',
@@ -134,6 +144,16 @@ function useNavItems(event: Event, basePath: string, speakerCount: number, spons
       icon: (
         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+        </svg>
+      ),
+    },
+    {
+      label: 'RSVP',
+      href: `${basePath}/rsvp`,
+      show: hasInvite,
+      icon: (
+        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
         </svg>
       ),
     },
