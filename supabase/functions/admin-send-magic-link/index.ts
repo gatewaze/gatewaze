@@ -67,60 +67,10 @@ async function handler(req: Request) {
       );
     }
 
-    // Check if platform email is configured
-    if (isEmailConfigured()) {
-      // Generate magic link via admin API
-      const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
-        type: 'magiclink',
-        email: normalizedEmail,
-        options: { redirectTo: redirectTo || undefined },
-      });
-
-      if (linkError || !linkData) {
-        return new Response(
-          JSON.stringify({ error: linkError?.message || 'Failed to generate magic link' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-        );
-      }
-
-      const magicLink = linkData.properties?.action_link;
-      const appName = Deno.env.get('GW_APP_NAME') || 'Gatewaze';
-      const firstName = profile.name?.split(' ')[0] || '';
-
-      // Send via platform email service
-      await sendEmail({
-        to: normalizedEmail,
-        subject: `Sign in to ${appName}`,
-        html: `
-          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px;">
-            <h2 style="margin: 0 0 16px;">Sign in to ${appName}</h2>
-            <p style="color: #555; line-height: 1.6;">
-              ${firstName ? `Hi ${firstName},` : 'Hi,'}<br><br>
-              Click the button below to sign in to your admin account.
-            </p>
-            <div style="margin: 32px 0;">
-              <a clicktracking="off" href="${magicLink}" style="display: inline-block; padding: 12px 32px; background: #111; color: #fff; text-decoration: none; border-radius: 6px; font-weight: 500;">
-                Sign In
-              </a>
-            </div>
-            <p style="color: #999; font-size: 13px; line-height: 1.5;">
-              If the button doesn't work, copy and paste this link into your browser:<br>
-              <a clicktracking="off" href="${magicLink}" style="color: #999; word-break: break-all;">${magicLink}</a>
-            </p>
-            <p style="color: #999; font-size: 13px;">This link expires in 1 hour.</p>
-          </div>
-        `,
-        text: `Sign in to ${appName}\n\nClick here to sign in: ${magicLink}\n\nThis link expires in 1 hour.`,
-      });
-
-      return new Response(
-        JSON.stringify({ success: true }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-      );
-    }
-
-    // Fallback: no platform email configured — tell client to use signInWithOtp
-    // (requires GoTrue SMTP to be configured separately)
+    // Always return verifyOnly — the client calls signInWithOtp directly
+    // which respects emailRedirectTo (redirects to admin.* not portal).
+    // Using generateLink + sendEmail here would bypass emailRedirectTo and
+    // redirect to the Supabase Site URL (the portal) instead.
     return new Response(
       JSON.stringify({ success: true, verifyOnly: true }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
