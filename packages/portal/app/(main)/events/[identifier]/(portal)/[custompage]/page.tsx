@@ -1,9 +1,12 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
+import { Suspense } from 'react'
 import { getServerBrand, getBrandConfigById } from '@/config/brand'
 import { createServerSupabase } from '@/lib/supabase/server'
 import { AddedPageContent } from '@/components/event/AddedPageContent'
 import { stripEmojis } from '@/lib/text'
+import { findEventModulePage } from '@/lib/modules/generated-event-pages'
+import { getEnabledModules, isModuleEnabled } from '@/lib/modules/enabledModules'
 
 interface Props {
   params: Promise<{ identifier: string; custompage: string }>
@@ -46,6 +49,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { identifier, custompage } = await params
   const brand = await getServerBrand()
   const brandConfig = await getBrandConfigById(brand)
+
+  // Check module event pages first
+  const modulePage = findEventModulePage(custompage)
+  if (modulePage) {
+    const event = await getEventForMetadata(identifier, brand)
+    const title = event ? stripEmojis(event.event_title) : 'Event'
+    return {
+      title: `${modulePage.label} - ${title}`,
+      description: `${modulePage.label} at ${title}`,
+    }
+  }
+
   const event = await getEventForMetadata(identifier, brand)
 
   if (!event || !event.addedpage_content) {
@@ -82,6 +97,28 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function CustomPage({ params }: Props) {
   const { identifier, custompage } = await params
+
+  // Check module event pages first
+  const modulePage = findEventModulePage(custompage)
+  if (modulePage) {
+    const modules = await getEnabledModules()
+    if (isModuleEnabled(modules, modulePage.moduleId)) {
+      const brand = await getServerBrand()
+      const brandConfig = await getBrandConfigById(brand)
+      const { default: PageComponent } = await modulePage.component()
+      return (
+        <Suspense fallback={null}>
+          <PageComponent
+            eventIdentifier={identifier}
+            primaryColor={brandConfig.primaryColor}
+            brandName={brandConfig.name}
+          />
+        </Suspense>
+      )
+    }
+  }
+
+  // Fall back to custom page content
   const brand = await getServerBrand()
   const event = await getEventForMetadata(identifier, brand)
 
