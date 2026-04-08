@@ -34,16 +34,40 @@ interface Props {
   userState?: EventUserState
 }
 
-function useHasInviteToken() {
-  const [hasToken, setHasToken] = useState(false)
+function useModuleNavItems(basePath: string) {
+  const [items, setItems] = useState<NavItem[]>([])
+
   useEffect(() => {
-    setHasToken(!!localStorage.getItem('invite_short_code'))
-  }, [])
-  return hasToken
+    // Dynamic import to avoid SSR issues with generated file
+    import('@/lib/modules/generated-event-pages').then(({ eventModulePages }) => {
+      const navItems: NavItem[] = []
+      for (const page of eventModulePages) {
+        // Check localStorage requirement
+        if (page.requiresLocalStorage) {
+          try {
+            if (!localStorage.getItem(page.requiresLocalStorage)) continue
+          } catch { continue }
+        }
+        navItems.push({
+          label: page.label,
+          href: `${basePath}/${page.slug}`,
+          show: true,
+          icon: (
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+            </svg>
+          ),
+        })
+      }
+      setItems(navItems)
+    }).catch(() => {})
+  }, [basePath])
+
+  return items
 }
 
 function useNavItems(event: Event, basePath: string, speakerCount: number, sponsorCount: number, competitionCount: number, discountCount: number, mediaCount: number, userState?: EventUserState) {
-  const hasInvite = useHasInviteToken()
+  const moduleNavItems = useModuleNavItems(basePath)
 
   const navItems: NavItem[] = [
     {
@@ -147,16 +171,7 @@ function useNavItems(event: Event, basePath: string, speakerCount: number, spons
         </svg>
       ),
     },
-    {
-      label: 'RSVP',
-      href: `${basePath}/rsvp`,
-      show: hasInvite,
-      icon: (
-        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
-        </svg>
-      ),
-    },
+    ...moduleNavItems,
   ]
 
   return navItems.filter(item => item.show)

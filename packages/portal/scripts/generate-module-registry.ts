@@ -271,6 +271,69 @@ function discoverPortalModules(sourceDirs: string[]): PortalPageDef[] {
 }
 
 // ---------------------------------------------------------------------------
+// Event page discovery (portal/event-pages/)
+// ---------------------------------------------------------------------------
+
+interface EventPageDef {
+  slug: string
+  moduleId: string
+  componentPath: string
+  label: string
+  icon: string
+  order: number
+  requiresLocalStorage?: string
+}
+
+function discoverEventPages(sourceDirs: string[]): EventPageDef[] {
+  const eventPages: EventPageDef[] = []
+
+  for (const sourceDir of sourceDirs) {
+    if (!existsSync(sourceDir)) continue
+
+    const moduleDirs = readdirSync(sourceDir).filter(name => {
+      if (name.startsWith('.') || name.startsWith('_')) return false
+      return statSync(resolve(sourceDir, name)).isDirectory()
+    })
+
+    for (const moduleDir of moduleDirs) {
+      const eventPagesDir = resolve(sourceDir, moduleDir, 'portal', 'event-pages')
+      if (!existsSync(eventPagesDir)) continue
+
+      // Load metadata
+      let meta: Record<string, { label?: string; icon?: string; order?: number; requiresLocalStorage?: string }> = {}
+      const metaPath = resolve(eventPagesDir, '_meta.json')
+      if (existsSync(metaPath)) {
+        try {
+          meta = JSON.parse(readFileSync(metaPath, 'utf-8'))
+        } catch {}
+      }
+
+      const pageFiles = readdirSync(eventPagesDir).filter(f =>
+        (f.endsWith('.tsx') || f.endsWith('.ts')) && !f.startsWith('_')
+      )
+
+      for (const file of pageFiles) {
+        const slug = file.replace(/\.tsx?$/, '')
+        const absPath = resolve(eventPagesDir, slug)
+        const pageMeta = meta[slug] || {}
+
+        eventPages.push({
+          slug,
+          moduleId: moduleDir,
+          componentPath: absPath,
+          label: pageMeta.label || slug.charAt(0).toUpperCase() + slug.slice(1),
+          icon: pageMeta.icon || 'page',
+          order: pageMeta.order ?? 100,
+          requiresLocalStorage: pageMeta.requiresLocalStorage,
+        })
+      }
+    }
+  }
+
+  return eventPages
+}
+
+// ---------------------------------------------------------------------------
 // Generate
 // ---------------------------------------------------------------------------
 
@@ -295,6 +358,7 @@ async function generate() {
   }
 
   const pages = discoverPortalModules(sourceDirs)
+  const eventPages = discoverEventPages(sourceDirs)
 
   const entries: string[] = []
   for (const page of pages) {
@@ -371,9 +435,50 @@ export function extractParams(routePath: string, pathname: string): Record<strin
   // Export module prefixes for middleware URL rewriting
   writeFileSync(PREFIXES_PATH, JSON.stringify(modulePrefixes, null, 2), 'utf-8')
 
+  // Generate event pages registry
+  const EVENT_PAGES_PATH = resolve(__dirname, '../lib/modules/generated-event-pages.ts')
+  const eventPageEntries: string[] = []
+  for (const ep of eventPages) {
+    eventPageEntries.push(
+      `  { slug: '${ep.slug}', moduleId: '${ep.moduleId}', label: '${ep.label}', icon: '${ep.icon}', order: ${ep.order}, requiresLocalStorage: ${ep.requiresLocalStorage ? `'${ep.requiresLocalStorage}'` : 'undefined'}, component: () => import('${ep.componentPath}') },`
+    )
+  }
+
+  const eventPagesOutput = `// AUTO-GENERATED — do not edit manually
+// Run: npx tsx scripts/generate-module-registry.ts
+
+import type { ComponentType } from 'react'
+
+export interface EventModulePage {
+  slug: string
+  moduleId: string
+  label: string
+  icon: string
+  order: number
+  requiresLocalStorage?: string
+  component: () => Promise<{ default: ComponentType<any> }>
+}
+
+export const eventModulePages: EventModulePage[] = [
+${eventPageEntries.join('\n')}
+]
+
+export function findEventModulePage(slug: string): EventModulePage | undefined {
+  return eventModulePages.find(p => p.slug === slug)
+}
+`
+
+  writeFileSync(EVENT_PAGES_PATH, eventPagesOutput, 'utf-8')
+
   console.log(`[generate-module-registry] Wrote ${pages.length} portal pages to ${relative(PROJECT_ROOT, OUTPUT_PATH)}`)
   for (const page of pages) {
     console.log(`  ${page.moduleId}: ${page.path}`)
+  }
+  if (eventPages.length > 0) {
+    console.log(`[generate-module-registry] Wrote ${eventPages.length} event pages to ${relative(PROJECT_ROOT, EVENT_PAGES_PATH)}`)
+    for (const ep of eventPages) {
+      console.log(`  ${ep.moduleId}: /events/{id}/${ep.slug}`)
+    }
   }
 }
 
