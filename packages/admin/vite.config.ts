@@ -45,7 +45,7 @@ export default defineConfig({
   },
   optimizeDeps: {
     // Ensure deps from external module sources are resolved from admin's node_modules
-    include: ["date-fns", "jszip"],
+    include: ["date-fns", "jszip", "qr-code-styling"],
   },
   build: {
     rollupOptions: {
