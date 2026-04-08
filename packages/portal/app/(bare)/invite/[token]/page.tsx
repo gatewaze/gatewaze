@@ -6,8 +6,9 @@ interface Props {
   params: Promise<{ token: string }>
 }
 
-// Legacy route — redirect to module-managed invite page
+// Legacy invite route — redirect to short link handler which resolves the event
 export default async function LegacyInvitePage({ params }: Props) {
   const { token } = await params
-  redirect(`/event-invites/${token}`)
+  // Reuse the /i/ short link logic
+  redirect(`/i/${token}`)
 }

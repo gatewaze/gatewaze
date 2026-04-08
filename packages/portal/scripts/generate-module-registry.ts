@@ -172,6 +172,11 @@ function resolveSources(sources: SourceEntry[]): string[] {
   const resolved: string[] = []
 
   for (const source of sources) {
+    // Skip malformed entries (e.g., from regex parsing raw JS expressions)
+    if (source.url.includes('process.env') || source.url.includes('\n') || source.url.includes('\r')) {
+      continue
+    }
+
     if (isGitUrl(source.url)) {
       const localPath = cloneOrUpdateRepo(source.url, source.branch)
       if (localPath) {
