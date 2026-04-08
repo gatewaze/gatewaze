@@ -170,15 +170,15 @@ async function lookupCustomDomain(hostname: string): Promise<CustomDomainLookup 
     const rows = await res.json()
     const row = rows?.[0]
 
-    if (!row || !row.content_type || !row.content_id) {
+    if (!row || !row.content_type) {
       customDomainCache.set(hostname, { result: null, timestamp: Date.now() })
       return null
     }
 
     const result: CustomDomainLookup = {
       contentType: row.content_type,
-      contentSlug: row.content_slug || row.content_id,
-      contentId: row.content_id,
+      contentSlug: row.content_slug || row.content_id || '',
+      contentId: row.content_id || '',
       pageTitle: row.page_title || undefined,
       faviconUrl: row.favicon_url || undefined,
     }
