@@ -9,6 +9,7 @@ interface Question {
   question_type: 'select' | 'multi_select' | 'text' | 'yes_no'
   options: string[] | null
   is_required: boolean
+  applies_to: 'all' | 'accepted_only'
   current_answer: unknown
 }
 
@@ -239,7 +240,7 @@ export function RsvpPageClient({ eventIdentifier, primaryColor, brandName }: Pro
   }
 
   if (loading) {
-    return <div className="py-12 text-center text-gray-400">Loading your invitation...</div>
+    return <div className="py-12 text-center text-gray-500">Loading your invitation...</div>
   }
 
   if (noToken || !party) {
@@ -252,17 +253,17 @@ export function RsvpPageClient({ eventIdentifier, primaryColor, brandName }: Pro
 
   if (submitted && submitResult) {
     return (
-      <div className="max-w-xl mx-auto py-12 text-center">
+      <div className="py-12 text-center">
         <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: `${primaryColor}20` }}>
           <svg className="w-8 h-8" style={{ color: primaryColor }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        <h2 className="text-2xl font-bold text-white mb-2">RSVP Confirmed!</h2>
-        <p className="text-gray-300 mb-6">Thank you for responding, {party.name}.</p>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">RSVP Confirmed!</h2>
+        <p className="text-gray-600 dark:text-gray-300 mb-6">Thank you for responding, {party.name}.</p>
         <div className="flex justify-center gap-6 text-sm mb-6">
-          {submitResult.accepted > 0 && <div><p className="text-2xl font-bold text-green-400">{submitResult.accepted}</p><p className="text-gray-400">Attending</p></div>}
-          {submitResult.declined > 0 && <div><p className="text-2xl font-bold text-red-400">{submitResult.declined}</p><p className="text-gray-400">Not attending</p></div>}
+          {submitResult.accepted > 0 && <div><p className="text-2xl font-bold text-green-600">{submitResult.accepted}</p><p className="text-gray-500">Attending</p></div>}
+          {submitResult.declined > 0 && <div><p className="text-2xl font-bold text-red-500">{submitResult.declined}</p><p className="text-gray-500">Not attending</p></div>}
         </div>
         <button onClick={() => { setSubmitted(false); loadParty() }} className="text-sm font-medium hover:underline cursor-pointer" style={{ color: primaryColor }}>
           Edit your response
@@ -272,19 +273,18 @@ export function RsvpPageClient({ eventIdentifier, primaryColor, brandName }: Pro
   }
 
   return (
-    <div className="max-w-xl mx-auto space-y-6 py-4">
+    <div className="space-y-6 py-4">
       <div>
-        <h2 className="text-2xl font-bold text-white">RSVP</h2>
-        <p className="text-gray-300 mt-1">{party.name}</p>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">RSVP</h2>
+        <p className="text-gray-600 dark:text-gray-300 mt-1">{party.name}</p>
       </div>
 
       {members.map(member => (
-        <div key={member.id} className="bg-white/10 backdrop-blur-sm rounded-xl border border-white/10 overflow-hidden">
-          <div className="px-5 py-3 border-b border-white/10">
-            <h3 className="text-lg font-semibold text-white">
+        <div key={member.id} className="bg-white/80 dark:bg-white/10 backdrop-blur-sm rounded-xl border border-gray-200 dark:border-white/10 overflow-hidden">
+          <div className="px-5 py-3 border-b border-gray-100 dark:border-white/10">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
               {getMemberName(member)}
-              {member.is_lead_booker && <span className="ml-2 text-xs font-medium px-2 py-0.5 rounded-full bg-white/10 text-gray-300">Lead</span>}
-              {member.is_plus_one && <span className="ml-2 text-xs font-medium px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300">Guest</span>}
+              {member.is_plus_one && <span className="ml-2 text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300">Guest</span>}
             </h3>
           </div>
 
@@ -297,40 +297,40 @@ export function RsvpPageClient({ eventIdentifier, primaryColor, brandName }: Pro
               return (
                 <div key={event.member_event_id} className="space-y-3">
                   <div>
-                    <h4 className="font-medium text-white">{event.event_title}</h4>
-                    {event.event_start && <p className="text-sm text-gray-400 mt-0.5">{formatDate(event.event_start)}</p>}
-                    {event.event_location && <p className="text-sm text-gray-400">{event.event_location}</p>}
+                    <h4 className="font-medium text-gray-900 dark:text-white">{event.event_title}</h4>
+                    {event.event_start && <p className="text-sm text-gray-500 mt-0.5">{formatDate(event.event_start)}</p>}
+                    {event.event_location && <p className="text-sm text-gray-500">{event.event_location}</p>}
                   </div>
 
                   {locked ? (
-                    <div className="inline-block px-3 py-1.5 text-sm font-medium text-gray-400 bg-white/5 rounded-lg">RSVP Closed</div>
+                    <div className="inline-block px-3 py-1.5 text-sm font-medium text-gray-400 bg-gray-100 dark:bg-white/5 rounded-lg">RSVP Closed</div>
                   ) : (
                     <div className="flex gap-2">
                       <button onClick={() => updateRsvp(event.member_event_id, 'accepted')}
                         className="flex-1 py-2.5 px-4 rounded-lg text-sm font-semibold transition-all cursor-pointer border-2"
-                        style={isAccepted ? { backgroundColor: primaryColor, borderColor: primaryColor, color: '#fff' } : { borderColor: 'rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.8)' }}>
+                        style={isAccepted ? { backgroundColor: primaryColor, borderColor: primaryColor, color: '#fff' } : { borderColor: '#d1d5db', color: '#374151' }}>
                         Attending
                       </button>
                       <button onClick={() => updateRsvp(event.member_event_id, 'declined')}
                         className="flex-1 py-2.5 px-4 rounded-lg text-sm font-semibold transition-all cursor-pointer border-2"
-                        style={entry?.rsvp_status === 'declined' ? { backgroundColor: '#ef4444', borderColor: '#ef4444', color: '#fff' } : { borderColor: 'rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.8)' }}>
+                        style={entry?.rsvp_status === 'declined' ? { backgroundColor: '#ef4444', borderColor: '#ef4444', color: '#fff' } : { borderColor: '#d1d5db', color: '#374151' }}>
                         Not Attending
                       </button>
                     </div>
                   )}
 
-                  {isAccepted && !locked && event.questions.length > 0 && (
+                  {isAccepted && !locked && event.questions.filter(q => q.applies_to === 'all' || isAccepted).length > 0 && (
                     <div className="space-y-3 pl-4 border-l-2" style={{ borderColor: `${primaryColor}60` }}>
-                      {event.questions.map(q => (
+                      {event.questions.filter(q => q.applies_to === 'all' || isAccepted).map(q => (
                         <div key={q.id}>
-                          <label className="block text-sm font-medium text-gray-200 mb-1">
-                            {q.question_text}{q.is_required && <span className="text-red-400 ml-0.5">*</span>}
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                            {q.question_text}{q.is_required && <span className="text-red-500 ml-0.5">*</span>}
                           </label>
                           {q.question_type === 'select' && q.options && (
                             <select value={(entry?.answers[q.id] as string) || ''} onChange={e => updateAnswer(event.member_event_id, q.id, e.target.value)}
-                              className="w-full px-3 py-2 text-sm border border-white/20 rounded-lg bg-white/10 text-white focus:outline-none focus:ring-2">
-                              <option value="" className="bg-gray-800">Select...</option>
-                              {q.options.map(opt => <option key={opt} value={opt} className="bg-gray-800">{opt}</option>)}
+                              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-white/20 rounded-lg bg-white dark:bg-white/10 text-gray-900 dark:text-white focus:outline-none focus:ring-2">
+                              <option value="">Select...</option>
+                              {q.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                             </select>
                           )}
                           {q.question_type === 'multi_select' && q.options && (
@@ -338,7 +338,7 @@ export function RsvpPageClient({ eventIdentifier, primaryColor, brandName }: Pro
                               {q.options.map(opt => {
                                 const sel = Array.isArray(entry?.answers[q.id]) ? (entry.answers[q.id] as string[]).includes(opt) : false
                                 return (
-                                  <label key={opt} className="flex items-center gap-2 text-sm text-gray-200 cursor-pointer">
+                                  <label key={opt} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 cursor-pointer">
                                     <input type="checkbox" checked={sel} onChange={() => {
                                       const cur = Array.isArray(entry?.answers[q.id]) ? [...(entry.answers[q.id] as string[])] : []
                                       updateAnswer(event.member_event_id, q.id, sel ? cur.filter(x => x !== opt) : [...cur, opt])
@@ -350,14 +350,14 @@ export function RsvpPageClient({ eventIdentifier, primaryColor, brandName }: Pro
                           )}
                           {q.question_type === 'text' && (
                             <textarea value={(entry?.answers[q.id] as string) || ''} onChange={e => updateAnswer(event.member_event_id, q.id, e.target.value)}
-                              rows={2} className="w-full px-3 py-2 text-sm border border-white/20 rounded-lg bg-white/10 text-white focus:outline-none focus:ring-2 resize-y" />
+                              rows={2} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-white/20 rounded-lg bg-white dark:bg-white/10 text-gray-900 dark:text-white focus:outline-none focus:ring-2 resize-y" />
                           )}
                           {q.question_type === 'yes_no' && (
                             <div className="flex gap-2">
                               {['Yes', 'No'].map(val => (
                                 <button key={val} onClick={() => updateAnswer(event.member_event_id, q.id, val === 'Yes')}
                                   className="px-4 py-1.5 text-sm rounded-lg border-2 font-medium cursor-pointer transition-colors"
-                                  style={entry?.answers[q.id] === (val === 'Yes') ? { backgroundColor: primaryColor, borderColor: primaryColor, color: '#fff' } : { borderColor: 'rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.8)' }}>
+                                  style={entry?.answers[q.id] === (val === 'Yes') ? { backgroundColor: primaryColor, borderColor: primaryColor, color: '#fff' } : { borderColor: '#d1d5db', color: '#374151' }}>
                                   {val}
                                 </button>
                               ))}
@@ -375,25 +375,25 @@ export function RsvpPageClient({ eventIdentifier, primaryColor, brandName }: Pro
       ))}
 
       {remainingPlusOnes > 0 && (
-        <div className="bg-white/10 backdrop-blur-sm rounded-xl border border-white/10 p-5">
-          <h3 className="text-lg font-semibold text-white mb-4">Additional Guests</h3>
+        <div className="bg-white/80 dark:bg-white/10 backdrop-blur-sm rounded-xl border border-gray-200 dark:border-white/10 p-5">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Additional Guests</h3>
           {plusOnes.map((po, i) => (
-            <div key={i} className="mb-4 p-4 bg-white/5 rounded-lg space-y-3">
+            <div key={i} className="mb-4 p-4 bg-gray-50 dark:bg-white/5 rounded-lg space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-gray-300">Guest {i + 1}</span>
-                <button onClick={() => removePlusOne(i)} className="text-sm text-red-400 hover:text-red-300 cursor-pointer">Remove</button>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Guest {i + 1}</span>
+                <button onClick={() => removePlusOne(i)} className="text-sm text-red-500 hover:text-red-700 cursor-pointer">Remove</button>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <input type="text" placeholder="First name" value={po.first_name} onChange={e => updatePlusOne(i, 'first_name', e.target.value)}
-                  className="px-3 py-2 text-sm border border-white/20 rounded-lg bg-white/10 text-white placeholder-gray-500" />
+                  className="px-3 py-2 text-sm border border-gray-300 dark:border-white/20 rounded-lg bg-white dark:bg-white/10 text-gray-900 dark:text-white placeholder-gray-400" />
                 <input type="text" placeholder="Last name" value={po.last_name} onChange={e => updatePlusOne(i, 'last_name', e.target.value)}
-                  className="px-3 py-2 text-sm border border-white/20 rounded-lg bg-white/10 text-white placeholder-gray-500" />
+                  className="px-3 py-2 text-sm border border-gray-300 dark:border-white/20 rounded-lg bg-white dark:bg-white/10 text-gray-900 dark:text-white placeholder-gray-400" />
               </div>
               {allEvents.length > 1 && (
                 <div className="space-y-1">
-                  <label className="text-xs font-medium text-gray-400">Attending:</label>
+                  <label className="text-xs font-medium text-gray-500">Attending:</label>
                   {allEvents.map(ev => (
-                    <label key={ev.event_id} className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+                    <label key={ev.event_id} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
                       <input type="checkbox" checked={po.event_ids.includes(ev.event_id)}
                         onChange={() => updatePlusOne(i, 'event_ids', po.event_ids.includes(ev.event_id) ? po.event_ids.filter(id => id !== ev.event_id) : [...po.event_ids, ev.event_id])}
                         className="rounded" />{ev.event_title}
@@ -409,7 +409,7 @@ export function RsvpPageClient({ eventIdentifier, primaryColor, brandName }: Pro
         </div>
       )}
 
-      {error && <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-sm text-red-300">{error}</div>}
+      {error && <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-xl p-4 text-sm text-red-700 dark:text-red-300">{error}</div>}
 
       <button onClick={handleSubmit} disabled={submitting}
         className="w-full py-4 rounded-xl text-white font-semibold text-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-50 cursor-pointer"
