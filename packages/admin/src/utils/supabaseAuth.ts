@@ -198,7 +198,7 @@ export class SupabaseAuthService {
         const { data: existingProfile } = await supabase
           .from('admin_profiles')
           .select('id, email')
-          .eq('email', email)
+          .ilike('email', email.trim().toLowerCase())
           .maybeSingle()
 
         if (existingProfile) {
@@ -304,7 +304,7 @@ export class SupabaseAuthService {
           .from('admin_profiles')
           .insert({
             user_id: authUserId,
-            email,
+            email: email.trim().toLowerCase(),
             name,
             role: role,
             is_active: true
@@ -884,7 +884,7 @@ export class SupabaseAuthService {
         .from('admin_profiles')
         .insert({
           user_id: authData.user.id,
-          email,
+          email: email.trim().toLowerCase(),
           name,
           role,
           is_active: true
