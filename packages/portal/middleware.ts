@@ -116,6 +116,74 @@ function isKnownHost(hostname: string): boolean {
   return false
 }
 
+// Content type to portal route mapping
+const contentRouteMap: Record<string, (slug: string) => string> = {
+  'event': (slug) => `/events/${slug}`,
+  'blog': (slug) => `/blog/${slug}`,
+  'newsletter': (slug) => `/newsletters/${slug}`,
+  'recipe': (slug) => `/recipes/${slug}`,
+}
+
+interface CustomDomainLookup {
+  contentType: string
+  contentSlug: string
+  contentId: string
+  pageTitle?: string
+  faviconUrl?: string
+}
+
+// Cache for custom_domains table lookups
+const customDomainCache = new Map<string, { result: CustomDomainLookup | null, timestamp: number }>()
+
+async function lookupCustomDomain(hostname: string): Promise<CustomDomainLookup | null> {
+  const cached = customDomainCache.get(hostname)
+  if (cached !== undefined) {
+    if (cached.result === null) return null
+    if (Date.now() - cached.timestamp < CACHE_TTL) return cached.result
+  }
+
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!supabaseUrl || !supabaseAnonKey) return null
+
+  try {
+    const url = `${supabaseUrl}/rest/v1/custom_domains?select=content_type,content_id,content_slug,page_title,favicon_url&domain=eq.${encodeURIComponent(hostname)}&status=eq.active&limit=1`
+    const res = await fetch(url, {
+      headers: {
+        'apikey': supabaseAnonKey,
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+      },
+    })
+
+    if (!res.ok) {
+      // Table might not exist (module not enabled) — that's fine
+      customDomainCache.set(hostname, { result: null, timestamp: Date.now() })
+      return null
+    }
+
+    const rows = await res.json()
+    const row = rows?.[0]
+
+    if (!row || !row.content_type || !row.content_id) {
+      customDomainCache.set(hostname, { result: null, timestamp: Date.now() })
+      return null
+    }
+
+    const result: CustomDomainLookup = {
+      contentType: row.content_type,
+      contentSlug: row.content_slug || row.content_id,
+      contentId: row.content_id,
+      pageTitle: row.page_title || undefined,
+      faviconUrl: row.favicon_url || undefined,
+    }
+    customDomainCache.set(hostname, { result, timestamp: Date.now() })
+    return result
+  } catch {
+    customDomainCache.set(hostname, { result: null, timestamp: Date.now() })
+    return null
+  }
+}
+
 async function lookupEventByDomain(hostname: string): Promise<string | null> {
   // Check cache
   const cached = domainCache.get(hostname)
@@ -315,12 +383,51 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // Try custom_domains table first (custom-domains module)
+  const customDomain = await lookupCustomDomain(hostname)
+  if (customDomain) {
+    // Route based on content type
+    const routeFn = contentRouteMap[customDomain.contentType]
+    if (routeFn) {
+      const targetPath = routeFn(customDomain.contentSlug)
+
+      // Passthrough paths (auth, legal, API, profile)
+      const isPassthrough = PASSTHROUGH_PATHS.some(p => pathname === p || pathname.startsWith(p + '/'))
+      if (isPassthrough) {
+        const response = NextResponse.next()
+        response.headers.set('x-custom-domain', 'true')
+        response.headers.set('x-content-type', customDomain.contentType)
+        response.headers.set('x-content-id', customDomain.contentId)
+        response.headers.set('x-custom-domain-host', hostname)
+        return response
+      }
+
+      // Rewrite root and valid subpaths to the content route
+      const url = request.nextUrl.clone()
+      if (pathname === '/' || pathname === '') {
+        url.pathname = targetPath
+      } else {
+        // Append subpath to the content route
+        url.pathname = targetPath + pathname
+      }
+      const response = NextResponse.rewrite(url)
+      response.headers.set('x-custom-domain', 'true')
+      response.headers.set('x-content-type', customDomain.contentType)
+      response.headers.set('x-content-id', customDomain.contentId)
+      response.headers.set('x-custom-domain-host', hostname)
+      if (customDomain.pageTitle) response.headers.set('x-custom-domain-title', customDomain.pageTitle)
+      if (customDomain.faviconUrl) response.headers.set('x-custom-domain-favicon', customDomain.faviconUrl)
+      return response
+    }
+  }
+
+  // Fall back to legacy events.custom_domain lookup
   // If events module is disabled, custom domains can't resolve to events
   if (!eventsEnabled) {
     return NextResponse.redirect(new URL(process.env.NEXT_PUBLIC_APP_URL || '/'))
   }
 
-  // Look up the event for this custom domain
+  // Look up the event for this custom domain (legacy: events.custom_domain column)
   const eventIdentifier = await lookupEventByDomain(hostname)
 
   if (!eventIdentifier) {
