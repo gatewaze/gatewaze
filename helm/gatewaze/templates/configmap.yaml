@@ -40,11 +40,11 @@ data:
   VITE_API_URL: {{ printf "http://%s-api:3002" (include "gatewaze.fullname" .) | quote }}
   {{- end }}
 
-  # Custom Domains module
-  {{- if .Values.customDomains.enabled }}
-  CUSTOM_DOMAINS_CNAME_TARGET: {{ .Values.customDomains.cnameTarget | quote }}
-  CUSTOM_DOMAINS_EXPECTED_IP: {{ .Values.customDomains.expectedIp | quote }}
-  CUSTOM_DOMAINS_CLUSTER_ISSUER: {{ .Values.customDomains.clusterIssuer | quote }}
+  # Custom Domains module (env vars always set if config exists — needed by API even without controller)
+  {{- if .Values.customDomains }}
+  CUSTOM_DOMAINS_CNAME_TARGET: {{ .Values.customDomains.cnameTarget | default "" | quote }}
+  CUSTOM_DOMAINS_EXPECTED_IP: {{ .Values.customDomains.expectedIp | default "" | quote }}
+  CUSTOM_DOMAINS_CLUSTER_ISSUER: {{ .Values.customDomains.clusterIssuer | default "letsencrypt-prod" | quote }}
   {{- end }}
 
   # Module sources (comma-separated git URLs for admin startup clone)
