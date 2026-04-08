@@ -2,7 +2,6 @@ import { notFound } from 'next/navigation'
 import { getServerBrand, getBrandConfigById } from '@/config/brand'
 import { createServerSupabase } from '@/lib/supabase/server'
 import { EventLayoutClient } from '@/components/event/EventLayoutClient'
-import { InviteRsvpBanner } from '@/components/InviteRsvpBanner'
 import { AdPixels } from '@/components/tracking/AdPixels'
 import { extractEventIdFromSlug } from '@/lib/slugify'
 import { EventJsonLd } from '@/components/structured-data'
@@ -267,7 +266,6 @@ export default async function EventDetailLayout({ children, params }: Props) {
       >
         {children}
       </EventLayoutClient>
-      <InviteRsvpBanner />
     </>
   )
 }
