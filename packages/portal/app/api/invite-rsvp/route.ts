@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
       // Load sub-events
       const subEventIds = [...new Set((memberEvents || []).map(me => me.sub_event_id).filter(Boolean))]
       const { data: subEvents } = subEventIds.length > 0
-        ? await getSupabase().from('invite_sub_events').select('id, name, description, starts_at, ends_at, rsvp_deadline').in('id', subEventIds)
+        ? await getSupabase().from('invite_sub_events').select('id, name, description, starts_at, ends_at, rsvp_deadline, linked_rsvp').in('id', subEventIds)
         : { data: [] }
       const subEventMap = new Map((subEvents || []).map(se => [se.id, se]))
 
@@ -112,6 +112,7 @@ export async function POST(req: NextRequest) {
               event_location: event?.event_location || null,
               event_slug: event?.event_slug || null,
               sub_event_name: subEvent?.name || null,
+              linked_rsvp: subEvent?.linked_rsvp ?? false,
               rsvp_status: me.rsvp_status,
               rsvp_deadline: me.rsvp_deadline || subEvent?.rsvp_deadline || null,
               questions: (questions || [])
@@ -182,7 +183,7 @@ export async function POST(req: NextRequest) {
 
       const { data: validMemberEvents } = await getSupabase()
         .from('invite_party_member_events')
-        .select('id, party_member_id, event_id, rsvp_deadline')
+        .select('id, party_member_id, event_id, sub_event_id, rsvp_deadline')
         .in('party_member_id', (partyMembers || []).map(m => m.id))
 
       const validIds = new Set((validMemberEvents || []).map(me => me.id))
@@ -278,6 +279,37 @@ export async function POST(req: NextRequest) {
                     .eq('id', r.member_event_id)
                 }
               }
+            }
+          }
+        }
+      }
+
+      // Handle linked RSVP: auto-accept linked sub-events for accepted members
+      if (acceptedMembers.size > 0) {
+        // Get all sub-events for this event that have linked_rsvp = true
+        const eventIds = [...new Set((validMemberEvents || []).map(me => me.event_id))]
+        const { data: linkedSubEvents } = await getSupabase()
+          .from('invite_sub_events')
+          .select('id, event_id')
+          .in('event_id', eventIds)
+          .eq('linked_rsvp', true)
+
+        if (linkedSubEvents && linkedSubEvents.length > 0) {
+          const linkedSubEventIds = new Set(linkedSubEvents.map(se => se.id))
+
+          // For each accepted member, find their other linked sub-event assignments and accept them
+          for (const memberId of acceptedMembers) {
+            const memberMEs = (validMemberEvents || []).filter(
+              me => me.party_member_id === memberId && me.sub_event_id && linkedSubEventIds.has(me.sub_event_id)
+            )
+            for (const me of memberMEs) {
+              // Skip if already explicitly responded in this submission
+              if (responses.some(r => r.member_event_id === me.id)) continue
+
+              await getSupabase()
+                .from('invite_party_member_events')
+                .update({ rsvp_status: 'accepted', rsvp_responded_at: new Date().toISOString() })
+                .eq('id', me.id)
             }
           }
         }
