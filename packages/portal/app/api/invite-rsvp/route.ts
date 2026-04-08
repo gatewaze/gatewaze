@@ -1,11 +1,13 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-)
+function getSupabase() {
+  return createClient(
+    process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+}
 
 interface SubmitResponse {
   member_event_id: string
@@ -32,7 +34,7 @@ export async function POST(req: NextRequest) {
 
     // Resolve party
     const field = token.length <= 12 ? 'short_code' : 'token'
-    const { data: party } = await supabase
+    const { data: party } = await getSupabase()
       .from('invite_parties')
       .select('id, name, status, max_plus_ones, plus_ones_added, version')
       .eq(field, token)
@@ -48,38 +50,38 @@ export async function POST(req: NextRequest) {
 
     if (action === 'load') {
       // Get members
-      const { data: members } = await supabase
+      const { data: members } = await getSupabase()
         .from('invite_party_members')
         .select('id, first_name, last_name, email, is_lead_booker, is_plus_one, sort_order')
         .eq('party_id', party.id)
         .order('sort_order')
 
       const memberIds = (members || []).map(m => m.id)
-      const { data: memberEvents } = await supabase
+      const { data: memberEvents } = await getSupabase()
         .from('invite_party_member_events')
         .select('id, party_member_id, event_id, sub_event_id, rsvp_status, rsvp_deadline, rsvp_responded_at')
         .in('party_member_id', memberIds)
 
       const eventIds = [...new Set((memberEvents || []).map(me => me.event_id))]
       const { data: events } = eventIds.length > 0
-        ? await supabase.from('events').select('id, event_title, event_start, event_end, event_location, event_slug').in('id', eventIds)
+        ? await getSupabase().from('events').select('id, event_title, event_start, event_end, event_location, event_slug').in('id', eventIds)
         : { data: [] }
       const eventMap = new Map((events || []).map(e => [e.id, e]))
 
       // Load sub-events
       const subEventIds = [...new Set((memberEvents || []).map(me => me.sub_event_id).filter(Boolean))]
       const { data: subEvents } = subEventIds.length > 0
-        ? await supabase.from('invite_sub_events').select('id, name, description, starts_at, ends_at, rsvp_deadline').in('id', subEventIds)
+        ? await getSupabase().from('invite_sub_events').select('id, name, description, starts_at, ends_at, rsvp_deadline').in('id', subEventIds)
         : { data: [] }
       const subEventMap = new Map((subEvents || []).map(se => [se.id, se]))
 
       const { data: questions } = eventIds.length > 0
-        ? await supabase.from('invite_questions').select('*').in('event_id', eventIds).order('sort_order')
+        ? await getSupabase().from('invite_questions').select('*').in('event_id', eventIds).order('sort_order')
         : { data: [] }
 
       const memberEventIds = (memberEvents || []).map(me => me.id)
       const { data: responses } = memberEventIds.length > 0
-        ? await supabase.from('invite_responses').select('party_member_event_id, question_id, answer').in('party_member_event_id', memberEventIds)
+        ? await getSupabase().from('invite_responses').select('party_member_event_id, question_id, answer').in('party_member_event_id', memberEventIds)
         : { data: [] }
 
       const responseMap = new Map<string, Map<string, unknown>>()
@@ -136,11 +138,11 @@ export async function POST(req: NextRequest) {
 
       // Mark as opened
       if (party.status === 'sent') {
-        await supabase.from('invite_parties').update({ status: 'opened', opened_at: new Date().toISOString() }).eq('id', party.id)
+        await getSupabase().from('invite_parties').update({ status: 'opened', opened_at: new Date().toISOString() }).eq('id', party.id)
       }
 
       // Track
-      await supabase.from('event_invite_interactions').insert({ party_id: party.id, interaction_type: 'opened' }).then(() => {}, () => {})
+      await getSupabase().from('event_invite_interactions').insert({ party_id: party.id, interaction_type: 'opened' }).then(() => {}, () => {})
 
       // Find the primary event identifier for redirect purposes
       const firstEvent = events?.[0]
@@ -154,7 +156,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'track') {
-      await supabase.from('event_invite_interactions').insert({
+      await getSupabase().from('event_invite_interactions').insert({
         party_id: party.id,
         interaction_type: body.interaction_type || 'opened',
         ip_address: req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null,
@@ -173,12 +175,12 @@ export async function POST(req: NextRequest) {
       const newPlusOnes: NewPlusOne[] = body.new_plus_ones || []
 
       // Validate member_event_ids belong to this party
-      const { data: partyMembers } = await supabase
+      const { data: partyMembers } = await getSupabase()
         .from('invite_party_members')
         .select('id')
         .eq('party_id', party.id)
 
-      const { data: validMemberEvents } = await supabase
+      const { data: validMemberEvents } = await getSupabase()
         .from('invite_party_member_events')
         .select('id, party_member_id, event_id, rsvp_deadline')
         .in('party_member_id', (partyMembers || []).map(m => m.id))
@@ -217,7 +219,7 @@ export async function POST(req: NextRequest) {
       const declinedMembers = new Set<string>()
 
       for (const r of responses) {
-        await supabase
+        await getSupabase()
           .from('invite_party_member_events')
           .update({ rsvp_status: r.rsvp_status, rsvp_responded_at: new Date().toISOString() })
           .eq('id', r.member_event_id)
@@ -228,7 +230,7 @@ export async function POST(req: NextRequest) {
 
         // Upsert answers
         for (const answer of r.answers || []) {
-          await supabase
+          await getSupabase()
             .from('invite_responses')
             .upsert({
               party_member_event_id: r.member_event_id,
@@ -241,14 +243,14 @@ export async function POST(req: NextRequest) {
         if (r.rsvp_status === 'accepted') {
           const me = memberEventMap.get(r.member_event_id)
           if (me) {
-            const { data: member } = await supabase
+            const { data: member } = await getSupabase()
               .from('invite_party_members')
               .select('person_id')
               .eq('id', me.party_member_id)
               .single()
 
             if (member?.person_id) {
-              const { data: existingReg } = await supabase
+              const { data: existingReg } = await getSupabase()
                 .from('events_registrations')
                 .select('id')
                 .eq('event_id', me.event_id)
@@ -256,7 +258,7 @@ export async function POST(req: NextRequest) {
                 .maybeSingle()
 
               if (!existingReg) {
-                const { data: reg } = await supabase
+                const { data: reg } = await getSupabase()
                   .from('events_registrations')
                   .insert({
                     event_id: me.event_id,
@@ -270,7 +272,7 @@ export async function POST(req: NextRequest) {
                   .single()
 
                 if (reg) {
-                  await supabase
+                  await getSupabase()
                     .from('invite_party_member_events')
                     .update({ registration_id: reg.id })
                     .eq('id', r.member_event_id)
@@ -284,7 +286,7 @@ export async function POST(req: NextRequest) {
       // Create new plus-ones
       let plusOnesAdded = 0
       for (const po of newPlusOnes) {
-        const { data: newMember } = await supabase
+        const { data: newMember } = await getSupabase()
           .from('invite_party_members')
           .insert({
             party_id: party.id,
@@ -302,7 +304,7 @@ export async function POST(req: NextRequest) {
 
         for (const eventId of po.event_ids) {
           const rsvpStatus = po.rsvp_statuses?.[eventId] || 'accepted'
-          const { data: newMemberEvent } = await supabase
+          const { data: newMemberEvent } = await getSupabase()
             .from('invite_party_member_events')
             .insert({
               party_member_id: newMember.id,
@@ -316,7 +318,7 @@ export async function POST(req: NextRequest) {
           if (newMemberEvent && po.answers) {
             for (const answer of po.answers) {
               if (answer.event_id === eventId) {
-                await supabase.from('invite_responses').insert({
+                await getSupabase().from('invite_responses').insert({
                   party_member_event_id: newMemberEvent.id,
                   question_id: answer.question_id,
                   answer: answer.answer,
@@ -329,7 +331,7 @@ export async function POST(req: NextRequest) {
       }
 
       // Update party status
-      const { data: allME } = await supabase
+      const { data: allME } = await getSupabase()
         .from('invite_party_member_events')
         .select('rsvp_status')
         .in('party_member_id', (partyMembers || []).map(m => m.id))
@@ -339,7 +341,7 @@ export async function POST(req: NextRequest) {
       const someResponded = allStatuses.some(s => s !== 'pending')
       const newStatus = allResponded ? 'responded' : someResponded ? 'partially_responded' : party.status
 
-      await supabase
+      await getSupabase()
         .from('invite_parties')
         .update({
           status: newStatus,
