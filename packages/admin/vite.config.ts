@@ -24,6 +24,7 @@ export default defineConfig({
   },
   server: {
     port: 5274,
+    allowedHosts: true,
     fs: {
       allow: [
         // Allow serving files from module sibling repos
