@@ -42,6 +42,7 @@ supabase/.branches/
 # Edge functions: ignore everything, then whitelist core functions.
 # Module-installed functions are automatically excluded without needing updates.
 supabase/functions/*/
+!supabase/functions/main/
 supabase/functions/_shared/*
 !supabase/functions/_shared/
 !supabase/functions/_shared/cors.ts
