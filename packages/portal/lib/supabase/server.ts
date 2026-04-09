@@ -20,10 +20,14 @@ export async function createServerSupabase(brandId: string): Promise<SupabaseCli
  */
 export async function createAuthenticatedServerSupabase(brandId: string): Promise<SupabaseClient> {
   const config = await getBrandConfigById(brandId)
-  const url = process.env.SUPABASE_URL || config.supabaseUrl
+  // Use public URL so cookie storage key matches the browser's cookies
+  const publicUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || config.supabaseUrl
+  // Use internal URL for actual API requests (container-to-container in Docker)
+  const internalUrl = process.env.SUPABASE_URL || publicUrl
   const cookieStore = await cookies()
 
-  return createServerClient(url, config.supabaseAnonKey, {
+  // Create the SSR client with the PUBLIC URL so it finds the right cookies
+  const client = createServerClient(publicUrl, config.supabaseAnonKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll()
@@ -33,11 +37,21 @@ export async function createAuthenticatedServerSupabase(brandId: string): Promis
           cookiesToSet.forEach(({ name, value, options }) =>
             cookieStore.set(name, value, options)
           )
-        } catch {
-          // setAll can fail in Server Components (read-only).
-          // This is fine — the session is read-only in this context.
-        }
+        } catch {}
       },
     },
+    // Override the REST/auth URLs to use the internal network URL
+    // so server-side requests don't go through Traefik
+    ...(internalUrl !== publicUrl ? {
+      global: {
+        fetch: (input: RequestInfo | URL, init?: RequestInit) => {
+          const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+          const rewritten = url.replace(publicUrl, internalUrl)
+          return fetch(rewritten, init)
+        },
+      },
+    } : {}),
   })
+
+  return client
 }

@@ -1,0 +1,206 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+
+// Service role client for DB writes
+const serviceSupabase = createClient(
+  process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  { auth: { autoRefreshToken: false, persistSession: false } }
+)
+
+async function getAuthenticatedPersonId(): Promise<string | null> {
+  try {
+    const publicUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+    const internalUrl = process.env.SUPABASE_URL || publicUrl
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    const cookieStore = await cookies()
+
+    const authClient = createServerClient(publicUrl, anonKey, {
+      cookies: {
+        getAll() { return cookieStore.getAll() },
+        setAll() {},
+      },
+      ...(internalUrl !== publicUrl ? {
+        global: {
+          fetch: (input: RequestInfo | URL, init?: RequestInit) => {
+            const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+            return fetch(url.replace(publicUrl, internalUrl), init)
+          },
+        },
+      } : {}),
+    })
+
+    const { data: { user } } = await authClient.auth.getUser()
+    if (!user?.id) return null
+
+    const { data: person } = await serviceSupabase
+      .from('people')
+      .select('id')
+      .eq('auth_user_id', user.id)
+      .maybeSingle()
+
+    return person?.id || null
+  } catch {
+    return null
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json()
+    const { action } = body
+
+    const personId = await getAuthenticatedPersonId()
+    if (!personId) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+    }
+
+    if (action === 'send') {
+      const { event_id, track_id, content, reply_to_id } = body
+
+      if (!event_id || !track_id || !content?.trim()) {
+        return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+      }
+
+      if (content.length > 1000) {
+        return NextResponse.json({ error: 'Message too long (max 1000 chars)' }, { status: 400 })
+      }
+
+      // Check if user is blocked
+      const { data: blocked } = await serviceSupabase
+        .from('live_chat_blocked_users')
+        .select('id')
+        .eq('event_id', event_id)
+        .eq('person_id', personId)
+        .maybeSingle()
+
+      if (blocked) {
+        return NextResponse.json({ error: 'You have been muted' }, { status: 403 })
+      }
+
+      const { data: msg, error } = await serviceSupabase
+        .from('live_chat_messages')
+        .insert({
+          event_id,
+          track_id,
+          person_id: personId,
+          content: content.trim(),
+          reply_to_id: reply_to_id || null,
+        })
+        .select('id')
+        .single()
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 400 })
+      }
+
+      return NextResponse.json({ success: true, id: msg.id })
+    }
+
+    if (action === 'react') {
+      const { message_id, reaction_type } = body
+
+      // Try insert — if duplicate, toggle off
+      const { error } = await serviceSupabase
+        .from('live_chat_reactions')
+        .insert({ message_id, person_id: personId, reaction_type })
+
+      if (error?.code === '23505') {
+        // Duplicate — remove (toggle off)
+        await serviceSupabase
+          .from('live_chat_reactions')
+          .delete()
+          .eq('message_id', message_id)
+          .eq('person_id', personId)
+          .eq('reaction_type', reaction_type)
+
+        return NextResponse.json({ success: true, toggled: 'off' })
+      }
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 400 })
+      }
+
+      return NextResponse.json({ success: true, toggled: 'on' })
+    }
+
+    if (action === 'edit') {
+      const { message_id, content } = body
+      if (!message_id || !content?.trim()) {
+        return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
+      }
+      if (content.length > 1000) {
+        return NextResponse.json({ error: 'Message too long' }, { status: 400 })
+      }
+
+      // Verify the message belongs to this user
+      const { data: msg } = await serviceSupabase
+        .from('live_chat_messages')
+        .select('person_id')
+        .eq('id', message_id)
+        .single()
+
+      if (!msg || msg.person_id !== personId) {
+        return NextResponse.json({ error: 'Not your message' }, { status: 403 })
+      }
+
+      const { error } = await serviceSupabase
+        .from('live_chat_messages')
+        .update({ content: content.trim(), is_edited: true })
+        .eq('id', message_id)
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 400 })
+      }
+
+      return NextResponse.json({ success: true })
+    }
+
+    if (action === 'get-pinned') {
+      const { event_id, track_id } = body
+      const { data } = await serviceSupabase
+        .from('live_chat_pinned_messages')
+        .select('id, message_id, pinned_at, live_chat_messages!inner(content, track_id)')
+        .eq('event_id', event_id)
+        .order('pinned_at', { ascending: false })
+
+      const pinned = (data || [])
+        .filter((p: any) => p.live_chat_messages?.track_id === track_id)
+        .map((p: any) => ({
+          id: p.id,
+          message_id: p.message_id,
+          content: p.live_chat_messages?.content || '',
+          pinned_at: p.pinned_at,
+        }))
+
+      return NextResponse.json({ pinned })
+    }
+
+    if (action === 'lookup-names') {
+      const { person_ids } = body
+      if (!Array.isArray(person_ids) || person_ids.length === 0) {
+        return NextResponse.json({ names: {} })
+      }
+      // Limit to 100 at a time
+      const ids = person_ids.slice(0, 100)
+      const { data: people } = await serviceSupabase
+        .from('people')
+        .select('id, email, attributes')
+        .in('id', ids)
+
+      const names: Record<string, string> = {}
+      for (const p of people || []) {
+        const attrs = (p.attributes || {}) as Record<string, string>
+        names[p.id] = [attrs.first_name, attrs.last_name].filter(Boolean).join(' ') || p.email || 'Anonymous'
+      }
+      return NextResponse.json({ names })
+    }
+
+    return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
+  } catch (error) {
+    console.error('[live-chat] Error:', error)
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 })
+  }
+}
