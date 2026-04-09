@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState, useRef } from 'react'
-import { getClientBrandConfig } from '@/config/brand'
 import { SpeakerSubmissionForm } from './SpeakerSubmissionForm'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import { GlowBorder } from '@/components/ui/GlowBorder'
 import { PortalButton } from '@/components/ui/PortalButton'
 import { useAuth } from '@/hooks/useAuth'
@@ -60,11 +60,7 @@ export function TalksFormContent({ initialStatus = 'pending', confirmedDurationC
       setIsCheckingSubmission(true)
 
       try {
-        const config = getClientBrandConfig()
-        const { createClient } = await import('@supabase/supabase-js')
-        const supabase = createClient(config.supabaseUrl, config.supabaseAnonKey, {
-          global: { headers: { Authorization: `Bearer ${session.access_token}` } }
-        })
+        const supabase = getSupabaseClient()
 
         const { data: person } = await supabase
           .from('people')
@@ -123,12 +119,12 @@ export function TalksFormContent({ initialStatus = 'pending', confirmedDurationC
           .from('events_talk_speakers')
           .select(`
             is_primary,
-            speaker:event_speakers!inner (
+            speaker:events_speakers!inner (
               id,
               event_uuid,
               people_profile_id
             ),
-            talk:event_talks!inner (
+            talk:events_talks!inner (
               id,
               title,
               status,
@@ -163,11 +159,7 @@ export function TalksFormContent({ initialStatus = 'pending', confirmedDurationC
 
     setDeletingTalkId(talkId)
     try {
-      const config = getClientBrandConfig()
-      const { createClient } = await import('@supabase/supabase-js')
-      const supabase = createClient(config.supabaseUrl, config.supabaseAnonKey, {
-        global: { headers: { Authorization: `Bearer ${session.access_token}` } }
-      })
+      const supabase = getSupabaseClient()
 
       const { error: junctionError } = await supabase
         .from('events_talk_speakers')

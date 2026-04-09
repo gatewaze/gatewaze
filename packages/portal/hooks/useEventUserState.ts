@@ -130,7 +130,7 @@ export function useEventUserState(event: Event & { id: string }): EventUserState
             ? supabase
                 .from('events_registrations')
                 .select('id, calendar_added_at')
-                .eq('event_id', event.event_id)
+                .eq('event_id', event.id)
                 .in('people_profile_id', profileIds)
                 .neq('status', 'cancelled')
                 .limit(1)
@@ -143,13 +143,13 @@ export function useEventUserState(event: Event & { id: string }): EventUserState
               .from('events_talk_speakers')
               .select(`
                 is_primary,
-                speaker:event_speakers!inner (
+                speaker:events_speakers!inner (
                   id,
                   event_uuid,
-                  member_profile_id,
+                  people_profile_id,
                   status
                 ),
-                talk:event_talks!inner (
+                talk:events_talks!inner (
                   id,
                   title,
                   status,
