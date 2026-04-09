@@ -21,7 +21,7 @@ const KNOWN_HOSTS: string[] = (() => {
 const VALID_EVENT_SUBPATHS = ['/', '/agenda', '/speakers', '/sponsors', '/register', '/talks']
 
 // Paths that should pass through without rewriting on custom domains
-const PASSTHROUGH_PATHS = ['/sign-in', '/auth', '/privacy', '/terms', '/do-not-sell', '/cookie-policy', '/profile', '/api', '/rsvp', '/i']
+const PASSTHROUGH_PATHS = ['/sign-in', '/auth', '/privacy', '/terms', '/do-not-sell', '/cookie-policy', '/profile', '/api']
 
 // Known region codes for path-based filter URLs
 const KNOWN_REGION_CODES = new Set(['as', 'af', 'eu', 'na', 'sa', 'oc', 'on'])
@@ -396,6 +396,28 @@ export async function middleware(request: NextRequest) {
     const routeFn = contentRouteMap[customDomain.contentType]
     if (routeFn) {
       const targetPath = routeFn(customDomain.contentSlug)
+
+      // RSVP paths: /rsvp/{code} passes through (short code lookup page exists)
+      // /rsvp (with ?invite= query) rewrites to the event's RSVP page
+      if (pathname.startsWith('/rsvp/') || pathname.startsWith('/i/')) {
+        const response = NextResponse.next()
+        response.headers.set('x-custom-domain', 'true')
+        response.headers.set('x-content-type', customDomain.contentType)
+        response.headers.set('x-content-id', customDomain.contentId)
+        response.headers.set('x-custom-domain-host', hostname)
+        return response
+      }
+      if (pathname === '/rsvp') {
+        // Rewrite /rsvp to /events/{slug}/rsvp (the event's actual RSVP page)
+        const url = request.nextUrl.clone()
+        url.pathname = `${targetPath}/rsvp`
+        const response = NextResponse.rewrite(url)
+        response.headers.set('x-custom-domain', 'true')
+        response.headers.set('x-content-type', customDomain.contentType)
+        response.headers.set('x-content-id', customDomain.contentId)
+        response.headers.set('x-custom-domain-host', hostname)
+        return response
+      }
 
       // Passthrough paths (auth, legal, API, profile)
       const isPassthrough = PASSTHROUGH_PATHS.some(p => pathname === p || pathname.startsWith(p + '/'))
