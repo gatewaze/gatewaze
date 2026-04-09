@@ -4,8 +4,8 @@ import { useEffect, useMemo, useState, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import type { Event } from '@/types/event'
 import type { BrandConfig } from '@/config/brand'
-import { getClientBrandConfig } from '@/config/brand'
 import { SpeakerSubmissionForm } from './SpeakerSubmissionForm'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import { EventHero, shouldUseDarkText } from './EventHero'
 import { GlowBorder } from '@/components/ui/GlowBorder'
 import { PortalButton } from '@/components/ui/PortalButton'
@@ -84,11 +84,7 @@ export function SpeakersPageContent({ event, brandConfig, initialStatus = 'pendi
       setIsCheckingSubmission(true)
 
       try {
-        const config = getClientBrandConfig()
-        const { createClient } = await import('@supabase/supabase-js')
-        const supabase = createClient(config.supabaseUrl, config.supabaseAnonKey, {
-          global: { headers: { Authorization: `Bearer ${session.access_token}` } }
-        })
+        const supabase = getSupabaseClient()
 
         // Get person for this auth user with profile data
         const { data: person } = await supabase
@@ -153,12 +149,12 @@ export function SpeakersPageContent({ event, brandConfig, initialStatus = 'pendi
           .from('events_talk_speakers')
           .select(`
             is_primary,
-            speaker:event_speakers!inner (
+            speaker:events_speakers!inner (
               id,
               event_uuid,
               people_profile_id
             ),
-            talk:event_talks!inner (
+            talk:events_talks!inner (
               id,
               title,
               status,
@@ -194,11 +190,7 @@ export function SpeakersPageContent({ event, brandConfig, initialStatus = 'pendi
 
     setDeletingTalkId(talkId)
     try {
-      const config = getClientBrandConfig()
-      const { createClient } = await import('@supabase/supabase-js')
-      const supabase = createClient(config.supabaseUrl, config.supabaseAnonKey, {
-        global: { headers: { Authorization: `Bearer ${session.access_token}` } }
-      })
+      const supabase = getSupabaseClient()
 
       // Delete from event_talk_speakers junction table first (foreign key constraint)
       const { error: junctionError } = await supabase

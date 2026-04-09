@@ -129,6 +129,7 @@ async function getSponsorCount(eventId: string, brandId: string): Promise<number
 }
 
 export interface RecommendedEvent {
+  id: string
   event_id: string
   event_title: string
   event_start: string | null
@@ -180,7 +181,7 @@ async function getRecommendedEvent(recommendedEventId: string, brandId: string):
 
   const { data } = await supabase
     .from('events')
-    .select('event_id, event_title, event_start, event_end, event_city, event_country_code, screenshot_url, event_logo, event_link, register_button_text, enable_registration')
+    .select('id, event_id, event_title, event_start, event_end, event_city, event_country_code, screenshot_url, event_logo, event_link, register_button_text, enable_registration')
     .eq('id', recommendedEventId)
     .eq('is_live_in_production', true)
     .maybeSingle()

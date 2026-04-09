@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { getSupabaseClient } from '@/lib/supabase/client'
 
 interface RegistrationCheckEvent {
+  id?: string
   event_id: string
   enable_registration?: boolean | null
 }
@@ -24,7 +25,7 @@ export function useRegistrationStatus(event: RegistrationCheckEvent) {
 
   useEffect(() => {
     if (authLoading) return
-    if (!user || !event.enable_registration) {
+    if (!user || !event.enable_registration || !event.id) {
       setIsChecking(false)
       return
     }
@@ -55,7 +56,7 @@ export function useRegistrationStatus(event: RegistrationCheckEvent) {
         const { data: registration } = await supabase
           .from('events_registrations')
           .select('id')
-          .eq('event_id', event.event_id)
+          .eq('event_id', event.id)
           .in('people_profile_id', profiles.map(p => p.id))
           .neq('status', 'cancelled')
           .limit(1)
@@ -73,7 +74,7 @@ export function useRegistrationStatus(event: RegistrationCheckEvent) {
 
     check()
     return () => { cancelled = true }
-  }, [user, authLoading, event.enable_registration, event.event_id, refreshKey])
+  }, [user, authLoading, event.enable_registration, event.id, refreshKey])
 
   return { isRegistered, isChecking }
 }

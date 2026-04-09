@@ -158,6 +158,56 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true })
     }
 
+    if (action === 'log-viewer') {
+      const { event_id, viewer_action } = body
+      if (!event_id || !['join', 'leave'].includes(viewer_action)) {
+        return NextResponse.json({ error: 'Invalid' }, { status: 400 })
+      }
+      await serviceSupabase.from('live_event_viewer_log').insert({
+        event_id, person_id: personId, action: viewer_action,
+      })
+      return NextResponse.json({ success: true })
+    }
+
+    if (action === 'get-viewer-stats') {
+      const { event_id } = body
+      if (!event_id) return NextResponse.json({ error: 'Missing event_id' }, { status: 400 })
+
+      // Total unique viewers
+      const { data: uniqueViewers } = await serviceSupabase
+        .from('live_event_viewer_log')
+        .select('person_id')
+        .eq('event_id', event_id)
+        .eq('action', 'join')
+
+      const totalUnique = new Set((uniqueViewers || []).map(v => v.person_id)).size
+
+      // Join timeline (bucketed by minute)
+      const { data: timeline } = await serviceSupabase
+        .from('live_event_viewer_log')
+        .select('action, created_at')
+        .eq('event_id', event_id)
+        .order('created_at')
+
+      // Build minute-by-minute concurrent viewer count
+      const buckets: { time: string; viewers: number }[] = []
+      let concurrent = 0
+      const minuteMap = new Map<string, number>()
+
+      for (const entry of timeline || []) {
+        if (entry.action === 'join') concurrent++
+        else concurrent = Math.max(0, concurrent - 1)
+        const minute = entry.created_at.slice(0, 16) // YYYY-MM-DDTHH:MM
+        minuteMap.set(minute, concurrent)
+      }
+
+      for (const [time, viewers] of minuteMap) {
+        buckets.push({ time, viewers })
+      }
+
+      return NextResponse.json({ total_unique: totalUnique, current: concurrent, timeline: buckets })
+    }
+
     if (action === 'get-pinned') {
       const { event_id, track_id } = body
       const { data } = await serviceSupabase
