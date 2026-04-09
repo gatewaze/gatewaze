@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 import { getServerBrand, getBrandConfigById } from '@/config/brand'
-import { RsvpPageClient } from './RsvpPageClient'
+import { RsvpPageClient } from '@/components/rsvp/RsvpPageClient'
 
 export const dynamic = 'force-dynamic'
 

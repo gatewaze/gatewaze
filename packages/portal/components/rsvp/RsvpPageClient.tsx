@@ -58,6 +58,7 @@ interface NewPlusOne {
 }
 
 interface Props {
+  eventIdentifier?: string
   primaryColor: string
   brandName: string
 }
@@ -280,7 +281,7 @@ export function RsvpPageClient({ primaryColor, brandName }: Props) {
           </svg>
         </div>
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">RSVP Confirmed!</h2>
-        <p className="text-gray-600 dark:text-gray-300 mb-6">Thank you for responding, {party.name}.</p>
+        <p className="text-gray-600 dark:text-gray-300 mb-6">Thank you for responding.</p>
         <div className="flex justify-center gap-6 text-sm mb-6">
           {submitResult.accepted > 0 && <div><p className="text-2xl font-bold text-green-600">{submitResult.accepted}</p><p className="text-gray-500">Attending</p></div>}
           {submitResult.declined > 0 && <div><p className="text-2xl font-bold text-red-500">{submitResult.declined}</p><p className="text-gray-500">Not attending</p></div>}
@@ -296,7 +297,6 @@ export function RsvpPageClient({ primaryColor, brandName }: Props) {
     <div className="space-y-6 py-4">
       <div>
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">RSVP</h2>
-        <p className="text-gray-600 dark:text-gray-300 mt-1">{party.name}</p>
       </div>
 
       {members.map(member => (
