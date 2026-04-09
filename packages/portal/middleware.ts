@@ -21,7 +21,7 @@ const KNOWN_HOSTS: string[] = (() => {
 const VALID_EVENT_SUBPATHS = ['/', '/agenda', '/speakers', '/sponsors', '/register', '/talks']
 
 // Paths that should pass through without rewriting on custom domains
-const PASSTHROUGH_PATHS = ['/sign-in', '/auth', '/privacy', '/terms', '/do-not-sell', '/cookie-policy', '/profile', '/api']
+const PASSTHROUGH_PATHS = ['/sign-in', '/auth', '/privacy', '/terms', '/do-not-sell', '/cookie-policy', '/profile', '/api', '/rsvp', '/i']
 
 // Known region codes for path-based filter URLs
 const KNOWN_REGION_CODES = new Set(['as', 'af', 'eu', 'na', 'sa', 'oc', 'on'])
