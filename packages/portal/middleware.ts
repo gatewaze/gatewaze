@@ -400,12 +400,12 @@ export async function middleware(request: NextRequest) {
       // RSVP paths: /rsvp/{code} passes through (short code lookup page exists)
       // /rsvp (with ?invite= query) rewrites to the event's RSVP page
       if (pathname.startsWith('/rsvp/') || pathname.startsWith('/i/')) {
-        const response = NextResponse.next()
-        response.headers.set('x-custom-domain', 'true')
-        response.headers.set('x-content-type', customDomain.contentType)
-        response.headers.set('x-content-id', customDomain.contentId)
-        response.headers.set('x-custom-domain-host', hostname)
-        return response
+        const requestHeaders = new Headers(request.headers)
+        requestHeaders.set('x-custom-domain', 'true')
+        requestHeaders.set('x-content-type', customDomain.contentType)
+        requestHeaders.set('x-content-id', customDomain.contentId)
+        requestHeaders.set('x-custom-domain-host', hostname)
+        return NextResponse.next({ request: { headers: requestHeaders } })
       }
       if (pathname === '/rsvp') {
         // Rewrite /rsvp to /events/{slug}/rsvp (the event's actual RSVP page)
@@ -422,12 +422,12 @@ export async function middleware(request: NextRequest) {
       // Passthrough paths (auth, legal, API, profile)
       const isPassthrough = PASSTHROUGH_PATHS.some(p => pathname === p || pathname.startsWith(p + '/'))
       if (isPassthrough) {
-        const response = NextResponse.next()
-        response.headers.set('x-custom-domain', 'true')
-        response.headers.set('x-content-type', customDomain.contentType)
-        response.headers.set('x-content-id', customDomain.contentId)
-        response.headers.set('x-custom-domain-host', hostname)
-        return response
+        const requestHeaders = new Headers(request.headers)
+        requestHeaders.set('x-custom-domain', 'true')
+        requestHeaders.set('x-content-type', customDomain.contentType)
+        requestHeaders.set('x-content-id', customDomain.contentId)
+        requestHeaders.set('x-custom-domain-host', hostname)
+        return NextResponse.next({ request: { headers: requestHeaders } })
       }
 
       // Rewrite root and valid subpaths to the content route
