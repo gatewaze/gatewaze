@@ -411,17 +411,28 @@ export async function middleware(request: NextRequest) {
         // Rewrite /rsvp to /events/{slug}/rsvp (the event's actual RSVP page)
         const url = request.nextUrl.clone()
         url.pathname = `${targetPath}/rsvp`
-        const response = NextResponse.rewrite(url)
-        response.headers.set('x-custom-domain', 'true')
-        response.headers.set('x-content-type', customDomain.contentType)
-        response.headers.set('x-content-id', customDomain.contentId)
-        response.headers.set('x-custom-domain-host', hostname)
-        return response
+        const requestHeaders = new Headers(request.headers)
+        requestHeaders.set('x-custom-domain', 'true')
+        requestHeaders.set('x-content-type', customDomain.contentType)
+        requestHeaders.set('x-content-id', customDomain.contentId)
+        requestHeaders.set('x-custom-domain-host', hostname)
+        return NextResponse.rewrite(url, { request: { headers: requestHeaders } })
       }
 
       // Passthrough paths (auth, legal, API, profile)
       const isPassthrough = PASSTHROUGH_PATHS.some(p => pathname === p || pathname.startsWith(p + '/'))
       if (isPassthrough) {
+        const requestHeaders = new Headers(request.headers)
+        requestHeaders.set('x-custom-domain', 'true')
+        requestHeaders.set('x-content-type', customDomain.contentType)
+        requestHeaders.set('x-content-id', customDomain.contentId)
+        requestHeaders.set('x-custom-domain-host', hostname)
+        return NextResponse.next({ request: { headers: requestHeaders } })
+      }
+
+      // If the path already starts with the target content route (e.g., from a
+      // middleware rewrite or direct access), pass through without double-rewriting
+      if (pathname.startsWith(targetPath)) {
         const requestHeaders = new Headers(request.headers)
         requestHeaders.set('x-custom-domain', 'true')
         requestHeaders.set('x-content-type', customDomain.contentType)
