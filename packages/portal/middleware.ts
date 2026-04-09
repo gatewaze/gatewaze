@@ -382,7 +382,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/logos') ||
     pathname.startsWith('/favicon') ||
     pathname.startsWith('/js') ||
-    pathname.startsWith('/rs') ||
+    pathname.startsWith('/rs/') ||
     pathname.startsWith('/policies') ||
     /\.(ico|png|jpg|jpeg|svg|css|js|woff|woff2|ttf|eot|map|webp|gif)$/.test(pathname)
   ) {
