@@ -8,10 +8,38 @@ interface Props {
   params: Promise<{ code: string }>
 }
 
+/** Server-side check: is the request coming from a custom domain? */
+function detectCustomDomain(hdrs: Headers): boolean {
+  // Prefer the middleware header if set
+  if (hdrs.get('x-custom-domain') === 'true') return true
+
+  // Fall back to checking the host directly
+  const host = (hdrs.get('host') || '').split(':')[0]
+  if (!host) return false
+  if (host.includes('localhost')) return false
+  if (host.includes('vercel.app')) return false
+  if (host.includes('gatewaze.io')) return false
+  if (host.includes('gatewaze.com')) return false
+
+  // Check against configured portal hostname
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || ''
+  if (appUrl) {
+    try {
+      const portalHost = new URL(appUrl).hostname
+      if (host === portalHost) return false
+      // Also check subdomains of the portal domain
+      const portalDomain = portalHost.split('.').slice(-2).join('.')
+      if (host.endsWith(portalDomain)) return false
+    } catch { /* ignore invalid URL */ }
+  }
+
+  return true
+}
+
 export default async function ShortLinkPage({ params }: Props) {
   const { code } = await params
   const hdrs = await headers()
-  const isCustomDomain = hdrs.get('x-custom-domain') === 'true'
+  const isCustomDomain = detectCustomDomain(hdrs)
 
   // Look up the party to find which event to redirect to
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
