@@ -36,5 +36,9 @@
   "devDependencies": {
     "@playwright/test": "^1.58.2",
     "vitest": "^4.1.0"
+  },
+  "dependencies": {
+    "@pdf-lib/fontkit": "^1.1.1",
+    "pdf-lib": "^1.17.1"
   }
 }
