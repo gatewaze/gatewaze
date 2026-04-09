@@ -257,6 +257,9 @@ export function RegistrationForm({ event, brandConfig, onSuccess, onCancel, trac
       onSuccess?.()
       window.dispatchEvent(new CustomEvent('registration-changed'))
 
+      // Auto-send magic link so the user can sign in
+      sendMagicLink()
+
       if (hasConsentFor('analytics')) {
         trackEvent('event_registered', {
           event_id: event.event_id,
