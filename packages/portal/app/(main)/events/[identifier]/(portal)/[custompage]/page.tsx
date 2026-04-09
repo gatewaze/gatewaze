@@ -10,6 +10,7 @@ import { stripEmojis } from '@/lib/text'
 import { findEventModulePage } from '@/lib/modules/generated-event-pages'
 import { resolveEventTheme } from '@/config/brand'
 import { getEnabledModules, isModuleEnabled } from '@/lib/modules/enabledModules'
+import { RsvpPageClient } from '@/components/rsvp/RsvpPageClient'
 
 interface Props {
   params: Promise<{ identifier: string; custompage: string }>
@@ -101,7 +102,44 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function CustomPage({ params }: Props) {
   const { identifier, custompage } = await params
 
-  // Check module event pages first
+  // RSVP page — directly imported to ensure it's bundled in the Docker image
+  if (custompage === 'rsvp') {
+    const modules = await getEnabledModules()
+    if (isModuleEnabled(modules, 'event-invites')) {
+      const brand = await getServerBrand()
+      const brandConfig = await getBrandConfigById(brand)
+
+      const supabase = await createServerSupabase(brand)
+      let eventForTheme = null
+      const { data: ev1 } = await supabase
+        .from('events')
+        .select('gradient_color_1, gradient_color_2, gradient_color_3, portal_theme, theme_colors')
+        .eq('event_slug', identifier)
+        .maybeSingle()
+      eventForTheme = ev1
+      if (!eventForTheme) {
+        const { data: ev2 } = await supabase
+          .from('events')
+          .select('gradient_color_1, gradient_color_2, gradient_color_3, portal_theme, theme_colors')
+          .eq('event_id', identifier)
+          .maybeSingle()
+        eventForTheme = ev2
+      }
+
+      const resolved = resolveEventTheme(eventForTheme || {}, brandConfig)
+      return (
+        <Suspense fallback={null}>
+          <RsvpPageClient
+            eventIdentifier={identifier}
+            primaryColor={resolved.primaryColor}
+            brandName={brandConfig.name}
+          />
+        </Suspense>
+      )
+    }
+  }
+
+  // Check other module event pages via generated registry
   const modulePage = findEventModulePage(custompage)
   if (modulePage) {
     const modules = await getEnabledModules()
@@ -109,7 +147,6 @@ export default async function CustomPage({ params }: Props) {
       const brand = await getServerBrand()
       const brandConfig = await getBrandConfigById(brand)
 
-      // Fetch event colors to resolve the correct primary color
       const supabase = await createServerSupabase(brand)
       let eventForTheme = null
       const { data: ev1 } = await supabase
