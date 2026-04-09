@@ -468,12 +468,29 @@ export function resolveEventTheme(
   if (event.theme_colors) {
     colors = event.theme_colors
   } else if (event.gradient_color_1 || event.gradient_color_2 || event.gradient_color_3) {
-    // Legacy: map gradient_color_1/2/3 to blobs theme colors
-    colors = {
-      background: (brandConfig.themeColors as BlobsThemeColors).background || '#0a0a0a',
-      blob1: event.gradient_color_1 || (brandConfig.themeColors as BlobsThemeColors).blob1 || brandConfig.primaryColor,
-      blob2: event.gradient_color_2 || (brandConfig.themeColors as BlobsThemeColors).blob2 || brandConfig.secondaryColor,
-      blob3: event.gradient_color_3 || (brandConfig.themeColors as BlobsThemeColors).blob3 || '#1a1a1a',
+    // Map legacy gradient_color_1/2/3 to the active theme's color structure
+    const c1 = event.gradient_color_1 || brandConfig.primaryColor
+    const c2 = event.gradient_color_2 || brandConfig.secondaryColor
+    const c3 = event.gradient_color_3 || '#1a1a1a'
+
+    if (theme === 'gradient_wave') {
+      colors = {
+        start: c1,
+        middle: c2,
+        end: c3,
+      } as GradientWaveThemeColors
+    } else if (theme === 'basic') {
+      colors = {
+        background: c1,
+      } as BasicThemeColors
+    } else {
+      // Default: blobs theme
+      colors = {
+        background: (brandConfig.themeColors as BlobsThemeColors).background || '#0a0a0a',
+        blob1: c1,
+        blob2: c2,
+        blob3: c3,
+      }
     }
   } else {
     colors = brandConfig.themeColors
