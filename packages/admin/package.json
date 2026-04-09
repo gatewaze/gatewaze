@@ -73,6 +73,7 @@
     "marked": "^15.0.7",
     "md5": "^2.3.0",
     "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^5.6.205",
     "qr-code-styling": "^1.9.2",
     "quill": "^2.0.3",
     "quill-magic-url": "^4.2.0",

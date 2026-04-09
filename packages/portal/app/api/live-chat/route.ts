@@ -89,14 +89,19 @@ export async function POST(req: NextRequest) {
           content: content.trim(),
           reply_to_id: reply_to_id || null,
         })
-        .select('id')
+        .select('id, is_deleted, content, moderation_flags')
         .single()
 
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 400 })
       }
 
-      return NextResponse.json({ success: true, id: msg.id })
+      return NextResponse.json({
+        success: true,
+        id: msg.id,
+        is_deleted: msg.is_deleted,
+        auto_moderated: !!(msg.moderation_flags as any)?.auto_moderated,
+      })
     }
 
     if (action === 'react') {
@@ -156,6 +161,32 @@ export async function POST(req: NextRequest) {
       }
 
       return NextResponse.json({ success: true })
+    }
+
+    if (action === 'check-blocked') {
+      const { event_id, known_message_ids } = body
+      if (!event_id) return NextResponse.json({ blocked: false })
+
+      const { data: blockData } = await serviceSupabase
+        .from('live_chat_blocked_users')
+        .select('id')
+        .eq('event_id', event_id)
+        .eq('person_id', personId)
+        .maybeSingle()
+
+      // Check which of the client's known messages have been deleted
+      let deleted_message_ids: string[] = []
+      if (known_message_ids?.length > 0) {
+        const { data: deletedMsgs } = await serviceSupabase
+          .from('live_chat_messages')
+          .select('id')
+          .in('id', known_message_ids.slice(0, 500))
+          .eq('is_deleted', true)
+
+        deleted_message_ids = (deletedMsgs || []).map(m => m.id)
+      }
+
+      return NextResponse.json({ blocked: !!blockData, deleted_message_ids })
     }
 
     if (action === 'log-viewer') {
