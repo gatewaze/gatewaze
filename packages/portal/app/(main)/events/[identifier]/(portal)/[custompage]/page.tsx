@@ -8,6 +8,7 @@ import { createServerSupabase } from '@/lib/supabase/server'
 import { AddedPageContent } from '@/components/event/AddedPageContent'
 import { stripEmojis } from '@/lib/text'
 import { findEventModulePage } from '@/lib/modules/generated-event-pages'
+import { resolveEventTheme } from '@/config/brand'
 import { getEnabledModules, isModuleEnabled } from '@/lib/modules/enabledModules'
 
 interface Props {
@@ -107,12 +108,32 @@ export default async function CustomPage({ params }: Props) {
     if (isModuleEnabled(modules, modulePage.moduleId)) {
       const brand = await getServerBrand()
       const brandConfig = await getBrandConfigById(brand)
+
+      // Fetch event colors to resolve the correct primary color
+      const supabase = await createServerSupabase(brand)
+      let eventForTheme = null
+      const { data: ev1 } = await supabase
+        .from('events')
+        .select('gradient_color_1, gradient_color_2, gradient_color_3, portal_theme, theme_colors')
+        .eq('event_slug', identifier)
+        .maybeSingle()
+      eventForTheme = ev1
+      if (!eventForTheme) {
+        const { data: ev2 } = await supabase
+          .from('events')
+          .select('gradient_color_1, gradient_color_2, gradient_color_3, portal_theme, theme_colors')
+          .eq('event_id', identifier)
+          .maybeSingle()
+        eventForTheme = ev2
+      }
+
+      const resolved = resolveEventTheme(eventForTheme || {}, brandConfig)
       const { default: PageComponent } = await modulePage.component()
       return (
         <Suspense fallback={null}>
           <PageComponent
             eventIdentifier={identifier}
-            primaryColor={brandConfig.primaryColor}
+            primaryColor={resolved.primaryColor}
             brandName={brandConfig.name}
           />
         </Suspense>
