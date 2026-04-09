@@ -8,7 +8,7 @@ import { createServerSupabase } from '@/lib/supabase/server'
 import { AddedPageContent } from '@/components/event/AddedPageContent'
 import { stripEmojis } from '@/lib/text'
 import { findEventModulePage } from '@/lib/modules/generated-event-pages'
-import { resolveEventTheme } from '@/config/brand'
+import { resolveEventTheme, getThemeBackgroundColor, isLightColor } from '@/config/brand'
 import { getEnabledModules, isModuleEnabled } from '@/lib/modules/enabledModules'
 import { RsvpPageClient } from '@/components/rsvp/RsvpPageClient'
 
@@ -165,6 +165,25 @@ export default async function CustomPage({ params }: Props) {
       }
 
       const resolved = resolveEventTheme(eventForTheme || {}, brandConfig)
+      const bgColor = getThemeBackgroundColor(resolved.theme, resolved.colors, resolved.secondaryColor)
+      const darkMode = !isLightColor(bgColor || '#ffffff')
+
+      // Resolve current user's person_id from auth session (cookies)
+      let currentPersonId: string | null = null
+      try {
+        const { createAuthenticatedServerSupabase } = await import('@/lib/supabase/server')
+        const authSupabase = await createAuthenticatedServerSupabase(brand)
+        const { data: { user } } = await authSupabase.auth.getUser()
+        if (user?.id) {
+          const { data: person } = await authSupabase
+            .from('people')
+            .select('id')
+            .eq('auth_user_id', user.id)
+            .maybeSingle()
+          currentPersonId = person?.id || null
+        }
+      } catch {}
+
       const { default: PageComponent } = await modulePage.component()
       return (
         <Suspense fallback={null}>
@@ -172,6 +191,8 @@ export default async function CustomPage({ params }: Props) {
             eventIdentifier={identifier}
             primaryColor={resolved.primaryColor}
             brandName={brandConfig.name}
+            currentPersonId={currentPersonId}
+            darkMode={darkMode}
           />
         </Suspense>
       )
