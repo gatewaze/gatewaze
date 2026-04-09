@@ -12,6 +12,11 @@ import {
   PhotoIcon,
   SignalIcon,
   CubeTransparentIcon,
+  EnvelopeIcon,
+  PlayCircleIcon,
+  ShieldCheckIcon,
+  PresentationChartBarIcon,
+  VideoCameraIcon,
 } from '@heroicons/react/24/outline';
 import type { ComponentType } from 'react';
 
@@ -28,6 +33,11 @@ const ICON_MAP: Record<string, ComponentType<{ className?: string }>> = {
   ChatBubbleLeftRightIcon,
   PhotoIcon,
   SignalIcon,
+  EnvelopeIcon,
+  PlayCircleIcon,
+  ShieldCheckIcon,
+  PresentationChartBarIcon,
+  VideoCameraIcon,
 };
 
 /**
