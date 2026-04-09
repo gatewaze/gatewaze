@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { headers } from 'next/headers'
 import { createClient } from '@supabase/supabase-js'
 
 export const dynamic = 'force-dynamic'
@@ -9,6 +10,8 @@ interface Props {
 
 export default async function ShortLinkPage({ params }: Props) {
   const { code } = await params
+  const hdrs = await headers()
+  const isCustomDomain = hdrs.get('x-custom-domain') === 'true'
 
   // Look up the party to find which event to redirect to
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -52,8 +55,14 @@ export default async function ShortLinkPage({ params }: Props) {
 
           if (event) {
             const eventSlug = event.event_slug || event.event_id
-            // Redirect to event RSVP page with token in query string
-            // The client will store the token in localStorage
+
+            // On custom domains, redirect without the /events/{slug} prefix
+            // since the domain already implies the event
+            if (isCustomDomain) {
+              redirect(`/rsvp?invite=${code}`)
+            }
+
+            // Standard portal: include the event path
             redirect(`/events/${eventSlug}/rsvp?invite=${code}`)
           }
         }
@@ -62,5 +71,8 @@ export default async function ShortLinkPage({ params }: Props) {
   }
 
   // Fallback: redirect to the standalone module page
+  if (isCustomDomain) {
+    redirect(`/rsvp?invite=${code}`)
+  }
   redirect(`/event-invites/${code}`)
 }
