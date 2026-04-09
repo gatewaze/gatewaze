@@ -408,15 +408,13 @@ export async function middleware(request: NextRequest) {
         return NextResponse.next({ request: { headers: requestHeaders } })
       }
       if (pathname === '/rsvp') {
-        // Rewrite /rsvp to /events/{slug}/rsvp (the event's actual RSVP page)
-        const url = request.nextUrl.clone()
-        url.pathname = `${targetPath}/rsvp`
+        // Pass through to standalone /rsvp page (bare layout) with custom domain headers
         const requestHeaders = new Headers(request.headers)
         requestHeaders.set('x-custom-domain', 'true')
         requestHeaders.set('x-content-type', customDomain.contentType)
         requestHeaders.set('x-content-id', customDomain.contentId)
         requestHeaders.set('x-custom-domain-host', hostname)
-        return NextResponse.rewrite(url, { request: { headers: requestHeaders } })
+        return NextResponse.next({ request: { headers: requestHeaders } })
       }
 
       // Passthrough paths (auth, legal, API, profile)
@@ -483,14 +481,12 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next({ request: { headers: requestHeaders } })
   }
   if (pathname === '/rsvp') {
-    // Rewrite /rsvp to /events/{slug}/rsvp (the event's actual RSVP page)
-    const url = request.nextUrl.clone()
-    url.pathname = `/events/${eventIdentifier}/rsvp`
+    // Pass through to standalone /rsvp page (bare layout) with custom domain headers
     const requestHeaders = new Headers(request.headers)
     requestHeaders.set('x-custom-domain', 'true')
     requestHeaders.set('x-event-identifier', eventIdentifier)
     requestHeaders.set('x-custom-domain-host', hostname)
-    return NextResponse.rewrite(url, { request: { headers: requestHeaders } })
+    return NextResponse.next({ request: { headers: requestHeaders } })
   }
 
   // Passthrough paths (auth, legal pages, API, profile)
