@@ -3,12 +3,22 @@ import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
-// Service role client for DB writes
-const serviceSupabase = createClient(
-  process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-)
+// Force dynamic so Next.js doesn't try to collect page data at build time
+export const dynamic = 'force-dynamic'
+
+// Service role client for DB writes (lazy so build-time page data collection
+// doesn't fail when env vars aren't set)
+let _serviceSupabase: ReturnType<typeof createClient> | null = null
+function getServiceSupabase() {
+  if (!_serviceSupabase) {
+    _serviceSupabase = createClient(
+      process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    )
+  }
+  return _serviceSupabase
+}
 
 async function getAuthenticatedPersonId(): Promise<string | null> {
   try {
@@ -35,7 +45,7 @@ async function getAuthenticatedPersonId(): Promise<string | null> {
     const { data: { user } } = await authClient.auth.getUser()
     if (!user?.id) return null
 
-    const { data: person } = await serviceSupabase
+    const { data: person } = await getServiceSupabase()
       .from('people')
       .select('id')
       .eq('auth_user_id', user.id)
@@ -69,7 +79,7 @@ export async function POST(req: NextRequest) {
       }
 
       // Check if user is blocked
-      const { data: blocked } = await serviceSupabase
+      const { data: blocked } = await getServiceSupabase()
         .from('live_chat_blocked_users')
         .select('id')
         .eq('event_id', event_id)
@@ -80,7 +90,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'You have been muted' }, { status: 403 })
       }
 
-      const { data: msg, error } = await serviceSupabase
+      const { data: msg, error } = await getServiceSupabase()
         .from('live_chat_messages')
         .insert({
           event_id,
@@ -108,13 +118,13 @@ export async function POST(req: NextRequest) {
       const { message_id, reaction_type } = body
 
       // Try insert — if duplicate, toggle off
-      const { error } = await serviceSupabase
+      const { error } = await getServiceSupabase()
         .from('live_chat_reactions')
         .insert({ message_id, person_id: personId, reaction_type })
 
       if (error?.code === '23505') {
         // Duplicate — remove (toggle off)
-        await serviceSupabase
+        await getServiceSupabase()
           .from('live_chat_reactions')
           .delete()
           .eq('message_id', message_id)
@@ -141,7 +151,7 @@ export async function POST(req: NextRequest) {
       }
 
       // Verify the message belongs to this user
-      const { data: msg } = await serviceSupabase
+      const { data: msg } = await getServiceSupabase()
         .from('live_chat_messages')
         .select('person_id')
         .eq('id', message_id)
@@ -151,7 +161,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Not your message' }, { status: 403 })
       }
 
-      const { error } = await serviceSupabase
+      const { error } = await getServiceSupabase()
         .from('live_chat_messages')
         .update({ content: content.trim(), is_edited: true })
         .eq('id', message_id)
@@ -167,7 +177,7 @@ export async function POST(req: NextRequest) {
       const { event_id, known_message_ids } = body
       if (!event_id) return NextResponse.json({ blocked: false })
 
-      const { data: blockData } = await serviceSupabase
+      const { data: blockData } = await getServiceSupabase()
         .from('live_chat_blocked_users')
         .select('id')
         .eq('event_id', event_id)
@@ -177,7 +187,7 @@ export async function POST(req: NextRequest) {
       // Check which of the client's known messages have been deleted
       let deleted_message_ids: string[] = []
       if (known_message_ids?.length > 0) {
-        const { data: deletedMsgs } = await serviceSupabase
+        const { data: deletedMsgs } = await getServiceSupabase()
           .from('live_chat_messages')
           .select('id')
           .in('id', known_message_ids.slice(0, 500))
@@ -194,7 +204,7 @@ export async function POST(req: NextRequest) {
       if (!event_id || !['join', 'leave'].includes(viewer_action)) {
         return NextResponse.json({ error: 'Invalid' }, { status: 400 })
       }
-      await serviceSupabase.from('live_event_viewer_log').insert({
+      await getServiceSupabase().from('live_event_viewer_log').insert({
         event_id, person_id: personId, action: viewer_action,
       })
       return NextResponse.json({ success: true })
@@ -205,7 +215,7 @@ export async function POST(req: NextRequest) {
       if (!event_id) return NextResponse.json({ error: 'Missing event_id' }, { status: 400 })
 
       // Total unique viewers
-      const { data: uniqueViewers } = await serviceSupabase
+      const { data: uniqueViewers } = await getServiceSupabase()
         .from('live_event_viewer_log')
         .select('person_id')
         .eq('event_id', event_id)
@@ -214,7 +224,7 @@ export async function POST(req: NextRequest) {
       const totalUnique = new Set((uniqueViewers || []).map(v => v.person_id)).size
 
       // Join timeline (bucketed by minute)
-      const { data: timeline } = await serviceSupabase
+      const { data: timeline } = await getServiceSupabase()
         .from('live_event_viewer_log')
         .select('action, created_at')
         .eq('event_id', event_id)
@@ -241,7 +251,7 @@ export async function POST(req: NextRequest) {
 
     if (action === 'get-pinned') {
       const { event_id, track_id } = body
-      const { data } = await serviceSupabase
+      const { data } = await getServiceSupabase()
         .from('live_chat_pinned_messages')
         .select('id, message_id, pinned_at, live_chat_messages!inner(content, track_id)')
         .eq('event_id', event_id)
@@ -266,7 +276,7 @@ export async function POST(req: NextRequest) {
       }
       // Limit to 100 at a time
       const ids = person_ids.slice(0, 100)
-      const { data: people } = await serviceSupabase
+      const { data: people } = await getServiceSupabase()
         .from('people')
         .select('id, email, attributes')
         .in('id', ids)
