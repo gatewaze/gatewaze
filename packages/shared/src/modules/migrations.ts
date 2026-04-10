@@ -5,27 +5,64 @@ import { readFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 
 /**
+ * Result of applying (or attempting to apply) a module's migrations.
+ * Returned rather than thrown so a single sloppy migration can't poison
+ * the rest of the reconcile loop.
+ */
+export interface MigrationResult {
+  moduleId: string;
+  applied: string[];
+  skipped: string[];
+  failed: null | {
+    filename: string;
+    message: string;
+    code?: string;
+    details?: string | null;
+    hint?: string | null;
+  };
+}
+
+/**
  * Apply pending migrations for a module.
  *
- * Reads SQL files from the module's `migrations` array, checks which have
- * already been applied (via module_migrations table), and executes new ones
- * in order.
+ * Semantics:
+ *   - Each migration runs inside its own SAVEPOINT so a failure inside
+ *     one migration cannot leave the connection in an aborted-transaction
+ *     state that would poison later migrations or later modules.
+ *   - Migrations within a module are strictly ordered. On the first
+ *     failure we stop applying that module's migrations, but we do NOT
+ *     throw: the caller gets a result object describing what applied and
+ *     what failed. This lets the reconcile loop continue with other
+ *     modules.
+ *   - Successfully-applied migrations are recorded in `module_migrations`
+ *     with their checksum so they won't be re-run.
  */
 export async function applyModuleMigrations(
   mod: LoadedModule,
   supabase: SupabaseClient
-): Promise<void> {
-  const migrations = mod.config.migrations;
-  if (!migrations || migrations.length === 0) return;
+): Promise<MigrationResult> {
+  const result: MigrationResult = {
+    moduleId: mod.config.id,
+    applied: [],
+    skipped: [],
+    failed: null,
+  };
 
-  // Get already-applied migrations
+  const migrations = mod.config.migrations;
+  if (!migrations || migrations.length === 0) return result;
+
+  // Get already-applied migrations so we skip them.
   const { data: applied, error } = await supabase
     .from('module_migrations')
     .select('filename')
     .eq('module_id', mod.config.id);
 
   if (error) {
-    throw new Error(`Failed to query module_migrations for "${mod.config.id}": ${JSON.stringify(error)}`);
+    result.failed = {
+      filename: '(query module_migrations)',
+      message: `Failed to query module_migrations: ${JSON.stringify(error)}`,
+    };
+    return result;
   }
 
   const appliedSet = new Set((applied ?? []).map((r) => r.filename as string));
@@ -49,6 +86,7 @@ export async function applyModuleMigrations(
     const filename = migrationPath.replace(/^\.\//, '');
 
     if (appliedSet.has(filename)) {
+      result.skipped.push(filename);
       continue;
     }
 
@@ -58,21 +96,46 @@ export async function applyModuleMigrations(
     try {
       sql = readFileSync(fullPath, 'utf-8');
     } catch (readErr) {
-      throw new Error(
-        `Cannot read migration file "${fullPath}" for module "${mod.config.id}": ${readErr}`
-      );
+      result.failed = {
+        filename,
+        message: `Cannot read migration file "${fullPath}": ${readErr instanceof Error ? readErr.message : String(readErr)}`,
+      };
+      console.error(`[modules] ${mod.config.id}: failed to read "${filename}": ${result.failed.message}`);
+      return result;
     }
 
     const checksum = createHash('sha256').update(sql).digest('hex');
 
     console.log(`[modules] Applying migration "${filename}" for "${mod.config.id}"...`);
 
+    // Run the migration. exec_sql is SECURITY DEFINER and opens its own
+    // autonomous transaction per call, so a failing statement aborts only
+    // this one migration's transaction — the connection is left clean for
+    // subsequent calls. That is the "savepoint" guarantee we need here.
+    //
+    // Note: if you want statement-level savepoints *within* a single
+    // migration file, write idempotent SQL (CREATE IF NOT EXISTS, DROP ...
+    // IF EXISTS before CREATE, etc.). The runner can't rescue a half-
+    // applied migration because exec_sql gives us no visibility into
+    // which statement inside failed.
     const { error: rpcErr } = await supabase.rpc('exec_sql', { sql_text: sql });
 
     if (rpcErr) {
-      throw new Error(
-        `Migration "${filename}" failed for module "${mod.config.id}": ${JSON.stringify(rpcErr)}`
+      const err = rpcErr as Record<string, unknown>;
+      result.failed = {
+        filename,
+        message: (err?.message as string) || JSON.stringify(rpcErr),
+        code: err?.code as string | undefined,
+        details: (err?.details as string | null | undefined) ?? null,
+        hint: (err?.hint as string | null | undefined) ?? null,
+      };
+      console.error(
+        `[modules] ${mod.config.id}: migration "${filename}" failed — ${result.failed.message}` +
+          (result.failed.code ? ` (code: ${result.failed.code})` : ''),
       );
+      // Stop applying more migrations for this module. Later ones may
+      // depend on this one, and running them could corrupt state.
+      return result;
     }
 
     const { error: insertErr } = await supabase
@@ -84,9 +147,12 @@ export async function applyModuleMigrations(
       });
 
     if (insertErr) {
-      console.warn(`[modules] Warning: could not record migration "${filename}":`, insertErr);
+      console.warn(`[modules] ${mod.config.id}: could not record migration "${filename}":`, insertErr);
     }
 
-    console.log(`[modules] Applied migration "${filename}"`);
+    result.applied.push(filename);
+    console.log(`[modules] ${mod.config.id}: applied "${filename}"`);
   }
+
+  return result;
 }
