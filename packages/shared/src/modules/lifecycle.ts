@@ -87,19 +87,101 @@ function topologicalSort(modules: LoadedModule[]): LoadedModule[] {
 }
 
 /**
+ * Summary returned by reconcileModules. Callers can log this to surface a
+ * clear per-module status without having to grep through interleaved
+ * console output.
+ */
+export interface ReconcileSummary {
+  ok: string[];                       // modules that reconciled cleanly
+  failed: Array<{                     // modules whose migrations or lifecycle failed
+    moduleId: string;
+    phase: 'migration' | 'lifecycle' | 'metadata';
+    filename?: string;
+    message: string;
+  }>;
+  disabled: string[];                 // modules disabled because removed from config
+  registered: string[];               // newly-registered modules (still disabled)
+}
+
+/**
+ * Record a reconcile failure against an installed_modules row so admins
+ * can see at a glance which modules are broken.
+ */
+async function recordReconcileError(
+  supabase: SupabaseClient,
+  moduleId: string,
+  err: { phase: 'migration' | 'lifecycle' | 'metadata'; filename?: string; message: string; code?: string },
+): Promise<void> {
+  try {
+    await supabase
+      .from('installed_modules')
+      .update({
+        last_reconcile_at: new Date().toISOString(),
+        reconcile_error: {
+          phase: err.phase,
+          filename: err.filename,
+          message: err.message,
+          code: err.code,
+          occurred_at: new Date().toISOString(),
+        },
+      })
+      .eq('id', moduleId);
+  } catch (writeErr) {
+    // Don't let error-recording failures mask the original error.
+    console.warn(`[modules] Could not record reconcile error for "${moduleId}":`, writeErr);
+  }
+}
+
+/**
+ * Clear the reconcile_error column on a successful reconcile pass so the
+ * admin UI can reflect the current healthy state.
+ */
+async function clearReconcileError(
+  supabase: SupabaseClient,
+  moduleId: string,
+): Promise<void> {
+  try {
+    await supabase
+      .from('installed_modules')
+      .update({
+        last_reconcile_at: new Date().toISOString(),
+        reconcile_error: null,
+      })
+      .eq('id', moduleId);
+  } catch { /* best-effort */ }
+}
+
+/**
  * Reconcile loaded modules against the installed_modules table.
  *
- * - New modules: apply migrations → onInstall → onEnable → insert row
+ * - New modules: register (disabled) — migrations run on explicit enable
  * - Re-enabled modules: onEnable → update status
  * - Version upgrades: apply new migrations → update version
  * - Removed modules: onDisable → mark disabled
+ *
+ * Resilience guarantees:
+ *   - A failure in one module does NOT abort reconcile for other modules.
+ *     Each module is processed inside its own try/catch, and any failure
+ *     is captured as a structured error on that module's
+ *     installed_modules row (`last_reconcile_at` + `reconcile_error`).
+ *   - Migration failures come through applyModuleMigrations as a return
+ *     value (not a throw), so the reconcile loop can inspect the result
+ *     and move on even if half of a module's migrations haven't applied.
+ *   - A summary is returned to the caller for logging / error surfacing.
  *
  * Modules are processed in dependency order (dependencies first).
  */
 export async function reconcileModules(
   loaded: LoadedModule[],
   supabase: SupabaseClient
-): Promise<void> {
+): Promise<ReconcileSummary> {
+  const summary: ReconcileSummary = {
+    ok: [],
+    failed: [],
+    disabled: [],
+    registered: [],
+  };
+
   const { data: installed, error } = await supabase
     .from('installed_modules')
     .select('*');
@@ -116,6 +198,7 @@ export async function reconcileModules(
   // Process loaded modules in dependency order
   const sorted = topologicalSort(loaded);
   for (const mod of sorted) {
+    try {
     const existing = installedMap.get(mod.config.id);
 
     if (!existing) {
