@@ -149,6 +149,15 @@ export async function POST(req: NextRequest) {
         )
       }
 
+      // Lead booker must have a valid email address
+      const leadEmail = members[0]?.email?.trim() || ''
+      if (!leadEmail) {
+        return NextResponse.json({ error: 'VALIDATION_ERROR', message: 'Your email address is required' }, { status: 400 })
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(leadEmail)) {
+        return NextResponse.json({ error: 'VALIDATION_ERROR', message: 'Please enter a valid email address' }, { status: 400 })
+      }
+
       for (const m of members) {
         if (!m.first_name?.trim() && !m.last_name?.trim()) {
           return NextResponse.json({ error: 'VALIDATION_ERROR', message: 'Every member must have a name' }, { status: 400 })
@@ -160,7 +169,7 @@ export async function POST(req: NextRequest) {
           )
         }
         for (const r of m.rsvps) {
-          if (!['accepted', 'declined', 'maybe'].includes(r.status)) {
+          if (!['accepted', 'declined'].includes(r.status)) {
             return NextResponse.json({ error: 'VALIDATION_ERROR', message: `Invalid rsvp status: ${r.status}` }, { status: 400 })
           }
         }
