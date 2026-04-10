@@ -338,7 +338,6 @@ export function RsvpPageClient({ primaryColor, brandName }: Props) {
                   <div>
                     <h4 className="font-medium text-gray-900 dark:text-white">{event.event_title}</h4>
                     {event.event_start && <p className="text-sm text-gray-500 mt-0.5">{formatDate(event.event_start)}</p>}
-                    {event.event_location && <p className="text-sm text-gray-500">{event.event_location}</p>}
                     {isFirstLinked && linkedEvents.length > 1 && (
                       <p className="text-xs text-gray-400 mt-1">
                         Includes: {linkedEvents.slice(1).map(e => e.event_title).join(', ')}
