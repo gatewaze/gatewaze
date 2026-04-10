@@ -199,90 +199,136 @@ export async function reconcileModules(
   const sorted = topologicalSort(loaded);
   for (const mod of sorted) {
     try {
-    const existing = installedMap.get(mod.config.id);
+      const existing = installedMap.get(mod.config.id);
 
-    if (!existing) {
-      // New module: register it but leave disabled.
-      // Migrations and lifecycle hooks run when the admin explicitly enables it.
-      console.log(`[modules] Registering "${mod.config.name}" v${mod.config.version}...`);
+      if (!existing) {
+        // New module: register it but leave disabled.
+        // Migrations and lifecycle hooks run when the admin explicitly enables it.
+        console.log(`[modules] Registering "${mod.config.name}" v${mod.config.version}...`);
 
-      const { error: insertErr } = await supabase
-        .from('installed_modules')
-        .insert({
-          id: mod.config.id,
-          name: mod.config.name,
-          description: mod.config.description ?? '',
-          version: mod.config.version,
-          features: mod.config.features,
-          type: mod.config.type ?? 'feature',
-          source: mod.packageName,
-          visibility: mod.config.visibility ?? 'public',
-          status: 'disabled',
-          config: mod.moduleConfig,
-          portal_nav: mod.config.portalNav || null,
-          admin_nav: mod.config.adminNavItems || null,
-        });
-
-      if (insertErr) {
-        console.error(`[modules] Failed to register "${mod.config.name}":`, insertErr);
-      }
-
-      console.log(`[modules] Registered "${mod.config.name}" v${mod.config.version}`);
-    } else if (existing.status === 'disabled' || existing.status === 'not_installed') {
-      // Module exists but is not active — update metadata (version, features)
-      // but do NOT run migrations. Migrations are applied when the module is
-      // explicitly enabled via the admin UI or onboarding /select endpoint.
-      const metadataUpdates: Record<string, unknown> = {};
-      if (isNewerVersion(mod.config.version, existing.version)) {
-        console.log(`[modules] Updating metadata for inactive module "${mod.config.name}" (v${existing.version} → v${mod.config.version})...`);
-        metadataUpdates.version = mod.config.version;
-        metadataUpdates.features = mod.config.features;
-      }
-      // Always sync nav fields
-      const newPortalNav = mod.config.portalNav || null;
-      const newAdminNav = mod.config.adminNavItems || null;
-      if (JSON.stringify(newPortalNav) !== JSON.stringify(existing.portal_nav || null)) {
-        metadataUpdates.portal_nav = newPortalNav;
-      }
-      if (JSON.stringify(newAdminNav) !== JSON.stringify(existing.admin_nav || null)) {
-        metadataUpdates.admin_nav = newAdminNav;
-      }
-      if (Object.keys(metadataUpdates).length > 0) {
-        await supabase
+        const { error: insertErr } = await supabase
           .from('installed_modules')
-          .update(metadataUpdates)
-          .eq('id', mod.config.id);
-      }
-    } else {
-      // Module is enabled — always apply pending migrations (idempotent)
-      // and run lifecycle hooks for freshly enabled modules.
-      await applyModuleMigrations(mod, supabase);
+          .insert({
+            id: mod.config.id,
+            name: mod.config.name,
+            description: mod.config.description ?? '',
+            version: mod.config.version,
+            features: mod.config.features,
+            type: mod.config.type ?? 'feature',
+            source: mod.packageName,
+            visibility: mod.config.visibility ?? 'public',
+            status: 'disabled',
+            config: mod.moduleConfig,
+            portal_nav: mod.config.portalNav || null,
+            admin_nav: mod.config.adminNavItems || null,
+          });
 
-      if (isNewerVersion(mod.config.version, existing.version)) {
-        console.log(`[modules] Upgrading "${mod.config.name}" from v${existing.version} to v${mod.config.version}...`);
-        await supabase
-          .from('installed_modules')
-          .update({ version: mod.config.version, features: mod.config.features, portal_nav: mod.config.portalNav || null, admin_nav: mod.config.adminNavItems || null })
-          .eq('id', mod.config.id);
-        console.log(`[modules] Upgraded "${mod.config.name}" to v${mod.config.version}`);
-      } else {
-        // Always sync nav fields (may have been added/changed without a version bump)
-        const updates: Record<string, unknown> = {};
+        if (insertErr) {
+          console.error(`[modules] Failed to register "${mod.config.name}":`, insertErr);
+          summary.failed.push({
+            moduleId: mod.config.id,
+            phase: 'metadata',
+            message: `Failed to register: ${JSON.stringify(insertErr)}`,
+          });
+          continue;
+        }
+
+        summary.registered.push(mod.config.id);
+        console.log(`[modules] Registered "${mod.config.name}" v${mod.config.version}`);
+      } else if (existing.status === 'disabled' || existing.status === 'not_installed') {
+        // Module exists but is not active — update metadata (version, features)
+        // but do NOT run migrations. Migrations are applied when the module is
+        // explicitly enabled via the admin UI or onboarding /select endpoint.
+        const metadataUpdates: Record<string, unknown> = {};
+        if (isNewerVersion(mod.config.version, existing.version)) {
+          console.log(`[modules] Updating metadata for inactive module "${mod.config.name}" (v${existing.version} → v${mod.config.version})...`);
+          metadataUpdates.version = mod.config.version;
+          metadataUpdates.features = mod.config.features;
+        }
+        // Always sync nav fields
         const newPortalNav = mod.config.portalNav || null;
         const newAdminNav = mod.config.adminNavItems || null;
         if (JSON.stringify(newPortalNav) !== JSON.stringify(existing.portal_nav || null)) {
-          updates.portal_nav = newPortalNav;
+          metadataUpdates.portal_nav = newPortalNav;
         }
         if (JSON.stringify(newAdminNav) !== JSON.stringify(existing.admin_nav || null)) {
-          updates.admin_nav = newAdminNav;
+          metadataUpdates.admin_nav = newAdminNav;
         }
-        if (Object.keys(updates).length > 0) {
+        if (Object.keys(metadataUpdates).length > 0) {
           await supabase
             .from('installed_modules')
-            .update(updates)
+            .update(metadataUpdates)
             .eq('id', mod.config.id);
         }
+        summary.ok.push(mod.config.id);
+      } else {
+        // Module is enabled — apply pending migrations and surface any
+        // failure as a per-module error without aborting reconcile for
+        // other modules.
+        const migrationResult = await applyModuleMigrations(mod, supabase);
+
+        if (migrationResult.failed) {
+          summary.failed.push({
+            moduleId: mod.config.id,
+            phase: 'migration',
+            filename: migrationResult.failed.filename,
+            message: migrationResult.failed.message,
+          });
+          await recordReconcileError(supabase, mod.config.id, {
+            phase: 'migration',
+            filename: migrationResult.failed.filename,
+            message: migrationResult.failed.message,
+            code: migrationResult.failed.code,
+          });
+          // Skip version/nav updates for this module — the DB schema may
+          // not match the new version's expectations. Continue with the
+          // next module in the loop.
+          continue;
+        }
+
+        if (isNewerVersion(mod.config.version, existing.version)) {
+          console.log(`[modules] Upgrading "${mod.config.name}" from v${existing.version} to v${mod.config.version}...`);
+          await supabase
+            .from('installed_modules')
+            .update({ version: mod.config.version, features: mod.config.features, portal_nav: mod.config.portalNav || null, admin_nav: mod.config.adminNavItems || null })
+            .eq('id', mod.config.id);
+          console.log(`[modules] Upgraded "${mod.config.name}" to v${mod.config.version}`);
+        } else {
+          // Always sync nav fields (may have been added/changed without a version bump)
+          const updates: Record<string, unknown> = {};
+          const newPortalNav = mod.config.portalNav || null;
+          const newAdminNav = mod.config.adminNavItems || null;
+          if (JSON.stringify(newPortalNav) !== JSON.stringify(existing.portal_nav || null)) {
+            updates.portal_nav = newPortalNav;
+          }
+          if (JSON.stringify(newAdminNav) !== JSON.stringify(existing.admin_nav || null)) {
+            updates.admin_nav = newAdminNav;
+          }
+          if (Object.keys(updates).length > 0) {
+            await supabase
+              .from('installed_modules')
+              .update(updates)
+              .eq('id', mod.config.id);
+          }
+        }
+
+        // Module reconciled cleanly — clear any previous error on its row.
+        await clearReconcileError(supabase, mod.config.id);
+        summary.ok.push(mod.config.id);
       }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[modules] Unexpected error reconciling "${mod.config.id}":`, err);
+      summary.failed.push({
+        moduleId: mod.config.id,
+        phase: 'lifecycle',
+        message,
+      });
+      await recordReconcileError(supabase, mod.config.id, {
+        phase: 'lifecycle',
+        message,
+      });
+      // Continue with the next module — never let one bad apple abort reconcile.
     }
   }
 
@@ -291,14 +337,33 @@ export async function reconcileModules(
     if (!loadedIds.has(id) && row.status === 'enabled') {
       console.log(`[modules] Disabling "${row.name}" (removed from config)...`);
 
-      await supabase
-        .from('installed_modules')
-        .update({ status: 'disabled' as const })
-        .eq('id', id);
+      try {
+        await supabase
+          .from('installed_modules')
+          .update({ status: 'disabled' as const })
+          .eq('id', id);
 
-      console.log(`[modules] Disabled "${row.name}"`);
+        summary.disabled.push(id);
+        console.log(`[modules] Disabled "${row.name}"`);
+      } catch (err) {
+        console.error(`[modules] Failed to disable removed module "${row.name}":`, err);
+      }
     }
   }
+
+  // Print a concise summary at the end so the operator doesn't have to
+  // scroll through interleaved per-module logs.
+  console.log(
+    `[modules] Reconcile summary: ${summary.ok.length} ok, ${summary.failed.length} failed, ${summary.registered.length} newly registered, ${summary.disabled.length} disabled`,
+  );
+  if (summary.failed.length > 0) {
+    console.warn('[modules] Reconcile failures:');
+    for (const f of summary.failed) {
+      console.warn(`  - ${f.moduleId} [${f.phase}]${f.filename ? ` ${f.filename}` : ''}: ${f.message}`);
+    }
+  }
+
+  return summary;
 }
 
 /**
