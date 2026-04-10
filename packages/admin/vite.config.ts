@@ -20,6 +20,7 @@ export default defineConfig({
       "@dnd-kit/sortable", "@dnd-kit/utilities", "@supabase/supabase-js",
       "@tanstack/react-table", "react-hook-form", "@hookform/resolvers",
       "@radix-ui/themes", "yup", "apexcharts", "react-apexcharts",
+      "pdfjs-dist",
     ],
   },
   server: {
@@ -45,7 +46,7 @@ export default defineConfig({
   },
   optimizeDeps: {
     // Ensure deps from external module sources are resolved from admin's node_modules
-    include: ["date-fns", "jszip", "qr-code-styling", "pdf-lib", "@pdf-lib/fontkit"],
+    include: ["date-fns", "jszip", "qr-code-styling", "pdf-lib", "@pdf-lib/fontkit", "pdfjs-dist"],
   },
   build: {
     rollupOptions: {
