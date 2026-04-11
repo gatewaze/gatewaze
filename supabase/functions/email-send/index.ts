@@ -242,14 +242,15 @@ async function handler(req: Request) {
         from_address: from,
         reply_to: replyTo || null,
         subject,
-        content_text: text || null,
         content_html: html || null,
-        sendgrid_message_id: messageId,
+        provider_message_id: messageId,
+        provider: 'sendgrid',
         status: 'sent',
+        sent_at: new Date().toISOString(),
       };
 
       const { error: logError } = await supabaseClient
-        .from('email_logs')
+        .from('email_send_log')
         .insert(emailLog);
 
       if (logError) {

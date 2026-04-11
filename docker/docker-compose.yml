@@ -372,6 +372,9 @@ services:
       NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_URL:-http://gatewaze-supabase.localhost}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${ANON_KEY}
       NEXT_PUBLIC_API_URL: ${API_URL:-http://gatewaze-api.localhost}
+      # Public portal URL used by server-rendered pages + confirmation links.
+      # Falls back to http://$PORTAL_HOST (set in the brand env file).
+      NEXT_PUBLIC_APP_URL: ${PORTAL_URL:-http://${PORTAL_HOST}}
       SUPABASE_URL: ${SUPABASE_INTERNAL_URL:-http://supabase-kong:8000}
       SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
@@ -379,6 +382,13 @@ services:
       NEXT_PUBLIC_ENABLE_CHAT: ${NEXT_PUBLIC_ENABLE_CHAT:-false}
       INSTANCE_NAME: ${INSTANCE_NAME:-gatewaze}
       NODE_ENV: production
+      # Email sender identity for transactional emails (calendar signup
+      # confirmation, member blasts). Must match a verified SendGrid sender.
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-}
+      # Domain for calendar email group addresses ({slug}@{domain}).
+      # Falls back to the domain part of EMAIL_FROM at runtime if unset.
+      CALENDAR_EMAIL_DOMAIN: ${CALENDAR_EMAIL_DOMAIN:-}
     depends_on:
       supabase-kong:
         condition: service_started

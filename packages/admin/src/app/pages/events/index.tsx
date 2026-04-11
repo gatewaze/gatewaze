@@ -56,6 +56,7 @@ import { EventService, Event, EventIdGenerator } from '@/utils/eventService';
 import { ScreenshotService } from '@/utils/screenshotService';
 import { useAuthContext } from '@/app/contexts/auth/context';
 import { useAccountAccess } from '@/hooks/useAccountAccess';
+import { useAdminScope } from '@/hooks/usePermissions';
 import { AccountService } from '@/utils/accountService';
 import { Account } from '@/lib/supabase';
 import { getApiBaseUrl } from '@/config/brands';
@@ -167,6 +168,10 @@ export default function EventsManagement() {
   const navigate = useNavigate();
   const { user } = useAuthContext();
   const { isAccountUser, accounts: userAccounts } = useAccountAccess();
+  // Per-admin event scoping. `eventIds` is null for super-admins (no filter).
+  // For calendar/event-scoped admins, only events they have permission for
+  // (directly or via a calendar they admin) are visible.
+  const { isSuperAdmin, eventIds: scopedEventIds, loading: scopeLoading } = useAdminScope();
   const { eventTypes } = useEventTypes();
   const { contentCategories } = useContentCategories();
   const hasTopicsModule = useHasModule('event-topics');
@@ -300,11 +305,15 @@ export default function EventsManagement() {
   };
 
   useEffect(() => {
-    loadEvents();
+    // Wait until admin scope has loaded so the first fetch applies the filter
+    if (!scopeLoading) {
+      loadEvents();
+    }
     loadAccounts();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scopeLoading, isSuperAdmin]);
 
-  // Reload events when account membership changes (for account users)
+  // Reload events when account membership or admin scope changes
   useEffect(() => {
     if (isAccountUser && userAccounts.length > 0) {
       loadEvents();
@@ -420,6 +429,14 @@ export default function EventsManagement() {
             event.accountId && accountIds.includes(event.accountId)
           );
           console.log(`Filtered to ${eventsData.length} events for account user's ${userAccounts.length} account(s)`);
+        }
+
+        // Calendar/event-scoped admin filter: super-admins see everything,
+        // scoped admins see only events they have direct or calendar-inherited
+        // permission for (per spec-calendars-microsites §9.1).
+        if (!isSuperAdmin && scopedEventIds !== null) {
+          const allowed = new Set(scopedEventIds);
+          eventsData = eventsData.filter((event) => event.id && allowed.has(event.id));
         }
 
         setEvents(eventsData);

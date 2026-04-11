@@ -21,17 +21,6 @@ export interface Person {
   avatar_updated_at?: string | null;
 }
 
-// Person activity interface
-export interface PersonActivity {
-  id?: number;
-  customer_cio_id: string;
-  activity_type: string;
-  activity_name?: string;
-  activity_data?: Record<string, any>;
-  timestamp: string;
-  created_at?: string;
-}
-
 // Service class for people data operations
 export class PeopleService {
 
@@ -496,30 +485,6 @@ export class PeopleService {
 
     } catch (error) {
       console.error('Unexpected error getting competition entries:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Get activities for a person
-   */
-  static async getPersonActivities(cioId: string): Promise<PersonActivity[]> {
-    try {
-      const { data, error } = await supabase
-        .from('people_activities')
-        .select('*')
-        .eq('customer_cio_id', cioId)
-        .order('timestamp', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching person activities:', error);
-        return [];
-      }
-
-      return data || [];
-
-    } catch (error) {
-      console.error('Unexpected error fetching person activities:', error);
       return [];
     }
   }

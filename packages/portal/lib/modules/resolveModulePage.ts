@@ -1,4 +1,4 @@
-import { existsSync, readdirSync } from 'fs'
+import { existsSync, readdirSync, statSync } from 'fs'
 import { resolve, isAbsolute } from 'path'
 import { createClient } from '@supabase/supabase-js'
 
@@ -135,16 +135,27 @@ async function fetchDbSourceDirs(projectRoot: string): Promise<string[]> {
 }
 
 /**
- * Convert URL pathname segments to a module page file.
+ * Convert URL pathname segments to a module page file at runtime.
  *
- * /blog → blog/portal/pages/index.tsx
- * /blog/my-post → blog/portal/pages/_slug.tsx (dynamic segment)
+ * Supports nested directories with mixed static and dynamic segments:
+ *   /calendars                  → calendars/portal/pages/index.tsx
+ *   /calendars/berlin           → calendars/portal/pages/[slug]/index.tsx
+ *   /calendars/berlin/events    → calendars/portal/pages/[slug]/events.tsx
+ *   /blog/my-post               → blog/portal/pages/_slug.tsx OR blog/portal/pages/[slug].tsx
+ *
+ * Resolution rules at each segment:
+ *   1. Try a static directory matching the segment.
+ *   2. Try a static file `<segment>.tsx` (only at the final segment).
+ *   3. Fall back to a `[param]` directory (or legacy `_param.tsx` file at final segment).
+ *
+ * Static matches always win over dynamic matches.
  */
 export async function resolveModulePage(pathname: string): Promise<ResolvedPage | null> {
   const segments = pathname.split('/').filter(Boolean)
   if (segments.length === 0) return null
 
   const moduleId = segments[0]
+  const restSegments = segments.slice(1)
   const sourceDirs = await getSourceDirs()
 
   for (const sourceDir of sourceDirs) {
@@ -153,23 +164,69 @@ export async function resolveModulePage(pathname: string): Promise<ResolvedPage 
 
     if (!existsSync(pagesDir)) continue
 
-    // Exact page match for index or named pages
-    if (segments.length === 1) {
-      // /blog → portal/pages/index.tsx
-      const indexFile = findPageFile(pagesDir, 'index')
-      if (indexFile) return { moduleId, filePath: indexFile }
-    } else {
-      // /blog/my-post → try portal/pages/my-post.tsx first, then _slug.tsx
-      const pageName = segments.slice(1).join('/')
-      const exactFile = findPageFile(pagesDir, pageName)
-      if (exactFile) return { moduleId, filePath: exactFile }
+    const filePath = resolveSegments(pagesDir, restSegments)
+    if (filePath) return { moduleId, filePath }
+  }
 
-      // Dynamic segment: look for _param files
-      const files = readdirSync(pagesDir).filter(f => f.startsWith('_') && (f.endsWith('.tsx') || f.endsWith('.ts')))
-      if (files.length > 0) {
-        const filePath = resolve(pagesDir, files[0].replace(/\.tsx?$/, ''))
-        return { moduleId, filePath: filePath + '.tsx' }
+  return null
+}
+
+/**
+ * Recursively walk a portal/pages/ tree to resolve a sequence of URL segments
+ * to a file. Returns the absolute path to the .tsx file (with extension), or null.
+ */
+function resolveSegments(currentDir: string, segments: string[]): string | null {
+  // No more segments to consume — look for an index file in this directory.
+  if (segments.length === 0) {
+    return findPageFile(currentDir, 'index')
+  }
+
+  const [head, ...rest] = segments
+  if (!head) return null
+
+  // 1. Static directory match
+  const staticDir = resolve(currentDir, head)
+  if (existsSync(staticDir)) {
+    try {
+      if (statSync(staticDir).isDirectory()) {
+        const nested = resolveSegments(staticDir, rest)
+        if (nested) return nested
       }
+    } catch {}
+  }
+
+  // 2. If this is the final segment, try a static file `<head>.tsx`.
+  if (rest.length === 0) {
+    const staticFile = findPageFile(currentDir, head)
+    if (staticFile) return staticFile
+  }
+
+  // 3. Dynamic directory match: look for any [param] directory at this level.
+  let entries: string[] = []
+  try {
+    entries = readdirSync(currentDir)
+  } catch {
+    return null
+  }
+  const dynamicDirs = entries.filter(name => {
+    if (!name.startsWith('[') || !name.endsWith(']')) return false
+    try {
+      return statSync(resolve(currentDir, name)).isDirectory()
+    } catch {
+      return false
+    }
+  })
+  for (const dynDir of dynamicDirs) {
+    const nested = resolveSegments(resolve(currentDir, dynDir), rest)
+    if (nested) return nested
+  }
+
+  // 4. Legacy fallback: at the final segment, look for `_param.tsx`.
+  if (rest.length === 0) {
+    const underscoreFiles = entries.filter(f => f.startsWith('_') && (f.endsWith('.tsx') || f.endsWith('.ts')))
+    if (underscoreFiles.length > 0) {
+      const file = underscoreFiles[0]
+      return resolve(currentDir, file)
     }
   }
 

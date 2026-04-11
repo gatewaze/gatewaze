@@ -4,7 +4,6 @@ import {
   ArrowLeftIcon,
   UserCircleIcon,
   TagIcon,
-  ClockIcon,
   CalendarIcon,
   PhotoIcon,
   TrashIcon,
@@ -29,7 +28,7 @@ import { Spinner } from '@/components/ui/Spinner';
 import { Page } from '@/components/shared/Page';
 import { PeopleService, Person } from '@/utils/peopleService';
 import { PeopleAvatarService } from '@/utils/peopleAvatarService';
-import { CompetitionWinnerService, CompetitionWinner } from '@/utils/competitionWinnerService';
+import { CompetitionWinner } from '@/utils/competitionWinnerService';
 import { supabase } from '@/lib/supabase';
 import { EmailHistorySection } from '@/components/emails/EmailHistorySection';
 import { useHasModule } from '@/hooks/useModuleFeature';
@@ -51,7 +50,7 @@ function getAvatarUrl(person: Person, size: number = 80): string {
 
 interface Segment {
   id: number;
-  cio_segment_id: number;
+  segment_id: string;
   name: string;
   description?: string;
   type?: string;
@@ -70,14 +69,6 @@ interface EmailSubscription {
 interface TopicLabelInfo {
   label: string;
   default_subscribed: boolean;
-}
-
-interface Activity {
-  id?: number;
-  activity_type: string;
-  activity_name?: string;
-  activity_data?: Record<string, any>;
-  timestamp: string;
 }
 
 interface CompetitionEvent {
@@ -154,20 +145,20 @@ interface OfferActivity {
   event?: CompetitionEvent;
 }
 
-type TabType = 'profile' | 'attributes' | 'segments' | 'activities' | 'events' | 'wins' | 'emails' | 'competitions' | 'offers';
+type TabType = 'profile' | 'attributes' | 'segments' | 'events' | 'wins' | 'emails' | 'competitions' | 'offers';
 
-const validTabs: TabType[] = ['profile', 'attributes', 'segments', 'activities', 'events', 'wins', 'emails', 'competitions', 'offers'];
+const validTabs: TabType[] = ['profile', 'attributes', 'segments', 'events', 'wins', 'emails', 'competitions', 'offers'];
 
 export default function MemberDetailPage() {
   const { id, tab: tabFromUrl } = useParams<{ id: string; tab?: string }>();
   const navigate = useNavigate();
   const hasCIO = useHasModule('customerio');
+  const hasSegments = useHasModule('segments');
   const hasCompetitions = useHasModule('competitions');
   const hasBulkEmailing = useHasModule('bulk-emailing');
   const hasEvents = useHasModule('events');
   const [person, setPerson] = useState<Person | null>(null);
   const [segments, setSegments] = useState<Segment[]>([]);
-  const [activities, setActivities] = useState<Activity[]>([]);
   const [competitionWins, setCompetitionWins] = useState<CompetitionWin[]>([]);
   const [competitions, setCompetitions] = useState<CompetitionActivity[]>([]);
   const [offers, setOffers] = useState<OfferActivity[]>([]);
@@ -386,7 +377,6 @@ export default function MemberDetailPage() {
     }
   };
 
-  const [activeActivityTab, setActiveActivityTab] = useState<string>('all');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -415,29 +405,28 @@ export default function MemberDetailPage() {
 
       setPerson(customerData);
 
-      if (hasCIO && customerData?.cio_id) {
-        // Fetch segments
+      // Fetch segments (internal segments module — independent of Customer.io)
+      if (hasSegments && customerData?.id) {
         const { data: segmentsData } = await supabase
           .from('segments_memberships')
           .select(`
             id,
             joined_at,
             last_verified_at,
-            segment:customer_segments!inner(
+            segment:segments!inner(
               id,
-              cio_segment_id,
               name,
               description,
               type
             )
           `)
-          .eq('customer_cio_id', customerData.cio_id);
+          .eq('person_id', customerData.id);
 
         if (segmentsData) {
           setSegments(
             segmentsData.map((item: any) => ({
               id: item.id,
-              cio_segment_id: item.segment.cio_segment_id,
+              segment_id: item.segment.id,
               name: item.segment.name,
               description: item.segment.description,
               type: item.segment.type,
@@ -445,11 +434,9 @@ export default function MemberDetailPage() {
             }))
           );
         }
+      }
 
-        // Fetch activities
-        const activitiesData = await PeopleService.getPersonActivities(customerData.cio_id);
-        setActivities(activitiesData);
-
+      if (hasCIO && customerData?.cio_id) {
         // Fetch competition interactions from new table
         const { data: competitionInteractionsData, error: compError } = await supabase
           .from('events_competition_interactions')
@@ -536,12 +523,12 @@ export default function MemberDetailPage() {
         setOffers(offerActivities);
       }
 
-      // Fetch competition wins by email (only if competitions module is enabled)
-      if (hasCompetitions && customerData?.email) {
+      // Fetch competition wins by person_id (only if competitions module is enabled)
+      if (hasCompetitions && customerData?.id) {
         const { data: winnersData } = await supabase
           .from('events_competition_winners')
           .select('*')
-          .eq('email', customerData.email)
+          .eq('person_id', customerData.id)
           .order('created_at', { ascending: false });
 
         if (winnersData && winnersData.length > 0) {
@@ -924,10 +911,9 @@ export default function MemberDetailPage() {
           tabs={[
             { id: 'profile', label: 'Profile', icon: <Cog6ToothIcon className="size-4" /> },
             { id: 'attributes', label: 'Attributes', icon: <Square3Stack3DIcon className="size-4" /> },
-            hasCIO && { id: 'segments', label: 'Segments', icon: <TagIcon className="size-4" />, count: segments.length },
+            hasSegments && { id: 'segments', label: 'Segments', icon: <TagIcon className="size-4" />, count: segments.length },
             competitions.length > 0 && { id: 'competitions', label: 'Competitions', icon: <TrophyIcon className="size-4" />, count: competitions.length },
             offers.length > 0 && { id: 'offers', label: 'Offers', icon: <CalendarIcon className="size-4" />, count: offers.length },
-            hasCIO && { id: 'activities', label: 'Activities', icon: <ClockIcon className="size-4" />, count: activities.length },
             hasEvents && { id: 'events', label: 'Events', icon: <CalendarIcon className="size-4" /> },
             competitionWins.length > 0 && { id: 'wins', label: 'Wins', icon: <TrophyIcon className="size-4" />, count: competitionWins.length },
             { id: 'emails', label: 'Emails', icon: <EnvelopeIcon className="size-4" /> },
@@ -1426,8 +1412,8 @@ export default function MemberDetailPage() {
           </Card>
         )}
 
-        {/* Segments Tab (Customer.io module) */}
-        {hasCIO && activeTab === 'segments' && (
+        {/* Segments Tab */}
+        {hasSegments && activeTab === 'segments' && (
           <Card variant="surface" className="p-6">
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <TagIcon className="size-5" />
@@ -1469,94 +1455,6 @@ export default function MemberDetailPage() {
                   </div>
                 ))}
               </div>
-            )}
-          </Card>
-        )}
-
-        {/* Activities Tab (Customer.io module) */}
-        {hasCIO && activeTab === 'activities' && (
-          <Card variant="surface" className="p-6">
-            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <ClockIcon className="size-5" />
-              Activities ({activities.length})
-            </h2>
-            {activities.length === 0 ? (
-              <p className="text-sm text-[var(--gray-11)]">
-                No activities found for this person.
-              </p>
-            ) : (
-              <>
-                {/* Activity Type Tabs */}
-                {(() => {
-                  // Get unique activity types
-                  const activityTypes = Array.from(
-                    new Set(activities.map(a => a.activity_type))
-                  ).sort();
-
-                  const filteredActivities = activeActivityTab === 'all'
-                    ? activities
-                    : activities.filter(a => a.activity_type === activeActivityTab);
-
-                  return (
-                    <>
-                      <div className="flex gap-2 mb-4 flex-wrap border-b border-gray-200 dark:border-gray-700">
-                        <Button
-                          variant={activeActivityTab === 'all' ? 'soft' : 'ghost'}
-                          size="1"
-                          onClick={() => setActiveActivityTab('all')}
-                        >
-                          All ({activities.length})
-                        </Button>
-                        {activityTypes.map(type => {
-                          const count = activities.filter(a => a.activity_type === type).length;
-                          return (
-                            <Button
-                              key={type}
-                              variant={activeActivityTab === type ? 'soft' : 'ghost'}
-                              size="1"
-                              onClick={() => setActiveActivityTab(type)}
-                            >
-                              {type.replace(/_/g, ' ')} ({count})
-                            </Button>
-                          );
-                        })}
-                      </div>
-
-                      {/* Activity List */}
-                      <div className="space-y-3 max-h-96 overflow-y-auto">
-                        {filteredActivities.map((activity) => (
-                          <div
-                            key={activity.id}
-                            className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700"
-                          >
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-medium text-[var(--gray-12)]">
-                                    {activity.activity_name || activity.activity_type}
-                                  </span>
-                                  <Badge variant="soft" color="gray" className="capitalize">
-                                    {activity.activity_type.replace(/_/g, ' ')}
-                                  </Badge>
-                                </div>
-                                {activity.activity_data &&
-                                  Object.keys(activity.activity_data).length > 0 && (
-                                    <pre className="mt-2 text-xs text-[var(--gray-11)] overflow-x-auto">
-                                      {JSON.stringify(activity.activity_data, null, 2)}
-                                    </pre>
-                                  )}
-                              </div>
-                              <div className="text-sm text-[var(--gray-11)] whitespace-nowrap ml-4">
-                                {formatTimeAgo(activity.timestamp)}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </>
-                  );
-                })()}
-              </>
             )}
           </Card>
         )}

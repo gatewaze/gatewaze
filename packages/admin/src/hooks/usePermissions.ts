@@ -456,6 +456,108 @@ export function useAccessibleCalendars() {
 }
 
 /**
+ * Hook to get all events the current user can access (direct or via calendar).
+ * Mirrors useAccessibleCalendars; reuses PermissionsService.getAdminAccessibleEvents.
+ */
+export function useAccessibleEvents() {
+  const { user } = useAuth();
+  const [events, setEvents] = useState<{ event_id: string; permission_level: CalendarPermissionLevel; permission_source: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const loadEvents = useCallback(async () => {
+    if (!user?.id) {
+      setEvents([]);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await PermissionsService.getAdminAccessibleEvents(user.id);
+      setEvents(data);
+    } catch (err) {
+      setError(err as Error);
+      console.error('Error loading accessible events:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    loadEvents();
+  }, [loadEvents]);
+
+  return {
+    events,
+    loading,
+    error,
+    reload: loadEvents,
+  };
+}
+
+/**
+ * Aggregate hook for admin scope: returns the current user's role,
+ * accessible calendar set, and accessible event set in one place.
+ *
+ * Used by sidebar nav filtering and list-page query scoping for the
+ * calendar-scoped admin work (spec-calendars-microsites §9.1, §9.2).
+ *
+ * Super-admins return `isSuperAdmin: true` and empty arrays — callers
+ * should check `isSuperAdmin` first and skip filtering when true.
+ */
+export function useAdminScope() {
+  const { user } = useAuth();
+  const { calendars, loading: calLoading } = useAccessibleCalendars();
+  const { events, loading: evLoading } = useAccessibleEvents();
+
+  const isSuperAdmin = user?.role === 'super_admin';
+  const loading = calLoading || evLoading;
+
+  const calendarIds = isSuperAdmin ? null : calendars.map((c) => c.calendar_id);
+  const eventIds = isSuperAdmin ? null : events.map((e) => e.event_id);
+
+  const canAdminCalendar = useCallback(
+    (calendarId: string): boolean => {
+      if (isSuperAdmin) return true;
+      return calendars.some((c) => c.calendar_id === calendarId);
+    },
+    [isSuperAdmin, calendars]
+  );
+
+  const canAdminEvent = useCallback(
+    (eventId: string): boolean => {
+      if (isSuperAdmin) return true;
+      return events.some((e) => e.event_id === eventId);
+    },
+    [isSuperAdmin, events]
+  );
+
+  const calendarPermissionLevel = useCallback(
+    (calendarId: string): CalendarPermissionLevel | null => {
+      if (isSuperAdmin) return 'manage';
+      const row = calendars.find((c) => c.calendar_id === calendarId);
+      return row?.permission_level ?? null;
+    },
+    [isSuperAdmin, calendars]
+  );
+
+  return {
+    isSuperAdmin,
+    role: user?.role,
+    calendars,
+    events,
+    calendarIds, // null = no scope filter (super-admin)
+    eventIds,    // null = no scope filter (super-admin)
+    canAdminCalendar,
+    canAdminEvent,
+    calendarPermissionLevel,
+    loading,
+  };
+}
+
+/**
  * Hook for managing calendar permissions
  */
 export function useCalendarPermissionManagement() {
