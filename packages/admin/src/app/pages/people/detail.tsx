@@ -5,7 +5,6 @@ import {
   UserCircleIcon,
   TagIcon,
   ClockIcon,
-  LinkIcon,
   CalendarIcon,
   PhotoIcon,
   TrashIcon,
@@ -79,21 +78,6 @@ interface Activity {
   activity_name?: string;
   activity_data?: Record<string, any>;
   timestamp: string;
-}
-
-interface PersonEvent {
-  id: number;
-  event_name: string;
-  event_data?: Record<string, any>;
-  timestamp: string;
-}
-
-interface Relationship {
-  id: number;
-  object_type_id: string;
-  object_id: string;
-  relationship_attributes?: Record<string, any>;
-  created_at: string;
 }
 
 interface CompetitionEvent {
@@ -170,9 +154,9 @@ interface OfferActivity {
   event?: CompetitionEvent;
 }
 
-type TabType = 'profile' | 'attributes' | 'segments' | 'activities' | 'events' | 'relationships' | 'wins' | 'emails' | 'competitions' | 'offers';
+type TabType = 'profile' | 'attributes' | 'segments' | 'activities' | 'events' | 'wins' | 'emails' | 'competitions' | 'offers';
 
-const validTabs: TabType[] = ['profile', 'attributes', 'segments', 'activities', 'events', 'relationships', 'wins', 'emails', 'competitions', 'offers'];
+const validTabs: TabType[] = ['profile', 'attributes', 'segments', 'activities', 'events', 'wins', 'emails', 'competitions', 'offers'];
 
 export default function MemberDetailPage() {
   const { id, tab: tabFromUrl } = useParams<{ id: string; tab?: string }>();
@@ -184,8 +168,6 @@ export default function MemberDetailPage() {
   const [person, setPerson] = useState<Person | null>(null);
   const [segments, setSegments] = useState<Segment[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
-  const [events, setEvents] = useState<PersonEvent[]>([]);
-  const [relationships, setRelationships] = useState<Relationship[]>([]);
   const [competitionWins, setCompetitionWins] = useState<CompetitionWin[]>([]);
   const [competitions, setCompetitions] = useState<CompetitionActivity[]>([]);
   const [offers, setOffers] = useState<OfferActivity[]>([]);
@@ -552,29 +534,6 @@ export default function MemberDetailPage() {
         // Already sorted by timestamp ascending due to SQL query
         setCompetitions(competitionActivities);
         setOffers(offerActivities);
-
-        // Fetch events
-        const { data: eventsData } = await supabase
-          .from('people_events')
-          .select('*')
-          .eq('customer_cio_id', customerData.cio_id)
-          .order('timestamp', { ascending: false })
-          .limit(100);
-
-        if (eventsData) {
-          setEvents(eventsData);
-        }
-
-        // Fetch relationships
-        const { data: relationshipsData } = await supabase
-          .from('people_relationships')
-          .select('*')
-          .eq('customer_cio_id', customerData.cio_id)
-          .order('created_at', { ascending: false });
-
-        if (relationshipsData) {
-          setRelationships(relationshipsData);
-        }
       }
 
       // Fetch competition wins by email (only if competitions module is enabled)
@@ -970,7 +929,6 @@ export default function MemberDetailPage() {
             offers.length > 0 && { id: 'offers', label: 'Offers', icon: <CalendarIcon className="size-4" />, count: offers.length },
             hasCIO && { id: 'activities', label: 'Activities', icon: <ClockIcon className="size-4" />, count: activities.length },
             hasEvents && { id: 'events', label: 'Events', icon: <CalendarIcon className="size-4" /> },
-            hasCIO && { id: 'relationships', label: 'Relationships', icon: <LinkIcon className="size-4" />, count: relationships.length },
             competitionWins.length > 0 && { id: 'wins', label: 'Wins', icon: <TrophyIcon className="size-4" />, count: competitionWins.length },
             { id: 'emails', label: 'Emails', icon: <EnvelopeIcon className="size-4" /> },
           ].filter(Boolean) as Tab[]}
@@ -1606,56 +1564,6 @@ export default function MemberDetailPage() {
         {/* Events Tab */}
         {activeTab === 'events' && (
           <ModuleSlot name="person-detail:events" props={{ person, personId: id }} />
-        )}
-
-        {/* Relationships Tab (Customer.io module) */}
-        {hasCIO && activeTab === 'relationships' && (
-          <Card variant="surface" className="p-6">
-            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <LinkIcon className="size-5" />
-              Relationships ({relationships.length})
-            </h2>
-            {relationships.length === 0 ? (
-              <p className="text-sm text-[var(--gray-11)]">
-                No relationships found for this person.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {relationships.map((relationship) => (
-                  <div
-                    key={relationship.id}
-                    className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-[var(--gray-12)]">
-                            {relationship.object_type_id}
-                          </span>
-                          <span className="text-sm text-[var(--gray-11)]">
-                            #{relationship.object_id}
-                          </span>
-                        </div>
-                        {relationship.relationship_attributes &&
-                          Object.keys(relationship.relationship_attributes).length > 0 && (
-                            <pre className="mt-2 text-xs text-[var(--gray-11)] overflow-x-auto">
-                              {JSON.stringify(
-                                relationship.relationship_attributes,
-                                null,
-                                2
-                              )}
-                            </pre>
-                          )}
-                      </div>
-                      <div className="text-sm text-[var(--gray-11)] whitespace-nowrap ml-4">
-                        {formatTimeAgo(relationship.created_at)}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
         )}
 
         {/* Competition Wins Tab */}
