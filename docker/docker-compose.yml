@@ -82,6 +82,13 @@ services:
       GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: /auth/v1/verify
       GOTRUE_EXTERNAL_PHONE_ENABLED: "false"
       GOTRUE_SMS_AUTOCONFIRM: "true"
+      # Custom email templates (mounted via volume below). Removes the
+      # OTP code block from the default magic-link template since the
+      # portal UI doesn't offer a code entry surface.
+      GOTRUE_MAILER_TEMPLATES_MAGIC_LINK: /email-templates/magic_link.html
+      GOTRUE_MAILER_SUBJECTS_MAGIC_LINK: ${MAGIC_LINK_SUBJECT:-Sign in to ${INSTANCE_NAME:-Gatewaze}}
+    volumes:
+      - ./supabase/email-templates:/email-templates:ro
     networks:
       - gatewaze
 
