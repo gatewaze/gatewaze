@@ -67,6 +67,9 @@ services:
       # Self-hosted: http://supabase-kong:8000 (Docker network)
       # Cloud: same as SUPABASE_URL (set SUPABASE_INTERNAL_URL in .env)
       SUPABASE_URL: ${SUPABASE_INTERNAL_URL:-http://supabase-kong:8000}
+      # EMAIL_FROM, EMAIL_FROM_NAME, NEXT_PUBLIC_APP_URL, and
+      # SUPABASE_SERVICE_ROLE_KEY are inherited from the base
+      # docker-compose.yml portal service definition.
 
   api:
     build:

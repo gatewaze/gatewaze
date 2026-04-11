@@ -15,6 +15,7 @@ import { Card, Input, Button, Table, THead, TBody, Tr, Th, Td } from '@/componen
 import { useHasModule } from '@/hooks/useModuleFeature';
 
 // SendGrid email log structure
+// Sourced from public.email_send_log (owned by the bulk-emailing module).
 interface SendGridEmailLog {
   id: string;
   recipient_email: string;
@@ -23,9 +24,8 @@ interface SendGridEmailLog {
   status: string;
   created_at: string;
   delivered_at?: string;
-  opened_at?: string;
+  first_opened_at?: string;
   first_clicked_at?: string;
-  click_count?: number;
   bounced_at?: string;
   bounce_reason?: string;
   unsubscribed_at?: string;
@@ -104,9 +104,9 @@ export function EmailLogsTab() {
   const fetchEmails = async () => {
     setLoading(true);
     try {
-      // Fetch SendGrid emails
+      // Fetch SendGrid emails from the bulk-emailing module's send log
       let sendgridQuery = supabase
-        .from('email_logs')
+        .from('email_send_log')
         .select('*')
         .order('created_at', { ascending: false })
         .range((page - 1) * pageSize, page * pageSize - 1);
@@ -145,9 +145,8 @@ export function EmailLogsTab() {
         fromAddress: log.from_address,
         sentAt: log.created_at,
         deliveredAt: log.delivered_at,
-        openedAt: log.opened_at,
+        openedAt: log.first_opened_at,
         clickedAt: log.first_clicked_at,
-        clickCount: log.click_count,
         bouncedAt: log.bounced_at,
         bounceReason: log.bounce_reason,
         unsubscribedAt: log.unsubscribed_at,

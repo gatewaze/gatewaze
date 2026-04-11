@@ -116,7 +116,13 @@ function isKnownHost(hostname: string): boolean {
   return false
 }
 
-// Content type to portal route mapping
+// Content type to portal route mapping.
+// Per spec-calendars-microsites §11.1, this should eventually be a
+// generated file fed from module manifests (each module declares its
+// contentTypes). For v1 we maintain the mapping inline here but every
+// entry has a matching contentTypes declaration in the module's index.ts
+// that the registry generator can pick up when the manifest-driven
+// refactor lands (see Workstream 4).
 const contentRouteMap: Record<string, (slug: string) => string> = {
   'events': (slug) => `/events/${slug}`,
   'event': (slug) => `/events/${slug}`,
@@ -128,6 +134,18 @@ const contentRouteMap: Record<string, (slug: string) => string> = {
   'cohorts': (slug) => `/cohorts/${slug}`,
   'competitions': (slug) => `/competitions/${slug}`,
   'structured_resources': (slug) => `/resources/${slug}`,
+  // Added by spec-calendars-microsites.md §11.1
+  'calendar': (slug) => `/calendars/${slug}`,
+  'calendars': (slug) => `/calendars/${slug}`,
+}
+
+// Valid sub-paths per content type for custom-domain rewrites.
+// Entries must match the module-owned portal routes.
+const VALID_SUBPATHS_BY_CONTENT_TYPE: Record<string, string[]> = {
+  event: ['/', '/agenda', '/speakers', '/sponsors', '/register', '/talks'],
+  events: ['/', '/agenda', '/speakers', '/sponsors', '/register', '/talks'],
+  calendar: ['/', '/about', '/events', '/media', '/chat', '/leaderboard', '/join', '/submit-talk'],
+  calendars: ['/', '/about', '/events', '/media', '/chat', '/leaderboard', '/join', '/submit-talk'],
 }
 
 interface CustomDomainLookup {
@@ -362,6 +380,24 @@ export async function middleware(request: NextRequest) {
       if (pathname.startsWith('/events') || pathname.startsWith('/event') || pathname === '/calendar' || pathname.startsWith('/calendar/')) {
         return NextResponse.next()
       }
+    }
+
+    // Legacy calendar sub-path redirects:
+    // /calendars/[slug]/{upcoming,past,calendar,map} → /calendars/[slug]/events
+    // These existed in the old core-baked calendar pages and are redirected to
+    // the new module-owned events sub-page so existing bookmarks/SEO survive.
+    const calLegacyMatch = pathname.match(/^\/calendars\/([^/]+)\/(upcoming|past|calendar|map)\/?$/)
+    if (calLegacyMatch) {
+      const [, slug, oldSubpath] = calLegacyMatch
+      const url = request.nextUrl.clone()
+      url.pathname = `/calendars/${slug}/events`
+      // Preserve filter intent via query param so the events page can pre-filter
+      if (oldSubpath === 'upcoming' || oldSubpath === 'past') {
+        url.searchParams.set('filter', oldSubpath)
+      } else if (oldSubpath === 'calendar' || oldSubpath === 'map') {
+        url.searchParams.set('view', oldSubpath)
+      }
+      return NextResponse.redirect(url, { status: 301 })
     }
 
     // Rewrite module content pages: /blog/... → /m/blog/...

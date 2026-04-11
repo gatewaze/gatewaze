@@ -6,10 +6,21 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import { loadModules, reconcileModules } from '@gatewaze/shared/modules';
+// createRequire to work around Node ESM <-> TypeScript CommonJS interop:
+// tsc's CJS output uses Object.defineProperty which Node can't statically
+// analyse as named exports. Load via require() which returns the CJS
+// exports object directly.
+import { createRequire } from 'module';
 import config from '../../gatewaze.config';
 import dotenv from 'dotenv';
 import path from 'path';
+
+const require = createRequire(import.meta.url);
+const modulesLib = require('@gatewaze/shared/modules') as {
+  loadModules: typeof import('@gatewaze/shared/modules').loadModules;
+  reconcileModules: typeof import('@gatewaze/shared/modules').reconcileModules;
+};
+const { loadModules, reconcileModules } = modulesLib;
 
 const PROJECT_ROOT = path.resolve(import.meta.dirname ?? __dirname, '../..');
 

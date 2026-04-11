@@ -7,10 +7,12 @@ export const dynamic = 'force-dynamic'
 
 interface Props {
   params: Promise<{ path: string[] }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }
 
-export default async function ModulePage({ params }: Props) {
+export default async function ModulePage({ params, searchParams }: Props) {
   const { path } = await params
+  const resolvedSearchParams = await searchParams
   const pathname = '/' + path.join('/')
 
   const page = findModulePage(pathname)
@@ -33,9 +35,15 @@ export default async function ModulePage({ params }: Props) {
   // Pass API URL from server env so client components can reach the API service
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || ''
 
+  // Forward both params and searchParams so module pages can read query
+  // string values (e.g. /calendars/[slug]/confirm?token=...)
   return (
     <Suspense fallback={null}>
-      <PageComponent params={moduleParams} apiUrl={apiUrl} />
+      <PageComponent
+        params={moduleParams}
+        searchParams={resolvedSearchParams}
+        apiUrl={apiUrl}
+      />
     </Suspense>
   )
 }
