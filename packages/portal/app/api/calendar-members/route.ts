@@ -6,20 +6,20 @@ import { getServerBrand } from '@/config/brand'
 /**
  * Portal-internal API for calendar member signup.
  *
- * Flow (updated to use Supabase magic-link auth instead of a custom double
- * opt-in):
+ * Flow — matches the standard sign-in page flow:
  *
  *   1. Find-or-create the `people` row for the submitted email
  *   2. Upsert a `calendars_members` row with membership_status='active'
- *   3. If the caller is NOT already authenticated, trigger Supabase's
- *      native magic link (`signInWithOtp`). Clicking the link signs them
- *      in and drops them back on the calendar landing page.
- *   4. If the caller IS already authenticated, skip the magic link entirely
- *      (they're already on the platform).
- *
- * No custom confirmation tokens, no custom confirmation email, no
- * confirm-link landing page. Supabase GoTrue owns the email verification
- * step and its magic-link email template is configurable per brand.
+ *   3. If the caller is NOT already authenticated, call the `people-signup`
+ *      edge function (the same one used by /sign-in). That function uses
+ *      `supabase.auth.admin.generateLink({ type: 'magiclink' })` and sends
+ *      the email via the custom email system (GoTrue SMTP is intentionally
+ *      disabled platform-wide).
+ *   4. The magic link redirects to `/sign-in?redirectTo={calendar-url}`,
+ *      so the sign-in page's existing hash-token handler picks up the
+ *      `#access_token` fragment, calls `setSession()`, and forwards the
+ *      user to the calendar landing page.
+ *   5. If the caller IS already authenticated, skip the magic link.
  */
 
 interface SignupBody {
@@ -42,21 +42,6 @@ function getServiceSupabase() {
     throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY required')
   }
   return createClient(url, key, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  })
-}
-
-/**
- * Create a client that uses the anon key. Needed for `signInWithOtp` since
- * that method is intended for end-user flows and only takes the anon key.
- */
-function getAnonSupabase() {
-  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  if (!url || !anonKey) {
-    throw new Error('SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY required')
-  }
-  return createClient(url, anonKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   })
 }
@@ -132,36 +117,63 @@ async function findOrCreatePerson(
 }
 
 /**
- * Trigger a Supabase magic link. Returns true on success, false on failure
- * (logged server-side; never throws). The email GoTrue sends is configurable
- * via the Auth → Email Templates settings in the Supabase dashboard.
+ * Delegate magic link sending to the `people-signup` edge function — the
+ * same path used by the /sign-in page. GoTrue SMTP is disabled platform-wide,
+ * so people-signup uses `admin.generateLink` + the custom email system
+ * (SendGrid / configured SMTP).
+ *
+ * `redirectTo` should point to /sign-in with a `redirectTo` query param, so
+ * the sign-in page's hash-token handler can pick up the `#access_token`
+ * fragment and forward the user to the final destination.
  */
-async function sendMagicLink(args: {
+async function triggerPeopleSignupMagicLink(args: {
   email: string
   name: string
   redirectTo: string
 }): Promise<boolean> {
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!supabaseUrl || !anonKey) {
+    console.error('[calendar-members] Missing Supabase URL/anon key for people-signup')
+    return false
+  }
+
+  const parts = args.name.trim().split(/\s+/)
+  const firstName = parts[0] || null
+  const lastName = parts.slice(1).join(' ') || null
+
   try {
-    const client = getAnonSupabase()
-    const { error } = await client.auth.signInWithOtp({
-      email: args.email,
-      options: {
-        emailRedirectTo: args.redirectTo,
-        // These go into auth.users.user_metadata on first signup
-        data: {
-          first_name: args.name.split(/\s+/)[0] || null,
-          last_name: args.name.split(/\s+/).slice(1).join(' ') || null,
-        },
+    const res = await fetch(`${supabaseUrl}/functions/v1/people-signup`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: anonKey,
+        Authorization: `Bearer ${anonKey}`,
       },
+      body: JSON.stringify({
+        email: args.email,
+        source: 'calendar_member_signup',
+        app: 'portal',
+        redirect_to: args.redirectTo,
+        user_metadata: {
+          first_name: firstName,
+          last_name: lastName,
+        },
+      }),
     })
-    if (error) {
-      console.error('[calendar-members] signInWithOtp failed:', error)
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      console.error('[calendar-members] people-signup failed:', res.status, text)
       return false
     }
-    console.log(`[calendar-members] magic link dispatched to ${args.email}`)
-    return true
+
+    const body = await res.json().catch(() => ({}))
+    const sent = !!body?.magic_link_sent
+    console.log(`[calendar-members] people-signup result for ${args.email}: magic_link_sent=${sent}`)
+    return sent
   } catch (err) {
-    console.error('[calendar-members] signInWithOtp threw:', err)
+    console.error('[calendar-members] people-signup threw:', err)
     return false
   }
 }
@@ -275,18 +287,19 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // If the caller isn't already signed in, trigger Supabase's magic link so
-  // they can sign in to the platform. The link redirects back to the calendar
-  // landing page. Fire-and-forget — the membership is already saved.
+  // If the caller isn't already signed in, trigger a magic link via the
+  // standard people-signup edge function. The link lands on /sign-in, which
+  // picks up the hash tokens and forwards the user to the calendar page.
   let magicLinkSent = false
   if (!alreadyAuthed) {
     const portalBase = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '')
     const slug = (calendar as CalendarRow).slug || (calendar as CalendarRow).calendar_id
-    const redirectTo = `${portalBase}/calendars/${slug}?joined=1`
-    magicLinkSent = await sendMagicLink({
+    const calendarUrl = `${portalBase}/calendars/${slug}?joined=1`
+    const signInCallback = `${portalBase}/sign-in?redirectTo=${encodeURIComponent(calendarUrl)}`
+    magicLinkSent = await triggerPeopleSignupMagicLink({
       email: normalizedEmail,
       name: body.name,
-      redirectTo,
+      redirectTo: signInCallback,
     })
   }
 
