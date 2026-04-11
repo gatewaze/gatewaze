@@ -45,6 +45,97 @@ interface SubmitMember {
   answers?: Array<{ sub_event_id: string | null; question_id: string; answer: unknown }>
 }
 
+/**
+ * Find an existing person by email (case-insensitive) or create a new one.
+ * Returns the person_id. Guests created via open-rsvp are flagged
+ * `is_guest = true` so the admin can tell them apart from full users.
+ */
+async function findOrCreatePerson(
+  supabase: ReturnType<typeof getSupabase>,
+  input: { email: string; first_name?: string; last_name?: string; phone?: string },
+): Promise<string | null> {
+  const email = input.email.toLowerCase().trim()
+  if (!email) return null
+
+  const { data: existing } = await supabase
+    .from('people')
+    .select('id')
+    .eq('email', email)
+    .maybeSingle()
+
+  if (existing) return (existing as { id: string }).id
+
+  const attributes: Record<string, unknown> = {}
+  if (input.first_name) attributes.first_name = input.first_name
+  if (input.last_name) attributes.last_name = input.last_name
+
+  const { data: newPerson, error: insertErr } = await supabase
+    .from('people')
+    .insert({
+      email,
+      phone: input.phone || null,
+      attributes,
+      is_guest: true,
+    })
+    .select('id')
+    .single()
+
+  if (insertErr || !newPerson) {
+    console.error('[open-rsvp] Failed to create person:', insertErr)
+    return null
+  }
+
+  // Also create the paired people_profiles row so the person appears in
+  // admin views that JOIN against profiles. This is best-effort — if the
+  // table has different columns or profile creation fails, we still keep
+  // the person we just inserted.
+  try {
+    await supabase
+      .from('people_profiles')
+      .insert({ person_id: (newPerson as { id: string }).id })
+  } catch { /* best-effort */ }
+
+  return (newPerson as { id: string }).id
+}
+
+/**
+ * Create an events_registrations row for a person/event pair, avoiding
+ * duplicates. Returns the registration id (new or existing).
+ */
+async function ensureRegistration(
+  supabase: ReturnType<typeof getSupabase>,
+  input: { event_id: string; person_id: string; party_id: string },
+): Promise<string | null> {
+  const { data: existing } = await supabase
+    .from('events_registrations')
+    .select('id')
+    .eq('event_id', input.event_id)
+    .eq('person_id', input.person_id)
+    .maybeSingle()
+
+  if (existing) return (existing as { id: string }).id
+
+  const { data: reg, error } = await supabase
+    .from('events_registrations')
+    .insert({
+      event_id: input.event_id,
+      person_id: input.person_id,
+      registration_type: 'free',
+      registration_source: 'invite',
+      status: 'confirmed',
+      registration_metadata: { party_id: input.party_id },
+    })
+    .select('id')
+    .single()
+
+  if (error || !reg) {
+    console.error('[open-rsvp] Failed to create registration:', error)
+    return null
+  }
+
+  return (reg as { id: string }).id
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
@@ -214,13 +305,31 @@ export async function POST(req: NextRequest) {
 
       for (let i = 0; i < members.length; i++) {
         const member = members[i]
+
+        // Resolve or create a person record if an email was provided.
+        // Every guest who submits with an email ends up in the people
+        // table, regardless of whether they accepted or declined the
+        // event. Only accepted members are written to events_registrations
+        // further down.
+        let personId: string | null = null
+        const memberEmail = member.email?.toLowerCase().trim() || ''
+        if (memberEmail) {
+          personId = await findOrCreatePerson(supabase, {
+            email: memberEmail,
+            first_name: member.first_name?.trim(),
+            last_name: member.last_name?.trim(),
+            phone: member.phone?.trim(),
+          })
+        }
+
         const { data: partyMember, error: memberErr } = await supabase
           .from('invite_party_members')
           .insert({
             party_id: party.id,
+            person_id: personId,
             first_name: member.first_name?.trim() || null,
             last_name: member.last_name?.trim() || null,
-            email: member.email?.toLowerCase().trim() || null,
+            email: memberEmail || null,
             phone: member.phone?.trim() || null,
             is_lead_booker: i === 0,
             sort_order: i,
@@ -232,6 +341,12 @@ export async function POST(req: NextRequest) {
           console.error('[open-rsvp] Failed to create member:', memberErr)
           continue
         }
+
+        // Track whether this member accepted ANY sub-event so we know
+        // whether to create an event registration. A single accept is
+        // enough — the registration is on the parent event, not the
+        // sub-event.
+        let memberAccepted = false
 
         // Create member-event rows keyed by sub-event
         const memberEventIdsBySubEvent = new Map<string, string>()
@@ -252,6 +367,31 @@ export async function POST(req: NextRequest) {
             continue
           }
           memberEventIdsBySubEvent.set(rsvp.sub_event_id || '__event__', me.id)
+          if (rsvp.status === 'accepted') memberAccepted = true
+        }
+
+        // Create an events_registrations row only if the member actually
+        // accepted something AND we have a person record to link it to.
+        // Declined and email-less guests stay out of the registration list.
+        if (memberAccepted && personId) {
+          const registrationId = await ensureRegistration(supabase, {
+            event_id: link.event_id,
+            person_id: personId,
+            party_id: party.id,
+          })
+          // Link the registration back to each accepted member-event row
+          // so the admin can jump from party → registration cleanly.
+          if (registrationId) {
+            for (const rsvp of member.rsvps) {
+              if (rsvp.status !== 'accepted') continue
+              const memberEventId = memberEventIdsBySubEvent.get(rsvp.sub_event_id || '__event__')
+              if (!memberEventId) continue
+              await supabase
+                .from('invite_party_member_events')
+                .update({ registration_id: registrationId })
+                .eq('id', memberEventId)
+            }
+          }
         }
 
         // Upsert follow-up answers
