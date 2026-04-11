@@ -219,11 +219,128 @@ interface PortalPageDef {
   moduleId: string
 }
 
-function fileNameToRouteSegment(name: string): string {
+/**
+ * Convert a directory name or filename stem to a Next.js route segment.
+ * - `_slug` (legacy underscore-prefix) → `[slug]`
+ * - `[slug]` (Next.js convention) → `[slug]`
+ * - anything else → as-is
+ */
+function nameToRouteSegment(name: string): string {
   if (name.startsWith('_')) {
     return `[${name.slice(1)}]`
   }
   return name
+}
+
+/**
+ * Recursively walk a portal/pages/ directory tree, producing one PortalPageDef
+ * per .tsx/.ts file found.
+ *
+ * Conventions:
+ *  - `index.tsx` at any level represents that directory's root route.
+ *  - `foo.tsx` adds a static `/foo` segment.
+ *  - `_foo.tsx` adds a dynamic `[foo]` segment (legacy flat convention).
+ *  - `[foo]/...` is a directory whose contents nest under a dynamic `[foo]` segment.
+ *
+ * Examples (for moduleId 'calendars'):
+ *  - portal/pages/index.tsx          → /calendars
+ *  - portal/pages/[slug]/index.tsx   → /calendars/[slug]
+ *  - portal/pages/[slug]/events.tsx  → /calendars/[slug]/events
+ *  - portal/pages/[slug]/_sub.tsx    → /calendars/[slug]/[sub]   (still works)
+ */
+function walkPortalPagesDir(
+  rootDir: string,
+  currentDir: string,
+  segments: string[],
+  moduleId: string,
+  pages: PortalPageDef[]
+) {
+  if (!existsSync(currentDir)) return
+  let entries: string[]
+  try {
+    entries = readdirSync(currentDir)
+  } catch {
+    return
+  }
+
+  for (const entry of entries) {
+    const fullPath = resolve(currentDir, entry)
+    let st
+    try {
+      st = statSync(fullPath)
+    } catch {
+      continue
+    }
+
+    if (st.isDirectory()) {
+      // Skip hidden directories. Underscore-prefixed dirs (e.g. _shared) are
+      // treated as private (not routed) so modules can colocate helpers.
+      if (entry.startsWith('.')) continue
+      if (entry.startsWith('_') && !entry.startsWith('_')) continue
+
+      // _foo as a *directory* is reserved for private (e.g. _components, _utils);
+      // dynamic directories must use the [foo] convention.
+      if (entry.startsWith('_')) continue
+
+      // [foo] dynamic directory
+      if (entry.startsWith('[') && entry.endsWith(']')) {
+        const segment = entry // already in `[foo]` form
+        walkPortalPagesDir(rootDir, fullPath, [...segments, segment], moduleId, pages)
+        continue
+      }
+
+      // Static directory
+      walkPortalPagesDir(rootDir, fullPath, [...segments, entry], moduleId, pages)
+      continue
+    }
+
+    if (!st.isFile()) continue
+    if (!entry.endsWith('.tsx') && !entry.endsWith('.ts')) continue
+
+    const name = entry.replace(/\.tsx?$/, '')
+    // Skip `_meta.json` etc. — they're not pages.
+    if (name.startsWith('.')) continue
+
+    // Compute the route path for this file.
+    let routeSegments: string[]
+    if (name === 'index') {
+      routeSegments = segments
+    } else {
+      routeSegments = [...segments, nameToRouteSegment(name)]
+    }
+
+    const routePath = '/' + [moduleId, ...routeSegments].filter(Boolean).join('/')
+
+    // Component import path: drop the .tsx extension
+    const componentPath = fullPath.replace(/\.tsx?$/, '')
+
+    pages.push({
+      path: routePath,
+      componentPath,
+      moduleId,
+    })
+  }
+}
+
+/**
+ * Sort routes so that more specific (static) routes appear before less specific
+ * (dynamic) routes at any given level. This matters for `findModulePage()`'s
+ * pattern matching — we want `/calendars/[slug]/events` to be tried before
+ * `/calendars/[slug]/[sub]`.
+ *
+ * Strategy: longer paths first, then within the same length, fewer dynamic
+ * segments first.
+ */
+function sortPortalPages(pages: PortalPageDef[]): PortalPageDef[] {
+  return [...pages].sort((a, b) => {
+    const aSegs = a.path.split('/').filter(Boolean)
+    const bSegs = b.path.split('/').filter(Boolean)
+    if (aSegs.length !== bSegs.length) return bSegs.length - aSegs.length
+    const aDyn = aSegs.filter(s => s.startsWith('[')).length
+    const bDyn = bSegs.filter(s => s.startsWith('[')).length
+    if (aDyn !== bDyn) return aDyn - bDyn
+    return a.path.localeCompare(b.path)
+  })
 }
 
 function discoverPortalModules(sourceDirs: string[]): PortalPageDef[] {
@@ -237,37 +354,21 @@ function discoverPortalModules(sourceDirs: string[]): PortalPageDef[] {
 
     const moduleDirs = readdirSync(sourceDir).filter(name => {
       if (name.startsWith('.') || name.startsWith('_')) return false
-      return statSync(resolve(sourceDir, name)).isDirectory()
+      try {
+        return statSync(resolve(sourceDir, name)).isDirectory()
+      } catch {
+        return false
+      }
     })
 
     for (const moduleDir of moduleDirs) {
       const pagesDir = resolve(sourceDir, moduleDir, 'portal', 'pages')
       if (!existsSync(pagesDir)) continue
-
-      const pageFiles = readdirSync(pagesDir).filter(f =>
-        f.endsWith('.tsx') || f.endsWith('.ts')
-      )
-
-      for (const file of pageFiles) {
-        const name = file.replace(/\.tsx?$/, '')
-        const segment = fileNameToRouteSegment(name)
-        const routePath = name === 'index'
-          ? `/${moduleDir}`
-          : `/${moduleDir}/${segment}`
-
-        // Absolute import path for webpack
-        const absComponentPath = resolve(sourceDir, moduleDir, 'portal', 'pages', name)
-
-        pages.push({
-          path: routePath,
-          componentPath: absComponentPath,
-          moduleId: moduleDir,
-        })
-      }
+      walkPortalPagesDir(pagesDir, pagesDir, [], moduleDir, pages)
     }
   }
 
-  return pages
+  return sortPortalPages(pages)
 }
 
 // ---------------------------------------------------------------------------

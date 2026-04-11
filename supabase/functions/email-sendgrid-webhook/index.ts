@@ -37,12 +37,11 @@ function getSupabaseClient() {
 
 /**
  * Find an email log entry by SendGrid message ID.
- * Checks both email_send_log (newsletter sends) and email_logs (legacy).
+ * Queries email_send_log — the canonical table owned by the bulk-emailing module.
  */
 async function findEmailLog(messageId: string) {
   const client = getSupabaseClient();
 
-  // Check email_send_log first (used by newsletter-send)
   const { data, error } = await client
     .from('email_send_log')
     .select('*')
@@ -50,22 +49,7 @@ async function findEmailLog(messageId: string) {
     .limit(1);
 
   if (!error && data && data.length > 0) {
-    return { emailLog: data[0], table: 'email_send_log', client };
-  }
-
-  // Fallback: check legacy email_logs table
-  try {
-    const { data: legacyData, error: legacyError } = await client
-      .from('email_logs')
-      .select('*')
-      .eq('sendgrid_message_id', messageId)
-      .limit(1);
-
-    if (!legacyError && legacyData && legacyData.length > 0) {
-      return { emailLog: legacyData[0], table: 'email_logs', client };
-    }
-  } catch {
-    // email_logs table may not exist
+    return { emailLog: data[0], client };
   }
 
   return null;
@@ -119,97 +103,50 @@ async function handler(req: Request) {
         continue;
       }
 
-      const { emailLog, table, client: supabaseClient } = result;
+      const { emailLog, client: supabaseClient } = result;
       const eventTime = new Date(event.timestamp * 1000).toISOString();
 
-      // Build update based on table schema
-      if (table === 'email_send_log') {
-        const updateData: Record<string, unknown> = {};
+      const updateData: Record<string, unknown> = {};
 
-        switch (event.event) {
-          case 'delivered':
-            if (!emailLog.delivered_at) updateData.delivered_at = eventTime;
-            updateData.status = 'delivered';
-            break;
-          case 'open':
-            if (!emailLog.first_opened_at) updateData.first_opened_at = eventTime;
-            break;
-          case 'click':
-            if (!emailLog.first_clicked_at) updateData.first_clicked_at = eventTime;
-            break;
-          case 'bounce':
-            if (!emailLog.bounced_at) updateData.bounced_at = eventTime;
-            updateData.failure_error = event.reason || event.type || 'Bounced';
-            updateData.status = 'bounced';
-            break;
-          case 'dropped':
-            if (!emailLog.dropped_at) updateData.dropped_at = eventTime;
-            updateData.failure_error = event.reason || 'Dropped by SendGrid';
-            updateData.status = 'permanently_failed';
-            break;
-          case 'spamreport':
-            if (!emailLog.spam_reported_at) updateData.spam_reported_at = eventTime;
-            break;
-          case 'unsubscribe':
-            if (!emailLog.unsubscribed_at) updateData.unsubscribed_at = eventTime;
-            break;
-        }
+      switch (event.event) {
+        case 'delivered':
+          if (!emailLog.delivered_at) updateData.delivered_at = eventTime;
+          updateData.status = 'delivered';
+          break;
+        case 'open':
+          if (!emailLog.first_opened_at) updateData.first_opened_at = eventTime;
+          break;
+        case 'click':
+          if (!emailLog.first_clicked_at) updateData.first_clicked_at = eventTime;
+          break;
+        case 'bounce':
+          if (!emailLog.bounced_at) updateData.bounced_at = eventTime;
+          updateData.failure_error = event.reason || event.type || 'Bounced';
+          updateData.status = 'bounced';
+          break;
+        case 'dropped':
+          if (!emailLog.dropped_at) updateData.dropped_at = eventTime;
+          updateData.failure_error = event.reason || 'Dropped by SendGrid';
+          updateData.status = 'permanently_failed';
+          break;
+        case 'spamreport':
+          if (!emailLog.spam_reported_at) updateData.spam_reported_at = eventTime;
+          break;
+        case 'unsubscribe':
+          if (!emailLog.unsubscribed_at) updateData.unsubscribed_at = eventTime;
+          break;
+      }
 
-        if (Object.keys(updateData).length > 0) {
-          const { error: updateError } = await supabaseClient
-            .from('email_send_log')
-            .update(updateData)
-            .eq('id', emailLog.id);
+      if (Object.keys(updateData).length > 0) {
+        const { error: updateError } = await supabaseClient
+          .from('email_send_log')
+          .update(updateData)
+          .eq('id', emailLog.id);
 
-          if (updateError) {
-            console.error('Error updating email_send_log:', updateError);
-          } else {
-            processed++;
-          }
-        }
-      } else {
-        // Legacy email_logs table
-        const updateData: Record<string, unknown> = {};
-
-        switch (event.event) {
-          case 'delivered':
-            updateData.delivered_at = eventTime;
-            updateData.status = 'delivered';
-            break;
-          case 'open':
-            if (!emailLog.opened_at) updateData.opened_at = eventTime;
-            break;
-          case 'click':
-            if (!emailLog.first_clicked_at) updateData.first_clicked_at = eventTime;
-            break;
-          case 'bounce':
-            updateData.bounced_at = eventTime;
-            updateData.bounce_reason = event.reason || event.type || 'Unknown';
-            updateData.status = 'bounced';
-            break;
-          case 'dropped':
-            updateData.status = 'dropped';
-            updateData.bounce_reason = event.reason || 'Dropped by SendGrid';
-            break;
-          case 'spamreport':
-            updateData.spam_reported_at = eventTime;
-            break;
-          case 'unsubscribe':
-            updateData.unsubscribed_at = eventTime;
-            break;
-        }
-
-        if (Object.keys(updateData).length > 0) {
-          const { error: updateError } = await supabaseClient
-            .from('email_logs')
-            .update(updateData)
-            .eq('id', emailLog.id);
-
-          if (updateError) {
-            console.error('Error updating email_logs:', updateError);
-          } else {
-            processed++;
-          }
+        if (updateError) {
+          console.error('Error updating email_send_log:', updateError);
+        } else {
+          processed++;
         }
       }
     }
