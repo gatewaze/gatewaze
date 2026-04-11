@@ -389,6 +389,10 @@ services:
       # Domain for calendar email group addresses ({slug}@{domain}).
       # Falls back to the domain part of EMAIL_FROM at runtime if unset.
       CALENDAR_EMAIL_DOMAIN: ${CALENDAR_EMAIL_DOMAIN:-}
+      # Extra module source paths (mounted volumes) that the portal's
+      # module registry generator should scan in addition to the
+      # gatewaze.config.ts defaults. Comma-separated.
+      EXTRA_MODULE_SOURCES: ${EXTRA_MODULE_SOURCES:-}
     depends_on:
       supabase-kong:
         condition: service_started
