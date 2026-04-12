@@ -106,6 +106,12 @@ async function handler(req: Request) {
       metadata = {}
     } = body
 
+    // Extract IP for geolocation
+    const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+                     req.headers.get('x-real-ip') ||
+                     null
+    const ipLocation = await getIpLocation(clientIp)
+
     // Validate required fields
     if (!email) {
       return new Response(JSON.stringify({ success: false, error: 'Email is required' }), {
@@ -196,7 +202,12 @@ async function handler(req: Request) {
       job_title,
       phone,
       linkedin_url,
-      source: source || 'speaker_submission'
+      source: source || 'speaker_submission',
+      ...(ipLocation?.city ? { city: ipLocation.city } : {}),
+      ...(ipLocation?.country ? { country: ipLocation.country } : {}),
+      ...(ipLocation?.country_code ? { country_code: ipLocation.country_code } : {}),
+      ...(ipLocation?.continent ? { continent: ipLocation.continent } : {}),
+      ...(ipLocation?.location ? { location: ipLocation.location } : {}),
     })
 
     if (!personResult) {
@@ -491,6 +502,11 @@ async function findOrCreatePerson(
     if (attributes.job_title) personAttributes.job_title = attributes.job_title
     if (attributes.phone) personAttributes.phone = attributes.phone
     if (attributes.linkedin_url) personAttributes.linkedin_url = attributes.linkedin_url
+    if (attributes.city) personAttributes.city = attributes.city
+    if (attributes.country) personAttributes.country = attributes.country
+    if (attributes.country_code) personAttributes.country_code = attributes.country_code
+    if (attributes.continent) personAttributes.continent = attributes.continent
+    if (attributes.location) personAttributes.location = attributes.location
 
     const { data: newPerson, error: insertError } = await supabase
       .from('people')
@@ -832,4 +848,24 @@ function replaceTemplateVariables(template: string, context: Record<string, Reco
 
     return value
   })
+}
+
+async function getIpLocation(ipAddress: string | null): Promise<{
+  city?: string; country?: string; country_code?: string; continent?: string; location?: string;
+} | null> {
+  if (!ipAddress) return null
+  try {
+    const url = `http://ip-api.com/json/${encodeURIComponent(ipAddress)}?fields=status,message,city,country,countryCode,continentCode,lat,lon`
+    const response = await fetch(url)
+    if (!response.ok) return null
+    const data = await response.json()
+    if (data.status === 'fail') return null
+    return {
+      city: data.city || undefined,
+      country: data.country || undefined,
+      country_code: data.countryCode || undefined,
+      continent: data.continentCode ? data.continentCode.toLowerCase() : undefined,
+      location: data.lat && data.lon ? `${data.lat},${data.lon}` : undefined,
+    }
+  } catch { return null }
 }

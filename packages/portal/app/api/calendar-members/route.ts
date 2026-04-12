@@ -130,6 +130,7 @@ async function triggerPeopleSignupMagicLink(args: {
   email: string
   name: string
   redirectTo: string
+  clientIp?: string | null
 }): Promise<boolean> {
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -149,6 +150,7 @@ async function triggerPeopleSignupMagicLink(args: {
         'Content-Type': 'application/json',
         apikey: anonKey,
         Authorization: `Bearer ${anonKey}`,
+        ...(args.clientIp ? { 'x-forwarded-for': args.clientIp } : {}),
       },
       body: JSON.stringify({
         email: args.email,
@@ -296,10 +298,14 @@ export async function POST(request: NextRequest) {
     const slug = (calendar as CalendarRow).slug || (calendar as CalendarRow).calendar_id
     const calendarUrl = `${portalBase}/calendars/${slug}?joined=1`
     const signInCallback = `${portalBase}/sign-in?redirectTo=${encodeURIComponent(calendarUrl)}`
+    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+                     request.headers.get('x-real-ip') ||
+                     null
     magicLinkSent = await triggerPeopleSignupMagicLink({
       email: normalizedEmail,
       name: body.name,
       redirectTo: signInCallback,
+      clientIp,
     })
   }
 
