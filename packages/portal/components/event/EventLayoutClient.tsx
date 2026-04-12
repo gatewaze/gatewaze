@@ -70,6 +70,9 @@ export function EventLayoutClient({ event, brandConfig, eventIdentifier, speaker
   const { theme, colors, primaryColor, secondaryColor } = resolved
   const bgColor = getThemeBackgroundColor(theme, colors, secondaryColor)
 
+  // Only render a separate event background if this event has per-event theme overrides
+  const hasEventThemeOverride = !!(event.portal_theme || event.theme_colors || event.gradient_color_1)
+
   // Determine if we need dark text (for light backgrounds)
   // Check against the actual background color, not just the accent colors
   const useDarkText = useMemo(
@@ -98,18 +101,22 @@ export function EventLayoutClient({ event, brandConfig, eventIdentifier, speaker
   }, [event.event_id, event.event_title])
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: bgColor }}>
+    <div className="min-h-screen">
       <Suspense fallback={null}>
         <TrackingParamsCapture />
       </Suspense>
-      {/* Theme background - fixed to cover entire viewport */}
-      <div className="fixed inset-0 h-screen overflow-hidden pointer-events-none">
-        <PersistentBackground
-          theme={theme}
-          themeColors={colors}
-          fallbackBg={bgColor}
-        />
-      </div>
+      {/* Per-event theme background — only rendered if this event overrides the brand theme.
+           Otherwise the root layout's PersistentBackground shows through. */}
+      {hasEventThemeOverride && (
+        <div className="fixed inset-0 h-screen overflow-hidden pointer-events-none">
+          <PersistentBackground
+            theme={theme}
+            themeColors={colors}
+            fallbackBg={bgColor}
+            gradientWaveConfig={brandConfig.gradientWaveConfig}
+          />
+        </div>
+      )}
 
       {/* Main Content — EventProvider wraps everything so sidebar + content can access userState */}
       <EventProvider
