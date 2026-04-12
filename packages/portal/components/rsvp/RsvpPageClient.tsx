@@ -481,11 +481,21 @@ export function RsvpPageClient({ eventIdentifier, primaryColor, darkMode = true 
 
       {error && <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-sm text-red-300">{error}</div>}
 
-      <button onClick={handleSubmit} disabled={submitting}
-        className="w-full py-4 rounded-xl text-white font-semibold text-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-50 cursor-pointer"
-        style={{ backgroundColor: primaryColor }}>
-        {submitting ? 'Submitting...' : 'Confirm RSVP'}
-      </button>
+      {(() => {
+        const hasSelection = Object.values(rsvpData).some(
+          entry => entry.rsvp_status === 'accepted' || entry.rsvp_status === 'declined',
+        )
+        return (
+          <button
+            onClick={handleSubmit}
+            disabled={submitting}
+            className={`w-full py-4 text-white font-semibold text-lg transition-all disabled:opacity-50 cursor-pointer portal-primary-button ${hasSelection ? 'glow-button' : ''}`}
+            style={{ '--button-bg': primaryColor, borderRadius: 'var(--radius-control)' } as React.CSSProperties}
+          >
+            <span className="relative z-10">{submitting ? 'Submitting...' : 'Confirm RSVP'}</span>
+          </button>
+        )
+      })()}
     </div>
   )
 }
