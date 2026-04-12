@@ -70,6 +70,75 @@ html[data-glow="false"] [data-glow-border] {
   display: none !important;
 }
 
+/*
+ * Glass panel overrides — remap Tailwind's hardcoded bg-white/N and
+ * border-white/N to the configurable CSS variables so every glass panel
+ * in the portal automatically picks up the admin-configured values.
+ * backdrop-blur is also remapped to the configurable value.
+ */
+.bg-white\/5 {
+  background-color: rgba(255, 255, 255, var(--glass-opacity)) !important;
+}
+.bg-white\/8 {
+  background-color: rgba(255, 255, 255, var(--glass-opacity)) !important;
+}
+.bg-white\/10 {
+  background-color: rgba(255, 255, 255, calc(var(--glass-opacity) * 2)) !important;
+}
+.bg-white\/15 {
+  background-color: rgba(255, 255, 255, calc(var(--glass-opacity) * 3)) !important;
+}
+.bg-white\/20 {
+  background-color: rgba(255, 255, 255, calc(var(--glass-opacity) * 4)) !important;
+}
+.border-white\/10 {
+  border-color: rgba(255, 255, 255, var(--glass-border-opacity)) !important;
+}
+.border-white\/20 {
+  border-color: rgba(255, 255, 255, calc(var(--glass-border-opacity) * 2)) !important;
+}
+.border-white\/30 {
+  border-color: rgba(255, 255, 255, calc(var(--glass-border-opacity) * 3)) !important;
+}
+.backdrop-blur-sm {
+  backdrop-filter: blur(var(--glass-blur)) !important;
+  -webkit-backdrop-filter: blur(var(--glass-blur)) !important;
+}
+.backdrop-blur-\[10px\] {
+  backdrop-filter: blur(var(--glass-blur)) !important;
+  -webkit-backdrop-filter: blur(var(--glass-blur)) !important;
+}
+.backdrop-blur-xl {
+  backdrop-filter: blur(calc(var(--glass-blur) * 3)) !important;
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 3)) !important;
+}
+
+/* Light brand adaptations — when UI mode is light, glass panels use dark tints */
+html.light-brand .bg-white\/5 {
+  background-color: rgba(0, 0, 0, var(--glass-opacity)) !important;
+}
+html.light-brand .bg-white\/8 {
+  background-color: rgba(0, 0, 0, var(--glass-opacity)) !important;
+}
+html.light-brand .bg-white\/10 {
+  background-color: rgba(0, 0, 0, calc(var(--glass-opacity) * 2)) !important;
+}
+html.light-brand .bg-white\/15 {
+  background-color: rgba(0, 0, 0, calc(var(--glass-opacity) * 3)) !important;
+}
+html.light-brand .bg-white\/20 {
+  background-color: rgba(0, 0, 0, calc(var(--glass-opacity) * 4)) !important;
+}
+html.light-brand .border-white\/10 {
+  border-color: rgba(0, 0, 0, var(--glass-border-opacity)) !important;
+}
+html.light-brand .border-white\/20 {
+  border-color: rgba(0, 0, 0, calc(var(--glass-border-opacity) * 2)) !important;
+}
+html.light-brand .border-white\/30 {
+  border-color: rgba(0, 0, 0, calc(var(--glass-border-opacity) * 3)) !important;
+}
+
 /* Apply corner style globally to form elements and standalone buttons */
 input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]),
 select,

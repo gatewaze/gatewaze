@@ -219,14 +219,8 @@ export function SpeakersPageContent({ event, brandConfig, initialStatus = 'pendi
   }
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: secondaryColor }}>
-      {/* CSS Gradient fallback + WebGL Gradient - fixed to cover entire viewport including header */}
-      <div
-        className="fixed inset-0 h-screen overflow-hidden pointer-events-none"
-        style={{ backgroundColor: secondaryColor }}
-      />
-
-      {/* Main Content */}
+    <div className="min-h-screen">
+      {/* Main Content — background provided by the root layout's PersistentBackground */}
       <main className="relative z-10">
         {/* Event Hero */}
         <EventHero event={event} brandConfig={brandConfig} useDarkText={useDarkText} />
