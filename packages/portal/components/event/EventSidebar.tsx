@@ -284,7 +284,7 @@ function EventMobileActionsInner({ event, eventIdentifier, useDarkText, primaryC
   const menuRef = useRef<HTMLDivElement>(null)
 
   const theme = useMemo(() => ({
-    panelBg: useDarkText ? 'bg-gray-900/15' : 'bg-white/15',
+    panelBg: useDarkText ? 'bg-gray-900/10' : 'bg-white/5',
     panelBorder: useDarkText ? 'border border-gray-700/50' : 'border border-white/20',
     hoverBgColor: useDarkText ? 'rgba(17, 24, 39, 0.1)' : 'rgba(255, 255, 255, 0.1)',
     activeBgColor: useDarkText ? 'rgba(17, 24, 39, 0.15)' : 'rgba(255, 255, 255, 0.2)',
@@ -454,8 +454,9 @@ function EventMobileActionsInner({ event, eventIdentifier, useDarkText, primaryC
                   <Link
                     key={item.href}
                     href={item.href}
-                    className="flex items-center gap-3 pr-3 rounded-xl cursor-pointer"
+                    className="flex items-center gap-3 pr-3 cursor-pointer"
                     style={{
+                      borderRadius: 'var(--radius-control)',
                       backgroundColor: active
                         ? theme.activeBgColor
                         : isHovered
@@ -468,8 +469,9 @@ function EventMobileActionsInner({ event, eventIdentifier, useDarkText, primaryC
                     onClick={() => setMenuOpen(false)}
                   >
                     <div
-                      className={`flex-shrink-0 w-11 h-11 ${active ? 'rounded-l-xl' : 'rounded-xl'} flex items-center justify-center ${active ? '' : theme.iconBg}`}
+                      className={`flex-shrink-0 w-11 h-11 flex items-center justify-center ${active ? '' : theme.iconBg}`}
                       style={{
+                        borderRadius: 'var(--radius-control)',
                         backgroundColor: active ? primaryColor : undefined,
                         transition: 'background-color 200ms ease-out',
                       }}
@@ -526,7 +528,7 @@ function EventSidebarInner({ event, eventIdentifier, useDarkText, primaryColor, 
   const isRegistered = simulateRegistered !== null ? simulateRegistered === 'true' : realIsRegistered
 
   const theme = useMemo(() => ({
-    panelBg: useDarkText ? 'bg-gray-900/15' : 'bg-white/15',
+    panelBg: useDarkText ? 'bg-gray-900/10' : 'bg-white/5',
     panelBorder: useDarkText ? 'border border-gray-700/50' : 'border border-white/20',
     hoverBgColor: useDarkText ? 'rgba(17, 24, 39, 0.1)' : 'rgba(255, 255, 255, 0.1)',
     activeBgColor: useDarkText ? 'rgba(17, 24, 39, 0.15)' : 'rgba(255, 255, 255, 0.2)',
@@ -643,8 +645,9 @@ function EventSidebarInner({ event, eventIdentifier, useDarkText, primaryColor, 
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="flex items-center gap-3 pr-3 rounded-xl cursor-pointer"
+                  className="flex items-center gap-3 pr-3 cursor-pointer"
                   style={{
+                    borderRadius: 'var(--radius-control)',
                     backgroundColor: active
                       ? theme.activeBgColor
                       : isHovered
@@ -656,8 +659,9 @@ function EventSidebarInner({ event, eventIdentifier, useDarkText, primaryColor, 
                   onMouseLeave={() => setHoveredItem(null)}
                 >
                   <div
-                    className={`flex-shrink-0 w-11 h-11 ${active ? 'rounded-l-xl' : 'rounded-xl'} flex items-center justify-center ${active ? '' : theme.iconBg}`}
+                    className={`flex-shrink-0 w-11 h-11 flex items-center justify-center ${active ? '' : theme.iconBg}`}
                     style={{
+                      borderRadius: 'var(--radius-control)',
                       backgroundColor: active ? primaryColor : undefined,
                       transition: 'background-color 200ms ease-out',
                     }}
