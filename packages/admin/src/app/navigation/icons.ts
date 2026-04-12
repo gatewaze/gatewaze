@@ -20,6 +20,7 @@ for (const [exportName, component] of Object.entries(HeroOutline)) {
 const aliases: Record<string, ElementType> = {
   Mail: HeroOutline.EnvelopeIcon,
   MessageSquare: HeroOutline.ChatBubbleLeftRightIcon,
+  ChatBubble: HeroOutline.ChatBubbleLeftRightIcon,
   Gift: HeroOutline.GiftIcon,
   Calendar: HeroOutline.CalendarIcon,
   Filter: HeroOutline.FunnelIcon,
