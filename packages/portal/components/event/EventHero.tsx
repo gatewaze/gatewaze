@@ -146,8 +146,8 @@ interface Props {
 }
 
 export function EventHero({ event, brandConfig, useDarkText }: Props) {
-  const primaryColor = event.gradient_color_1 || brandConfig.primaryColor
-  const secondaryColor = event.gradient_color_2 || brandConfig.secondaryColor
+  const primaryColor = brandConfig.primaryColor
+  const secondaryColor = brandConfig.secondaryColor
 
   // Theme colors based on background luminance
   const theme = useMemo(() => ({

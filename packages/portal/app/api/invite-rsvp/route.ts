@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
 
       const eventIds = [...new Set((memberEvents || []).map(me => me.event_id))]
       const { data: events } = eventIds.length > 0
-        ? await getSupabase().from('events').select('id, event_title, event_start, event_end, event_location, event_slug').in('id', eventIds)
+        ? await getSupabase().from('events').select('id, event_id, event_title, event_start, event_end, event_location, event_slug').in('id', eventIds)
         : { data: [] }
       const eventMap = new Map((events || []).map(e => [e.id, e]))
 
@@ -145,9 +145,11 @@ export async function POST(req: NextRequest) {
       // Track
       await getSupabase().from('event_invite_interactions').insert({ party_id: party.id, interaction_type: 'opened' }).then(() => {}, () => {})
 
-      // Find the primary event identifier for redirect purposes
+      // Find the primary event identifier for redirect purposes.
+      // Must match what the portal URL uses: event_slug if set, else event_id
+      // (the short text ID), NOT the internal UUID.
       const firstEvent = events?.[0]
-      const eventIdentifier = firstEvent?.event_slug || firstEvent?.id || null
+      const eventIdentifier = firstEvent?.event_slug || firstEvent?.event_id || null
 
       return NextResponse.json({
         party: { ...party, status: party.status === 'sent' ? 'opened' : party.status },

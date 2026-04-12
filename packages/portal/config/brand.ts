@@ -586,17 +586,16 @@ export function resolveEventTheme(
     colors = brandConfig.themeColors
   }
 
-  // Derive primaryColor/secondaryColor for text contrast decisions
-  let primaryColor = brandConfig.primaryColor
+  // primaryColor is the portal accent (for buttons, links) — always from brandConfig.
+  // secondaryColor is derived from the theme background for contrast decisions.
+  const primaryColor = brandConfig.primaryColor
   let secondaryColor = brandConfig.secondaryColor
 
   if (theme === 'blobs') {
     const c = colors as BlobsThemeColors
-    primaryColor = event.gradient_color_1 || c.blob1 || brandConfig.primaryColor
     secondaryColor = c.background || brandConfig.secondaryColor
   } else if (theme === 'gradient_wave') {
     const c = colors as GradientWaveThemeColors
-    primaryColor = c.start || brandConfig.primaryColor
     secondaryColor = c.end || brandConfig.secondaryColor
   } else if (theme === 'basic') {
     const c = colors as BasicThemeColors
