@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useMemo, useState, useRef } from 'react'
-import dynamic from 'next/dynamic'
 import type { Event } from '@/types/event'
 import type { BrandConfig } from '@/config/brand'
 import { SpeakerSubmissionForm } from './SpeakerSubmissionForm'
@@ -10,12 +9,6 @@ import { EventHero, shouldUseDarkText } from './EventHero'
 import { GlowBorder } from '@/components/ui/GlowBorder'
 import { PortalButton } from '@/components/ui/PortalButton'
 import { useAuth } from '@/hooks/useAuth'
-
-// Dynamic import with SSR disabled for WebGL component
-const GradientBackground = dynamic(
-  () => import('@/components/ui/GradientBackground').then((mod) => mod.GradientBackground),
-  { ssr: false }
-)
 
 interface Props {
   event: Event
@@ -230,19 +223,8 @@ export function SpeakersPageContent({ event, brandConfig, initialStatus = 'pendi
       {/* CSS Gradient fallback + WebGL Gradient - fixed to cover entire viewport including header */}
       <div
         className="fixed inset-0 h-screen overflow-hidden pointer-events-none"
-        style={{
-          background: `radial-gradient(ellipse 100% 100% at 100% 100%, ${primaryColor} 0%, transparent 80%),
-                       radial-gradient(ellipse 80% 80% at 0% 0%, ${secondaryColor} 0%, transparent 70%),
-                       linear-gradient(135deg, ${secondaryColor} 0%, ${primaryColor}60 100%),
-                       ${secondaryColor}`,
-        }}
-      >
-        <GradientBackground
-          color1={primaryColor}
-          color2={secondaryColor}
-          color3={event.gradient_color_3 || '#1e2837'}
-        />
-      </div>
+        style={{ backgroundColor: secondaryColor }}
+      />
 
       {/* Main Content */}
       <main className="relative z-10">

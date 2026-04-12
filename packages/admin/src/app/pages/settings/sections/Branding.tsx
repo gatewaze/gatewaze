@@ -38,6 +38,9 @@ import { RichTextEditor } from "@/components/ui/RichTextEditor";
 import { Page } from "@/components/shared/Page";
 import { supabase } from "@/lib/supabase";
 import { updateFavicon } from "@/utils/favicon";
+import { useThemeContext } from "@/app/contexts/theme/context";
+import { colors as colorPalettes } from "@/constants/colors";
+import type { PrimaryColor } from "@/configs/@types/theme";
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -101,8 +104,30 @@ const BRANDING_DEFAULTS: BrandingSettings = {
 
 import { ColorInput } from "@/components/shared/branding/ColorInput";
 import { LogoUploadField } from "@/components/shared/branding/LogoUploadField";
+import {
+  GradientWaveEditor,
+  DEFAULT_GRADIENT_WAVE_CONFIG,
+  type GradientWaveConfig,
+} from "@/components/shared/branding/GradientWaveEditor";
 
 // ── BrandingCard ───────────────────────────────────────────────────
+
+const RADIX_ACCENTS: { name: PrimaryColor; hex: string }[] = [
+  { name: "red", hex: "#e5484d" },
+  { name: "crimson", hex: "#e93d82" },
+  { name: "pink", hex: "#d6409f" },
+  { name: "plum", hex: "#ab4aba" },
+  { name: "purple", hex: "#8e4ec6" },
+  { name: "violet", hex: "#6e56cf" },
+  { name: "indigo", hex: "#3e63dd" },
+  { name: "blue", hex: "#3b82f6" },
+  { name: "cyan", hex: "#00a2c7" },
+  { name: "teal", hex: "#12a594" },
+  { name: "green", hex: "#22c55e" },
+  { name: "amber", hex: "#f59e0b" },
+  { name: "orange", hex: "#f76b15" },
+  { name: "rose", hex: "#f43f5e" },
+];
 
 function BrandingCard() {
   const activeTheme = useActiveThemeModule();
@@ -110,18 +135,23 @@ function BrandingCard() {
   const { isFeatureEnabled } = useModulesContext();
   const hasEvents = isFeatureEnabled('events');
   const isLocked = (key: string) => lockedSettings.includes(key);
+  const { setPrimaryColorScheme } = useThemeContext();
 
   const [settings, setSettings] =
     useState<BrandingSettings>(BRANDING_DEFAULTS);
   const [originalSettings, setOriginalSettings] =
     useState<BrandingSettings>(BRANDING_DEFAULTS);
-  const [portalTheme, setPortalTheme] = useState<PortalTheme>("blobs");
+  const [portalTheme, setPortalTheme] = useState<PortalTheme>("gradient_wave");
   const [originalPortalTheme, setOriginalPortalTheme] =
-    useState<PortalTheme>("blobs");
+    useState<PortalTheme>("gradient_wave");
   const [themeColors, setThemeColors] =
     useState<ThemeColorsMap>(DEFAULT_THEME_COLORS);
   const [originalThemeColors, setOriginalThemeColors] =
     useState<ThemeColorsMap>(DEFAULT_THEME_COLORS);
+  const [adminAccentColor, setAdminAccentColor] = useState<PrimaryColor>("cyan");
+  const [originalAdminAccentColor, setOriginalAdminAccentColor] = useState<PrimaryColor>("cyan");
+  const [portalUiMode, setPortalUiMode] = useState<"auto" | "dark" | "light">("auto");
+  const [originalPortalUiMode, setOriginalPortalUiMode] = useState<"auto" | "dark" | "light">("auto");
   const [cornerStyle, setCornerStyle] = useState<CornerStyle>("rounded");
   const [originalCornerStyle, setOriginalCornerStyle] =
     useState<CornerStyle>("rounded");
@@ -137,6 +167,10 @@ function BrandingCard() {
     useState<PeopleAttributeConfig[]>(DEFAULT_PEOPLE_ATTRIBUTES);
   const [originalPeopleAttributes, setOriginalPeopleAttributes] =
     useState<PeopleAttributeConfig[]>(DEFAULT_PEOPLE_ATTRIBUTES);
+  const [gradientWaveConfig, setGradientWaveConfig] =
+    useState<GradientWaveConfig>(DEFAULT_GRADIENT_WAVE_CONFIG);
+  const [originalGradientWaveConfig, setOriginalGradientWaveConfig] =
+    useState<GradientWaveConfig>(DEFAULT_GRADIENT_WAVE_CONFIG);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -156,25 +190,36 @@ function BrandingCard() {
         "event_types",
         "content_categories",
         "people_attributes",
+        "gradient_wave_config",
+        "portal_ui_mode",
+        "admin_accent_color",
       ]);
 
     if (data) {
       const loaded = { ...BRANDING_DEFAULTS };
-      let loadedTheme: PortalTheme = "blobs";
+      let loadedTheme: PortalTheme = "gradient_wave";
       let loadedColors: ThemeColorsMap = { ...DEFAULT_THEME_COLORS };
+      let loadedAdminAccentColor: PrimaryColor = "cyan";
+      let loadedPortalUiMode: "auto" | "dark" | "light" = "auto";
       let loadedCornerStyle: CornerStyle = "rounded";
       let loadedEventTypes: EventTypeOption[] = DEFAULT_EVENT_TYPES;
       let loadedContentCategories: ContentCategoryOption[] = [];
       let loadedPeopleAttributes: PeopleAttributeConfig[] = DEFAULT_PEOPLE_ATTRIBUTES;
+      let loadedGradientWaveConfig: GradientWaveConfig = { ...DEFAULT_GRADIENT_WAVE_CONFIG };
 
       for (const row of data) {
         if (row.key === "portal_theme") {
-          if (
-            row.value === "blobs" ||
-            row.value === "gradient_wave" ||
-            row.value === "basic"
-          )
+          if (row.value === "gradient_wave" || row.value === "basic")
             loadedTheme = row.value;
+          // Legacy: treat "blobs" as gradient_wave
+          else if (row.value === "blobs")
+            loadedTheme = "gradient_wave";
+        } else if (row.key === "admin_accent_color") {
+          const val = row.value as PrimaryColor;
+          if (RADIX_ACCENTS.some((a) => a.name === val)) loadedAdminAccentColor = val;
+        } else if (row.key === "portal_ui_mode") {
+          if (row.value === "auto" || row.value === "dark" || row.value === "light")
+            loadedPortalUiMode = row.value;
         } else if (row.key === "corner_style") {
           if (
             row.value === "square" ||
@@ -206,6 +251,13 @@ function BrandingCard() {
             if (Array.isArray(parsed) && parsed.length > 0) {
               loadedPeopleAttributes = parsed;
             }
+          } catch {
+            /* use defaults */
+          }
+        } else if (row.key === "gradient_wave_config") {
+          try {
+            const parsed = JSON.parse(row.value);
+            loadedGradientWaveConfig = { ...DEFAULT_GRADIENT_WAVE_CONFIG, ...parsed };
           } catch {
             /* use defaults */
           }
@@ -255,6 +307,10 @@ function BrandingCard() {
       setOriginalPortalTheme(loadedTheme);
       setThemeColors(loadedColors);
       setOriginalThemeColors(loadedColors);
+      setAdminAccentColor(loadedAdminAccentColor);
+      setOriginalAdminAccentColor(loadedAdminAccentColor);
+      setPortalUiMode(loadedPortalUiMode);
+      setOriginalPortalUiMode(loadedPortalUiMode);
       setCornerStyle(loadedCornerStyle);
       setOriginalCornerStyle(loadedCornerStyle);
       setEventTypes(loadedEventTypes);
@@ -263,6 +319,8 @@ function BrandingCard() {
       setOriginalContentCategories(loadedContentCategories);
       setPeopleAttributes(loadedPeopleAttributes);
       setOriginalPeopleAttributes(loadedPeopleAttributes);
+      setGradientWaveConfig(loadedGradientWaveConfig);
+      setOriginalGradientWaveConfig(loadedGradientWaveConfig);
     }
     setLoading(false);
   }, []);
@@ -275,10 +333,13 @@ function BrandingCard() {
     JSON.stringify(settings) !== JSON.stringify(originalSettings) ||
     portalTheme !== originalPortalTheme ||
     JSON.stringify(themeColors) !== JSON.stringify(originalThemeColors) ||
+    adminAccentColor !== originalAdminAccentColor ||
+    portalUiMode !== originalPortalUiMode ||
     cornerStyle !== originalCornerStyle ||
     JSON.stringify(eventTypes) !== JSON.stringify(originalEventTypes) ||
     JSON.stringify(contentCategories) !== JSON.stringify(originalContentCategories) ||
-    JSON.stringify(peopleAttributes) !== JSON.stringify(originalPeopleAttributes);
+    JSON.stringify(peopleAttributes) !== JSON.stringify(originalPeopleAttributes) ||
+    JSON.stringify(gradientWaveConfig) !== JSON.stringify(originalGradientWaveConfig);
 
   const handleSave = async () => {
     if (savingRef.current) return;
@@ -289,6 +350,8 @@ function BrandingCard() {
     try {
       const allSettings: Record<string, string> = { ...settings };
       allSettings.portal_theme = portalTheme;
+      allSettings.admin_accent_color = adminAccentColor;
+      allSettings.portal_ui_mode = portalUiMode;
       allSettings.corner_style = cornerStyle;
       allSettings.theme_colors = JSON.stringify(themeColors);
       allSettings.event_types = JSON.stringify(
@@ -300,6 +363,7 @@ function BrandingCard() {
       allSettings.people_attributes = JSON.stringify(
         peopleAttributes.filter((a) => a.key && a.label)
       );
+      allSettings.gradient_wave_config = JSON.stringify(gradientWaveConfig);
       const rows = Object.entries(allSettings).map(([key, value]) => ({
         key,
         value,
@@ -324,10 +388,13 @@ function BrandingCard() {
       setOriginalSettings(settings);
       setOriginalPortalTheme(portalTheme);
       setOriginalThemeColors(themeColors);
+      setOriginalAdminAccentColor(adminAccentColor);
+      setOriginalPortalUiMode(portalUiMode);
       setOriginalCornerStyle(cornerStyle);
       setOriginalEventTypes(eventTypes);
       setOriginalContentCategories(contentCategories);
       setOriginalPeopleAttributes(peopleAttributes);
+      setOriginalGradientWaveConfig(gradientWaveConfig);
       setSaved(true);
       setTimeout(() => setSaved(false), 5000);
     } catch (err) {
@@ -373,7 +440,7 @@ function BrandingCard() {
         <Palette className="h-5 w-5" />
         <Heading size="4">Portal Settings</Heading>
       </div>
-      <Text as="p" size="2" color="gray" className="mb-4">
+      <Text as="p" size="2" color="gray" className="pb-4">
         Configure your event portal's appearance. Changes may take up to a
         minute to appear on the portal.
       </Text>
@@ -403,11 +470,11 @@ function BrandingCard() {
         <RadixTabs.Content value="branding">
           <div className="space-y-6">
             {/* App Name */}
-            <div className="space-y-1.5">
+            <div>
               <Text as="label" size="2" weight="medium">
                 App Name
               </Text>
-              <Text as="p" size="1" color="gray">
+              <Text as="p" size="1" color="gray" className="pb-2">
                 Displayed in the portal header, page titles, and emails.
               </Text>
               <input
@@ -419,11 +486,11 @@ function BrandingCard() {
             </div>
 
             {/* Contact Email */}
-            <div className="space-y-1.5">
+            <div>
               <Text as="label" size="2" weight="medium">
                 Contact Email
               </Text>
-              <Text as="p" size="1" color="gray">
+              <Text as="p" size="1" color="gray" className="pb-2">
                 Shown on privacy, terms, and legal pages. If empty, defaults to
                 the first admin user's email.
               </Text>
@@ -440,7 +507,7 @@ function BrandingCard() {
 
             {/* Logos */}
             <div>
-              <Heading size="3" className="mb-4">
+              <Heading size="3" className="pb-1">
                 Logos & Icons
               </Heading>
               <div className="space-y-4">
@@ -516,203 +583,80 @@ function BrandingCard() {
         {/* ── Theme Tab ── */}
         <RadixTabs.Content value="theme">
           <div className="space-y-6">
-            {/* Brand Colors */}
+            {/* Admin Theme */}
             <div>
-              <Heading size="3" className="mb-4">
-                Brand Colors
+              <Heading size="3" className="pb-1">
+                Admin Theme
               </Heading>
-          <div className="space-y-4">
-            <ColorInput
-              label="Primary Color"
-              description="Used for buttons, links, form focus borders, and accent elements across the portal."
-              value={settings.primary_color}
-              onChange={(v) => updateSetting("primary_color", v)}
-              disabled={isLocked("primary_color")}
-            />
-            <ColorInput
-              label="Secondary Color"
-              description="Fallback background color used when the theme background is unavailable."
-              value={settings.secondary_color}
-              onChange={(v) => updateSetting("secondary_color", v)}
-              disabled={isLocked("secondary_color")}
-            />
-          </div>
-        </div>
+              <Text as="p" size="1" color="gray" className="pb-4">
+                Accent color used throughout the admin dashboard for buttons, links, and interactive elements.
+              </Text>
+              <div className="grid grid-cols-7 gap-3">
+                {RADIX_ACCENTS.map((accent) => (
+                  <button
+                    key={accent.name}
+                    type="button"
+                    onClick={() => {
+                      setAdminAccentColor(accent.name);
+                      // Live preview — update admin Radix accent immediately
+                      setPrimaryColorScheme(accent.name);
+                    }}
+                    className={`flex flex-col items-center gap-1.5 rounded-lg p-2 transition-all ${
+                      adminAccentColor === accent.name
+                        ? "ring-2 ring-offset-2 ring-[var(--accent-9)] bg-[var(--accent-2)]"
+                        : "hover:bg-[var(--gray-3)]"
+                    }`}
+                  >
+                    <div
+                      className="w-8 h-8 rounded-full border border-black/10"
+                      style={{ backgroundColor: accent.hex }}
+                    />
+                    <span className="text-[10px] font-medium text-[var(--gray-11)] capitalize">
+                      {accent.name}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
 
-        <hr className="border-[var(--gray-5)]" />
+            <hr className="border-[var(--gray-5)]" />
 
-        {/* Portal Theme */}
-        <div>
-          <Heading size="3" className="mb-2">
-            Portal Background Theme
-          </Heading>
-          <Text as="p" size="1" color="gray" className="mb-4">
-            Choose the background style for your event portal. Each theme has
-            its own color settings.
-          </Text>
-          <div className="grid grid-cols-3 gap-3 mb-6">
-            {(
-              [
-                {
-                  value: "blobs" as const,
-                  label: "Blobs",
-                  desc: "Animated floating blobs",
-                },
-                {
-                  value: "gradient_wave" as const,
-                  label: "Gradient Wave",
-                  desc: "Smooth animated gradient",
-                },
-                {
-                  value: "basic" as const,
-                  label: "Basic",
-                  desc: "Solid background color",
-                },
-              ] as const
-            ).map((t) => (
-              <button
-                key={t.value}
-                onClick={() => setPortalTheme(t.value)}
-                disabled={isLocked("portal_theme")}
-                className={`rounded-lg border-2 p-3 text-left transition-colors ${
-                  portalTheme === t.value
-                    ? "border-[var(--accent-9)] bg-[var(--accent-2)]"
-                    : "border-[var(--gray-6)] hover:border-[var(--accent-7)]"
-                } ${isLocked("portal_theme") ? "opacity-60 cursor-not-allowed" : ""}`}
-              >
-                <div className="text-sm font-medium">{t.label}</div>
-                <div className="text-xs text-[var(--gray-9)]">{t.desc}</div>
-              </button>
-            ))}
-          </div>
-
-          <div className="space-y-4">
-            {portalTheme === "blobs" && (
-              <>
-                <ColorInput
-                  label="Background"
-                  description="Base background color behind the animated blobs."
-                  value={themeColors.blobs.background}
-                  onChange={(v) => updateThemeColor("blobs", "background", v)}
-                />
-                <ColorInput
-                  label="Blob 1"
-                  description="Color of the first animated blob."
-                  value={themeColors.blobs.blob1}
-                  onChange={(v) => updateThemeColor("blobs", "blob1", v)}
-                />
-                <ColorInput
-                  label="Blob 2"
-                  description="Color of the second animated blob."
-                  value={themeColors.blobs.blob2}
-                  onChange={(v) => updateThemeColor("blobs", "blob2", v)}
-                />
-                <ColorInput
-                  label="Blob 3"
-                  description="Color of the third animated blob."
-                  value={themeColors.blobs.blob3}
-                  onChange={(v) => updateThemeColor("blobs", "blob3", v)}
-                />
-              </>
-            )}
-            {portalTheme === "gradient_wave" && (
-              <>
-                <ColorInput
-                  label="Start"
-                  description="Starting color of the gradient wave."
-                  value={themeColors.gradient_wave.start}
-                  onChange={(v) =>
-                    updateThemeColor("gradient_wave", "start", v)
-                  }
-                />
-                <ColorInput
-                  label="Middle"
-                  description="Middle color of the gradient wave."
-                  value={themeColors.gradient_wave.middle}
-                  onChange={(v) =>
-                    updateThemeColor("gradient_wave", "middle", v)
-                  }
-                />
-                <ColorInput
-                  label="End"
-                  description="Ending color of the gradient wave."
-                  value={themeColors.gradient_wave.end}
-                  onChange={(v) => updateThemeColor("gradient_wave", "end", v)}
-                />
-              </>
-            )}
-            {portalTheme === "basic" && (
-              <ColorInput
-                label="Background"
-                description="Solid background color for the portal."
-                value={themeColors.basic.background}
-                onChange={(v) => updateThemeColor("basic", "background", v)}
+            {/* Portal Theme Editor */}
+            <div>
+              <Heading size="3" className="pb-1">
+                Portal Theme
+              </Heading>
+              <Text as="p" size="1" color="gray" className="pb-4">
+                Configure your portal's background, colors, accent, UI mode, and corner style.
+                Opens a fullscreen editor with live preview.
+              </Text>
+              <GradientWaveEditor
+                config={gradientWaveConfig}
+                onChange={setGradientWaveConfig}
+                colors={themeColors.gradient_wave}
+                onColorsChange={(c) =>
+                  setThemeColors((prev) => ({
+                    ...prev,
+                    gradient_wave: c,
+                  }))
+                }
+                uiMode={portalUiMode}
+                onUiModeChange={setPortalUiMode}
+                accentColor={settings.primary_color}
+                onAccentColorChange={(v) => updateSetting("primary_color", v)}
+                cornerStyle={cornerStyle}
+                onCornerStyleChange={setCornerStyle}
               />
-            )}
-          </div>
-        </div>
+            </div>
 
-        <hr className="border-[var(--gray-5)]" />
-
-        {/* Corner Style */}
-        <div>
-          <Heading size="3" className="mb-2">
-            Button & Input Corners
-          </Heading>
-          <Text as="p" size="1" color="gray" className="mb-4">
-            Controls the border radius of buttons, form inputs, tabs, and other
-            interactive elements on the portal.
-          </Text>
-          <div className="grid grid-cols-3 gap-3">
-            {(
-              [
-                {
-                  value: "square" as const,
-                  label: "Square",
-                  preview: "rounded-none",
-                },
-                {
-                  value: "rounded" as const,
-                  label: "Rounded",
-                  preview: "rounded-lg",
-                },
-                {
-                  value: "pill" as const,
-                  label: "Pill",
-                  preview: "rounded-full",
-                },
-              ] as const
-            ).map((s) => (
-              <button
-                key={s.value}
-                onClick={() => setCornerStyle(s.value)}
-                disabled={isLocked("corner_style")}
-                className={`rounded-lg border-2 p-3 text-left transition-colors ${
-                  cornerStyle === s.value
-                    ? "border-[var(--accent-9)] bg-[var(--accent-2)]"
-                    : "border-[var(--gray-6)] hover:border-[var(--accent-7)]"
-                } ${isLocked("corner_style") ? "opacity-60 cursor-not-allowed" : ""}`}
-              >
-                <div className="text-sm font-medium mb-2">{s.label}</div>
-                <div
-                  className={`h-8 w-full ${s.preview} border-2 border-[var(--gray-7)]`}
-                  style={{
-                    backgroundColor: settings.primary_color + "30",
-                  }}
-                />
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <hr className="border-[var(--gray-5)]" />
+            <hr className="border-[var(--gray-5)]" />
 
         {/* Fonts */}
         <div>
-          <Heading size="3" className="mb-2">
+          <Heading size="3" className="pb-1">
             Fonts
           </Heading>
-          <Text as="p" size="1" color="gray" className="mb-4">
+          <Text as="p" size="1" color="gray" className="pb-4">
             Enter the name of any{" "}
             <a
               href="https://fonts.google.com"
@@ -804,47 +748,6 @@ function BrandingCard() {
           </div>
         </div>
 
-        <hr className="border-[var(--gray-5)]" />
-
-        {/* Preview */}
-        <div>
-          <Text as="label" size="2" weight="medium" className="mb-2 block">
-            Preview
-          </Text>
-          <div
-            className="relative h-24 overflow-hidden rounded-lg border border-[var(--gray-6)]"
-            style={{
-              fontFamily: [
-                settings.font_heading,
-                settings.font_body,
-                "ui-sans-serif",
-                "system-ui",
-                "sans-serif",
-              ]
-                .filter(Boolean)
-                .join(", "),
-              background:
-                portalTheme === "blobs"
-                  ? `radial-gradient(ellipse 100% 100% at 100% 100%, ${themeColors.blobs.blob1} 0%, transparent 80%),
-                     radial-gradient(ellipse 80% 80% at 0% 0%, ${themeColors.blobs.blob2} 0%, transparent 70%),
-                     linear-gradient(135deg, ${themeColors.blobs.background} 0%, ${themeColors.blobs.blob3} 100%),
-                     ${themeColors.blobs.background}`
-                  : portalTheme === "gradient_wave"
-                    ? `linear-gradient(135deg, ${themeColors.gradient_wave.start} 0%, ${themeColors.gradient_wave.middle} 50%, ${themeColors.gradient_wave.end} 100%)`
-                    : themeColors.basic.background,
-            }}
-          >
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div
-                className="rounded-md px-4 py-2 text-sm font-medium text-white"
-                style={{ backgroundColor: settings.primary_color }}
-              >
-                {settings.app_name || "Sample Button"}
-              </div>
-            </div>
-          </div>
-        </div>
-
             <hr className="border-[var(--gray-5)]" />
 
             {/* Save */}
@@ -892,10 +795,10 @@ function BrandingCard() {
         <RadixTabs.Content value="event-types">
           <div className="space-y-6">
             <div>
-              <Heading size="3" className="mb-2">
+              <Heading size="3" className="pb-1">
                 Event Types
               </Heading>
-              <Text as="p" size="2" color="gray" className="mb-4">
+              <Text as="p" size="1" color="gray" className="pb-4">
                 Define the types of events you manage. These appear as filter
                 options on your portal and in the event type dropdown when
                 creating or editing events. You can add up to 6.
@@ -953,10 +856,10 @@ function BrandingCard() {
         <RadixTabs.Content value="categories">
           <div className="space-y-6">
             <div>
-              <Heading size="3" className="mb-2">
+              <Heading size="3" className="pb-1">
                 Content Categories
               </Heading>
-              <Text as="p" size="2" color="gray" className="mb-4">
+              <Text as="p" size="1" color="gray" className="pb-4">
                 Define categories for your content (events, blogs, etc.).
                 The order determines priority — category #1 is the most
                 important and its content will be featured first on the portal.
@@ -1015,20 +918,20 @@ function BrandingCard() {
         <RadixTabs.Content value="tracking">
           <div className="space-y-6">
             <div>
-              <Heading size="3" className="mb-2">
+              <Heading size="3" className="pb-1">
                 Tracking & Analytics
               </Heading>
-              <Text as="p" size="1" color="gray" className="mb-4">
+              <Text as="p" size="1" color="gray" className="pb-4">
                 Paste tracking scripts from any analytics platform (Google Tag
                 Manager, Segment, Plausible, etc.). These are injected into the
                 public event portal.
               </Text>
               <div className="space-y-4">
-                <div className="space-y-1.5">
+                <div>
                   <Text as="label" size="2" weight="medium">
                     Head tracking code
                   </Text>
-                  <Text as="p" size="1" color="gray">
+                  <Text as="p" size="1" color="gray" className="pb-2">
                     Injected into {"<head>"}. Use for GTM, Segment, or any script
                     that should load early.
                   </Text>
@@ -1044,11 +947,11 @@ function BrandingCard() {
                     className="w-full rounded border border-[var(--gray-6)] bg-[var(--color-surface)] px-3 py-2 font-mono text-xs"
                   />
                 </div>
-                <div className="space-y-1.5">
+                <div>
                   <Text as="label" size="2" weight="medium">
                     Body tracking code
                   </Text>
-                  <Text as="p" size="1" color="gray">
+                  <Text as="p" size="1" color="gray" className="pb-2">
                     Injected before {"</body>"}. Use for pixels, chat widgets, or
                     scripts that should load last.
                   </Text>
@@ -1383,7 +1286,7 @@ function PeopleAttributesCard() {
         <Users className="h-5 w-5" />
         <Heading size="4">People Attributes</Heading>
       </div>
-      <Text as="p" size="2" color="gray" className="mb-8">
+      <Text as="p" size="2" color="gray" className="pb-4">
         Configure which attributes are collected when someone registers for an
         event. Toggle attributes on or off and mark them as required for
         registration.
@@ -1391,7 +1294,7 @@ function PeopleAttributesCard() {
 
       <PeopleAttributesEditor value={attributes} onChange={setAttributes} />
 
-      <hr className="border-[var(--gray-5)] my-6" />
+      <hr className="border-[var(--gray-5)]" />
 
       <div className="flex items-center gap-3">
         <Button

@@ -408,7 +408,7 @@ export default function ModulesPage() {
 
         {/* Module Sources */}
         {isSuperAdmin && (
-          <section className="mb-8">
+          <section className="mb-6">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-semibold text-[var(--gray-12)]">
                 Module Sources
@@ -631,7 +631,7 @@ function InstallCustomModuleModal({
         </div>
       }
     >
-      <div className="space-y-3">
+      <div className="space-y-4">
         <Input
           label="Module ID"
           value={id}
@@ -750,7 +750,7 @@ function AddSourceModal({
         </div>
       }
     >
-      <div className="space-y-3">
+      <div className="space-y-4">
         <Input
           label="Git Repository URL"
           value={url}

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import type { Event } from '@/types/event'
 import type { BrandConfig, ContentCategoryOption } from '@/config/brand'
 import { isLightColor } from '@/config/brand'
+import { useViewportBlur } from '@/hooks/useViewportBlur'
 import { formatEventTime, formatEventDate } from './utils'
 import { type UserLocation, getDistanceToEventByCity, formatUserDistance, usesImperialUnits } from '@/lib/location'
 import { stripEmojis } from '@/lib/text'
@@ -20,6 +21,7 @@ export function EventTimelineCard({ event, brandConfig, userLocation, showDate }
   const eventUrl = `/events/${event.event_slug || event.event_id}`
   const imageUrl = event.event_logo || event.screenshot_url
   const glowRef = useRef<HTMLDivElement>(null)
+  const { ref: blurRef, inView } = useViewportBlur()
 
   const location = [event.venue_address, event.event_city]
     .filter(Boolean)
@@ -58,9 +60,16 @@ export function EventTimelineCard({ event, brandConfig, userLocation, showDate }
   return (
     <Link href={eventUrl} className="block group">
       <div
-        className="relative bg-white/5 rounded-xl border border-white/10 overflow-hidden
-                   hover:bg-white/10 hover:border-white/20 transition-all duration-200
-                   flex"
+        ref={blurRef}
+        className="relative rounded-xl overflow-hidden hover:brightness-110 transition-all duration-200 flex"
+        style={{
+          backgroundColor: `rgba(255, 255, 255, var(--glass-opacity, 0.05))`,
+          backdropFilter: inView ? `blur(var(--glass-blur, 4px))` : undefined,
+          WebkitBackdropFilter: inView ? `blur(var(--glass-blur, 4px))` : undefined,
+          borderWidth: 1,
+          borderStyle: 'solid',
+          borderColor: `rgba(255, 255, 255, var(--glass-border-opacity, 0.1))`,
+        }}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
       >

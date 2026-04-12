@@ -173,7 +173,7 @@ function Confirm({
           <Button
             onClick={onClose}
             color="green"
-            className="mt-12 h-9 min-w-[7rem]"
+            style={{ marginTop: "3rem" }} className="h-9 min-w-[7rem]"
           >
             {mergedMessages[state].actionText}
           </Button>

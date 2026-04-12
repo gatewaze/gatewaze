@@ -15,12 +15,12 @@ export function ColorInput({
   disabled?: boolean;
 }) {
   return (
-    <div className={`space-y-1.5 ${disabled ? "opacity-60" : ""}`}>
+    <div className={disabled ? "opacity-60" : ""}>
       <Text as="label" size="2" weight="medium" className="flex items-center gap-1.5">
         {label}
         {disabled && <Lock className="h-3 w-3 text-[var(--gray-9)]" />}
       </Text>
-      <Text as="p" size="1" color="gray">
+      <Text as="p" size="1" color="gray" className="pb-2">
         {description}
       </Text>
       <div className="flex items-center gap-3">

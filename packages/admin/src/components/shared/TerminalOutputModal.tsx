@@ -150,7 +150,7 @@ export function TerminalOutputModal({
         {/* Screenshot Preview */}
         {showScreenshotPreview && (
           <div className="bg-[var(--gray-a2)] border border-[var(--gray-a5)] rounded-lg p-4 flex flex-col">
-            <h3 className="text-sm font-medium mb-3">Screenshot Preview</h3>
+            <h3 className="text-sm font-medium mb-2">Screenshot Preview</h3>
             <div className="flex items-center justify-center bg-[var(--color-surface)] border border-[var(--gray-a4)] rounded-lg overflow-hidden" style={{ minHeight: '200px' }}>
               {screenshotUrl ? (
                 <div className="w-full flex items-center justify-center p-4">

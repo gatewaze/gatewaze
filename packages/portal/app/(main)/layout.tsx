@@ -91,7 +91,9 @@ export default async function MainLayout({
   const fontsUrl = buildGoogleFontsUrl(brandConfig)
   const fontStack = buildFontStack(brandConfig)
   const themeBgColor = getThemeBackgroundColor(brandConfig.portalTheme, brandConfig.themeColors, brandConfig.secondaryColor)
-  const lightBg = isLightColor(themeBgColor)
+  const lightBg = brandConfig.portalUiMode === 'light' ? true
+    : brandConfig.portalUiMode === 'dark' ? false
+    : isLightColor(themeBgColor)
 
   // Detect custom domain via middleware headers
   const headersList = await headers()
@@ -105,7 +107,7 @@ export default async function MainLayout({
   }
 
   return (
-    <html lang="en" data-brand={brandConfig.id} data-custom-domain={isCustomDomain ? 'true' : undefined} data-corners={brandConfig.cornerStyle} className={lightBg ? 'light-brand' : ''} style={{ fontFamily: fontStack, fontSize: `${brandConfig.bodyTextSize || '16'}px`, color: lightBg ? '#000000' : '#ffffff', '--font-weight-heading': brandConfig.fontHeadingWeight || '600', '--font-weight-body': brandConfig.fontBodyWeight || '400', '--primary-text': isLightColor(brandConfig.primaryColor) ? '#000000' : '#ffffff' } as React.CSSProperties} suppressHydrationWarning>
+    <html lang="en" data-brand={brandConfig.id} data-custom-domain={isCustomDomain ? 'true' : undefined} data-corners={brandConfig.cornerStyle} data-glow={brandConfig.gradientWaveConfig.glowEffects ? 'true' : 'false'} className={lightBg ? 'light-brand' : ''} style={{ fontFamily: fontStack, fontSize: `${brandConfig.bodyTextSize || '16'}px`, color: lightBg ? '#000000' : '#ffffff', '--font-weight-heading': brandConfig.fontHeadingWeight || '600', '--font-weight-body': brandConfig.fontBodyWeight || '400', '--primary-text': isLightColor(brandConfig.primaryColor) ? '#000000' : '#ffffff', '--glass-opacity': String(brandConfig.gradientWaveConfig.glassOpacity ?? 0.05), '--glass-blur': `${brandConfig.gradientWaveConfig.glassBlur ?? 4}px`, '--glass-border-opacity': String(brandConfig.gradientWaveConfig.glassBorderOpacity ?? 0.1) } as React.CSSProperties} suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
@@ -142,6 +144,7 @@ export default async function MainLayout({
               theme={resolved.theme}
               themeColors={resolved.colors}
               fallbackBg={getThemeBackgroundColor(resolved.theme, resolved.colors, brandConfig.secondaryColor)}
+              gradientWaveConfig={brandConfig.gradientWaveConfig}
             />
           )
         })()}

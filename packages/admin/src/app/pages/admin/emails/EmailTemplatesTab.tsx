@@ -300,7 +300,7 @@ export function EmailTemplatesTab() {
         <div className="text-center py-12">
           <DocumentTextIcon className="mx-auto h-12 w-12 text-gray-400" />
           <p className="mt-2 text-gray-500 dark:text-gray-400">No templates found</p>
-          <Button onClick={() => handleOpenModal()} color="cyan" className="mt-4 gap-2">
+          <Button onClick={() => handleOpenModal()} color="cyan" style={{ marginTop: "1rem" }} className="gap-2">
             <PlusIcon className="size-4" />
             Create First Template
           </Button>

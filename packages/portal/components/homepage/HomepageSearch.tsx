@@ -76,10 +76,11 @@ export function HomepageSearch({ brandConfig }: Props) {
           onKeyDown={handleKeyDown}
           placeholder="Search for content..."
           className="w-full py-4 pl-12 pr-12 text-base text-white placeholder-white/40
-                     bg-white/5 border border-white/10 rounded-2xl
-                     focus:outline-none focus:border-white/30 focus:bg-white/10
+                     rounded-2xl focus:outline-none focus:brightness-125
                      transition-all duration-200"
           style={{
+            backgroundColor: `rgba(255,255,255,var(--glass-opacity,0.05))`,
+            border: `1px solid rgba(255,255,255,var(--glass-border-opacity,0.1))`,
             boxShadow: inputValue ? `0 0 0 1px ${brandConfig.primaryColor}40` : undefined,
           }}
         />
@@ -134,8 +135,8 @@ function SearchResultItem({ result, brandConfig }: { result: UniversalSearchResu
 
   return (
     <Link href={href} className="block group">
-      <div className="flex items-center gap-3 p-3 bg-white/5 rounded-xl border border-white/10
-                      hover:bg-white/10 hover:border-white/20 transition-all duration-200">
+      <div className="flex items-center gap-3 p-3 rounded-xl hover:brightness-110 transition-all duration-200"
+           style={{ backgroundColor: `rgba(255,255,255,var(--glass-opacity,0.05))`, border: `1px solid rgba(255,255,255,var(--glass-border-opacity,0.1))` }}>
         {/* Image thumbnail */}
         {result.image_url ? (
           <div className="flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden bg-white/5">
