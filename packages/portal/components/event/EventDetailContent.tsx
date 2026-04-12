@@ -82,14 +82,8 @@ export function EventDetailContent({ event, brandConfig }: Props) {
   }, [primaryColor])
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: secondaryColor }}>
-      {/* CSS Gradient fallback + WebGL Gradient - fixed to cover entire viewport including header */}
-      <div
-        className="fixed inset-0 h-screen overflow-hidden pointer-events-none"
-        style={{ backgroundColor: secondaryColor }}
-      />
-
-      {/* Main Content */}
+    <div className="min-h-screen">
+      {/* Main Content — background provided by the root layout's PersistentBackground */}
       <main className="relative z-10">
         <div className="max-w-7xl mx-auto px-6 sm:px-6 lg:px-8">
           {/* Hero Section */}
