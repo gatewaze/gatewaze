@@ -703,7 +703,7 @@ const EventDetailPage = () => {
         {activeTab === 'settings' && (
           <div>
             {/* Settings Header - Enhanced with visual polish */}
-            <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 rounded-xl">
                   <Cog6ToothIcon className="w-5 h-5 text-[var(--gray-a11)]" />

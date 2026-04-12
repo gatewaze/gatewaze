@@ -185,7 +185,7 @@ export default function ModuleSelectionStep() {
         onNext={installComplete || installError ? handleDone : undefined}
         nextLabel={installError ? "Continue anyway" : "Continue"}
       >
-        <div className="space-y-5">
+        <div className="space-y-4">
           <div>
             <h2 className="text-lg font-semibold tracking-tight">
               {installComplete ? "Modules installed" : installError ? "Installation error" : "Installing modules..."}
@@ -266,7 +266,7 @@ export default function ModuleSelectionStep() {
       nextDisabled={isInstalling}
       nextLoading={isInstalling}
     >
-      <div className="space-y-5">
+      <div className="space-y-4">
         <div>
           <h2 className="text-lg font-semibold tracking-tight">
             Choose your modules

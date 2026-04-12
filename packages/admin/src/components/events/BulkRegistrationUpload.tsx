@@ -234,7 +234,7 @@ export const BulkRegistrationUpload = ({ eventId, onComplete }: BulkRegistration
               variant="ghost"
               size="1"
               onClick={downloadTemplate}
-              className="mt-3 flex items-center gap-2 text-blue-700 dark:text-blue-300"
+              style={{ marginTop: "0.75rem" }} className="flex items-center gap-2 text-blue-700 dark:text-blue-300"
             >
               <DocumentArrowDownIcon className="w-4 h-4" />
               Download Template

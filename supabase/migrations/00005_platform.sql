@@ -87,7 +87,7 @@ INSERT INTO platform_settings (key, value) VALUES
   ('contact_email', ''),
   ('tracking_head', ''),
   ('tracking_body', ''),
-  ('portal_theme', 'blobs')
+  ('portal_theme', 'gradient_wave')
 ON CONFLICT (key) DO NOTHING;
 
 --------------------------------------------------------------------------------

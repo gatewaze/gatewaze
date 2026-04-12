@@ -46,13 +46,14 @@ export function EventFilters({
       <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
         <button
           onClick={() => eventType ? onToggleType(eventType) : undefined}
-          className={`cursor-pointer px-3 py-1.5 text-base font-medium transition-all duration-200 border
-            ${
-              !eventType
-                ? 'shadow-lg border-transparent'
-                : 'text-white/70 bg-white/10 border-white/10 hover:text-white hover:bg-white/15'
-            }`}
-          style={{ borderRadius: 'var(--radius-control)', ...(!eventType ? { backgroundColor: primaryColor, color: isLightColor(primaryColor) ? '#000000' : '#ffffff' } : {}) }}
+          className={`cursor-pointer px-3 py-1.5 text-base font-medium transition-all duration-200
+            ${!eventType ? 'shadow-lg' : 'text-white/70 hover:text-white'}`}
+          style={{
+            borderRadius: 'var(--radius-control)',
+            ...(!eventType
+              ? { backgroundColor: primaryColor, color: isLightColor(primaryColor) ? '#000000' : '#ffffff', border: '1px solid transparent' }
+              : { backgroundColor: `rgba(255,255,255,var(--glass-opacity,0.05))`, backdropFilter: `blur(var(--glass-blur,4px))`, WebkitBackdropFilter: `blur(var(--glass-blur,4px))`, border: `1px solid rgba(255,255,255,var(--glass-border-opacity,0.1))` }),
+          }}
         >
           All
         </button>
@@ -60,13 +61,14 @@ export function EventFilters({
           <button
             key={opt.value}
             onClick={() => onToggleType(opt.value)}
-            className={`cursor-pointer px-3 py-1.5 text-base font-medium transition-all duration-200 border
-              ${
-                eventType === opt.value
-                  ? 'shadow-lg border-transparent'
-                  : 'text-white/70 bg-white/10 border-white/10 hover:text-white hover:bg-white/15'
-              }`}
-            style={{ borderRadius: 'var(--radius-control)', ...(eventType === opt.value ? { backgroundColor: primaryColor, color: isLightColor(primaryColor) ? '#000000' : '#ffffff' } : {}) }}
+            className={`cursor-pointer px-3 py-1.5 text-base font-medium transition-all duration-200
+              ${eventType === opt.value ? 'shadow-lg' : 'text-white/70 hover:text-white'}`}
+            style={{
+              borderRadius: 'var(--radius-control)',
+              ...(eventType === opt.value
+                ? { backgroundColor: primaryColor, color: isLightColor(primaryColor) ? '#000000' : '#ffffff', border: '1px solid transparent' }
+                : { backgroundColor: `rgba(255,255,255,var(--glass-opacity,0.05))`, backdropFilter: `blur(var(--glass-blur,4px))`, WebkitBackdropFilter: `blur(var(--glass-blur,4px))`, border: `1px solid rgba(255,255,255,var(--glass-border-opacity,0.1))` }),
+            }}
           >
             {opt.label}
           </button>
@@ -79,13 +81,14 @@ export function EventFilters({
           <button
             onClick={onToggleNearMe}
             className={`cursor-pointer flex items-center gap-1.5 px-3 py-1.5 text-base font-medium
-                       transition-all duration-200 border
-                       ${
-                         nearMe
-                           ? 'shadow-lg border-transparent'
-                           : 'text-white/70 bg-white/10 border-white/10 hover:text-white hover:bg-white/15'
-                       }`}
-            style={{ borderRadius: 'var(--radius-control)', ...(nearMe ? { backgroundColor: primaryColor, color: isLightColor(primaryColor) ? '#000000' : '#ffffff' } : {}) }}
+                       transition-all duration-200
+                       ${nearMe ? 'shadow-lg' : 'text-white/70 hover:text-white'}`}
+            style={{
+              borderRadius: 'var(--radius-control)',
+              ...(nearMe
+                ? { backgroundColor: primaryColor, color: isLightColor(primaryColor) ? '#000000' : '#ffffff', border: '1px solid transparent' }
+                : { backgroundColor: `rgba(255,255,255,var(--glass-opacity,0.05))`, backdropFilter: `blur(var(--glass-blur,4px))`, WebkitBackdropFilter: `blur(var(--glass-blur,4px))`, border: `1px solid rgba(255,255,255,var(--glass-border-opacity,0.1))` }),
+            }}
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
@@ -145,13 +148,14 @@ function RegionDropdown({
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(!open)}
-        className={`cursor-pointer flex items-center gap-1.5 px-3 py-1.5 text-base font-medium transition-all duration-200 border
-          ${
-            selectedRegion
-              ? 'shadow-lg border-transparent'
-              : 'text-white/70 bg-white/10 border-white/10 hover:text-white hover:bg-white/15'
-          }`}
-        style={{ borderRadius: 'var(--radius-control)', ...(selectedRegion ? { backgroundColor: primaryColor, color: isLightColor(primaryColor) ? '#000000' : '#ffffff' } : {}) }}
+        className={`cursor-pointer flex items-center gap-1.5 px-3 py-1.5 text-base font-medium transition-all duration-200
+          ${selectedRegion ? 'shadow-lg' : 'text-white/70 hover:text-white'}`}
+        style={{
+          borderRadius: 'var(--radius-control)',
+          ...(selectedRegion
+            ? { backgroundColor: primaryColor, color: isLightColor(primaryColor) ? '#000000' : '#ffffff', border: '1px solid transparent' }
+            : { backgroundColor: `rgba(255,255,255,var(--glass-opacity,0.05))`, backdropFilter: `blur(var(--glass-blur,4px))`, WebkitBackdropFilter: `blur(var(--glass-blur,4px))`, border: `1px solid rgba(255,255,255,var(--glass-border-opacity,0.1))` }),
+        }}
       >
         {label}
         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -286,13 +290,14 @@ function TopicDropdown({
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(!open)}
-        className={`cursor-pointer flex items-center gap-1.5 px-3 py-1.5 text-base font-medium transition-all duration-200 border
-          ${
-            hasTopics
-              ? 'shadow-lg border-transparent'
-              : 'text-white/70 bg-white/10 border-white/10 hover:text-white hover:bg-white/15'
-          }`}
-        style={{ borderRadius: 'var(--radius-control)', ...(hasTopics ? { backgroundColor: primaryColor, color: isLightColor(primaryColor) ? '#000000' : '#ffffff' } : {}) }}
+        className={`cursor-pointer flex items-center gap-1.5 px-3 py-1.5 text-base font-medium transition-all duration-200
+          ${hasTopics ? 'shadow-lg' : 'text-white/70 hover:text-white'}`}
+        style={{
+          borderRadius: 'var(--radius-control)',
+          ...(hasTopics
+            ? { backgroundColor: primaryColor, color: isLightColor(primaryColor) ? '#000000' : '#ffffff', border: '1px solid transparent' }
+            : { backgroundColor: `rgba(255,255,255,var(--glass-opacity,0.05))`, backdropFilter: `blur(var(--glass-blur,4px))`, WebkitBackdropFilter: `blur(var(--glass-blur,4px))`, border: `1px solid rgba(255,255,255,var(--glass-border-opacity,0.1))` }),
+        }}
       >
         Topics
         {hasTopics && (

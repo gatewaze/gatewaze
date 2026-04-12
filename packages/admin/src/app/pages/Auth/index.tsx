@@ -112,7 +112,7 @@ export default function SignIn() {
 
               <Button
                 type="submit"
-                className="mt-5"
+                style={{ marginTop: "1.25rem" }}
                 style={{ width: '100%' }}
                 color="cyan"
                 disabled={magicLinkSent || isLoading}
@@ -128,7 +128,7 @@ export default function SignIn() {
               {magicLinkSent && (
                 <Button
                   type="button"
-                  className="mt-3"
+                  style={{ marginTop: "0.75rem" }}
                   style={{ width: '100%' }}
                   color="gray"
                   onClick={() => setMagicLinkSent(false)}

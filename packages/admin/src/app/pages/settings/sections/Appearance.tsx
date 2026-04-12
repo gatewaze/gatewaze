@@ -581,7 +581,7 @@ export default function Appearance() {
         </div>
       </div>
       <div className="my-6 h-px bg-[var(--gray-a4)]"></div>
-      <div className="space-y-5">
+      <div className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-3">
           <p className="my-auto">Card Skin:</p>
           <Listbox

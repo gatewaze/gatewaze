@@ -73,11 +73,11 @@ export function LogoUploadField({
   };
 
   return (
-    <div className="space-y-1.5">
+    <div>
       <Text as="label" size="2" weight="medium">
         {label}
       </Text>
-      <Text as="p" size="1" color="gray">
+      <Text as="p" size="1" color="gray" className="pb-2">
         {description}
       </Text>
       <div className="flex items-center gap-3">
