@@ -127,12 +127,15 @@ export default async function CustomPage({ params }: Props) {
       }
 
       const resolved = resolveEventTheme(eventForTheme || {}, brandConfig)
+      const bgColor = getThemeBackgroundColor(resolved.theme, resolved.colors, resolved.secondaryColor)
+      const darkMode = !isLightColor(bgColor || '#ffffff')
       return (
         <Suspense fallback={null}>
           <RsvpPageClient
             eventIdentifier={identifier}
             primaryColor={resolved.primaryColor}
             brandName={brandConfig.name}
+            darkMode={darkMode}
           />
         </Suspense>
       )
