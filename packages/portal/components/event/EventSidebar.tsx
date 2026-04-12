@@ -288,7 +288,7 @@ function EventMobileActionsInner({ event, eventIdentifier, useDarkText, primaryC
     panelBorder: useDarkText ? 'border border-gray-700/50' : 'border border-white/20',
     hoverBgColor: useDarkText ? 'rgba(17, 24, 39, 0.1)' : 'rgba(255, 255, 255, 0.1)',
     activeBgColor: useDarkText ? 'rgba(17, 24, 39, 0.15)' : 'rgba(255, 255, 255, 0.2)',
-    iconBg: useDarkText ? 'bg-gray-900/10' : 'bg-white/20',
+    iconBg: useDarkText ? 'bg-gray-900/5' : 'bg-white/5',
   }), [useDarkText])
 
   const isActive = (href: string) => {
@@ -532,7 +532,7 @@ function EventSidebarInner({ event, eventIdentifier, useDarkText, primaryColor, 
     panelBorder: useDarkText ? 'border border-gray-700/50' : 'border border-white/20',
     hoverBgColor: useDarkText ? 'rgba(17, 24, 39, 0.1)' : 'rgba(255, 255, 255, 0.1)',
     activeBgColor: useDarkText ? 'rgba(17, 24, 39, 0.15)' : 'rgba(255, 255, 255, 0.2)',
-    iconBg: useDarkText ? 'bg-gray-900/10' : 'bg-white/20',
+    iconBg: useDarkText ? 'bg-gray-900/5' : 'bg-white/5',
   }), [useDarkText])
 
   const [hoveredItem, setHoveredItem] = useState<string | null>(null)
