@@ -55,12 +55,16 @@ export function TimelineSearch({ onSearch, onClear, isSearching, primaryColor, i
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         onKeyDown={handleKeyDown}
-        className="w-full sm:w-72 bg-white/10 backdrop-blur-sm px-4 py-3 pr-10
-                   border border-white/10 text-white placeholder-white/50
-                   focus:outline-none focus:border-white/30 focus:bg-white/15
+        className="w-full sm:w-72 px-4 py-3 pr-10
+                   text-white placeholder-white/50
+                   focus:outline-none focus:brightness-125
                    transition-all duration-200"
         style={{
           borderRadius: 'var(--radius-control-outer)',
+          backgroundColor: `rgba(255,255,255,var(--glass-opacity,0.05))`,
+          backdropFilter: `blur(var(--glass-blur,4px))`,
+          WebkitBackdropFilter: `blur(var(--glass-blur,4px))`,
+          border: `1px solid rgba(255,255,255,var(--glass-border-opacity,0.1))`,
           boxShadow: query ? `0 0 0 1px ${primaryColor}40` : undefined,
         }}
       />

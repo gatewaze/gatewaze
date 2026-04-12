@@ -11,14 +11,9 @@ import { useAuthContext } from "@/app/contexts/auth/context";
 import { useModulesContext } from "@/app/contexts/modules/context";
 import OnboardingWizardLayout from "./OnboardingWizardLayout";
 
-type PortalTheme = "blobs" | "gradient_wave" | "basic";
+type PortalTheme = "gradient_wave" | "basic";
 
 const THEME_OPTIONS: { value: PortalTheme; label: string; description: string }[] = [
-  {
-    value: "blobs",
-    label: "Blobs",
-    description: "Animated gradient blobs on a dark background",
-  },
   {
     value: "gradient_wave",
     label: "Gradient Wave",
@@ -37,7 +32,6 @@ export default function ThemeSetupStep() {
   const { isFeatureEnabled } = useModulesContext();
   const hasEvents = isFeatureEnabled('events');
   const [primaryColor, setPrimaryColor] = useState("#00a2c7");
-  const [secondaryColor, setSecondaryColor] = useState("#0a0a0a");
   const [logoUrl, setLogoUrl] = useState("");
   const [portalTheme, setPortalTheme] = useState<PortalTheme>("gradient_wave");
   const [eventTypes, setEventTypes] = useState<EventTypeOption[]>(DEFAULT_EVENT_TYPES);
@@ -49,7 +43,6 @@ export default function ThemeSetupStep() {
       const validTypes = eventTypes.filter((t) => t.value && t.label);
       const settings = [
         { key: "primary_color", value: primaryColor },
-        { key: "secondary_color", value: secondaryColor },
         { key: "logo_url", value: logoUrl },
         { key: "portal_theme", value: portalTheme },
         ...(hasEvents ? [{ key: "event_types", value: JSON.stringify(validTypes) }] : []),
@@ -86,7 +79,7 @@ export default function ThemeSetupStep() {
       nextDisabled={isSubmitting}
       nextLoading={isSubmitting}
     >
-      <div className="space-y-5">
+      <div className="space-y-4">
         <div>
           <h2 className="text-lg font-semibold tracking-tight">
             Set up your brand
@@ -98,17 +91,10 @@ export default function ThemeSetupStep() {
         </div>
 
         <ColorInput
-          label="Primary Color"
-          description="Used for buttons, links, and accent elements"
+          label="Accent Color"
+          description="Used for buttons, links, and accent elements on the portal"
           value={primaryColor}
           onChange={setPrimaryColor}
-        />
-
-        <ColorInput
-          label="Secondary Color"
-          description="Background and fallback color"
-          value={secondaryColor}
-          onChange={setSecondaryColor}
         />
 
         <LogoUploadField

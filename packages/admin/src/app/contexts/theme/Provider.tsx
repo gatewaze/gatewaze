@@ -19,57 +19,12 @@ import { colors } from "@/constants/colors";
 import { getSupabase } from "@/lib/supabase";
 import { useActiveThemeModule } from "@/hooks/useActiveThemeModule";
 
-// Reference colors for each Radix accent (approximate hue center)
-const RADIX_ACCENT_REFS: { name: PrimaryColor; r: number; g: number; b: number }[] = [
-  { name: "red",     r: 229, g: 72,  b: 77  },
-  { name: "crimson", r: 233, g: 61,  b: 130 },
-  { name: "pink",    r: 214, g: 64,  b: 159 },
-  { name: "plum",    r: 171, g: 74,  b: 186 },
-  { name: "purple",  r: 142, g: 78,  b: 198 },
-  { name: "violet",  r: 110, g: 86,  b: 207 },
-  { name: "indigo",  r: 62,  g: 99,  b: 214 },
-  { name: "blue",    r: 59,  g: 130, b: 246 },
-  { name: "cyan",    r: 0,   g: 162, b: 199 },
-  { name: "teal",    r: 18,  g: 165, b: 148 },
-  { name: "green",   r: 34,  g: 197, b: 94  },
-  { name: "amber",   r: 245, g: 158, b: 11  },
-  { name: "orange",  r: 247, g: 107, b: 21  },
-  { name: "rose",    r: 244, g: 63,  b: 94  },
+// Valid Radix accent color names
+const VALID_ACCENTS: PrimaryColor[] = [
+  "red", "crimson", "pink", "plum", "purple", "violet", "indigo",
+  "blue", "cyan", "teal", "green", "amber", "orange", "rose",
 ];
 
-function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
-  hex = hex.trim().replace("#", "");
-  if (hex.length !== 6) return null;
-  return {
-    r: parseInt(hex.substring(0, 2), 16),
-    g: parseInt(hex.substring(2, 4), 16),
-    b: parseInt(hex.substring(4, 6), 16),
-  };
-}
-
-function closestRadixAccent(hex: string): PrimaryColor {
-  const rgb = hexToRgb(hex);
-  if (!rgb) return "blue";
-  // If the color is very dark or desaturated, use a neutral accent
-  const max = Math.max(rgb.r, rgb.g, rgb.b);
-  const min = Math.min(rgb.r, rgb.g, rgb.b);
-  const lightness = (max + min) / 2;
-  const saturation = max === 0 ? 0 : (max - min) / max;
-  if (lightness < 40 || saturation < 0.15) return "violet";
-  let best: PrimaryColor = "blue";
-  let bestDist = Infinity;
-  for (const ref of RADIX_ACCENT_REFS) {
-    const dr = rgb.r - ref.r;
-    const dg = rgb.g - ref.g;
-    const db = rgb.b - ref.b;
-    const dist = dr * dr + dg * dg + db * db;
-    if (dist < bestDist) {
-      bestDist = dist;
-      best = ref.name;
-    }
-  }
-  return best;
-}
 // ----------------------------------------------------------------------
 
 const initialState: ThemeContextValue = {
@@ -120,14 +75,14 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         const { data } = await supabase
           .from("platform_settings")
           .select("key, value")
-          .in("key", ["primary_color", "font_heading", "font_heading_weight", "font_body", "font_body_weight"]);
+          .in("key", ["admin_accent_color", "font_heading", "font_heading_weight", "font_body", "font_body_weight"]);
 
         const map: Record<string, string> = {};
         for (const row of data ?? []) map[row.key] = row.value as string;
 
-        // Accent color
-        const brandHex = map.primary_color;
-        const accent = brandHex ? closestRadixAccent(brandHex) : "cyan";
+        // Admin accent color — stored as a Radix color name directly
+        const accentName = map.admin_accent_color as PrimaryColor | undefined;
+        const accent: PrimaryColor = accentName && VALID_ACCENTS.includes(accentName) ? accentName : "cyan";
         if (settings.primaryColorScheme?.name !== accent) {
           setSettings((prev) => ({
             ...prev,

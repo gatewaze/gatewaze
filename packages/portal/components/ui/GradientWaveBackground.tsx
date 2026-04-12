@@ -3,11 +3,14 @@
 import { Component, useState, useEffect, useRef } from 'react'
 import type { ReactNode, ErrorInfo } from 'react'
 import { ShaderGradientCanvas, ShaderGradient } from '@shadergradient/react'
+import type { GradientWaveConfig } from '@/config/brand'
+import { DEFAULT_GRADIENT_WAVE_CONFIG } from '@/config/brand'
 
 interface Props {
   startColor?: string
   middleColor?: string
   endColor?: string
+  config?: Partial<GradientWaveConfig>
 }
 
 // Error boundary to catch WebGL context creation failures
@@ -44,7 +47,9 @@ export function GradientWaveBackground({
   startColor = '#ca2b7f',
   middleColor = '#4086c6',
   endColor = '#0d1218',
+  config: configOverride,
 }: Props) {
+  const cfg = { ...DEFAULT_GRADIENT_WAVE_CONFIG, ...configOverride }
   const [mounted, setMounted] = useState(false)
   const [canvasReady, setCanvasReady] = useState(false)
   const [webglSupported, setWebglSupported] = useState(true)
@@ -230,7 +235,7 @@ export function GradientWaveBackground({
 
   return (
     <>
-      {/* Static gradient placeholder - always present, fades out when WebGL is ready */}
+      {/* Flat color placeholder - always present, fades out when WebGL is ready */}
       <div
         style={{
           position: 'absolute',
@@ -238,10 +243,7 @@ export function GradientWaveBackground({
           left: 0,
           width: '100%',
           height: '100%',
-          background: `radial-gradient(ellipse 100% 100% at 100% 100%, ${startColor} 0%, transparent 80%),
-                       radial-gradient(ellipse 80% 80% at 0% 0%, ${middleColor} 0%, transparent 70%),
-                       linear-gradient(135deg, ${middleColor} 0%, ${startColor}60 100%),
-                       ${endColor}`,
+          backgroundColor: cfg.fallbackColor,
           opacity: canvasReady ? 0 : 1,
           transition: 'opacity 0.5s ease-out',
           zIndex: 0,
@@ -253,6 +255,8 @@ export function GradientWaveBackground({
           <div ref={containerRef}>
             {mounted && (
               <ShaderGradientCanvas
+                fov={cfg.fov}
+                pixelDensity={cfg.pixelDensity}
                 style={{
                   position: 'absolute',
                   top: 0,
@@ -266,31 +270,32 @@ export function GradientWaveBackground({
                 }}
               >
                 <ShaderGradient
-                  animate="on"
-                  brightness={1.2}
-                  cAzimuthAngle={180}
-                  cDistance={3.6}
-                  cPolarAngle={90}
+                  animate={cfg.animate}
+                  brightness={cfg.brightness}
+                  cAzimuthAngle={cfg.cAzimuthAngle}
+                  cDistance={cfg.cDistance}
+                  cPolarAngle={cfg.cPolarAngle}
+                  cameraZoom={cfg.cameraZoom}
                   color1={startColor}
                   color2={middleColor}
                   color3={endColor}
-                  envPreset="city"
-                  grain="off"
-                  lightType="3d"
-                  positionX={-1.4}
-                  positionY={0}
-                  positionZ={0}
-                  reflection={0.1}
-                  rotationX={0}
-                  rotationY={10}
-                  rotationZ={50}
-                  type="plane"
-                  uAmplitude={0.5}
-                  uDensity={1.3}
-                  uFrequency={4.5}
-                  uSpeed={0.2}
-                  uStrength={1.5}
-                  uTime={0}
+                  envPreset={cfg.envPreset}
+                  grain={cfg.grain}
+                  lightType={cfg.lightType}
+                  positionX={cfg.positionX}
+                  positionY={cfg.positionY}
+                  positionZ={cfg.positionZ}
+                  reflection={cfg.reflection}
+                  rotationX={cfg.rotationX}
+                  rotationY={cfg.rotationY}
+                  rotationZ={cfg.rotationZ}
+                  type={cfg.type}
+                  uAmplitude={cfg.uAmplitude}
+                  uDensity={cfg.uDensity}
+                  uFrequency={cfg.uFrequency}
+                  uSpeed={cfg.uSpeed}
+                  uStrength={cfg.uStrength}
+                  uTime={cfg.uTime}
                 />
               </ShaderGradientCanvas>
             )}
