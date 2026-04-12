@@ -306,7 +306,7 @@ export function RsvpPageClient({ eventIdentifier, primaryColor, darkMode = true 
           </svg>
         </div>
         <h1 className={`text-2xl sm:text-3xl font-bold ${textColor} mb-2`}>RSVP Confirmed!</h1>
-        <p className="text-gray-600 dark:text-gray-300 mb-6">Thank you for responding.</p>
+        <p className={`${textMuted} mb-6`}>Thank you for responding.</p>
         <div className="flex justify-center gap-6 text-sm mb-6">
           {submitResult.accepted > 0 && <div><p className="text-2xl font-bold text-green-600">{submitResult.accepted}</p><p className="text-gray-500">Attending</p></div>}
           {submitResult.declined > 0 && <div><p className="text-2xl font-bold text-red-500">{submitResult.declined}</p><p className="text-gray-500">Not attending</p></div>}
