@@ -387,6 +387,10 @@ interface EventPageDef {
 
 function discoverEventPages(sourceDirs: string[]): EventPageDef[] {
   const eventPages: EventPageDef[] = []
+  // Deduplicate by (moduleId, slug) — the same module discovered from
+  // multiple source dirs (e.g. local sibling + git-cloned cache) should
+  // only produce one entry per event page.
+  const seen = new Set<string>()
 
   for (const sourceDir of sourceDirs) {
     if (!existsSync(sourceDir)) continue
@@ -415,6 +419,10 @@ function discoverEventPages(sourceDirs: string[]): EventPageDef[] {
 
       for (const file of pageFiles) {
         const slug = file.replace(/\.tsx?$/, '')
+        const key = `${moduleDir}:${slug}`
+        if (seen.has(key)) continue
+        seen.add(key)
+
         const absPath = resolve(eventPagesDir, slug)
         const pageMeta = meta[slug] || {}
 
