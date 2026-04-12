@@ -52,7 +52,10 @@ interface SubmitMember {
  */
 async function findOrCreatePerson(
   supabase: ReturnType<typeof getSupabase>,
-  input: { email: string; first_name?: string; last_name?: string; phone?: string },
+  input: {
+    email: string; first_name?: string; last_name?: string; phone?: string;
+    city?: string; country?: string; country_code?: string; continent?: string; location?: string;
+  },
 ): Promise<string | null> {
   const email = input.email.toLowerCase().trim()
   if (!email) return null
@@ -68,6 +71,11 @@ async function findOrCreatePerson(
   const attributes: Record<string, unknown> = {}
   if (input.first_name) attributes.first_name = input.first_name
   if (input.last_name) attributes.last_name = input.last_name
+  if (input.city) attributes.city = input.city
+  if (input.country) attributes.country = input.country
+  if (input.country_code) attributes.country_code = input.country_code
+  if (input.continent) attributes.continent = input.continent
+  if (input.location) attributes.location = input.location
 
   const { data: newPerson, error: insertErr } = await supabase
     .from('people')
@@ -240,6 +248,12 @@ export async function POST(req: NextRequest) {
         )
       }
 
+      // Extract IP for geolocation
+      const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+                       request.headers.get('x-real-ip') ||
+                       null
+      const ipLocation = await getIpLocation(clientIp)
+
       // Lead booker must have a valid email address
       const leadEmail = members[0]?.email?.trim() || ''
       if (!leadEmail) {
@@ -319,6 +333,11 @@ export async function POST(req: NextRequest) {
             first_name: member.first_name?.trim(),
             last_name: member.last_name?.trim(),
             phone: member.phone?.trim(),
+            ...(ipLocation?.city ? { city: ipLocation.city } : {}),
+            ...(ipLocation?.country ? { country: ipLocation.country } : {}),
+            ...(ipLocation?.country_code ? { country_code: ipLocation.country_code } : {}),
+            ...(ipLocation?.continent ? { continent: ipLocation.continent } : {}),
+            ...(ipLocation?.location ? { location: ipLocation.location } : {}),
           })
         }
 
@@ -445,4 +464,24 @@ export async function POST(req: NextRequest) {
     console.error('[open-rsvp] Error:', err)
     return NextResponse.json({ error: 'INTERNAL_ERROR', message: 'Internal server error' }, { status: 500 })
   }
+}
+
+async function getIpLocation(ipAddress: string | null): Promise<{
+  city?: string; country?: string; country_code?: string; continent?: string; location?: string;
+} | null> {
+  if (!ipAddress) return null
+  try {
+    const url = `http://ip-api.com/json/${encodeURIComponent(ipAddress)}?fields=status,message,city,country,countryCode,continentCode,lat,lon`
+    const response = await fetch(url)
+    if (!response.ok) return null
+    const data = await response.json()
+    if (data.status === 'fail') return null
+    return {
+      city: data.city || undefined,
+      country: data.country || undefined,
+      country_code: data.countryCode || undefined,
+      continent: data.continentCode ? data.continentCode.toLowerCase() : undefined,
+      location: data.lat && data.lon ? `${data.lat},${data.lon}` : undefined,
+    }
+  } catch { return null }
 }

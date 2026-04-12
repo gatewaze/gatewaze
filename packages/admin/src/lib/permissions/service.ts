@@ -786,7 +786,7 @@ export class PermissionsService {
     try {
       const { data, error } = await supabase
         .from('admin_calendar_permissions')
-        .select('*, admin_profiles(id, email, name, role)')
+        .select('*, admin_profiles!admin_calendar_permissions_admin_id_fkey(id, email, name, role)')
         .eq('calendar_id', calendarId)
         .eq('is_active', true)
         .order('granted_at', { ascending: false });
