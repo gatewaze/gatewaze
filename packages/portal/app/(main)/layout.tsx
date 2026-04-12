@@ -133,7 +133,7 @@ export default async function MainLayout({
           logoUrl={brandConfig.logoUrl}
         />
       </head>
-      <body className="flex flex-col min-h-screen" style={{ backgroundColor: getThemeBackgroundColor(brandConfig.portalTheme, brandConfig.themeColors, brandConfig.secondaryColor) }} suppressHydrationWarning>
+      <body className="flex flex-col min-h-screen" style={{ backgroundColor: (brandConfig.portalTheme === 'gradient_wave' && brandConfig.gradientWaveConfig?.fallbackColor) || getThemeBackgroundColor(brandConfig.portalTheme, brandConfig.themeColors, brandConfig.secondaryColor) }} suppressHydrationWarning>
         {(() => {
           // For custom domain events, resolve theme from event overrides
           const resolved = customDomainEvent
