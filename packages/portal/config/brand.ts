@@ -150,7 +150,7 @@ export interface BrandConfig {
   contentCategories: ContentCategoryOption[]
   eventTopicsEnabled: boolean
   gradientWaveConfig: GradientWaveConfig
-  portalUiMode: 'auto' | 'dark' | 'light'
+  portalUiMode: 'frost' | 'smoke' | 'obsidian' | 'paper'
 }
 
 // ---------------------------------------------------------------------------
@@ -192,7 +192,7 @@ const defaults: BrandConfig = {
   contentCategories: [],
   eventTopicsEnabled: false,
   gradientWaveConfig: { ...DEFAULT_GRADIENT_WAVE_CONFIG },
-  portalUiMode: 'auto' as const,
+  portalUiMode: 'smoke' as const,
 }
 
 // Mapping from app_settings keys to BrandConfig fields + defaults
@@ -303,10 +303,14 @@ export async function getServerBrandConfig(): Promise<BrandConfig> {
         config.themeColors = { ...DEFAULT_THEME_COLORS[config.portalTheme] }
       }
 
-      // Parse portal UI mode
+      // Parse portal UI mode (with backward compat for legacy values)
       const uiModeValue = kvMap.get('portal_ui_mode')
-      if (uiModeValue === 'dark' || uiModeValue === 'light' || uiModeValue === 'auto') {
+      if (uiModeValue === 'frost' || uiModeValue === 'smoke' || uiModeValue === 'obsidian' || uiModeValue === 'paper') {
         config.portalUiMode = uiModeValue
+      } else if (uiModeValue === 'dark' || uiModeValue === 'auto') {
+        config.portalUiMode = 'smoke'
+      } else if (uiModeValue === 'light') {
+        config.portalUiMode = 'paper'
       }
 
       // Parse gradient wave config

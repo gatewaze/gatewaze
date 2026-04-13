@@ -143,9 +143,10 @@ interface Props {
   event: Event
   brandConfig: BrandConfig
   useDarkText: boolean
+  heroRef?: React.RefObject<HTMLDivElement | null>
 }
 
-export function EventHero({ event, brandConfig, useDarkText }: Props) {
+export function EventHero({ event, brandConfig, useDarkText, heroRef }: Props) {
   const primaryColor = brandConfig.primaryColor
   const secondaryColor = brandConfig.secondaryColor
 
@@ -228,7 +229,7 @@ export function EventHero({ event, brandConfig, useDarkText }: Props) {
   const IMAGE_COLUMN_WIDTH = 'w-full lg:w-[320px]'
 
   return (
-    <div className="pt-2 pb-8 lg:pt-4 lg:pb-8">
+    <div ref={heroRef} className="pt-2 pb-8 lg:pt-4 lg:pb-8">
       {/* Two Column Layout - Fixed width image, fluid content */}
       <div className="flex flex-col lg:flex-row gap-6 lg:gap-12 items-center lg:items-start">
         {/* Left Column - Event Image (full width on mobile, fixed 320px on desktop) */}
@@ -306,6 +307,7 @@ export function EventHero({ event, brandConfig, useDarkText }: Props) {
                 className={`flex-shrink-0 w-12 h-12 lg:w-14 lg:h-14 rounded-lg flex flex-col items-center justify-center ${
                   useDarkText ? 'bg-gray-900/5' : 'bg-white/5'
                 }`}
+                style={{ backdropFilter: 'blur(var(--glass-blur, 4px))', WebkitBackdropFilter: 'blur(var(--glass-blur, 4px))' }}
               >
                 <span
                   className="text-[10px] lg:text-xs font-semibold leading-none"
@@ -353,6 +355,7 @@ export function EventHero({ event, brandConfig, useDarkText }: Props) {
                   className={`flex-shrink-0 w-12 h-12 lg:w-14 lg:h-14 rounded-lg flex items-center justify-center ${
                     useDarkText ? 'bg-gray-900/5' : 'bg-white/5'
                   }`}
+                  style={{ backdropFilter: 'blur(var(--glass-blur, 4px))', WebkitBackdropFilter: 'blur(var(--glass-blur, 4px))' }}
                 >
                   <svg
                     className="w-5 h-5 lg:w-6 lg:h-6"

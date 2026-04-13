@@ -41,10 +41,28 @@ export async function getEnabledModules(): Promise<ModuleState> {
     const supabase = createClient(url, key, {
       global: { fetch: (url, options = {}) => fetch(url, { ...options, cache: 'no-store' }) },
     });
-    const { data, error } = await supabase
-      .from('installed_modules')
-      .select('id, status, features, portal_nav')
-      .eq('status', 'enabled');
+    const [modulesResult, navOverridesResult] = await Promise.all([
+      supabase
+        .from('installed_modules')
+        .select('id, status, features, portal_nav')
+        .eq('status', 'enabled'),
+      supabase
+        .from('platform_settings')
+        .select('value')
+        .eq('key', 'portal_nav_overrides')
+        .maybeSingle(),
+    ]);
+
+    const { data, error } = modulesResult;
+
+    // Parse nav overrides from platform_settings
+    let navOverrides: { items: { moduleId: string; label?: string; order: number; hidden?: boolean }[] } = { items: [] };
+    if (navOverridesResult.data?.value) {
+      try {
+        const parsed = JSON.parse(navOverridesResult.data.value);
+        if (parsed && Array.isArray(parsed.items)) navOverrides = parsed;
+      } catch { /* use empty overrides */ }
+    }
 
     if (error) {
       console.error('[modules] Failed to fetch installed_modules:', error);
@@ -86,9 +104,23 @@ export async function getEnabledModules(): Promise<ModuleState> {
       });
     }
 
-    portalNavItems.sort((a, b) => a.order - b.order);
+    // Apply admin nav overrides (custom order, labels, hidden items)
+    const overrideMap = new Map(navOverrides.items.map(o => [o.moduleId, o]));
+    for (const item of portalNavItems) {
+      const override = overrideMap.get(item.moduleId);
+      if (override) {
+        if (override.label) item.label = override.label;
+        if (override.order !== undefined) item.order = override.order;
+      }
+    }
+    // Remove hidden items
+    const visibleNavItems = portalNavItems.filter(item => {
+      const override = overrideMap.get(item.moduleId);
+      return !override?.hidden;
+    });
+    visibleNavItems.sort((a, b) => a.order - b.order);
 
-    cache = { enabledIds, enabledFeatures, portalNavItems };
+    cache = { enabledIds, enabledFeatures, portalNavItems: visibleNavItems };
     cacheTimestamp = now;
     return cache;
   } catch (err) {
