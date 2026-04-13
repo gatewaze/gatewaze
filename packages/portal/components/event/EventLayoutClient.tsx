@@ -9,7 +9,8 @@ import { getEmailFromParams } from '@/lib/emailEncoding'
 import { CLICK_ID_PARAMS, UTM_PARAMS } from '@/config/platforms'
 import { trackEvent } from '@/lib/analytics'
 import { hasConsentFor } from '@/hooks/useConsent'
-import { EventHero, shouldUseDarkText } from './EventHero'
+import { EventHero } from './EventHero'
+import { EventCompactBar } from './EventCompactBar'
 import { EventSidebar } from './EventSidebar'
 import { EventMobileActions } from './EventSidebar'
 import { EventProvider, useEventContext } from './EventContext'
@@ -73,12 +74,9 @@ export function EventLayoutClient({ event, brandConfig, eventIdentifier, speaker
   // Only render a separate event background if this event has per-event theme overrides
   const hasEventThemeOverride = !!(event.portal_theme || event.theme_colors || event.gradient_color_1)
 
-  // Determine if we need dark text (for light backgrounds)
-  // Check against the actual background color, not just the accent colors
-  const useDarkText = useMemo(
-    () => shouldUseDarkText(bgColor, bgColor),
-    [bgColor]
-  )
+  // Determine if we need dark text — follows the UI mode
+  const uiMode = brandConfig.portalUiMode
+  const useDarkText = uiMode === 'obsidian' || uiMode === 'paper'
 
   // Set event primary color for cookie consent banner (client-side only to avoid hydration mismatch)
   useEffect(() => {
@@ -176,12 +174,16 @@ function EventLayoutInner({
   children: React.ReactNode
 }) {
   const { userState } = useEventContext()
+  const heroRef = useRef<HTMLDivElement>(null)
 
   return (
     <main className="relative z-10">
+      {/* Compact sticky bar — slides in when hero scrolls out of view */}
+      <EventCompactBar event={event} brandConfig={brandConfig} heroRef={heroRef} />
+
       <div className="max-w-7xl mx-auto px-6 sm:px-6 lg:px-8">
         {/* Hero Section */}
-        <EventHero event={event} brandConfig={brandConfig} useDarkText={useDarkText} />
+        <EventHero event={event} brandConfig={brandConfig} useDarkText={useDarkText} heroRef={heroRef} />
 
         {/* Mobile: Competition panel portal target (rendered from AboutEventContent) */}
         <div id="mobile-competition-slot" className="lg:hidden" />

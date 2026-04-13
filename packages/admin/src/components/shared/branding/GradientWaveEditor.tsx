@@ -240,7 +240,7 @@ export function GradientWaveEditor({
   onChange,
   colors,
   onColorsChange,
-  uiMode = "auto",
+  uiMode = "smoke",
   onUiModeChange,
   accentColor,
   onAccentColorChange,
@@ -251,8 +251,8 @@ export function GradientWaveEditor({
   onChange: (config: GradientWaveConfig) => void;
   colors?: { start: string; middle: string; end: string };
   onColorsChange?: (colors: { start: string; middle: string; end: string }) => void;
-  uiMode?: "auto" | "dark" | "light";
-  onUiModeChange?: (mode: "auto" | "dark" | "light") => void;
+  uiMode?: "frost" | "smoke" | "obsidian" | "paper";
+  onUiModeChange?: (mode: "frost" | "smoke" | "obsidian" | "paper") => void;
   accentColor?: string;
   onAccentColorChange?: (color: string) => void;
   cornerStyle?: "square" | "rounded" | "pill";
@@ -350,14 +350,16 @@ export function GradientWaveEditor({
 
           {/* Sample UI components to preview light/dark readability */}
           {(() => {
-            const isDark = uiMode === "dark" || (uiMode === "auto" && true);
-            const textColor = isDark ? "rgba(255,255,255,0.9)" : "rgba(0,0,0,0.9)";
-            const mutedColor = isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)";
+            const isWhiteText = uiMode === "frost" || uiMode === "smoke";
+            const isWhitePanel = uiMode === "frost" || uiMode === "paper";
+            const textColor = isWhiteText ? "rgba(255,255,255,0.9)" : "rgba(0,0,0,0.9)";
+            const mutedColor = isWhiteText ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)";
             const go = config.glassOpacity;
             const gb = config.glassBlur;
             const gbo = config.glassBorderOpacity;
-            const cardBg = isDark ? `rgba(255,255,255,${go})` : `rgba(0,0,0,${go})`;
-            const borderCol = isDark ? `rgba(255,255,255,${gbo})` : `rgba(0,0,0,${gbo})`;
+            const pt = isWhitePanel ? "255,255,255" : "0,0,0";
+            const cardBg = `rgba(${pt},${go})`;
+            const borderCol = `rgba(${pt},${gbo})`;
             const blurVal = `blur(${gb}px)`;
             const btnRadius = cornerStyle === "pill" ? 9999 : cornerStyle === "rounded" ? 8 : 2;
             const pillRadius = cornerStyle === "pill" ? 9999 : cornerStyle === "rounded" ? 20 : 4;
@@ -507,7 +509,7 @@ export function GradientWaveEditor({
                     UI Mode
                   </Text>
                   <div className="flex gap-1">
-                    {(["auto", "dark", "light"] as const).map((m) => (
+                    {(["frost", "smoke", "obsidian", "paper"] as const).map((m) => (
                       <button
                         key={m}
                         type="button"
@@ -554,11 +556,12 @@ export function GradientWaveEditor({
                       {onUiModeChange && (
                         <SegmentPicker
                           label="UI Mode"
-                          description="Dark or light text and UI components on the portal."
+                          description="Controls panel glass tint and text color across the portal."
                           options={[
-                            { value: "auto" as const, label: "Auto" },
-                            { value: "dark" as const, label: "Dark" },
-                            { value: "light" as const, label: "Light" },
+                            { value: "frost" as const, label: "Frost" },
+                            { value: "smoke" as const, label: "Smoke" },
+                            { value: "obsidian" as const, label: "Obsidian" },
+                            { value: "paper" as const, label: "Paper" },
                           ]}
                           value={uiMode}
                           onChange={onUiModeChange}

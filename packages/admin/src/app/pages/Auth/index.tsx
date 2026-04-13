@@ -112,8 +112,7 @@ export default function SignIn() {
 
               <Button
                 type="submit"
-                style={{ marginTop: "1.25rem" }}
-                style={{ width: '100%' }}
+                style={{ marginTop: "1.25rem", width: '100%' }}
                 color="cyan"
                 disabled={magicLinkSent || isLoading}
               >
@@ -128,8 +127,7 @@ export default function SignIn() {
               {magicLinkSent && (
                 <Button
                   type="button"
-                  style={{ marginTop: "0.75rem" }}
-                  style={{ width: '100%' }}
+                  style={{ marginTop: "0.75rem", width: '100%' }}
                   color="gray"
                   onClick={() => setMagicLinkSent(false)}
                 >
