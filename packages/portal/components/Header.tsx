@@ -267,7 +267,7 @@ export function Header({ brandConfig, navItems = [] }: Props) {
                 <Link
                   href={`/sign-in?redirectTo=${encodeURIComponent(pathname)}`}
                   className="flex items-center gap-1.5 px-4 py-2 bg-white/10 hover:bg-white/20 transition-colors text-white font-medium"
-                  style={{ borderRadius: 'var(--radius-control)' }}
+                  style={{ borderRadius: 'var(--radius-control)', backdropFilter: 'blur(var(--glass-blur, 4px))', WebkitBackdropFilter: 'blur(var(--glass-blur, 4px))' }}
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
@@ -283,18 +283,18 @@ export function Header({ brandConfig, navItems = [] }: Props) {
               onClick={mobileMenuOpen ? closeMobileMenu : openMobileMenu}
               aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
             >
-              <div className="w-6 h-6 relative" style={{ marginTop: '-1px' }}>
+              <div className="w-5 h-5 relative" style={{ marginTop: -3 }}>
                 <span
-                  className="absolute left-0 block h-[2px] w-full bg-white rounded-full transition-all duration-300"
-                  style={{ top: mobileMenuAnimating ? '11px' : '5px', transform: mobileMenuAnimating ? 'rotate(45deg)' : 'rotate(0)' }}
+                  className="absolute left-0 block h-[2px] w-full rounded-full transition-all duration-300"
+                  style={{ backgroundColor: 'currentColor', top: mobileMenuAnimating ? '9px' : '2px', transform: mobileMenuAnimating ? 'rotate(45deg)' : 'none', transformOrigin: 'center' }}
                 />
                 <span
-                  className="absolute left-0 top-[11px] block h-[2px] w-full bg-white rounded-full transition-all duration-300"
-                  style={{ opacity: mobileMenuAnimating ? 0 : 1, transform: mobileMenuAnimating ? 'scaleX(0)' : 'scaleX(1)' }}
+                  className="absolute left-0 block h-[2px] w-full rounded-full transition-all duration-300"
+                  style={{ backgroundColor: 'currentColor', top: '9px', opacity: mobileMenuAnimating ? 0 : 1, transform: mobileMenuAnimating ? 'scaleX(0)' : 'none', transformOrigin: 'center' }}
                 />
                 <span
-                  className="absolute left-0 block h-[2px] w-full bg-white rounded-full transition-all duration-300"
-                  style={{ top: mobileMenuAnimating ? '11px' : '17px', transform: mobileMenuAnimating ? 'rotate(-45deg)' : 'rotate(0)' }}
+                  className="absolute left-0 block h-[2px] w-full rounded-full transition-all duration-300"
+                  style={{ backgroundColor: 'currentColor', top: mobileMenuAnimating ? '9px' : '16px', transform: mobileMenuAnimating ? 'rotate(-45deg)' : 'none', transformOrigin: 'center' }}
                 />
               </div>
             </button>
@@ -320,9 +320,9 @@ export function Header({ brandConfig, navItems = [] }: Props) {
               onClick={closeMobileMenu}
               aria-label="Close menu"
             >
-              <div className="w-6 h-6 relative flex items-center justify-center" style={{ marginTop: '2px' }}>
-                <span className="absolute block h-[2px] w-[23px] bg-white rounded-full rotate-45" />
-                <span className="absolute block h-[2px] w-[23px] bg-white rounded-full -rotate-45" />
+              <div className="w-6 h-6 relative flex items-center justify-center">
+                <span className="absolute block h-[2px] w-[23px] rounded-full rotate-45" style={{ backgroundColor: '#ffffff' }} />
+                <span className="absolute block h-[2px] w-[23px] rounded-full -rotate-45" style={{ backgroundColor: '#ffffff' }} />
               </div>
             </button>
           </div>

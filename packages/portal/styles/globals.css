@@ -57,11 +57,72 @@ html[data-corners="pill"] {
   --radius-card: 1.5rem;
 }
 
-/* Glass panel system — controlled by CSS custom properties set on <html> from brand config */
+/* ═══════════════════════════════════════════════════════════════════
+ * PORTAL UI MODE SYSTEM — 4 Named Themes
+ *
+ * Each mode sets --panel-tint (glass panel color) and --ui-text
+ * (text/icon color) independently. All glass panel, border, text,
+ * and gray scale overrides reference these two variables — one set
+ * of rules covers all 4 modes without duplication.
+ *
+ * Modes:
+ *   frost    — white panels, white text (airy on dark gradients)
+ *   smoke    — dark panels, white text (traditional dark UI)
+ *   obsidian — dark panels, dark text (dark panels on light bg)
+ *   paper    — white panels, dark text (clean readable on light bg)
+ * ═══════════════════════════════════════════════════════════════════ */
+
+/* Glass panel defaults */
 :root {
   --glass-opacity: 0.05;
   --glass-blur: 4px;
   --glass-border-opacity: 0.1;
+  /* Default to smoke (dark panels, white text) */
+  --panel-tint: 0, 0, 0;
+  --ui-text: 255, 255, 255;
+  --ui-text-hex: #ffffff;
+}
+
+/* Per-mode variables */
+html[data-ui-mode="frost"] {
+  --panel-tint: 255, 255, 255;
+  --ui-text: 255, 255, 255;
+  --ui-text-hex: #ffffff;
+}
+html[data-ui-mode="smoke"] {
+  --panel-tint: 0, 0, 0;
+  --ui-text: 255, 255, 255;
+  --ui-text-hex: #ffffff;
+}
+html[data-ui-mode="obsidian"] {
+  --panel-tint: 0, 0, 0;
+  --ui-text: 0, 0, 0;
+  --ui-text-hex: #000000;
+}
+html[data-ui-mode="paper"] {
+  --panel-tint: 255, 255, 255;
+  --ui-text: 0, 0, 0;
+  --ui-text-hex: #000000;
+}
+
+/* Root text color follows --ui-text-hex */
+html[data-ui-mode] {
+  color: var(--ui-text-hex);
+}
+
+/* Tailwind gray scale remapped per mode — uses --ui-text */
+html[data-ui-mode] {
+  --color-gray-50:  rgba(var(--ui-text), 0.05);
+  --color-gray-100: rgba(var(--ui-text), 0.1);
+  --color-gray-200: rgba(var(--ui-text), 0.15);
+  --color-gray-300: rgba(var(--ui-text), 0.4);
+  --color-gray-400: rgba(var(--ui-text), 0.6);
+  --color-gray-500: rgba(var(--ui-text), 0.7);
+  --color-gray-600: rgba(var(--ui-text), 0.8);
+  --color-gray-700: rgba(var(--ui-text), 0.85);
+  --color-gray-800: rgba(var(--ui-text), 0.9);
+  --color-gray-900: rgba(var(--ui-text), 0.95);
+  --color-gray-950: rgba(var(--ui-text), 1);
 }
 
 /* Glow effects — disabled via data-glow="false" on <html> */
@@ -70,73 +131,88 @@ html[data-glow="false"] [data-glow-border] {
   display: none !important;
 }
 
-/*
- * Glass panel overrides — remap Tailwind's hardcoded bg-white/N and
- * border-white/N to the configurable CSS variables so every glass panel
- * in the portal automatically picks up the admin-configured values.
- * backdrop-blur is also remapped to the configurable value.
- */
-.bg-white\/5 {
-  background-color: rgba(255, 255, 255, var(--glass-opacity)) !important;
+/* ─── Glass panel overrides ─── */
+/* All use --panel-tint so the same rules work for every mode */
+
+/* Tier 1: very subtle */
+[class*="bg-white/5"], [class*="bg-white\/5"],
+[class*="bg-white/8"], [class*="bg-white\/8"] {
+  background-color: rgba(var(--panel-tint), var(--glass-opacity)) !important;
 }
-.bg-white\/8 {
-  background-color: rgba(255, 255, 255, var(--glass-opacity)) !important;
+/* Tier 2: subtle */
+[class*="bg-white/10"], [class*="bg-white\/10"],
+[class*="bg-white/15"], [class*="bg-white\/15"] {
+  background-color: rgba(var(--panel-tint), calc(var(--glass-opacity) * 2)) !important;
 }
-.bg-white\/10 {
-  background-color: rgba(255, 255, 255, calc(var(--glass-opacity) * 2)) !important;
+/* Tier 3: medium */
+[class*="bg-white/20"], [class*="bg-white\/20"],
+[class*="bg-white/25"], [class*="bg-white\/25"],
+[class*="bg-white/30"], [class*="bg-white\/30"] {
+  background-color: rgba(var(--panel-tint), calc(var(--glass-opacity) * 3)) !important;
 }
-.bg-white\/15 {
-  background-color: rgba(255, 255, 255, calc(var(--glass-opacity) * 3)) !important;
+/* Tier 4: prominent */
+[class*="bg-white/40"], [class*="bg-white\/40"],
+[class*="bg-white/50"], [class*="bg-white\/50"],
+[class*="bg-white/60"], [class*="bg-white\/60"] {
+  background-color: rgba(var(--panel-tint), calc(var(--glass-opacity) * 4)) !important;
 }
-.bg-white\/20 {
-  background-color: rgba(255, 255, 255, calc(var(--glass-opacity) * 4)) !important;
+/* Tier 5: near-opaque */
+[class*="bg-white/80"], [class*="bg-white\/80"],
+[class*="bg-white/90"], [class*="bg-white\/90"],
+[class*="bg-white/95"], [class*="bg-white\/95"] {
+  background-color: rgba(var(--panel-tint), calc(var(--glass-opacity) * 5)) !important;
 }
-.border-white\/10 {
-  border-color: rgba(255, 255, 255, var(--glass-border-opacity)) !important;
+
+/* Borders — use --panel-tint for consistent glass borders */
+[class*="border-white/10"], [class*="border-white\/10"] {
+  border-color: rgba(var(--panel-tint), var(--glass-border-opacity)) !important;
 }
-.border-white\/20 {
-  border-color: rgba(255, 255, 255, calc(var(--glass-border-opacity) * 2)) !important;
+[class*="border-white/20"], [class*="border-white\/20"] {
+  border-color: rgba(var(--panel-tint), calc(var(--glass-border-opacity) * 2)) !important;
 }
-.border-white\/30 {
-  border-color: rgba(255, 255, 255, calc(var(--glass-border-opacity) * 3)) !important;
+[class*="border-white/30"], [class*="border-white\/30"] {
+  border-color: rgba(var(--panel-tint), calc(var(--glass-border-opacity) * 3)) !important;
 }
-.backdrop-blur-sm {
+
+/* Backdrop blur — all variants remap to the configurable value */
+[class*="backdrop-blur-sm"],
+[class*="backdrop-blur-[10px]"], [class*="backdrop-blur-\\[10px\\]"],
+[class*="backdrop-blur-md"] {
   backdrop-filter: blur(var(--glass-blur)) !important;
   -webkit-backdrop-filter: blur(var(--glass-blur)) !important;
 }
-.backdrop-blur-\[10px\] {
-  backdrop-filter: blur(var(--glass-blur)) !important;
-  -webkit-backdrop-filter: blur(var(--glass-blur)) !important;
-}
-.backdrop-blur-xl {
+[class*="backdrop-blur-xl"], [class*="backdrop-blur-2xl"] {
   backdrop-filter: blur(calc(var(--glass-blur) * 3)) !important;
   -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 3)) !important;
 }
 
-/* Light brand adaptations — when UI mode is light, glass panels use dark tints */
-html.light-brand .bg-white\/5 {
-  background-color: rgba(0, 0, 0, var(--glass-opacity)) !important;
+/* Auto-apply backdrop-blur to any element with a semi-transparent white bg */
+[class*="bg-white/"]:not([class*="bg-white/0"]) {
+  backdrop-filter: blur(var(--glass-blur, 4px));
+  -webkit-backdrop-filter: blur(var(--glass-blur, 4px));
 }
-html.light-brand .bg-white\/8 {
-  background-color: rgba(0, 0, 0, var(--glass-opacity)) !important;
+
+/* Opaque bg-white — make it glass */
+:is(div, section, article, form, main, aside, footer, header, details, dialog, figure).bg-white {
+  background-color: rgba(var(--panel-tint), calc(var(--glass-opacity) * 3)) !important;
 }
-html.light-brand .bg-white\/10 {
-  background-color: rgba(0, 0, 0, calc(var(--glass-opacity) * 2)) !important;
+select.bg-white, input.bg-white, textarea.bg-white {
+  background-color: rgba(var(--panel-tint), calc(var(--glass-opacity) * 2)) !important;
 }
-html.light-brand .bg-white\/15 {
-  background-color: rgba(0, 0, 0, calc(var(--glass-opacity) * 3)) !important;
+
+/* Form inputs — text color follows UI mode */
+select, input:not([type="color"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]),
+textarea {
+  color: var(--ui-text-hex);
 }
-html.light-brand .bg-white\/20 {
-  background-color: rgba(0, 0, 0, calc(var(--glass-opacity) * 4)) !important;
-}
-html.light-brand .border-white\/10 {
-  border-color: rgba(0, 0, 0, var(--glass-border-opacity)) !important;
-}
-html.light-brand .border-white\/20 {
-  border-color: rgba(0, 0, 0, calc(var(--glass-border-opacity) * 2)) !important;
-}
-html.light-brand .border-white\/30 {
-  border-color: rgba(0, 0, 0, calc(var(--glass-border-opacity) * 3)) !important;
+
+/* Fix inline grey styles on buttons — force UI text color */
+button.border-2[style*="color: rgb(55, 65, 81)"],
+button.border-2[style*="color: rgb(107, 114, 128)"],
+button.border-2[style*="color:#374151"],
+button.border-2[style*="color: #374151"] {
+  color: rgba(var(--ui-text), 0.8) !important;
+  border-color: rgba(var(--panel-tint), 0.3) !important;
 }
 
 /* Apply corner style globally to form elements and standalone buttons */
@@ -181,157 +257,40 @@ h1, h2, h3, h4, h5, h6 {
   font-weight: var(--font-weight-heading, 600);
 }
 
-/* Adaptive text for light brand backgrounds */
-/* Override Tailwind text-white so page text adapts to brand background */
-html.light-brand .text-white {
-  color: #000000;
-}
+/* ─── Text color overrides — remap text-white classes per UI mode ─── */
+/* Dark text modes (obsidian, paper) remap white text to dark */
+html.light-brand .text-white { color: var(--ui-text-hex); }
+html.light-brand [class*="text-white/"] { color: rgba(var(--ui-text), 0.7); }
+html.light-brand .text-white\/80, html.light-brand .text-white\/90 { color: rgba(var(--ui-text), 0.85); }
+html.light-brand .text-white\/30 { color: rgba(var(--ui-text), 0.3); }
 
-html.light-brand .text-white\/70,
-html.light-brand .text-white\/60,
-html.light-brand .text-white\/50,
-html.light-brand .text-white\/40 {
-  color: rgba(26, 26, 46, 0.6);
-}
+/* Hover states — follow mode */
+html.light-brand .hover\:text-white:hover { color: var(--ui-text-hex); }
+html.light-brand .hover\:bg-white\/10:hover { background-color: rgba(var(--panel-tint), calc(var(--glass-opacity) * 2)); }
+html.light-brand .hover\:bg-white\/15:hover { background-color: rgba(var(--panel-tint), calc(var(--glass-opacity) * 3)); }
+html.light-brand .hover\:bg-white\/20:hover { background-color: rgba(var(--panel-tint), calc(var(--glass-opacity) * 4)); }
+html.light-brand .hover\:border-white\/20:hover { border-color: rgba(var(--panel-tint), calc(var(--glass-border-opacity) * 2)); }
 
-html.light-brand .text-white\/80,
-html.light-brand .text-white\/90 {
-  color: rgba(26, 26, 46, 0.8);
-}
-
-html.light-brand .border-white\/10,
-html.light-brand .border-white\/20,
-html.light-brand .border-white\/30 {
-  border-color: rgba(26, 26, 46, 0.15);
-}
-
-html.light-brand .bg-white\/5,
-html.light-brand .bg-white\/10 {
-  background-color: rgba(26, 26, 46, 0.05);
-}
-
-html.light-brand .bg-white\/15,
-html.light-brand .bg-white\/20 {
-  background-color: rgba(26, 26, 46, 0.08);
-}
-
-html.light-brand .bg-white\/60 {
-  background-color: rgba(26, 26, 46, 0.5);
-}
-
-html.light-brand .text-white\/30 {
-  color: rgba(26, 26, 46, 0.3);
-}
-
-html.light-brand .hover\:bg-white\/15:hover {
-  background-color: rgba(26, 26, 46, 0.08);
-}
-
+/* Placeholder text follows mode */
 html.light-brand .placeholder\:text-white\/50::placeholder,
 html.light-brand .placeholder-white\/50::placeholder,
-html.light-brand .placeholder-white\/40::placeholder {
-  color: rgba(26, 26, 46, 0.4);
-}
+html.light-brand .placeholder-white\/40::placeholder { color: rgba(var(--ui-text), 0.4); }
 
-html.light-brand .hover\:text-white:hover {
-  color: #000000;
-}
+/* Timeline line color */
+html.light-brand { --timeline-line-color: rgba(var(--ui-text), 0.3); }
+html:not(.light-brand) { --timeline-line-color: rgba(255, 255, 255, 0.3); }
 
-html.light-brand .hover\:bg-white\/10:hover {
-  background-color: rgba(26, 26, 46, 0.06);
-}
+/* Reduce shadows on dark-text modes */
+html.light-brand .shadow-2xl { box-shadow: 0 4px 16px -2px rgba(0,0,0,0.08), 0 2px 6px -2px rgba(0,0,0,0.04); }
+html.light-brand .shadow-xl { box-shadow: 0 2px 10px -2px rgba(0,0,0,0.06), 0 1px 4px -1px rgba(0,0,0,0.03); }
+html.light-brand .drop-shadow-lg { filter: drop-shadow(0 2px 4px rgba(0,0,0,0.06)); }
+html.light-brand .drop-shadow-md { filter: drop-shadow(0 1px 2px rgba(0,0,0,0.04)); }
 
-html.light-brand .hover\:bg-white\/20:hover {
-  background-color: rgba(26, 26, 46, 0.1);
-}
-
-html.light-brand .hover\:border-white\/20:hover {
-  border-color: rgba(26, 26, 46, 0.2);
-}
-
-html.light-brand {
-  --timeline-line-color: rgba(26, 26, 46, 0.3);
-}
-
-/* Reduce heavy shadows on light backgrounds */
-html.light-brand .shadow-2xl {
-  box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.08), 0 2px 6px -2px rgba(0, 0, 0, 0.04);
-}
-
-html.light-brand .shadow-xl {
-  box-shadow: 0 2px 10px -2px rgba(0, 0, 0, 0.06), 0 1px 4px -1px rgba(0, 0, 0, 0.03);
-}
-
-html.light-brand .drop-shadow-lg {
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.06));
-}
-
-html.light-brand .drop-shadow-md {
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.04));
-}
-
-/*
- * Dark portal: override Tailwind's gray color scale to white equivalents.
- * In Tailwind v4, utilities like text-gray-600 resolve via CSS custom
- * properties (--color-gray-600). Overriding these variables at the root
- * level remaps ALL gray usage — text, bg, border — in one place.
- */
-html:not(.light-brand) {
-  --color-gray-50:  rgba(255,255,255, 0.05);
-  --color-gray-100: rgba(255,255,255, 0.1);
-  --color-gray-200: rgba(255,255,255, 0.15);
-  --color-gray-300: rgba(255,255,255, 0.4);
-  --color-gray-400: rgba(255,255,255, 0.6);
-  --color-gray-500: rgba(255,255,255, 0.7);
-  --color-gray-600: rgba(255,255,255, 0.8);
-  --color-gray-700: rgba(255,255,255, 0.85);
-  --color-gray-800: rgba(255,255,255, 0.9);
-  --color-gray-900: #ffffff;
-  --color-gray-950: #ffffff;
-}
-/* Form inputs: glass on dark portals */
-html:not(.light-brand) .bg-white {
-  background-color: rgba(255,255,255, 0.1) !important;
-}
-html:not(.light-brand) select,
-html:not(.light-brand) input:not([type="color"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]),
-html:not(.light-brand) textarea {
-  color: white;
-}
-
-/*
- * Fix inline grey styles on buttons/elements in dark portals.
- * Some module components set color: #374151 (gray-700) or similar via inline
- * styles which can't be overridden by class selectors. The !important here
- * forces white text on any button with a border inside the dark portal.
- * This is intentionally aggressive — on dark backgrounds, bordered buttons
- * must have legible text.
- */
-html:not(.light-brand) button.border-2[style*="color: rgb(55, 65, 81)"],
-html:not(.light-brand) button.border-2[style*="color: rgb(107, 114, 128)"],
-html:not(.light-brand) button.border-2[style*="color:#374151"],
-html:not(.light-brand) button.border-2[style*="color: #374151"] {
-  color: rgba(255, 255, 255, 0.8) !important;
-  border-color: rgba(255, 255, 255, 0.3) !important;
-}
-
-/* Form inputs on light backgrounds: stronger contrast */
-html.light-brand input.bg-white\/10,
-html.light-brand select.bg-white\/10,
-html.light-brand textarea.bg-white\/10 {
-  background-color: rgba(255, 255, 255, 0.7);
-  color: #1a1a2e;
-}
-
-html.light-brand select option {
-  background-color: #ffffff;
-  color: #1a1a2e;
-}
+/* Select options need opaque bg in all modes */
+select option { background-color: #ffffff; color: #1a1a2e; }
 
 /* Utility class: text color that contrasts with the primary brand color */
-.text-on-primary {
-  color: var(--primary-text, #ffffff);
-}
+.text-on-primary { color: var(--primary-text, #ffffff); }
 
 body {
   margin: 0;

@@ -318,6 +318,15 @@ function EventMobileActionsInner({ event, eventIdentifier, useDarkText, primaryC
 
   const [hoveredItem, setHoveredItem] = useState<string | null>(null)
 
+  // Determine if any action button/badge is shown
+  const hasActionButton = (showRegisterButton && !isRegistered && !isConfirmedSpeaker && !isCompOrDiscPage) ||
+    isConfirmedSpeaker ||
+    (!isConfirmedSpeaker && isRegistered) ||
+    isLive
+
+  // Find current page label for the nav bar
+  const activeNavItem = visibleItems.find(item => isActive(item.href))
+
   return (
     <div className="lg:hidden pb-6" ref={menuRef}>
       {/* Button row: register/status + hamburger */}
@@ -400,37 +409,54 @@ function EventMobileActionsInner({ event, eventIdentifier, useDarkText, primaryC
 
         <button
           onClick={() => setMenuOpen(prev => !prev)}
-          className={`flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center cursor-pointer backdrop-blur-[10px] transition-colors duration-200 ${
+          className={`flex-shrink-0 flex items-center justify-center cursor-pointer backdrop-blur-[10px] transition-colors duration-200 ${
+            hasActionButton ? 'w-12 h-12' : 'flex-1 h-12 gap-3 px-4'
+          } ${
             useDarkText
-              ? 'bg-gray-900/15 border border-gray-700/50'
-              : 'bg-white/15 border border-white/20'
+              ? 'bg-gray-900/5 border border-gray-700/50'
+              : 'bg-white/5 border border-white/20'
           }`}
+          style={{ borderRadius: 'var(--radius-control)' }}
           aria-label={menuOpen ? 'Close menu' : 'Open menu'}
           aria-expanded={menuOpen}
         >
-          <div className="w-5 h-4 relative flex flex-col justify-between">
+          {/* Current page label — only when no action button */}
+          {!hasActionButton && activeNavItem && (
+            <>
+              <span className={`flex-shrink-0 ${useDarkText ? 'text-gray-900' : 'text-white/70'}`}>
+                {activeNavItem.icon}
+              </span>
+              <span className={`flex-1 text-left text-sm font-medium ${useDarkText ? 'text-gray-900' : 'text-white'}`}>
+                {activeNavItem.label}
+              </span>
+            </>
+          )}
+          <div className="w-5 h-5 relative flex-shrink-0">
             <span
-              className="block w-full h-0.5 rounded-full transition-all duration-300"
+              className="absolute left-0 block w-full h-0.5 rounded-full transition-all duration-300"
               style={{
                 backgroundColor: useDarkText ? '#111827' : '#ffffff',
-                transform: menuOpen ? 'translateY(7px) rotate(45deg)' : 'none',
+                top: menuOpen ? '9px' : '3px',
+                transform: menuOpen ? 'rotate(45deg)' : 'none',
                 transformOrigin: 'center',
               }}
             />
             <span
-              className="block w-full h-0.5 rounded-full transition-all duration-300"
+              className="absolute left-0 block w-full h-0.5 rounded-full transition-all duration-300"
               style={{
                 backgroundColor: useDarkText ? '#111827' : '#ffffff',
+                top: '9px',
                 opacity: menuOpen ? 0 : 1,
                 transform: menuOpen ? 'scaleX(0)' : 'none',
                 transformOrigin: 'center',
               }}
             />
             <span
-              className="block w-full h-0.5 rounded-full transition-all duration-300"
+              className="absolute left-0 block w-full h-0.5 rounded-full transition-all duration-300"
               style={{
                 backgroundColor: useDarkText ? '#111827' : '#ffffff',
-                transform: menuOpen ? 'translateY(-7px) rotate(-45deg)' : 'none',
+                top: menuOpen ? '9px' : '15px',
+                transform: menuOpen ? 'rotate(-45deg)' : 'none',
                 transformOrigin: 'center',
               }}
             />

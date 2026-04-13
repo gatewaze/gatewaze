@@ -109,6 +109,7 @@ import {
   DEFAULT_GRADIENT_WAVE_CONFIG,
   type GradientWaveConfig,
 } from "@/components/shared/branding/GradientWaveEditor";
+import { PortalNavEditor, type PortalNavOverrides } from "@/components/shared/branding/PortalNavEditor";
 
 // ── BrandingCard ───────────────────────────────────────────────────
 
@@ -129,7 +130,7 @@ const RADIX_ACCENTS: { name: PrimaryColor; hex: string }[] = [
   { name: "rose", hex: "#f43f5e" },
 ];
 
-function BrandingCard() {
+function BrandingCard({ section }: { section: "system" | "admin" | "portal" }) {
   const activeTheme = useActiveThemeModule();
   const lockedSettings = activeTheme?.themeOverrides.lockedSettings ?? [];
   const { isFeatureEnabled } = useModulesContext();
@@ -150,8 +151,8 @@ function BrandingCard() {
     useState<ThemeColorsMap>(DEFAULT_THEME_COLORS);
   const [adminAccentColor, setAdminAccentColor] = useState<PrimaryColor>("cyan");
   const [originalAdminAccentColor, setOriginalAdminAccentColor] = useState<PrimaryColor>("cyan");
-  const [portalUiMode, setPortalUiMode] = useState<"auto" | "dark" | "light">("auto");
-  const [originalPortalUiMode, setOriginalPortalUiMode] = useState<"auto" | "dark" | "light">("auto");
+  const [portalUiMode, setPortalUiMode] = useState<"frost" | "smoke" | "obsidian" | "paper">("smoke");
+  const [originalPortalUiMode, setOriginalPortalUiMode] = useState<"frost" | "smoke" | "obsidian" | "paper">("smoke");
   const [cornerStyle, setCornerStyle] = useState<CornerStyle>("rounded");
   const [originalCornerStyle, setOriginalCornerStyle] =
     useState<CornerStyle>("rounded");
@@ -171,6 +172,8 @@ function BrandingCard() {
     useState<GradientWaveConfig>(DEFAULT_GRADIENT_WAVE_CONFIG);
   const [originalGradientWaveConfig, setOriginalGradientWaveConfig] =
     useState<GradientWaveConfig>(DEFAULT_GRADIENT_WAVE_CONFIG);
+  const [portalNavOverrides, setPortalNavOverrides] = useState<PortalNavOverrides>({ items: [] });
+  const [originalPortalNavOverrides, setOriginalPortalNavOverrides] = useState<PortalNavOverrides>({ items: [] });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -193,6 +196,7 @@ function BrandingCard() {
         "gradient_wave_config",
         "portal_ui_mode",
         "admin_accent_color",
+        "portal_nav_overrides",
       ]);
 
     if (data) {
@@ -200,7 +204,8 @@ function BrandingCard() {
       let loadedTheme: PortalTheme = "gradient_wave";
       let loadedColors: ThemeColorsMap = { ...DEFAULT_THEME_COLORS };
       let loadedAdminAccentColor: PrimaryColor = "cyan";
-      let loadedPortalUiMode: "auto" | "dark" | "light" = "auto";
+      let loadedPortalNavOverrides: PortalNavOverrides = { items: [] };
+      let loadedPortalUiMode: "frost" | "smoke" | "obsidian" | "paper" = "smoke";
       let loadedCornerStyle: CornerStyle = "rounded";
       let loadedEventTypes: EventTypeOption[] = DEFAULT_EVENT_TYPES;
       let loadedContentCategories: ContentCategoryOption[] = [];
@@ -214,12 +219,21 @@ function BrandingCard() {
           // Legacy: treat "blobs" as gradient_wave
           else if (row.value === "blobs")
             loadedTheme = "gradient_wave";
+        } else if (row.key === "portal_nav_overrides") {
+          try {
+            const parsed = JSON.parse(row.value);
+            if (parsed && Array.isArray(parsed.items)) loadedPortalNavOverrides = parsed;
+          } catch { /* use defaults */ }
         } else if (row.key === "admin_accent_color") {
           const val = row.value as PrimaryColor;
           if (RADIX_ACCENTS.some((a) => a.name === val)) loadedAdminAccentColor = val;
         } else if (row.key === "portal_ui_mode") {
-          if (row.value === "auto" || row.value === "dark" || row.value === "light")
+          if (row.value === "frost" || row.value === "smoke" || row.value === "obsidian" || row.value === "paper")
             loadedPortalUiMode = row.value;
+          else if (row.value === "dark" || row.value === "auto")
+            loadedPortalUiMode = "smoke";
+          else if (row.value === "light")
+            loadedPortalUiMode = "paper";
         } else if (row.key === "corner_style") {
           if (
             row.value === "square" ||
@@ -321,6 +335,8 @@ function BrandingCard() {
       setOriginalPeopleAttributes(loadedPeopleAttributes);
       setGradientWaveConfig(loadedGradientWaveConfig);
       setOriginalGradientWaveConfig(loadedGradientWaveConfig);
+      setPortalNavOverrides(loadedPortalNavOverrides);
+      setOriginalPortalNavOverrides(loadedPortalNavOverrides);
     }
     setLoading(false);
   }, []);
@@ -339,7 +355,8 @@ function BrandingCard() {
     JSON.stringify(eventTypes) !== JSON.stringify(originalEventTypes) ||
     JSON.stringify(contentCategories) !== JSON.stringify(originalContentCategories) ||
     JSON.stringify(peopleAttributes) !== JSON.stringify(originalPeopleAttributes) ||
-    JSON.stringify(gradientWaveConfig) !== JSON.stringify(originalGradientWaveConfig);
+    JSON.stringify(gradientWaveConfig) !== JSON.stringify(originalGradientWaveConfig) ||
+    JSON.stringify(portalNavOverrides) !== JSON.stringify(originalPortalNavOverrides);
 
   const handleSave = async () => {
     if (savingRef.current) return;
@@ -364,6 +381,7 @@ function BrandingCard() {
         peopleAttributes.filter((a) => a.key && a.label)
       );
       allSettings.gradient_wave_config = JSON.stringify(gradientWaveConfig);
+      allSettings.portal_nav_overrides = JSON.stringify(portalNavOverrides);
       const rows = Object.entries(allSettings).map(([key, value]) => ({
         key,
         value,
@@ -395,6 +413,7 @@ function BrandingCard() {
       setOriginalContentCategories(contentCategories);
       setOriginalPeopleAttributes(peopleAttributes);
       setOriginalGradientWaveConfig(gradientWaveConfig);
+      setOriginalPortalNavOverrides(portalNavOverrides);
       setSaved(true);
       setTimeout(() => setSaved(false), 5000);
     } catch (err) {
@@ -436,15 +455,6 @@ function BrandingCard() {
 
   return (
     <Card size="4">
-      <div className="flex items-center gap-2 mb-2">
-        <Palette className="h-5 w-5" />
-        <Heading size="4">Portal Settings</Heading>
-      </div>
-      <Text as="p" size="2" color="gray" className="pb-4">
-        Configure your event portal's appearance. Changes may take up to a
-        minute to appear on the portal.
-      </Text>
-
       {activeTheme && (
         <Callout.Root color="blue" className="mb-6">
           <Callout.Icon>
@@ -456,14 +466,15 @@ function BrandingCard() {
         </Callout.Root>
       )}
 
+      {/* ══════════════ SYSTEM SECTION ══════════════ */}
+      {section === "system" && (
       <RadixTabs.Root value={settingsTab} onValueChange={setSettingsTab}>
         <RadixTabs.List className="mb-6">
           <RadixTabs.Trigger value="branding">Branding</RadixTabs.Trigger>
-          <RadixTabs.Trigger value="theme">Theme</RadixTabs.Trigger>
+          <RadixTabs.Trigger value="people-attributes">People</RadixTabs.Trigger>
           {hasEvents && <RadixTabs.Trigger value="event-types">Event Types</RadixTabs.Trigger>}
           <RadixTabs.Trigger value="categories">Categories</RadixTabs.Trigger>
           <RadixTabs.Trigger value="tracking">Tracking</RadixTabs.Trigger>
-          <RadixTabs.Trigger value="pages">Pages</RadixTabs.Trigger>
         </RadixTabs.List>
 
         {/* ── Branding Tab ── */}
@@ -580,214 +591,24 @@ function BrandingCard() {
           </div>
         </RadixTabs.Content>
 
-        {/* ── Theme Tab ── */}
-        <RadixTabs.Content value="theme">
+        {/* ── People Attributes Tab ── */}
+        <RadixTabs.Content value="people-attributes">
           <div className="space-y-6">
-            {/* Admin Theme */}
-            <div>
-              <Heading size="3" className="pb-1">
-                Admin Theme
-              </Heading>
-              <Text as="p" size="1" color="gray" className="pb-4">
-                Accent color used throughout the admin dashboard for buttons, links, and interactive elements.
-              </Text>
-              <div className="grid grid-cols-7 gap-3">
-                {RADIX_ACCENTS.map((accent) => (
-                  <button
-                    key={accent.name}
-                    type="button"
-                    onClick={() => {
-                      setAdminAccentColor(accent.name);
-                      // Live preview — update admin Radix accent immediately
-                      setPrimaryColorScheme(accent.name);
-                    }}
-                    className={`flex flex-col items-center gap-1.5 rounded-lg p-2 transition-all ${
-                      adminAccentColor === accent.name
-                        ? "ring-2 ring-offset-2 ring-[var(--accent-9)] bg-[var(--accent-2)]"
-                        : "hover:bg-[var(--gray-3)]"
-                    }`}
-                  >
-                    <div
-                      className="w-8 h-8 rounded-full border border-black/10"
-                      style={{ backgroundColor: accent.hex }}
-                    />
-                    <span className="text-[10px] font-medium text-[var(--gray-11)] capitalize">
-                      {accent.name}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <hr className="border-[var(--gray-5)]" />
-
-            {/* Portal Theme Editor */}
-            <div>
-              <Heading size="3" className="pb-1">
-                Portal Theme
-              </Heading>
-              <Text as="p" size="1" color="gray" className="pb-4">
-                Configure your portal's background, colors, accent, UI mode, and corner style.
-                Opens a fullscreen editor with live preview.
-              </Text>
-              <GradientWaveEditor
-                config={gradientWaveConfig}
-                onChange={setGradientWaveConfig}
-                colors={themeColors.gradient_wave}
-                onColorsChange={(c) =>
-                  setThemeColors((prev) => ({
-                    ...prev,
-                    gradient_wave: c,
-                  }))
-                }
-                uiMode={portalUiMode}
-                onUiModeChange={setPortalUiMode}
-                accentColor={settings.primary_color}
-                onAccentColorChange={(v) => updateSetting("primary_color", v)}
-                cornerStyle={cornerStyle}
-                onCornerStyleChange={setCornerStyle}
-              />
-            </div>
-
-            <hr className="border-[var(--gray-5)]" />
-
-        {/* Fonts */}
-        <div>
-          <Heading size="3" className="pb-1">
-            Fonts
-          </Heading>
-          <Text as="p" size="1" color="gray" className="pb-4">
-            Enter the name of any{" "}
-            <a
-              href="https://fonts.google.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline"
-            >
-              Google Font
-            </a>
-            . The font will be loaded automatically on the portal.
-          </Text>
-          <div className="space-y-4">
-            <div className={`space-y-1.5 ${isLocked("font_heading") ? "opacity-60" : ""}`}>
-              <Text as="label" size="2" weight="medium" className="flex items-center gap-1.5">
-                Heading Font
-                {isLocked("font_heading") && <Lock className="h-3 w-3 text-[var(--gray-9)]" />}
-              </Text>
-              <div className="flex items-center gap-3">
-                <input
-                  value={settings.font_heading}
-                  onChange={(e) =>
-                    updateSetting("font_heading", e.target.value)
-                  }
-                  disabled={isLocked("font_heading")}
-                  placeholder="Poppins"
-                  className="flex-1 rounded border border-[var(--gray-6)] bg-[var(--color-surface)] px-3 py-2 text-sm disabled:cursor-not-allowed"
-                />
-                <input
-                  value={settings.font_heading_weight}
-                  onChange={(e) =>
-                    updateSetting("font_heading_weight", e.target.value)
-                  }
-                  disabled={isLocked("font_heading_weight")}
-                  placeholder="600"
-                  className="w-24 rounded border border-[var(--gray-6)] bg-[var(--color-surface)] px-3 py-2 text-center font-mono text-sm disabled:cursor-not-allowed"
-                />
-              </div>
-            </div>
-            <div className={`space-y-1.5 ${isLocked("font_body") ? "opacity-60" : ""}`}>
-              <Text as="label" size="2" weight="medium" className="flex items-center gap-1.5">
-                Body Font
-                {isLocked("font_body") && <Lock className="h-3 w-3 text-[var(--gray-9)]" />}
-              </Text>
-              <div className="flex items-center gap-3">
-                <input
-                  value={settings.font_body}
-                  onChange={(e) => updateSetting("font_body", e.target.value)}
-                  disabled={isLocked("font_body")}
-                  placeholder="Inter"
-                  className="flex-1 rounded border border-[var(--gray-6)] bg-[var(--color-surface)] px-3 py-2 text-sm disabled:cursor-not-allowed"
-                />
-                <input
-                  value={settings.font_body_weight}
-                  onChange={(e) =>
-                    updateSetting("font_body_weight", e.target.value)
-                  }
-                  disabled={isLocked("font_body_weight")}
-                  placeholder="400"
-                  className="w-24 rounded border border-[var(--gray-6)] bg-[var(--color-surface)] px-3 py-2 text-center font-mono text-sm disabled:cursor-not-allowed"
-                />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Text as="label" size="2" weight="medium">
-                Body Text Size
-              </Text>
-              <div className="flex items-center gap-3">
-                <select
-                  value={settings.body_text_size}
-                  onChange={(e) =>
-                    updateSetting("body_text_size", e.target.value)
-                  }
-                  className="rounded border border-[var(--gray-6)] bg-[var(--color-surface)] px-3 py-2 text-sm"
-                >
-                  <option value="12">12px — Small</option>
-                  <option value="14">14px — Compact</option>
-                  <option value="16">16px — Default</option>
-                  <option value="18">18px — Large</option>
-                  <option value="20">20px — Extra Large</option>
-                </select>
-                <span
-                  className="text-sm text-[var(--gray-9)]"
-                  style={{ fontSize: `${settings.body_text_size}px` }}
-                >
-                  Preview text
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
+            <PeopleAttributesEditor
+              value={peopleAttributes}
+              onChange={setPeopleAttributes}
+            />
 
             <hr className="border-[var(--gray-5)]" />
 
             {/* Save */}
             <div className="flex items-center gap-3">
-              <Button
-                onClick={handleSave}
-                disabled={!hasChanges || saving}
-                variant="solid"
-              >
-                {saving ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...
-                  </>
-                ) : saved ? (
-                  <>
-                    <Check className="mr-2 h-4 w-4" /> Saved
-                  </>
-                ) : (
-                  "Save Changes"
-                )}
+              <Button onClick={handleSave} disabled={!hasChanges || saving} variant="solid">
+                {saving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</>) : saved ? (<><Check className="mr-2 h-4 w-4" /> Saved</>) : "Save Changes"}
               </Button>
-              {hasChanges && !saving && !saveError && (
-                <Text size="1" color="gray">
-                  You have unsaved changes
-                </Text>
-              )}
-              {saveError && (
-                <Text size="1" color="red">
-                  Error: {saveError}
-                </Text>
-              )}
+              {hasChanges && !saving && !saveError && (<Text size="1" color="gray">You have unsaved changes</Text>)}
+              {saveError && (<Text size="1" color="red">Error: {saveError}</Text>)}
             </div>
-            {saved && (
-              <div className="flex items-center gap-2 rounded-md bg-[var(--accent-2)] border border-[var(--accent-6)] px-3 py-2">
-                <Info className="h-4 w-4 shrink-0 text-[var(--accent-9)]" />
-                <Text size="1" color="gray">
-                  Changes may take up to a minute to appear on the portal.
-                </Text>
-              </div>
-            )}
           </div>
         </RadixTabs.Content>
 
@@ -1013,11 +834,186 @@ function BrandingCard() {
           </div>
         </RadixTabs.Content>
 
-        {/* ── Pages Tab ── */}
+      </RadixTabs.Root>
+      )}
+
+      {/* ══════════════ ADMIN SECTION ══════════════ */}
+      {section === "admin" && (
+        <div className="space-y-6">
+          <Heading size="3" className="pb-1">
+            Admin Accent Color
+          </Heading>
+          <Text as="p" size="1" color="gray" className="pb-4">
+            Accent color used throughout the admin dashboard for buttons, links, and interactive elements.
+          </Text>
+          <div className="grid grid-cols-7 gap-3">
+            {RADIX_ACCENTS.map((accent) => (
+              <button
+                key={accent.name}
+                type="button"
+                onClick={() => {
+                  setAdminAccentColor(accent.name);
+                  setPrimaryColorScheme(accent.name);
+                }}
+                className={`flex flex-col items-center gap-1.5 rounded-lg p-2 transition-all ${
+                  adminAccentColor === accent.name
+                    ? "ring-2 ring-offset-2 ring-[var(--accent-9)] bg-[var(--accent-2)]"
+                    : "hover:bg-[var(--gray-3)]"
+                }`}
+              >
+                <div
+                  className="w-8 h-8 rounded-full border border-black/10"
+                  style={{ backgroundColor: accent.hex }}
+                />
+                <span className="text-[10px] font-medium text-[var(--gray-11)] capitalize">
+                  {accent.name}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          <hr className="border-[var(--gray-5)]" />
+
+          <div className="flex items-center gap-3">
+            <Button onClick={handleSave} disabled={!hasChanges || saving} variant="solid">
+              {saving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</>) : saved ? (<><Check className="mr-2 h-4 w-4" /> Saved</>) : "Save Changes"}
+            </Button>
+            {hasChanges && !saving && !saveError && (<Text size="1" color="gray">You have unsaved changes</Text>)}
+            {saveError && (<Text size="1" color="red">Error: {saveError}</Text>)}
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════ PORTAL SECTION ══════════════ */}
+      {section === "portal" && (
+      <RadixTabs.Root value={settingsTab === "branding" ? "theme" : settingsTab} onValueChange={setSettingsTab}>
+        <RadixTabs.List className="mb-6">
+          <RadixTabs.Trigger value="theme">Theme</RadixTabs.Trigger>
+          <RadixTabs.Trigger value="navigation">Navigation</RadixTabs.Trigger>
+          <RadixTabs.Trigger value="fonts">Fonts</RadixTabs.Trigger>
+          <RadixTabs.Trigger value="pages">Pages</RadixTabs.Trigger>
+        </RadixTabs.List>
+
+        <RadixTabs.Content value="theme">
+          <div className="space-y-6">
+            <GradientWaveEditor
+              config={gradientWaveConfig}
+              onChange={setGradientWaveConfig}
+              colors={themeColors.gradient_wave}
+              onColorsChange={(c) =>
+                setThemeColors((prev) => ({
+                  ...prev,
+                  gradient_wave: c,
+                }))
+              }
+              uiMode={portalUiMode}
+              onUiModeChange={setPortalUiMode}
+              accentColor={settings.primary_color}
+              onAccentColorChange={(v) => updateSetting("primary_color", v)}
+              cornerStyle={cornerStyle}
+              onCornerStyleChange={setCornerStyle}
+            />
+
+            <hr className="border-[var(--gray-5)]" />
+
+            <div className="flex items-center gap-3">
+              <Button onClick={handleSave} disabled={!hasChanges || saving} variant="solid">
+                {saving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</>) : saved ? (<><Check className="mr-2 h-4 w-4" /> Saved</>) : "Save Changes"}
+              </Button>
+              {hasChanges && !saving && !saveError && (<Text size="1" color="gray">You have unsaved changes</Text>)}
+              {saveError && (<Text size="1" color="red">Error: {saveError}</Text>)}
+            </div>
+            {saved && (
+              <div className="flex items-center gap-2 rounded-md bg-[var(--accent-2)] border border-[var(--accent-6)] px-3 py-2">
+                <Info className="h-4 w-4 shrink-0 text-[var(--accent-9)]" />
+                <Text size="1" color="gray">Changes may take up to a minute to appear on the portal.</Text>
+              </div>
+            )}
+          </div>
+        </RadixTabs.Content>
+
+        <RadixTabs.Content value="navigation">
+          <div className="space-y-6">
+            <PortalNavEditor
+              value={portalNavOverrides}
+              onChange={setPortalNavOverrides}
+            />
+
+            <hr className="border-[var(--gray-5)]" />
+
+            <div className="flex items-center gap-3">
+              <Button onClick={handleSave} disabled={!hasChanges || saving} variant="solid">
+                {saving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</>) : saved ? (<><Check className="mr-2 h-4 w-4" /> Saved</>) : "Save Changes"}
+              </Button>
+              {hasChanges && !saving && !saveError && (<Text size="1" color="gray">You have unsaved changes</Text>)}
+              {saveError && (<Text size="1" color="red">Error: {saveError}</Text>)}
+            </div>
+          </div>
+        </RadixTabs.Content>
+
+        <RadixTabs.Content value="fonts">
+          <div className="space-y-6">
+            <div>
+              <Heading size="3" className="pb-1">Fonts</Heading>
+              <Text as="p" size="1" color="gray" className="pb-4">
+                Enter the name of any{" "}
+                <a href="https://fonts.google.com" target="_blank" rel="noopener noreferrer" className="underline">Google Font</a>.
+                The font will be loaded automatically on the portal.
+              </Text>
+              <div className="space-y-4">
+                <div className={`space-y-1.5 ${isLocked("font_heading") ? "opacity-60" : ""}`}>
+                  <Text as="label" size="2" weight="medium" className="flex items-center gap-1.5">
+                    Heading Font
+                    {isLocked("font_heading") && <Lock className="h-3 w-3 text-[var(--gray-9)]" />}
+                  </Text>
+                  <div className="flex items-center gap-3">
+                    <input value={settings.font_heading} onChange={(e) => updateSetting("font_heading", e.target.value)} disabled={isLocked("font_heading")} placeholder="Poppins" className="flex-1 rounded border border-[var(--gray-6)] bg-[var(--color-surface)] px-3 py-2 text-sm disabled:cursor-not-allowed" />
+                    <input value={settings.font_heading_weight} onChange={(e) => updateSetting("font_heading_weight", e.target.value)} disabled={isLocked("font_heading_weight")} placeholder="600" className="w-24 rounded border border-[var(--gray-6)] bg-[var(--color-surface)] px-3 py-2 text-center font-mono text-sm disabled:cursor-not-allowed" />
+                  </div>
+                </div>
+                <div className={`space-y-1.5 ${isLocked("font_body") ? "opacity-60" : ""}`}>
+                  <Text as="label" size="2" weight="medium" className="flex items-center gap-1.5">
+                    Body Font
+                    {isLocked("font_body") && <Lock className="h-3 w-3 text-[var(--gray-9)]" />}
+                  </Text>
+                  <div className="flex items-center gap-3">
+                    <input value={settings.font_body} onChange={(e) => updateSetting("font_body", e.target.value)} disabled={isLocked("font_body")} placeholder="Inter" className="flex-1 rounded border border-[var(--gray-6)] bg-[var(--color-surface)] px-3 py-2 text-sm disabled:cursor-not-allowed" />
+                    <input value={settings.font_body_weight} onChange={(e) => updateSetting("font_body_weight", e.target.value)} disabled={isLocked("font_body_weight")} placeholder="400" className="w-24 rounded border border-[var(--gray-6)] bg-[var(--color-surface)] px-3 py-2 text-center font-mono text-sm disabled:cursor-not-allowed" />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Text as="label" size="2" weight="medium">Body Text Size</Text>
+                  <div className="flex items-center gap-3">
+                    <select value={settings.body_text_size} onChange={(e) => updateSetting("body_text_size", e.target.value)} className="rounded border border-[var(--gray-6)] bg-[var(--color-surface)] px-3 py-2 text-sm">
+                      <option value="12">12px — Small</option>
+                      <option value="14">14px — Compact</option>
+                      <option value="16">16px — Default</option>
+                      <option value="18">18px — Large</option>
+                      <option value="20">20px — Extra Large</option>
+                    </select>
+                    <span className="text-sm text-[var(--gray-9)]" style={{ fontSize: `${settings.body_text_size}px` }}>Preview text</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <hr className="border-[var(--gray-5)]" />
+
+            <div className="flex items-center gap-3">
+              <Button onClick={handleSave} disabled={!hasChanges || saving} variant="solid">
+                {saving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</>) : saved ? (<><Check className="mr-2 h-4 w-4" /> Saved</>) : "Save Changes"}
+              </Button>
+              {hasChanges && !saving && !saveError && (<Text size="1" color="gray">You have unsaved changes</Text>)}
+              {saveError && (<Text size="1" color="red">Error: {saveError}</Text>)}
+            </div>
+          </div>
+        </RadixTabs.Content>
+
         <RadixTabs.Content value="pages">
           <LegalPagesContent />
         </RadixTabs.Content>
       </RadixTabs.Root>
+      )}
     </Card>
   );
 }
@@ -1340,7 +1336,7 @@ function PeopleAttributesCard() {
 // ── Main Page Component ────────────────────────────────────────────
 
 export default function Branding() {
-  const [topTab, setTopTab] = useState("portal");
+  const [topTab, setTopTab] = useState("system");
 
   return (
     <Page title="Settings">
@@ -1356,26 +1352,21 @@ export default function Branding() {
 
         <RadixTabs.Root value={topTab} onValueChange={setTopTab}>
           <RadixTabs.List className="mb-6">
-            <RadixTabs.Trigger value="portal">
-              <Palette className="mr-1.5 h-4 w-4 inline-block" />
-              Portal Settings
-            </RadixTabs.Trigger>
-            <RadixTabs.Trigger value="people">
-              <Users className="mr-1.5 h-4 w-4 inline-block" />
-              People Attributes
-            </RadixTabs.Trigger>
+            <RadixTabs.Trigger value="system">System</RadixTabs.Trigger>
+            <RadixTabs.Trigger value="admin">Admin</RadixTabs.Trigger>
+            <RadixTabs.Trigger value="portal">Portal</RadixTabs.Trigger>
           </RadixTabs.List>
 
-          <RadixTabs.Content value="portal">
-            <div className="space-y-6">
-              <BrandingCard />
-            </div>
+          <RadixTabs.Content value="system">
+            <BrandingCard section="system" />
           </RadixTabs.Content>
 
-          <RadixTabs.Content value="people">
-            <div className="space-y-6">
-              <PeopleAttributesCard />
-            </div>
+          <RadixTabs.Content value="admin">
+            <BrandingCard section="admin" />
+          </RadixTabs.Content>
+
+          <RadixTabs.Content value="portal">
+            <BrandingCard section="portal" />
           </RadixTabs.Content>
         </RadixTabs.Root>
       </div>

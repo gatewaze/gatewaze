@@ -76,8 +76,12 @@ export function PortalButton({
   // Determine text color for primary buttons based on primary color lightness
   const primaryTextColor = isLightColor(primaryColor) ? '#000000' : '#ffffff'
 
-  // Variant-specific styles
-  const baseStyle: React.CSSProperties = { borderRadius: 'var(--radius-control)' }
+  // Variant-specific styles — all buttons get backdrop-blur for glass effect
+  const baseStyle: React.CSSProperties = {
+    borderRadius: 'var(--radius-control)',
+    backdropFilter: 'blur(var(--glass-blur, 4px))',
+    WebkitBackdropFilter: 'blur(var(--glass-blur, 4px))',
+  }
   const variantStyles: React.CSSProperties = variant === 'primary'
     ? {
         ...baseStyle,
@@ -89,7 +93,6 @@ export function PortalButton({
         boxShadow: isLightColor(primaryColor)
           ? `inset 0 0 0 1px rgba(0, 0, 0, 0.1), 0 4px 6px -1px rgba(0, 0, 0, 0.1)`
           : `inset 0 0 0 1px rgba(255, 255, 255, 0.5), 0 4px 6px -1px rgba(0, 0, 0, 0.1)`,
-        // CSS custom property for button background (used by portal-primary-button)
         '--button-bg': primaryColor,
       } as React.CSSProperties
     : baseStyle
