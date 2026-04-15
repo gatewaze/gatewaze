@@ -58,7 +58,7 @@ interface FormErrors {
 
 export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: Props) {
   const router = useRouter()
-  const { event, useDarkText, primaryColor, eventIdentifier } = useEventContext()
+  const { event, useDarkText, primaryColor, eventIdentifier, basePath } = useEventContext()
   const { session, isLoading: authLoading } = useAuth()
 
   const durationOptions = event.talk_duration_options || []
@@ -485,7 +485,7 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
       }))
 
       setIsRedirecting(true)
-      const successUrl = `/events/${eventIdentifier}/talks/success?token=${editToken}&updated=true${result.status_changed ? '&status_reset=true' : ''}`
+      const successUrl = `${basePath}/talks/success?token=${editToken}&updated=true${result.status_changed ? '&status_reset=true' : ''}`
       router.push(successUrl)
     } catch (err) {
       console.error('Speaker update error:', err)
@@ -524,14 +524,14 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
           {loadError.includes('sign in') ? (
             <div className="mt-4 space-y-3">
               <Link
-                href={`/sign-in?redirectTo=/events/${eventIdentifier}/talks/edit${editToken ? `?token=${editToken}` : ''}`}
+                href={`/sign-in?redirectTo=${basePath}/talks/edit${editToken ? `?token=${editToken}` : ''}`}
                 className="block px-6 py-3 font-semibold rounded-lg transition-all hover:opacity-90 cursor-pointer"
                 style={{ backgroundColor: primaryColor, color: isLightColor(primaryColor) ? '#000000' : '#ffffff' }}
               >
                 Sign In
               </Link>
               <Link
-                href={`/events/${eventIdentifier}`}
+                href={`${basePath || '/'}`}
                 className="block px-6 py-3 font-medium rounded-lg border transition-colors border-white/30 text-white hover:bg-white/10 cursor-pointer"
               >
                 Back to event
@@ -539,7 +539,7 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
             </div>
           ) : (
             <Link
-              href={`/events/${eventIdentifier}`}
+              href={`${basePath || '/'}`}
               className="inline-block mt-4 px-6 py-3 font-medium rounded-lg border transition-colors border-white/30 text-white hover:bg-white/10 cursor-pointer"
             >
               Back to event
@@ -565,7 +565,7 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
             This submission has been rejected and cannot be edited.
           </p>
           <Link
-            href={`/events/${eventIdentifier}`}
+            href={`${basePath || '/'}`}
             className="inline-block mt-6 px-6 py-3 font-medium rounded-lg border transition-colors border-white/30 text-white hover:bg-white/10 cursor-pointer"
           >
             Back to event
@@ -956,7 +956,7 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
             </PortalButton>
             <PortalButton
               variant="secondary"
-              href={`/events/${eventIdentifier}/talks/success?token=${editToken}`}
+              href={`${basePath}/talks/success?token=${editToken}`}
             >
               Cancel
             </PortalButton>

@@ -4,11 +4,13 @@ import { useState, useEffect, type RefObject } from 'react'
 import Link from 'next/link'
 import type { Event } from '@/types/event'
 import type { BrandConfig } from '@/config/brand'
+import { isOnCustomDomain } from '@/lib/customDomain'
 
 interface Props {
   event: Event & { id: string }
   brandConfig: BrandConfig
   heroRef: RefObject<HTMLDivElement | null>
+  eventIdentifier: string
 }
 
 function formatShortDate(dateStr: string | null): string | null {
@@ -21,7 +23,7 @@ function formatShortDate(dateStr: string | null): string | null {
   }
 }
 
-export function EventCompactBar({ event, brandConfig, heroRef }: Props) {
+export function EventCompactBar({ event, brandConfig, heroRef, eventIdentifier }: Props) {
   const [visible, setVisible] = useState(false)
 
   useEffect(() => {
@@ -39,7 +41,8 @@ export function EventCompactBar({ event, brandConfig, heroRef }: Props) {
   const imageUrl = event.event_logo || event.screenshot_url
   const shortDate = formatShortDate(event.event_start)
   const city = event.event_city
-  const eventUrl = `/events/${event.event_slug || event.event_id}`
+  const basePath = isOnCustomDomain() ? '' : `/events/${eventIdentifier}`
+  const eventUrl = basePath || '/'
 
   return (
     <div

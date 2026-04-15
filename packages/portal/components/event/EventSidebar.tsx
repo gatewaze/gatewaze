@@ -11,6 +11,8 @@ import { CLICK_ID_PARAMS } from '@/config/platforms'
 import { createTrackingSession, captureTrackingParams, markSessionRedirected } from '@/lib/tracking'
 import { hasConsentFor } from '@/hooks/useConsent'
 import type { EventUserState } from '@/hooks/useEventUserState'
+import { useAuth } from '@/hooks/useAuth'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import { isOnCustomDomain } from '@/lib/customDomain'
 import { isLightColor } from '@/config/brand'
 
@@ -34,19 +36,52 @@ interface Props {
   userState?: EventUserState
 }
 
-function useModuleNavItems(basePath: string) {
+function useIsAdmin() {
+  const { user, isLoading } = useAuth()
+  const [isAdmin, setIsAdmin] = useState(false)
+
+  useEffect(() => {
+    if (isLoading || !user) {
+      setIsAdmin(false)
+      return
+    }
+    let cancelled = false
+    getSupabaseClient()
+      .from('admin_profiles')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('is_active', true)
+      .in('role', ['admin', 'super_admin'])
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) setIsAdmin(!!data)
+      })
+    return () => { cancelled = true }
+  }, [user, isLoading])
+
+  return isAdmin
+}
+
+function useModuleNavItems(basePath: string, event: Event) {
   const [items, setItems] = useState<NavItem[]>([])
+  const isAdmin = useIsAdmin()
 
   useEffect(() => {
     // Dynamic import to avoid SSR issues with generated file
     import('@/lib/modules/generated-event-pages').then(({ eventModulePages }) => {
       const navItems: NavItem[] = []
       for (const page of eventModulePages) {
+        // Check admin requirement
+        if (page.requiresAdmin && !isAdmin) continue
         // Check localStorage requirement
         if (page.requiresLocalStorage) {
           try {
             if (!localStorage.getItem(page.requiresLocalStorage)) continue
           } catch { continue }
+        }
+        // "live" page from virtual-events module requires a configured virtual event
+        if (page.moduleId === 'virtual-events' && page.slug === 'live') {
+          if (!event.gradual_eventslug) continue
         }
         navItems.push({
           label: page.label,
@@ -61,13 +96,13 @@ function useModuleNavItems(basePath: string) {
       }
       setItems(navItems)
     }).catch(() => {})
-  }, [basePath])
+  }, [basePath, event.gradual_eventslug, isAdmin])
 
   return items
 }
 
 function useNavItems(event: Event, basePath: string, speakerCount: number, sponsorCount: number, competitionCount: number, discountCount: number, mediaCount: number, userState?: EventUserState) {
-  const moduleNavItems = useModuleNavItems(basePath)
+  const moduleNavItems = useModuleNavItems(basePath, event)
 
   const navItems: NavItem[] = [
     {

@@ -10,6 +10,7 @@ import { stripEmojis } from '@/lib/text'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { GlowInput, GlowTextarea } from '@/components/ui/GlowInput'
 import { PortalButton } from '@/components/ui/PortalButton'
+import { isOnCustomDomain } from '@/lib/customDomain'
 
 interface UserProfile {
   email: string
@@ -351,7 +352,8 @@ export function SpeakerSubmissionForm({ event, brandConfig, onSuccess, onCancel,
 
       // Redirect to success page with the edit token
       const eventIdentifier = event.event_slug || event.event_id
-      const successUrl = new URL(`/events/${eventIdentifier}/talks/success`, window.location.origin)
+      const basePath = isOnCustomDomain() ? '' : `/events/${eventIdentifier}`
+      const successUrl = new URL(`${basePath}/talks/success`, window.location.origin)
       if (result.edit_token) {
         successUrl.searchParams.set('token', result.edit_token)
       }
