@@ -13,8 +13,30 @@ import Redis from 'ioredis';
 import { JobTypes, getQueue } from '../lib/job-queue.js';
 import { supabase } from '../supabase-client.js';
 
-// Import scraper worker logic
-import { runScraperJob } from './scraper-job-handler.js';
+// Import scraper worker logic from premium-gatewaze-modules
+// The scraper code lives in the modules repo; we dynamically resolve the path
+import path from 'path';
+import { fileURLToPath } from 'url';
+const __workerFilename = fileURLToPath(import.meta.url);
+const __workerDirname = path.dirname(__workerFilename);
+
+// Resolve premium-gatewaze-modules path (sibling repo in the workspace)
+const premiumModulesPath = process.env.SCRAPER_MODULE_PATH ||
+  path.resolve(__workerDirname, '..', '..', '..', 'premium-gatewaze-modules', 'modules', 'scrapers', 'scripts');
+
+const { runScraperJob, initScraperHandler } = await import(
+  path.join(premiumModulesPath, 'scraper-job-handler.js')
+);
+const { sendScraperAlert } = await import(
+  path.join(premiumModulesPath, 'lib', 'scraper-alerts.js')
+);
+
+// Initialize the scraper handler with dependencies from this repo
+initScraperHandler({
+  supabase,
+  addJob: (type, data) => getQueue(brand).add(type, { ...data, brand }),
+  JobTypes,
+});
 
 // Import Slack invitation queue processor
 import { processQueue as processSlackQueue } from './slack-invitation-worker.js';
@@ -216,8 +238,8 @@ const handlers = {
       }
     };
 
-    // Run the scraper job
-    const result = await runScraperJob(scraperJobId, logger);
+    // Run the scraper job (pass BullMQ job for heartbeat support)
+    const result = await runScraperJob(scraperJobId, logger, job);
     return result;
   },
 
@@ -600,8 +622,9 @@ const worker = new Worker(
   {
     connection: getConnection(),
     concurrency: parseInt(process.env.WORKER_CONCURRENCY || '1', 10),
-    lockDuration: 600000,      // 10 minutes — allows large zip downloads
-    stalledInterval: 300000,   // 5 minutes — don't mark long jobs as stalled
+    lockDuration: 300000,      // 5 minutes — worker must renew lock within this window
+    stalledInterval: 30000,    // 30 seconds — check for stalled jobs frequently
+    maxStalledCount: 2,        // Mark as failed after 2 consecutive stalled checks
     limiter: {
       max: 10,
       duration: 1000,
@@ -614,10 +637,24 @@ worker.on('completed', (job, result) => {
   console.log(`✅ Job ${job.id} completed`);
 });
 
-worker.on('failed', (job, error) => {
+worker.on('failed', async (job, error) => {
   console.error(`❌ Job ${job?.id} failed: ${error.message}`);
   if (job) {
     console.error(`   Attempts: ${job.attemptsMade}/${job.opts?.attempts || 3}`);
+  }
+  // Send alert for scraper failures
+  if (job?.name === JobTypes.SCRAPER_RUN) {
+    try {
+      await sendScraperAlert({
+        severity: 'error',
+        title: `Job Failed: ${job.data?.scraperName || 'unknown'}`,
+        message: `${error.message}\nAttempts: ${job.attemptsMade}/${job.opts?.attempts || 3}`,
+        scraperName: job.data?.scraperName,
+        jobId: job.data?.scraperJobId,
+      });
+    } catch (alertErr) {
+      console.error(`Failed to send alert: ${alertErr.message}`);
+    }
   }
 });
 
@@ -625,8 +662,22 @@ worker.on('error', (error) => {
   console.error('Worker error:', error);
 });
 
-worker.on('stalled', (jobId) => {
+worker.on('stalled', async (jobId) => {
   console.warn(`⚠️ Job ${jobId} stalled`);
+  try {
+    const stalledJob = await getQueue(brand).getJob(jobId);
+    if (stalledJob?.name === JobTypes.SCRAPER_RUN) {
+      await sendScraperAlert({
+        severity: 'error',
+        title: `Job Stalled: ${stalledJob.data?.scraperName || 'unknown'}`,
+        message: `Worker may have crashed. Job will be retried if attempts remain.`,
+        scraperName: stalledJob.data?.scraperName,
+        jobId: stalledJob.data?.scraperJobId,
+      });
+    }
+  } catch (alertErr) {
+    console.error(`Failed to send stalled alert: ${alertErr.message}`);
+  }
 });
 
 // Graceful shutdown
@@ -643,6 +694,60 @@ console.log(`✅ Worker started for ${brand}`);
 console.log(`   Concurrency: ${process.env.WORKER_CONCURRENCY || 1}`);
 console.log(`   Redis: ${process.env.REDIS_URL || 'redis://redis:6379'}`);
 
+// Recover stuck scraper jobs (no heartbeat for 10+ minutes)
+async function recoverStuckScraperJobs() {
+  try {
+    const { data: stuckJobs, error } = await supabase.rpc('scrapers_get_stuck_jobs', {
+      stale_minutes: 10,
+    });
+    if (error || !stuckJobs || stuckJobs.length === 0) return;
+
+    console.log(`🔍 Found ${stuckJobs.length} stuck scraper job(s)`);
+    for (const stuckJob of stuckJobs) {
+      console.log(`⚠️ Recovering stuck job ${stuckJob.id} (${stuckJob.scraper_name || 'unknown'})`);
+      await supabase.rpc('scrapers_update_job', {
+        job_id: stuckJob.id,
+        new_status: 'failed',
+        error_msg: 'Job timed out (heartbeat) — no heartbeat for 10+ minutes',
+      });
+      await sendScraperAlert({
+        severity: 'error',
+        title: `Stuck Job Recovered`,
+        message: `Job had no heartbeat for 10+ minutes and was marked as failed.`,
+        scraperName: stuckJob.scraper_name || 'unknown',
+        jobId: stuckJob.id,
+      });
+    }
+  } catch (err) {
+    // scrapers_get_stuck_jobs RPC may not exist yet during migration rollout
+    if (!err.message?.includes('function') && !err.message?.includes('does not exist')) {
+      console.error('Stuck job recovery failed:', err.message);
+    }
+  }
+}
+
+// Check scheduler health
+async function checkSchedulerHealth() {
+  try {
+    const redis = getRedisPublisher();
+    const lastRun = await redis.get('scheduler:last_run');
+    if (lastRun) {
+      const minutesSince = (Date.now() - parseInt(lastRun)) / 60000;
+      if (minutesSince > 3) {
+        await sendScraperAlert({
+          severity: 'critical',
+          title: 'Scheduler Down',
+          message: `Scraper scheduler has not run for ${Math.round(minutesSince)} minutes. Scheduled scrapers are not being triggered.`,
+          scraperName: 'system',
+          jobId: 'scheduler',
+        });
+      }
+    }
+  } catch (err) {
+    // Non-fatal — Redis may not have the key yet
+  }
+}
+
 // Clean up stale jobs on startup
 cleanupStaleScraperJobs().catch(err => console.error('Startup cleanup failed:', err));
 
@@ -650,8 +755,10 @@ cleanupStaleScraperJobs().catch(err => console.error('Startup cleanup failed:', 
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 setInterval(() => {
   cleanupStaleScraperJobs().catch(err => console.error('Periodic cleanup failed:', err));
+  recoverStuckScraperJobs().catch(err => console.error('Stuck job recovery failed:', err));
+  checkSchedulerHealth().catch(err => console.error('Scheduler health check failed:', err));
 }, CLEANUP_INTERVAL_MS);
-console.log(`🔄 Periodic stale job cleanup scheduled every 5 minutes`);
+console.log(`🔄 Periodic cleanup, stuck recovery, and scheduler health check every 5 minutes`);
 
 // Start Slack invitation queue processor if Slack environment variables are present
 if (process.env.SLACK_WORKSPACE_URL && process.env.SLACK_ADMIN_EMAIL) {
