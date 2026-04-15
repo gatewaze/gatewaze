@@ -95,6 +95,16 @@ export class ScraperScheduler {
    */
   async checkAndRunDueScrapers() {
     try {
+      // Write scheduler health key to Redis so workers can detect if scheduler dies
+      if (jobQueue) {
+        try {
+          const Redis = (await import('ioredis')).default;
+          const redis = new Redis(process.env.REDIS_URL || 'redis://redis:6379', { maxRetriesPerRequest: 1 });
+          await redis.set('scheduler:last_run', Date.now().toString());
+          await redis.quit();
+        } catch (e) { /* non-fatal */ }
+      }
+
       // Get scrapers that are due for a run
       const { data: dueScrapers, error } = await this.supabase
         .rpc('scrapers_get_due_for_run');
