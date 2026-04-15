@@ -38,8 +38,14 @@ initScraperHandler({
   JobTypes,
 });
 
-// Import Slack invitation queue processor
-import { processQueue as processSlackQueue } from './slack-invitation-worker.js';
+// Import Slack invitation queue processor from premium-modules
+const slackModulePath = path.resolve(__workerDirname, '..', '..', '..', 'premium-gatewaze-modules', 'modules', 'slack-integration', 'scripts');
+const { processQueue: processSlackQueue, initSlackWorker } = await import(
+  path.join(slackModulePath, 'slack-invitation-worker.js')
+);
+
+// Initialize the slack worker with dependencies
+initSlackWorker({ supabase });
 
 const brand = process.env.BRAND || 'default';
 const queueName = `jobs-${brand}`;
