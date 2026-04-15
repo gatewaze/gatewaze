@@ -173,6 +173,20 @@ function RegionDropdown({
             borderColor: light ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.15)',
           }}
         >
+          <button
+            onClick={() => {
+              if (selectedRegion) onToggleRegion(selectedRegion)
+              setOpen(false)
+            }}
+            className="cursor-pointer w-full text-left px-4 py-2 text-base transition-colors"
+            style={
+              !selectedRegion
+                ? { backgroundColor: light ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.15)', color: light ? '#000000' : '#ffffff', fontWeight: 500 }
+                : { color: light ? 'rgba(26,26,46,0.7)' : 'rgba(255,255,255,0.8)' }
+            }
+          >
+            All regions
+          </button>
           {REGION_CODES.map((code) => (
               <button
                 key={code}
