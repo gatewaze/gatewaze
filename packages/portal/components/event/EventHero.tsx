@@ -6,6 +6,7 @@ import type { Event } from '@/types/event'
 import type { BrandConfig } from '@/config/brand'
 import { GlowBorder } from '@/components/ui/GlowBorder'
 import { stripEmojis } from '@/lib/text'
+import { isOnCustomDomain } from '@/lib/customDomain'
 
 interface DateParts {
   month: string
@@ -222,8 +223,9 @@ export function EventHero({ event, brandConfig, useDarkText, heroRef }: Props) {
   // Determine if we have any location info to show
   const hasLocation = venueName || cityRegion
 
-  // Event identifier for linking
+  // Event identifier for linking — use basePath for custom domain compat
   const eventIdentifier = event.event_slug || event.event_id
+  const eventBasePath = isOnCustomDomain() ? '' : `/events/${eventIdentifier}`
 
   // Fixed width for the image column (used for alignment with sidebar below)
   const IMAGE_COLUMN_WIDTH = 'w-full lg:w-[320px]'
@@ -236,7 +238,7 @@ export function EventHero({ event, brandConfig, useDarkText, heroRef }: Props) {
         <div className={`order-1 lg:order-1 ${IMAGE_COLUMN_WIDTH} flex-shrink-0`}>
           {(event.event_logo || event.screenshot_url) ? (
             <Link
-              href={`/events/${eventIdentifier}`}
+              href={eventBasePath || '/'}
               className="block w-full transition-transform hover:scale-[1.02]"
             >
               <GlowBorder useDarkTheme={useDarkText} className="" autoRotate autoRotateSpeed={50}>
@@ -256,7 +258,7 @@ export function EventHero({ event, brandConfig, useDarkText, heroRef }: Props) {
           ) : (
             // Fallback: brand icon if available, otherwise gradient card with first letter
             <Link
-              href={`/events/${eventIdentifier}`}
+              href={eventBasePath || '/'}
               className="block w-full transition-transform hover:scale-[1.02]"
             >
               <GlowBorder useDarkTheme={useDarkText} className="" autoRotate autoRotateSpeed={50}>

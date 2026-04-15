@@ -31,7 +31,7 @@ export function TimelineTabs({ brandConfig, upcomingCount, pastCount, basePath =
   const activeView = getActiveView()
 
   return (
-    <div className="flex w-full sm:inline-flex sm:w-auto p-1 gap-1" style={{ borderRadius: 'var(--radius-control-outer)', backgroundColor: `rgba(255,255,255,var(--glass-opacity,0.05))`, backdropFilter: `blur(var(--glass-blur,4px))`, WebkitBackdropFilter: `blur(var(--glass-blur,4px))`, border: `1px solid rgba(255,255,255,var(--glass-border-opacity,0.1))` }}>
+    <div className="flex w-full sm:inline-flex sm:w-auto p-1 gap-1" style={{ borderRadius: 'var(--radius-control-outer)', backgroundColor: `rgba(var(--panel-tint,0,0,0),var(--glass-opacity,0.05))`, backdropFilter: `blur(var(--glass-blur,4px))`, WebkitBackdropFilter: `blur(var(--glass-blur,4px))`, border: `1px solid rgba(var(--panel-tint,0,0,0),var(--glass-border-opacity,0.1))` }}>
       <ViewTab
           href={`${basePath}/upcoming${filterSuffix}`}
           active={activeView === 'upcoming'}

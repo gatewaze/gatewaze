@@ -10,6 +10,7 @@ import { RegistrationForm } from './RegistrationForm'
 import { EventHero, shouldUseDarkText } from './EventHero'
 import { EventContent } from './EventContent'
 import { GlowBorder } from '@/components/ui/GlowBorder'
+import { isOnCustomDomain } from '@/lib/customDomain'
 
 interface Props {
   event: Event
@@ -58,6 +59,8 @@ export function EventDetailContent({ event, brandConfig }: Props) {
 
   const primaryColor = brandConfig.primaryColor
   const secondaryColor = brandConfig.secondaryColor
+  const eventIdentifier = event.event_slug || event.event_id
+  const basePath = isOnCustomDomain() ? '' : `/events/${eventIdentifier}`
 
   // Determine if we need dark text (for light backgrounds)
   const useDarkText = useMemo(
@@ -171,7 +174,7 @@ export function EventDetailContent({ event, brandConfig }: Props) {
                       </div>
                     </div>
                     <a
-                      href={`/events/${event.event_slug || event.event_id}/speakers`}
+                      href={`${basePath}/speakers`}
                       className="block w-full px-4 py-2.5 text-sm font-semibold rounded-xl transition-all duration-200 border-2 hover:scale-[1.02] text-center cursor-pointer"
                       style={{
                         borderColor: primaryColor,

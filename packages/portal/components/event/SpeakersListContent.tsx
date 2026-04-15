@@ -22,7 +22,7 @@ interface Speaker {
 }
 
 export function SpeakersListContent() {
-  const { event, useDarkText, primaryColor, eventIdentifier, userState } = useEventContext()
+  const { event, useDarkText, primaryColor, eventIdentifier, basePath, userState } = useEventContext()
   const [speakers, setSpeakers] = useState<Speaker[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [storageUrl, setStorageUrl] = useState('')
@@ -147,7 +147,7 @@ export function SpeakersListContent() {
           <div className={`py-4 ${panelTheme.textMuted}`}>
             <p>
               <Link
-                href={`/events/${eventIdentifier}/talks`}
+                href={`${basePath}/talks`}
                 className="underline hover:opacity-80 transition-opacity cursor-pointer text-white"
               >
                 Interested in speaking? Submit a talk.
@@ -239,7 +239,7 @@ export function SpeakersListContent() {
           <p>
             ...more speakers coming soon.{' '}
             <Link
-              href={`/events/${eventIdentifier}/talks`}
+              href={`${basePath}/talks`}
               className="underline hover:opacity-80 transition-opacity cursor-pointer text-white"
             >
               Interested in speaking? Submit a talk.

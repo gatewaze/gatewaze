@@ -120,7 +120,7 @@ export function EventMap({ events, brandConfig }: Props) {
   if (!MapComponent) {
     return (
       <div className="w-full max-w-7xl mx-auto">
-        <div className="rounded-2xl h-[500px] flex items-center justify-center" style={{ backgroundColor: `rgba(255,255,255,var(--glass-opacity,0.05))`, backdropFilter: `blur(var(--glass-blur,4px))`, border: `1px solid rgba(255,255,255,var(--glass-border-opacity,0.1))` }}>
+        <div className="rounded-2xl h-[500px] flex items-center justify-center" style={{ backgroundColor: `rgba(var(--panel-tint,0,0,0),var(--glass-opacity,0.05))`, backdropFilter: `blur(var(--glass-blur,4px))`, border: `1px solid rgba(var(--panel-tint,0,0,0),var(--glass-border-opacity,0.1))` }}>
           <div className="text-white/60">Loading map...</div>
         </div>
       </div>
@@ -129,7 +129,7 @@ export function EventMap({ events, brandConfig }: Props) {
 
   return (
     <div className="w-full max-w-7xl mx-auto">
-      <div className="rounded-2xl overflow-hidden" style={{ backgroundColor: `rgba(255,255,255,var(--glass-opacity,0.05))`, backdropFilter: `blur(var(--glass-blur,4px))`, border: `1px solid rgba(255,255,255,var(--glass-border-opacity,0.1))` }}>
+      <div className="rounded-2xl overflow-hidden" style={{ backgroundColor: `rgba(var(--panel-tint,0,0,0),var(--glass-opacity,0.05))`, backdropFilter: `blur(var(--glass-blur,4px))`, border: `1px solid rgba(var(--panel-tint,0,0,0),var(--glass-border-opacity,0.1))` }}>
         <MapComponent events={eventsWithCoords} brandConfig={brandConfig} />
       </div>
     </div>

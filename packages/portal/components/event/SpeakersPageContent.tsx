@@ -9,6 +9,7 @@ import { EventHero, shouldUseDarkText } from './EventHero'
 import { GlowBorder } from '@/components/ui/GlowBorder'
 import { PortalButton } from '@/components/ui/PortalButton'
 import { useAuth } from '@/hooks/useAuth'
+import { isOnCustomDomain } from '@/lib/customDomain'
 
 interface Props {
   event: Event
@@ -44,6 +45,8 @@ export function SpeakersPageContent({ event, brandConfig, initialStatus = 'pendi
   const hasCheckedRef = useRef(false)
   const primaryColor = brandConfig.primaryColor
   const secondaryColor = brandConfig.secondaryColor
+  const eventIdentifier = event.event_slug || event.event_id
+  const basePath = isOnCustomDomain() ? '' : `/events/${eventIdentifier}`
 
   const useDarkText = useMemo(
     () => shouldUseDarkText(primaryColor, secondaryColor),
@@ -310,7 +313,7 @@ export function SpeakersPageContent({ event, brandConfig, initialStatus = 'pendi
                                 <PortalButton
                                   variant="secondary"
                                   size="small"
-                                  href={`/events/${event.event_slug || event.event_id}/talks/edit?token=${talk.edit_token}`}
+                                  href={`${basePath}/talks/edit?token=${talk.edit_token}`}
                                 >
                                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
