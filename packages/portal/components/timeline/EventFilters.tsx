@@ -52,7 +52,7 @@ export function EventFilters({
             borderRadius: 'var(--radius-control)',
             ...(!eventType
               ? { backgroundColor: primaryColor, color: isLightColor(primaryColor) ? '#000000' : '#ffffff', border: '1px solid transparent' }
-              : { backgroundColor: `rgba(255,255,255,var(--glass-opacity,0.05))`, backdropFilter: `blur(var(--glass-blur,4px))`, WebkitBackdropFilter: `blur(var(--glass-blur,4px))`, border: `1px solid rgba(255,255,255,var(--glass-border-opacity,0.1))` }),
+              : { backgroundColor: `rgba(var(--panel-tint,0,0,0),var(--glass-opacity,0.05))`, backdropFilter: `blur(var(--glass-blur,4px))`, WebkitBackdropFilter: `blur(var(--glass-blur,4px))`, border: `1px solid rgba(var(--panel-tint,0,0,0),var(--glass-border-opacity,0.1))` }),
           }}
         >
           All
@@ -67,7 +67,7 @@ export function EventFilters({
               borderRadius: 'var(--radius-control)',
               ...(eventType === opt.value
                 ? { backgroundColor: primaryColor, color: isLightColor(primaryColor) ? '#000000' : '#ffffff', border: '1px solid transparent' }
-                : { backgroundColor: `rgba(255,255,255,var(--glass-opacity,0.05))`, backdropFilter: `blur(var(--glass-blur,4px))`, WebkitBackdropFilter: `blur(var(--glass-blur,4px))`, border: `1px solid rgba(255,255,255,var(--glass-border-opacity,0.1))` }),
+                : { backgroundColor: `rgba(var(--panel-tint,0,0,0),var(--glass-opacity,0.05))`, backdropFilter: `blur(var(--glass-blur,4px))`, WebkitBackdropFilter: `blur(var(--glass-blur,4px))`, border: `1px solid rgba(var(--panel-tint,0,0,0),var(--glass-border-opacity,0.1))` }),
             }}
           >
             {opt.label}
@@ -87,7 +87,7 @@ export function EventFilters({
               borderRadius: 'var(--radius-control)',
               ...(nearMe
                 ? { backgroundColor: primaryColor, color: isLightColor(primaryColor) ? '#000000' : '#ffffff', border: '1px solid transparent' }
-                : { backgroundColor: `rgba(255,255,255,var(--glass-opacity,0.05))`, backdropFilter: `blur(var(--glass-blur,4px))`, WebkitBackdropFilter: `blur(var(--glass-blur,4px))`, border: `1px solid rgba(255,255,255,var(--glass-border-opacity,0.1))` }),
+                : { backgroundColor: `rgba(var(--panel-tint,0,0,0),var(--glass-opacity,0.05))`, backdropFilter: `blur(var(--glass-blur,4px))`, WebkitBackdropFilter: `blur(var(--glass-blur,4px))`, border: `1px solid rgba(var(--panel-tint,0,0,0),var(--glass-border-opacity,0.1))` }),
             }}
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -154,7 +154,7 @@ function RegionDropdown({
           borderRadius: 'var(--radius-control)',
           ...(selectedRegion
             ? { backgroundColor: primaryColor, color: isLightColor(primaryColor) ? '#000000' : '#ffffff', border: '1px solid transparent' }
-            : { backgroundColor: `rgba(255,255,255,var(--glass-opacity,0.05))`, backdropFilter: `blur(var(--glass-blur,4px))`, WebkitBackdropFilter: `blur(var(--glass-blur,4px))`, border: `1px solid rgba(255,255,255,var(--glass-border-opacity,0.1))` }),
+            : { backgroundColor: `rgba(var(--panel-tint,0,0,0),var(--glass-opacity,0.05))`, backdropFilter: `blur(var(--glass-blur,4px))`, WebkitBackdropFilter: `blur(var(--glass-blur,4px))`, border: `1px solid rgba(var(--panel-tint,0,0,0),var(--glass-border-opacity,0.1))` }),
         }}
       >
         {label}
@@ -296,7 +296,7 @@ function TopicDropdown({
           borderRadius: 'var(--radius-control)',
           ...(hasTopics
             ? { backgroundColor: primaryColor, color: isLightColor(primaryColor) ? '#000000' : '#ffffff', border: '1px solid transparent' }
-            : { backgroundColor: `rgba(255,255,255,var(--glass-opacity,0.05))`, backdropFilter: `blur(var(--glass-blur,4px))`, WebkitBackdropFilter: `blur(var(--glass-blur,4px))`, border: `1px solid rgba(255,255,255,var(--glass-border-opacity,0.1))` }),
+            : { backgroundColor: `rgba(var(--panel-tint,0,0,0),var(--glass-opacity,0.05))`, backdropFilter: `blur(var(--glass-blur,4px))`, WebkitBackdropFilter: `blur(var(--glass-blur,4px))`, border: `1px solid rgba(var(--panel-tint,0,0,0),var(--glass-border-opacity,0.1))` }),
         }}
       >
         Topics

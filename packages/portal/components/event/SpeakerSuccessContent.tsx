@@ -39,7 +39,7 @@ interface SubmissionData {
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function SpeakerSuccessContent({ editToken, isExisting, isUpdated, statusReset, speakerStatus, speakerAvatarUrl, talkTitle: _talkTitle, presentationUrl, presentationStoragePath, presentationType, speakerEmail, calendarAddedAt, trackingLinkCopiedAt }: Props) {
-  const { event, eventIdentifier, primaryColor, useDarkText } = useEventContext()
+  const { event, eventIdentifier, basePath, primaryColor, useDarkText } = useEventContext()
   const { session, isLoading: authLoading } = useAuth()
 
   // Require sign-in if accessing via token without an active session
@@ -66,8 +66,8 @@ export function SpeakerSuccessContent({ editToken, isExisting, isUpdated, status
       // This is more reliable with Supabase's redirect handling
       // The /events/[identifier]/talks/success/[token] route will redirect to the main success page
       const redirectUrl = editToken
-        ? `${window.location.origin}/events/${eventIdentifier}/talks/success/${editToken}`
-        : `${window.location.origin}/events/${eventIdentifier}/talks/success`
+        ? `${window.location.origin}${basePath}/talks/success/${editToken}`
+        : `${window.location.origin}${basePath}/talks/success`
 
       const { error } = await supabase.auth.signInWithOtp({
         email: speakerEmail,
@@ -88,7 +88,7 @@ export function SpeakerSuccessContent({ editToken, isExisting, isUpdated, status
     } finally {
       setIsSendingMagicLink(false)
     }
-  }, [speakerEmail, editToken, eventIdentifier])
+  }, [speakerEmail, editToken, basePath])
 
   // Theme for the panel
   const theme = useMemo(() => ({
@@ -492,7 +492,7 @@ export function SpeakerSuccessContent({ editToken, isExisting, isUpdated, status
             <PortalButton
               variant="primary"
               primaryColor={primaryColor}
-              href={`/events/${eventIdentifier}/talks/edit?token=${editToken}`}
+              href={`${basePath}/talks/edit?token=${editToken}`}
               className="flex-1"
             >
               Edit submission

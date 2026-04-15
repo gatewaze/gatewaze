@@ -43,12 +43,12 @@ export function GlassPanel({
         ref={ref}
         className={`rounded-2xl shadow-2xl ${padding} ${className}`}
         style={{
-          backgroundColor: `rgba(255, 255, 255, var(--glass-opacity, 0.05))`,
+          backgroundColor: `rgba(var(--panel-tint, 0,0,0), var(--glass-opacity, 0.05))`,
           backdropFilter: inView ? `blur(var(--glass-blur, 4px))` : undefined,
           WebkitBackdropFilter: inView ? `blur(var(--glass-blur, 4px))` : undefined,
           borderWidth: 1,
           borderStyle: 'solid',
-          borderColor: `rgba(255, 255, 255, var(--glass-border-opacity, 0.1))`,
+          borderColor: `rgba(var(--panel-tint, 0,0,0), var(--glass-border-opacity, 0.1))`,
         }}
       >
         {children}

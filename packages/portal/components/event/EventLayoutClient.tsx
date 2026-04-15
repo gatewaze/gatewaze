@@ -179,7 +179,7 @@ function EventLayoutInner({
   return (
     <main className="relative z-10">
       {/* Compact sticky bar — slides in when hero scrolls out of view */}
-      <EventCompactBar event={event} brandConfig={brandConfig} heroRef={heroRef} />
+      <EventCompactBar event={event} brandConfig={brandConfig} heroRef={heroRef} eventIdentifier={eventIdentifier} />
 
       <div className="max-w-7xl mx-auto px-6 sm:px-6 lg:px-8">
         {/* Hero Section */}

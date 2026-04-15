@@ -88,7 +88,7 @@ export function HomepageContent({ brandConfig, navItems, upcomingEvents, blogPos
 function BlogCard({ post }: { post: BlogPostPreview }) {
   return (
     <Link href={`/blog/${post.slug}`} className="group block">
-      <div className="relative rounded-xl overflow-hidden hover:brightness-110 transition-all duration-200" style={{ backgroundColor: `rgba(255,255,255,var(--glass-opacity,0.05))`, border: `1px solid rgba(255,255,255,var(--glass-border-opacity,0.1))` }}>
+      <div className="relative rounded-xl overflow-hidden hover:brightness-110 transition-all duration-200" style={{ backgroundColor: `rgba(var(--panel-tint,0,0,0),var(--glass-opacity,0.05))`, border: `1px solid rgba(var(--panel-tint,0,0,0),var(--glass-border-opacity,0.1))` }}>
         {post.featured_image && (
           <div className="aspect-[16/9] overflow-hidden">
             <img

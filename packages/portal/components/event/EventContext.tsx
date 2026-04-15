@@ -6,11 +6,14 @@ import type { BrandConfig } from '@/config/brand'
 import type { RecommendedEvent } from '@/app/(main)/events/[identifier]/(portal)/layout'
 import { useEventUserState } from '@/hooks/useEventUserState'
 import type { EventUserState } from '@/hooks/useEventUserState'
+import { isOnCustomDomain } from '@/lib/customDomain'
 
 interface EventContextValue {
   event: Event & { id: string }
   brandConfig: BrandConfig
   eventIdentifier: string
+  /** Base path for event links: `/events/{id}` on main domain, `''` on custom domains */
+  basePath: string
   primaryColor: string
   secondaryColor: string
   useDarkText: boolean
@@ -52,6 +55,7 @@ export function EventProvider({ event, brandConfig, eventIdentifier, speakerCoun
   const primaryColor = brandConfig.primaryColor
   const secondaryColor = brandConfig.secondaryColor
   const userState = useEventUserState(event)
+  const basePath = useMemo(() => isOnCustomDomain() ? '' : `/events/${eventIdentifier}`, [eventIdentifier])
 
   const theme = useMemo(() => ({
     textColor: useDarkText ? '#1f2937' : '#ffffff',
@@ -66,6 +70,7 @@ export function EventProvider({ event, brandConfig, eventIdentifier, speakerCoun
     event,
     brandConfig,
     eventIdentifier,
+    basePath,
     primaryColor,
     secondaryColor,
     useDarkText,
@@ -77,7 +82,7 @@ export function EventProvider({ event, brandConfig, eventIdentifier, speakerCoun
     recommendedEvent,
     userState,
     theme,
-  }), [event, brandConfig, eventIdentifier, primaryColor, secondaryColor, useDarkText, speakerCount, sponsorCount, competitionCount, discountCount, mediaCount, recommendedEvent, userState, theme])
+  }), [event, brandConfig, eventIdentifier, basePath, primaryColor, secondaryColor, useDarkText, speakerCount, sponsorCount, competitionCount, discountCount, mediaCount, recommendedEvent, userState, theme])
 
   return (
     <EventContext.Provider value={value}>

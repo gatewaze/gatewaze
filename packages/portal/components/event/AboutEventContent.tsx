@@ -38,7 +38,7 @@ interface Competition {
 }
 
 function AboutEventContentInner() {
-  const { event, useDarkText, recommendedEvent, primaryColor, eventIdentifier, userState, theme, speakerCount, competitionCount, discountCount } = useEventContext()
+  const { event, useDarkText, recommendedEvent, primaryColor, eventIdentifier, basePath, userState, theme, speakerCount, competitionCount, discountCount } = useEventContext()
   const [mounted, setMounted] = useState(false)
   const [showAttendeeCalendar, setShowAttendeeCalendar] = useState(false)
   const [attendeeCalendarAdded, setAttendeeCalendarAdded] = useState(false)
@@ -236,7 +236,7 @@ function AboutEventContentInner() {
                           variant="primary"
                           primaryColor={primaryColor}
                           glow
-                          href={`/events/${eventIdentifier}/register`}
+                          href={`${basePath}/register`}
                         >
                           Register now
                         </PortalButton>
@@ -333,7 +333,7 @@ function AboutEventContentInner() {
                 <PortalButton
                   variant="secondary"
                   size="small"
-                  href={`/events/${eventIdentifier}/talks`}
+                  href={`${basePath}/talks`}
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -432,7 +432,7 @@ function AboutEventContentInner() {
                           {/* Check out the agenda */}
                           {hasAgenda && (
                             <Link
-                              href={`/events/${eventIdentifier}/agenda`}
+                              href={`${basePath}/agenda`}
                               className="flex items-center gap-3 cursor-pointer group"
                             >
                               <div className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${useDarkText ? 'bg-gray-900/10 group-hover:bg-gray-900/20' : 'bg-white/10 group-hover:bg-white/20'}`}>
@@ -449,7 +449,7 @@ function AboutEventContentInner() {
                           {/* See who's speaking */}
                           {hasSpeakers && (
                             <Link
-                              href={`/events/${eventIdentifier}/speakers`}
+                              href={`${basePath}/speakers`}
                               className="flex items-center gap-3 cursor-pointer group"
                             >
                               <div className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${useDarkText ? 'bg-gray-900/10 group-hover:bg-gray-900/20' : 'bg-white/10 group-hover:bg-white/20'}`}>
@@ -510,7 +510,7 @@ function AboutEventContentInner() {
                     <PortalButton
                       variant="secondary"
                       size="small"
-                      href={`/events/${eventIdentifier}/talks`}
+                      href={`${basePath}/talks`}
                     >
                       View submission
                     </PortalButton>
@@ -532,6 +532,7 @@ function AboutEventContentInner() {
                 key={comp.id}
                 competition={comp}
                 eventIdentifier={eventIdentifier}
+                basePath={basePath}
                 useDarkText={useDarkText}
                 primaryColor={primaryColor}
                 panelTheme={panelTheme}
@@ -546,6 +547,7 @@ function AboutEventContentInner() {
                 key={comp.id}
                 competition={comp}
                 eventIdentifier={eventIdentifier}
+                basePath={basePath}
                 useDarkText={useDarkText}
                 primaryColor={primaryColor}
                 panelTheme={panelTheme}
@@ -632,6 +634,7 @@ function MobileCompetitionPortal({ mounted, children }: { mounted: boolean; chil
 function CompetitionCountdownPanel({
   competition,
   eventIdentifier,
+  basePath,
   useDarkText,
   primaryColor,
   panelTheme,
@@ -639,6 +642,7 @@ function CompetitionCountdownPanel({
 }: {
   competition: Competition
   eventIdentifier: string
+  basePath: string
   useDarkText: boolean
   primaryColor: string
   panelTheme: { panelBg: string; panelBorder: string; textColor: string; textMuted: string }
@@ -834,7 +838,7 @@ function CompetitionCountdownPanel({
               size="small"
               primaryColor={brandPrimary}
               glow
-              href={`/events/${eventIdentifier}/competitions`}
+              href={`${basePath}/competitions`}
             >
               Enter now
             </PortalButton>
