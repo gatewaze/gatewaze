@@ -214,6 +214,22 @@ tolerations: []
 affinity: {}
 
 # =============================================================================
+# Extra env sources (for modules to inject their own ConfigMap / Secret
+# without modifying this chart).
+#
+# Modules that need env vars in core pods (admin, api, portal, worker)
+# create their own ConfigMap/Secret via their own Helm subchart, then
+# the operator references them here. Example for prefect-worker:
+#
+# extraEnvFrom:
+#   - configMapRef:
+#       name: gatewaze-prefect-worker-config
+#   - secretRef:
+#       name: gatewaze-prefect-worker-secret
+# =============================================================================
+extraEnvFrom: []
+
+# =============================================================================
 # Custom Domains Module
 # =============================================================================
 customDomains:
