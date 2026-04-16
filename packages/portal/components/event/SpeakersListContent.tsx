@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { getClientBrandConfig, isLightColor } from '@/config/brand'
 import { useEventContext } from './EventContext'
 import { GlowBorder } from '@/components/ui/GlowBorder'
+import { toPublicUrl } from '@gatewaze/shared'
 
 interface Speaker {
   id: string
@@ -26,6 +27,7 @@ export function SpeakersListContent() {
   const [speakers, setSpeakers] = useState<Speaker[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [storageUrl, setStorageUrl] = useState('')
+  const [bucketUrl, setBucketUrl] = useState('')
 
   const panelTheme = useMemo(() => ({
     panelBg: useDarkText ? 'bg-gray-900/15' : 'bg-white/15',
@@ -40,6 +42,7 @@ export function SpeakersListContent() {
       try {
         const config = getClientBrandConfig()
         setStorageUrl(config.supabaseUrl)
+        setBucketUrl(config.storageBucketUrl || `${config.supabaseUrl}/storage/v1/object/public/media`)
         const { createClient } = await import('@supabase/supabase-js')
         const supabase = createClient(config.supabaseUrl, config.supabaseAnonKey)
 
@@ -204,6 +207,7 @@ export function SpeakersListContent() {
                 panelTheme={panelTheme}
                 isFeatured
                 storageUrl={storageUrl}
+                bucketUrl={bucketUrl}
               />
             ))}
           </div>
@@ -227,6 +231,7 @@ export function SpeakersListContent() {
                 primaryColor={primaryColor}
                 panelTheme={panelTheme}
                 storageUrl={storageUrl}
+                bucketUrl={bucketUrl}
               />
             ))}
           </div>
@@ -263,9 +268,10 @@ interface SpeakerCardProps {
   }
   isFeatured?: boolean
   storageUrl: string
+  bucketUrl: string
 }
 
-function SpeakerCard({ speaker, useDarkText, primaryColor, panelTheme, isFeatured, storageUrl }: SpeakerCardProps) {
+function SpeakerCard({ speaker, useDarkText, primaryColor, panelTheme, isFeatured, storageUrl, bucketUrl }: SpeakerCardProps) {
   const initials = [speaker.first_name, speaker.last_name]
     .filter(Boolean)
     .map(n => n?.charAt(0).toUpperCase())
@@ -286,7 +292,7 @@ function SpeakerCard({ speaker, useDarkText, primaryColor, panelTheme, isFeature
           <div className="flex-shrink-0">
             {speaker.avatar_url ? (
               <img
-                src={speaker.avatar_url}
+                src={toPublicUrl(speaker.avatar_url, bucketUrl) ?? speaker.avatar_url}
                 alt={speaker.full_name}
                 className={`${isFeatured ? 'w-24 h-24' : 'w-20 h-20'} rounded-lg object-cover grayscale contrast-[1.1] group-hover:grayscale-0 group-hover:contrast-100 transition-all duration-300`}
               />

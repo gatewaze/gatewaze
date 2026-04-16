@@ -34,6 +34,9 @@ spec:
                 name: {{ include "gatewaze.fullname" . }}-config
             - secretRef:
                 name: {{ include "gatewaze.fullname" . }}-secret
+            {{- with .Values.extraEnvFrom }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           livenessProbe:
             exec:
               command:
