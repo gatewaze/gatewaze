@@ -1,5 +1,8 @@
 import { supabase } from '@/lib/supabase'
 import { getSupabaseConfig } from '@/config/brands'
+import { toPublicUrl } from '@gatewaze/shared'
+
+const BUCKET_URL = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/media`
 
 export interface AdminUser {
   id: string
@@ -402,7 +405,7 @@ export class SupabaseAuthService {
         email: adminProfile.email,
         name: adminProfile.name,
         role: adminProfile.role,
-        avatar_url: adminProfile.avatar_url,
+        avatar_url: toPublicUrl(adminProfile.avatar_url, BUCKET_URL) ?? undefined,
         permissions: adminProfile.permissions,
         is_active: adminProfile.is_active,
         created_at: adminProfile.created_at,

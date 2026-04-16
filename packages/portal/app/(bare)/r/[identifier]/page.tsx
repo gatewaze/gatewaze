@@ -2,6 +2,7 @@ import { Metadata } from 'next'
 import { getServerBrand, getBrandConfigById } from '@/config/brand'
 import { createServerSupabase } from '@/lib/supabase/server'
 import { extractEventIdFromSlug } from '@/lib/slugify'
+import { resolveEventImages } from '@/lib/storage-resolve'
 import { LandingHero } from './LandingHero'
 
 export const dynamic = 'force-dynamic'
@@ -73,6 +74,7 @@ const EVENT_FIELDS = `
 
 async function getEvent(identifier: string, brandId: string): Promise<LandingEvent | null> {
   const supabase = await createServerSupabase(brandId)
+  const brandConfig = await getBrandConfigById(brandId)
 
   let { data: event } = await supabase
     .from('events')
@@ -104,7 +106,7 @@ async function getEvent(identifier: string, brandId: string): Promise<LandingEve
     }
   }
 
-  return event
+  return resolveEventImages(event as LandingEvent | null, brandConfig.storageBucketUrl) ?? null
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {

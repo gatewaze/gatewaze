@@ -1,6 +1,11 @@
 import { supabase } from '@/lib/supabase';
+import { toPublicUrl } from '@gatewaze/shared';
 import { ScreenshotService } from './screenshotService';
 import { EventExportService } from './eventExportService';
+
+// Default bucket URL derived from the Supabase project URL; storage paths stored
+// as relative values are resolved through this base at read time.
+const BUCKET_URL = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/media`;
 
 export interface Event {
   id?: string;
@@ -146,8 +151,8 @@ export class EventService {
         eventCity: data.event_city,
         eventCountryCode: data.event_country_code,
         eventLink: data.event_link,
-        eventLogo: data.event_logo,
-        badgeLogo: data.badge_logo,
+        eventLogo: (toPublicUrl(data.event_logo, BUCKET_URL) ?? undefined),
+        badgeLogo: (toPublicUrl(data.badge_logo, BUCKET_URL) ?? undefined),
         offerSlug: data.offer_slug,
         offerCloseDate: data.offer_close_date,
         eventStart: data.event_start,
@@ -157,7 +162,7 @@ export class EventService {
         eventTopicsUpdatedAt: data.event_topics_updated_at,
         eventType: data.event_type,
         contentCategory: data.content_category,
-        screenshotUrl: data.screenshot_url,
+        screenshotUrl: (toPublicUrl(data.screenshot_url, BUCKET_URL) ?? undefined),
         screenshotGenerated: data.screenshot_generated,
         screenshotGeneratedAt: data.screenshot_generated_at,
         venueAddress: data.venue_address,
@@ -184,7 +189,7 @@ export class EventService {
         eventLongitude: data.event_longitude,
         eventSource: data.event_source,
         eventTimezone: data.event_timezone,
-        eventFeaturedImage: data.event_featured_image,
+        eventFeaturedImage: (toPublicUrl(data.event_featured_image, BUCKET_URL) ?? undefined),
         gradientColor1: data.gradient_color_1,
         gradientColor2: data.gradient_color_2,
         gradientColor3: data.gradient_color_3,
@@ -197,7 +202,7 @@ export class EventService {
         pageContent: data.page_content || null,
         recommendedEventId: data.recommended_event_id || null,
         venueContent: data.venue_content || null,
-        venueMapImage: data.venue_map_image || null,
+        venueMapImage: (toPublicUrl(data.venue_map_image, BUCKET_URL) ?? undefined),
         addedpageContent: data.addedpage_content || null,
         addedpageTitle: data.addedpage_title || null,
       };
@@ -244,8 +249,8 @@ export class EventService {
         eventCity: data.event_city,
         eventCountryCode: data.event_country_code,
         eventLink: data.event_link,
-        eventLogo: data.event_logo,
-        badgeLogo: data.badge_logo,
+        eventLogo: (toPublicUrl(data.event_logo, BUCKET_URL) ?? undefined),
+        badgeLogo: (toPublicUrl(data.badge_logo, BUCKET_URL) ?? undefined),
         offerSlug: data.offer_slug,
         offerCloseDate: data.offer_close_date,
         eventStart: data.event_start,
@@ -255,7 +260,7 @@ export class EventService {
         eventTopicsUpdatedAt: data.event_topics_updated_at,
         eventType: data.event_type,
         contentCategory: data.content_category,
-        screenshotUrl: data.screenshot_url,
+        screenshotUrl: (toPublicUrl(data.screenshot_url, BUCKET_URL) ?? undefined),
         screenshotGenerated: data.screenshot_generated,
         screenshotGeneratedAt: data.screenshot_generated_at,
         venueAddress: data.venue_address,
@@ -282,7 +287,7 @@ export class EventService {
         eventLongitude: data.event_longitude,
         eventSource: data.event_source,
         eventTimezone: data.event_timezone,
-        eventFeaturedImage: data.event_featured_image,
+        eventFeaturedImage: (toPublicUrl(data.event_featured_image, BUCKET_URL) ?? undefined),
         gradientColor1: data.gradient_color_1,
         gradientColor2: data.gradient_color_2,
         gradientColor3: data.gradient_color_3,
@@ -295,7 +300,7 @@ export class EventService {
         pageContent: data.page_content || null,
         recommendedEventId: data.recommended_event_id || null,
         venueContent: data.venue_content || null,
-        venueMapImage: data.venue_map_image || null,
+        venueMapImage: (toPublicUrl(data.venue_map_image, BUCKET_URL) ?? undefined),
         addedpageContent: data.addedpage_content || null,
         addedpageTitle: data.addedpage_title || null,
       };
@@ -366,8 +371,8 @@ export class EventService {
         eventCity: event.event_city,
         eventCountryCode: event.event_country_code,
         eventLink: event.event_link,
-        eventLogo: event.event_logo,
-        badgeLogo: event.badge_logo,
+        eventLogo: (toPublicUrl(event.event_logo, BUCKET_URL) ?? undefined),
+        badgeLogo: (toPublicUrl(event.badge_logo, BUCKET_URL) ?? undefined),
         offerSlug: event.offer_slug,
         offerCloseDate: event.offer_close_date,
         eventStart: event.event_start,
@@ -390,7 +395,7 @@ export class EventService {
         // Screenshot metadata
         screenshotGenerated: event.screenshot_generated || false,
         screenshotGeneratedAt: event.screenshot_generated_at,
-        screenshotUrl: event.screenshot_url,
+        screenshotUrl: (toPublicUrl(event.screenshot_url, BUCKET_URL) ?? undefined),
         // Account association
         accountId: event.account_id,
         // Beta offer indicator
