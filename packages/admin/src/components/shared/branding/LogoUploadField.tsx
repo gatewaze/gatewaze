@@ -3,6 +3,7 @@ import { Text } from "@radix-ui/themes";
 import { Upload, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { supabase } from "@/lib/supabase";
+import { toStoragePath } from "@gatewaze/shared";
 
 export function LogoUploadField({
   label,
@@ -61,16 +62,27 @@ export function LogoUploadField({
         .from("media")
         .upload(filePath, file, { upsert: true });
       if (err) throw err;
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("media").getPublicUrl(filePath);
-      onChange(publicUrl);
+      // Persist the relative storage path — readers resolve via toPublicUrl at display time.
+      onChange(filePath);
     } catch (err) {
       console.error("Upload failed:", err);
     } finally {
       setUploading(false);
     }
   };
+
+  // Derive the displayable URL. For legacy stored full URLs, use directly; for new
+  // relative paths, resolve via Supabase client (admin context always has a local
+  // Supabase connection). Idempotent.
+  const displayUrl = (() => {
+    if (!value) return "";
+    if (/^https?:\/\//.test(value)) return value;
+    const { data } = supabase.storage.from("media").getPublicUrl(value);
+    return data.publicUrl;
+  })();
+
+  // Normalize what's shown in the raw text box to the relative path when possible.
+  const normalizedInput = toStoragePath(value) ?? value;
 
   return (
     <div>
@@ -84,7 +96,7 @@ export function LogoUploadField({
         {value && (
           <div className="flex h-12 w-24 items-center justify-center rounded border border-[var(--gray-6)] bg-[var(--gray-2)] p-1">
             <img
-              src={value}
+              src={displayUrl}
               alt={label}
               className="max-h-full max-w-full object-contain"
             />
@@ -119,9 +131,9 @@ export function LogoUploadField({
       )}
       {value && (
         <input
-          value={value}
+          value={normalizedInput}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="https://..."
+          placeholder="branding/logo.png"
           className="w-full rounded border border-[var(--gray-6)] bg-[var(--color-surface)] px-2 py-1.5 font-mono text-xs"
         />
       )}

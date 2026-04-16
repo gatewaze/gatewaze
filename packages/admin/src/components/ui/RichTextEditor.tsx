@@ -17,6 +17,7 @@ import { Modal } from './Modal';
 import { ImageUpload } from './ImageUpload';
 import { Button } from './Button';
 import { TemplateVariableSelector } from './TemplateVariableSelector';
+import { rewriteImgSrcToPublicUrl, rewriteImgSrcToStoragePath } from '@gatewaze/shared';
 
 // Import icons
 import {
@@ -156,6 +157,14 @@ interface RichTextEditorProps {
   maxLength?: number;
   editable?: boolean;
   templateVariables?: TemplateVariableConfig;
+  /**
+   * When provided, `<img src>` attributes are handled in both directions:
+   *   - incoming `content` has relative storage paths resolved to full URLs for display
+   *   - outgoing content (via onChange) has full storage URLs stripped back to
+   *     relative paths before persistence.
+   * See spec-relative-storage-paths.md for the overall pattern.
+   */
+  storageBucketUrl?: string;
 }
 
 interface MenuBarProps {
@@ -535,9 +544,16 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   maxLength,
   editable = true,
   templateVariables,
+  storageBucketUrl,
 }) => {
   const [isHtmlMode, setIsHtmlMode] = useState(false);
   const [htmlContent, setHtmlContent] = useState('');
+
+  // Resolve incoming content's relative <img src>s for display inside the editor.
+  // Passes through unchanged if no bucketUrl or if src is already full.
+  const displayContent = storageBucketUrl
+    ? rewriteImgSrcToPublicUrl(content, storageBucketUrl)
+    : content;
 
   const editor = useEditor({
     extensions: [
@@ -590,10 +606,15 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         limit: maxLength,
       }),
     ],
-    content,
+    content: displayContent,
     editable,
     onUpdate: ({ editor }) => {
-      onChange(editor.getHTML());
+      const html = editor.getHTML();
+      // On save, strip any absolute storage URLs in <img src> back to relative paths.
+      // Idempotent — if no bucketUrl is provided, emits as-is.
+      onChange(
+        storageBucketUrl ? rewriteImgSrcToStoragePath(html, storageBucketUrl) : html,
+      );
     },
     editorProps: {
       attributes: {
@@ -643,7 +664,11 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     } else {
       // Switching back to visual mode - update editor with HTML
       editor.commands.setContent(htmlContent);
-      onChange(htmlContent);
+      onChange(
+        storageBucketUrl
+          ? rewriteImgSrcToStoragePath(htmlContent, storageBucketUrl)
+          : htmlContent,
+      );
     }
     setIsHtmlMode(!isHtmlMode);
   };

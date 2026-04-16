@@ -3,6 +3,7 @@ import { getServerBrand, getBrandConfigById } from '@/config/brand'
 import { createServerSupabase } from '@/lib/supabase/server'
 import { VenueContent } from '@/components/event/VenueContent'
 import { stripEmojis } from '@/lib/text'
+import { resolveEventImages } from '@/lib/storage-resolve'
 
 interface Props {
   params: Promise<{ identifier: string }>
@@ -10,6 +11,7 @@ interface Props {
 
 async function getEventForMetadata(identifier: string, brandId: string) {
   const supabase = await createServerSupabase(brandId)
+  const brandConfig = await getBrandConfigById(brandId)
 
   let { data: event } = await supabase
     .from('events')
@@ -28,7 +30,7 @@ async function getEventForMetadata(identifier: string, brandId: string) {
     event = result.data
   }
 
-  return event
+  return resolveEventImages(event, brandConfig.storageBucketUrl)
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {

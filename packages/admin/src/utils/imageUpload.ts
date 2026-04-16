@@ -1,7 +1,12 @@
 import { supabase } from '@/lib/supabase';
+import { toPublicUrl } from '@gatewaze/shared';
 
 export interface ImageUploadResult {
   success: boolean;
+  /**
+   * The relative storage path (e.g. `blog-posts/blog-image-12345.png`).
+   * Callers persist this directly; readers resolve to full URLs via `toPublicUrl`.
+   */
   url?: string;
   error?: string;
   path?: string;
@@ -68,14 +73,10 @@ export async function uploadBlogImage(
       };
     }
 
-    // Get public URL
-    const { data: urlData } = supabase.storage
-      .from('media')
-      .getPublicUrl(data.path);
-
+    // Return the relative path as `url` — callers persist this directly.
     return {
       success: true,
-      url: urlData.publicUrl,
+      url: data.path,
       path: data.path,
     };
   } catch (error) {
@@ -145,20 +146,22 @@ export async function updateBlogImage(
 }
 
 /**
- * Get image URL from storage path
+ * Get image URL from storage path.
+ * Passes through already-full URLs unchanged (idempotent).
  */
-export function getBlogImageUrl(imagePath: string): string {
-  const { data } = supabase.storage
-    .from('media')
-    .getPublicUrl(imagePath);
-
+export function getBlogImageUrl(imagePath: string, bucketUrl?: string): string {
+  if (bucketUrl) return toPublicUrl(imagePath, bucketUrl) ?? imagePath;
+  const { data } = supabase.storage.from('media').getPublicUrl(imagePath);
   return data.publicUrl;
 }
 
 /**
- * Extract storage path from full URL
+ * Extract storage path from full URL, or pass through if already relative.
+ * Idempotent — safe to call on either format.
  */
 export function extractImagePath(imageUrl: string): string | null {
+  if (!imageUrl) return null;
+  if (!/^https?:\/\//.test(imageUrl)) return imageUrl;
   try {
     const url = new URL(imageUrl);
     const pathParts = url.pathname.split('/');

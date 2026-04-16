@@ -5,6 +5,7 @@ import { EventLayoutClient } from '@/components/event/EventLayoutClient'
 import { AdPixels } from '@/components/tracking/AdPixels'
 import { extractEventIdFromSlug } from '@/lib/slugify'
 import { EventJsonLd } from '@/components/structured-data'
+import { resolveEventImages } from '@/lib/storage-resolve'
 import type { Event } from '@/types/event'
 
 interface Props {
@@ -60,6 +61,7 @@ export interface EventWithUuid extends Event {
 
 async function getEvent(identifier: string, brandId: string): Promise<EventWithUuid | null> {
   const supabase = await createServerSupabase(brandId)
+  const brandConfig = await getBrandConfigById(brandId)
 
   // Try slug first, then event_id
   let { data: event } = await supabase
@@ -93,7 +95,7 @@ async function getEvent(identifier: string, brandId: string): Promise<EventWithU
     }
   }
 
-  return event as EventWithUuid | null
+  return resolveEventImages(event as EventWithUuid | null, brandConfig.storageBucketUrl) ?? null
 }
 
 async function getSpeakerCount(eventUuid: string, brandId: string): Promise<number> {
@@ -178,6 +180,7 @@ async function getMediaCount(eventId: string, brandId: string): Promise<number> 
 
 async function getRecommendedEvent(recommendedEventId: string, brandId: string): Promise<RecommendedEvent | null> {
   const supabase = await createServerSupabase(brandId)
+  const brandConfig = await getBrandConfigById(brandId)
 
   const { data } = await supabase
     .from('events')
@@ -186,7 +189,7 @@ async function getRecommendedEvent(recommendedEventId: string, brandId: string):
     .eq('is_live_in_production', true)
     .maybeSingle()
 
-  return data as RecommendedEvent | null
+  return resolveEventImages(data as RecommendedEvent | null, brandConfig.storageBucketUrl) ?? null
 }
 
 interface AdPixelConfig {

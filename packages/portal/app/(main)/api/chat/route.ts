@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerBrandConfig } from '@/config/brand'
 import { checkRateLimit } from '@/lib/rate-limit'
+import { resolveEventImages, resolveEventImagesList } from '@/lib/storage-resolve'
 
 function parseCookies(cookieHeader: string): Map<string, string> {
   const cookies = new Map<string, string>()
@@ -72,13 +73,15 @@ Organization website: https://${brandConfig.domain}`,
         }),
         execute: async ({ query, location }) => {
           try {
-            const { data: events } = await supabase
+            const { data: eventsRaw } = await supabase
               .from('events')
               .select('event_id, event_slug, event_title, event_start, event_end, event_city, event_country_code, event_location, listing_intro, event_logo, screenshot_url')
               .eq('is_live_in_production', true)
               .ilike('event_title', `%${query}%`)
               .order('event_start', { ascending: true })
               .limit(10)
+
+            const events = eventsRaw ? resolveEventImagesList(eventsRaw, brandConfig.storageBucketUrl) : eventsRaw
 
             if (!events || events.length === 0) {
               return { results: [], message: 'No events found matching your search.' }
@@ -132,6 +135,8 @@ Organization website: https://${brandConfig.domain}`,
 
               event = byId
             }
+
+            event = resolveEventImages(event, brandConfig.storageBucketUrl)
 
             if (!event) {
               return { error: 'Event not found.' }

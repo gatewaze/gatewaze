@@ -9,6 +9,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js'
+import { resolveBucketUrl, toPublicUrl } from '@gatewaze/shared'
 
 export type PortalTheme = 'blobs' | 'gradient_wave' | 'basic'
 
@@ -151,6 +152,17 @@ export interface BrandConfig {
   eventTopicsEnabled: boolean
   gradientWaveConfig: GradientWaveConfig
   portalUiMode: 'frost' | 'smoke' | 'obsidian' | 'paper'
+  /**
+   * Configured storage base URL (from the `storage_bucket_url` platform setting).
+   * May be empty — use `storageBucketUrl` for the effective URL after fallback/allow-list.
+   */
+  storageBucketUrlRaw: string
+  /**
+   * Effective storage base URL — either the configured value (if present and allow-listed)
+   * or the runtime fallback `${supabaseUrl}/storage/v1/object/public/media`.
+   * Consumers pass this to `toPublicUrl(path, storageBucketUrl)`.
+   */
+  storageBucketUrl: string
 }
 
 // ---------------------------------------------------------------------------
@@ -193,6 +205,8 @@ const defaults: BrandConfig = {
   eventTopicsEnabled: false,
   gradientWaveConfig: { ...DEFAULT_GRADIENT_WAVE_CONFIG },
   portalUiMode: 'smoke' as const,
+  storageBucketUrlRaw: '',
+  storageBucketUrl: '',
 }
 
 // Mapping from app_settings keys to BrandConfig fields + defaults
@@ -209,6 +223,7 @@ const settingsMap: Record<string, { field: keyof BrandConfig; defaultValue: stri
   logo_url: { field: 'logoUrl', defaultValue: defaults.logoUrl },
   logo_icon_url: { field: 'logoIconUrl', defaultValue: defaults.logoIconUrl },
   favicon_url: { field: 'faviconUrl', defaultValue: defaults.faviconUrl },
+  storage_bucket_url: { field: 'storageBucketUrlRaw', defaultValue: defaults.storageBucketUrlRaw },
   domain: { field: 'domain', defaultValue: defaults.domain },
   contact_email: { field: 'contactEmail', defaultValue: defaults.contactEmail },
   tracking_head: { field: 'trackingHead', defaultValue: defaults.trackingHead },
@@ -242,7 +257,7 @@ export async function getServerBrandConfig(): Promise<BrandConfig> {
 
   if (!supabaseUrl || !supabaseAnonKey) {
     console.warn('[brand] Missing Supabase env vars — returning defaults')
-    cachedConfig = { ...defaults }
+    cachedConfig = { ...defaults, storageBucketUrl: '' }
     cacheTimestamp = now
     return cachedConfig
   }
@@ -424,6 +439,34 @@ export async function getServerBrandConfig(): Promise<BrandConfig> {
         // ignore — contact email is optional
       }
     }
+
+    // Resolve the effective storage bucket URL with allow-list enforcement (defense-in-depth
+     // — see spec-relative-storage-paths.md §Security Considerations).
+    const allowedHosts = (process.env.ALLOWED_STORAGE_DOMAINS || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+    const resolved = resolveBucketUrl({
+      configured: config.storageBucketUrlRaw,
+      supabaseUrl,
+      allowedHosts: allowedHosts.length > 0 ? allowedHosts : undefined,
+    })
+    config.storageBucketUrl = resolved.url
+    if (resolved.allowlistRejected) {
+      console.warn(
+        '[brand] storage_bucket_url rejected by ALLOWED_STORAGE_DOMAINS allow-list; falling back to default',
+      )
+    } else if (resolved.usedFallback && config.storageBucketUrlRaw === '') {
+      // Empty setting on a fresh install — quiet at boot, noisy only if unexpected.
+    }
+
+    // Resolve branding image fields to full URLs using the effective bucket URL.
+    // Idempotent — already-full URLs (legacy data) pass through unchanged.
+    config.logoUrl = toPublicUrl(config.logoUrl, config.storageBucketUrl) ?? config.logoUrl
+    config.logoIconUrl =
+      toPublicUrl(config.logoIconUrl, config.storageBucketUrl) ?? config.logoIconUrl
+    config.faviconUrl =
+      toPublicUrl(config.faviconUrl, config.storageBucketUrl) ?? config.faviconUrl
 
     cachedConfig = config
     cacheTimestamp = now

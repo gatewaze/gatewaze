@@ -1,7 +1,14 @@
 import { supabase } from '@/lib/supabase';
+import { toPublicUrl } from '@gatewaze/shared';
 
 export interface EventLogoUploadResult {
   success: boolean;
+  /**
+   * The relative storage path (e.g. `event-logos/evt-123-logo.png`).
+   * As of the relative-storage-paths migration, this is what should be persisted
+   * to database columns (`events.event_logo`, etc.); readers resolve to full URLs
+   * at display time via `toPublicUrl`.
+   */
   url?: string;
   error?: string;
   path?: string;
@@ -46,14 +53,12 @@ export async function uploadEventLogo(
       };
     }
 
-    // Get public URL
-    const { data: urlData } = supabase.storage
-      .from('media')
-      .getPublicUrl(data.path);
-
+    // Return the relative path as `url` — callers persist this directly to the DB.
+    // Display-side code resolves via `toPublicUrl` using the configured
+    // `storage_bucket_url` platform setting.
     return {
       success: true,
-      url: urlData.publicUrl,
+      url: data.path,
       path: data.path,
     };
   } catch (error) {
@@ -115,9 +120,13 @@ export async function updateEventLogo(
 }
 
 /**
- * Extract storage path from full URL
+ * Extract storage path from a full URL, or pass through if already a relative path.
+ * Idempotent — safe to call on either format during the migration transition.
  */
 export function extractEventLogoPath(imageUrl: string): string | null {
+  if (!imageUrl) return null;
+  // Already a relative path.
+  if (!/^https?:\/\//.test(imageUrl)) return imageUrl;
   try {
     const url = new URL(imageUrl);
     const pathParts = url.pathname.split('/');
@@ -134,13 +143,16 @@ export function extractEventLogoPath(imageUrl: string): string | null {
 }
 
 /**
- * Get event logo URL from storage path
+ * Get event logo URL from storage path.
+ * Passes through already-full URLs unchanged (idempotent).
  */
-export function getEventLogoUrl(imagePath: string): string {
-  const { data } = supabase.storage
-    .from('media')
-    .getPublicUrl(imagePath);
-
+export function getEventLogoUrl(imagePath: string, bucketUrl?: string): string {
+  if (bucketUrl) {
+    return toPublicUrl(imagePath, bucketUrl) ?? imagePath;
+  }
+  // Fallback: use the admin's direct Supabase client. Only for admin-context callers
+  // that don't have a BrandConfig handy; prefer the `bucketUrl` overload where possible.
+  const { data } = supabase.storage.from('media').getPublicUrl(imagePath);
   return data.publicUrl;
 }
 

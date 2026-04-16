@@ -77,6 +77,7 @@ interface BrandingSettings {
   logo_url: string;
   logo_icon_url: string;
   favicon_url: string;
+  storage_bucket_url: string;
   contact_email: string;
   tracking_head: string;
   tracking_body: string;
@@ -95,6 +96,7 @@ const BRANDING_DEFAULTS: BrandingSettings = {
   logo_url: "",
   logo_icon_url: "",
   favicon_url: "",
+  storage_bucket_url: "",
   contact_email: "",
   tracking_head: "",
   tracking_body: "",
@@ -104,6 +106,7 @@ const BRANDING_DEFAULTS: BrandingSettings = {
 
 import { ColorInput } from "@/components/shared/branding/ColorInput";
 import { LogoUploadField } from "@/components/shared/branding/LogoUploadField";
+import { StorageSettings, validateStorageBucketUrl } from "./StorageSettings";
 import {
   GradientWaveEditor,
   DEFAULT_GRADIENT_WAVE_CONFIG,
@@ -365,6 +368,15 @@ function BrandingCard({ section }: { section: "system" | "admin" | "portal" }) {
     setSaved(false);
     setSaveError(null);
     try {
+      // Defense-in-depth: validate storage_bucket_url hostname against the server-side
+      // allow-list before persisting. See spec-relative-storage-paths.md §Security.
+      if (settings.storage_bucket_url !== originalSettings.storage_bucket_url) {
+        const storageError = await validateStorageBucketUrl(settings.storage_bucket_url);
+        if (storageError) {
+          setSaveError(`Storage URL rejected: ${storageError}`);
+          return;
+        }
+      }
       const allSettings: Record<string, string> = { ...settings };
       allSettings.portal_theme = portalTheme;
       allSettings.admin_accent_color = adminAccentColor;
@@ -475,6 +487,7 @@ function BrandingCard({ section }: { section: "system" | "admin" | "portal" }) {
           {hasEvents && <RadixTabs.Trigger value="event-types">Event Types</RadixTabs.Trigger>}
           <RadixTabs.Trigger value="categories">Categories</RadixTabs.Trigger>
           <RadixTabs.Trigger value="tracking">Tracking</RadixTabs.Trigger>
+          <RadixTabs.Trigger value="storage">Storage</RadixTabs.Trigger>
         </RadixTabs.List>
 
         {/* ── Branding Tab ── */}
@@ -831,6 +844,52 @@ function BrandingCard({ section }: { section: "system" | "admin" | "portal" }) {
                 </Text>
               </div>
             )}
+          </div>
+        </RadixTabs.Content>
+
+        {/* ── Storage Tab ── */}
+        <RadixTabs.Content value="storage">
+          <div className="space-y-6">
+            <StorageSettings
+              value={settings.storage_bucket_url}
+              onChange={(v) => updateSetting("storage_bucket_url", v)}
+              ssrfEgressControlled={
+                (import.meta.env.VITE_SSRF_EGRESS_CONTROLLED ?? "").toString() === "true"
+              }
+            />
+
+            <hr className="border-[var(--gray-5)]" />
+
+            {/* Save */}
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={handleSave}
+                disabled={!hasChanges || saving}
+                variant="solid"
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...
+                  </>
+                ) : saved ? (
+                  <>
+                    <Check className="mr-2 h-4 w-4" /> Saved
+                  </>
+                ) : (
+                  "Save Changes"
+                )}
+              </Button>
+              {hasChanges && !saving && !saveError && (
+                <Text size="1" color="gray">
+                  You have unsaved changes
+                </Text>
+              )}
+              {saveError && (
+                <Text size="1" color="red">
+                  Error: {saveError}
+                </Text>
+              )}
+            </div>
           </div>
         </RadixTabs.Content>
 

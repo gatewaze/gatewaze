@@ -24,3 +24,15 @@ export function generateId(prefix?: string): string {
   const id = Math.random().toString(36).substring(2, 9);
   return prefix ? `${prefix}-${id}` : id;
 }
+
+export {
+  toStoragePath,
+  toPublicUrl,
+  isFullStorageUrl,
+  transformJsonStrings,
+  stripStorageUrlsInJson,
+  resolveStoragePathsInJson,
+  rewriteImgSrcToStoragePath,
+  rewriteImgSrcToPublicUrl,
+  resolveBucketUrl,
+} from './storage';
