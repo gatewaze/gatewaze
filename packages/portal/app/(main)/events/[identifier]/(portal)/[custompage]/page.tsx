@@ -11,6 +11,7 @@ import { findEventModulePage } from '@/lib/modules/generated-event-pages'
 import { resolveEventTheme, getThemeBackgroundColor, isLightColor } from '@/config/brand'
 import { getEnabledModules, isModuleEnabled } from '@/lib/modules/enabledModules'
 import { RsvpPageClient } from '@/components/rsvp/RsvpPageClient'
+import { resolveEventImages } from '@/lib/storage-resolve'
 
 interface Props {
   params: Promise<{ identifier: string; custompage: string }>
@@ -28,6 +29,7 @@ function slugify(text: string): string {
 
 async function getEventForMetadata(identifier: string, brandId: string) {
   const supabase = await createServerSupabase(brandId)
+  const brandConfig = await getBrandConfigById(brandId)
 
   let { data: event } = await supabase
     .from('events')
@@ -46,7 +48,7 @@ async function getEventForMetadata(identifier: string, brandId: string) {
     event = result.data
   }
 
-  return event
+  return resolveEventImages(event, brandConfig.storageBucketUrl)
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {

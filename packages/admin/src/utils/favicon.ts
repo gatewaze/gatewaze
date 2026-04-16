@@ -5,8 +5,10 @@
  */
 import { getBrandConfig } from '@/config/brands';
 import { getSupabase } from '@/lib/supabase';
+import { toPublicUrl } from '@gatewaze/shared';
 
 const DEFAULT_FAVICON = '/theme/gatewaze/favicon-96x96.png';
+const BUCKET_URL = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/media`;
 
 function setFavicon(href: string) {
   // Remove any existing favicon links
@@ -38,7 +40,8 @@ export function setupFavicon() {
       .single()
       .then(({ data }) => {
         if (data?.value && data.value.trim() !== '') {
-          setFavicon(data.value);
+          const resolved = toPublicUrl(data.value, BUCKET_URL);
+          if (resolved) setFavicon(resolved);
         }
       });
   } catch {
@@ -48,5 +51,6 @@ export function setupFavicon() {
 
 /** Called when the favicon setting changes (e.g. from the Branding settings page) */
 export function updateFavicon(faviconUrl: string | null | undefined) {
-  setFavicon(faviconUrl || `${DEFAULT_FAVICON}?v=${Date.now()}`);
+  const resolved = toPublicUrl(faviconUrl, BUCKET_URL);
+  setFavicon(resolved || `${DEFAULT_FAVICON}?v=${Date.now()}`);
 }

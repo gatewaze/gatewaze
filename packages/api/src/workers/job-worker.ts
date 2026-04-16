@@ -137,14 +137,13 @@ async function handleScreenshotJob(job: Job) {
           if (uploadErr) {
             log(`Failed to upload for ${event.event_title}: ${uploadErr.message}`);
           } else {
-            const { data: urlData } = supabase.storage.from('media').getPublicUrl(filePath);
-
-            // Update event record
+            // Store the relative storage path, not the full public URL.
+            // See spec-relative-storage-paths.md — readers resolve via toPublicUrl().
             await supabase
               .from('events')
               .update({
                 screenshot_generated: true,
-                screenshot_url: urlData.publicUrl,
+                screenshot_url: filePath,
                 screenshot_generated_at: new Date().toISOString(),
               })
               .eq('event_id', event.event_id);

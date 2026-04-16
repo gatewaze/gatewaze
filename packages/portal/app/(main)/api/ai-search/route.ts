@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import OpenAI from 'openai'
 import { calculateDistance, getCityCoordinates } from '@/lib/location'
+import { getBrandConfigById } from '@/config/brand'
+import { resolveEventImagesList } from '@/lib/storage-resolve'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
@@ -84,8 +86,9 @@ export async function POST(req: NextRequest) {
 
     // ── Event search ──────────────────────────────────────────────────
     if (searchEvents) {
+      const brandConfig = await getBrandConfigById(brandId)
       const eventResults = await searchEventsContent(
-        supabase, queryLower, searchPattern, stemPattern, embeddingString, now, userLocation
+        supabase, queryLower, searchPattern, stemPattern, embeddingString, now, brandConfig.storageBucketUrl, userLocation
       )
       allResults.push(...eventResults)
     }
@@ -143,6 +146,7 @@ async function searchEventsContent(
   stemPattern: string,
   embeddingString: string,
   now: Date,
+  bucketUrl: string,
   userLocation?: { lat: number; lng: number },
 ): Promise<UniversalSearchResult[]> {
   // Keyword search
@@ -192,7 +196,7 @@ async function searchEventsContent(
 
   if (allEventIds.size === 0) return []
 
-  const { data: events } = await supabase
+  const { data: eventsRaw } = await supabase
     .from('events')
     .select(`
       id, event_id, event_slug, event_title, event_start, event_end,
@@ -201,6 +205,8 @@ async function searchEventsContent(
     `)
     .in('id', Array.from(allEventIds))
     .eq('is_live_in_production', true)
+
+  const events = eventsRaw ? resolveEventImagesList(eventsRaw, bucketUrl) : eventsRaw
 
   // Popularity scores
   const eventIdStrings = events?.map((e: { event_id: string }) => e.event_id) || []

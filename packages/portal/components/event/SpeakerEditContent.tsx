@@ -393,11 +393,9 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
         throw new Error('Failed to upload image')
       }
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('media')
-        .getPublicUrl(fileName)
-
-      return publicUrl
+      // Return the relative storage path. The speaker-update edge function will
+      // normalize and store this via toStoragePath (idempotent for legacy full URLs).
+      return fileName
     } catch (error) {
       console.error('Error uploading image:', error)
       return null
