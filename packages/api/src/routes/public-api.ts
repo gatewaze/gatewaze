@@ -261,6 +261,11 @@ export async function createPublicApiRouter(
 
   const registeredPaths = new Set<string>();
 
+  const modulesWithPublicApi = enabledModules.filter(m => m.config.publicApiRoutes);
+  if (modulesWithPublicApi.length === 0) {
+    console.log('[public-api] No modules have publicApiRoutes');
+  }
+
   for (const mod of enabledModules) {
     if (!mod.config.publicApiRoutes) continue;
 
