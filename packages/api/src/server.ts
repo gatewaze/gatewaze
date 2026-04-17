@@ -105,7 +105,7 @@ async function registerModuleRoutes() {
       const enabledModules = modules.filter(
         m => enabledModuleIds.size === 0 || enabledModuleIds.has(m.config.id)
       );
-      const publicApiRouter = createPublicApiRouter(
+      const publicApiRouter = await createPublicApiRouter(
         enabledModules,
         supabaseUrl && serviceRoleKey ? createClient(supabaseUrl, serviceRoleKey) : null
       );
