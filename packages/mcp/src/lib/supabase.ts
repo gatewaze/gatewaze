@@ -1,12 +1,65 @@
-import { createClient } from '@supabase/supabase-js';
+/**
+ * API client for the Gatewaze public API.
+ * The MCP server accesses data through the public API with an API key,
+ * NOT directly via Supabase service_role.
+ */
 
-export function createSupabaseClient() {
-  const url = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
-    throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required');
+export interface ApiClientOptions {
+  baseUrl: string;   // e.g. http://localhost:3002/api/v1
+  apiKey: string;    // gw_live_...
+}
+
+export class GatewazeApiClient {
+  private baseUrl: string;
+  private apiKey: string;
+
+  constructor(opts: ApiClientOptions) {
+    this.baseUrl = opts.baseUrl.replace(/\/+$/, '');
+    this.apiKey = opts.apiKey;
   }
-  return createClient(url, key, {
-    auth: { autoRefreshToken: false, persistSession: false },
+
+  async get<T = unknown>(path: string, params?: Record<string, string | number | undefined>): Promise<T> {
+    const url = new URL(`${this.baseUrl}${path}`);
+    if (params) {
+      for (const [k, v] of Object.entries(params)) {
+        if (v !== undefined) url.searchParams.set(k, String(v));
+      }
+    }
+    const res = await fetch(url.toString(), {
+      headers: { 'X-API-Key': this.apiKey },
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({ error: { message: res.statusText } }));
+      throw new Error(body.error?.message ?? `API error ${res.status}`);
+    }
+    return res.json() as Promise<T>;
+  }
+
+  async post<T = unknown>(path: string, body: unknown): Promise<T> {
+    const res = await fetch(`${this.baseUrl}${path}`, {
+      method: 'POST',
+      headers: {
+        'X-API-Key': this.apiKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const respBody = await res.json().catch(() => ({ error: { message: res.statusText } }));
+      throw new Error(respBody.error?.message ?? `API error ${res.status}`);
+    }
+    return res.json() as Promise<T>;
+  }
+}
+
+export function createApiClient(): GatewazeApiClient {
+  const baseUrl = process.env.GATEWAZE_API_URL ?? 'http://localhost:3002';
+  const apiKey = process.env.GATEWAZE_MCP_API_KEY;
+  if (!apiKey) {
+    throw new Error('GATEWAZE_MCP_API_KEY is required — create an API key via the admin UI and set it here');
+  }
+  return new GatewazeApiClient({
+    baseUrl: `${baseUrl}/api/v1`,
+    apiKey,
   });
 }
