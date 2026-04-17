@@ -26,6 +26,14 @@ spec:
         - name: api
           image: "{{ .Values.image.registry }}/api:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           ports:
             - name: http
               containerPort: 3002
@@ -56,6 +64,17 @@ spec:
             failureThreshold: 3
           resources:
             {{- toYaml .Values.resources.api | nindent 12 }}
+          volumeMounts:
+            - name: gatewaze-data
+              mountPath: /var/lib/gatewaze
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: gatewaze-data
+          persistentVolumeClaim:
+            claimName: {{ include "gatewaze.fullname" . }}-api-data
+        - name: tmp
+          emptyDir: {}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

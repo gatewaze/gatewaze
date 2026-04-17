@@ -1,4 +1,4 @@
-import type { GatewazeConfig, GatewazeModule, LoadedModule, ModuleSource, ModuleSourceRow } from '../types/modules';
+import type { GatewazeConfig, GatewazeModule, LoadedModule, ModuleSource, ModuleSourceRow, ModuleWarning } from '../types/modules';
 import { existsSync, readdirSync } from 'fs';
 import { resolve, isAbsolute } from 'path';
 import { execSync, type ExecSyncOptions } from 'child_process';
@@ -25,6 +25,24 @@ export function validateModule(mod: unknown, packageName: string): asserts mod i
   if (!Array.isArray(m.features)) {
     throw new Error(`Module "${packageName}" is missing required array field: features`);
   }
+}
+
+/**
+ * Validate feature namespace conventions.
+ * Returns warnings for features that don't follow module.id prefix convention.
+ */
+export function validateFeatureNamespace(mod: { id: string; features: string[] }): ModuleWarning[] {
+  const warnings: ModuleWarning[] = [];
+  for (const feature of mod.features) {
+    if (feature !== mod.id && !feature.startsWith(mod.id + '.')) {
+      warnings.push({
+        code: 'MODULE_FEATURE_NAMESPACE_VIOLATION',
+        message: `Feature "${feature}" does not start with module ID "${mod.id}". Expected "${mod.id}" or "${mod.id}.<sub-feature>".`,
+        details: { feature, moduleId: mod.id },
+      });
+    }
+  }
+  return warnings;
 }
 
 /**
@@ -97,6 +115,22 @@ export async function loadModules(
         }
       }
 
+      // Warn if module exists in later sources (shadowed)
+      if (resolvedDir) {
+        const currentSourceIdx = resolvedSources.indexOf(
+          resolvedDir.substring(0, resolvedDir.lastIndexOf('/'))
+        );
+        for (let si = currentSourceIdx + 1; si < resolvedSources.length; si++) {
+          const laterDir = resolve(resolvedSources[si], slug);
+          const laterIndex = resolve(laterDir, 'index.ts');
+          if (existsSync(laterIndex)) {
+            console.warn(
+              `[modules] MODULE_SHADOWED: "${packageName}" resolved from "${resolvedDir}" but also exists at "${laterDir}". First match wins.`,
+            );
+          }
+        }
+      }
+
       // Fall back to node_modules / package import
       if (!mod) {
         mod = await import(packageName);
@@ -105,6 +139,12 @@ export async function loadModules(
       const moduleExport = (mod as Record<string, unknown>).default ?? mod;
 
       validateModule(moduleExport, packageName);
+
+      // Validate feature namespace conventions (warn in v1.1, hard-fail in v1.2)
+      const nsWarnings = validateFeatureNamespace(moduleExport as { id: string; features: string[] });
+      for (const w of nsWarnings) {
+        console.warn(`[modules] ${w.code}: ${w.message}`);
+      }
 
       modules.push({
         config: moduleExport,
@@ -118,6 +158,18 @@ export async function loadModules(
       console.error(`[modules] Failed to load module "${packageName}": ${message}`);
       // Continue loading other modules — one bad module should not break everything
     }
+  }
+
+  // Check for MODULE_ID_CONFLICT
+  const idMap = new Map<string, string>();
+  for (const mod of modules) {
+    const existingSource = idMap.get(mod.config.id);
+    if (existingSource) {
+      console.error(
+        `[modules] MODULE_ID_CONFLICT: Module ID "${mod.config.id}" is claimed by both "${existingSource}" and "${mod.packageName}". Module subsystem may be unstable.`,
+      );
+    }
+    idMap.set(mod.config.id, mod.packageName);
   }
 
   return modules;

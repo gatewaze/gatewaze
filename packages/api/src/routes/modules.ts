@@ -17,7 +17,12 @@ import type { InstalledModuleRow, LoadedModule } from '@gatewaze/shared/modules'
 import { resolve } from 'path';
 import { existsSync, mkdirSync, readdirSync, unlinkSync, readFileSync } from 'fs';
 import { execSync } from 'child_process';
+import crypto from 'crypto';
 import multer from 'multer';
+import { writeAuditLog } from '../lib/audit-log';
+import { createRedactedLogger } from '../lib/log-redaction';
+import { isLeader } from '../lib/leadership';
+import { validateGitUrl } from '../lib/zip-validation';
 import _configImport from '../../../../gatewaze.config.js';
 // Unwrap CJS→ESM double-default wrapping (root package.json has no "type":"module")
 const config = (_configImport as any)?.default ?? _configImport;
@@ -32,6 +37,31 @@ const upload = multer({
 });
 
 export const modulesRouter = Router();
+
+/** Middleware: require leadership for all mutating operations */
+function requireLeadership(req: any, res: any, next: any) {
+  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
+    return next();
+  }
+  if (!isLeader()) {
+    return res.status(503).json({
+      error: {
+        code: 'LEADERSHIP_LOST',
+        message: 'This API instance is not the leader. Mutating module operations are not available.',
+        details: {},
+      },
+    });
+  }
+  next();
+}
+
+modulesRouter.use(requireLeadership);
+
+/** Middleware: attach request-id from header or generate one */
+modulesRouter.use((req: any, _res: any, next: any) => {
+  req.requestId = req.headers['x-request-id'] || crypto.randomUUID();
+  next();
+});
 
 /** Helper: create a service-role Supabase client or throw */
 function getServiceClient() {
@@ -230,6 +260,13 @@ modulesRouter.post('/select', async (req, res) => {
     await supabase
       .from('platform_settings')
       .upsert({ key: 'onboarding_step', value: 'modules_selected' }, { onConflict: 'key' });
+
+    // Audit log
+    await writeAuditLog(supabase, (req as any).userId, (req as any).userRole, {
+      action: 'modules.select',
+      requestId: (req as any).requestId,
+      metadata: { enabled, disabled },
+    });
 
     return res.json({ success: true });
   } catch (err) {
@@ -848,6 +885,8 @@ modulesRouter.get('/available', async (_req, res) => {
           try { guide = readFileSync(guidePath, 'utf-8'); } catch { /* skip */ }
         }
       }
+      // NOTE: intentionally excludes resolvedDir / rootPath to avoid
+      // leaking absolute filesystem paths in the API response.
       return {
         id: m.config.id,
         name: m.config.name,
@@ -859,6 +898,7 @@ modulesRouter.get('/available', async (_req, res) => {
         features: m.config.features ?? [],
         minPlatformVersion: m.config.minPlatformVersion,
         sourceLabel: m.sourceLabel,
+        locationHint: m.sourceLabel ?? 'built-in',
         guide,
       };
     });
@@ -1252,6 +1292,20 @@ modulesRouter.post('/sources', async (req, res) => {
       });
     }
 
+    // Validate the git URL format and safety
+    if (url) {
+      const urlErrors = validateGitUrl(url);
+      if (urlErrors.length > 0) {
+        return res.status(400).json({
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: urlErrors.join('; '),
+            details: { field: 'url' },
+          },
+        });
+      }
+    }
+
     const supabase = createClient(supabaseUrl, serviceRoleKey);
     const { data, error } = await supabase
       .from('module_sources')
@@ -1287,6 +1341,23 @@ modulesRouter.delete('/sources/:id', async (req, res) => {
     }
 
     const supabase = createClient(supabaseUrl, serviceRoleKey);
+
+    // Check for installed modules using this source
+    const { data: usingModules } = await supabase
+      .from('installed_modules')
+      .select('module_id, status')
+      .eq('source_id', req.params.id);
+
+    if (usingModules && usingModules.length > 0) {
+      return res.status(409).json({
+        error: {
+          code: 'SOURCE_IN_USE',
+          message: `Cannot delete source: ${usingModules.length} installed module(s) reference it. Disable them first.`,
+          details: { modules: usingModules.map((m: any) => ({ id: m.module_id, status: m.status })) },
+        },
+      });
+    }
+
     const { error } = await supabase
       .from('module_sources')
       .delete()
@@ -1506,6 +1577,37 @@ modulesRouter.post('/invoke-function/:name', async (req, res) => {
     console.error(`[modules] Edge function invoke failed:`, err);
     return res.status(502).json({
       error: err instanceof Error ? err.message : 'Failed to invoke edge function',
+    });
+  }
+});
+
+/**
+ * POST /api/modules/secrets/rotate
+ *
+ * Re-encrypts all secret-typed config fields and source tokens
+ * under the current GATEWAZE_SECRETS_KEY.
+ * Requires GATEWAZE_SECRETS_KEY_OLD for decrypt fallback.
+ * Super admin only.
+ */
+modulesRouter.post('/secrets/rotate', async (_req, res) => {
+  try {
+    const _supabase = getServiceClient();
+
+    // This is a placeholder — full implementation requires the secrets module
+    // to be imported and wired up. For now, return a 501.
+    return res.status(501).json({
+      error: {
+        code: 'INTERNAL',
+        message: 'Secret rotation is not yet fully implemented. Use GATEWAZE_SECRETS_KEY_OLD for manual rotation.',
+        details: {},
+      },
+    });
+  } catch (err) {
+    return res.status(500).json({
+      error: {
+        code: 'INTERNAL',
+        message: err instanceof Error ? err.message : 'Secret rotation failed',
+      },
     });
   }
 });

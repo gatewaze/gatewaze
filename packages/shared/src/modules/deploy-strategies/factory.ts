@@ -41,9 +41,11 @@ export function createDeploymentStrategy(env: DeploymentEnvironment): Deployment
     case 'cloud-api':
       return new CloudApiStrategy();
     case 'k8s-shared-storage':
-      // Phase 2: SharedStorageStrategy — for now fall back to local filesystem
-      console.warn('[modules] K8s shared storage strategy not yet implemented, using local filesystem');
-      return new LocalFilesystemStrategy();
+      throw new Error(
+        'K8S_STRATEGY_NOT_IMPLEMENTED: Edge function deployment via Kubernetes shared storage is not yet implemented (planned for v1.2). ' +
+        'Edge function deployment will fail for modules that declare edgeFunctions. ' +
+        'Remove EDGE_FUNCTIONS_SHARED_DIR to use local-filesystem strategy, or set SUPABASE_PROJECT_REF + SUPABASE_ACCESS_TOKEN for cloud-api strategy.'
+      );
     default:
       return new LocalFilesystemStrategy();
   }

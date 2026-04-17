@@ -425,6 +425,7 @@ services:
       # Persist runtime git clones and uploaded modules across restarts
       - api-modules-cache:/app/.gatewaze-modules
       - api-data:/app/data
+      - gatewaze-data:/var/lib/gatewaze
     environment:
       PORT: "3002"
       NODE_ENV: production
@@ -440,6 +441,11 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       EMAIL_FROM: ${EMAIL_FROM:-noreply@localhost}
+      # Module system v1.1 configuration
+      GATEWAZE_DATA_DIR: /var/lib/gatewaze
+      DISABLE_MODULE_UPLOAD: ${DISABLE_MODULE_UPLOAD:-false}
+      BULLMQ_PREFIX: ${BULLMQ_PREFIX:-gatewaze}
+      AUDIT_LOG_RETENTION_DAYS: ${AUDIT_LOG_RETENTION_DAYS:-90}
     depends_on:
       redis:
         condition: service_healthy
@@ -468,6 +474,9 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD:-gatewaze}@redis:6379
       DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@supabase-db:5432/${POSTGRES_DB:-postgres}
       JWT_SECRET: ${JWT_SECRET}
+      SCRAPER_MODULE_PATH: /premium-gatewaze-modules/modules/scrapers/scripts
+    volumes:
+      - ${PREMIUM_MODULES_PATH:-../../premium-gatewaze-modules}:/premium-gatewaze-modules
     depends_on:
       redis:
         condition: service_healthy
@@ -514,6 +523,8 @@ volumes:
   api-modules-cache:
     driver: local
   api-data:
+    driver: local
+  gatewaze-data:
     driver: local
   deno-cache:
     driver: local

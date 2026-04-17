@@ -74,11 +74,17 @@ COPY --from=builder /gatewaze-modules/modules /gatewaze-modules/modules
 COPY --from=builder /app/gatewaze.config.ts ./gatewaze.config.ts
 
 # Create writable directories for runtime git clones and uploaded modules
-RUN mkdir -p /app/.gatewaze-modules /app/data /tmp/module-repos
+RUN mkdir -p /app/.gatewaze-modules /app/data /tmp/module-repos /var/lib/gatewaze
 
 # Copy entrypoint script (clones additional module repos at startup)
 COPY docker/api/entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
+
+# Security: run as non-root user
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 gatewaze
+RUN chown -R gatewaze:nodejs /app /var/lib/gatewaze /tmp/module-repos
+USER gatewaze
 
 EXPOSE 3002
 
