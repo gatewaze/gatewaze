@@ -69,39 +69,33 @@ fi
 # Helper: read a value from the active env file
 env_val() { grep -E "^${1}=" "$ENV_FILE" | head -1 | cut -d= -f2-; }
 
-# Generate .mcp.json for Claude Code (Supabase MCP server)
+# Generate .mcp.json for Claude Code (Gatewaze MCP server)
 generate_mcp_config() {
-  local supabase_url anon_key service_key pg_user pg_pass pg_port pg_db
-  supabase_url="$(env_val SUPABASE_URL)"
-  anon_key="$(env_val ANON_KEY)"
-  service_key="$(env_val SERVICE_ROLE_KEY)"
-  pg_user="$(env_val POSTGRES_USER)"
-  pg_pass="$(env_val POSTGRES_PASSWORD)"
-  pg_port="$(env_val POSTGRES_PORT)"
-  pg_db="$(env_val POSTGRES_DB)"
+  local api_host mcp_api_key
+  api_host="$(env_val API_HOST)"
+  mcp_api_key="$(env_val GATEWAZE_MCP_API_KEY)"
+
+  if [ -z "$mcp_api_key" ]; then
+    echo "Skipping .mcp.json — GATEWAZE_MCP_API_KEY not set in env file"
+    echo "  Create an API key via the admin UI, add it to your env file, then restart"
+    return
+  fi
 
   cat > .mcp.json <<MCPEOF
 {
   "mcpServers": {
-    "supabase": {
+    "gatewaze": {
       "command": "npx",
-      "args": [
-        "-y",
-        "selfhosted-supabase-mcp@latest",
-        "--url",
-        "${supabase_url}",
-        "--anon-key",
-        "${anon_key}",
-        "--service-key",
-        "${service_key}",
-        "--db-url",
-        "postgresql://${pg_user}:${pg_pass}@localhost:${pg_port}/${pg_db}"
-      ]
+      "args": ["tsx", "packages/mcp/src/index.ts"],
+      "env": {
+        "GATEWAZE_API_URL": "http://${api_host:-localhost:3002}",
+        "GATEWAZE_MCP_API_KEY": "${mcp_api_key}"
+      }
     }
   }
 }
 MCPEOF
-  echo "Generated .mcp.json for Claude Code"
+  echo "Generated .mcp.json for Claude Code (Gatewaze MCP)"
 }
 
 # Detect Supabase mode from the active env file
