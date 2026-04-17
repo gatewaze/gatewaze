@@ -1,5 +1,5 @@
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { createSupabaseClient } from './lib/supabase.js';
+import { createApiClient } from './lib/supabase.js';
 import { createGatewazeMcpServer } from './server.js';
 
 const transport = process.env.MCP_TRANSPORT ?? 'stdio';
@@ -9,8 +9,8 @@ if (transport === 'http') {
   process.exit(1);
 }
 
-const supabase = createSupabaseClient();
-const server = createGatewazeMcpServer(supabase);
+const api = createApiClient();
+const server = createGatewazeMcpServer(api);
 
 async function main() {
   const stdioTransport = new StdioServerTransport();
