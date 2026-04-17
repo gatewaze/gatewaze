@@ -13,6 +13,7 @@ import { redirectsRouter } from './routes/redirects.js';
 import { slackRouter } from './routes/slack.js';
 import { calendarProxyRouter } from './routes/calendar-proxy.js';
 import { modulesRouter } from './routes/modules.js';
+import { apiKeysRouter } from './routes/api-keys.js';
 import { hateoasMiddleware } from './lib/hateoas.js';
 import { loadModules, loadModulesWithDbSources, reconcileModules } from '@gatewaze/shared/modules';
 import { createClient } from '@supabase/supabase-js';
@@ -48,6 +49,7 @@ app.use('/api/redirects', redirectsRouter);
 app.use('/api/slack', slackRouter);
 app.use('/api/calendar', calendarProxyRouter);
 app.use('/api/modules', modulesRouter);
+app.use('/api/api-keys', apiKeysRouter);
 
 // Module routes — loaded async before server starts
 async function registerModuleRoutes() {
@@ -95,6 +97,22 @@ async function registerModuleRoutes() {
     }
     if (modules.length > 0) {
       console.log(`[modules] ${modules.length} module(s) loaded`);
+    }
+
+    // Register public API v1 routes for enabled modules
+    try {
+      const { createPublicApiRouter } = await import('./routes/public-api.js');
+      const enabledModules = modules.filter(
+        m => enabledModuleIds.size === 0 || enabledModuleIds.has(m.config.id)
+      );
+      const publicApiRouter = createPublicApiRouter(
+        enabledModules,
+        supabaseUrl && serviceRoleKey ? createClient(supabaseUrl, serviceRoleKey) : null
+      );
+      app.use('/api/v1', publicApiRouter);
+      console.log('[public-api] Mounted at /api/v1');
+    } catch (err) {
+      console.warn('[public-api] Failed to mount public API:', err instanceof Error ? err.message : err);
     }
 
     // Reconcile modules with DB (syncs admin_nav, portal_nav, features, etc.)
