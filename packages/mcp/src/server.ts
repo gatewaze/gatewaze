@@ -3,210 +3,125 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { GatewazeApiClient } from './lib/supabase.js';
 
 // ── Tool definitions ─────────────────────────────────────────────────────
 
 const TOOLS = [
   {
-    name: 'people_search',
+    name: 'events_search',
     description:
-      'Search people by name, email, or status. Returns paginated results.',
+      'Search events by title, date range, city, type, or topics. Returns paginated results.',
     inputSchema: {
       type: 'object' as const,
       properties: {
-        query: {
-          type: 'string',
-          description: 'Search term to match against name or email',
-        },
-        status: {
-          type: 'string',
-          description: 'Filter by status (e.g. active, invited)',
-        },
-        limit: {
-          type: 'number',
-          description: 'Max results to return (default 25, max 100)',
-        },
-        offset: {
-          type: 'number',
-          description: 'Number of results to skip for pagination',
-        },
+        city: { type: 'string', description: 'Filter by city (partial match)' },
+        type: { type: 'string', description: 'Filter by event type' },
+        from: { type: 'string', description: 'Events starting after this date (ISO 8601)' },
+        to: { type: 'string', description: 'Events starting before this date (ISO 8601)' },
+        topics: { type: 'string', description: 'Comma-separated topic filter' },
+        calendar_id: { type: 'string', description: 'Filter by calendar UUID' },
+        fields: { type: 'string', description: 'Comma-separated field list (sparse fieldset)' },
+        limit: { type: 'number', description: 'Max results (default 25, max 100)' },
+        offset: { type: 'number', description: 'Skip N results (default 0)' },
       },
     },
   },
   {
-    name: 'people_get',
-    description: 'Get a single person by their ID.',
+    name: 'events_get',
+    description: 'Get full details of a single event by UUID or short event_id.',
     inputSchema: {
       type: 'object' as const,
       properties: {
-        id: { type: 'string', description: 'The person UUID' },
+        id: { type: 'string', description: 'Event UUID or short event_id' },
+        fields: { type: 'string', description: 'Comma-separated field list' },
       },
       required: ['id'],
     },
   },
   {
-    name: 'people_count',
-    description: 'Count people, optionally filtered by status.',
+    name: 'events_speakers',
+    description: 'Get speakers for a specific event.',
     inputSchema: {
       type: 'object' as const,
       properties: {
-        status: {
-          type: 'string',
-          description: 'Filter by status before counting',
-        },
+        id: { type: 'string', description: 'Event UUID or short event_id' },
       },
+      required: ['id'],
     },
   },
   {
-    name: 'platform_settings_get',
-    description:
-      'Get platform settings. Optionally filter to specific keys.',
+    name: 'events_sponsors',
+    description: 'Get sponsors for a specific event.',
     inputSchema: {
       type: 'object' as const,
       properties: {
-        keys: {
-          type: 'array',
-          items: { type: 'string' },
-          description:
-            'Specific setting keys to retrieve. Omit for all settings.',
-        },
+        id: { type: 'string', description: 'Event UUID or short event_id' },
       },
+      required: ['id'],
     },
   },
   {
-    name: 'modules_list',
-    description: 'List all installed modules with their status.',
+    name: 'platform_health',
+    description: 'Check the Gatewaze platform health and see how many modules are active.',
     inputSchema: {
       type: 'object' as const,
       properties: {},
-    },
-  },
-  {
-    name: 'modules_get',
-    description: 'Get details for a specific module by its ID.',
-    inputSchema: {
-      type: 'object' as const,
-      properties: {
-        id: { type: 'string', description: 'The module ID' },
-      },
-      required: ['id'],
-    },
-  },
-  {
-    name: 'query_read',
-    description:
-      'Execute a read-only SQL query. Not yet implemented in v1 — use the individual data tools instead.',
-    inputSchema: {
-      type: 'object' as const,
-      properties: {
-        sql: { type: 'string', description: 'A SELECT query to execute' },
-      },
-      required: ['sql'],
     },
   },
 ];
 
 // ── Handlers ─────────────────────────────────────────────────────────────
 
-async function handlePeopleSearch(
+async function handleEventsSearch(
   params: Record<string, unknown>,
-  supabase: SupabaseClient,
+  api: GatewazeApiClient,
 ) {
-  const limit = Math.min(Number(params.limit) || 25, 100);
-  const offset = Number(params.offset) || 0;
-  const query = (params.query as string) ?? '';
-  const status = params.status as string | undefined;
+  const queryParams: Record<string, string | number | undefined> = {};
+  if (params.city) queryParams.city = String(params.city);
+  if (params.type) queryParams.type = String(params.type);
+  if (params.from) queryParams.from = String(params.from);
+  if (params.to) queryParams.to = String(params.to);
+  if (params.topics) queryParams.topics = String(params.topics);
+  if (params.calendar_id) queryParams.calendar_id = String(params.calendar_id);
+  if (params.fields) queryParams.fields = String(params.fields);
+  if (params.limit) queryParams.limit = Number(params.limit);
+  if (params.offset) queryParams.offset = Number(params.offset);
 
-  let q = supabase.from('people').select('*', { count: 'exact' });
-
-  if (query) {
-    q = q.or(`full_name.ilike.%${query}%,email.ilike.%${query}%`);
-  }
-  if (status) {
-    q = q.eq('status', status);
-  }
-
-  const { data, count, error } = await q
-    .range(offset, offset + limit - 1)
-    .order('created_at', { ascending: false });
-
-  if (error) return { error: error.message };
-  return { data, total: count, limit, offset };
+  return api.get('/events', queryParams);
 }
 
-async function handlePeopleGet(
+async function handleEventsGet(
   params: Record<string, unknown>,
-  supabase: SupabaseClient,
+  api: GatewazeApiClient,
 ) {
-  const { data, error } = await supabase
-    .from('people')
-    .select('*')
-    .eq('id', params.id as string)
-    .single();
+  const queryParams: Record<string, string | number | undefined> = {};
+  if (params.fields) queryParams.fields = String(params.fields);
 
-  if (error) return { error: error.message };
-  return data;
+  return api.get(`/events/${params.id}`, queryParams);
 }
 
-async function handlePeopleCount(
+async function handleEventsSpeakers(
   params: Record<string, unknown>,
-  supabase: SupabaseClient,
+  api: GatewazeApiClient,
 ) {
-  let q = supabase.from('people').select('*', { count: 'exact', head: true });
-
-  if (params.status) {
-    q = q.eq('status', params.status as string);
-  }
-
-  const { count, error } = await q;
-  if (error) return { error: error.message };
-  return { count };
+  return api.get(`/events/${params.id}/speakers`);
 }
 
-async function handlePlatformSettingsGet(
+async function handleEventsSponsors(
   params: Record<string, unknown>,
-  supabase: SupabaseClient,
+  api: GatewazeApiClient,
 ) {
-  let q = supabase.from('platform_settings').select('*');
-
-  const keys = params.keys as string[] | undefined;
-  if (keys && keys.length > 0) {
-    q = q.in('key', keys);
-  }
-
-  const { data, error } = await q;
-  if (error) return { error: error.message };
-  return data;
+  return api.get(`/events/${params.id}/sponsors`);
 }
 
-async function handleModulesList(supabase: SupabaseClient) {
-  const { data, error } = await supabase
-    .from('modules')
-    .select('*')
-    .order('name');
-
-  if (error) return { error: error.message };
-  return data;
-}
-
-async function handleModulesGet(
-  params: Record<string, unknown>,
-  supabase: SupabaseClient,
-) {
-  const { data, error } = await supabase
-    .from('modules')
-    .select('*')
-    .eq('id', params.id as string)
-    .single();
-
-  if (error) return { error: error.message };
-  return data;
+async function handlePlatformHealth(api: GatewazeApiClient) {
+  return api.get('/health');
 }
 
 // ── Server factory ───────────────────────────────────────────────────────
 
-export function createGatewazeMcpServer(supabase: SupabaseClient): Server {
+export function createGatewazeMcpServer(api: GatewazeApiClient): Server {
   const server = new Server(
     { name: 'gatewaze-mcp', version: '0.1.0' },
     { capabilities: { tools: {} } },
@@ -224,38 +139,37 @@ export function createGatewazeMcpServer(supabase: SupabaseClient): Server {
 
     let result: unknown;
 
-    switch (name) {
-      case 'people_search':
-        result = await handlePeopleSearch(params, supabase);
-        break;
-      case 'people_get':
-        result = await handlePeopleGet(params, supabase);
-        break;
-      case 'people_count':
-        result = await handlePeopleCount(params, supabase);
-        break;
-      case 'platform_settings_get':
-        result = await handlePlatformSettingsGet(params, supabase);
-        break;
-      case 'modules_list':
-        result = await handleModulesList(supabase);
-        break;
-      case 'modules_get':
-        result = await handleModulesGet(params, supabase);
-        break;
-      case 'query_read':
-        result = {
-          error:
-            'query_read is not yet implemented in v1. Use the individual data tools (people_search, people_get, modules_list, etc.) instead.',
-        };
-        break;
-      default:
-        return {
-          content: [
-            { type: 'text', text: JSON.stringify({ error: `Unknown tool: ${name}` }) },
-          ],
-          isError: true,
-        };
+    try {
+      switch (name) {
+        case 'events_search':
+          result = await handleEventsSearch(params, api);
+          break;
+        case 'events_get':
+          result = await handleEventsGet(params, api);
+          break;
+        case 'events_speakers':
+          result = await handleEventsSpeakers(params, api);
+          break;
+        case 'events_sponsors':
+          result = await handleEventsSponsors(params, api);
+          break;
+        case 'platform_health':
+          result = await handlePlatformHealth(api);
+          break;
+        default:
+          return {
+            content: [
+              { type: 'text', text: JSON.stringify({ error: `Unknown tool: ${name}` }) },
+            ],
+            isError: true,
+          };
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ error: message }) }],
+        isError: true,
+      };
     }
 
     return {
