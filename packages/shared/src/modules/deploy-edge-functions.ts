@@ -76,7 +76,23 @@ export async function deployEdgeFunctions(
     return result;
   }
 
-  const strategy = createDeploymentStrategy(env);
+  let strategy: ReturnType<typeof createDeploymentStrategy>;
+  try {
+    strategy = createDeploymentStrategy(env);
+  } catch (err) {
+    console.error('[modules]', err instanceof Error ? err.message : err);
+    for (const mod of opts.modules) {
+      for (const fnName of mod.config.edgeFunctions ?? []) {
+        result.errors.push({
+          module: mod.config.id,
+          functionName: fnName,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+    return result;
+  }
+
   const isCloudDeploy = env === 'cloud-api';
   const targetFunctionsDir = env === 'k8s-shared-storage'
     ? process.env.EDGE_FUNCTIONS_SHARED_DIR!
@@ -264,7 +280,14 @@ export async function removeEdgeFunctions(
     return;
   }
 
-  const strategy = createDeploymentStrategy(env);
+  let strategy: ReturnType<typeof createDeploymentStrategy>;
+  try {
+    strategy = createDeploymentStrategy(env);
+  } catch (err) {
+    console.error('[modules]', err instanceof Error ? err.message : err);
+    return;
+  }
+
   const isCloudDeploy = env === 'cloud-api';
   const targetFunctionsDir = env === 'k8s-shared-storage'
     ? process.env.EDGE_FUNCTIONS_SHARED_DIR!

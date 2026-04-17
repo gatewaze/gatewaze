@@ -49,6 +49,41 @@ export interface ThemeOverrides {
   lockedSettings?: string[];
 }
 
+/**
+ * A structured logger interface injected into module runtime contexts.
+ */
+export interface StructuredLogger {
+  info(message: string, meta?: Record<string, unknown>): void;
+  warn(message: string, meta?: Record<string, unknown>): void;
+  error(message: string, meta?: Record<string, unknown>): void;
+  debug(message: string, meta?: Record<string, unknown>): void;
+}
+
+/**
+ * Runtime context provided to module lifecycle hooks, API routes,
+ * workers, and schedulers. Replaces direct process.env access.
+ */
+export interface ModuleRuntimeContext {
+  /** The module's canonical ID */
+  moduleId: string;
+  /** Absolute path to the module's directory on disk */
+  moduleDir: string;
+  /** Absolute path to the project root */
+  projectRoot: string;
+  /** Structured logger scoped to this module */
+  logger: StructuredLogger;
+  /** Pre-configured Supabase client (service_role) */
+  supabase: unknown; // SupabaseClient - kept as unknown to avoid circular dep
+  /** Instance-level Gatewaze configuration */
+  config: GatewazeConfig;
+  /** This module's validated config values (secrets decrypted) */
+  moduleConfig: Record<string, unknown>;
+  /** Present when invoked from an HTTP request */
+  requestId?: string;
+  /** Present when invoked from an authenticated admin action */
+  actor?: { userId: string; role: 'admin' | 'super_admin' };
+}
+
 export interface GatewazeModule {
   id: string;
   name: string;
@@ -80,7 +115,8 @@ export interface GatewazeModule {
   };
   /** Slot registrations for the public portal Next.js app */
   portalSlots?: SlotRegistration[];
-  apiRoutes?: (app: unknown, context?: ModuleContext) => void | Promise<void>;
+  apiRoutes?: ((app: unknown, context?: ModuleContext) => void | Promise<void>) |
+              ((router: unknown, ctx: ModuleRuntimeContext) => void | Promise<void>);
   workers?: WorkerDefinition[];
   schedulers?: SchedulerDefinition[];
   edgeFunctions?: string[];
@@ -105,9 +141,9 @@ export interface GatewazeModule {
   guide?: string;
   /** Theme overrides — only meaningful when type === 'theme' */
   themeOverrides?: ThemeOverrides;
-  onInstall?: () => Promise<void>;
-  onEnable?: () => Promise<void>;
-  onDisable?: () => Promise<void>;
+  onInstall?: (ctx?: ModuleRuntimeContext) => Promise<void>;
+  onEnable?: (ctx?: ModuleRuntimeContext) => Promise<void>;
+  onDisable?: (ctx?: ModuleRuntimeContext) => Promise<void>;
 }
 
 export interface AdminRouteDefinition {
@@ -177,10 +213,15 @@ export interface ModuleContext {
 
 export interface ConfigField {
   key: string;
-  type: 'string' | 'number' | 'boolean' | 'secret';
+  type: 'string' | 'number' | 'boolean' | 'secret' | 'select';
+  label?: string;
   required: boolean;
   default?: string;
   description: string;
+  options?: { label: string; value: string }[]; // for type === 'select'
+  validationRegex?: string; // for type === 'string'
+  min?: number; // for type === 'number'
+  max?: number; // for type === 'number'
 }
 
 /**
@@ -294,6 +335,90 @@ export interface InstalledModuleRow {
     order?: number;
   }> | null;
   edge_functions_hash?: string | null;
+  source_id?: string | null;
+  on_install_ran_at?: string | null;
+  install_completed_at?: string | null;
+  ui_contributions_ignored?: string[];
   installed_at: string;
   updated_at: string;
+}
+
+/** Warning emitted during module loading or validation */
+export interface ModuleWarning {
+  code: string;
+  message: string;
+  details?: Record<string, unknown>;
+}
+
+/** Result of loading a module, including provenance and warnings */
+export interface LoadedModuleRecord {
+  module: GatewazeModule;
+  source: {
+    kind: 'local' | 'git' | 'workspace' | 'upload';
+    sourceId?: string;
+    rootPath: string; // server-internal, NEVER return via API
+    locationHint: string; // safe for API responses
+  };
+  warnings: ModuleWarning[];
+}
+
+/** Canonical error codes for module operations */
+export type ModuleErrorCode =
+  | 'VALIDATION_ERROR'
+  | 'UNAUTHENTICATED'
+  | 'UNAUTHORIZED'
+  | 'UPLOAD_DISABLED'
+  | 'NOT_FOUND'
+  | 'DEPENDENCY_CYCLE'
+  | 'MODULE_ID_CONFLICT'
+  | 'MIGRATION_CHECKSUM_MISMATCH'
+  | 'MIGRATION_FAILED'
+  | 'MIGRATION_TIMEOUT'
+  | 'MIGRATION_UNSAFE_SQL'
+  | 'EDGE_DEPLOY_FAILED'
+  | 'EDGE_BUNDLE_FAILED'
+  | 'EDGE_RELOAD_UNAVAILABLE'
+  | 'BOOTSTRAP_FAILED'
+  | 'ALREADY_BOOTSTRAPPED'
+  | 'K8S_STRATEGY_NOT_IMPLEMENTED'
+  | 'MODULE_LOAD_FAILED'
+  | 'MODULE_SOURCE_UNREACHABLE'
+  | 'SOURCE_IN_USE'
+  | 'GIT_HOST_NOT_ALLOWED'
+  | 'IDEMPOTENCY_KEY_REUSE'
+  | 'IDEMPOTENCY_IN_PROGRESS'
+  | 'ROTATION_FAILED'
+  | 'LEADERSHIP_LOST'
+  | 'RATE_LIMITED'
+  | 'INTERNAL';
+
+/** Structured error response for module API endpoints */
+export interface ModuleApiError {
+  error: {
+    code: ModuleErrorCode;
+    message: string;
+    details?: Record<string, unknown>;
+  };
+}
+
+/** Worker handler signature for module workers */
+export type ModuleWorkerHandler = (
+  job: { id: string; name: string; data: unknown; attemptsMade: number },
+  ctx: ModuleRuntimeContext,
+) => Promise<unknown>;
+
+/** Scheduler handler signature for module schedulers */
+export type ModuleSchedulerHandler = (
+  ctx: ModuleRuntimeContext,
+) => Promise<void>;
+
+/** Installed module config storage envelope */
+export interface ModuleConfigEnvelope {
+  version: number;
+  values: Record<string, {
+    type: 'string' | 'number' | 'boolean' | 'secret' | 'select';
+    value?: string | number | boolean | null;
+    ciphertext?: string; // for secrets only
+    last4?: string; // for secrets only, for display masking
+  }>;
 }

@@ -25,7 +25,10 @@ moduleSources: "https://github.com/gatewaze/gatewaze-modules.git@main#modules"
 replicaCount:
   admin: 2
   portal: 2
-  api: 2
+  # v1.1 REQUIREMENT: API must be single-replica. Module subsystem uses
+  # in-process mutexes for migration safety. Multi-replica support planned for v1.2.
+  # DO NOT increase this value without implementing distributed locks.
+  api: 1
   worker: 1
   scheduler: 1
 
@@ -228,6 +231,32 @@ affinity: {}
 #       name: gatewaze-prefect-worker-secret
 # =============================================================================
 extraEnvFrom: []
+
+# =============================================================================
+# API Service Configuration
+# =============================================================================
+api:
+  # Module system v1.1 configuration
+  env:
+    DISABLE_MODULE_UPLOAD: "true"  # recommended default for production
+    GATEWAZE_DATA_DIR: "/var/lib/gatewaze"
+    BULLMQ_PREFIX: "gatewaze"
+    AUDIT_LOG_RETENTION_DAYS: "90"
+    MODULE_MIGRATION_TIMEOUT_MS: "30000"
+    MODULE_UPLOAD_MAX_FILE_BYTES: "10485760"
+    MODULE_UPLOAD_MAX_TOTAL_BYTES: "209715200"
+    # MODULE_GIT_ALLOWED_HOSTS: ""  # comma-separated, set to restrict git sources
+    # GATEWAZE_CORS_ALLOWED_ORIGINS: ""  # comma-separated, set to enable CORS
+    # EDGE_RUNTIME_RELOAD_URL: ""  # for local-filesystem edge deploy
+    # EDGE_RUNTIME_RELOAD_TOKEN: ""  # shared secret for reload endpoint
+
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: ""  # use cluster default
+    accessModes:
+      - ReadWriteOnce
+    mountPath: /var/lib/gatewaze
 
 # =============================================================================
 # Custom Domains Module

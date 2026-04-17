@@ -221,6 +221,11 @@ export async function reconcileModules(
             config: mod.moduleConfig,
             portal_nav: mod.config.portalNav || null,
             admin_nav: mod.config.adminNavItems || null,
+            on_install_ran_at: null,
+            install_completed_at: null,
+            ui_contributions_ignored: [],
+            package_name: mod.packageName,
+            source_id: null, // will be populated when source tracking is implemented
           });
 
         if (insertErr) {

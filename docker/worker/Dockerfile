@@ -36,6 +36,11 @@ RUN groupadd -r gatewaze && useradd -r -g gatewaze gatewaze \
     && chown -R gatewaze:gatewaze /app \
     && mkdir -p /tmp/crashpad && chmod 777 /tmp/crashpad
 
+# Symlink node_modules to locations where mounted module scripts can find packages.
+# ESM resolution walks up from the importing file's directory, so modules mounted
+# at /premium-gatewaze-modules need a node_modules somewhere in that ancestor chain.
+RUN ln -s /app/node_modules /node_modules 2>/dev/null || true
+
 USER gatewaze
 
 # Health check - verify worker can connect to Redis

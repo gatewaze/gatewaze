@@ -3,6 +3,7 @@ import type { SupabaseClient } from './supabase-types';
 import { createHash } from 'crypto';
 import { readFileSync } from 'fs';
 import { resolve, dirname } from 'path';
+import { lintMigrationSql, hasMigrationViolations } from './migration-linter';
 
 /**
  * Result of applying (or attempting to apply) a module's migrations.
@@ -54,7 +55,7 @@ export async function applyModuleMigrations(
   // Get already-applied migrations so we skip them.
   const { data: applied, error } = await supabase
     .from('module_migrations')
-    .select('filename')
+    .select('filename,checksum')
     .eq('module_id', mod.config.id);
 
   if (error) {
@@ -65,7 +66,9 @@ export async function applyModuleMigrations(
     return result;
   }
 
-  const appliedSet = new Set((applied ?? []).map((r) => r.filename as string));
+  const appliedMap = new Map(
+    (applied ?? []).map((r) => [r.filename as string, (r.checksum as string) ?? null])
+  );
 
   // Resolve migration file paths relative to the module's directory.
   // Prefer resolvedDir (actual source directory on disk) over require.resolve
@@ -85,7 +88,7 @@ export async function applyModuleMigrations(
   for (const migrationPath of migrations) {
     const filename = migrationPath.replace(/^\.\//, '');
 
-    if (appliedSet.has(filename)) {
+    if (appliedMap.has(filename)) {
       result.skipped.push(filename);
       continue;
     }
@@ -104,7 +107,31 @@ export async function applyModuleMigrations(
       return result;
     }
 
+    // Runtime lint check for forbidden SQL patterns
+    const lintResult = lintMigrationSql(filename, sql);
+    if (hasMigrationViolations(lintResult)) {
+      const violations = lintResult.violations.map(v => `Line ${v.line ?? '?'}: ${v.reason}`).join('; ');
+      console.error(`[modules] MIGRATION_UNSAFE_SQL in "${mod.config.id}/${filename}": ${violations}`);
+      result.failed = {
+        filename,
+        message: `Migration contains forbidden SQL: ${violations}`,
+        code: 'MIGRATION_UNSAFE_SQL',
+      };
+      return result;
+    }
+
     const checksum = createHash('sha256').update(sql).digest('hex');
+
+    // Checksum mismatch — hard error, not silent skip
+    const existingChecksum = appliedMap.get(filename);
+    if (existingChecksum && existingChecksum !== checksum) {
+      result.failed = {
+        filename,
+        message: `Migration checksum mismatch for "${filename}". Expected "${existingChecksum}", got "${checksum}". This migration file has been modified after being applied. Manual intervention required.`,
+        code: 'MIGRATION_CHECKSUM_MISMATCH',
+      };
+      return result;
+    }
 
     console.log(`[modules] Applying migration "${filename}" for "${mod.config.id}"...`);
 
