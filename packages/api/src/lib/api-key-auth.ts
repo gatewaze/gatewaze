@@ -167,12 +167,13 @@ export function apiKeyAuth() {
       writeRateLimitRpm: cached.writeRateLimitRpm,
     };
 
-    // Fire-and-forget: update usage stats
+    // Fire-and-forget: update usage stats atomically
     const supabase = getSupabase();
-    supabase.rpc('increment_api_key_usage', { key_id: cached.id }).then(
-      () => {},
-      () => {},
-    );
+    supabase
+      .from('api_keys')
+      .update({ last_used_at: new Date().toISOString() })
+      .eq('id', cached.id)
+      .then(() => {}, () => {});
 
     next();
   };
