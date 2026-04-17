@@ -181,10 +181,10 @@ const BASE_PATH_PATTERN = /^\/[a-z0-9\-/]+$/;
  * then applies API key auth and mounts each enabled module's public
  * API routes at its declared base path.
  */
-export function createPublicApiRouter(
+export async function createPublicApiRouter(
   enabledModules: LoadedModule[],
   supabase: any,
-): Router {
+): Promise<Router> {
   const router = Router();
 
   // Track module OpenAPI contributions for lazy assembly
@@ -307,7 +307,12 @@ export function createPublicApiRouter(
 
     // Create a scoped router and let the module register its routes
     const scopedRouter = Router();
-    mod.config.publicApiRoutes(scopedRouter, ctx);
+    try {
+      await mod.config.publicApiRoutes(scopedRouter, ctx);
+    } catch (err) {
+      console.error(`[public-api] Failed to register routes for "${mod.config.id}":`, err);
+      continue;
+    }
     router.use(basePath, scopedRouter);
 
     // Collect OpenAPI contribution

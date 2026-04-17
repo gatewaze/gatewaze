@@ -446,6 +446,7 @@ services:
       DISABLE_MODULE_UPLOAD: ${DISABLE_MODULE_UPLOAD:-false}
       BULLMQ_PREFIX: ${BULLMQ_PREFIX:-gatewaze}
       AUDIT_LOG_RETENTION_DAYS: ${AUDIT_LOG_RETENTION_DAYS:-90}
+      API_KEY_PEPPER: ${API_KEY_PEPPER:-}
     depends_on:
       redis:
         condition: service_healthy
@@ -478,7 +479,6 @@ services:
       GOOGLE_CSE_API_KEY: ${GOOGLE_CSE_API_KEY:-}
       GOOGLE_CSE_ID: ${GOOGLE_CSE_ID:-}
       GOOGLE_CSE_DAILY_BUDGET: ${GOOGLE_CSE_DAILY_BUDGET:-100}
-      API_KEY_PEPPER: ${API_KEY_PEPPER:-}
     volumes:
       - ${PREMIUM_MODULES_PATH:-../../premium-gatewaze-modules}:/premium-gatewaze-modules
     depends_on:
