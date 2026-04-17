@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router";
 import { Loader2, CheckCircle2, AlertTriangle, XCircle } from "lucide-react";
 import { toast } from "sonner";
-import { ModuleCard } from "@/components/ui";
+import { ModuleCard, Card } from "@/components/ui";
 import { ModuleService } from "@/utils/moduleService";
 import OnboardingWizardLayout from "./OnboardingWizardLayout";
 
