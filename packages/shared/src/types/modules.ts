@@ -144,6 +144,41 @@ export interface GatewazeModule {
   onInstall?: (ctx?: ModuleRuntimeContext) => Promise<void>;
   onEnable?: (ctx?: ModuleRuntimeContext) => Promise<void>;
   onDisable?: (ctx?: ModuleRuntimeContext) => Promise<void>;
+
+  // ── Public API contributions ──────────────────────────────────────────
+
+  /**
+   * Custom base path for public API routes.
+   * Default: `/${id}`. Must start with `/` and match [a-z0-9-/].
+   * Example: event-speakers module sets '/speakers'.
+   */
+  publicApiBasePath?: string;
+
+  /**
+   * Scopes this module supports for its public API.
+   * Authoritative source — requireScope() only checks, does not register.
+   */
+  publicApiScopes?: PublicApiScopeDefinition[];
+
+  /**
+   * Public API route contributions. Mounted at /api/v1/<basePath>/ with API key auth.
+   * Receives a scoped Router (not the full Express app).
+   */
+  publicApiRoutes?: (router: unknown, ctx: PublicApiContext) => void | Promise<void>;
+
+  /**
+   * OpenAPI schema contributions for the public API.
+   * Used to generate the /api/v1/openapi.json spec.
+   */
+  publicApiSchema?: OpenApiContribution;
+
+  // ── MCP contributions ─────────────────────────────────────────────────
+
+  /**
+   * MCP server contributions — tools, resources, and prompts exposed
+   * to AI assistants when this module is enabled.
+   */
+  mcpContributions?: McpContributions | ((ctx: ModuleRuntimeContext) => McpContributions);
 }
 
 export interface AdminRouteDefinition {
@@ -421,4 +456,72 @@ export interface ModuleConfigEnvelope {
     ciphertext?: string; // for secrets only
     last4?: string; // for secrets only, for display masking
   }>;
+}
+
+// ── Public API types ──────────────────────────────────────────────────────
+
+export interface PublicApiScopeDefinition {
+  action: string;       // e.g. 'read', 'submit', 'create'
+  description: string;  // human-readable, shown in admin UI and docs
+}
+
+/** Cache policy for public API endpoints */
+export type CachePolicy =
+  | { kind: 'public'; maxAge: number; sMaxAge?: number }
+  | { kind: 'no-store' };
+
+/**
+ * Context provided to public API route handlers.
+ * Extends ModuleRuntimeContext with public-API-specific helpers.
+ */
+export interface PublicApiContext extends ModuleRuntimeContext {
+  /** Middleware factory — auto-prefixes moduleId: requireScope('read') checks 'events:read' */
+  requireScope: (action: string) => unknown; // Express RequestHandler
+  /** Parse ?fields= against an allowlist. Unpermitted fields silently stripped. */
+  parseFields: (fieldsParam: string | undefined, allowedFields: string[], defaultFields?: string[]) => string[];
+  /** Parse and validate limit/offset pagination parameters. */
+  parsePagination: (query: { limit?: string; offset?: string }) => { limit: number; offset: number };
+  /** Set Cache-Control headers from a typed policy. */
+  setCache: (res: unknown, policy: CachePolicy) => void;
+}
+
+/** OpenAPI 3.1 schema contribution from a module */
+export interface OpenApiContribution {
+  /** Module's API tag (used for grouping in docs) */
+  tag: { name: string; description: string };
+  /** Path definitions (relative to /api/v1/<basePath>/) */
+  paths: Record<string, unknown>;
+  /** Schema definitions (merged into components/schemas, auto-prefixed with moduleId) */
+  schemas?: Record<string, unknown>;
+}
+
+// ── MCP types ─────────────────────────────────────────────────────────────
+
+export interface McpContributions {
+  tools?: McpToolDefinition[];
+  resources?: McpResourceDefinition[];
+  prompts?: McpPromptDefinition[];
+}
+
+export interface McpToolDefinition {
+  /** Tool name — namespaced as moduleId_toolName by the MCP server */
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>; // JSON Schema
+  handler: (params: Record<string, unknown>, ctx: ModuleRuntimeContext) => Promise<unknown>;
+}
+
+export interface McpResourceDefinition {
+  /** URI template — auto-prefixed: gatewaze://modules/{moduleId}/... */
+  uriTemplate: string;
+  name: string;
+  description: string;
+  handler: (uri: string, ctx: ModuleRuntimeContext) => Promise<unknown>;
+}
+
+export interface McpPromptDefinition {
+  name: string;
+  description: string;
+  arguments?: { name: string; description: string; required?: boolean }[];
+  handler: (args: Record<string, string>, ctx: ModuleRuntimeContext) => Promise<string>;
 }
