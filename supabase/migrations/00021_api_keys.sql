@@ -57,3 +57,21 @@ CREATE INDEX IF NOT EXISTS idx_idempotency_expires
   ON public_api_idempotency_keys (expires_at);
 
 ALTER TABLE public_api_idempotency_keys ENABLE ROW LEVEL SECURITY;
+
+-- Seed a default dev API key for local development.
+-- Key: gw_live_dev00000000000000000000000000000001
+-- Pepper: Z2F0ZXdhemUtZGV2LXBlcHBlci0wMDAwMDAwMDAwMDA= (set as API_KEY_PEPPER env var)
+-- Hash: HMAC-SHA256(key, pepper) — pre-computed so local dev works out of the box.
+INSERT INTO api_keys (id, name, key_hash, key_prefix, scopes, rate_limit_rpm, write_rate_limit_rpm, metadata)
+VALUES (
+  '00000000-0000-0000-0000-000000000001',
+  'Local Development',
+  'afbf14897e9b561e6762b0984bdb45bf3071aad5e47c210c40cbc2e34d0e33b2',
+  'gw_live_dev00000',
+  ARRAY['events:read', 'calendars:read', 'forms:read', 'forms:submit', 'lists:read',
+        'lists:subscribe', 'blog:read', 'speakers:read', 'sponsors:read',
+        'registrations:create', 'newsletters:read'],
+  1000,
+  100,
+  '{"purpose": "local development", "note": "seeded by migration — do not use in production"}'::jsonb
+) ON CONFLICT (id) DO NOTHING;
