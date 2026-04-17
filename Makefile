@@ -311,16 +311,16 @@ ifneq ($(SUPABASE_MODE),cloud)
 endif
 
 _generate-mcp:
-	@SUPABASE_URL=$$(grep -E '^SUPABASE_URL=' "$(ENV_FILE)" | head -1 | cut -d= -f2-); \
-	ANON_KEY=$$(grep -E '^ANON_KEY=' "$(ENV_FILE)" | head -1 | cut -d= -f2-); \
-	SERVICE_KEY=$$(grep -E '^SERVICE_ROLE_KEY=' "$(ENV_FILE)" | head -1 | cut -d= -f2-); \
-	PG_USER=$$(grep -E '^POSTGRES_USER=' "$(ENV_FILE)" | head -1 | cut -d= -f2-); \
-	PG_PASS=$$(grep -E '^POSTGRES_PASSWORD=' "$(ENV_FILE)" | head -1 | cut -d= -f2-); \
-	PG_PORT=$$(grep -E '^POSTGRES_PORT=' "$(ENV_FILE)" | head -1 | cut -d= -f2-); \
-	PG_DB=$$(grep -E '^POSTGRES_DB=' "$(ENV_FILE)" | head -1 | cut -d= -f2-); \
-	printf '{\n  "mcpServers": {\n    "supabase": {\n      "command": "npx",\n      "args": [\n        "-y",\n        "selfhosted-supabase-mcp@latest",\n        "--url",\n        "%s",\n        "--anon-key",\n        "%s",\n        "--service-key",\n        "%s",\n        "--db-url",\n        "postgresql://%s:%s@localhost:%s/%s"\n      ]\n    }\n  }\n}\n' \
-		"$$SUPABASE_URL" "$$ANON_KEY" "$$SERVICE_KEY" "$$PG_USER" "$$PG_PASS" "$$PG_PORT" "$$PG_DB" > .mcp.json; \
-	echo "Generated .mcp.json for Claude Code"
+	@API_HOST=$$(grep -E '^API_HOST=' "$(ENV_FILE)" | head -1 | cut -d= -f2-); \
+	MCP_KEY=$$(grep -E '^GATEWAZE_MCP_API_KEY=' "$(ENV_FILE)" | head -1 | cut -d= -f2-); \
+	if [ -z "$$MCP_KEY" ]; then \
+		echo "Skipping .mcp.json — GATEWAZE_MCP_API_KEY not set in $(ENV_FILE)"; \
+		echo "  Create an API key via the admin UI, add it to your env file, then restart"; \
+	else \
+		printf '{\n  "mcpServers": {\n    "gatewaze": {\n      "command": "npx",\n      "args": ["tsx", "packages/mcp/src/index.ts"],\n      "env": {\n        "GATEWAZE_API_URL": "http://%s",\n        "GATEWAZE_MCP_API_KEY": "%s"\n      }\n    }\n  }\n}\n' \
+			"$${API_HOST:-localhost:3002}" "$$MCP_KEY" > .mcp.json; \
+		echo "Generated .mcp.json for Claude Code (Gatewaze MCP)"; \
+	fi
 
 # ---------------------------------------------------------------------------
 # Catch-all: silently ignore brand names passed as targets
