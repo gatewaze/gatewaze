@@ -73,6 +73,12 @@ redis:
   # -- Redis storage size
   storageSize: 2Gi
 
+  # -- Redis PVC storage class. Leave empty to use the cluster default.
+  # Set explicitly (e.g. "linode-block-storage") if the cluster default
+  # has Retain reclaim policy — redis here is a cache, so a Delete policy
+  # avoids leaking volumes on every chart churn.
+  storageClass: ""
+
   # -- Redis resource requests/limits
   resources:
     requests:
