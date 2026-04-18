@@ -16,6 +16,7 @@ import { modulesRouter } from './routes/modules.js';
 import { apiKeysRouter } from './routes/api-keys.js';
 import { hateoasMiddleware } from './lib/hateoas.js';
 import { loadModules, loadModulesWithDbSources, reconcileModules } from '@gatewaze/shared/modules';
+import type { ModuleRuntimeContext } from '@gatewaze/shared/modules';
 import { createClient } from '@supabase/supabase-js';
 import { resolve } from 'path';
 import _configImport from '../../../gatewaze.config.js';
@@ -88,10 +89,21 @@ async function registerModuleRoutes() {
         continue;
       }
       if (mod.config.apiRoutes) {
-        await mod.config.apiRoutes(app, {
-          projectRoot: PROJECT_ROOT,
+        const runtimeCtx: ModuleRuntimeContext = {
+          moduleId: mod.config.id,
           moduleDir: mod.resolvedDir || PROJECT_ROOT,
-        });
+          projectRoot: PROJECT_ROOT,
+          logger: {
+            info: (msg, meta) => console.log(`[${mod.config.id}]`, msg, meta ?? ''),
+            warn: (msg, meta) => console.warn(`[${mod.config.id}]`, msg, meta ?? ''),
+            error: (msg, meta) => console.error(`[${mod.config.id}]`, msg, meta ?? ''),
+            debug: (msg, meta) => console.debug(`[${mod.config.id}]`, msg, meta ?? ''),
+          },
+          supabase: null,
+          config: config as never,
+          moduleConfig: (mod as { moduleConfig?: Record<string, unknown> }).moduleConfig ?? {},
+        };
+        await mod.config.apiRoutes(app, runtimeCtx);
         console.log(`[modules] Registered API routes for: ${mod.config.name}`);
       }
     }
