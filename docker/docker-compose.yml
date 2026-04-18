@@ -481,6 +481,7 @@ services:
       GOOGLE_CSE_ID: ${GOOGLE_CSE_ID:-}
       GOOGLE_CSE_DAILY_BUDGET: ${GOOGLE_CSE_DAILY_BUDGET:-100}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-1}
     volumes:
       - ${PREMIUM_MODULES_PATH:-../../premium-gatewaze-modules}:/premium-gatewaze-modules
     depends_on:
