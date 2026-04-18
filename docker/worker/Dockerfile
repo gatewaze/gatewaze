@@ -39,7 +39,10 @@ RUN groupadd -r gatewaze && useradd -r -g gatewaze gatewaze \
 # Symlink node_modules to locations where mounted module scripts can find packages.
 # ESM resolution walks up from the importing file's directory, so modules mounted
 # at /premium-gatewaze-modules need a node_modules somewhere in that ancestor chain.
-RUN ln -s /app/node_modules /node_modules 2>/dev/null || true
+# Using `ln -sfn` so it always creates/replaces the symlink and fails loudly on real errors.
+RUN ln -sfn /app/node_modules /node_modules && \
+    ls -la /node_modules && \
+    ls /node_modules/node-ical/package.json
 
 USER gatewaze
 

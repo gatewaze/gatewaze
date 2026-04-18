@@ -10,7 +10,6 @@ import { stripEmojis } from '@/lib/text'
 import { findEventModulePage } from '@/lib/modules/generated-event-pages'
 import { resolveEventTheme, getThemeBackgroundColor, isLightColor } from '@/config/brand'
 import { getEnabledModules, isModuleEnabled } from '@/lib/modules/enabledModules'
-import { RsvpPageClient } from '@/components/rsvp/RsvpPageClient'
 import { resolveEventImages } from '@/lib/storage-resolve'
 
 interface Props {
@@ -104,47 +103,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function CustomPage({ params }: Props) {
   const { identifier, custompage } = await params
 
-  // RSVP page — directly imported to ensure it's bundled in the Docker image
-  if (custompage === 'rsvp') {
-    const modules = await getEnabledModules()
-    if (isModuleEnabled(modules, 'event-invites')) {
-      const brand = await getServerBrand()
-      const brandConfig = await getBrandConfigById(brand)
-
-      const supabase = await createServerSupabase(brand)
-      let eventForTheme = null
-      const { data: ev1 } = await supabase
-        .from('events')
-        .select('gradient_color_1, gradient_color_2, gradient_color_3, portal_theme, theme_colors')
-        .eq('event_slug', identifier)
-        .maybeSingle()
-      eventForTheme = ev1
-      if (!eventForTheme) {
-        const { data: ev2 } = await supabase
-          .from('events')
-          .select('gradient_color_1, gradient_color_2, gradient_color_3, portal_theme, theme_colors')
-          .eq('event_id', identifier)
-          .maybeSingle()
-        eventForTheme = ev2
-      }
-
-      const resolved = resolveEventTheme(eventForTheme || {}, brandConfig)
-      const bgColor = getThemeBackgroundColor(resolved.theme, resolved.colors, resolved.secondaryColor)
-      const darkMode = !isLightColor(bgColor || '#ffffff')
-      return (
-        <Suspense fallback={null}>
-          <RsvpPageClient
-            eventIdentifier={identifier}
-            primaryColor={resolved.primaryColor}
-            brandName={brandConfig.name}
-            darkMode={darkMode}
-          />
-        </Suspense>
-      )
-    }
-  }
-
-  // Check other module event pages via generated registry
+  // All module event pages (including RSVP) flow through the generated
+  // registry — the registry's dynamic import resolves to the module source
+  // so edits to the module take effect in the portal without duplication.
   const modulePage = findEventModulePage(custompage)
   if (modulePage) {
     const modules = await getEnabledModules()
