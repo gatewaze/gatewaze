@@ -257,12 +257,34 @@ api:
     # EDGE_RUNTIME_RELOAD_TOKEN: ""  # shared secret for reload endpoint
 
   persistence:
+    # -- Provision a PVC for module uploads / writable data. Disable to use
+    # emptyDir (fine when DISABLE_MODULE_UPLOAD=true and nothing needs to
+    # survive pod restarts).
     enabled: true
     size: 10Gi
     storageClass: ""  # use cluster default
     accessModes:
       - ReadWriteOnce
-    mountPath: /var/lib/gatewaze
+    # -- Where the volume is mounted in the container. This must match the
+    # directory the app actually writes to (currently /app/data — multer
+    # uploads and resolved module archives live under there).
+    mountPath: /app/data
+
+  # -- Pod-container securityContext for the api container. The api process
+  # creates module symlinks at the filesystem root and writes .gitconfig, so
+  # it cannot run as non-root or with a read-only root fs. Keep default as {}
+  # (use image default), or override explicitly for your threat model.
+  securityContext: {}
+
+# =============================================================================
+# Worker Service Configuration
+# =============================================================================
+worker:
+  # -- Pod-container securityContext for the worker container. The worker
+  # image's entrypoint clones module repos and symlinks them at the
+  # filesystem root, so it cannot run non-root. Keep {} to use the image
+  # default, or override for your threat model.
+  securityContext: {}
 
 # =============================================================================
 # Custom Domains Module
