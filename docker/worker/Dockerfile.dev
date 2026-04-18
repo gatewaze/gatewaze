@@ -41,5 +41,11 @@ RUN npm ci
 # Copy application code (will be overridden by volume mounts)
 COPY scripts/ ./scripts/
 
+# Symlink node_modules so ESM imports from mounted module scripts at
+# /premium-gatewaze-modules can resolve packages like node-ical. Node walks
+# up from the importer's directory looking for node_modules; without this,
+# the walk terminates at / with no match.
+RUN ln -sfn /app/node_modules /node_modules
+
 # Use node --watch for hot reloading
 CMD ["node", "--watch", "scripts/workers/job-worker.js"]
