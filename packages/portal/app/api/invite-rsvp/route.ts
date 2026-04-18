@@ -15,10 +15,18 @@ interface SubmitResponse {
   answers?: { question_id: string; answer: unknown }[]
 }
 
+interface Assignment {
+  event_id: string
+  sub_event_id?: string | null
+}
+
 interface NewPlusOne {
   first_name?: string
   last_name?: string
-  event_ids: string[]
+  // Preferred: one row per sub-event assignment so sub_event_id is preserved.
+  // event_ids is still accepted for older clients — falls back to a null sub.
+  assignments?: Assignment[]
+  event_ids?: string[]
   rsvp_statuses: Record<string, string>
   answers?: { event_id: string; question_id: string; answer: unknown }[]
 }
@@ -336,13 +344,22 @@ export async function POST(req: NextRequest) {
         if (!newMember) continue
         plusOnesAdded++
 
-        for (const eventId of po.event_ids) {
-          const rsvpStatus = po.rsvp_statuses?.[eventId] || 'accepted'
+        // Normalise the assignment list: prefer the new shape, fall back to
+        // event_ids (treating sub_event as null) so older payloads still work.
+        const assignments: Assignment[] = (po.assignments && po.assignments.length > 0)
+          ? po.assignments
+          : (po.event_ids || []).map(e => ({ event_id: e, sub_event_id: null }))
+
+        for (const a of assignments) {
+          const rsvpStatus = po.rsvp_statuses?.[`${a.event_id}|${a.sub_event_id ?? ''}`]
+            || po.rsvp_statuses?.[a.event_id]
+            || 'accepted'
           const { data: newMemberEvent } = await getSupabase()
             .from('invite_party_member_events')
             .insert({
               party_member_id: newMember.id,
-              event_id: eventId,
+              event_id: a.event_id,
+              sub_event_id: a.sub_event_id || null,
               rsvp_status: rsvpStatus,
               rsvp_responded_at: new Date().toISOString(),
             })
@@ -351,7 +368,7 @@ export async function POST(req: NextRequest) {
 
           if (newMemberEvent && po.answers) {
             for (const answer of po.answers) {
-              if (answer.event_id === eventId) {
+              if (answer.event_id === a.event_id) {
                 await getSupabase().from('invite_responses').insert({
                   party_member_event_id: newMemberEvent.id,
                   question_id: answer.question_id,
