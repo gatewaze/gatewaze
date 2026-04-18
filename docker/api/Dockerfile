@@ -80,11 +80,9 @@ RUN mkdir -p /app/.gatewaze-modules /app/data /tmp/module-repos /var/lib/gatewaz
 COPY docker/api/entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
-# Security: run as non-root user
-RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 gatewaze
-RUN chown -R gatewaze:nodejs /app /var/lib/gatewaze /tmp/module-repos
-USER gatewaze
+# Runs as root: the entrypoint creates symlinks under / for cloned module
+# repos and writes .gitconfig. Restrict via the chart's api.securityContext
+# if your threat model requires it (will need companion app changes).
 
 EXPOSE 3002
 
