@@ -78,6 +78,17 @@ metadata:
     app.kubernetes.io/component: admin
 spec:
   type: ClusterIP
+  # Each admin replica builds its own Vite bundle at pod startup (the
+  # admin Docker entrypoint runs `vite build`). If two replicas' clones
+  # produce different content hashes, their lazy-loaded chunk filenames
+  # diverge — a client that loads index.html from pod A then fetches a
+  # chunk from pod B hits 404. Pin each client to a single backend so
+  # chunk requests stay on the pod that served their entry bundle.
+  # Proper fix: build once at image build time. See docker/admin/Dockerfile.
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800
   ports:
     - port: 80
       targetPort: http
