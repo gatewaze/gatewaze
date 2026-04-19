@@ -2393,6 +2393,30 @@ const EventRegistrationsTab = ({ eventId, eventUuid }: { eventId: string; eventU
   const [registrations, setRegistrations] = useState<EventRegistration[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  // Luma-reported attendance. Updated on every scrape — we don't have the
+  // per-attendee records yet (Luma doesn't expose them publicly) but the
+  // totals are a useful signal of event size before we have our own data.
+  const [lumaCounts, setLumaCounts] = useState<{ guest: number | null; ticket: number | null; updatedAt: string | null }>({
+    guest: null, ticket: null, updatedAt: null,
+  });
+
+  useEffect(() => {
+    if (!eventUuid) return;
+    (async () => {
+      const { data } = await supabase
+        .from('events')
+        .select('luma_guest_count, luma_ticket_count, luma_counts_updated_at')
+        .eq('id', eventUuid)
+        .single();
+      if (data) {
+        setLumaCounts({
+          guest: data.luma_guest_count ?? null,
+          ticket: data.luma_ticket_count ?? null,
+          updatedAt: data.luma_counts_updated_at ?? null,
+        });
+      }
+    })();
+  }, [eventUuid]);
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
   const [amountFilter, setAmountFilter] = useState<'all' | 'above' | 'below'>('all');
   const [amountThreshold, setAmountThreshold] = useState<string>('');
@@ -2915,6 +2939,32 @@ const EventRegistrationsTab = ({ eventId, eventUuid }: { eventId: string; eventU
             </Button>
           </div>
         </div>
+
+        {/* Luma-reported totals. Always shown if we have them; explicitly
+            labelled as "from Luma" so it's clear this isn't our registration
+            data. Serves as a size signal until we have per-attendee records. */}
+        {(lumaCounts.guest !== null || lumaCounts.ticket !== null) && (
+          <div className="mb-4 grid grid-cols-2 md:grid-cols-3 gap-3">
+            {lumaCounts.guest !== null && (
+              <div className="p-3 rounded-md bg-[var(--accent-a2)] border border-[var(--accent-a5)]">
+                <div className="text-xs text-[var(--gray-10)] uppercase tracking-wide">Luma Guests</div>
+                <div className="text-2xl font-semibold text-[var(--gray-12)]">{lumaCounts.guest.toLocaleString()}</div>
+              </div>
+            )}
+            {lumaCounts.ticket !== null && (
+              <div className="p-3 rounded-md bg-[var(--accent-a2)] border border-[var(--accent-a5)]">
+                <div className="text-xs text-[var(--gray-10)] uppercase tracking-wide">Luma Tickets</div>
+                <div className="text-2xl font-semibold text-[var(--gray-12)]">{lumaCounts.ticket.toLocaleString()}</div>
+              </div>
+            )}
+            {lumaCounts.updatedAt && (
+              <div className="p-3 rounded-md bg-[var(--gray-a2)] border border-[var(--gray-a5)]">
+                <div className="text-xs text-[var(--gray-10)] uppercase tracking-wide">Last synced</div>
+                <div className="text-sm text-[var(--gray-11)]">{new Date(lumaCounts.updatedAt).toLocaleString()}</div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Module-contributed status widgets (e.g. Luma upload progress) */}
         <ModuleSlot name="event-registrations:status" props={{ eventId, brandId: getBrandId() }} />
