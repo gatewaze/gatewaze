@@ -178,6 +178,24 @@ function resolveSources(sources: SourceEntry[]): string[] {
     }
 
     if (isGitUrl(source.url)) {
+      // Prefer a pre-cloned symlink at /<reponame> (set up by the Docker
+      // entrypoint from MODULE_SOURCES) before doing our own clone. This
+      // avoids fetching the same repo twice at pod startup.
+      const repoName = source.url.replace(/.*\//, '').replace(/\.git$/, '')
+      const symlinked = resolve('/', repoName)
+      const siblingLocal = resolve(PROJECT_ROOT, '..', repoName)
+      const preCloned = existsSync(symlinked) ? symlinked
+        : existsSync(siblingLocal) ? siblingLocal
+        : null
+
+      if (preCloned) {
+        const full = source.path ? resolve(preCloned, source.path) : preCloned
+        if (existsSync(full)) {
+          resolved.push(full)
+          continue
+        }
+      }
+
       const localPath = cloneOrUpdateRepo(source.url, source.branch)
       if (localPath) {
         resolved.push(source.path ? resolve(localPath, source.path) : localPath)
@@ -452,13 +470,16 @@ async function generate() {
   const configSources = parseConfigSources()
   const dbSources = await fetchDbSources()
 
-  // Handle EXTRA_MODULE_SOURCES env var (comma-separated paths)
-  // The config file references this via a spread operator that the regex parser can't evaluate
+  // Handle EXTRA_MODULE_SOURCES env var (comma-separated entries in the
+  // same url[#branch=X&path=Y] format the config file uses). Parsing via
+  // normalizeSource so a git URL like
+  //   https://github.com/org/repo.git#branch=main&path=modules
+  // resolves its branch/path rather than being treated as a literal URL.
   const extraSources: SourceEntry[] = (process.env.EXTRA_MODULE_SOURCES || '')
     .split(',')
     .map(s => s.trim())
     .filter(Boolean)
-    .map(s => ({ url: s }))
+    .map(normalizeSource)
 
   const allSources = mergeSources([...configSources, ...extraSources], dbSources)
   const sourceDirs = resolveSources(allSources)
