@@ -1,61 +1,53 @@
-# ---- Stage 1: Build ----
-FROM node:20-slim AS builder
+# Single stage: clone modules at startup, build Next.js, serve
+#
+# Unlike the previous multi-stage build that baked a Next.js standalone
+# bundle into the image, this container keeps the full source and dev deps
+# so the entrypoint can clone MODULE_SOURCES at pod start, regenerate the
+# module registry, and run `next build` — mirroring how the admin image
+# works, so premium-module event pages make it into the bundle.
+FROM node:20-slim
 
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 
-# Copy workspace root files (lockfile excluded – external workspace packages
-# from ../gatewaze-modules are not available at build time)
-COPY package.json ./
-COPY tsconfig.json ./
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3100 \
+    HOSTNAME=0.0.0.0
 
-# Use a workspace config that only includes local packages
+# Workspace root
+COPY package.json tsconfig.json gatewaze.config.ts ./
 RUN printf 'packages:\n  - "packages/*"\n' > pnpm-workspace.yaml
 
-# Copy package manifests for dependency resolution
+# Package manifests for dependency resolution
 COPY packages/portal/package.json packages/portal/
 COPY packages/shared/package.json packages/shared/
 
-# Install dependencies (cache pnpm store between builds)
+# Install all deps — dev deps are needed for `next build` at runtime
 RUN --mount=type=cache,id=pnpm-portal,target=/root/.local/share/pnpm/store \
     pnpm install --no-frozen-lockfile
 
-# Copy source code
+# Source
 COPY packages/shared/ packages/shared/
 COPY packages/portal/ packages/portal/
 
-# Build shared library first, then portal
+# Shared lib is a compiled TS package that the portal imports
 RUN pnpm --filter shared build
 
-# Next.js standalone output mode
-ENV NEXT_TELEMETRY_DISABLED=1
-RUN pnpm --filter portal build
+# Writable dirs for runtime clones + build artifacts
+RUN mkdir -p /tmp/module-repos /app/packages/portal/.next
 
-# ---- Stage 2: Run ----
-FROM node:20-slim AS runner
-
-WORKDIR /app
-
-ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
-ENV PORT=3100
-ENV HOSTNAME="0.0.0.0"
-
-# Create non-root user
-RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 nextjs
-
-# Copy standalone build output
-COPY --from=builder --chown=nextjs:nodejs /app/packages/portal/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/packages/portal/.next/static ./packages/portal/.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/packages/portal/public ./packages/portal/public
-
-USER nextjs
+COPY docker/portal/entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 
 EXPOSE 3100
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD node -e "const http = require('http'); http.get('http://localhost:3100/api/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1); }).on('error', () => process.exit(1));" || exit 1
+# Build takes 2-5 min depending on modules; give probes plenty of room.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=600s --retries=3 \
+    CMD curl -f http://localhost:3100/api/health || exit 1
 
-CMD ["node", "packages/portal/server.js"]
+ENTRYPOINT ["/docker-entrypoint.sh"]
