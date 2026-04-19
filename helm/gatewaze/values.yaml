@@ -177,12 +177,15 @@ resources:
       memory: 3Gi
 
   portal:
+    # Portal now runs `next build` at pod startup (see docker/portal),
+    # so it needs enough memory for Next.js compilation. The steady-state
+    # footprint is smaller — tune limits down after observing your brand.
     requests:
-      cpu: 100m
-      memory: 256Mi
-    limits:
       cpu: 500m
-      memory: 512Mi
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 3Gi
 
   api:
     requests:
