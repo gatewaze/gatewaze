@@ -249,8 +249,8 @@ export async function POST(req: NextRequest) {
       }
 
       // Extract IP for geolocation
-      const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-                       request.headers.get('x-real-ip') ||
+      const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+                       req.headers.get('x-real-ip') ||
                        null
       const ipLocation = await getIpLocation(clientIp)
 
