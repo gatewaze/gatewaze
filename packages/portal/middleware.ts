@@ -433,9 +433,12 @@ export async function middleware(request: NextRequest) {
     if (routeFn) {
       const targetPath = routeFn(customDomain.contentSlug)
 
-      // RSVP paths: /rsvp/{code} passes through (short code lookup page exists)
-      // /rsvp (with ?invite= query) rewrites to the event's RSVP page
-      if (pathname.startsWith('/rsvp/') || pathname.startsWith('/i/')) {
+      // Top-level short-code lookup pages that live in (bare)/ and resolve
+      // the code themselves — pass through without prefixing the event slug.
+      //   /rsvp/{code}  — invite-based RSVP short link
+      //   /i/{code}     — invite short link (legacy)
+      //   /o/{code}     — open-rsvp self-serve short link
+      if (pathname.startsWith('/rsvp/') || pathname.startsWith('/i/') || pathname.startsWith('/o/')) {
         const requestHeaders = new Headers(request.headers)
         requestHeaders.set('x-custom-domain', 'true')
         requestHeaders.set('x-content-type', customDomain.contentType)
@@ -443,10 +446,11 @@ export async function middleware(request: NextRequest) {
         requestHeaders.set('x-custom-domain-host', hostname)
         return NextResponse.next({ request: { headers: requestHeaders } })
       }
-      if (pathname === '/rsvp') {
-        // Rewrite /rsvp to /events/{slug}/rsvp so it renders inside the event layout
+      // Exact paths that need to render inside the event layout: rewrite
+      // /{path} → /events/{slug}/{path} so the event layout loads too.
+      if (pathname === '/rsvp' || pathname === '/open-rsvp') {
         const url = request.nextUrl.clone()
-        url.pathname = `${targetPath}/rsvp`
+        url.pathname = `${targetPath}${pathname}`
         const requestHeaders = new Headers(request.headers)
         requestHeaders.set('x-custom-domain', 'true')
         requestHeaders.set('x-content-type', customDomain.contentType)
@@ -510,18 +514,20 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL(process.env.NEXT_PUBLIC_APP_URL || '/'))
   }
 
-  // RSVP paths: pass through to /rsvp/[code] page with custom domain headers
-  if (pathname.startsWith('/rsvp/') || pathname.startsWith('/i/')) {
+  // Short-code pages live in (bare)/ and resolve the code themselves.
+  //   /rsvp/{code} — invite short link
+  //   /i/{code}    — invite short link (legacy)
+  //   /o/{code}    — open-rsvp self-serve short link
+  if (pathname.startsWith('/rsvp/') || pathname.startsWith('/i/') || pathname.startsWith('/o/')) {
     const requestHeaders = new Headers(request.headers)
     requestHeaders.set('x-custom-domain', 'true')
     requestHeaders.set('x-event-identifier', eventIdentifier)
     requestHeaders.set('x-custom-domain-host', hostname)
     return NextResponse.next({ request: { headers: requestHeaders } })
   }
-  if (pathname === '/rsvp') {
-    // Rewrite /rsvp to /events/{slug}/rsvp so it renders inside the event layout
+  if (pathname === '/rsvp' || pathname === '/open-rsvp') {
     const url = request.nextUrl.clone()
-    url.pathname = `/events/${eventIdentifier}/rsvp`
+    url.pathname = `/events/${eventIdentifier}${pathname}`
     const requestHeaders = new Headers(request.headers)
     requestHeaders.set('x-custom-domain', 'true')
     requestHeaders.set('x-event-identifier', eventIdentifier)
