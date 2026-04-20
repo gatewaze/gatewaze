@@ -114,7 +114,24 @@ async function handler(req: Request) {
       .ilike('email', email)
       .maybeSingle()
 
-    if (existingPerson?.auth_user_id) {
+    // Before trusting the people row's auth_user_id, verify it still points
+    // at an auth user whose email matches the target. A stale row (e.g.
+    // poisoned by a previous call that leaked a different caller's JWT)
+    // would otherwise make us return the wrong auth_user_id here — the
+    // admin UI would then find the *wrong* admin_profile and skip
+    // creating a new one, silently dropping the invite.
+    const existingAuthIsTrusted = existingPerson?.auth_user_id
+      ? await authUserMatchesEmail(existingPerson.auth_user_id, email)
+      : false
+    if (existingPerson?.auth_user_id && !existingAuthIsTrusted) {
+      console.warn(
+        `[people-signup] people row ${existingPerson.id} points at auth_user_id ` +
+        `${existingPerson.auth_user_id} but that user's email does not match ` +
+        `${email}. Ignoring the stale link — the row will be rewritten later.`,
+      )
+    }
+
+    if (existingPerson?.auth_user_id && existingAuthIsTrusted) {
       console.log(`Person already exists with auth: ${existingPerson.auth_user_id}`)
 
       // Update attributes if new metadata provided OR IP location available
@@ -382,6 +399,26 @@ async function handler(req: Request) {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
+  }
+}
+
+/**
+ * Check that an auth.users row with this id actually has the given email.
+ *
+ * Used to defend against stale/poisoned people.auth_user_id links — if
+ * the row claims an auth_user_id whose email no longer matches (e.g.
+ * because an earlier call attached the caller's auth_id to a different
+ * person record by mistake), we'd otherwise return the wrong id to the
+ * caller and the admin UI would silently skip creating a new admin
+ * profile.
+ */
+async function authUserMatchesEmail(authUserId: string, email: string): Promise<boolean> {
+  try {
+    const { data, error } = await supabase.auth.admin.getUserById(authUserId)
+    if (error || !data?.user?.email) return false
+    return data.user.email.toLowerCase() === email.toLowerCase()
+  } catch {
+    return false
   }
 }
 
