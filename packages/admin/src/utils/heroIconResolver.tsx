@@ -17,6 +17,8 @@ import {
   ShieldCheckIcon,
   PresentationChartBarIcon,
   VideoCameraIcon,
+  UserGroupIcon,
+  UsersIcon,
 } from '@heroicons/react/24/outline';
 import type { ComponentType } from 'react';
 
@@ -38,6 +40,8 @@ const ICON_MAP: Record<string, ComponentType<{ className?: string }>> = {
   ShieldCheckIcon,
   PresentationChartBarIcon,
   VideoCameraIcon,
+  UserGroupIcon,
+  UsersIcon,
 };
 
 /**
