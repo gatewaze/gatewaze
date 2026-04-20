@@ -102,9 +102,12 @@ export async function generateMetadata(): Promise<Metadata> {
       return {
         title: {
           default: event.event_title,
-          // Child pages (e.g. `/open-rsvp` rendering as "Open RSVP")
-          // become "Open RSVP | <event title>" — no brand name.
-          template: `%s | ${event.event_title}`,
+          // Child pages already include the event title in their own
+          // `title` (e.g. "Open RSVP - Andy's 50th"), so a template that
+          // appends it would read "Open RSVP - Andy's 50th | Andy's 50th".
+          // "%s" keeps the child's title verbatim; the root falls through
+          // to `default` above.
+          template: '%s',
         },
         description: `Welcome to ${event.event_title}`,
         icons: faviconIcons,
