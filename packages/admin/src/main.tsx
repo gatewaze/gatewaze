@@ -9,6 +9,10 @@ import "./utils/pdfjsSetup";
 import { setupFavicon } from './utils/favicon';
 
 import "simplebar-react/dist/simplebar.min.css";
+// Loaded once globally so any module using react-leaflet (e.g. the scrapers
+// module's host map) gets working marker styles without needing leaflet as
+// its own npm dependency.
+import "leaflet/dist/leaflet.css";
 
 import "./styles/index.css";
 
