@@ -6,6 +6,7 @@ import type { Event } from '@/types/event'
 import { SpeakerSuccessContent } from '@/components/event/SpeakerSuccessContent'
 import { stripEmojis } from '@/lib/text'
 
+import { resolveSiteName } from '@/lib/metadata-helpers'
 interface Props {
   params: Promise<{ identifier: string }>
   searchParams: Promise<{ token?: string; existing?: string; updated?: string; status_reset?: string }>
@@ -157,7 +158,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       description: `Your speaker application for ${title} has been received.`,
       images: event.screenshot_url ? [{ url: event.screenshot_url }] : event.event_logo ? [{ url: event.event_logo }] : [],
       type: 'website',
-      siteName: brandConfig.name,
+      siteName: await resolveSiteName(brandConfig.name, event.event_title),
     },
     twitter: {
       card: 'summary_large_image',
