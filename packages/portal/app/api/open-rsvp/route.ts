@@ -36,6 +36,30 @@ function generateToken(): string {
   return Array.from(array, (b) => b.toString(16).padStart(2, '0')).join('')
 }
 
+/**
+ * Placeholder email for guests who don't give us a real one, so every
+ * party member still lands in the `people` table (where email is NOT
+ * NULL and serves as the dedup key).
+ *
+ * Format: `{short_event_id}+{first}-{last}@{from_domain}` — matches the
+ * shape used by the event-invites CSV importer
+ * (premium-gatewaze-modules/modules/event-invites/templates/import-list1.ts)
+ * so guests imported by CSV and guests who self-serve through an open
+ * link dedupe to the same person record when their names match.
+ */
+function generatePlaceholderEmail(
+  firstName: string | undefined,
+  lastName: string | undefined,
+  eventId: string,
+): string {
+  const first = (firstName || 'guest').toLowerCase().replace(/[^a-z0-9]/g, '') || 'guest'
+  const last = (lastName || 'unknown').toLowerCase().replace(/[^a-z0-9]/g, '') || 'unknown'
+  const shortEventId = eventId.split('-')[0]
+  const emailFrom = process.env.EMAIL_FROM || 'noreply@app.autodb.io'
+  const emailDomain = emailFrom.split('@')[1] || 'app.autodb.io'
+  return `${shortEventId}+${first}-${last}@${emailDomain}`
+}
+
 interface SubmitMember {
   first_name?: string
   last_name?: string
@@ -320,26 +344,28 @@ export async function POST(req: NextRequest) {
       for (let i = 0; i < members.length; i++) {
         const member = members[i]
 
-        // Resolve or create a person record if an email was provided.
-        // Every guest who submits with an email ends up in the people
-        // table, regardless of whether they accepted or declined the
-        // event. Only accepted members are written to events_registrations
-        // further down.
-        let personId: string | null = null
+        // Resolve or create a person record for every party member.
+        // The lead booker supplies a real email (enforced above); guests
+        // without one get a deterministic placeholder so they still
+        // appear in the `people` table and dedupe cleanly against the
+        // CSV importer's output for the same (event, first, last).
         const memberEmail = member.email?.toLowerCase().trim() || ''
-        if (memberEmail) {
-          personId = await findOrCreatePerson(supabase, {
-            email: memberEmail,
-            first_name: member.first_name?.trim(),
-            last_name: member.last_name?.trim(),
-            phone: member.phone?.trim(),
-            ...(ipLocation?.city ? { city: ipLocation.city } : {}),
-            ...(ipLocation?.country ? { country: ipLocation.country } : {}),
-            ...(ipLocation?.country_code ? { country_code: ipLocation.country_code } : {}),
-            ...(ipLocation?.continent ? { continent: ipLocation.continent } : {}),
-            ...(ipLocation?.location ? { location: ipLocation.location } : {}),
-          })
-        }
+        const personEmail = memberEmail || generatePlaceholderEmail(
+          member.first_name,
+          member.last_name,
+          link.event_id,
+        )
+        const personId: string | null = await findOrCreatePerson(supabase, {
+          email: personEmail,
+          first_name: member.first_name?.trim(),
+          last_name: member.last_name?.trim(),
+          phone: member.phone?.trim(),
+          ...(ipLocation?.city ? { city: ipLocation.city } : {}),
+          ...(ipLocation?.country ? { country: ipLocation.country } : {}),
+          ...(ipLocation?.country_code ? { country_code: ipLocation.country_code } : {}),
+          ...(ipLocation?.continent ? { continent: ipLocation.continent } : {}),
+          ...(ipLocation?.location ? { location: ipLocation.location } : {}),
+        })
 
         const { data: partyMember, error: memberErr } = await supabase
           .from('invite_party_members')
