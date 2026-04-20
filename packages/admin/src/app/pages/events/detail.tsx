@@ -2940,23 +2940,15 @@ const EventRegistrationsTab = ({ eventId, eventUuid }: { eventId: string; eventU
           </div>
         </div>
 
-        {/* Luma-reported totals. Always shown if we have them; explicitly
-            labelled as "from Luma" so it's clear this isn't our registration
-            data. Serves as a size signal until we have per-attendee records. */}
-        {(lumaCounts.guest !== null || lumaCounts.ticket !== null) && (
-          <div className="mb-4 grid grid-cols-2 md:grid-cols-3 gap-3">
-            {lumaCounts.guest !== null && (
-              <div className="p-3 rounded-md bg-[var(--accent-a2)] border border-[var(--accent-a5)]">
-                <div className="text-xs text-[var(--gray-10)] uppercase tracking-wide">Luma Guests</div>
-                <div className="text-2xl font-semibold text-[var(--gray-12)]">{lumaCounts.guest.toLocaleString()}</div>
-              </div>
-            )}
-            {lumaCounts.ticket !== null && (
-              <div className="p-3 rounded-md bg-[var(--accent-a2)] border border-[var(--accent-a5)]">
-                <div className="text-xs text-[var(--gray-10)] uppercase tracking-wide">Luma Tickets</div>
-                <div className="text-2xl font-semibold text-[var(--gray-12)]">{lumaCounts.ticket.toLocaleString()}</div>
-              </div>
-            )}
+        {/* Luma-reported totals. Tickets hidden because Luma's ticket_count
+            mirrors guest_count for ~98% of events, so it adds noise without
+            signal. Still fetched and stored in case that changes. */}
+        {lumaCounts.guest !== null && (
+          <div className="mb-4 grid grid-cols-2 gap-3">
+            <div className="p-3 rounded-md bg-[var(--accent-a2)] border border-[var(--accent-a5)]">
+              <div className="text-xs text-[var(--gray-10)] uppercase tracking-wide">Luma Guests</div>
+              <div className="text-2xl font-semibold text-[var(--gray-12)]">{lumaCounts.guest.toLocaleString()}</div>
+            </div>
             {lumaCounts.updatedAt && (
               <div className="p-3 rounded-md bg-[var(--gray-a2)] border border-[var(--gray-a5)]">
                 <div className="text-xs text-[var(--gray-10)] uppercase tracking-wide">Last synced</div>
