@@ -24,25 +24,66 @@ import { createServerSupabase } from '@/lib/supabase/server'
 import { ChatWidgetLoader } from '@/components/chat/ChatWidgetLoader'
 import '@/styles/globals.css'
 
+const EVENT_META_FIELDS =
+  'event_title, event_logo, gradient_color_1, gradient_color_2, gradient_color_3, portal_theme, theme_colors'
+
 async function getCustomDomainEvent(eventIdentifier: string, brandId: string) {
   const supabase = await createServerSupabase(brandId)
   const { data } = await supabase
     .from('events')
-    .select('event_title, event_logo, gradient_color_1, gradient_color_2, gradient_color_3, portal_theme, theme_colors')
+    .select(EVENT_META_FIELDS)
     .or(`event_slug.eq.${eventIdentifier},event_id.eq.${eventIdentifier}`)
     .eq('is_live_in_production', true)
     .maybeSingle()
   return data
 }
 
+/** Look up a custom-domain event by its UUID (id). The new custom_domains
+ *  module routes via `x-content-id` (the events.id UUID) — older ones
+ *  routed via the `x-event-identifier` slug. Both paths should resolve to
+ *  the same event record. */
+async function getCustomDomainEventByUuid(uuid: string, brandId: string) {
+  const supabase = await createServerSupabase(brandId)
+  const { data } = await supabase
+    .from('events')
+    .select(EVENT_META_FIELDS)
+    .eq('id', uuid)
+    .eq('is_live_in_production', true)
+    .maybeSingle()
+  return data
+}
+
+/** Resolve the custom-domain event from either the legacy or new set of
+ *  middleware headers. Returns null when the request isn't on a custom
+ *  domain or we can't find a matching event. */
+async function resolveCustomDomainEvent(
+  headersList: Headers,
+  brandId: string,
+): Promise<{ event_title: string; event_logo: string | null; gradient_color_1: string | null; gradient_color_2: string | null; gradient_color_3: string | null; portal_theme: string | null; theme_colors: unknown } | null> {
+  if (headersList.get('x-custom-domain') !== 'true') return null
+
+  const eventIdentifier = headersList.get('x-event-identifier')
+  if (eventIdentifier) {
+    return getCustomDomainEvent(eventIdentifier, brandId) as never
+  }
+
+  const contentType = headersList.get('x-content-type')
+  const contentId = headersList.get('x-content-id')
+  if ((contentType === 'events' || contentType === 'event') && contentId) {
+    return getCustomDomainEventByUuid(contentId, brandId) as never
+  }
+
+  return null
+}
+
 export async function generateMetadata(): Promise<Metadata> {
   const brandConfig = await getServerBrandConfig()
   const brandId = brandConfig.id
 
-  // Check if this is a custom domain request
+  // Check if this is a custom domain request (either the legacy
+  // events.custom_domain path or the newer custom_domains module path).
   const headersList = await headers()
   const isCustomDomain = headersList.get('x-custom-domain') === 'true'
-  const eventIdentifier = headersList.get('x-event-identifier')
 
   // Favicon: use DB-configured URL if set, otherwise fall back to static 96x96 PNG
   const faviconIcons = brandConfig.faviconUrl
@@ -55,12 +96,14 @@ export async function generateMetadata(): Promise<Metadata> {
         shortcut: `/theme/${brandId}/favicon-96x96.png`,
       }
 
-  if (isCustomDomain && eventIdentifier) {
-    const event = await getCustomDomainEvent(eventIdentifier, brandId)
+  if (isCustomDomain) {
+    const event = await resolveCustomDomainEvent(headersList, brandId)
     if (event) {
       return {
         title: {
           default: event.event_title,
+          // Child pages (e.g. `/open-rsvp` rendering as "Open RSVP")
+          // become "Open RSVP | <event title>" — no brand name.
           template: `%s | ${event.event_title}`,
         },
         description: `Welcome to ${event.event_title}`,
@@ -94,16 +137,14 @@ export default async function MainLayout({
   const uiMode = brandConfig.portalUiMode
   const lightBg = uiMode === 'obsidian' || uiMode === 'paper'
 
-  // Detect custom domain via middleware headers
+  // Detect custom domain via middleware headers (legacy + new paths)
   const headersList = await headers()
   const isCustomDomain = headersList.get('x-custom-domain') === 'true'
-  const eventIdentifier = headersList.get('x-event-identifier')
 
   // Fetch event data for white-label header
-  let customDomainEvent = null
-  if (isCustomDomain && eventIdentifier) {
-    customDomainEvent = await getCustomDomainEvent(eventIdentifier, brand)
-  }
+  const customDomainEvent = isCustomDomain
+    ? await resolveCustomDomainEvent(headersList, brand)
+    : null
 
   return (
     <html lang="en" data-brand={brandConfig.id} data-custom-domain={isCustomDomain ? 'true' : undefined} data-corners={brandConfig.cornerStyle} data-glow={brandConfig.gradientWaveConfig.glowEffects ? 'true' : 'false'} data-ui-mode={uiMode} className={lightBg ? 'light-brand' : ''} style={{ fontFamily: fontStack, fontSize: `${brandConfig.bodyTextSize || '16'}px`, '--font-weight-heading': brandConfig.fontHeadingWeight || '600', '--font-weight-body': brandConfig.fontBodyWeight || '400', '--primary-text': isLightColor(brandConfig.primaryColor) ? '#000000' : '#ffffff', '--glass-opacity': String(brandConfig.gradientWaveConfig.glassOpacity ?? 0.05), '--glass-blur': `${brandConfig.gradientWaveConfig.glassBlur ?? 4}px`, '--glass-border-opacity': String(brandConfig.gradientWaveConfig.glassBorderOpacity ?? 0.1) } as React.CSSProperties} suppressHydrationWarning>

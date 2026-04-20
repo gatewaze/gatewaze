@@ -12,6 +12,7 @@ import { resolveEventTheme, getThemeBackgroundColor, isLightColor } from '@/conf
 import { getEnabledModules, isModuleEnabled } from '@/lib/modules/enabledModules'
 import { resolveEventImages } from '@/lib/storage-resolve'
 
+import { resolveSiteName } from '@/lib/metadata-helpers'
 interface Props {
   params: Promise<{ identifier: string; custompage: string }>
 }
@@ -89,7 +90,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       description: `${pageTitle} at ${title}`,
       images: event.screenshot_url ? [{ url: event.screenshot_url }] : event.event_logo ? [{ url: event.event_logo }] : [],
       type: 'website',
-      siteName: brandConfig.name,
+      siteName: await resolveSiteName(brandConfig.name, event.event_title),
     },
     twitter: {
       card: 'summary_large_image',
