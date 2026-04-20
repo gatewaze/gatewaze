@@ -199,7 +199,7 @@ export async function POST(req: NextRequest) {
     if (action === 'load') {
       const { data: event } = await supabase
         .from('events')
-        .select('id, event_title, event_start, event_end, event_location')
+        .select('id, event_title, event_start, event_end, event_location, rsvp_deadline')
         .eq('id', link.event_id)
         .single()
 
@@ -237,6 +237,7 @@ export async function POST(req: NextRequest) {
           starts_at: event.event_start,
           ends_at: event.event_end,
           location: event.event_location,
+          rsvp_deadline: event.rsvp_deadline,
         },
         sub_events: (subEvents || []).map((se) => ({
           id: se.id,
@@ -269,6 +270,22 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           { error: 'TOO_MANY_MEMBERS', message: `Parties are limited to ${link.max_members_per_party} members on this link.` },
           { status: 400 },
+        )
+      }
+
+      // Enforce the main event's RSVP deadline (if set). Done before we
+      // do any of the person/party/registration work so nothing gets
+      // written when we're past the cutoff.
+      const { data: eventRow } = await supabase
+        .from('events')
+        .select('rsvp_deadline')
+        .eq('id', link.event_id)
+        .single()
+      const rsvpDeadline = (eventRow as { rsvp_deadline: string | null } | null)?.rsvp_deadline
+      if (rsvpDeadline && new Date(rsvpDeadline) < new Date()) {
+        return NextResponse.json(
+          { error: 'RSVP_CLOSED', message: 'The RSVP deadline for this event has passed.' },
+          { status: 403 },
         )
       }
 
