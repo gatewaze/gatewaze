@@ -94,6 +94,7 @@ const eventSchema = yup.object({
   eventLink: yup.string().url('Must be a valid URL').optional().nullable(),
   eventStart: yup.string().optional(),
   eventEnd: yup.string().optional(),
+  rsvpDeadline: yup.string().optional().nullable(),
   eventTimezone: yup.string().optional(),
   eventType: yup.string().optional(),
   contentCategory: yup.string().optional(),
@@ -387,6 +388,7 @@ const EventDetailPage = () => {
       eventLink: eventData.eventLink || '',
       eventStart: toDatetimeLocal(eventData.eventStart, eventData.eventTimezone),
       eventEnd: toDatetimeLocal(eventData.eventEnd, eventData.eventTimezone),
+      rsvpDeadline: toDatetimeLocal((eventData as Event & { rsvpDeadline?: string | null }).rsvpDeadline ?? null, eventData.eventTimezone),
       eventTimezone: eventData.eventTimezone || 'UTC',
       eventType: eventData.eventType || '',
       contentCategory: eventData.contentCategory || '',
@@ -447,6 +449,7 @@ const EventDetailPage = () => {
         eventLink: data.eventLink,
         eventStart: fromDatetimeLocal(data.eventStart, data.eventTimezone),
         eventEnd: fromDatetimeLocal(data.eventEnd, data.eventTimezone),
+        rsvpDeadline: data.rsvpDeadline ? fromDatetimeLocal(data.rsvpDeadline, data.eventTimezone) : null,
         eventTimezone: data.eventTimezone || 'UTC',
         eventType: data.eventType || null,
         contentCategory: data.contentCategory || null,
@@ -1210,6 +1213,45 @@ const EventDetailsTab = ({ event, isEditMode, register, errors, watch, setValue,
                   </div>
                 )}
               </div>
+
+              {/* RSVP Deadline — cutoff after which open-RSVP submissions
+                  are rejected. Leave blank to accept responses indefinitely.
+                  Per-sub-event deadlines live on invite_sub_events. */}
+              {isEditMode ? (
+                <div>
+                  <Input
+                    label={`RSVP Deadline (${watch('eventTimezone') || 'UTC'})`}
+                    type="datetime-local"
+                    {...register('rsvpDeadline')}
+                    error={(errors as { rsvpDeadline?: { message?: string } }).rsvpDeadline?.message}
+                  />
+                  <p className="text-xs text-[var(--gray-a11)] mt-1">
+                    Optional. After this time, new open-RSVP submissions are blocked and the page shows &quot;RSVP closed&quot;. Leave blank to keep accepting responses.
+                  </p>
+                </div>
+              ) : (
+                (event as Event & { rsvpDeadline?: string | null }).rsvpDeadline && (
+                  <div>
+                    <label className="block text-sm font-medium text-[var(--gray-11)] mb-1">
+                      RSVP Deadline
+                    </label>
+                    <div className="space-y-1">
+                      <p className="text-[var(--gray-12)] font-mono text-sm">
+                        {new Date((event as Event & { rsvpDeadline?: string | null }).rsvpDeadline!).toISOString().replace('T', ' ').replace('.000Z', ' UTC')}
+                      </p>
+                      {event.eventTimezone && event.eventTimezone !== 'UTC' && (
+                        <p className="text-sm text-[var(--gray-a11)]">
+                          Local: {new Date((event as Event & { rsvpDeadline?: string | null }).rsvpDeadline!).toLocaleString('en-US', {
+                            timeZone: event.eventTimezone,
+                            dateStyle: 'medium',
+                            timeStyle: 'short'
+                          })} ({event.eventTimezone})
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )
+              )}
 
 {isEditMode ? (
                 <div>

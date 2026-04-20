@@ -27,6 +27,7 @@ export interface Event {
   offerCloseDate?: string;
   eventStart?: string;
   eventEnd?: string;
+  rsvpDeadline?: string | null;
   eventRegion?: string;
   eventLocation?: string;
   eventTopicsUpdatedAt?: number;
@@ -157,6 +158,7 @@ export class EventService {
         offerCloseDate: data.offer_close_date,
         eventStart: data.event_start,
         eventEnd: data.event_end,
+        rsvpDeadline: data.rsvp_deadline,
         eventRegion: data.event_region,
         eventLocation: data.event_location,
         eventTopicsUpdatedAt: data.event_topics_updated_at,
@@ -255,6 +257,7 @@ export class EventService {
         offerCloseDate: data.offer_close_date,
         eventStart: data.event_start,
         eventEnd: data.event_end,
+        rsvpDeadline: data.rsvp_deadline,
         eventRegion: data.event_region,
         eventLocation: data.event_location,
         eventTopicsUpdatedAt: data.event_topics_updated_at,
@@ -377,6 +380,7 @@ export class EventService {
         offerCloseDate: event.offer_close_date,
         eventStart: event.event_start,
         eventEnd: event.event_end,
+        rsvpDeadline: event.rsvp_deadline,
         eventRegion: event.event_region,
         eventLocation: event.event_location,
         eventTopicsUpdatedAt: event.event_topics_updated_at,
@@ -496,6 +500,7 @@ static async createEvent(eventData: Omit<Event, 'id' | 'createdAt' | 'updatedAt'
         offer_slug: eventData.offerSlug || null,
         offer_close_date: eventData.offerCloseDate || null,
         event_start: eventData.eventStart || null,
+        rsvp_deadline: eventData.rsvpDeadline || null,
         event_end: eventData.eventEnd || null,
         event_region: eventData.eventRegion || null,
         event_location: eventLocation || null,
@@ -616,6 +621,7 @@ static async createEvent(eventData: Omit<Event, 'id' | 'createdAt' | 'updatedAt'
       if (eventData.offerSlug !== undefined) updateData.offer_slug = eventData.offerSlug || null;
       if (eventData.offerCloseDate !== undefined) updateData.offer_close_date = eventData.offerCloseDate || null;
       if (eventData.eventStart !== undefined) updateData.event_start = eventData.eventStart || null;
+      if (eventData.rsvpDeadline !== undefined) updateData.rsvp_deadline = eventData.rsvpDeadline || null;
       if (eventData.eventEnd !== undefined) updateData.event_end = eventData.eventEnd || null;
       if (eventData.eventRegion !== undefined) updateData.event_region = eventData.eventRegion || null;
       if (eventLocation !== undefined) updateData.event_location = eventLocation || null;
