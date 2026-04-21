@@ -70,27 +70,120 @@ interface SubmitMember {
 }
 
 /**
+ * Find or create a Supabase auth user for the given email so the guest
+ * can sign in later by simply entering their email on the portal.
+ *
+ * Intentionally does NOT send any confirmation or magic-link email:
+ *   - `email_confirm: true` tells GoTrue the address is already verified,
+ *     so no confirmation email goes out.
+ *   - We never call generateLink / signInWithOtp here, so no magic link
+ *     is sent either. The guest doesn't know an account was created.
+ *
+ * When they later click "Sign in" and enter their email, the existing
+ * auth user is found and the magic link goes to them at that moment.
+ *
+ * Returns the auth.users.id, or null on failure (e.g. for placeholder
+ * emails where we don't want an auth account — caller gates this).
+ */
+async function findOrCreateAuthUser(
+  supabase: ReturnType<typeof getSupabase>,
+  email: string,
+  userMetadata: Record<string, unknown>,
+): Promise<string | null> {
+  try {
+    const { data: created, error: createErr } = await supabase.auth.admin.createUser({
+      email,
+      email_confirm: true,
+      user_metadata: userMetadata,
+    })
+    if (!createErr && created?.user?.id) {
+      return created.user.id
+    }
+    // Duplicate email → find the existing user and return its id. GoTrue
+    // returns either an "email_exists" coded error or a 422 with a
+    // "User already registered" message depending on version.
+    const msg = (createErr as { message?: string; code?: string } | null)?.message?.toLowerCase() || ''
+    const code = (createErr as { code?: string } | null)?.code?.toLowerCase() || ''
+    const isDup = code.includes('email_exists')
+      || code.includes('user_already_exists')
+      || msg.includes('already')
+      || msg.includes('registered')
+
+    if (!isDup) {
+      console.error('[open-rsvp] createUser failed:', createErr)
+      return null
+    }
+
+    // Look up the existing user. We page through listUsers (no
+    // admin.getUserByEmail exists) but cap at a few pages to stay cheap.
+    const perPage = 200
+    for (let page = 1; page <= 5; page++) {
+      const { data, error } = await supabase.auth.admin.listUsers({ page, perPage })
+      if (error) break
+      const hit = data?.users?.find(u => u.email?.toLowerCase() === email)
+      if (hit) return hit.id
+      if (!data?.users || data.users.length < perPage) break
+    }
+    console.warn('[open-rsvp] createUser said duplicate but listUsers could not find:', email)
+    return null
+  } catch (err) {
+    console.error('[open-rsvp] findOrCreateAuthUser threw:', err)
+    return null
+  }
+}
+
+/**
  * Find an existing person by email (case-insensitive) or create a new one.
  * Returns the person_id. Guests created via open-rsvp are flagged
  * `is_guest = true` so the admin can tell them apart from full users.
+ *
+ * When `realEmail` is true (the guest typed a real address, not a
+ * placeholder), we also pre-provision a Supabase auth user silently — no
+ * confirmation/magic-link email is sent. The guest discovers their
+ * account only when they eventually click Sign In on the portal.
  */
 async function findOrCreatePerson(
   supabase: ReturnType<typeof getSupabase>,
   input: {
     email: string; first_name?: string; last_name?: string; phone?: string;
+    realEmail?: boolean;
     city?: string; country?: string; country_code?: string; continent?: string; location?: string;
   },
 ): Promise<string | null> {
   const email = input.email.toLowerCase().trim()
   if (!email) return null
 
+  const userMetadata = {
+    ...(input.first_name ? { first_name: input.first_name } : {}),
+    ...(input.last_name ? { last_name: input.last_name } : {}),
+    ...(input.first_name || input.last_name
+      ? { full_name: [input.first_name, input.last_name].filter(Boolean).join(' ') }
+      : {}),
+    signup_source: 'open_rsvp',
+  }
+
+  const authUserId = input.realEmail
+    ? await findOrCreateAuthUser(supabase, email, userMetadata)
+    : null
+
   const { data: existing } = await supabase
     .from('people')
-    .select('id')
+    .select('id, auth_user_id')
     .eq('email', email)
     .maybeSingle()
 
-  if (existing) return (existing as { id: string }).id
+  if (existing) {
+    const row = existing as { id: string; auth_user_id: string | null }
+    // Backfill auth_user_id on a pre-existing guest row if we now have
+    // an auth user for it and it didn't before.
+    if (authUserId && !row.auth_user_id) {
+      await supabase
+        .from('people')
+        .update({ auth_user_id: authUserId })
+        .eq('id', row.id)
+    }
+    return row.id
+  }
 
   const attributes: Record<string, unknown> = {}
   if (input.first_name) attributes.first_name = input.first_name
@@ -108,6 +201,7 @@ async function findOrCreatePerson(
       phone: input.phone || null,
       attributes,
       is_guest: true,
+      ...(authUserId ? { auth_user_id: authUserId } : {}),
     })
     .select('id')
     .single()
@@ -367,6 +461,7 @@ export async function POST(req: NextRequest) {
         // appear in the `people` table and dedupe cleanly against the
         // CSV importer's output for the same (event, first, last).
         const memberEmail = member.email?.toLowerCase().trim() || ''
+        const hasRealEmail = !!memberEmail
         const personEmail = memberEmail || generatePlaceholderEmail(
           member.first_name,
           member.last_name,
@@ -374,6 +469,9 @@ export async function POST(req: NextRequest) {
         )
         const personId: string | null = await findOrCreatePerson(supabase, {
           email: personEmail,
+          // Only real addresses get an auth account pre-provisioned;
+          // placeholders are synthetic routes nobody can sign in from.
+          realEmail: hasRealEmail,
           first_name: member.first_name?.trim(),
           last_name: member.last_name?.trim(),
           phone: member.phone?.trim(),
