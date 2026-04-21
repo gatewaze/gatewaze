@@ -70,9 +70,14 @@ console.log('[admin] Stripped @gatewaze-modules deps. Remaining deps:', Object.k
 echo "[admin] Installing dependencies..."
 cd /app && pnpm install --no-frozen-lockfile 2>&1 | tail -5
 
-# Build admin with Vite (modules are now available on disk)
+# Build admin with Vite (modules are now available on disk). With all
+# premium modules in the graph the build reliably exceeds Node's default
+# ~1.5GB heap and the process exits 134 (SIGABRT) half-way through
+# transforming. Give it explicit headroom — the chart's admin container
+# memory limit is 3Gi, so 2.5GB of heap leaves ~500MB for buffers and
+# the nginx process that starts after build.
 echo "[admin] Building admin frontend..."
-cd /app/packages/admin && npx vite build
+cd /app/packages/admin && NODE_OPTIONS="--max-old-space-size=2560" npx vite build
 
 # Copy built assets to nginx html directory
 cp -r /app/packages/admin/dist/* /usr/share/nginx/html/
