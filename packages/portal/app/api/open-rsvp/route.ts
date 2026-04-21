@@ -303,7 +303,7 @@ export async function POST(req: NextRequest) {
 
       let subEventQuery = supabase
         .from('invite_sub_events')
-        .select('id, name, description, starts_at, ends_at, rsvp_deadline, sort_order')
+        .select('id, name, slug, description, starts_at, ends_at, rsvp_deadline, sort_order, linked_rsvp')
         .eq('event_id', link.event_id)
         .order('sort_order')
       if (link.sub_event_id) {
@@ -336,10 +336,12 @@ export async function POST(req: NextRequest) {
         sub_events: (subEvents || []).map((se) => ({
           id: se.id,
           name: se.name,
+          slug: (se as { slug?: string | null }).slug ?? null,
           description: se.description,
           starts_at: se.starts_at,
           ends_at: se.ends_at,
           rsvp_deadline: se.rsvp_deadline,
+          linked_rsvp: (se as { linked_rsvp?: boolean }).linked_rsvp ?? false,
         })),
         questions: (questions || []).map((q) => ({
           id: q.id,
