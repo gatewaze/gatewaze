@@ -36,6 +36,11 @@ data:
   NEXT_PUBLIC_APP_URL: {{ printf "https://%s" .Values.ingress.hosts.portal | quote }}
   ADMIN_BASE_URL: {{ printf "https://%s" .Values.ingress.hosts.admin | quote }}
   VITE_API_URL: {{ printf "https://%s" .Values.ingress.hosts.api | quote }}
+  # Admin's Vite build reads VITE_PORTAL_URL to build RSVP links in
+  # invite PDFs, party detail modals, QR codes, etc. Without it,
+  # callers fall back to window.location.origin — which is the admin
+  # subdomain, not the portal — and every RSVP link is broken.
+  VITE_PORTAL_URL: {{ printf "https://%s" .Values.ingress.hosts.portal | quote }}
   {{- else }}
   VITE_API_URL: {{ printf "http://%s-api:3002" (include "gatewaze.fullname" .) | quote }}
   {{- end }}
