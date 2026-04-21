@@ -2,6 +2,7 @@ import type { Plugin } from 'vite';
 import { readFileSync, existsSync, mkdirSync, readdirSync } from 'fs';
 import { resolve, dirname, isAbsolute, relative } from 'path';
 import { execSync } from 'child_process';
+import { createRequire } from 'module';
 
 const VIRTUAL_MODULE_ID = 'virtual:gatewaze-modules';
 const RESOLVED_ID = '\0' + VIRTUAL_MODULE_ID;
@@ -19,6 +20,12 @@ export function gatewazeModulesPlugin(): Plugin {
   const projectRoot = resolve(__dirname, '../..');
   // Map of @/utils/<name> → absolute path to module's admin/utils/<name>.ts
   let utilAliases: Record<string, string> = {};
+
+  // Node resolver rooted at the admin package so bare imports from module
+  // files — which live at symlinked absolute paths outside /app — still
+  // find deps in /app/node_modules. Without this, Vite's default walk-up
+  // from the importer's real path fails for `import('pdf-lib')` etc.
+  const adminRequire = createRequire(resolve(__dirname, 'package.json'));
 
   return {
     name: 'gatewaze-modules',
@@ -71,7 +78,14 @@ export function gatewazeModulesPlugin(): Plugin {
       // For imports from module files that can't be resolved,
       // return an empty stub module instead of failing the build
       if (importer && importer.includes('gatewaze-modules') && !id.startsWith('\0')) {
-        // Bare package imports (react-leaflet, etc.)
+        // Bare package imports (react-leaflet, pdf-lib, etc.).
+        // Module files live at symlinked absolute paths outside /app, so
+        // Vite's default resolver walks up from there and can't see
+        // /app/node_modules. Explicitly resolve via adminRequire so the
+        // bundler gets a concrete file path to put in the graph —
+        // otherwise dynamic imports like `import('pdf-lib')` get left as
+        // literal strings in the output and the browser throws
+        // "Failed to resolve module specifier".
         if (!id.startsWith('.') && !id.startsWith('/') && !id.startsWith('@/')) {
           try {
             const pkgName = id.startsWith('@') ? id.split('/').slice(0, 2).join('/') : id.split('/')[0];
@@ -80,6 +94,11 @@ export function gatewazeModulesPlugin(): Plugin {
             if (!existsSync(pkgPath) && !existsSync(adminPkgPath)) {
               console.warn(`[gatewaze-modules] Stubbing unresolvable package "${id}" imported from module`);
               return `\0stub:${id}`;
+            }
+            try {
+              return adminRequire.resolve(id);
+            } catch {
+              // require.resolve failed — fall through and let Vite try.
             }
           } catch {
             // Let Vite handle it normally
