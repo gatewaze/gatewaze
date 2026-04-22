@@ -10,16 +10,35 @@ if [ -n "$GITHUB_TOKEN" ]; then
   echo "[portal] Git authentication configured"
 fi
 
-# Clone MODULE_SOURCES (comma-separated list of url[@branch][#subpath])
-# into /tmp/module-repos and symlink each at /<reponame> so generated
-# registry absolute-path imports resolve during `next build`.
+# Process MODULE_SOURCES (comma-separated). Each entry is either a git
+# URL (optionally `#branch=main&path=modules`) or a local absolute path.
+# Git URLs get cloned and symlinked at /<reponame>; local paths are
+# volume-mounted and skipped.
 if [ -n "$MODULE_SOURCES" ]; then
-  echo "[portal] Cloning module sources..."
+  echo "[portal] Processing module sources..."
   IFS=','
   for source in $MODULE_SOURCES; do
-    url=$(echo "$source" | sed 's/@[^#]*//; s/#.*//')
-    branch=$(echo "$source" | grep -o '@[^#]*' | sed 's/@//' || echo "main")
-    [ -z "$branch" ] && branch="main"
+    url="${source%%#*}"
+    fragment=""
+    case "$source" in *\#*) fragment="${source#*#}" ;; esac
+
+    case "$url" in
+      http://*|https://*|git://*|git@*|*.git) ;;
+      *)
+        echo "[portal] Skipping local source (volume-mounted): $url"
+        continue
+        ;;
+    esac
+
+    branch="main"
+    if [ -n "$fragment" ]; then
+      for kv in $(echo "$fragment" | tr '&' ' '); do
+        case "$kv" in
+          branch=*) branch="${kv#branch=}" ;;
+        esac
+      done
+    fi
+
     reponame=$(echo "$url" | sed 's|.*/||; s|\.git$||')
     target="/tmp/module-repos/$reponame"
 
@@ -38,7 +57,7 @@ if [ -n "$MODULE_SOURCES" ]; then
     echo "[portal] Symlinked /$reponame -> $target"
   done
   unset IFS
-  echo "[portal] Module cloning complete"
+  echo "[portal] Module source processing complete"
 fi
 
 # Write .env.production so Next.js inlines NEXT_PUBLIC_* vars into the
@@ -52,7 +71,7 @@ NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 SUPABASE_URL=${SUPABASE_URL}
 SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
 INSTANCE_NAME=${INSTANCE_NAME:-gatewaze}
-EXTRA_MODULE_SOURCES=${EXTRA_MODULE_SOURCES:-}
+MODULE_SOURCES=${MODULE_SOURCES:-}
 EOF
 
 # Build Next.js — script generates the module registry first, then runs
