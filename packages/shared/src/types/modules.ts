@@ -340,7 +340,7 @@ export interface ModuleSourceRow {
   branch: string | null;
   label: string | null;
   token: string | null;
-  origin: 'config' | 'user' | 'upload';
+  origin: 'config' | 'user' | 'upload' | 'env';
   created_at: string;
 }
 

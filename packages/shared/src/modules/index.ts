@@ -1,4 +1,4 @@
-export { loadModules, loadModulesWithDbSources, discoverModules, resolveModules, validateModule } from './loader';
+export { loadModules, loadModulesWithDbSources, discoverModules, resolveModules, validateModule, computeShadowedSourceIds } from './loader';
 export { reconcileModules, seedModuleSources, detectCircularDependencies } from './lifecycle';
 export { applyModuleMigrations } from './migrations';
 export { compareSemver, isNewerVersion } from './semver';

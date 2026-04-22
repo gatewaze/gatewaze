@@ -12,6 +12,7 @@ import {
   bootstrapCheck,
   applyCoreMigrations,
   detectEnvironment,
+  computeShadowedSourceIds,
 } from '@gatewaze/shared/modules';
 import type { InstalledModuleRow, LoadedModule } from '@gatewaze/shared/modules';
 import { resolve } from 'path';
@@ -1264,6 +1265,11 @@ modulesRouter.get('/sources', async (_req, res) => {
       return res.status(500).json({ error: 'Missing Supabase credentials' });
     }
 
+    // Ensure config + env sources are seeded so the UI reflects what the
+    // loader will actually resolve (including any env-var entries added
+    // since last call).
+    await loadAllModules().catch(() => {});
+
     const supabase = createClient(supabaseUrl, serviceRoleKey);
     const { data, error } = await supabase
       .from('module_sources')
@@ -1274,8 +1280,17 @@ modulesRouter.get('/sources', async (_req, res) => {
       return res.status(500).json({ error: error.message });
     }
 
+    // Hide rows that are shadowed by a higher-precedence same-label row.
+    // e.g. if MODULE_SOURCES has `/gatewaze-modules/modules#label=Free`
+    // (origin=env) and gatewaze.config.ts contributes the git URL with
+    // label=Free (origin=config), only the env row is shown.
+    const shadowed = computeShadowedSourceIds((data ?? []) as never[]);
+    const visible = (data ?? []).filter(
+      (row: Record<string, unknown>) => !shadowed.has(row.id as string)
+    );
+
     // Strip tokens — only indicate whether one is set
-    const sources = (data ?? []).map((row: Record<string, unknown>) => ({
+    const sources = visible.map((row: Record<string, unknown>) => ({
       ...row,
       token: undefined,
       hasToken: !!row.token,
