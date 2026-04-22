@@ -12,9 +12,25 @@ import type { LoadedModule } from '../types/modules';
  */
 export function computeModuleHash(mod: LoadedModule): string | null {
   if (!mod.resolvedDir || !existsSync(mod.resolvedDir)) return null;
+  return hashDir(mod.resolvedDir);
+}
 
+/**
+ * Compute a deterministic SHA-256 of the module files in a directory.
+ * Same algorithm as computeModuleHash but accepts a bare path — used by
+ * the dual-tree install/apply-update flows per
+ * spec-module-deployment-overhaul §5.
+ */
+export function computeModuleHashFromPath(dir: string): string {
+  if (!existsSync(dir)) {
+    throw new Error(`Cannot hash missing directory: ${dir}`);
+  }
+  return hashDir(dir);
+}
+
+function hashDir(dir: string): string {
   const hash = createHash('sha256');
-  hashDirectory(mod.resolvedDir, mod.resolvedDir, hash);
+  hashDirectory(dir, dir, hash);
   return hash.digest('hex');
 }
 

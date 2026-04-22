@@ -353,6 +353,12 @@ services:
       VITE_APP_NAME: ${GW_APP_NAME:-}
       MODULE_SOURCES: ${MODULE_SOURCES:-}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GATEWAZE_DATA_DIR: /var/lib/gatewaze
+    volumes:
+      # Read the live module tree + sources cache produced by the API.
+      # Supervisor writes .rebuild-status-admin under the same modules/ path.
+      - gatewaze-module-sources:/var/lib/gatewaze/sources:ro
+      - gatewaze-module-live:/var/lib/gatewaze/modules
     depends_on:
       supabase-kong:
         condition: service_started
@@ -400,6 +406,10 @@ services:
       # URLs are cloned by the entrypoint; local paths are expected to
       # be volume-mounted at that same absolute path.
       MODULE_SOURCES: ${MODULE_SOURCES:-}
+      GATEWAZE_DATA_DIR: /var/lib/gatewaze
+    volumes:
+      - gatewaze-module-sources:/var/lib/gatewaze/sources:ro
+      - gatewaze-module-live:/var/lib/gatewaze/modules
     depends_on:
       supabase-kong:
         condition: service_started
@@ -426,6 +436,9 @@ services:
       - api-modules-cache:/app/.gatewaze-modules
       - api-data:/app/data
       - gatewaze-data:/var/lib/gatewaze
+      # Dual-tree: API is the sole writer of sources/ and modules/
+      - gatewaze-module-sources:/var/lib/gatewaze/sources
+      - gatewaze-module-live:/var/lib/gatewaze/modules
     environment:
       PORT: "3002"
       NODE_ENV: production
@@ -486,8 +499,11 @@ services:
       WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-1}
       MODULE_SOURCES: ${MODULE_SOURCES:-}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GATEWAZE_DATA_DIR: /var/lib/gatewaze
     volumes:
       - ${PREMIUM_MODULES_PATH:-../../premium-gatewaze-modules}:/premium-gatewaze-modules
+      - gatewaze-module-sources:/var/lib/gatewaze/sources:ro
+      - gatewaze-module-live:/var/lib/gatewaze/modules:ro
     depends_on:
       redis:
         condition: service_healthy
@@ -515,6 +531,10 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       MODULE_SOURCES: ${MODULE_SOURCES:-}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GATEWAZE_DATA_DIR: /var/lib/gatewaze
+    volumes:
+      - gatewaze-module-sources:/var/lib/gatewaze/sources:ro
+      - gatewaze-module-live:/var/lib/gatewaze/modules:ro
     depends_on:
       redis:
         condition: service_healthy
@@ -540,6 +560,12 @@ volumes:
   gatewaze-data:
     driver: local
   deno-cache:
+    driver: local
+  # Dual-tree module storage (spec-module-deployment-overhaul §6.1):
+  # API writes; admin/portal/worker read. Mounted at /var/lib/gatewaze/*.
+  gatewaze-module-sources:
+    driver: local
+  gatewaze-module-live:
     driver: local
 
 # ---------------------------------------------------------------------------
