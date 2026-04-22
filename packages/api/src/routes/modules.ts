@@ -13,6 +13,13 @@ import {
   applyCoreMigrations,
   detectEnvironment,
   computeShadowedSourceIds,
+  installLiveSnapshot,
+  removeLiveSnapshot,
+  triggerRebuild,
+  summariseRebuild,
+  readSnapshot,
+  liveModuleDir,
+  sweepOrphanedNewDirs,
 } from '@gatewaze/shared/modules';
 import type { InstalledModuleRow, LoadedModule } from '@gatewaze/shared/modules';
 import { resolve } from 'path';
@@ -791,8 +798,51 @@ modulesRouter.post('/:id/enable', async (req, res) => {
 
     let migrationsApplied: string[] = [];
     let edgeFunctionsDeployed: string[] = [];
+    let rebuildCounter: number | undefined;
 
     if (mod) {
+      // Dual-tree install per spec-module-deployment-overhaul §5.1:
+      // copy source → live before running migrations/edge-function deploy.
+      // The loader will now resolve mod.resolvedDir via the live tree on
+      // subsequent loads; we also rebind it here so this flow's migration
+      // + edge-deploy steps read from the live snapshot, not upstream.
+      if (mod.resolvedDir) {
+        try {
+          // Find source origin — git-cloned / local / upload.
+          const isSymlinkSource = isLocalPathSource(mod.resolvedDir, config.moduleSources ?? []);
+          const sourceId = await lookupSourceIdFor(mod.resolvedDir, supabase);
+
+          const snap = installLiveSnapshot({
+            moduleId,
+            sourceId,
+            sourceDir: mod.resolvedDir,
+            symlink: isSymlinkSource,
+          });
+
+          // Rebind resolvedDir so migrations + edge-function paths now
+          // resolve relative to the live tree.
+          mod.resolvedDir = liveModuleDir(moduleId);
+
+          await supabase
+            .from('installed_modules')
+            .update({
+              source_id: sourceId ?? null,
+              source_snapshot_hash: snap.snapshotHash,
+              snapshot_taken_at: snap.installedAt,
+              last_rebuild_error: null,
+            })
+            .eq('id', moduleId);
+        } catch (snapErr) {
+          console.error('[modules] Live snapshot install failed:', snapErr);
+          return res.status(500).json({
+            error: {
+              code: 'SNAPSHOT_INSTALL_FAILED',
+              message: snapErr instanceof Error ? snapErr.message : String(snapErr),
+            },
+          });
+        }
+      }
+
       // Apply pending migrations
       await applyModuleMigrations(mod, supabase as never);
       migrationsApplied = mod.config.migrations ?? [];
@@ -825,12 +875,23 @@ modulesRouter.post('/:id/enable', async (req, res) => {
       if (mod.config.onEnable) {
         await mod.config.onEnable();
       }
+
+      // Trigger admin + portal bundle rebuild per §7.
+      try {
+        rebuildCounter = await triggerRebuild(supabase as never, {
+          components: ['admin', 'portal'],
+          reason: `enable:${moduleId}`,
+        });
+      } catch (rebuildErr) {
+        console.warn('[modules] Rebuild trigger failed:', rebuildErr);
+      }
     }
 
     return res.json({
       success: true,
       migrationsApplied,
       edgeFunctionsDeployed,
+      rebuildCounter,
     });
   } catch (err) {
     console.error('[modules] Enable failed:', err);
@@ -839,6 +900,37 @@ modulesRouter.post('/:id/enable', async (req, res) => {
     });
   }
 });
+
+/**
+ * Heuristic: a resolvedDir sourced from a local-path (volume-mounted)
+ * entry in MODULE_SOURCES should be symlinked into the live tree rather
+ * than copied, so HMR/dev workflows pick up in-place edits.
+ */
+function isLocalPathSource(resolvedDir: string, configSources: unknown[]): boolean {
+  // Any local absolute path MODULE_SOURCES entry produces a resolvedDir
+  // that matches one of those mount points. Git sources resolve under
+  // .gatewaze-sources/<slug>/ or /<reponame>/.
+  if (resolvedDir.includes('/.gatewaze-sources/') || resolvedDir.includes('/.gatewaze-modules/')) return false;
+  // Per §3.3 heuristic: local-path mounts appear at /<name>/modules/...
+  // or similar absolute paths; git clones live under the cache dir above.
+  return !resolvedDir.includes('.git/') && /^\/[a-zA-Z0-9-]+-modules\//.test(resolvedDir);
+}
+
+async function lookupSourceIdFor(
+  resolvedDir: string,
+  supabase: ReturnType<typeof getServiceClient>
+): Promise<string | undefined> {
+  // Match the source by URL fragment of its path against resolvedDir.
+  const { data } = await supabase.from('module_sources').select('id, url');
+  for (const row of data ?? []) {
+    const url = (row as { url: string }).url;
+    if (!url) continue;
+    if (resolvedDir.startsWith(url) || resolvedDir.includes(url.replace(/\/+$/, ''))) {
+      return (row as { id: string }).id;
+    }
+  }
+  return undefined;
+}
 
 /**
  * POST /api/modules/:id/disable
@@ -889,7 +981,36 @@ modulesRouter.post('/:id/disable', async (req, res) => {
       // Lifecycle hook failure shouldn't block disable
     }
 
-    return res.json({ success: true });
+    // Dual-tree uninstall per spec-module-deployment-overhaul §5.3:
+    // remove the live snapshot so the bundle rebuild stops serving it.
+    try {
+      removeLiveSnapshot(moduleId);
+      await supabase
+        .from('installed_modules')
+        .update({ source_snapshot_hash: null, snapshot_taken_at: null })
+        .eq('id', moduleId);
+    } catch (snapErr) {
+      console.warn('[modules] Live snapshot removal warning:', snapErr);
+    }
+
+    // Clear any pending update row.
+    try {
+      await supabase.from('module_updates_available').delete().eq('module_id', moduleId);
+    } catch {
+      // Table may not exist pre-migration; non-fatal.
+    }
+
+    let rebuildCounter: number | undefined;
+    try {
+      rebuildCounter = await triggerRebuild(supabase as never, {
+        components: ['admin', 'portal'],
+        reason: `disable:${moduleId}`,
+      });
+    } catch (rebuildErr) {
+      console.warn('[modules] Rebuild trigger failed:', rebuildErr);
+    }
+
+    return res.json({ success: true, rebuildCounter });
   } catch (err) {
     console.error('[modules] Disable failed:', err);
     return res.status(500).json({
@@ -1449,6 +1570,326 @@ modulesRouter.delete('/sources/:id', async (req, res) => {
       error: err instanceof Error ? err.message : 'Failed to delete source',
     });
   }
+});
+
+// ---------------------------------------------------------------------------
+// Dual-tree endpoints (spec-module-deployment-overhaul §10)
+// ---------------------------------------------------------------------------
+
+/**
+ * POST /api/modules/sources/refresh
+ *
+ * Manually pull all git sources into .gatewaze-sources/ and recompute
+ * upstream hashes for each installed module. Writes results into
+ * module_updates_available. Local-path sources are re-hashed in place;
+ * upload-origin sources are skipped (immutable per §17).
+ */
+modulesRouter.post('/sources/refresh', async (_req, res) => {
+  try {
+    const supabase = getServiceClient();
+    const { data: sources } = await supabase.from('module_sources').select('*');
+    const now = new Date().toISOString();
+    const errors: { sourceId: string; url: string; code: string; message: string }[] = [];
+
+    for (const row of (sources ?? []) as Record<string, unknown>[]) {
+      const url = row.url as string;
+      const sourceId = row.id as string;
+      const branch = (row.branch as string | null) ?? 'main';
+
+      const isGit =
+        url.startsWith('https://') ||
+        url.startsWith('git://') ||
+        url.startsWith('git@') ||
+        url.endsWith('.git');
+
+      if (!isGit) continue;
+
+      const { sourcesRoot: srcRoot, repoSlug: slugFn } = await import('@gatewaze/shared/modules');
+      const repoDir = resolve(srcRoot(), slugFn(url));
+      try {
+        if (existsSync(resolve(repoDir, '.git'))) {
+          execSync(`git -C "${repoDir}" fetch --depth 1 origin "${branch}"`, { stdio: 'pipe' });
+          execSync(`git -C "${repoDir}" reset --hard "origin/${branch}"`, { stdio: 'pipe' });
+        } else {
+          mkdirSync(srcRoot(), { recursive: true });
+          execSync(`git clone --depth 1 --branch "${branch}" "${url}" "${repoDir}"`, { stdio: 'pipe' });
+        }
+      } catch (cloneErr) {
+        const message = cloneErr instanceof Error ? cloneErr.message : String(cloneErr);
+        const code = /not possible to fast-forward|non-fast-forward/i.test(message)
+          ? 'HISTORY_REWRITTEN'
+          : 'FETCH_FAILED';
+        errors.push({ sourceId, url, code, message });
+      }
+    }
+
+    // After refresh, recompute update-available rows by reloading modules
+    // and comparing each module's upstream hash against the installed
+    // source_snapshot_hash.
+    const modules = await loadAllModules();
+    const { data: installed } = await supabase
+      .from('installed_modules')
+      .select('id, status, source_id, source_snapshot_hash, version')
+      .in('status', ['enabled', 'bundle_pending']);
+
+    const { computeModuleHashFromPath } = await import('@gatewaze/shared/modules');
+    let updatesAvailable = 0;
+
+    for (const row of (installed ?? []) as Record<string, unknown>[] as InstalledModuleRow[]) {
+      const mod = modules.find((m) => m.config.id === row.id);
+      if (!mod || !mod.resolvedDir) continue;
+
+      // For the upstream comparison we must hash the SOURCE dir, not the
+      // live tree. Since the loader now prefers live → source, walk back
+      // to the source directory for this module via its package name.
+      const sourceMatch = await resolveSourceDirForModule(mod.config.id, supabase);
+      if (!sourceMatch) continue;
+
+      const upstreamHash = (() => {
+        try { return computeModuleHashFromPath(sourceMatch); }
+        catch { return null; }
+      })();
+      if (!upstreamHash) continue;
+
+      const snapshotHash = row.source_snapshot_hash as string | null;
+      if (upstreamHash !== snapshotHash) {
+        const platformCompatible = !mod.config.minPlatformVersion ||
+          !config.platformVersion ||
+          compareSemver(config.platformVersion, mod.config.minPlatformVersion) >= 0;
+
+        await supabase.from('module_updates_available').upsert({
+          module_id: row.id,
+          source_id: row.source_id,
+          upstream_hash: upstreamHash,
+          upstream_version: mod.config.version,
+          detected_at: now,
+          platform_compatible: platformCompatible,
+          min_platform_version: mod.config.minPlatformVersion ?? null,
+        });
+        updatesAvailable++;
+      } else {
+        // Clear any stale update row.
+        await supabase.from('module_updates_available').delete().eq('module_id', row.id);
+      }
+    }
+
+    return res.json({
+      refreshedAt: now,
+      sourcesRefreshed: (sources ?? []).length,
+      updatesAvailable,
+      errors,
+    });
+  } catch (err) {
+    console.error('[modules] Sources refresh failed:', err);
+    return res.status(500).json({
+      error: { code: 'INTERNAL_ERROR', message: err instanceof Error ? err.message : 'Failed to refresh sources' },
+    });
+  }
+});
+
+/**
+ * Resolve the current upstream source directory for a given installed
+ * module. Walks the active sources in priority order and returns the
+ * first dir containing `<source>/<module>/index.ts`.
+ */
+async function resolveSourceDirForModule(
+  moduleId: string,
+  supabase: ReturnType<typeof getServiceClient>
+): Promise<string | null> {
+  const { data: sources } = await supabase.from('module_sources').select('*');
+  const { sourcesRoot: srcRoot, repoSlug: slugFn } = await import('@gatewaze/shared/modules');
+  for (const row of (sources ?? []) as Record<string, unknown>[]) {
+    const url = row.url as string;
+    const subPath = (row.path as string | null) ?? null;
+    let base: string;
+    const isGit = /^(https?:|git:|git@)/.test(url) || url.endsWith('.git');
+    if (isGit) {
+      base = resolve(srcRoot(), slugFn(url));
+    } else {
+      // Local path — honour absolute mount points from MODULE_SOURCES.
+      base = url;
+    }
+    if (subPath) base = resolve(base, subPath);
+    const candidate = resolve(base, moduleId, 'index.ts');
+    if (existsSync(candidate)) {
+      return resolve(base, moduleId);
+    }
+  }
+  return null;
+}
+
+/**
+ * POST /api/modules/:id/apply-update
+ *
+ * Install the upstream snapshot for an installed module. Atomic .new →
+ * .prev → live swap per spec §5.2.
+ */
+modulesRouter.post('/:id/apply-update', async (req, res) => {
+  try {
+    const supabase = getServiceClient();
+    const moduleId = req.params.id;
+
+    const { data: updateRow } = await supabase
+      .from('module_updates_available')
+      .select('*')
+      .eq('module_id', moduleId)
+      .single();
+
+    if (!updateRow) {
+      return res.status(404).json({
+        error: { code: 'UPDATE_NOT_AVAILABLE', message: `No pending update for module "${moduleId}"` },
+      });
+    }
+
+    if ((updateRow as Record<string, unknown>).platform_compatible === false) {
+      return res.status(409).json({
+        error: {
+          code: 'PLATFORM_INCOMPATIBLE',
+          message: `Module "${moduleId}" update requires a newer platform.`,
+          details: {
+            minPlatformVersion: (updateRow as Record<string, unknown>).min_platform_version,
+            currentVersion: config.platformVersion,
+          },
+        },
+      });
+    }
+
+    // Resolve source dir and install as a fresh live snapshot. The same
+    // copy-to-.new → rename-to-live logic as /enable, invoked here
+    // against the upstream tree.
+    const sourceDir = await resolveSourceDirForModule(moduleId, supabase);
+    if (!sourceDir) {
+      return res.status(500).json({
+        error: { code: 'SOURCE_NOT_FOUND', message: `Upstream source for module "${moduleId}" not resolvable.` },
+      });
+    }
+
+    const modules = await loadAllModules();
+    const mod = modules.find((m) => m.config.id === moduleId);
+    if (!mod) {
+      return res.status(404).json({ error: { code: 'MODULE_NOT_FOUND', message: `Module "${moduleId}" not loaded` } });
+    }
+
+    const { data: installed } = await supabase
+      .from('installed_modules')
+      .select('version, source_snapshot_sha')
+      .eq('id', moduleId)
+      .single();
+    const fromVersion = (installed as Record<string, unknown>)?.version as string | undefined;
+    const fromSha = (installed as Record<string, unknown>)?.source_snapshot_sha as string | undefined;
+
+    const isSymlinkSource = isLocalPathSource(sourceDir, config.moduleSources ?? []);
+    const sourceId = (updateRow as Record<string, unknown>).source_id as string | undefined;
+
+    const snap = installLiveSnapshot({
+      moduleId,
+      sourceId,
+      sourceDir,
+      symlink: isSymlinkSource,
+    });
+
+    mod.resolvedDir = liveModuleDir(moduleId);
+
+    // Migrations + edge-function deploy against the new live tree.
+    await applyModuleMigrations(mod, supabase as never);
+    if (mod.config.edgeFunctions?.length || mod.config.functionFiles?.length) {
+      await deployEdgeFunctions({
+        projectRoot: PROJECT_ROOT,
+        modules: [mod],
+        allModules: modules,
+      });
+    }
+
+    const edgeHash = computeEdgeFunctionsHash(mod);
+    await supabase.from('installed_modules').update({
+      version: mod.config.version,
+      source_id: sourceId ?? null,
+      source_snapshot_hash: snap.snapshotHash,
+      edge_functions_hash: edgeHash,
+      snapshot_taken_at: snap.installedAt,
+      last_rebuild_error: null,
+    }).eq('id', moduleId);
+
+    await supabase.from('module_updates_available').delete().eq('module_id', moduleId);
+
+    const rebuildCounter = await triggerRebuild(supabase as never, {
+      components: ['admin', 'portal'],
+      reason: `apply-update:${moduleId}`,
+    });
+
+    return res.status(202).json({
+      moduleId,
+      fromVersion,
+      toVersion: mod.config.version,
+      fromSha,
+      toSha: (updateRow as Record<string, unknown>).upstream_sha ?? null,
+      rebuildCounter,
+      startedAt: snap.installedAt,
+    });
+  } catch (err) {
+    console.error('[modules] apply-update failed:', err);
+    return res.status(500).json({
+      error: { code: 'INTERNAL_ERROR', message: err instanceof Error ? err.message : 'Failed to apply update' },
+    });
+  }
+});
+
+/**
+ * POST /api/modules/rebuild/manual
+ *
+ * Super-admin-callable manual rebuild trigger (nothing else changes).
+ * The service-role-only internal counter bump happens from API-to-API
+ * calls in /enable, /disable, /apply-update, etc.
+ */
+modulesRouter.post('/rebuild/manual', async (req, res) => {
+  try {
+    const supabase = getServiceClient();
+    const { reason } = req.body as { reason?: string };
+    const counter = await triggerRebuild(supabase as never, {
+      components: ['admin', 'portal'],
+      reason: reason || 'manual',
+    });
+    return res.status(202).json({ counter });
+  } catch (err) {
+    return res.status(500).json({
+      error: { code: 'INTERNAL_ERROR', message: err instanceof Error ? err.message : 'Failed to trigger rebuild' },
+    });
+  }
+});
+
+/**
+ * GET /api/modules/rebuild/:counter
+ *
+ * Poll the rebuild status for a given counter. Returns per-component
+ * state — UI shows "Rebuilding…" until both admin + portal are ok or
+ * one reports error.
+ */
+modulesRouter.get('/rebuild/:counter', async (req, res) => {
+  const counter = parseInt(req.params.counter, 10);
+  if (!Number.isFinite(counter)) {
+    return res.status(400).json({ error: { code: 'INVALID_COUNTER', message: 'counter must be numeric' } });
+  }
+  return res.json(summariseRebuild(counter));
+});
+
+/**
+ * GET /api/modules/:id/snapshot
+ *
+ * Inspect the current live snapshot metadata for an installed module.
+ */
+modulesRouter.get('/:id/snapshot', async (req, res) => {
+  const moduleId = req.params.id;
+  const snap = readSnapshot(moduleId);
+  if (!snap) {
+    return res.status(404).json({ error: { code: 'MODULE_NOT_FOUND', message: `No snapshot for "${moduleId}"` } });
+  }
+  return res.json({
+    moduleId: snap.moduleId,
+    snapshotHash: snap.snapshotHash,
+    snapshotSha: snap.sourceSha ?? null,
+    takenAt: snap.installedAt,
+    sourceId: snap.sourceId ?? null,
+  });
 });
 
 // ---------------------------------------------------------------------------
