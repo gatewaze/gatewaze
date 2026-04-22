@@ -45,8 +45,15 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    // Ensure deps from external module sources are resolved from admin's node_modules
-    include: ["date-fns", "jszip", "qr-code-styling", "pdf-lib", "@pdf-lib/fontkit", "pdfjs-dist"],
+    // Ensure deps from external module sources are resolved from admin's node_modules.
+    // `cookie` and `leaflet` are CJS modules that break Vite's automatic CJS→ESM
+    // interop (named exports like `parse`, `DomUtil` come through as undefined).
+    // Listing them here forces esbuild to pre-bundle with proper named-export
+    // re-exports so consumer imports work in dev mode.
+    include: [
+      "date-fns", "jszip", "qr-code-styling", "pdf-lib", "@pdf-lib/fontkit", "pdfjs-dist",
+      "cookie", "leaflet", "react-leaflet",
+    ],
   },
   build: {
     rollupOptions: {
