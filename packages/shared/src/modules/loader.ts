@@ -257,8 +257,51 @@ function parseEnvModuleSources(): ModuleSource[] {
 }
 
 /**
+ * Origin precedence when multiple DB rows share the same label. Higher =
+ * wins. Used both to pick the live source for module loading and to hide
+ * shadowed rows in the admin UI's sources list.
+ */
+const ORIGIN_RANK: Record<string, number> = { user: 4, upload: 3, env: 2, config: 1 };
+
+/**
+ * Identify module_sources rows that are shadowed by a higher-precedence
+ * row sharing the same non-empty label (case-insensitive). Returns the
+ * set of shadowed row IDs so callers can exclude them.
+ *
+ * Example: if a user sets `MODULE_SOURCES=/gatewaze-modules/modules#label=Free`
+ * locally, the 'env'-origin row shadows the 'config'-origin row that
+ * comes from gatewaze.config.ts's git URL with the same "Free" label.
+ */
+export function computeShadowedSourceIds(dbSources: ModuleSourceRow[]): Set<string> {
+  const byLabel = new Map<string, { id: string; rank: number }>();
+  const shadowed = new Set<string>();
+
+  for (const row of dbSources) {
+    const label = (row.label ?? '').trim().toLowerCase();
+    if (!label) continue;
+    const rank = ORIGIN_RANK[row.origin] ?? 0;
+    const existing = byLabel.get(label);
+    if (!existing) {
+      byLabel.set(label, { id: row.id, rank });
+    } else if (rank > existing.rank) {
+      shadowed.add(existing.id);
+      byLabel.set(label, { id: row.id, rank });
+    } else if (rank < existing.rank) {
+      shadowed.add(row.id);
+    }
+    // tie on rank: leave earlier row in place
+  }
+
+  return shadowed;
+}
+
+/**
  * Load modules using sources from config file, MODULE_SOURCES env var,
  * and database. Merges all three (deduped), then discovers and loads.
+ *
+ * DB rows with a label that's shadowed by a higher-precedence row of
+ * the same label are excluded — so a local `env`-origin source with
+ * label "Free" hides a `config`-origin git URL also labelled "Free".
  */
 export async function loadModulesWithDbSources(
   config: GatewazeConfig,
@@ -268,8 +311,11 @@ export async function loadModulesWithDbSources(
   const configSources = config.moduleSources ?? [];
   const envSources = parseEnvModuleSources();
 
+  const shadowedIds = computeShadowedSourceIds(dbSources);
+  const effectiveDb = dbSources.filter((r) => !shadowedIds.has(r.id));
+
   // Convert DB sources to ModuleSource format
-  const dbModuleSources: ModuleSource[] = dbSources.map((row) => ({
+  const dbModuleSources: ModuleSource[] = effectiveDb.map((row) => ({
     url: row.url,
     path: row.path ?? undefined,
     branch: row.branch ?? undefined,
@@ -281,7 +327,7 @@ export async function loadModulesWithDbSources(
   // config — the admin UI lets super-admins override labels/branches
   // stored in code/env, so the persisted row should win the merge.
   const seen = new Set<string>();
-  const merged: ModuleSource[] = [];
+  const byPath: ModuleSource[] = [];
 
   for (const source of [...dbModuleSources, ...envSources, ...configSources]) {
     const normalized = typeof source === 'string'
@@ -289,8 +335,20 @@ export async function loadModulesWithDbSources(
       : `${source.url}|${source.path ?? ''}`;
     if (!seen.has(normalized)) {
       seen.add(normalized);
-      merged.push(source);
+      byPath.push(source);
     }
+  }
+
+  // Second pass: dedup by label. If a local source carries a label that
+  // a lower-precedence source also uses, keep only the first — honours
+  // DB > env > config iteration order established above.
+  const seenLabels = new Set<string>();
+  const merged: ModuleSource[] = [];
+  for (const source of byPath) {
+    const label = typeof source === 'object' && source.label ? source.label.trim().toLowerCase() : '';
+    if (label && seenLabels.has(label)) continue;
+    if (label) seenLabels.add(label);
+    merged.push(source);
   }
 
   // Create a config with merged sources

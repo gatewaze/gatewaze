@@ -384,10 +384,10 @@ export async function seedModuleSources(
 ): Promise<void> {
   if (!configSources || configSources.length === 0) return;
 
-  // Fetch existing sources to avoid duplicates
+  // Fetch existing sources to avoid duplicates and to allow label backfill.
   const { data: existing } = await supabase
     .from('module_sources')
-    .select('url,path');
+    .select('id,url,path,label');
 
   // Normalize keys to avoid duplicates from different path representations
   // e.g., "../premium-gatewaze-modules/modules" and "/premium-gatewaze-modules/modules"
@@ -404,11 +404,37 @@ export async function seedModuleSources(
     ))
   );
 
+  // Map existing rows keyed by our normalizeKey so we can backfill nulls.
+  const existingRows = new Map<string, Record<string, unknown>>();
+  for (const r of existing ?? []) {
+    const row = r as Record<string, unknown>;
+    existingRows.set(
+      normalizeKey(row.url as string, row.path as string | null),
+      row
+    );
+  }
+
   for (const source of configSources) {
     const { url, path, branch, label } = normalizeSource(source);
     const key = normalizeKey(url, path);
+    const existingRow = existingRows.get(key);
 
-    if (existingKeys.has(key)) continue;
+    if (existingRow) {
+      // Backfill label from the source when the row has none. This lets
+      // gatewaze.config.ts / MODULE_SOURCES updates provide labels for
+      // rows that were seeded before labels were supported, without
+      // clobbering labels the admin has customised via the UI.
+      if (label && !existingRow.label) {
+        const { error } = await supabase
+          .from('module_sources')
+          .update({ label })
+          .eq('id', existingRow.id as string);
+        if (error) {
+          console.error(`[modules] Failed to backfill label on "${url}":`, error);
+        }
+      }
+      continue;
+    }
 
     const { error } = await supabase
       .from('module_sources')
