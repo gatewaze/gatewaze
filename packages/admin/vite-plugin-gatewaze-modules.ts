@@ -8,6 +8,38 @@ const VIRTUAL_MODULE_ID = 'virtual:gatewaze-modules';
 const RESOLVED_ID = '\0' + VIRTUAL_MODULE_ID;
 
 /**
+ * Every package admin has as a direct dependency — these are always
+ * handed back to Vite (return undefined from resolveId) rather than
+ * pre-resolved to an absolute filesystem path. Vite pre-bundles these
+ * via optimizeDeps + the React plugin; resolving them ourselves serves
+ * the raw CJS file via /@fs/ and loses named exports (e.g. `jsxDEV`,
+ * `parse`, `splitCookiesString`, `Tab`).
+ *
+ * Built dynamically from packages/admin/package.json so adding a dep
+ * doesn't require a plugin edit.
+ */
+function buildVitePreBundledSet(adminDir: string): Set<string> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const pkg = JSON.parse(readFileSync(resolve(adminDir, 'package.json'), 'utf-8'));
+    const names = new Set<string>();
+    for (const field of ['dependencies', 'devDependencies', 'peerDependencies']) {
+      if (pkg[field]) for (const name of Object.keys(pkg[field])) names.add(name);
+    }
+    return names;
+  } catch {
+    return new Set();
+  }
+}
+
+function isVitePreBundled(id: string, preBundledSet: Set<string>): boolean {
+  if (preBundledSet.has(id)) return true;
+  // Match `@scope/name/subpath` or `name/subpath` against direct dep names.
+  const scoped = id.startsWith('@') ? id.split('/').slice(0, 2).join('/') : id.split('/')[0];
+  return preBundledSet.has(scoped);
+}
+
+/**
  * Vite plugin that reads gatewaze.config.ts and generates a virtual module
  * with static imports for each configured module package.
  *
@@ -26,6 +58,11 @@ export function gatewazeModulesPlugin(): Plugin {
   // find deps in /app/node_modules. Without this, Vite's default walk-up
   // from the importer's real path fails for `import('pdf-lib')` etc.
   const adminRequire = createRequire(resolve(__dirname, 'package.json'));
+
+  // Every package in admin/package.json → deferred to Vite's pre-bundler
+  // so imports from module files route to the optimized .vite/deps/<pkg>
+  // bundle (with CJS→ESM named-export wrapping) instead of /@fs/ raw.
+  const preBundledDeps = buildVitePreBundledSet(__dirname);
 
   return {
     name: 'gatewaze-modules',
@@ -70,6 +107,14 @@ export function gatewazeModulesPlugin(): Plugin {
         // literal strings in the output and the browser throws
         // "Failed to resolve module specifier".
         if (!id.startsWith('.') && !id.startsWith('/') && !id.startsWith('@/')) {
+          // DEFER to Vite for packages it pre-bundles. Resolving these
+          // ourselves hands the browser the raw CJS file (served via
+          // /@fs/…) which loses named exports like `jsxDEV`, `parse`,
+          // etc. Vite's default resolution rewrites to the optimized
+          // `/node_modules/.vite/deps/<pkg>.js` bundle instead.
+          if (isVitePreBundled(id, preBundledDeps)) {
+            return;
+          }
           try {
             const pkgName = id.startsWith('@') ? id.split('/').slice(0, 2).join('/') : id.split('/')[0];
             const pkgPath = resolve(projectRoot, 'node_modules', pkgName);

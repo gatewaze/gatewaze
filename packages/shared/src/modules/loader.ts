@@ -3,6 +3,7 @@ import { existsSync, readdirSync } from 'fs';
 import { resolve, isAbsolute } from 'path';
 import { execSync, type ExecSyncOptions } from 'child_process';
 import { mkdirSync } from 'fs';
+import { liveModuleDir } from './module-paths';
 
 /**
  * Validate that a module export satisfies the GatewazeModule interface.
@@ -100,18 +101,41 @@ export async function loadModules(
     try {
       const slug = packageName.replace(/^@gatewaze-modules\//, '');
 
-      // Try moduleSources first
+      // Resolution order per spec-module-deployment-overhaul §8.2:
+      //   1. live tree at modules/<slug>/ (dual-tree live snapshot)
+      //   2. any resolvedSources entry (bootstrap / not-yet-installed)
+      // When both exist, sourceLabel still comes from whichever source
+      // dir contains the slug — that's what drives UI tab grouping.
       let mod: Record<string, unknown> | undefined;
       let resolvedDir: string | undefined;
       let sourceLabel: string | undefined;
+
+      // Figure out sourceLabel by scanning source dirs regardless of
+      // where the code is loaded from; this preserves the Modules page
+      // tab behaviour even when serving from the live tree.
       for (const sourceDir of resolvedSources) {
-        const moduleDir = resolve(sourceDir, slug);
-        const indexTs = resolve(moduleDir, 'index.ts');
+        const indexTs = resolve(sourceDir, slug, 'index.ts');
         if (existsSync(indexTs)) {
-          mod = await import(indexTs);
-          resolvedDir = moduleDir;
           sourceLabel = sourceLabels.get(sourceDir);
           break;
+        }
+      }
+
+      const liveDir = liveModuleDir(slug);
+      const liveIndex = resolve(liveDir, 'index.ts');
+      if (existsSync(liveIndex)) {
+        mod = await import(liveIndex);
+        resolvedDir = liveDir;
+      } else {
+        // Bootstrap path: no live snapshot yet. Load straight from source.
+        for (const sourceDir of resolvedSources) {
+          const moduleDir = resolve(sourceDir, slug);
+          const indexTs = resolve(moduleDir, 'index.ts');
+          if (existsSync(indexTs)) {
+            mod = await import(indexTs);
+            resolvedDir = moduleDir;
+            break;
+          }
         }
       }
 
