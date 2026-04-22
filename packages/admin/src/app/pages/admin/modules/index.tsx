@@ -6,6 +6,9 @@ import {
   ArrowUpTrayIcon,
   ArrowPathIcon,
   FolderIcon,
+  PencilSquareIcon,
+  CheckIcon,
+  XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 
@@ -70,6 +73,9 @@ export default function ModulesPage() {
   const [showInstallModal, setShowInstallModal] = useState(false);
   const [showAddSourceModal, setShowAddSourceModal] = useState(false);
   const [removingSourceId, setRemovingSourceId] = useState<string | null>(null);
+  const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
+  const [labelDraft, setLabelDraft] = useState("");
+  const [savingLabelId, setSavingLabelId] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [isUpdatingAll, setIsUpdatingAll] = useState(false);
@@ -269,6 +275,32 @@ export default function ModulesPage() {
     setIsUpdatingAll(false);
   };
 
+  const beginEditLabel = (source: ModuleSourceRow) => {
+    setEditingLabelId(source.id);
+    setLabelDraft(source.label ?? "");
+  };
+
+  const cancelEditLabel = () => {
+    setEditingLabelId(null);
+    setLabelDraft("");
+  };
+
+  const saveLabel = async (sourceId: string) => {
+    setSavingLabelId(sourceId);
+    const result = await ModuleService.updateModuleSource(sourceId, {
+      label: labelDraft.trim() || null,
+    });
+    if (result.success) {
+      toast.success("Label updated");
+      await Promise.all([loadModuleSources(), loadAvailableModules()]);
+      setEditingLabelId(null);
+      setLabelDraft("");
+    } else {
+      toast.error(result.error ?? "Failed to update label");
+    }
+    setSavingLabelId(null);
+  };
+
   const handleRemoveSource = async (sourceId: string) => {
     setRemovingSourceId(sourceId);
     const result = await ModuleService.removeModuleSource(sourceId);
@@ -428,29 +460,88 @@ export default function ModulesPage() {
               </p>
             ) : (
               <div className="space-y-2">
-                {moduleSources.map((source) => (
-                  <div key={source.id} className="flex items-center gap-3 px-3 py-2 rounded-lg border border-[var(--gray-a5)] bg-[var(--color-surface)]">
-                    <FolderIcon className="size-4 text-[var(--gray-a9)] shrink-0" />
-                    <span className="text-sm text-[var(--gray-12)] truncate min-w-0 flex-1">
-                      {source.label || source.url}
-                      {source.path ? <span className="text-[var(--gray-a9)]"> / {source.path}</span> : ""}
-                      {source.branch ? <span className="text-[var(--gray-a9)]"> ({source.branch})</span> : ""}
-                    </span>
-                    <Badge
-                      color={source.origin === "config" ? "gray" : source.origin === "upload" ? "blue" : "green"}
-                    >
-                      {source.origin}
-                    </Badge>
-                    <button
-                      onClick={() => handleRemoveSource(source.id)}
-                      disabled={removingSourceId === source.id}
-                      className="p-1 rounded hover:bg-red-500/10 text-[var(--gray-a8)] hover:text-red-500 transition-colors shrink-0"
-                      title="Remove source"
-                    >
-                      <TrashIcon className="size-3.5" />
-                    </button>
-                  </div>
-                ))}
+                {moduleSources.map((source) => {
+                  const isEditing = editingLabelId === source.id;
+                  const isSaving = savingLabelId === source.id;
+                  return (
+                    <div key={source.id} className="flex items-center gap-3 px-3 py-2 rounded-lg border border-[var(--gray-a5)] bg-[var(--color-surface)]">
+                      <FolderIcon className="size-4 text-[var(--gray-a9)] shrink-0" />
+                      {isEditing ? (
+                        <>
+                          <Input
+                            value={labelDraft}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLabelDraft(e.target.value)}
+                            onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                              if (e.key === "Enter") saveLabel(source.id);
+                              else if (e.key === "Escape") cancelEditLabel();
+                            }}
+                            placeholder="Label (e.g. Premium)"
+                            autoFocus
+                            className="flex-1 min-w-0"
+                          />
+                          <span className="text-xs text-[var(--gray-a9)] truncate max-w-[30%]">
+                            {source.url}{source.path ? ` / ${source.path}` : ""}
+                          </span>
+                          <button
+                            onClick={() => saveLabel(source.id)}
+                            disabled={isSaving}
+                            className="p-1 rounded hover:bg-green-500/10 text-[var(--gray-a8)] hover:text-green-600 transition-colors shrink-0"
+                            title="Save"
+                          >
+                            <CheckIcon className="size-3.5" />
+                          </button>
+                          <button
+                            onClick={cancelEditLabel}
+                            className="p-1 rounded hover:bg-[var(--gray-a4)] text-[var(--gray-a8)] transition-colors shrink-0"
+                            title="Cancel"
+                          >
+                            <XMarkIcon className="size-3.5" />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-sm text-[var(--gray-12)] truncate min-w-0 flex-1">
+                            {source.label ? (
+                              <>
+                                <span className="font-medium">{source.label}</span>
+                                <span className="text-[var(--gray-a9)]"> — {source.url}</span>
+                              </>
+                            ) : (
+                              source.url
+                            )}
+                            {source.path ? <span className="text-[var(--gray-a9)]"> / {source.path}</span> : ""}
+                            {source.branch ? <span className="text-[var(--gray-a9)]"> ({source.branch})</span> : ""}
+                          </span>
+                          <Badge
+                            color={
+                              source.origin === "config" ? "gray"
+                              : source.origin === "env" ? "orange"
+                              : source.origin === "upload" ? "blue"
+                              : "green"
+                            }
+                          >
+                            {source.origin}
+                          </Badge>
+                          <button
+                            onClick={() => beginEditLabel(source)}
+                            className="p-1 rounded hover:bg-[var(--accent-a4)] text-[var(--gray-a8)] hover:text-[var(--accent-11)] transition-colors shrink-0"
+                            title="Edit label"
+                          >
+                            <PencilSquareIcon className="size-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleRemoveSource(source.id)}
+                            disabled={removingSourceId === source.id}
+                            className="p-1 rounded hover:bg-red-500/10 text-[var(--gray-a8)] hover:text-red-500 transition-colors shrink-0"
+                            title="Remove source"
+                          >
+                            <TrashIcon className="size-3.5" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </section>

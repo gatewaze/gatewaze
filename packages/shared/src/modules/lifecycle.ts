@@ -372,12 +372,15 @@ export async function reconcileModules(
 }
 
 /**
- * Seed module_sources table from config file moduleSources.
- * Inserts config sources with origin='config' if not already present.
+ * Seed module_sources table with sources discovered outside the admin UI.
+ * Inserts each source with the given `origin` if not already present.
+ * Callers typically pass `'config'` for gatewaze.config.ts entries and
+ * `'env'` for MODULE_SOURCES env-var entries.
  */
 export async function seedModuleSources(
   configSources: ModuleSource[],
   supabase: SupabaseClient,
+  origin: 'config' | 'env' = 'config',
 ): Promise<void> {
   if (!configSources || configSources.length === 0) return;
 
@@ -402,7 +405,7 @@ export async function seedModuleSources(
   );
 
   for (const source of configSources) {
-    const { url, path, branch } = normalizeSource(source);
+    const { url, path, branch, label } = normalizeSource(source);
     const key = normalizeKey(url, path);
 
     if (existingKeys.has(key)) continue;
@@ -413,8 +416,8 @@ export async function seedModuleSources(
         url,
         path: path ?? null,
         branch: branch ?? null,
-        label: null,
-        origin: 'config',
+        label: label ?? null,
+        origin,
       });
 
     if (error) {
@@ -425,7 +428,7 @@ export async function seedModuleSources(
   }
 }
 
-function normalizeSource(source: ModuleSource): { url: string; path?: string; branch?: string } {
+function normalizeSource(source: ModuleSource): { url: string; path?: string; branch?: string; label?: string } {
   if (typeof source === 'string') {
     const [url, fragment] = source.split('#');
     if (!fragment) return { url };
@@ -434,6 +437,7 @@ function normalizeSource(source: ModuleSource): { url: string; path?: string; br
       url,
       path: params.get('path') ?? undefined,
       branch: params.get('branch') ?? undefined,
+      label: params.get('label') ?? undefined,
     };
   }
   return source;
