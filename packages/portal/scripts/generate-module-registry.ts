@@ -470,12 +470,12 @@ async function generate() {
   const configSources = parseConfigSources()
   const dbSources = await fetchDbSources()
 
-  // Handle EXTRA_MODULE_SOURCES env var (comma-separated entries in the
-  // same url[#branch=X&path=Y] format the config file uses). Parsing via
-  // normalizeSource so a git URL like
-  //   https://github.com/org/repo.git#branch=main&path=modules
-  // resolves its branch/path rather than being treated as a literal URL.
-  const extraSources: SourceEntry[] = (process.env.EXTRA_MODULE_SOURCES || '')
+  // Handle MODULE_SOURCES env var (comma-separated entries in the same
+  // url[#branch=X&path=Y] format the config file uses). Each entry can
+  // be a git URL or a local absolute path. In production it's git URLs
+  // only; locally it may also include mounted paths like
+  // /premium-gatewaze-modules/modules.
+  const extraSources: SourceEntry[] = (process.env.MODULE_SOURCES || '')
     .split(',')
     .map(s => s.trim())
     .filter(Boolean)
