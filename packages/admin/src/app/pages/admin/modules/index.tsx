@@ -76,6 +76,7 @@ export default function ModulesPage() {
   const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
   const [labelDraft, setLabelDraft] = useState("");
   const [savingLabelId, setSavingLabelId] = useState<string | null>(null);
+  const [refreshingSources, setRefreshingSources] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [isUpdatingAll, setIsUpdatingAll] = useState(false);
@@ -118,12 +119,18 @@ export default function ModulesPage() {
   }, []);
 
   useEffect(() => {
+    // Refresh the global modules context on page-mount. Without this,
+    // the top-of-app ModuleUpdateBanner can show stale data after a
+    // module is applied elsewhere — the context's availableUpdates only
+    // refreshes when something explicitly calls refresh().
+    refreshModulesContext();
     Promise.all([
       loadAvailableModules(),
       loadInstalledModules(),
       loadModuleSources(),
       checkForUpdates(),
     ]).finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadAvailableModules, loadInstalledModules, loadModuleSources, checkForUpdates]);
 
   // Merge config modules with DB status — excludes integration-type modules
@@ -275,6 +282,26 @@ export default function ModulesPage() {
     setIsUpdatingAll(false);
   };
 
+  const handleRefreshSources = async () => {
+    setRefreshingSources(true);
+    const result = await ModuleService.refreshSources();
+    if (result.success) {
+      const parts: string[] = [];
+      if (typeof result.sourcesRefreshed === "number") parts.push(`${result.sourcesRefreshed} source(s)`);
+      if (typeof result.updatesAvailable === "number") parts.push(`${result.updatesAvailable} update(s)`);
+      toast.success(`Sources refreshed${parts.length ? ` — ${parts.join(", ")}` : ""}`);
+      if (result.errors?.length) {
+        for (const e of result.errors) {
+          toast.error(`${e.code}: ${e.url}`);
+        }
+      }
+      await Promise.all([loadAvailableModules(), loadInstalledModules(), loadModuleSources(), checkForUpdates()]);
+    } else {
+      toast.error(result.error ?? "Refresh failed");
+    }
+    setRefreshingSources(false);
+  };
+
   const beginEditLabel = (source: ModuleSourceRow) => {
     setEditingLabelId(source.id);
     setLabelDraft(source.label ?? "");
@@ -389,6 +416,16 @@ export default function ModulesPage() {
           </div>
           {isSuperAdmin && (
             <div className="flex gap-2">
+              <Button
+                onClick={handleRefreshSources}
+                variant="outline"
+                size="2"
+                disabled={refreshingSources}
+                title="Pull latest from all git sources and detect available updates"
+              >
+                <ArrowPathIcon className={`size-4 mr-1.5 ${refreshingSources ? "animate-spin" : ""}`} />
+                {refreshingSources ? "Refreshing..." : "Refresh Sources"}
+              </Button>
               {availableUpdates.length > 0 && (() => {
                 const compatibleCount = availableUpdates.filter((u) => u.platformCompatible).length;
                 return compatibleCount > 0 ? (

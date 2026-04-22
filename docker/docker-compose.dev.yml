@@ -93,6 +93,11 @@ services:
     environment:
       NODE_ENV: development
       EDGE_FUNCTIONS_CONTAINER: ${COMPOSE_PROJECT_NAME:-gatewaze}-supabase-edge-functions
+      # Dev: no supervisor runs inside admin/portal, and HMR handles
+      # source changes. So mark rebuild status "ok" the moment we bump
+      # the counter — this keeps UI polling fast without lying about
+      # production behaviour, which is gated by the real supervisor.
+      DEV_AUTO_REBUILD_OK: "1"
 
   worker:
     build:

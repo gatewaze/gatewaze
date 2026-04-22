@@ -335,6 +335,63 @@ export class ModuleService {
     }
   }
 
+  static async refreshSources(): Promise<{
+    success: boolean;
+    refreshedAt?: string;
+    sourcesRefreshed?: number;
+    updatesAvailable?: number;
+    errors?: { sourceId: string; url: string; code: string; message: string }[];
+    error?: string;
+  }> {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL ?? '';
+      const res = await fetch(`${apiUrl}/api/modules/sources/refresh`, { method: 'POST' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        return {
+          success: false,
+          error: body?.error?.message ?? `Failed (${res.status})`,
+        };
+      }
+      const body = await res.json();
+      return { success: true, ...body };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to refresh sources',
+      };
+    }
+  }
+
+  static async applyModuleUpdate(moduleId: string): Promise<{
+    success: boolean;
+    fromVersion?: string;
+    toVersion?: string;
+    rebuildCounter?: number;
+    error?: string;
+  }> {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL ?? '';
+      const res = await fetch(`${apiUrl}/api/modules/${moduleId}/apply-update`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        return {
+          success: false,
+          error: body?.error?.message ?? `Failed (${res.status})`,
+        };
+      }
+      const body = await res.json();
+      return { success: true, ...body };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to apply update',
+      };
+    }
+  }
+
   static async updateModuleSource(
     id: string,
     updates: { label?: string | null }
