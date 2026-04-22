@@ -335,6 +335,32 @@ export class ModuleService {
     }
   }
 
+  static async updateModuleSource(
+    id: string,
+    updates: { label?: string | null }
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL ?? '';
+      const res = await fetch(`${apiUrl}/api/modules/sources/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        return { success: false, error: body.error ?? `Failed (${res.status})` };
+      }
+
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to update source',
+      };
+    }
+  }
+
   static async removeModuleSource(
     id: string
   ): Promise<{ success: boolean; error?: string }> {

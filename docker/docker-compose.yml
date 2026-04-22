@@ -447,6 +447,8 @@ services:
       BULLMQ_PREFIX: ${BULLMQ_PREFIX:-gatewaze}
       AUDIT_LOG_RETENTION_DAYS: ${AUDIT_LOG_RETENTION_DAYS:-90}
       API_KEY_PEPPER: ${API_KEY_PEPPER:-}
+      MODULE_SOURCES: ${MODULE_SOURCES:-}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
     depends_on:
       redis:
         condition: service_healthy
@@ -482,6 +484,8 @@ services:
       GOOGLE_CSE_DAILY_BUDGET: ${GOOGLE_CSE_DAILY_BUDGET:-100}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-1}
+      MODULE_SOURCES: ${MODULE_SOURCES:-}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
     volumes:
       - ${PREMIUM_MODULES_PATH:-../../premium-gatewaze-modules}:/premium-gatewaze-modules
     depends_on:
@@ -509,6 +513,8 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD:-gatewaze}@redis:6379
       DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@supabase-db:5432/${POSTGRES_DB:-postgres}
       JWT_SECRET: ${JWT_SECRET}
+      MODULE_SOURCES: ${MODULE_SOURCES:-}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
     depends_on:
       redis:
         condition: service_healthy

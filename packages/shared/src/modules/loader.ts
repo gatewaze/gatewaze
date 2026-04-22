@@ -232,8 +232,33 @@ function deriveSourceLabel(url: string): string {
 }
 
 /**
- * Load modules using sources from both config file and database.
- * Merges DB sources with config sources (deduped), then discovers and loads.
+ * Parse MODULE_SOURCES env var into ModuleSource entries. Each entry is
+ * either a git URL (optionally `#branch=X&path=Y`) or a local absolute
+ * path. Same format the Vite plugin and portal script use.
+ */
+function parseEnvModuleSources(): ModuleSource[] {
+  const raw = process.env.MODULE_SOURCES;
+  if (!raw) return [];
+  return raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((entry) => {
+      const [url, fragment] = entry.split('#');
+      if (!fragment) return { url };
+      const params = new URLSearchParams(fragment);
+      return {
+        url,
+        path: params.get('path') ?? undefined,
+        branch: params.get('branch') ?? undefined,
+        label: params.get('label') ?? undefined,
+      };
+    });
+}
+
+/**
+ * Load modules using sources from config file, MODULE_SOURCES env var,
+ * and database. Merges all three (deduped), then discovers and loads.
  */
 export async function loadModulesWithDbSources(
   config: GatewazeConfig,
@@ -241,6 +266,7 @@ export async function loadModulesWithDbSources(
   projectRoot?: string,
 ): Promise<LoadedModule[]> {
   const configSources = config.moduleSources ?? [];
+  const envSources = parseEnvModuleSources();
 
   // Convert DB sources to ModuleSource format
   const dbModuleSources: ModuleSource[] = dbSources.map((row) => ({
@@ -251,11 +277,13 @@ export async function loadModulesWithDbSources(
     label: row.label ?? undefined,
   }));
 
-  // Deduplicate by url+path
+  // Deduplicate by url+path. DB rows take precedence over env, env over
+  // config — the admin UI lets super-admins override labels/branches
+  // stored in code/env, so the persisted row should win the merge.
   const seen = new Set<string>();
   const merged: ModuleSource[] = [];
 
-  for (const source of [...configSources, ...dbModuleSources]) {
+  for (const source of [...dbModuleSources, ...envSources, ...configSources]) {
     const normalized = typeof source === 'string'
       ? source
       : `${source.url}|${source.path ?? ''}`;
