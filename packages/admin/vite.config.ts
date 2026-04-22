@@ -52,8 +52,13 @@ export default defineConfig({
     // re-exports so consumer imports work in dev mode.
     include: [
       "date-fns", "jszip", "qr-code-styling", "pdf-lib", "@pdf-lib/fontkit", "pdfjs-dist",
-      "cookie", "leaflet", "react-leaflet",
+      "cookie", "set-cookie-parser", "turbo-stream", "leaflet", "react-leaflet",
       "@heroicons/react/24/outline", "@heroicons/react/24/solid", "@heroicons/react/20/solid",
+      // react-router-dom v7 imports `cookie`, `set-cookie-parser`, `turbo-stream`
+      // with named-export syntax; without pre-bundling the importer chain,
+      // module-file imports from outside the project root can land on the raw
+      // CJS file and lose named exports.
+      "react-router-dom", "react-router",
     ],
   },
   build: {
