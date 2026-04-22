@@ -395,10 +395,11 @@ services:
       # Domain for calendar email group addresses ({slug}@{domain}).
       # Falls back to the domain part of EMAIL_FROM at runtime if unset.
       CALENDAR_EMAIL_DOMAIN: ${CALENDAR_EMAIL_DOMAIN:-}
-      # Extra module source paths (mounted volumes) that the portal's
-      # module registry generator should scan in addition to the
-      # gatewaze.config.ts defaults. Comma-separated.
-      EXTRA_MODULE_SOURCES: ${EXTRA_MODULE_SOURCES:-}
+      # Module sources (comma-separated). Each entry may be a git URL
+      # (optionally `#branch=X&path=Y`) or a local absolute path. Git
+      # URLs are cloned by the entrypoint; local paths are expected to
+      # be volume-mounted at that same absolute path.
+      MODULE_SOURCES: ${MODULE_SOURCES:-}
     depends_on:
       supabase-kong:
         condition: service_started

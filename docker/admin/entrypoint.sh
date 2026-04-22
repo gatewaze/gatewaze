@@ -9,19 +9,40 @@ if [ -n "$GITHUB_TOKEN" ]; then
   echo "[admin] Git authentication configured"
 fi
 
-# Clone module sources from MODULE_SOURCES env var (comma-separated git URLs)
-# Format: url[@branch][#path] e.g. https://github.com/org/repo.git@main#modules
+# Clone module sources from MODULE_SOURCES env var. Comma-separated list
+# where each entry is one of:
+#   - git URL: https://github.com/org/repo.git[#branch=main&path=modules]
+#   - local absolute path: /premium-gatewaze-modules/modules
+# Local paths are volume-mounted by docker-compose.local-modules.yml and
+# don't need to be cloned — the plugin will scan them in place.
 if [ -n "$MODULE_SOURCES" ]; then
-  echo "[admin] Cloning module sources..."
+  echo "[admin] Processing module sources..."
   IFS=','
   for source in $MODULE_SOURCES; do
-    # Parse url[@branch][#path]
-    url=$(echo "$source" | sed 's/@[^#]*//; s/#.*//')
-    branch=$(echo "$source" | grep -o '@[^#]*' | sed 's/@//' || echo "main")
-    subpath=$(echo "$source" | grep -o '#.*' | sed 's/#//' || echo "")
-    [ -z "$branch" ] && branch="main"
+    # Strip fragment to get bare URL / path
+    url="${source%%#*}"
+    fragment=""
+    case "$source" in *\#*) fragment="${source#*#}" ;; esac
 
-    # Extract repo name from URL (e.g. gatewaze-modules from https://github.com/gatewaze/gatewaze-modules.git)
+    # Skip non-git entries — local paths pass through untouched
+    case "$url" in
+      http://*|https://*|git://*|git@*|*.git) ;;
+      *)
+        echo "[admin] Skipping local source (volume-mounted): $url"
+        continue
+        ;;
+    esac
+
+    # Parse branch from fragment (format: branch=main&path=modules)
+    branch="main"
+    if [ -n "$fragment" ]; then
+      for kv in $(echo "$fragment" | tr '&' ' '); do
+        case "$kv" in
+          branch=*) branch="${kv#branch=}" ;;
+        esac
+      done
+    fi
+
     reponame=$(echo "$url" | sed 's|.*/||; s|\.git$||')
     target="/tmp/module-repos/$reponame"
 
@@ -31,15 +52,13 @@ if [ -n "$MODULE_SOURCES" ]; then
       continue
     }
 
-    # Create symlink that matches local dev layout: /<reponame> → cloned repo
-    # This makes ../gatewaze-modules/modules resolve correctly from /app
-    # Remove any existing directory first (mkdir in Dockerfile creates empty dirs)
+    # Symlink /<reponame> → cloned path so the plugin's pre-cloned lookup finds it.
     rm -rf "/$reponame" 2>/dev/null || true
     ln -sf "$target" "/$reponame"
     echo "[admin] Symlinked /$reponame → $target"
   done
   unset IFS
-  echo "[admin] Module cloning complete"
+  echo "[admin] Module source processing complete"
 fi
 
 # Write .env.production with actual env vars for Vite build
@@ -50,7 +69,7 @@ VITE_API_URL=${VITE_API_URL}
 VITE_PORTAL_URL=${VITE_PORTAL_URL:-${NEXT_PUBLIC_APP_URL:-}}
 VITE_AUTH_PROVIDER=${VITE_AUTH_PROVIDER:-supabase}
 VITE_DISABLE_BRANDING=${VITE_DISABLE_BRANDING:-false}
-EXTRA_MODULE_SOURCES=${EXTRA_MODULE_SOURCES:-}
+MODULE_SOURCES=${MODULE_SOURCES:-}
 EOF
 
 # Strip @gatewaze-modules/* workspace deps and re-install
