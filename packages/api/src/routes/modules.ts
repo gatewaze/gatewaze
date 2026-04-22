@@ -73,12 +73,41 @@ function getServiceClient() {
   return createClient(supabaseUrl, serviceRoleKey);
 }
 
-/** Helper: load all modules from config + DB sources */
+/**
+ * Parse MODULE_SOURCES env var into ModuleSource entries. Each entry is
+ * either a git URL (optionally `#branch=X&path=Y`) or a local absolute
+ * path. Mirrors the Vite plugin and portal script parsing.
+ */
+function parseEnvModuleSources(): { url: string; path?: string; branch?: string; label?: string }[] {
+  const raw = process.env.MODULE_SOURCES;
+  if (!raw) return [];
+  return raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((entry) => {
+      const [url, fragment] = entry.split('#');
+      if (!fragment) return { url };
+      const params = new URLSearchParams(fragment);
+      return {
+        url,
+        path: params.get('path') ?? undefined,
+        branch: params.get('branch') ?? undefined,
+        label: params.get('label') ?? undefined,
+      };
+    });
+}
+
+/** Helper: load all modules from config + env + DB sources */
 async function loadAllModules() {
   const supabase = getServiceClient();
   let dbSources: Record<string, unknown>[] = [];
   try {
-    await seedModuleSources(config.moduleSources ?? [], supabase as never);
+    await seedModuleSources(config.moduleSources ?? [], supabase as never, 'config');
+    const envSources = parseEnvModuleSources();
+    if (envSources.length > 0) {
+      await seedModuleSources(envSources, supabase as never, 'env');
+    }
     const { data } = await supabase.from('module_sources').select('*');
     dbSources = data ?? [];
   } catch {
@@ -500,11 +529,15 @@ modulesRouter.post('/reconcile', async (_req, res) => {
 
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    // Try to seed config-file sources and load DB sources.
+    // Try to seed config + env sources and load DB sources.
     // Gracefully degrade if module_sources table doesn't exist yet.
     let dbSources: Record<string, unknown>[] = [];
     try {
-      await seedModuleSources(config.moduleSources ?? [], supabase as never);
+      await seedModuleSources(config.moduleSources ?? [], supabase as never, 'config');
+      const envSources = parseEnvModuleSources();
+      if (envSources.length > 0) {
+        await seedModuleSources(envSources, supabase as never, 'env');
+      }
       const { data } = await supabase.from('module_sources').select('*');
       dbSources = data ?? [];
     } catch {
@@ -1328,6 +1361,34 @@ modulesRouter.post('/sources', async (req, res) => {
   } catch (err) {
     return res.status(500).json({
       error: err instanceof Error ? err.message : 'Failed to add source',
+    });
+  }
+});
+
+modulesRouter.patch('/sources/:id', async (req, res) => {
+  try {
+    const supabaseUrl = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!supabaseUrl || !serviceRoleKey) {
+      return res.status(500).json({ error: 'Missing Supabase credentials' });
+    }
+
+    const { label } = req.body as { label?: string | null };
+
+    const supabase = createClient(supabaseUrl, serviceRoleKey);
+    const { error } = await supabase
+      .from('module_sources')
+      .update({ label: typeof label === 'string' ? (label.trim() || null) : null })
+      .eq('id', req.params.id);
+
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    return res.json({ success: true });
+  } catch (err) {
+    return res.status(500).json({
+      error: err instanceof Error ? err.message : 'Failed to update source',
     });
   }
 });
