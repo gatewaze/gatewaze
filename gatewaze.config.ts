@@ -25,13 +25,12 @@ const config: GatewazeConfig = {
   //   'https://github.com/org/modules.git'        — git repo (cloned at build time)
   //   { url: 'https://github.com/gatewaze/gatewaze-modules.git', path: 'modules', branch: 'main' }
   moduleSources: [
-    // Default open-source modules — included on every fresh install and in production.
-    // Cloned automatically by the admin Docker entrypoint when MODULE_SOURCES is set.
+    // Default open-source modules — included on every fresh install.
     { url: 'https://github.com/gatewaze/gatewaze-modules.git', path: 'modules', branch: 'main' },
-    // Additional sources from EXTRA_MODULE_SOURCES env var (comma-separated paths).
-    // Used to add private/brand-specific module repos (local paths or git URLs)
-    // without hardcoding in this file. Set in your environment file.
-    ...(process.env.EXTRA_MODULE_SOURCES?.split(',').map(s => s.trim()).filter(Boolean) || []),
+    // Additional sources for each brand live in production Helm values
+    // (`values-<brand>.yaml` → `moduleSources:`) or are auto-discovered
+    // locally by the admin Vite plugin from sibling `*-gatewaze-modules/`
+    // directories. No env var needed — see vite-plugin-gatewaze-modules.ts.
   ],
 
   // All modules found in moduleSources are included automatically.
