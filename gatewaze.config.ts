@@ -26,11 +26,14 @@ const config: GatewazeConfig = {
   //   { url: 'https://github.com/gatewaze/gatewaze-modules.git', path: 'modules', branch: 'main' }
   moduleSources: [
     // Default open-source modules — included on every fresh install.
-    { url: 'https://github.com/gatewaze/gatewaze-modules.git', path: 'modules', branch: 'main' },
-    // Additional sources for each brand live in production Helm values
-    // (`values-<brand>.yaml` → `moduleSources:`) or are auto-discovered
-    // locally by the admin Vite plugin from sibling `*-gatewaze-modules/`
-    // directories. No env var needed — see vite-plugin-gatewaze-modules.ts.
+    // Labelled "Free" so the admin Modules UI shows a clear tab. Brands
+    // can rename it via the admin UI (persists in module_sources.label).
+    { url: 'https://github.com/gatewaze/gatewaze-modules.git', path: 'modules', branch: 'main', label: 'Free' },
+    // Additional sources come from either:
+    //  - production Helm values (`values-<brand>.yaml` → `moduleSources:`)
+    //  - MODULE_SOURCES env var (comma-separated git URLs or mounted
+    //    local paths like `/premium-gatewaze-modules/modules#label=Premium`)
+    //  - the admin UI's "Add Source" action (persisted in DB).
   ],
 
   // All modules found in moduleSources are included automatically.
