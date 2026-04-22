@@ -6,20 +6,37 @@ if [ -n "$GITHUB_TOKEN" ]; then
   git config --global url."https://x-token:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
 fi
 
-# Clone additional module sources from MODULE_SOURCES env var
-# The open-source gatewaze-modules is already cloned at build time.
-# This clones any additional repos (premium, lf, etc.)
+# Process MODULE_SOURCES (comma-separated). Each entry is either a git
+# URL (optionally `#branch=main&path=modules`) or a local absolute path
+# (volume-mounted in dev; skipped here). Git URLs get cloned and
+# symlinked at /<reponame>. The open-source gatewaze-modules is already
+# cloned at image build time.
 if [ -n "$MODULE_SOURCES" ]; then
   IFS=','
   for source in $MODULE_SOURCES; do
-    url=$(echo "$source" | sed 's/@[^#]*//; s/#.*//')
-    branch=$(echo "$source" | grep -o '@[^#]*' | sed 's/@//' || echo "main")
-    [ -z "$branch" ] && branch="main"
+    url="${source%%#*}"
+    fragment=""
+    case "$source" in *\#*) fragment="${source#*#}" ;; esac
+
+    case "$url" in
+      http://*|https://*|git://*|git@*|*.git) ;;
+      *)
+        continue
+        ;;
+    esac
+
+    branch="main"
+    if [ -n "$fragment" ]; then
+      for kv in $(echo "$fragment" | tr '&' ' '); do
+        case "$kv" in
+          branch=*) branch="${kv#branch=}" ;;
+        esac
+      done
+    fi
 
     reponame=$(echo "$url" | sed 's|.*/||; s|\.git$||')
     target="/tmp/module-repos/$reponame"
 
-    # Skip if already cloned this run
     if [ -d "$target" ]; then
       continue
     fi
@@ -30,7 +47,6 @@ if [ -n "$MODULE_SOURCES" ]; then
       continue
     }
 
-    # Remove any existing directory and create symlink
     rm -rf "/$reponame" 2>/dev/null || true
     ln -sf "$target" "/$reponame"
   done

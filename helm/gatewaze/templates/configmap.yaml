@@ -52,10 +52,10 @@ data:
   CUSTOM_DOMAINS_CLUSTER_ISSUER: {{ .Values.customDomains.clusterIssuer | default "letsencrypt-prod" | quote }}
   {{- end }}
 
-  # Module sources (comma-separated git URLs for admin startup clone)
+  # Module sources (comma-separated). Each entry is a git URL or a local
+  # absolute path. Format: url[#branch=main&path=modules]. Git URLs are
+  # cloned by the entrypoint; local paths are expected to be mounted at
+  # the same absolute path by the deployment (dev only).
   {{- if .Values.moduleSources }}
   MODULE_SOURCES: {{ .Values.moduleSources | quote }}
-  # EXTRA_MODULE_SOURCES derived from MODULE_SOURCES for gatewaze.config.ts
-  # Maps cloned repo paths to the format expected by the config
-  EXTRA_MODULE_SOURCES: {{ .Values.extraModuleSources | default "" | quote }}
   {{- end }}

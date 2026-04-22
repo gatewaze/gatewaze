@@ -53,6 +53,7 @@ export default defineConfig({
     include: [
       "date-fns", "jszip", "qr-code-styling", "pdf-lib", "@pdf-lib/fontkit", "pdfjs-dist",
       "cookie", "leaflet", "react-leaflet",
+      "@heroicons/react/24/outline", "@heroicons/react/24/solid", "@heroicons/react/20/solid",
     ],
   },
   build: {

@@ -36,23 +36,6 @@ export function gatewazeModulesPlugin(): Plugin {
       const { sources } = parseConfig(configPath);
       const resolvedSources = resolveSources(sources, projectRoot);
 
-      // Auto-discover sibling module repos that may not be in moduleSources
-      // (e.g. premium-gatewaze-modules, lf-gatewaze-modules when running
-      // locally without EXTRA_MODULE_SOURCES env var set).
-      const parentDir = resolve(projectRoot, '..');
-      if (existsSync(parentDir)) {
-        for (const entry of readdirSync(parentDir, { withFileTypes: true })) {
-          if (!entry.isDirectory()) continue;
-          if (!entry.name.endsWith('-gatewaze-modules') && !entry.name.endsWith('-modules')) continue;
-          // Skip the main gatewaze-modules repo (already covered by config)
-          if (entry.name === 'gatewaze-modules') continue;
-          const modulesDir = resolve(parentDir, entry.name, 'modules');
-          if (existsSync(modulesDir) && !resolvedSources.includes(modulesDir)) {
-            resolvedSources.push(modulesDir);
-          }
-        }
-      }
-
       // Auto-discover admin/utils exports from all modules and register
       // them as @/utils/<name> aliases so cross-module imports resolve
       // without hard-coding module paths in the admin app.
@@ -590,10 +573,12 @@ function parseConfig(configPath: string): {
       sources.push({ url: '../gatewaze-modules/modules' });
     }
 
-    // Also read EXTRA_MODULE_SOURCES env var (comma-separated paths).
-    // The gatewaze.config.ts uses a runtime spread for this, which the
-    // static parser can't evaluate, so we read it directly from the env.
-    const extraSources = process.env.EXTRA_MODULE_SOURCES;
+    // Also read MODULE_SOURCES env var (comma-separated). Each entry can
+    // be a git URL (optionally with `#branch=X&path=Y` fragment) or a
+    // local absolute path — resolveSources() branches on isGitUrl(). In
+    // production this is git URLs only; locally it may include mounted
+    // paths like /premium-gatewaze-modules/modules.
+    const extraSources = process.env.MODULE_SOURCES;
     if (extraSources) {
       for (const s of extraSources.split(',').map(p => p.trim()).filter(Boolean)) {
         sources.push(normalizeSource(s));
