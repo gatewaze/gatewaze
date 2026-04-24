@@ -30,13 +30,20 @@ if [ -n "$MODULE_SOURCES" ]; then
         ;;
     esac
 
+    # Outer loop sets IFS=',' so the inner for-in over
+    # `$(echo | tr '&' ' ')` would NOT word-split on spaces and the
+    # whole `branch=main path=modules` would be one word, making the
+    # branch parse to "main path=modules". Save/restore IFS.
     branch="main"
     if [ -n "$fragment" ]; then
+      _OLD_IFS=$IFS
+      IFS=' '
       for kv in $(echo "$fragment" | tr '&' ' '); do
         case "$kv" in
           branch=*) branch="${kv#branch=}" ;;
         esac
       done
+      IFS=$_OLD_IFS
     fi
 
     reponame=$(echo "$url" | sed 's|.*/||; s|\.git$||')

@@ -33,14 +33,22 @@ if [ -n "$MODULE_SOURCES" ]; then
         ;;
     esac
 
-    # Parse branch from fragment (format: branch=main&path=modules)
+    # Parse branch from fragment (format: branch=main&path=modules).
+    # The outer loop sets IFS=',' so the inner for-in over
+    # `$(echo | tr '&' ' ')` would NOT word-split on spaces and the
+    # fragment would be treated as a single word — "branch=main
+    # path=modules" — which then matches `branch=*` and sets branch to
+    # "main path=modules". Save/restore IFS around this inner split.
     branch="main"
     if [ -n "$fragment" ]; then
+      _OLD_IFS=$IFS
+      IFS=' '
       for kv in $(echo "$fragment" | tr '&' ' '); do
         case "$kv" in
           branch=*) branch="${kv#branch=}" ;;
         esac
       done
+      IFS=$_OLD_IFS
     fi
 
     reponame=$(echo "$url" | sed 's|.*/||; s|\.git$||')
