@@ -64,9 +64,21 @@ export function gatewazeModulesPlugin(): Plugin {
   // bundle (with CJS→ESM named-export wrapping) instead of /@fs/ raw.
   const preBundledDeps = buildVitePreBundledSet(__dirname);
 
+  // In `vite build` there is no esbuild pre-bundle cache to defer to, so
+  // deferring leaves Rollup to resolve the bare specifier from the
+  // importer's real path — which for module files symlinked outside /app
+  // walks up and never reaches admin/node_modules. The result is a raw
+  // `from "react-leaflet"` in the emitted chunk. Track the mode so build
+  // always hands Rollup a concrete path.
+  let isBuild = false;
+
   return {
     name: 'gatewaze-modules',
     enforce: 'pre',
+
+    configResolved(config) {
+      isBuild = config.command === 'build';
+    },
 
     config() {
       const configPath = resolve(projectRoot, 'gatewaze.config.ts');
@@ -107,12 +119,18 @@ export function gatewazeModulesPlugin(): Plugin {
         // literal strings in the output and the browser throws
         // "Failed to resolve module specifier".
         if (!id.startsWith('.') && !id.startsWith('/') && !id.startsWith('@/')) {
-          // DEFER to Vite for packages it pre-bundles. Resolving these
-          // ourselves hands the browser the raw CJS file (served via
-          // /@fs/…) which loses named exports like `jsxDEV`, `parse`,
-          // etc. Vite's default resolution rewrites to the optimized
-          // `/node_modules/.vite/deps/<pkg>.js` bundle instead.
-          if (isVitePreBundled(id, preBundledDeps)) {
+          // DEFER to Vite for packages it pre-bundles IN DEV ONLY.
+          // Resolving these ourselves in dev hands the browser the raw
+          // CJS file (served via /@fs/…) which loses named exports like
+          // `jsxDEV`, `parse`, etc.; Vite's default resolution rewrites
+          // to the optimized `/node_modules/.vite/deps/<pkg>.js` bundle.
+          //
+          // In build there's no pre-bundle cache. Deferring leaves
+          // Rollup to resolve from the importer's real path, which for
+          // symlinked module files walks up and never reaches
+          // admin/node_modules — result: raw `from "react-leaflet"` in
+          // the output. Fall through to adminRequire.resolve below.
+          if (!isBuild && isVitePreBundled(id, preBundledDeps)) {
             return;
           }
           try {
