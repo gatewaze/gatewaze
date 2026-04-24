@@ -371,6 +371,12 @@ export interface InstalledModuleRow {
   }> | null;
   edge_functions_hash?: string | null;
   source_id?: string | null;
+  /**
+   * Content hash of the module source dir that was installed. The reconcile
+   * loop compares this against the upstream source's current hash to decide
+   * whether an update is available (see api/src/routes/modules.ts update-check).
+   */
+  source_snapshot_hash?: string | null;
   on_install_ran_at?: string | null;
   install_completed_at?: string | null;
   ui_contributions_ignored?: string[];

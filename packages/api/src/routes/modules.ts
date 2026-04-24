@@ -1635,7 +1635,7 @@ modulesRouter.post('/sources/refresh', async (_req, res) => {
     const { computeModuleHashFromPath } = await import('@gatewaze/shared/modules');
     let updatesAvailable = 0;
 
-    for (const row of (installed ?? []) as Record<string, unknown>[] as InstalledModuleRow[]) {
+    for (const row of (installed ?? []) as unknown as InstalledModuleRow[]) {
       const mod = modules.find((m) => m.config.id === row.id);
       if (!mod || !mod.resolvedDir) continue;
 
