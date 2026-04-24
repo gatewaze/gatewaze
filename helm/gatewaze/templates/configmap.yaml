@@ -59,3 +59,12 @@ data:
   {{- if .Values.moduleSources }}
   MODULE_SOURCES: {{ .Values.moduleSources | quote }}
   {{- end }}
+
+  # Arbitrary extra env from values.yaml `env:` block. Passed through
+  # verbatim so brand-specific keys (BRAND_ID, OPENAI_API_KEY,
+  # BROWSERLESS_API_KEY, BRAVE_SEARCH_API_KEY, etc.) land in pods via the
+  # same configMapRef the core keys above use. Values are quoted so
+  # numeric/bool-looking strings survive unchanged.
+  {{- range $key, $value := .Values.env }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
