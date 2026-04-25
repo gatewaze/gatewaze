@@ -188,6 +188,14 @@ export interface GatewazeModule {
    */
   publicApiSchema?: OpenApiContribution;
 
+  /**
+   * Content sources exposed via the unified /api/v1/content endpoint.
+   * Each source describes a content-bearing table that supports the
+   * platform-wide content_category column. The /content endpoint
+   * unions across all enabled modules' sources.
+   */
+  publicContentSources?: PublicContentSource[];
+
   // ── MCP contributions ─────────────────────────────────────────────────
 
   /**
@@ -613,6 +621,39 @@ export interface OpenApiContribution {
   paths: Record<string, unknown>;
   /** Schema definitions (merged into components/schemas, auto-prefixed with moduleId) */
   schemas?: Record<string, unknown>;
+}
+
+/**
+ * Declares a content-bearing table for the unified /api/v1/content endpoint.
+ * The endpoint unions across all enabled modules' content sources, returning
+ * a normalized response with type, id, title, date, content_category, and a
+ * resource link for each record.
+ */
+export interface PublicContentSource {
+  /** Stable type identifier returned in each row, e.g. 'event' or 'newsletter_edition'. */
+  type: string;
+  /** Database table or view to query. */
+  table: string;
+  /** Required scope to access this source — checked per row before inclusion. */
+  scope: string;
+  /**
+   * Column mapping from the table to the normalized content row shape.
+   * The endpoint will SELECT exactly these columns plus content_category.
+   */
+  fields: {
+    id: string;
+    title: string;
+    date: string;
+    /** Optional summary/description column. */
+    summary?: string;
+  };
+  /** Filters that must always apply (e.g. `is_listed = true`). */
+  visibilityFilter?: Array<{ column: string; eq: string | boolean | number }>;
+  /**
+   * Build the resource path (relative to /api/v1) for a row.
+   * Example: (row) => `/events/${row.event_id ?? row.id}`
+   */
+  resourcePath: (row: Record<string, unknown>) => string;
 }
 
 // ── MCP types ─────────────────────────────────────────────────────────────
