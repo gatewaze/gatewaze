@@ -1,4 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { ApiReferenceReact } from '@scalar/api-reference-react';
+import '@scalar/api-reference-react/style.css';
+import { BrandLogo } from '@/components/BrandLogo';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3002';
 
@@ -26,33 +29,31 @@ export function DocsPage() {
   const [mcpError, setMcpError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (tab !== 'mcp' || mcpRegistry || mcpError) return;
+    if (mcpRegistry || mcpError) return;
     fetch(`${API_URL}/api/v1/mcp/tools`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then(setMcpRegistry)
       .catch((e) => setMcpError(e.message));
-  }, [tab, mcpRegistry, mcpError]);
+  }, [mcpRegistry, mcpError]);
 
-  // Inject Scalar via CDN script tag once when REST tab is active
-  useEffect(() => {
-    if (tab !== 'rest') return;
-    const existing = document.getElementById('scalar-script');
-    if (existing) return;
-    const script = document.createElement('script');
-    script.id = 'scalar-script';
-    script.src = 'https://cdn.jsdelivr.net/npm/@scalar/api-reference';
-    document.body.appendChild(script);
-  }, [tab]);
+  // Stable Scalar config — only the URL changes if API_URL changes
+  const scalarConfig = useMemo(
+    () => ({ url: `${API_URL}/api/v1/openapi.json` }),
+    [],
+  );
 
   return (
-    <div className="min-h-screen bg-white text-gray-900 dark:bg-dark-900 dark:text-dark-50">
+    <div className="min-h-screen bg-white text-gray-900 dark:bg-dark-900 dark:text-dark-50 flex flex-col">
       <header className="border-b border-gray-200 dark:border-dark-600 bg-white dark:bg-dark-800">
-        <div className="mx-auto max-w-7xl px-6 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Gatewaze Developer Docs</h1>
-            <p className="text-sm text-gray-500 dark:text-dark-300">
-              Public REST API and MCP server reference
-            </p>
+        <div className="px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <BrandLogo type="logo" className="h-8 text-black" />
+            <div>
+              <h1 className="text-lg font-bold leading-tight">Developer Docs</h1>
+              <p className="text-xs text-gray-500 dark:text-dark-300 leading-tight">
+                Public REST API and MCP server reference
+              </p>
+            </div>
           </div>
           <nav className="flex gap-1 bg-gray-100 dark:bg-dark-700 rounded-lg p-1">
             <button
@@ -81,17 +82,16 @@ export function DocsPage() {
         </div>
       </header>
 
-      <main>
-        {tab === 'rest' ? (
-          <section>
-            <script
-              id="api-reference"
-              data-url={`${API_URL}/api/v1/openapi.json`}
-            />
-          </section>
-        ) : (
-          <McpDocs registry={mcpRegistry} error={mcpError} />
-        )}
+      <main className="flex-1 min-h-0">
+        {/*
+          Render Scalar always-mounted but visually hidden when not active.
+          Re-mounting Scalar on tab switch causes a white-screen race; keeping
+          it mounted preserves its sidebar/grouping state across tab switches.
+        */}
+        <div className={tab === 'rest' ? 'block' : 'hidden'}>
+          <ApiReferenceReact configuration={scalarConfig} />
+        </div>
+        {tab === 'mcp' && <McpDocs registry={mcpRegistry} error={mcpError} />}
       </main>
     </div>
   );
