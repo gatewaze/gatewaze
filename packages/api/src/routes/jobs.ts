@@ -1,64 +1,67 @@
 /**
- * Jobs API Routes - Background job management via BullMQ
+ * Jobs API Routes — background job management via BullMQ.
+ *
+ * Routes read from / write to the queue layer at packages/api/src/lib/queue.
+ * See spec-job-queue-redis-architecture.md §6.3 for the admin endpoint
+ * contract.
  */
 
 import { Router, type Request, type Response } from 'express';
 import {
   getJobs,
   getJobCounts,
+  getAllQueueCounts,
   getJob,
-  addJob,
   retryJob,
   removeJob,
   cleanJobs,
   getRepeatableJobs,
   removeRepeatableJob,
-  isQueueAvailable,
+  isQueueConfigured,
+  enqueue,
   JobTypes,
-} from '../lib/job-queue.js';
+  listQueues,
+} from '../lib/queue/index.js';
 import { getSupabase } from '../lib/supabase.js';
 
 export const jobsRouter = Router();
 
-// Guard: all job routes require Redis
+// Guard: all job routes require Redis.
 jobsRouter.use((_req: Request, res: Response, next) => {
-  if (!isQueueAvailable()) {
+  if (!isQueueConfigured()) {
     return res.status(503).json({ success: false, error: 'Job queue not available (Redis not configured)' });
   }
   next();
 });
 
-// List jobs
 jobsRouter.get('/', async (req: Request, res: Response) => {
   try {
-    const { status, start = '0', end = '100' } = req.query;
+    const { status, start = '0', end = '100', queue } = req.query;
     const statusArray = status
       ? (status as string).split(',')
       : ['waiting', 'active', 'completed', 'failed', 'delayed'];
-
     const jobs = await getJobs({
+      queue: queue as string | undefined,
       status: statusArray,
       start: parseInt(start as string, 10),
       end: parseInt(end as string, 10),
     });
-
     res.json({ success: true, jobs, count: jobs.length });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+  } catch (error) {
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
 
-// Job counts
-jobsRouter.get('/counts', async (_req: Request, res: Response) => {
+jobsRouter.get('/counts', async (req: Request, res: Response) => {
   try {
-    const counts = await getJobCounts();
+    const queue = req.query.queue as string | undefined;
+    const counts = queue ? await getJobCounts(queue) : await getAllQueueCounts();
     res.json({ success: true, counts });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+  } catch (error) {
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
 
-// Job types
 jobsRouter.get('/types', (_req: Request, res: Response) => {
   res.json({
     success: true,
@@ -70,17 +73,20 @@ jobsRouter.get('/types', (_req: Request, res: Response) => {
   });
 });
 
-// Scheduled/repeatable jobs
-jobsRouter.get('/scheduled', async (_req: Request, res: Response) => {
+jobsRouter.get('/queues', (_req: Request, res: Response) => {
+  res.json({ success: true, queues: listQueues().map((q) => ({ name: q.name, module: q.module })) });
+});
+
+jobsRouter.get('/scheduled', async (req: Request, res: Response) => {
   try {
-    const jobs = await getRepeatableJobs();
+    const queue = req.query.queue as string | undefined;
+    const jobs = await getRepeatableJobs(queue);
     res.json({ success: true, jobs });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+  } catch (error) {
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
 
-// Scraper schedules from DB
 jobsRouter.get('/scraper-schedules', async (_req: Request, res: Response) => {
   try {
     const supabase = getSupabase();
@@ -95,11 +101,9 @@ jobsRouter.get('/scraper-schedules', async (_req: Request, res: Response) => {
       .order('schedule_enabled', { ascending: false })
       .order('next_scheduled_run', { ascending: true, nullsFirst: false });
 
-    if (error) {
-      return res.status(500).json({ success: false, error: error.message });
-    }
+    if (error) return res.status(500).json({ success: false, error: error.message });
 
-    const schedules = (scrapers || []).map((s: any) => ({
+    const schedules = (scrapers ?? []).map((s: Record<string, unknown>) => ({
       id: s.id,
       name: s.name,
       description: s.description,
@@ -119,19 +123,17 @@ jobsRouter.get('/scraper-schedules', async (_req: Request, res: Response) => {
       success: true,
       schedules,
       count: schedules.length,
-      enabledCount: schedules.filter((s: any) => s.scheduleEnabled).length,
+      enabledCount: schedules.filter((s) => s.scheduleEnabled).length,
     });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+  } catch (error) {
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
 
-// Manually trigger a scraper
 jobsRouter.post('/scraper-schedules/:id/run', async (req: Request, res: Response) => {
   try {
     const scraperId = parseInt(req.params.id as string, 10);
     const supabase = getSupabase();
-
     const { data: scraper, error } = await supabase
       .from('scrapers')
       .select('id, name, scraper_type, event_type')
@@ -142,7 +144,7 @@ jobsRouter.post('/scraper-schedules/:id/run', async (req: Request, res: Response
       return res.status(404).json({ success: false, error: 'Scraper not found' });
     }
 
-    const job = await addJob(JobTypes.SCRAPER_RUN, {
+    const result = await enqueue('jobs', JobTypes.SCRAPER_RUN, {
       scraperId: scraper.id,
       scraperName: scraper.name,
       scraperType: scraper.scraper_type,
@@ -153,83 +155,72 @@ jobsRouter.post('/scraper-schedules/:id/run', async (req: Request, res: Response
     res.json({
       success: true,
       message: `Scraper "${scraper.name}" job enqueued`,
-      job: { id: job.id, name: job.name },
+      job: { id: result.jobId, name: JobTypes.SCRAPER_RUN },
     });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+  } catch (error) {
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
 
-// Get specific job
 jobsRouter.get('/:id', async (req: Request, res: Response) => {
   try {
-    const job = await getJob(req.params.id as string);
-    if (!job) {
-      return res.status(404).json({ success: false, error: 'Job not found' });
-    }
+    const queue = req.query.queue as string | undefined;
+    const job = await getJob(req.params.id as string, queue);
+    if (!job) return res.status(404).json({ success: false, error: 'Job not found' });
     res.json({ success: true, job });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+  } catch (error) {
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
 
-// Create job
 jobsRouter.post('/', async (req: Request, res: Response) => {
   try {
-    const { type, data = {}, options = {} } = req.body;
-    if (!type) {
-      return res.status(400).json({ success: false, error: 'Job type is required' });
-    }
-    if (!(Object.values(JobTypes) as string[]).includes(type)) {
-      return res.status(400).json({ success: false, error: `Invalid job type: ${type}`, validTypes: Object.values(JobTypes) });
-    }
+    const { type, data = {}, options = {}, queue = 'jobs' } = req.body;
+    if (!type) return res.status(400).json({ success: false, error: 'Job type is required' });
 
-    const job = await addJob(type, data, options);
-    res.json({ success: true, job: { id: job.id, name: job.name, data: job.data } });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    const result = await enqueue(queue, type, data, undefined, options);
+    res.json({ success: true, job: { id: result.jobId, name: type, data, queue } });
+  } catch (error) {
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
 
-// Retry job
 jobsRouter.post('/:id/retry', async (req: Request, res: Response) => {
   try {
-    const id = req.params.id as string;
-    await retryJob(id);
-    res.json({ success: true, message: `Job ${id} queued for retry` });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    const queue = req.query.queue as string | undefined;
+    await retryJob(req.params.id as string, queue);
+    res.json({ success: true, message: `Job ${req.params.id} queued for retry` });
+  } catch (error) {
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
 
-// Remove job
 jobsRouter.delete('/:id', async (req: Request, res: Response) => {
   try {
-    const id = req.params.id as string;
-    await removeJob(id);
-    res.json({ success: true, message: `Job ${id} removed` });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    const queue = req.query.queue as string | undefined;
+    await removeJob(req.params.id as string, queue);
+    res.json({ success: true, message: `Job ${req.params.id} removed` });
+  } catch (error) {
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
 
-// Remove scheduled job
 jobsRouter.delete('/scheduled/:key', async (req: Request, res: Response) => {
   try {
-    await removeRepeatableJob(decodeURIComponent(req.params.key as string));
+    const queue = req.query.queue as string | undefined;
+    await removeRepeatableJob(decodeURIComponent(req.params.key as string), queue);
     res.json({ success: true, message: 'Scheduled job removed' });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+  } catch (error) {
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
 
-// Clean old jobs
 jobsRouter.post('/clean', async (req: Request, res: Response) => {
   try {
-    const { status = 'completed', grace = 24 * 3600 * 1000, limit = 1000 } = req.body;
-    const removed = await cleanJobs({ status, grace, limit });
+    const { status = 'completed', grace = 24 * 3600 * 1000, limit = 1000, queue } = req.body;
+    const removed = await cleanJobs({ queue, status, grace, limit });
     res.json({ success: true, removed, message: `Cleaned ${removed} ${status} jobs` });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+  } catch (error) {
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
