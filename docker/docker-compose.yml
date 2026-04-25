@@ -425,6 +425,14 @@ services:
     restart: unless-stopped
     ports:
       - "${API_PORT:-3002}:3002"
+    # Resolve the brand's `*.localhost` Supabase hostname (the one the
+    # browser uses) to the host gateway. Without this, the api
+    # container can't reach a `${SUPABASE_HOST}` URL stored in the
+    # `environments` table — getaddrinfo ENOTFOUND. Fixes the env-sync
+    # push/pull from inside docker. Internal-network calls keep using
+    # SUPABASE_URL=http://supabase-kong:8000 unaffected.
+    extra_hosts:
+      - "${SUPABASE_HOST:-gatewaze-supabase.localhost}:host-gateway"
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik"
