@@ -292,7 +292,7 @@ CREATE POLICY audit_log_admin_read ON public.audit_log
 DROP POLICY IF EXISTS audit_log_service_write ON public.audit_log;
 CREATE POLICY audit_log_service_write ON public.audit_log
   FOR INSERT
-  USING (
+  WITH CHECK (
     current_setting('role', true) = 'service_role'
     OR current_setting('request.jwt.claims', true)::jsonb->>'role' = 'service_role'
   );
