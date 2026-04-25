@@ -31,6 +31,7 @@ const aliases: Record<string, ElementType> = {
   ClipboardList: HeroOutline.ClipboardDocumentListIcon,
   Building: HeroOutline.BuildingOfficeIcon,
   Puzzle: HeroOutline.PuzzlePieceIcon,
+  Key: HeroOutline.KeyIcon,
   Tag: HeroOutline.TagIcon,
   Globe: HeroOutline.GlobeAltIcon,
   Newspaper: HeroOutline.NewspaperIcon,

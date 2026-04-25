@@ -157,6 +157,19 @@ const protectedRoutes: RouteObject = {
               },
             },
             {
+              path: "api-keys",
+              lazy: async () => {
+                const module = await import("@/app/pages/admin/api-keys");
+                return {
+                  Component: () => (
+                    <FeatureGuard feature="settings">
+                      <module.default />
+                    </FeatureGuard>
+                  ),
+                };
+              },
+            },
+            {
               path: "integrations",
               children: [
                 {
