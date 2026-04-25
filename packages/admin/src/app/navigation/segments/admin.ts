@@ -52,5 +52,13 @@ export const admin: NavigationTree = {
       icon: "Puzzle",
       requiredFeature: "settings",
     },
+    {
+      id: "admin.api_keys",
+      path: "/admin/api-keys",
+      type: "item",
+      title: "API Keys",
+      icon: "Key",
+      requiredFeature: "settings",
+    },
   ],
 };
