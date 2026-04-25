@@ -212,6 +212,21 @@ resources:
       memory: 256Mi
 
 # =============================================================================
+# Queue Layer (BullMQ)
+# =============================================================================
+# See spec-job-queue-redis-architecture.md §4.9 for tuning guidance.
+# Module-registered queues use WORKER_CONCURRENCY_<MODULE>_<QUEUE> env vars
+# (uppercased, non-alphanumeric → `_`). Add those under `env:` below.
+queue:
+  concurrency:
+    jobs: 2
+    email: 5
+    image: 5
+
+# -- Structured-log level for pino (fatal | error | warn | info | debug | trace)
+logLevel: info
+
+# =============================================================================
 # Pod Disruption Budgets (optional)
 # =============================================================================
 podDisruptionBudget:
@@ -288,6 +303,17 @@ worker:
   # filesystem root, so it cannot run non-root. Keep {} to use the image
   # default, or override for your threat model.
   securityContext: {}
+
+  # -- Port the worker exposes Prometheus metrics + /ready on.
+  # Used by livenessProbe / readinessProbe / startupProbe.
+  metricsPort: 9090
+
+# =============================================================================
+# Scheduler Service Configuration
+# =============================================================================
+scheduler:
+  # -- Port the scheduler exposes Prometheus metrics + /ready on.
+  metricsPort: 9091
 
 # =============================================================================
 # Custom Domains Module

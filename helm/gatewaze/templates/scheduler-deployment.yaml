@@ -29,6 +29,10 @@ spec:
           image: "{{ .Values.image.registry }}/api:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["node", "packages/api/dist/scheduler/start-scheduler.js"]
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.scheduler.metricsPort | default 9091 }}
+              protocol: TCP
           envFrom:
             - configMapRef:
                 name: {{ include "gatewaze.fullname" . }}-config
@@ -37,13 +41,24 @@ spec:
             {{- with .Values.extraEnvFrom }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+          startupProbe:
+            httpGet:
+              path: /ready
+              port: metrics
+            failureThreshold: 30
+            periodSeconds: 1
+            timeoutSeconds: 1
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: metrics
+            periodSeconds: 10
+            timeoutSeconds: 3
           livenessProbe:
-            exec:
-              command:
-                - node
-                - -e
-                - "process.exit(0)"
-            initialDelaySeconds: 15
+            httpGet:
+              path: /ready
+              port: metrics
+            initialDelaySeconds: 30
             periodSeconds: 30
             timeoutSeconds: 10
             failureThreshold: 3

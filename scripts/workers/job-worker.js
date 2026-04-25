@@ -689,6 +689,10 @@ worker.on('stalled', async (jobId) => {
 // Graceful shutdown
 const shutdown = async (signal) => {
   console.log(`\n📴 Received ${signal}, shutting down worker...`);
+  // Cooperative shutdown signal for long-running scrape loops — they check
+  // this flag between events so they can stop cleanly instead of thrashing
+  // against a soon-to-be-killed Chromium child process.
+  globalThis.__scraperShutdown = true;
   await worker.close();
   process.exit(0);
 };
