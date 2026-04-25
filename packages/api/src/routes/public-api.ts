@@ -170,6 +170,11 @@ const DOCS_HTML = `<!DOCTYPE html>
 
 const BASE_PATH_PATTERN = /^\/[a-z0-9\-/]+$/;
 
+/** Set Cache-Control with public + max-age + s-maxage. */
+function ctxSetCache(res: Response, maxAge: number, sMaxAge: number): void {
+  res.setHeader('Cache-Control', `public, max-age=${maxAge}, s-maxage=${sMaxAge}`);
+}
+
 // ---------------------------------------------------------------------------
 // Router factory
 // ---------------------------------------------------------------------------
@@ -312,6 +317,181 @@ export async function createPublicApiRouter(
   // ------------------------------------------------------------------
 
   router.use(apiKeyAuth());
+
+  // ------------------------------------------------------------------
+  // Core endpoints — content categories and unified content discovery
+  // ------------------------------------------------------------------
+
+  // GET /api/v1/categories — list configured content categories
+  router.get('/categories', async (_req: Request, res: Response) => {
+    try {
+      const { data, error } = await supabase
+        .from('platform_settings')
+        .select('value')
+        .eq('key', 'content_categories')
+        .maybeSingle();
+
+      if (error) {
+        return res.status(500).json({ error: { code: 'QUERY_ERROR', message: error.message } });
+      }
+
+      let categories: Array<{ value: string; label: string }> = [];
+      if (data?.value) {
+        try {
+          const parsed = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
+          if (Array.isArray(parsed)) categories = parsed;
+        } catch {
+          categories = [];
+        }
+      }
+
+      res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=600');
+      res.json({ data: categories, _links: { self: '/api/v1/categories' } });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      res.status(500).json({ error: { code: 'INTERNAL', message } });
+    }
+  });
+
+  // GET /api/v1/content — unified content across all enabled modules
+  router.get('/content', async (req: Request, res: Response) => {
+    try {
+      const limit = Math.min(parseInt(req.query.limit as string) || 25, 100);
+      const offset = parseInt(req.query.offset as string) || 0;
+      if (limit < 1 || offset < 0) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'limit must be 1..100, offset must be >= 0' } });
+      }
+
+      const apiKey = req.apiKey!;
+      const requestedTypes = req.query.type
+        ? String(req.query.type).split(',').map((s) => s.trim()).filter(Boolean)
+        : null;
+      const requestedCategories = req.query.content_category
+        ? String(req.query.content_category).split(',').map((s) => s.trim()).filter(Boolean)
+        : null;
+
+      // Collect content sources from enabled modules, gated by scope
+      type Source = {
+        moduleId: string;
+        type: string;
+        table: string;
+        scope: string;
+        fields: { id: string; title: string; date: string; summary?: string };
+        visibilityFilter?: Array<{ column: string; eq: string | boolean | number }>;
+        resourcePath: (row: Record<string, unknown>) => string;
+      };
+
+      const sources: Source[] = [];
+      for (const mod of enabledModules) {
+        const declared = mod.config.publicContentSources;
+        if (!declared) continue;
+        for (const source of declared) {
+          if (!apiKey.scopes.includes(source.scope)) continue;
+          if (requestedTypes && !requestedTypes.includes(source.type)) continue;
+          sources.push({ moduleId: mod.config.id, ...source });
+        }
+      }
+
+      if (sources.length === 0) {
+        ctxSetCache(res, 60, 300);
+        return res.json({
+          data: [],
+          pagination: { total: 0, limit, offset, has_more: false },
+          _links: { self: req.originalUrl },
+        });
+      }
+
+      // Query each source — fetch (offset + limit) rows then merge-sort by date
+      const fetchLimit = offset + limit;
+      type Row = {
+        type: string;
+        id: string;
+        title: string | null;
+        date: string | null;
+        summary: string | null;
+        content_category: string | null;
+        _links: { self: string };
+      };
+
+      const settled = await Promise.allSettled(
+        sources.map(async (src): Promise<{ rows: Row[]; total: number }> => {
+          const cols = [
+            src.fields.id,
+            src.fields.title,
+            src.fields.date,
+            src.fields.summary,
+            'content_category',
+          ].filter(Boolean) as string[];
+
+          let q = supabase
+            .from(src.table)
+            .select(cols.join(','), { count: 'exact' })
+            .order(src.fields.date, { ascending: false })
+            .limit(fetchLimit);
+
+          for (const v of src.visibilityFilter ?? []) {
+            q = q.eq(v.column, v.eq);
+          }
+          if (requestedCategories) {
+            q = requestedCategories.length > 1
+              ? q.in('content_category', requestedCategories)
+              : q.eq('content_category', requestedCategories[0]);
+          }
+          if (req.query.from) q = q.gte(src.fields.date, req.query.from as string);
+          if (req.query.to) q = q.lte(src.fields.date, req.query.to as string);
+
+          const { data, count, error } = await q;
+          if (error) throw new Error(`${src.type}: ${error.message}`);
+
+          const rows: Row[] = (data ?? []).map((row: any) => ({
+            type: src.type,
+            id: String(row[src.fields.id]),
+            title: row[src.fields.title] ?? null,
+            date: row[src.fields.date] ?? null,
+            summary: src.fields.summary ? row[src.fields.summary] ?? null : null,
+            content_category: row.content_category ?? null,
+            _links: { self: `/api/v1${src.resourcePath(row)}` },
+          }));
+          return { rows, total: count ?? 0 };
+        }),
+      );
+
+      const errors: string[] = [];
+      let total = 0;
+      const combined: Row[] = [];
+      for (const r of settled) {
+        if (r.status === 'fulfilled') {
+          combined.push(...r.value.rows);
+          total += r.value.total;
+        } else {
+          errors.push(r.reason instanceof Error ? r.reason.message : String(r.reason));
+        }
+      }
+
+      // Sort combined rows by date desc, then slice the requested window
+      combined.sort((a, b) => {
+        const ad = a.date ?? '';
+        const bd = b.date ?? '';
+        return ad < bd ? 1 : ad > bd ? -1 : 0;
+      });
+      const window = combined.slice(offset, offset + limit);
+      const hasMore = offset + limit < total;
+
+      ctxSetCache(res, 60, 300);
+      res.json({
+        data: window,
+        pagination: { total, limit, offset, has_more: hasMore },
+        _links: {
+          self: req.originalUrl,
+          ...(hasMore ? { next: `/api/v1/content?offset=${offset + limit}&limit=${limit}` } : {}),
+        },
+        ...(errors.length > 0 ? { warnings: errors } : {}),
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      res.status(500).json({ error: { code: 'INTERNAL', message } });
+    }
+  });
 
   // ------------------------------------------------------------------
   // Module route registration
