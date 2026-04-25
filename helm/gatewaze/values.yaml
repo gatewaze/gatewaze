@@ -227,6 +227,25 @@ queue:
 logLevel: info
 
 # =============================================================================
+# Monitoring (Prometheus Operator integration)
+# =============================================================================
+# Renders PodMonitor resources so the Prometheus Operator scrapes the
+# worker (port 9090) and scheduler (port 9091) /metrics endpoints
+# directly. Requires the Prometheus Operator CRDs to be installed
+# (kube-prometheus-stack or similar). Leave disabled if you run plain
+# Prometheus or no Prometheus at all — the metrics endpoints still work
+# regardless; this just registers them with the operator.
+monitoring:
+  enabled: false
+  # -- Scrape interval for the operator
+  interval: 30s
+  # -- Per-scrape timeout
+  scrapeTimeout: 10s
+  # -- Extra labels added to the PodMonitor (e.g. release: kube-prometheus-stack
+  # to match your Prometheus selector)
+  additionalLabels: {}
+
+# =============================================================================
 # Pod Disruption Budgets (optional)
 # =============================================================================
 podDisruptionBudget:
