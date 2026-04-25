@@ -214,6 +214,16 @@ function assembleOpenApiSpec(
           schema: { type: 'string', format: 'date-time' },
           description: 'Records dated on or before this ISO timestamp.',
         },
+        {
+          name: 'expand',
+          in: 'query',
+          schema: { type: 'string', enum: ['full'] },
+          description:
+            'Set to "full" to inline the complete type-native record in each row under the ' +
+            '`full` property — avoids a follow-up request to the resource\'s self link. The ' +
+            'normalized fields (type, id, title, date, summary, content_category, _links) are ' +
+            'always present alongside.',
+        },
         { name: 'limit', in: 'query', schema: { type: 'integer', default: 25, minimum: 1, maximum: 100 } },
         { name: 'offset', in: 'query', schema: { type: 'integer', default: 0, minimum: 0 } },
       ],
@@ -261,6 +271,13 @@ function assembleOpenApiSpec(
       _links: {
         type: 'object',
         properties: { self: { type: 'string', description: 'Path to the full resource' } },
+      },
+      full: {
+        type: 'object',
+        description:
+          'Present only when ?expand=full is set. Contains all public columns of the source ' +
+          'record (shape varies by type — for events these are the same fields as GET /events/{id}).',
+        additionalProperties: true,
       },
     },
   };
@@ -548,6 +565,7 @@ export async function createPublicApiRouter(
       const requestedCategories = req.query.content_category
         ? String(req.query.content_category).split(',').map((s) => s.trim()).filter(Boolean)
         : null;
+      const expandFull = req.query.expand === 'full';
 
       // Collect content sources from enabled modules, gated by scope
       type Source = {
@@ -558,6 +576,7 @@ export async function createPublicApiRouter(
         fields: { id: string; title: string; date: string; summary?: string };
         visibilityFilter?: Array<{ column: string; eq: string | boolean | number }>;
         resourcePath: (row: Record<string, unknown>) => string;
+        fullFields?: readonly string[];
       };
 
       const sources: Source[] = [];
@@ -590,17 +609,25 @@ export async function createPublicApiRouter(
         summary: string | null;
         content_category: string | null;
         _links: { self: string };
+        full?: Record<string, unknown>;
       };
 
       const settled = await Promise.allSettled(
         sources.map(async (src): Promise<{ rows: Row[]; total: number }> => {
-          const cols = [
+          // When ?expand=full and the source declares fullFields, SELECT them all up front
+          // so we don't need a second query. Always include the summary fields and the
+          // resource-path key (e.g. event_id) needed for _links.self.
+          const summaryCols = [
             src.fields.id,
             src.fields.title,
             src.fields.date,
             src.fields.summary,
             'content_category',
           ].filter(Boolean) as string[];
+
+          const cols = expandFull && src.fullFields
+            ? Array.from(new Set([...summaryCols, ...src.fullFields]))
+            : summaryCols;
 
           let q = supabase
             .from(src.table)
@@ -622,15 +649,23 @@ export async function createPublicApiRouter(
           const { data, count, error } = await q;
           if (error) throw new Error(`${src.type}: ${error.message}`);
 
-          const rows: Row[] = (data ?? []).map((row: any) => ({
-            type: src.type,
-            id: String(row[src.fields.id]),
-            title: row[src.fields.title] ?? null,
-            date: row[src.fields.date] ?? null,
-            summary: src.fields.summary ? row[src.fields.summary] ?? null : null,
-            content_category: row.content_category ?? null,
-            _links: { self: `/api/v1${src.resourcePath(row)}` },
-          }));
+          const rows: Row[] = (data ?? []).map((row: any) => {
+            const base: Row = {
+              type: src.type,
+              id: String(row[src.fields.id]),
+              title: row[src.fields.title] ?? null,
+              date: row[src.fields.date] ?? null,
+              summary: src.fields.summary ? row[src.fields.summary] ?? null : null,
+              content_category: row.content_category ?? null,
+              _links: { self: `/api/v1${src.resourcePath(row)}` },
+            };
+            if (expandFull && src.fullFields) {
+              const full: Record<string, unknown> = {};
+              for (const col of src.fullFields) full[col] = row[col] ?? null;
+              base.full = full;
+            }
+            return base;
+          });
           return { rows, total: count ?? 0 };
         }),
       );

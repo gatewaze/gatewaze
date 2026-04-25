@@ -654,6 +654,14 @@ export interface PublicContentSource {
    * Example: (row) => `/events/${row.event_id ?? row.id}`
    */
   resourcePath: (row: Record<string, unknown>) => string;
+  /**
+   * All public columns to include when /content is called with ?expand=full.
+   * The unified endpoint will SELECT these for each windowed row and attach
+   * them under `full` on the response. If omitted, the source supports the
+   * normalized response shape only — `?expand=full` will fall back to the
+   * summary fields for that source.
+   */
+  fullFields?: readonly string[];
 }
 
 // ── MCP types ─────────────────────────────────────────────────────────────
