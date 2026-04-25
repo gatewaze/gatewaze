@@ -239,6 +239,7 @@ export async function createPublicApiRouter(
     if (!cachedOpenApiSpec) {
       cachedOpenApiSpec = assembleOpenApiSpec(openApiContributions);
     }
+    res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Cache-Control', 'public, max-age=300');
     res.json(cachedOpenApiSpec);
   });
@@ -247,6 +248,63 @@ export async function createPublicApiRouter(
   router.get('/docs', (_req: Request, res: Response) => {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(DOCS_HTML);
+  });
+
+  // MCP tool registry — public, derived from module contributions
+  router.get('/mcp/tools', (_req: Request, res: Response) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'public, max-age=300');
+
+    const coreTools = [
+      { name: 'events_search', description: 'Search events by city, type, date range, topics, or calendar.' },
+      { name: 'events_get', description: 'Get a single event by UUID or short event_id.' },
+      { name: 'events_speakers', description: 'Get speakers for a specific event.' },
+      { name: 'events_sponsors', description: 'Get sponsors for a specific event.' },
+      { name: 'platform_health', description: 'Check Gatewaze platform health and module count.' },
+    ];
+
+    const moduleTools: Array<{
+      moduleId: string;
+      moduleName: string;
+      tools: Array<{ name: string; description: string }>;
+      resources: Array<{ uriTemplate: string; name: string; description: string }>;
+      prompts: Array<{ name: string; description: string }>;
+    }> = [];
+
+    for (const mod of enabledModules) {
+      const raw = mod.config.mcpContributions;
+      if (!raw) continue;
+      let contributions: any;
+      try {
+        contributions = typeof raw === 'function' ? raw({} as any) : raw;
+      } catch {
+        continue;
+      }
+      const moduleId = mod.config.id;
+      moduleTools.push({
+        moduleId,
+        moduleName: mod.config.name,
+        tools: (contributions.tools ?? []).map((t: any) => ({
+          name: `${moduleId}_${t.name}`,
+          description: t.description,
+        })),
+        resources: (contributions.resources ?? []).map((r: any) => ({
+          uriTemplate: r.uriTemplate,
+          name: r.name,
+          description: r.description,
+        })),
+        prompts: (contributions.prompts ?? []).map((p: any) => ({
+          name: `${moduleId}_${p.name}`,
+          description: p.description,
+        })),
+      });
+    }
+
+    res.json({
+      transport: { stdio: true, http: false },
+      core: { tools: coreTools },
+      modules: moduleTools,
+    });
   });
 
   // ------------------------------------------------------------------
