@@ -51,7 +51,20 @@ try {
 }
 
 // Middleware
-app.use(cors({ origin: process.env.CORS_ORIGIN ?? '*', credentials: true }));
+// CORS: when CORS_ORIGIN is set, honour it (single origin or comma-separated
+// allow-list). When unset (local dev), reflect the request's Origin header
+// so credentialed requests work — wildcard `*` is incompatible with
+// `credentials: true` per the CORS spec.
+const corsAllowList = (process.env.CORS_ORIGIN ?? '').split(',').map(s => s.trim()).filter(Boolean);
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);                // same-origin / curl
+    if (corsAllowList.length === 0) return callback(null, origin); // dev: reflect
+    if (corsAllowList.includes(origin)) return callback(null, origin);
+    return callback(null, false);
+  },
+  credentials: true,
+}));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(hateoasMiddleware);
