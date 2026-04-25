@@ -73,6 +73,12 @@ RUN mkdir -p node_modules/@gatewaze && ln -s ../../packages/shared node_modules/
 COPY --from=builder /gatewaze-modules/modules /gatewaze-modules/modules
 COPY --from=builder /app/gatewaze.config.ts ./gatewaze.config.ts
 
+# Ship core SQL migrations so /api/modules/bootstrap can apply them at
+# runtime against a fresh Supabase project. applyCoreMigrations() reads
+# from <projectRoot>/supabase/migrations/, and projectRoot is /app, so
+# this needs to land at /app/supabase/migrations.
+COPY supabase/migrations/ supabase/migrations/
+
 # Create writable directories for runtime git clones and uploaded modules
 RUN mkdir -p /app/.gatewaze-modules /app/data /tmp/module-repos /var/lib/gatewaze
 
