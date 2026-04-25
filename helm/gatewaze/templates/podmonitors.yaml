@@ -1,0 +1,49 @@
+{{- if .Values.monitoring.enabled }}
+# PodMonitor resources for the Prometheus Operator. Gated behind
+# .Values.monitoring.enabled because the CRDs only exist when the
+# kube-prometheus-stack (or equivalent operator install) is present.
+# Without the operator, applying these would fail with "no matches for
+# kind PodMonitor".
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: {{ include "gatewaze.fullname" . }}-worker
+  labels:
+    {{- include "gatewaze.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+    {{- with .Values.monitoring.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "gatewaze.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: worker
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+      interval: {{ .Values.monitoring.interval | default "30s" }}
+      scrapeTimeout: {{ .Values.monitoring.scrapeTimeout | default "10s" }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: {{ include "gatewaze.fullname" . }}-scheduler
+  labels:
+    {{- include "gatewaze.labels" . | nindent 4 }}
+    app.kubernetes.io/component: scheduler
+    {{- with .Values.monitoring.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "gatewaze.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: scheduler
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+      interval: {{ .Values.monitoring.interval | default "30s" }}
+      scrapeTimeout: {{ .Values.monitoring.scrapeTimeout | default "10s" }}
+{{- end }}
