@@ -30,6 +30,10 @@ spec:
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.worker.metricsPort | default 9090 }}
+              protocol: TCP
           envFrom:
             - configMapRef:
                 name: {{ include "gatewaze.fullname" . }}-config
@@ -38,13 +42,32 @@ spec:
             {{- with .Values.extraEnvFrom }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+          # Startup probe: gives the worker time to load modules,
+          # register handlers, and open Postgres LISTEN channels before
+          # the readiness/liveness checks start failing it. /ready flips
+          # to 200 only after registerModuleQueues() resolves.
+          startupProbe:
+            httpGet:
+              path: /ready
+              port: metrics
+            failureThreshold: 30
+            periodSeconds: 1
+            timeoutSeconds: 1
+          # Readiness uses the same /ready endpoint — surfaced via metrics
+          # port (the worker has no other HTTP surface).
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: metrics
+            periodSeconds: 10
+            timeoutSeconds: 3
+          # Liveness only checks process responsiveness. Failed jobs do
+          # not flip /ready false; only "process is wedged" does.
           livenessProbe:
-            exec:
-              command:
-                - pgrep
-                - -f
-                - "node.*job-worker"
-            initialDelaySeconds: 15
+            httpGet:
+              path: /ready
+              port: metrics
+            initialDelaySeconds: 30
             periodSeconds: 30
             timeoutSeconds: 10
             failureThreshold: 3
