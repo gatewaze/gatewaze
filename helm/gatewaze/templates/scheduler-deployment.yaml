@@ -26,16 +26,22 @@ spec:
       serviceAccountName: {{ include "gatewaze.serviceAccountName" . }}
       containers:
         - name: scheduler
-          image: "{{ .Values.image.registry }}/api:{{ .Values.image.tag }}"
+          # The scheduler has its own image; the legacy
+          # scripts/scheduler/start-scheduler.js is its default CMD.
+          # Earlier versions of this chart used the api image with a
+          # command override pointing at the new TS-compiled scheduler,
+          # which silently shipped most of the legacy cron families
+          # disabled (scraper / embedding / luma / meetup schedulers
+          # only exist in the legacy script).
+          image: "{{ .Values.image.registry }}/scheduler:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           {{- if .Values.scheduler.healthCheck.enabled }}
-          # Override CMD to the new TS-compiled scheduler. This is
-          # paired with healthCheck.enabled because the new scheduler
-          # depends on module-defined `crons[]` config and only exposes
-          # the /ready probes the chart references. Brands still on
-          # legacy `schedulers[]` (in-process cron) must leave the
-          # image's default CMD in place by setting
-          # `scheduler.healthCheck.enabled: false`.
+          # Opt-in to the new TS-compiled scheduler. The scheduler
+          # image still ships the legacy script as default CMD, so this
+          # override is what flips the entrypoint when the new runtime
+          # is ready. Premium-modules must already export `crons[]`
+          # (queue-based) to replace the in-process `schedulers[]` the
+          # legacy script reads.
           command: ["node", "packages/api/dist/scheduler/start-scheduler.js"]
           {{- end }}
           ports:
