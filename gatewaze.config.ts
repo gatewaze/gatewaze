@@ -29,6 +29,8 @@ const config: GatewazeConfig = {
     // Labelled "Free" so the admin Modules UI shows a clear tab. Brands
     // can rename it via the admin UI (persists in module_sources.label).
     { url: 'https://github.com/gatewaze/gatewaze-modules.git', path: 'modules', branch: 'main', label: 'Free' },
+    // Premium modules — volume-mounted in docker-compose.dev.yml at /premium-gatewaze-modules
+    '/premium-gatewaze-modules/modules',
     // Additional sources come from either:
     //  - production Helm values (`values-<brand>.yaml` → `moduleSources:`)
     //  - MODULE_SOURCES env var (comma-separated git URLs or mounted
