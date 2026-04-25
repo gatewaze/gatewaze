@@ -327,12 +327,38 @@ worker:
   # Used by livenessProbe / readinessProbe / startupProbe.
   metricsPort: 9090
 
+  healthCheck:
+    # -- Enable HTTP probes against the worker's /ready endpoint on
+    # `metricsPort`. Only the new TS-compiled worker
+    # (packages/api/src/workers/job-worker.ts) exposes that endpoint;
+    # the image's default CMD still runs the legacy
+    # scripts/workers/job-worker.js, which has no HTTP surface and will
+    # CrashLoopBackOff under these probes.
+    #
+    # Set `false` while a brand is still on the legacy worker (handler
+    # + cron migration to module-defined queues incomplete). Re-enable
+    # once the module migration ships.
+    enabled: true
+
 # =============================================================================
 # Scheduler Service Configuration
 # =============================================================================
 scheduler:
   # -- Port the scheduler exposes Prometheus metrics + /ready on.
   metricsPort: 9091
+
+  healthCheck:
+    # -- Enable HTTP probes against the scheduler's /ready endpoint AND
+    # the chart's command override that points at the new TS-compiled
+    # scheduler entrypoint (packages/api/src/scheduler/start-scheduler.ts).
+    # Both are paired: the new scheduler reads module-defined `crons[]`
+    # config; the legacy scheduler at scripts/scheduler/start-scheduler.js
+    # reads `module.schedulers[]` (in-process cron) and has no HTTP
+    # surface for probes.
+    #
+    # Set `false` while a brand is still on the legacy scheduler. The
+    # image's default CMD then runs and probes are omitted.
+    enabled: true
 
 # =============================================================================
 # Custom Domains Module

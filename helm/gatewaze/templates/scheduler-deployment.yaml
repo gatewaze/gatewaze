@@ -28,7 +28,16 @@ spec:
         - name: scheduler
           image: "{{ .Values.image.registry }}/api:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.scheduler.healthCheck.enabled }}
+          # Override CMD to the new TS-compiled scheduler. This is
+          # paired with healthCheck.enabled because the new scheduler
+          # depends on module-defined `crons[]` config and only exposes
+          # the /ready probes the chart references. Brands still on
+          # legacy `schedulers[]` (in-process cron) must leave the
+          # image's default CMD in place by setting
+          # `scheduler.healthCheck.enabled: false`.
           command: ["node", "packages/api/dist/scheduler/start-scheduler.js"]
+          {{- end }}
           ports:
             - name: metrics
               containerPort: {{ .Values.scheduler.metricsPort | default 9091 }}
@@ -41,6 +50,7 @@ spec:
             {{- with .Values.extraEnvFrom }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+          {{- if .Values.scheduler.healthCheck.enabled }}
           startupProbe:
             httpGet:
               path: /ready
@@ -62,6 +72,7 @@ spec:
             periodSeconds: 30
             timeoutSeconds: 10
             failureThreshold: 3
+          {{- end }}
           resources:
             {{- toYaml .Values.resources.scheduler | nindent 12 }}
       {{- with .Values.nodeSelector }}

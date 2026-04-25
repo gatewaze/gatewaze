@@ -42,10 +42,20 @@ spec:
             {{- with .Values.extraEnvFrom }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+          {{- if .Values.worker.healthCheck.enabled }}
           # Startup probe: gives the worker time to load modules,
           # register handlers, and open Postgres LISTEN channels before
           # the readiness/liveness checks start failing it. /ready flips
           # to 200 only after registerModuleQueues() resolves.
+          #
+          # These probes only work against the new TS-compiled worker
+          # (packages/api/src/workers/job-worker.ts), which exposes
+          # /ready on the metrics port. The image's default CMD still
+          # runs the legacy scripts/workers/job-worker.js — that worker
+          # has no HTTP surface at all and probes against it 404.
+          # Brands still on the legacy entrypoint must set
+          # `worker.healthCheck.enabled: false` until handler / cron
+          # migration to module-defined queues completes.
           startupProbe:
             httpGet:
               path: /ready
@@ -53,16 +63,12 @@ spec:
             failureThreshold: 30
             periodSeconds: 1
             timeoutSeconds: 1
-          # Readiness uses the same /ready endpoint — surfaced via metrics
-          # port (the worker has no other HTTP surface).
           readinessProbe:
             httpGet:
               path: /ready
               port: metrics
             periodSeconds: 10
             timeoutSeconds: 3
-          # Liveness only checks process responsiveness. Failed jobs do
-          # not flip /ready false; only "process is wedged" does.
           livenessProbe:
             httpGet:
               path: /ready
@@ -71,6 +77,7 @@ spec:
             periodSeconds: 30
             timeoutSeconds: 10
             failureThreshold: 3
+          {{- end }}
           resources:
             {{- toYaml .Values.resources.worker | nindent 12 }}
       {{- with .Values.nodeSelector }}
