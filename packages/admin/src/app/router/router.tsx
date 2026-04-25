@@ -28,6 +28,13 @@ const router = createBrowserRouter([
           Component: (await import("@/app/pages/setup/SetupPage")).SetupPage,
         }),
       },
+      // Public developer docs — accessible without authentication
+      {
+        path: "docs",
+        lazy: async () => ({
+          Component: (await import("@/app/pages/docs/DocsPage")).DocsPage,
+        }),
+      },
       {
         path: "onboarding",
         lazy: async () => ({
