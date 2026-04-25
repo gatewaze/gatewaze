@@ -1,5 +1,12 @@
 import express from 'express';
 import cors from 'cors';
+import {
+  registerBuiltInQueues,
+  metricsHandler,
+  closeAllQueues,
+  closeAllConnections,
+  logger as queueLogger,
+} from './lib/queue/index.js';
 import { healthRouter } from './routes/health.js';
 import { peopleRouter } from './routes/people.js';
 import { csvRouter } from './routes/csv.js';
@@ -28,11 +35,31 @@ const PROJECT_ROOT = resolve(import.meta.dirname ?? __dirname, '../../..');
 const app = express();
 const PORT = parseInt(process.env.PORT ?? '3002', 10);
 
+// Register built-in queues so enqueue()/health have something to reach.
+// Safe to call when Redis is not configured — queues are constructed
+// lazily and only touch Redis on first operation.
+try {
+  registerBuiltInQueues();
+} catch (err) {
+  // getRedisConnection throws when REDIS_URL is unset; that's fine for
+  // API startup — enqueue() will surface a clear error when invoked,
+  // and /health reports `degraded` with `queue.error`.
+  queueLogger.warn(
+    { err: (err as Error).message },
+    'built-in queues not registered (Redis not configured)',
+  );
+}
+
 // Middleware
 app.use(cors({ origin: process.env.CORS_ORIGIN ?? '*', credentials: true }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(hateoasMiddleware);
+
+// Prometheus metrics
+app.get('/metrics', async (req, res) => {
+  await metricsHandler(req, res as never);
+});
 
 // Routes - existing
 app.use('/api', healthRouter);
@@ -150,9 +177,25 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 // Only start the server when run directly (not imported by tests)
 if (process.env.NODE_ENV !== 'test') {
   registerModuleRoutes().then(() => {
-    app.listen(PORT, () => {
+    const server = app.listen(PORT, () => {
       console.log(`Gatewaze API server running on port ${PORT}`);
     });
+
+    const shutdown = async (signal: string) => {
+      queueLogger.info({ signal }, 'api shutting down');
+      server.close();
+      // Give in-flight enqueue calls up to 10s to settle, then close.
+      await Promise.race([
+        (async () => {
+          await closeAllQueues();
+          await closeAllConnections();
+        })(),
+        new Promise((resolve) => setTimeout(resolve, 10_000)),
+      ]);
+      process.exit(0);
+    };
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
   });
 }
 
