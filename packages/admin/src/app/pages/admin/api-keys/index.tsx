@@ -6,6 +6,7 @@ import {
   TrashIcon,
   ClipboardIcon,
   CheckCircleIcon,
+  PencilSquareIcon,
 } from '@heroicons/react/24/outline';
 import { Button, ConfirmModal, Modal } from '@/components/ui';
 import { Input } from '@/components/ui/Form/Input';
@@ -42,6 +43,7 @@ export default function ApiKeysSection() {
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<ApiKey | null>(null);
   const [revokeTarget, setRevokeTarget] = useState<ApiKey | null>(null);
   const [createdKey, setCreatedKey] = useState<{ apiKey: string; name: string } | null>(null);
   const [copied, setCopied] = useState(false);
@@ -175,16 +177,28 @@ export default function ApiKeysSection() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    {key.isActive && (
-                      <Button
-                        variant="ghost"
-                        size="1"
-                        onClick={() => setRevokeTarget(key)}
-                        title="Revoke"
-                      >
-                        <TrashIcon className="size-4 text-red-600" />
-                      </Button>
-                    )}
+                    <div className="flex items-center justify-end gap-1">
+                      {key.isActive && (
+                        <Button
+                          variant="ghost"
+                          size="1"
+                          onClick={() => setEditTarget(key)}
+                          title="Edit scopes & rate limits"
+                        >
+                          <PencilSquareIcon className="size-4 text-[var(--gray-11)]" />
+                        </Button>
+                      )}
+                      {key.isActive && (
+                        <Button
+                          variant="ghost"
+                          size="1"
+                          onClick={() => setRevokeTarget(key)}
+                          title="Revoke"
+                        >
+                          <TrashIcon className="size-4 text-red-600" />
+                        </Button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -194,9 +208,22 @@ export default function ApiKeysSection() {
       )}
 
       {createOpen && (
-        <CreateKeyModal
+        <KeyEditModal
+          mode="create"
           onClose={() => setCreateOpen(false)}
           onCreated={handleCreated}
+        />
+      )}
+
+      {editTarget && (
+        <KeyEditModal
+          mode="edit"
+          existing={editTarget}
+          onClose={() => setEditTarget(null)}
+          onSaved={() => {
+            setEditTarget(null);
+            load();
+          }}
         />
       )}
 
@@ -258,17 +285,30 @@ export default function ApiKeysSection() {
   );
 }
 
-interface CreateKeyModalProps {
-  onClose: () => void;
-  onCreated: (apiKey: string, key: ApiKey) => void;
-}
+type KeyEditModalProps =
+  | {
+      mode: 'create';
+      onClose: () => void;
+      onCreated: (apiKey: string, key: ApiKey) => void;
+    }
+  | {
+      mode: 'edit';
+      existing: ApiKey;
+      onClose: () => void;
+      onSaved: () => void;
+    };
 
-function CreateKeyModal({ onClose, onCreated }: CreateKeyModalProps) {
-  const [name, setName] = useState('');
-  const [scopes, setScopes] = useState<Set<string>>(new Set());
-  const [rateLimitRpm, setRateLimitRpm] = useState(60);
-  const [writeRateLimitRpm, setWriteRateLimitRpm] = useState(10);
+function KeyEditModal(props: KeyEditModalProps) {
+  const isEdit = props.mode === 'edit';
+  const existing = isEdit ? props.existing : null;
+
+  const [name, setName] = useState(existing?.name ?? '');
+  const [scopes, setScopes] = useState<Set<string>>(new Set(existing?.scopes ?? []));
+  const [rateLimitRpm, setRateLimitRpm] = useState(existing?.rateLimitRpm ?? 60);
+  const [writeRateLimitRpm, setWriteRateLimitRpm] = useState(existing?.writeRateLimitRpm ?? 10);
   const [submitting, setSubmitting] = useState(false);
+
+  const allSelected = scopes.size === SCOPE_OPTIONS.length;
 
   const toggleScope = (scope: string) => {
     setScopes((prev) => {
@@ -277,6 +317,10 @@ function CreateKeyModal({ onClose, onCreated }: CreateKeyModalProps) {
       else next.add(scope);
       return next;
     });
+  };
+
+  const toggleAll = () => {
+    setScopes(allSelected ? new Set() : new Set(SCOPE_OPTIONS.map((o) => o.scope)));
   };
 
   const submit = async (e: React.FormEvent) => {
@@ -291,15 +335,26 @@ function CreateKeyModal({ onClose, onCreated }: CreateKeyModalProps) {
     }
     setSubmitting(true);
     try {
-      const result = await ApiKeyService.create({
-        name: name.trim(),
-        scopes: Array.from(scopes),
-        rateLimitRpm,
-        writeRateLimitRpm,
-      });
-      onCreated(result.apiKey, result.key);
+      if (isEdit) {
+        await ApiKeyService.update(existing!.id, {
+          name: name.trim(),
+          scopes: Array.from(scopes),
+          rateLimitRpm,
+          writeRateLimitRpm,
+        });
+        toast.success(`Updated "${name.trim()}"`);
+        props.onSaved();
+      } else {
+        const result = await ApiKeyService.create({
+          name: name.trim(),
+          scopes: Array.from(scopes),
+          rateLimitRpm,
+          writeRateLimitRpm,
+        });
+        props.onCreated(result.apiKey, result.key);
+      }
     } catch (e) {
-      toast.error(`Failed to create: ${(e as Error).message}`);
+      toast.error(`Failed to ${isEdit ? 'save' : 'create'}: ${(e as Error).message}`);
       setSubmitting(false);
     }
   };
@@ -307,17 +362,19 @@ function CreateKeyModal({ onClose, onCreated }: CreateKeyModalProps) {
   return (
     <Modal
       isOpen
-      onClose={onClose}
-      title="Create API key"
+      onClose={props.onClose}
+      title={isEdit ? `Edit "${existing!.name}"` : 'Create API key'}
       size="lg"
       resizable={false}
       footer={
         <div className="flex gap-2 justify-end">
-          <Button variant="outline" onClick={onClose} disabled={submitting}>
+          <Button variant="outline" onClick={props.onClose} disabled={submitting}>
             Cancel
           </Button>
           <Button onClick={submit} disabled={submitting}>
-            {submitting ? 'Creating…' : 'Create key'}
+            {submitting
+              ? (isEdit ? 'Saving…' : 'Creating…')
+              : (isEdit ? 'Save changes' : 'Create key')}
           </Button>
         </div>
       }
@@ -337,7 +394,16 @@ function CreateKeyModal({ onClose, onCreated }: CreateKeyModalProps) {
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-2">Scopes</label>
+          <div className="flex items-center justify-between mb-2">
+            <label className="block text-sm font-medium">Scopes</label>
+            <button
+              type="button"
+              onClick={toggleAll}
+              className="text-xs text-[var(--accent-11)] hover:underline"
+            >
+              {allSelected ? 'Deselect all' : 'Select all'}
+            </button>
+          </div>
           <div className="space-y-1.5 border border-[var(--gray-a6)] rounded-md p-3 max-h-64 overflow-y-auto">
             {SCOPE_OPTIONS.map((opt) => (
               <label
