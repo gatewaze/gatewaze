@@ -104,16 +104,192 @@ function assembleOpenApiSpec(
     },
   };
 
+  // Core platform tags
+  tags.push(
+    { name: 'Discovery', description: 'Categories and unified content across all modules' },
+    { name: 'Platform', description: 'Health and meta endpoints' },
+  );
+
+  // Core endpoints — health, categories, unified content
+  paths['/health'] = {
+    get: {
+      tags: ['Platform'],
+      summary: 'Health check',
+      operationId: 'getHealth',
+      security: [],
+      responses: {
+        200: {
+          description: 'Service is healthy',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  status: { type: 'string', example: 'ok' },
+                  modules: { type: 'integer', description: 'Number of enabled modules' },
+                  timestamp: { type: 'string', format: 'date-time' },
+                },
+              },
+            },
+          },
+        },
+        503: { description: 'Database unreachable' },
+      },
+    },
+  };
+
+  paths['/categories'] = {
+    get: {
+      tags: ['Discovery'],
+      summary: 'List content categories',
+      description:
+        'Returns the platform\'s configured content categories. Categories are platform-wide ' +
+        'taxonomy values (e.g. "foundation", "member", "community") used to filter content ' +
+        'across all modules. Configure them via the Platform Settings admin page.',
+      operationId: 'listCategories',
+      responses: {
+        200: {
+          description: 'Configured content categories',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  data: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      required: ['value', 'label'],
+                      properties: {
+                        value: { type: 'string', example: 'foundation' },
+                        label: { type: 'string', example: 'Foundation' },
+                      },
+                    },
+                  },
+                  _links: { $ref: '#/components/schemas/Links' },
+                },
+              },
+            },
+          },
+        },
+        401: { $ref: '#/components/responses/Unauthorized' },
+      },
+    },
+  };
+
+  paths['/content'] = {
+    get: {
+      tags: ['Discovery'],
+      summary: 'Unified content across all modules',
+      description:
+        'Returns content records from every enabled module that exposes a content source ' +
+        '(events, newsletter editions, etc.). Each row is normalized to a common shape. ' +
+        'Use this for cross-content discovery, recent activity feeds, or category-filtered ' +
+        'lookups without needing to query each module endpoint individually.\n\n' +
+        'Sources are filtered by your API key\'s scopes — only types you can read appear. ' +
+        'The total count and rows are merged across sources and sorted by date desc.',
+      operationId: 'listContent',
+      parameters: [
+        {
+          name: 'type',
+          in: 'query',
+          schema: { type: 'string' },
+          description: 'Comma-separated content types (e.g. "event,newsletter_edition"). Omit for all.',
+        },
+        {
+          name: 'content_category',
+          in: 'query',
+          schema: { type: 'string' },
+          description: 'Comma-separated category slugs (from /categories).',
+        },
+        {
+          name: 'from',
+          in: 'query',
+          schema: { type: 'string', format: 'date-time' },
+          description: 'Records dated on or after this ISO timestamp.',
+        },
+        {
+          name: 'to',
+          in: 'query',
+          schema: { type: 'string', format: 'date-time' },
+          description: 'Records dated on or before this ISO timestamp.',
+        },
+        { name: 'limit', in: 'query', schema: { type: 'integer', default: 25, minimum: 1, maximum: 100 } },
+        { name: 'offset', in: 'query', schema: { type: 'integer', default: 0, minimum: 0 } },
+      ],
+      responses: {
+        200: {
+          description: 'Unified content list',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  data: {
+                    type: 'array',
+                    items: { $ref: '#/components/schemas/ContentRow' },
+                  },
+                  pagination: { $ref: '#/components/schemas/Pagination' },
+                  _links: { $ref: '#/components/schemas/Links' },
+                  warnings: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    description: 'Non-fatal errors from individual sources (response is still useful).',
+                  },
+                },
+              },
+            },
+          },
+        },
+        400: { $ref: '#/components/responses/ValidationError' },
+        401: { $ref: '#/components/responses/Unauthorized' },
+      },
+    },
+  };
+
+  // Common content row schema referenced from /content
+  schemas.ContentRow = {
+    type: 'object',
+    required: ['type', 'id', 'title', 'date', 'content_category', '_links'],
+    properties: {
+      type: { type: 'string', description: 'Content type identifier (e.g. "event", "newsletter_edition")' },
+      id: { type: 'string', description: 'Resource identifier (slug or UUID, type-dependent)' },
+      title: { type: ['string', 'null'] },
+      date: { type: ['string', 'null'], format: 'date-time' },
+      summary: { type: ['string', 'null'] },
+      content_category: { type: ['string', 'null'] },
+      _links: {
+        type: 'object',
+        properties: { self: { type: 'string', description: 'Path to the full resource' } },
+      },
+    },
+  };
+
   // Merge module contributions
   for (const { moduleId, basePath, contribution } of modules) {
     // Add tag
     tags.push(contribution.tag);
 
-    // Prefix paths with basePath
+    // Prefix paths with basePath and auto-tag operations with the module's tag
     if (contribution.paths) {
       for (const [pathKey, pathValue] of Object.entries(contribution.paths)) {
         const fullPath = `${basePath}${pathKey}`;
-        paths[fullPath] = pathValue;
+        const tagName = contribution.tag.name;
+        // Inject the module's tag into each operation so docs UIs (Scalar/Swagger)
+        // group sub-resources under the parent tag instead of in a flat list.
+        const taggedPath = pathValue && typeof pathValue === 'object'
+          ? Object.fromEntries(
+              Object.entries(pathValue as Record<string, unknown>).map(([method, op]) => {
+                if (op && typeof op === 'object' && !Array.isArray(op)) {
+                  const operation = op as Record<string, unknown>;
+                  const existingTags = Array.isArray(operation.tags) ? operation.tags : [];
+                  return [method, { ...operation, tags: existingTags.length ? existingTags : [tagName] }];
+                }
+                return [method, op];
+              }),
+            )
+          : pathValue;
+        paths[fullPath] = taggedPath;
       }
     }
 
@@ -129,7 +305,10 @@ function assembleOpenApiSpec(
     openapi: '3.1.0',
     info: {
       title: 'Gatewaze Public API',
-      description: 'Public API for the Gatewaze event management platform.',
+      description:
+        'Public REST API for the Gatewaze platform. Endpoints are grouped by content type ' +
+        '(see the sidebar) — Discovery for cross-cutting endpoints (categories, unified content), ' +
+        'Platform for health checks, and one section per enabled content module (Events, Newsletters, etc.).',
       version: '1.0.0',
     },
     servers: [{ url: '/api/v1', description: 'Public API v1' }],
