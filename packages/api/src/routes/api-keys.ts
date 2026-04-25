@@ -72,7 +72,7 @@ apiKeysRouter.post('/', async (req, res) => {
         rate_limit_rpm: rpm,
         write_rate_limit_rpm: writeRpm,
         expires_at: expiresAt ?? null,
-        metadata: metadata ?? null,
+        metadata: metadata ?? {},
       })
       .select()
       .single();
