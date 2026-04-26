@@ -55,9 +55,10 @@ export async function buildListingQuery<Row = Record<string, unknown>>(
   }
   const selectString = renderProjection(projectionItems);
 
-  // 4. Decide count strategy.
-  const hasFilters = Object.keys(filters).length > 0 || !!search;
-  const initialCountStrategy: 'exact' | 'planned' = hasFilters ? 'exact' : 'planned';
+  // 4. Decide count strategy. Always start with `exact` so the UI
+  //    reflects mutations (delete/insert) immediately. Falls back to
+  //    `estimated` automatically on timeout (handled below).
+  const initialCountStrategy: 'exact' = 'exact';
 
   // 5. Build the query.
   let qb = supabase.from(schema.table).select(selectString, { count: initialCountStrategy });
@@ -103,7 +104,7 @@ export async function buildListingQuery<Row = Record<string, unknown>>(
     page,
     pageSize,
     totalCount: count ?? 0,
-    countStrategy: initialCountStrategy === 'planned' ? 'planned' : 'exact',
+    countStrategy: 'exact',
   };
 }
 
