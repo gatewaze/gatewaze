@@ -79,6 +79,12 @@ COPY --from=builder /app/gatewaze.config.ts ./gatewaze.config.ts
 # this needs to land at /app/supabase/migrations.
 COPY supabase/migrations/ supabase/migrations/
 
+# Ship core edge-function shared sources so the cloud-api deploy strategy
+# can resolve cross-module `_shared/...` imports (e.g. newsletters'
+# email-inbound-parse imports `../_shared/email.ts`). resolveSourceFiles
+# walks <projectRoot>/supabase/functions/_shared as a fallback shared dir.
+COPY supabase/functions/_shared/ supabase/functions/_shared/
+
 # Create writable directories for runtime git clones and uploaded modules
 RUN mkdir -p /app/.gatewaze-modules /app/data /tmp/module-repos /var/lib/gatewaze
 
