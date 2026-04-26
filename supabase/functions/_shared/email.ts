@@ -116,7 +116,43 @@ async function sendViaSmtp(
     throw new Error('SMTP host is not configured');
   }
 
-  // Lazy-load denomailer only when SMTP is actually used
+  // Postmark fast-path: skip SMTP entirely and use the HTTP API. Many
+  // hosts (Hetzner included) block outbound 25/465 by default, and the
+  // denomailer client we use for the generic SMTP path doesn't support
+  // STARTTLS upgrade on 587 — so SMTP-via-Postmark fails on those VPSes
+  // even when port 587 is reachable. The Postmark HTTP API is plain
+  // HTTPS and uses the same server token as username/password, so the
+  // existing SMTP_USER value works as-is.
+  if (config.smtpHost.includes('postmarkapp.com')) {
+    const senderName = params.fromName || config.fromName;
+    const senderEmail = params.fromEmail || config.fromEmail;
+    const res = await fetch('https://api.postmarkapp.com/email', {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'X-Postmark-Server-Token': config.smtpUser || '',
+      },
+      body: JSON.stringify({
+        From: senderName ? `${senderName} <${senderEmail}>` : senderEmail,
+        To: params.to,
+        Subject: params.subject,
+        HtmlBody: params.html,
+        ...(params.text ? { TextBody: params.text } : {}),
+        ...(params.replyTo ? { ReplyTo: params.replyTo } : {}),
+        MessageStream: 'outbound',
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`Postmark error (${res.status}): ${body}`);
+    }
+    return;
+  }
+
+  // Generic SMTP path — uses denomailer with implicit TLS (works on port
+  // 465). For STARTTLS on 587 you'd need a different client; out of scope
+  // here because we expect Postmark for any prod deploy.
   if (!SMTPClient) {
     const mod = await import('https://deno.land/x/denomailer@1.6.0/mod.ts');
     SMTPClient = mod.SMTPClient;
@@ -125,7 +161,7 @@ async function sendViaSmtp(
   const client = new SMTPClient({
     connection: {
       hostname: config.smtpHost,
-      port: config.smtpPort || 587,
+      port: config.smtpPort || 465,
       tls: true,
       auth: config.smtpUser
         ? { username: config.smtpUser, password: config.smtpPass || '' }
