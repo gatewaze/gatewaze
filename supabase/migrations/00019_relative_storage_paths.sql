@@ -70,6 +70,10 @@ $$ LANGUAGE plpgsql STABLE;
 
 -- =============================================================================
 -- 4. Simple-column migrations (batched, PK-ordered)
+--
+-- The events table lives in the events module and may not exist on a fresh
+-- install (modules register after core bootstrap). Guard each block with a
+-- table-existence check, matching the pattern used for newsletter tables below.
 -- =============================================================================
 
 -- events.screenshot_url
@@ -78,6 +82,13 @@ DECLARE
     batch_size int := 1000;
     updated    int;
 BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'events'
+    ) THEN
+        RAISE NOTICE 'events not present, skipping';
+        RETURN;
+    END IF;
     LOOP
         UPDATE public.events
         SET screenshot_url = regexp_replace(
@@ -102,6 +113,12 @@ DECLARE
     batch_size int := 1000;
     updated    int;
 BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'events'
+    ) THEN
+        RETURN;
+    END IF;
     LOOP
         UPDATE public.events
         SET event_logo = regexp_replace(
@@ -126,6 +143,12 @@ DECLARE
     batch_size int := 1000;
     updated    int;
 BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'events'
+    ) THEN
+        RETURN;
+    END IF;
     LOOP
         UPDATE public.events
         SET badge_logo = regexp_replace(
@@ -150,6 +173,12 @@ DECLARE
     batch_size int := 1000;
     updated    int;
 BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'events'
+    ) THEN
+        RETURN;
+    END IF;
     LOOP
         UPDATE public.events
         SET event_featured_image = regexp_replace(
@@ -174,6 +203,12 @@ DECLARE
     batch_size int := 1000;
     updated    int;
 BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'events'
+    ) THEN
+        RETURN;
+    END IF;
     LOOP
         UPDATE public.events
         SET venue_map_image = regexp_replace(
