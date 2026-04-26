@@ -63,6 +63,12 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
+      // Multi-entry: admin SPA + standalone /docs/ app. The docs entry has its
+      // own bundle (incl. Scalar's CSS) so its styles never leak into the admin.
+      input: {
+        main: path.resolve(__dirname, 'index.html'),
+        docs: path.resolve(__dirname, 'docs.html'),
+      },
       // Externalize Node built-ins that get pulled in via shared module system barrel exports
       external: ['fs', 'path', 'crypto', 'child_process', 'os', 'http', 'https', 'zlib', 'stream', 'util', 'net', 'tls', 'events', 'url', 'querystring', 'buffer'],
       // UNRESOLVED_IMPORT was previously suppressed here; it masked a

@@ -22,7 +22,9 @@ export type {
 } from './types';
 export { ListingError } from './types';
 
-export { buildListingQuery, renderProjection, renderComputedExpr } from './build-query';
+export { buildListingQuery, buildListingCount, renderProjection, renderComputedExpr } from './build-query';
+
+export { cachedEnricher, type CachedEnricherConfig } from './cached-enricher';
 
 export type { SchemaValidationIssue, ValidateOptions } from './validate-schema';
 export { validateListingSchema } from './validate-schema';
@@ -57,6 +59,7 @@ export {
   publicApiCacheControl,
   parseListingQueryFromHttp,
   buildHandlerContext,
+  roundedNowIsoBucket,
 } from './handler-factories';
 
 // Phase 12 — cache invalidation

@@ -19,6 +19,22 @@ const nextConfig: NextConfig = {
   transpilePackages: ['@gatewaze/shared'],
 
   webpack: (config) => {
+    // `@gatewaze-modules/<module>` resolves to the first matching module
+    // dir on disk. Mirrors the tsconfig path alias so portal code can do
+    // `import { eventsListingSchema } from '@gatewaze-modules/events/listing-schema'`
+    // under both the dev local-checkout layout and the container layout.
+    const moduleAliasPaths = moduleDirs.length > 0
+      ? moduleDirs
+      : [
+          resolve(__dirname, '../../../gatewaze-modules/modules'),
+          resolve(__dirname, '../../../premium-gatewaze-modules/modules'),
+          resolve(__dirname, '../../../lf-gatewaze-modules/modules'),
+        ]
+    config.resolve.alias = {
+      ...(config.resolve.alias || {}),
+      '@gatewaze-modules': moduleAliasPaths,
+    }
+
     if (moduleDirs.length > 0) {
       // Ensure module files can import packages from the portal's node_modules
       config.resolve.modules = [

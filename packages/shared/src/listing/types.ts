@@ -98,7 +98,35 @@ export type FilterDeclaration =
       column: string;
       map: { has: 'NOT NULL' | true; none: 'NULL' | false };
     }
-  | { kind: 'jsonbHas'; column: string; key: string };
+  | { kind: 'jsonbHas'; column: string; key: string }
+  /**
+   * Virtual filter — module-supplied resolver runs against the Supabase
+   * query builder. The platform validator enforces `column` is in
+   * `indexedColumns` (the resolver ultimately filters on it) and an
+   * optional enum-style `values` allowlist before the resolver runs.
+   *
+   * The resolver MUST use parameterised builder methods only
+   * (`.eq/.in/.gte/.lte/.ilike/.is/.or/.overlaps/.contains`) — raw SQL
+   * concat is forbidden as for any other listing filter. The validator
+   * does not statically inspect the function body; module authors are
+   * trusted, and a unit-test guideline in the platform spec covers
+   * testing each resolver.
+   *
+   * `ctx.extras` is the canonical place for per-request enriched data
+   * (e.g. snapshot timestamps, brand-specific lookup tables) that the
+   * resolver might read.
+   */
+  | {
+      kind: 'virtual';
+      column: string;
+      values?: readonly string[];
+      multi?: boolean;
+      resolve: (
+        value: unknown,
+        qb: any,
+        ctx: HandlerContext,
+      ) => any;
+    };
 
 // ============================================================================
 // SummaryDeclaration — optional per-module summary endpoint contract
@@ -246,6 +274,14 @@ export interface ListingResult<Row = Record<string, unknown>> {
   totalCount: number | null;
   totalCountEstimate?: number;
   countStrategy: 'exact' | 'estimated' | 'planned';
+  /**
+   * Snapshot timestamp pinned for time-sensitive virtual filters.
+   * The portal route handler echoes the value back so the client uses
+   * the same `ts` for every page in a session, preventing the
+   * "drifting now" boundary bug. Only populated for the portal
+   * consumer; admin/publicApi/mcp leave it undefined.
+   */
+  ts?: string;
 }
 
 // ============================================================================
@@ -273,6 +309,9 @@ export type ListingErrorCode =
   | 'INVALID_FILTER'
   | 'INVALID_RANGE'
   | 'SEARCH_TOO_SHORT'
+  | 'INVALID_TS'
+  | 'MISSING_TS_FOR_PAGINATION'
+  | 'LISTING_NOT_FOUND'
   | 'LISTING_SCHEMA_INVALID'
   | 'INDEX_MISSING'
   | 'MISSING_EXTENSION_PG_TRGM'
@@ -306,7 +345,11 @@ function defaultStatusFor(code: ListingErrorCode): number {
     case 'INVALID_FILTER':
     case 'INVALID_RANGE':
     case 'SEARCH_TOO_SHORT':
+    case 'INVALID_TS':
+    case 'MISSING_TS_FOR_PAGINATION':
       return 400;
+    case 'LISTING_NOT_FOUND':
+      return 404;
     case 'LISTING_SCHEMA_INVALID':
     case 'INDEX_MISSING':
     case 'MISSING_EXTENSION_PG_TRGM':

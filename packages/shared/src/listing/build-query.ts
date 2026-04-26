@@ -70,7 +70,7 @@ export async function buildListingQuery<Row = Record<string, unknown>>(
   if (authFn) qb = authFn(qb);
 
   // 7. Apply user filters via parameterised builders.
-  qb = applyFilters(qb, schema, filters);
+  qb = applyFilters(qb, schema, filters, enrichedCtx);
 
   // 8. Apply search (ilike OR across searchable columns).
   if (search && schema.searchable.length > 0) {
@@ -106,6 +106,55 @@ export async function buildListingQuery<Row = Record<string, unknown>>(
     totalCount: count ?? 0,
     countStrategy: 'exact',
   };
+}
+
+/**
+ * Count-only variant of buildListingQuery. Runs the same auth filter +
+ * user filters + search but emits a `head: true, count: 'exact'` request
+ * — no rows are fetched. Used by the portal's inactive-tab badge counts.
+ *
+ * Falls back to the planner-estimated count on statement timeout, just
+ * like buildListingQuery.
+ */
+export async function buildListingCount(
+  opts: BuildListingQueryOpts,
+): Promise<{ count: number | null; countStrategy: 'exact' | 'estimated' | 'planned' }> {
+  const { schema, consumer, query, ctx, supabase } = opts;
+
+  const filters = validateFilters(schema, query.filters ?? {});
+  const search = validateSearch(schema, query.search);
+
+  const enrichedCtx = await runEnricher(ctx, schema);
+
+  let qb = supabase.from(schema.table).select(schema.primaryKey, { count: 'exact', head: true });
+
+  const authFilterResolver = schema.authFilters[consumer];
+  const authFn: SupabaseFilterFn | null = authFilterResolver ? authFilterResolver(enrichedCtx) : null;
+  if (authFn) qb = authFn(qb);
+
+  qb = applyFilters(qb, schema, filters, enrichedCtx);
+  if (search && schema.searchable.length > 0) {
+    qb = applySearch(qb, schema, search);
+  }
+
+  const { error, count } = await qb;
+  if (error) {
+    if (error.code === '57014' || /timeout/i.test(error.message)) {
+      // Retry with planner estimate (cheap, no exact scan).
+      let retry = supabase.from(schema.table).select(schema.primaryKey, { count: 'estimated', head: true });
+      if (authFn) retry = authFn(retry);
+      retry = applyFilters(retry, schema, filters, enrichedCtx);
+      if (search && schema.searchable.length > 0) retry = applySearch(retry, schema, search);
+      const { error: retryError, count: retryCount } = await retry;
+      if (retryError) {
+        throw new ListingError('LISTING_INTERNAL_ERROR', `Estimated count fallback failed: ${retryError.message}`);
+      }
+      return { count: retryCount ?? null, countStrategy: 'estimated' };
+    }
+    throw new ListingError('LISTING_INTERNAL_ERROR', error.message, { details: { code: error.code } });
+  }
+
+  return { count: count ?? null, countStrategy: 'exact' };
 }
 
 // ----------------------------------------------------------------------------
@@ -155,6 +204,21 @@ function validateFilters(schema: ListingSchema, filters: Record<string, unknown>
 
 function validateFilterValue(key: string, decl: FilterDeclaration, value: unknown): unknown {
   switch (decl.kind) {
+    case 'virtual': {
+      // Two-phase validation: enum allowlist (if declared) runs before
+      // the resolver. Multi-valued virtuals normalise to an array.
+      const arr = Array.isArray(value) ? value : [value];
+      if (decl.values) {
+        for (const v of arr) {
+          if (typeof v !== 'string' || !decl.values.includes(v)) {
+            throw new ListingError('INVALID_FILTER', `Filter '${key}' value '${String(v)}' is not in allowed virtual values`, {
+              details: { field: `filters.${key}`, allowed: decl.values },
+            });
+          }
+        }
+      }
+      return decl.multi ? arr : arr[0];
+    }
     case 'enum': {
       const arr = Array.isArray(value) ? value : [value];
       for (const v of arr) {
@@ -307,17 +371,20 @@ export function renderComputedExpr(_expr: ComputedExpr): { sql: string; params: 
 // Filter application — invokes the parameterised builder per filter kind.
 // ----------------------------------------------------------------------------
 
-function applyFilters(qb: any, schema: ListingSchema, filters: Record<string, unknown>): any {
+function applyFilters(qb: any, schema: ListingSchema, filters: Record<string, unknown>, ctx: HandlerContext): any {
   let q = qb;
   for (const [key, value] of Object.entries(filters)) {
     const decl = schema.filters[key];
-    q = applyFilter(q, decl, value, key);
+    q = applyFilter(q, decl, value, key, ctx);
   }
   return q;
 }
 
-function applyFilter(qb: any, decl: FilterDeclaration, value: unknown, key: string): any {
+function applyFilter(qb: any, decl: FilterDeclaration, value: unknown, key: string, ctx: HandlerContext): any {
   switch (decl.kind) {
+    case 'virtual': {
+      return decl.resolve(value, qb, ctx);
+    }
     case 'enum':
     case 'string':
     case 'integer': {
@@ -395,12 +462,12 @@ interface RetryArgs {
 }
 
 async function retryWithEstimatedCount<Row>(opts: BuildListingQueryOpts, args: RetryArgs): Promise<ListingResult<Row>> {
-  const { schema, supabase } = opts;
+  const { schema, supabase, ctx } = opts;
   const selectString = renderProjection(args.projectionItems);
 
   let qb = supabase.from(schema.table).select(selectString, { count: 'estimated' });
   if (args.authFn) qb = args.authFn(qb);
-  qb = applyFilters(qb, schema, args.filters);
+  qb = applyFilters(qb, schema, args.filters, ctx);
   if (args.search && schema.searchable.length > 0) {
     qb = applySearch(qb, schema, args.search);
   }

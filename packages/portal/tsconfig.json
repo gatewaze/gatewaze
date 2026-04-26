@@ -22,7 +22,12 @@
     "paths": {
       "@/*": ["./*"],
       "@gatewaze/shared/*": ["../shared/src/*"],
-      "@gatewaze/shared": ["../shared/src"]
+      "@gatewaze/shared": ["../shared/src"],
+      "@gatewaze-modules/*": [
+        "../../../gatewaze-modules/modules/*",
+        "../../../premium-gatewaze-modules/modules/*",
+        "../../../lf-gatewaze-modules/modules/*"
+      ]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],

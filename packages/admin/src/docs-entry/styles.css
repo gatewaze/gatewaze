@@ -1,0 +1,130 @@
+/* Standalone docs styles. NOT shared with the admin app. */
+
+/* Minimal own resets (no Tailwind preflight). */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; }
+body {
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #ffffff;
+  color: #111827;
+}
+
+#docs-root { min-height: 100vh; display: flex; flex-direction: column; }
+
+.docs-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #ffffff;
+}
+
+.docs-header__left { display: flex; align-items: center; gap: 12px; }
+.docs-header__title { font-size: 18px; font-weight: 700; line-height: 1.2; }
+.docs-header__subtitle { font-size: 12px; color: #6b7280; line-height: 1.2; margin-top: 2px; }
+
+.docs-tabs {
+  display: flex;
+  gap: 4px;
+  background: #f3f4f6;
+  padding: 4px;
+  border-radius: 8px;
+}
+.docs-tab {
+  padding: 6px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 6px;
+  border: 0;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+.docs-tab:hover { color: #111827; }
+.docs-tab--active {
+  background: #ffffff;
+  color: #111827;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
+
+.docs-main { flex: 1; min-height: 0; }
+
+.mcp-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+.mcp-content section + section { margin-top: 32px; }
+.mcp-content h2 { font-size: 20px; font-weight: 600; margin: 0 0 12px; }
+.mcp-content h3 { font-size: 16px; font-weight: 600; margin: 24px 0 8px; }
+.mcp-content h4 { font-size: 14px; font-weight: 600; margin: 0 0 8px; }
+.mcp-content p { font-size: 14px; line-height: 1.6; color: #374151; margin: 8px 0; }
+.mcp-content code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  background: #f3f4f6;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+.mcp-content pre {
+  background: #111827;
+  color: #f9fafb;
+  padding: 16px;
+  border-radius: 8px;
+  overflow-x: auto;
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 12px 0;
+}
+.mcp-content pre code { background: transparent; padding: 0; color: inherit; }
+
+.mcp-error {
+  border: 1px solid #fca5a5;
+  background: #fef2f2;
+  color: #991b1b;
+  padding: 16px;
+  border-radius: 8px;
+}
+
+.mcp-module {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+.mcp-module__header {
+  background: #f9fafb;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e5e7eb;
+}
+.mcp-module__title { font-size: 15px; font-weight: 600; }
+.mcp-module__id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: #6b7280;
+}
+.mcp-module__body { padding: 16px; }
+.mcp-module__body > div + div { margin-top: 16px; }
+
+.mcp-tool-list { list-style: none; padding: 0; margin: 0; }
+.mcp-tool-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 14px;
+  padding: 4px 0;
+}
+.mcp-tool-list code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  background: #f3f4f6;
+  padding: 2px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.mcp-loading { text-align: center; padding: 48px 0; color: #6b7280; }
+
+.docs-logo { height: 32px; width: auto; color: #000; }

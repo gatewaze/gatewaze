@@ -110,13 +110,21 @@ export function listingQueryFromSearchParams(
       continue;
     }
 
-    const all = s.getAll(filterKey);
+    // `topics` and other virtual multi filters arrive either as repeated
+    // `?topics=foo&topics=bar` keys (URLSearchParams.append) or as a
+    // single comma-joined string (`?topics=foo,bar`) emitted by the
+    // legacy URL builder. Handle both.
+    let all = s.getAll(filterKey);
+    if (decl.kind === 'virtual' && decl.multi && all.length === 1 && all[0].includes(',')) {
+      all = all[0].split(',').map((p) => p.trim()).filter(Boolean);
+    }
     if (all.length === 0) continue;
 
     const isMulti =
       (decl.kind === 'enum' && decl.multi) ||
       (decl.kind === 'string' && decl.multi) ||
-      (decl.kind === 'integer' && decl.multi);
+      (decl.kind === 'integer' && decl.multi) ||
+      (decl.kind === 'virtual' && decl.multi);
 
     if (isMulti) {
       filters[filterKey] = all;
