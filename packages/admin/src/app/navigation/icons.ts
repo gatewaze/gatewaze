@@ -76,6 +76,7 @@ export const navigationIcons: Record<string, ElementType> = {
   "settings.general": HeroOutline.UserIcon,
   "settings.appearance": TbPalette,
   "settings.branding": HeroOutline.SwatchIcon,
+  "admin.inbox": HeroOutline.InboxIcon,
   "admin.users": HeroOutline.UsersIcon,
   "admin.accounts": HeroOutline.BuildingOfficeIcon,
   "admin.events": HeroOutline.CalendarIcon,
