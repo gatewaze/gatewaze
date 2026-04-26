@@ -470,6 +470,10 @@ services:
       API_KEY_PEPPER: ${API_KEY_PEPPER:-}
       MODULE_SOURCES: ${MODULE_SOURCES:-}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      # AI provider keys — used by lazy-loaded clients in scrapers and
+      # content-pipeline (e.g. luma speaker extractor, embeddings).
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     depends_on:
       redis:
         condition: service_healthy
