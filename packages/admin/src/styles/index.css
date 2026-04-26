@@ -12,6 +12,14 @@
 
 @import "tailwindcss";
 
+/* Ensure Tailwind scans module source files so classes used in module
+ * components (events, content-platform, blog, etc.) end up in the bundle.
+ * Without these, arbitrary-value utilities like `lg:grid-cols-[2fr_1fr]`
+ * used only in module files won't be generated. */
+@source "../../../../../gatewaze-modules/modules";
+@source "../../../../../premium-gatewaze-modules/modules";
+@source "../../../../../lf-gatewaze-modules/modules";
+
 @custom-variant dark (&:is(.dark *));
 
 @theme {

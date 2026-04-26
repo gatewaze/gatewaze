@@ -404,18 +404,13 @@ export default function ModulesPage() {
   return (
     <Page title="Modules">
       <div className="p-6">
-        <div className="mb-6 flex items-start justify-between">
-          <div>
+        <div className="mb-6">
+          <div className="flex items-start justify-between gap-4">
             <h1 className="text-2xl font-semibold text-[var(--gray-12)]">
               Modules
             </h1>
-            <p className="text-[var(--gray-11)] mt-1">
-              Manage installed modules and their features. Modules extend
-              Gatewaze with additional functionality.
-            </p>
-          </div>
-          {isSuperAdmin && (
-            <div className="flex gap-2">
+            {isSuperAdmin && (
+              <div className="flex gap-2 flex-shrink-0">
               <Button
                 onClick={handleRefreshSources}
                 variant="outline"
@@ -471,8 +466,13 @@ export default function ModulesPage() {
                 <PlusIcon className="size-4 mr-1.5" />
                 Install Custom Module
               </Button>
-            </div>
-          )}
+              </div>
+            )}
+          </div>
+          <p className="text-[var(--gray-11)] mt-2">
+            Manage installed modules and their features. Modules extend
+            Gatewaze with additional functionality.
+          </p>
         </div>
 
         {/* Module Sources */}
