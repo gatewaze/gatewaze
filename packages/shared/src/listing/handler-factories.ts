@@ -19,7 +19,7 @@ import type {
   ListingSchema,
 } from './types';
 import { ListingError } from './types';
-import { buildListingQuery } from './build-query';
+import { buildListingQuery, buildListingCount } from './build-query';
 
 // ============================================================================
 // Admin route factory
@@ -418,6 +418,12 @@ function mcpFilterSchema(decl: ListingSchema['filters'][string]): Record<string,
       return { type: 'string', enum: ['has', 'none'] };
     case 'jsonbHas':
       return { type: 'string' };
+    case 'virtual': {
+      const item = decl.values
+        ? { type: 'string', enum: decl.values }
+        : { type: 'string' };
+      return decl.multi ? { type: 'array', items: item } : item;
+    }
   }
 }
 
@@ -433,20 +439,40 @@ export interface PortalListingLoaderConfig {
 export interface PortalListingLoader {
   schema: ListingSchema;
   cache: PortalListingLoaderConfig['cache'];
-  /** Run with the visitor's anon Supabase client. */
+  /**
+   * Run with the visitor's anon Supabase client. `ts` is the snapshot
+   * timestamp used by virtual time-sensitive filters (e.g. events
+   * `view=upcoming`); the route handler defaults it to a 60-s-bucketed
+   * `now()` for SSR. Echoed back in the response so clients can pin it.
+   */
   load: (
     query: ListingQuery,
     supabase: SupabaseClient,
-    ctx: HandlerContext
+    ctx: HandlerContext,
+    options?: { ts?: string },
   ) => Promise<PortalListingLoaderResult>;
+  /**
+   * Count-only execution path. Honours the same auth filter / user
+   * filters / search / virtual filters as `load()` but does NOT fetch
+   * any rows. Used by inactive-tab badge counts.
+   */
+  count: (
+    query: ListingQuery,
+    supabase: SupabaseClient,
+    ctx: HandlerContext,
+    options?: { ts?: string },
+  ) => Promise<{ count: number | null; countStrategy: 'exact' | 'estimated' | 'planned' }>;
 }
 
 export interface PortalListingLoaderResult {
   rows: Array<Record<string, unknown>>;
   totalCount: number | null;
   totalCountEstimate?: number;
+  countStrategy: 'exact' | 'estimated' | 'planned';
   page: number;
   pageSize: number;
+  /** Snapshot timestamp pinned for this session; echoed to the client. */
+  ts: string;
   /** Next.js ISR revalidate value (seconds); set when cache.ttlSeconds is. */
   revalidate?: number;
 }
@@ -455,24 +481,56 @@ export function createPortalListingLoader(config: PortalListingLoaderConfig): Po
   return {
     schema: config.schema,
     cache: config.cache,
-    load: async (query, supabase, ctx) => {
+    load: async (query, supabase, ctx, options) => {
+      const ts = options?.ts ?? roundedNowIsoBucket(60_000);
+      const enrichedCtx: HandlerContext = {
+        ...ctx,
+        consumer: 'portal',
+        extras: { ...ctx.extras, 'listing.ts': ts },
+      };
       const result = await buildListingQuery({
         schema: config.schema,
         consumer: 'portal',
         query,
-        ctx: { ...ctx, consumer: 'portal' },
+        ctx: enrichedCtx,
         supabase,
       });
       return {
         rows: result.rows,
         totalCount: result.totalCount,
         totalCountEstimate: result.totalCountEstimate,
+        countStrategy: result.countStrategy,
         page: result.page,
         pageSize: result.pageSize,
+        ts,
         revalidate: config.cache?.ttlSeconds,
       };
     },
+    count: async (query, supabase, ctx, options) => {
+      const ts = options?.ts ?? roundedNowIsoBucket(60_000);
+      const enrichedCtx: HandlerContext = {
+        ...ctx,
+        consumer: 'portal',
+        extras: { ...ctx.extras, 'listing.ts': ts },
+      };
+      return buildListingCount({
+        schema: config.schema,
+        consumer: 'portal',
+        query,
+        ctx: enrichedCtx,
+        supabase,
+      });
+    },
   };
+}
+
+/**
+ * Round Date.now() down to a bucket boundary and return ISO 8601.
+ * Used to coalesce per-visitor `ts` into shared CDN cache keys.
+ */
+export function roundedNowIsoBucket(bucketMs: number): string {
+  const t = Math.floor(Date.now() / bucketMs) * bucketMs;
+  return new Date(t).toISOString();
 }
 
 // ============================================================================

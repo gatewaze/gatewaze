@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState, useCallback, useEffect, Suspense } from 'react'
+import type { ListingQuery } from '@gatewaze/shared/listing'
 import type { Event } from '@/types/event'
 import type { BrandConfig } from '@/config/brand'
 import { type ViewMode } from './TimelineTabs'
@@ -16,59 +17,122 @@ import { useEventSearch } from '@/hooks/useEventSearch'
 import { useEventFilters } from '@/hooks/useEventFilters'
 import { useIpInfo } from '@/hooks/useIpInfo'
 import { getDistanceToEventByCity, usesImperialUnits } from '@/lib/location'
+import { eventsListingSchema } from '@gatewaze-modules/events/listing-schema'
+import { usePortalInfiniteListing, type PortalInitialPage } from '@/lib/listing/usePortalInfiniteListing'
+import { MAX_ACCUMULATED_ROWS, NEAR_ME_AUTO_LOAD_LIMIT } from '@/lib/listing/constants'
 
 // Near Me radius: 100 miles (~161 km) for imperial, 100 km for metric
 const NEAR_ME_RADIUS_IMPERIAL_KM = 100 / 0.621371 // ~161 km
 const NEAR_ME_RADIUS_METRIC_KM = 100
 
 interface Props {
-  events: Event[]
-  upcomingEvents: Event[]
-  pastEvents: Event[]
   brandConfig: BrandConfig
   view: ViewMode
   basePath?: string
   initialSearchQuery?: string
+  /**
+   * Server-rendered first page for the active view. Required when view
+   * is 'upcoming' or 'past' for the new paginated path; calendar/map
+   * pages can omit this.
+   */
+  initialPage?: PortalInitialPage<Event>
+  /**
+   * The ListingQuery used to produce initialPage. Echoed back to the
+   * portal listing API for subsequent pages.
+   */
+  query?: ListingQuery
+  /**
+   * Server-side count of the *inactive* tab's view (e.g. "past count"
+   * when viewing upcoming). Used so the inactive tab badge reflects
+   * server-side filters without a separate client roundtrip.
+   */
+  otherViewCount?: number | null
+  /**
+   * Calendar / map views need every event for their visualisation. The
+   * upcoming / past paginated paths leave this undefined.
+   */
+  allEvents?: Event[]
+  upcomingEvents?: Event[]
+  pastEvents?: Event[]
 }
 
-export function TimelineContent({ events, upcomingEvents, pastEvents, brandConfig, view, basePath, initialSearchQuery }: Props) {
+const SYNTHETIC_INITIAL_PAGE: PortalInitialPage<Event> = {
+  rows: [],
+  page: 0,
+  pageSize: 50,
+  totalCount: 0,
+  countStrategy: 'exact',
+  ts: '1970-01-01T00:00:00.000Z',
+}
+
+export function TimelineContent(props: Props) {
   return (
     <Suspense fallback={null}>
-      <TimelineContentInner
-        events={events}
-        upcomingEvents={upcomingEvents}
-        pastEvents={pastEvents}
-        brandConfig={brandConfig}
-        view={view}
-        basePath={basePath}
-        initialSearchQuery={initialSearchQuery}
-      />
+      <TimelineContentInner {...props} />
     </Suspense>
   )
 }
 
-function TimelineContentInner({ events, upcomingEvents, pastEvents, brandConfig, view, basePath, initialSearchQuery }: Props) {
+function TimelineContentInner({
+  brandConfig,
+  view,
+  basePath,
+  initialSearchQuery,
+  initialPage,
+  query,
+  otherViewCount,
+  allEvents,
+  upcomingEvents,
+  pastEvents,
+}: Props) {
   const [nearMe, setNearMe] = useState(false)
 
-  // Get user's location from IP
-  const { userLocation, isLoading: locationLoading } = useIpInfo()
+  const isPaginatedView = view === 'upcoming' || view === 'past'
+  const effectiveInitialPage: PortalInitialPage<Event> =
+    initialPage ?? SYNTHETIC_INITIAL_PAGE
 
-  // Search functionality
-  const { searchResults, isSearching, searchQuery, performSearch, clearSearch } = useEventSearch(
-    brandConfig.id,
-    userLocation
+  const effectiveQuery: ListingQuery = useMemo(
+    () =>
+      query ?? {
+        page: 0,
+        pageSize: 50,
+        filters: { view: view === 'past' ? 'past' : 'upcoming' },
+      },
+    [query, view],
   )
 
-  // Auto-trigger search if loaded from /events/search/[query] URL
+  // Always call the hook (Rules of Hooks). For non-paginated views the
+  // synthetic initialPage means hasMore=false, so the hook is dormant.
+  const {
+    rows: paginatedRows,
+    hasMore,
+    isLoading: isPaginatedLoading,
+    error: paginatedError,
+    capReached,
+    sentinelRef,
+    totalCount,
+    loadMore,
+  } = usePortalInfiniteListing<Event>({
+    module: 'events',
+    schema: eventsListingSchema,
+    initialPage: effectiveInitialPage,
+    query: effectiveQuery,
+  })
+
+  const { userLocation, isLoading: locationLoading } = useIpInfo()
+
+  const { searchResults, isSearching, searchQuery, performSearch, clearSearch } = useEventSearch(
+    brandConfig.id,
+    userLocation,
+  )
+
   useEffect(() => {
     if (initialSearchQuery) {
       performSearch(initialSearchQuery)
     }
-    // Only run on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Filter functionality
   const {
     region,
     eventType,
@@ -83,38 +147,52 @@ function TimelineContentInner({ events, upcomingEvents, pastEvents, brandConfig,
   } = useEventFilters()
 
   const isShowingSearchResults = searchResults !== null
-  // When loaded from a search URL, don't render the timeline while waiting for results
-  // (avoids hydration mismatch from locale-dependent date formatting)
   const isInitialSearchPending = !!initialSearchQuery && !isShowingSearchResults
 
-  // Apply filters to events
-  const filteredUpcoming = useMemo(() => filterEvents(upcomingEvents), [filterEvents, upcomingEvents])
-  const filteredPast = useMemo(() => filterEvents(pastEvents), [filterEvents, pastEvents])
-  const filteredAll = useMemo(() => filterEvents(events), [filterEvents, events])
+  // Resolve the active list of events.
+  // - upcoming/past: prefer paginated rows; fall back to client-side filtered arrays
+  //   if a page didn't supply initialPage (legacy compat).
+  // - calendar/map: full datasets, optionally client-filtered by chips that
+  //   weren't applied server-side.
+  const activeUpcomingFallback = useMemo(
+    () => filterEvents(upcomingEvents ?? []),
+    [filterEvents, upcomingEvents],
+  )
+  const activePastFallback = useMemo(
+    () => filterEvents(pastEvents ?? []),
+    [filterEvents, pastEvents],
+  )
+  const filteredAll = useMemo(() => filterEvents(allEvents ?? []), [filterEvents, allEvents])
 
-  // Determine which events to show
-  const activeEvents = view === 'upcoming' ? filteredUpcoming : view === 'past' ? filteredPast : []
+  const activeEvents: Event[] = isPaginatedView
+    ? initialPage
+      ? paginatedRows
+      : view === 'upcoming'
+        ? activeUpcomingFallback
+        : activePastFallback
+    : []
 
-  // Compute which event types exist in the current view's unfiltered events
   const availableTypes = useMemo(() => {
-    const viewEvents = view === 'upcoming' ? upcomingEvents : view === 'past' ? pastEvents : events
+    const sourceArr =
+      view === 'upcoming'
+        ? upcomingEvents ?? paginatedRows
+        : view === 'past'
+          ? pastEvents ?? paginatedRows
+          : allEvents ?? []
     const types = new Set<string>()
-    for (const event of viewEvents) {
+    for (const event of sourceArr) {
       if (event.event_type) types.add(event.event_type)
     }
     return types
-  }, [view, upcomingEvents, pastEvents, events])
+  }, [view, upcomingEvents, pastEvents, allEvents, paginatedRows])
+
   const isPastView = view === 'past'
 
-  // Near Me: filter to events within radius, then sort by distance
   const imperial = usesImperialUnits(userLocation?.country || '')
   const nearMeRadiusKm = imperial ? NEAR_ME_RADIUS_IMPERIAL_KM : NEAR_ME_RADIUS_METRIC_KM
 
   const nearMeEvents = useMemo(() => {
-    if (!nearMe || !userLocation) {
-      return activeEvents
-    }
-
+    if (!nearMe || !userLocation) return activeEvents
     return activeEvents
       .map((event) => ({
         event,
@@ -125,7 +203,24 @@ function TimelineContentInner({ events, upcomingEvents, pastEvents, brandConfig,
       .map(({ event }) => event)
   }, [activeEvents, nearMe, userLocation, nearMeRadiusKm])
 
-  // Build category priority map: category value -> priority index (0 = highest)
+  // Auto-load more pages when nearMe is on but the current page yielded
+  // few visible rows after filtering. Bounded by NEAR_ME_AUTO_LOAD_LIMIT
+  // empty pages so we don't burn through the dataset chasing zero matches.
+  const [emptyNearMePages, setEmptyNearMePages] = useState(0)
+  useEffect(() => {
+    if (!nearMe || !isPaginatedView || !initialPage) return
+    if (!hasMore || capReached || isPaginatedLoading) return
+    if (emptyNearMePages >= NEAR_ME_AUTO_LOAD_LIMIT) return
+    if (nearMeEvents.length === 0 || activeEvents.length - nearMeEvents.length > activeEvents.length / 2) {
+      setEmptyNearMePages((n) => n + 1)
+      loadMore()
+    }
+  }, [nearMe, isPaginatedView, initialPage, hasMore, capReached, isPaginatedLoading, nearMeEvents.length, activeEvents.length, emptyNearMePages, loadMore])
+
+  useEffect(() => {
+    setEmptyNearMePages(0)
+  }, [nearMe, region, eventType, topics])
+
   const categoryPriorityMap = useMemo(() => {
     const map = new Map<string, number>()
     if (brandConfig.contentCategories) {
@@ -136,15 +231,13 @@ function TimelineContentInner({ events, upcomingEvents, pastEvents, brandConfig,
 
   const groupedEvents = useMemo(() => {
     const groups = groupEventsByDate(nearMeEvents, isPastView)
-    // If categories are configured, sort events within each group by category priority
     if (categoryPriorityMap.size > 0) {
-      const noPriority = categoryPriorityMap.size // uncategorised events go last
+      const noPriority = categoryPriorityMap.size
       for (const group of groups) {
         group.events.sort((a, b) => {
           const aPriority = a.content_category ? (categoryPriorityMap.get(a.content_category) ?? noPriority) : noPriority
           const bPriority = b.content_category ? (categoryPriorityMap.get(b.content_category) ?? noPriority) : noPriority
           if (aPriority !== bPriority) return aPriority - bPriority
-          // Same priority — keep time-based order
           return new Date(a.event_start).getTime() - new Date(b.event_start).getTime()
         })
       }
@@ -152,48 +245,63 @@ function TimelineContentInner({ events, upcomingEvents, pastEvents, brandConfig,
     return groups
   }, [nearMeEvents, isPastView, categoryPriorityMap])
 
-  // Show Near Me option only on list views when location is available
   const showNearMe = (view === 'upcoming' || view === 'past') && !locationLoading && userLocation !== null
 
   const handleToggleNearMe = useCallback(() => {
     setNearMe((prev) => !prev)
   }, [])
 
-  // Sync URL when searching
   const handleSearch = useCallback(
-    (query: string) => {
-      performSearch(query)
-      const slug = encodeURIComponent(query.trim()).replace(/%20/g, '-')
+    (queryText: string) => {
+      performSearch(queryText)
+      const slug = encodeURIComponent(queryText.trim()).replace(/%20/g, '-')
       const searchPath = `${basePath || '/events'}/search/${slug}`
       window.history.replaceState(null, '', searchPath)
     },
-    [performSearch, basePath]
+    [performSearch, basePath],
   )
 
   const handleClearSearch = useCallback(() => {
     clearSearch()
-    // Navigate back to the current view URL
     const viewPath = `${basePath || '/events'}/${view}`
     window.history.replaceState(null, '', viewPath)
   }, [clearSearch, basePath, view])
 
+  // Tab counts:
+  // - active view: prefer the SSR-side totalCount (server-side filters applied);
+  //   fall back to filtered array length for legacy compat.
+  // - inactive view: from otherViewCount when supplied; fall back to filtered length.
+  const upcomingCount = useMemo(() => {
+    if (view === 'upcoming') {
+      if (initialPage) return totalCount ?? paginatedRows.length
+      return activeUpcomingFallback.length
+    }
+    return otherViewCount ?? activeUpcomingFallback.length
+  }, [view, initialPage, totalCount, paginatedRows.length, otherViewCount, activeUpcomingFallback.length])
+
+  const pastCount = useMemo(() => {
+    if (view === 'past') {
+      if (initialPage) return totalCount ?? paginatedRows.length
+      return activePastFallback.length
+    }
+    return otherViewCount ?? activePastFallback.length
+  }, [view, initialPage, totalCount, paginatedRows.length, otherViewCount, activePastFallback.length])
+
   return (
     <div className="w-full">
-      {/* Featured content — shown above timeline when categories are configured */}
       {!isShowingSearchResults && !isInitialSearchPending && view === 'upcoming' && (
         <FeaturedContent
-          events={upcomingEvents}
+          events={isPaginatedView && initialPage ? paginatedRows : (upcomingEvents ?? [])}
           brandConfig={brandConfig}
           userLocation={userLocation}
         />
       )}
 
-      {/* Header with tabs + search — hidden when showing search results (search moves into SearchResults) */}
       {!isShowingSearchResults && !isInitialSearchPending && (
         <TimelineHeader
           brandConfig={brandConfig}
-          upcomingCount={filteredUpcoming.length}
-          pastCount={filteredPast.length}
+          upcomingCount={upcomingCount}
+          pastCount={pastCount}
           onSearch={handleSearch}
           onClearSearch={handleClearSearch}
           isSearching={isSearching}
@@ -202,7 +310,6 @@ function TimelineContentInner({ events, upcomingEvents, pastEvents, brandConfig,
         />
       )}
 
-      {/* Filters — hidden when showing search results */}
       {!isShowingSearchResults && !isInitialSearchPending && (
         <EventFilters
           region={region}
@@ -222,15 +329,12 @@ function TimelineContentInner({ events, upcomingEvents, pastEvents, brandConfig,
 
       {isInitialSearchPending ? (
         <div className="flex justify-center py-16">
-          <svg className="w-6 h-6 text-white/40 animate-spin" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-          </svg>
+          <Spinner large />
         </div>
       ) : isShowingSearchResults ? (
         <SearchResults
           results={searchResults}
-          events={events}
+          events={allEvents ?? upcomingEvents ?? []}
           query={searchQuery}
           onSearch={handleSearch}
           onClear={handleClearSearch}
@@ -241,8 +345,8 @@ function TimelineContentInner({ events, upcomingEvents, pastEvents, brandConfig,
       ) : view === 'calendar' ? (
         <EventCalendar events={filteredAll} brandConfig={brandConfig} />
       ) : view === 'map' ? (
-        <EventMap events={filteredUpcoming} brandConfig={brandConfig} />
-      ) : groupedEvents.length === 0 ? (
+        <EventMap events={filterEvents(upcomingEvents ?? [])} brandConfig={brandConfig} />
+      ) : groupedEvents.length === 0 && !isPaginatedLoading ? (
         <EmptyState viewMode={view} hasActiveFilters={hasActiveFilters || nearMe} onClearFilters={clearFilters} />
       ) : (
         <div className="max-w-7xl mx-auto">
@@ -255,9 +359,53 @@ function TimelineContentInner({ events, upcomingEvents, pastEvents, brandConfig,
               userLocation={userLocation}
             />
           ))}
+          {isPaginatedView && initialPage && (
+            <div
+              ref={sentinelRef}
+              role="status"
+              aria-live="polite"
+              aria-busy={isPaginatedLoading}
+              className="min-h-[3rem] flex items-center justify-center py-8 text-sm text-white/60"
+            >
+              {paginatedError ? (
+                <div className="flex flex-col items-center gap-2 text-center">
+                  <span>Couldn&apos;t load more events.</span>
+                  <button
+                    type="button"
+                    onClick={loadMore}
+                    className="cursor-pointer px-3 py-1.5 text-xs font-medium text-white/80 hover:text-white bg-white/10 hover:bg-white/15 transition-colors"
+                    style={{ borderRadius: 'var(--radius-control)' }}
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : isPaginatedLoading ? (
+                <span className="flex items-center gap-2">
+                  <Spinner />
+                  <span>{nearMe ? 'Looking for events near you…' : 'Loading more events…'}</span>
+                </span>
+              ) : capReached ? (
+                <span className="text-white/50">
+                  Showing first {MAX_ACCUMULATED_ROWS.toLocaleString()} results — refine your filters (try search) to see more.
+                </span>
+              ) : !hasMore ? (
+                <span className="text-white/40">End of events</span>
+              ) : null}
+            </div>
+          )}
         </div>
       )}
     </div>
+  )
+}
+
+function Spinner({ large }: { large?: boolean }) {
+  const cls = large ? 'w-6 h-6 text-white/40' : 'w-4 h-4 text-white/60'
+  return (
+    <svg className={`${cls} animate-spin`} fill="none" viewBox="0 0 24 24" aria-hidden="true">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+    </svg>
   )
 }
 
