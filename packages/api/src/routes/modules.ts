@@ -1140,6 +1140,30 @@ modulesRouter.get('/check-updates', async (_req, res) => {
       }
     }
 
+    // Also merge in pending updates detected by `/sources/refresh` (git-pull
+    // path). Those land in `module_updates_available` keyed by module_id and
+    // are otherwise invisible to this endpoint, which is why the admin UI's
+    // update banner never appeared after a sources refresh.
+    const { data: pending } = await supabase
+      .from('module_updates_available')
+      .select('module_id, upstream_version, platform_compatible, min_platform_version');
+    const alreadyListed = new Set(updates.map((u) => u.id));
+    for (const p of (pending ?? []) as Record<string, unknown>[] ) {
+      const moduleId = p.module_id as string;
+      if (alreadyListed.has(moduleId)) continue;          // version-bump path won
+      const row = installedMap.get(moduleId) as InstalledModuleRow | undefined;
+      if (!row) continue;
+      updates.push({
+        id: moduleId,
+        name: row.name ?? moduleId,
+        installedVersion: row.version,
+        availableVersion: (p.upstream_version as string) ?? row.version,
+        reason: 'source_changed' as never,                // new reason key
+        platformCompatible: (p.platform_compatible as boolean) !== false,
+        minPlatformVersion: (p.min_platform_version as string | null) ?? undefined,
+      });
+    }
+
     return res.json({ updates, platformVersion: config.platformVersion });
   } catch (err) {
     console.error('[modules] Check updates failed:', err);
@@ -1159,6 +1183,24 @@ modulesRouter.post('/:id/update', async (req, res) => {
   try {
     const supabase = getServiceClient();
     const moduleId = req.params.id;
+
+    // If `/sources/refresh` flagged a pending update for this module
+    // (git-pulled new code), the source dir has the new tree but the live
+    // tree is still the old one — so loadAllModules() returns stale config.
+    // Forward to the snapshot-install flow which copies source → live first.
+    const { data: pending } = await supabase
+      .from('module_updates_available')
+      .select('module_id')
+      .eq('module_id', moduleId)
+      .maybeSingle();
+    if (pending) {
+      // Express doesn't expose a direct re-dispatch helper, but the
+      // /:id/apply-update handler is just a few lines below — call it via
+      // an internal redirect by invoking the same logic. Easiest: 307 the
+      // client. But the client uses fetch with credentials, and 307
+      // forwards method+body, so this is safe.
+      return res.redirect(307, `/api/modules/${encodeURIComponent(moduleId)}/apply-update`);
+    }
 
     const modules = await loadAllModules();
     const mod = modules.find((m) => m.config.id === moduleId);
@@ -1635,7 +1677,7 @@ modulesRouter.post('/sources/refresh', async (_req, res) => {
     const { computeModuleHashFromPath } = await import('@gatewaze/shared/modules');
     let updatesAvailable = 0;
 
-    for (const row of (installed ?? []) as Record<string, unknown>[] as InstalledModuleRow[]) {
+    for (const row of (installed ?? []) as unknown as InstalledModuleRow[]) {
       const mod = modules.find((m) => m.config.id === row.id);
       if (!mod || !mod.resolvedDir) continue;
 

@@ -26,9 +26,28 @@ spec:
       serviceAccountName: {{ include "gatewaze.serviceAccountName" . }}
       containers:
         - name: scheduler
-          image: "{{ .Values.image.registry }}/api:{{ .Values.image.tag }}"
+          # The scheduler has its own image; the legacy
+          # scripts/scheduler/start-scheduler.js is its default CMD.
+          # Earlier versions of this chart used the api image with a
+          # command override pointing at the new TS-compiled scheduler,
+          # which silently shipped most of the legacy cron families
+          # disabled (scraper / embedding / luma / meetup schedulers
+          # only exist in the legacy script).
+          image: "{{ .Values.image.registry }}/scheduler:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.scheduler.healthCheck.enabled }}
+          # Opt-in to the new TS-compiled scheduler. The scheduler
+          # image still ships the legacy script as default CMD, so this
+          # override is what flips the entrypoint when the new runtime
+          # is ready. Premium-modules must already export `crons[]`
+          # (queue-based) to replace the in-process `schedulers[]` the
+          # legacy script reads.
           command: ["node", "packages/api/dist/scheduler/start-scheduler.js"]
+          {{- end }}
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.scheduler.metricsPort | default 9091 }}
+              protocol: TCP
           envFrom:
             - configMapRef:
                 name: {{ include "gatewaze.fullname" . }}-config
@@ -37,16 +56,29 @@ spec:
             {{- with .Values.extraEnvFrom }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+          {{- if .Values.scheduler.healthCheck.enabled }}
+          startupProbe:
+            httpGet:
+              path: /ready
+              port: metrics
+            failureThreshold: 30
+            periodSeconds: 1
+            timeoutSeconds: 1
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: metrics
+            periodSeconds: 10
+            timeoutSeconds: 3
           livenessProbe:
-            exec:
-              command:
-                - node
-                - -e
-                - "process.exit(0)"
-            initialDelaySeconds: 15
+            httpGet:
+              path: /ready
+              port: metrics
+            initialDelaySeconds: 30
             periodSeconds: 30
             timeoutSeconds: 10
             failureThreshold: 3
+          {{- end }}
           resources:
             {{- toYaml .Values.resources.scheduler | nindent 12 }}
       {{- with .Values.nodeSelector }}

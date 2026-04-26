@@ -59,3 +59,23 @@ data:
   {{- if .Values.moduleSources }}
   MODULE_SOURCES: {{ .Values.moduleSources | quote }}
   {{- end }}
+
+  # Queue layer (BullMQ) — see spec-job-queue-redis-architecture §4.9.
+  # Per-queue concurrency for built-in queues. Module-registered queues
+  # are tuned via WORKER_CONCURRENCY_<MODULE_ID>_<QUEUE_NAME>; set those
+  # under .Values.env if needed.
+  WORKER_CONCURRENCY_JOBS: {{ .Values.queue.concurrency.jobs | default 2 | quote }}
+  WORKER_CONCURRENCY_EMAIL: {{ .Values.queue.concurrency.email | default 5 | quote }}
+  WORKER_CONCURRENCY_IMAGE: {{ .Values.queue.concurrency.image | default 5 | quote }}
+  WORKER_METRICS_PORT: {{ .Values.worker.metricsPort | default 9090 | quote }}
+  SCHEDULER_METRICS_PORT: {{ .Values.scheduler.metricsPort | default 9091 | quote }}
+  LOG_LEVEL: {{ .Values.logLevel | default "info" | quote }}
+
+  # Arbitrary extra env from values.yaml `env:` block. Passed through
+  # verbatim so brand-specific keys (BRAND_ID, OPENAI_API_KEY,
+  # BROWSERLESS_API_KEY, BRAVE_SEARCH_API_KEY, etc.) land in pods via the
+  # same configMapRef the core keys above use. Values are quoted so
+  # numeric/bool-looking strings survive unchanged.
+  {{- range $key, $value := .Values.env }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}

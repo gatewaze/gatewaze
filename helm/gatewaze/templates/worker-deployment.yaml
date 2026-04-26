@@ -30,6 +30,10 @@ spec:
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.worker.metricsPort | default 9090 }}
+              protocol: TCP
           envFrom:
             - configMapRef:
                 name: {{ include "gatewaze.fullname" . }}-config
@@ -38,16 +42,42 @@ spec:
             {{- with .Values.extraEnvFrom }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+          {{- if .Values.worker.healthCheck.enabled }}
+          # Startup probe: gives the worker time to load modules,
+          # register handlers, and open Postgres LISTEN channels before
+          # the readiness/liveness checks start failing it. /ready flips
+          # to 200 only after registerModuleQueues() resolves.
+          #
+          # These probes only work against the new TS-compiled worker
+          # (packages/api/src/workers/job-worker.ts), which exposes
+          # /ready on the metrics port. The image's default CMD still
+          # runs the legacy scripts/workers/job-worker.js — that worker
+          # has no HTTP surface at all and probes against it 404.
+          # Brands still on the legacy entrypoint must set
+          # `worker.healthCheck.enabled: false` until handler / cron
+          # migration to module-defined queues completes.
+          startupProbe:
+            httpGet:
+              path: /ready
+              port: metrics
+            failureThreshold: 30
+            periodSeconds: 1
+            timeoutSeconds: 1
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: metrics
+            periodSeconds: 10
+            timeoutSeconds: 3
           livenessProbe:
-            exec:
-              command:
-                - pgrep
-                - -f
-                - "node.*job-worker"
-            initialDelaySeconds: 15
+            httpGet:
+              path: /ready
+              port: metrics
+            initialDelaySeconds: 30
             periodSeconds: 30
             timeoutSeconds: 10
             failureThreshold: 3
+          {{- end }}
           resources:
             {{- toYaml .Values.resources.worker | nindent 12 }}
       {{- with .Values.nodeSelector }}

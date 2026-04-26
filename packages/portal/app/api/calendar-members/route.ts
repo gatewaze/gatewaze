@@ -33,6 +33,7 @@ interface SignupBody {
     push?: boolean
   }
   marketing_consent?: boolean
+  interests?: string[]
 }
 
 function getServiceSupabase() {
@@ -253,17 +254,36 @@ export async function POST(request: NextRequest) {
     .eq('person_id', personId)
     .maybeSingle()
 
+  // Sanitize interests: lowercase, trim, dedupe, cap length and count.
+  const cleanInterests = Array.isArray(body.interests)
+    ? Array.from(
+        new Set(
+          body.interests
+            .filter((s): s is string => typeof s === 'string')
+            .map((s) => s.trim().toLowerCase())
+            .filter((s) => s.length > 0 && s.length <= 60)
+        )
+      ).slice(0, 25)
+    : []
+
   if (existingMember) {
     const existing = existingMember as { id: string; membership_status: string }
-    if (existing.membership_status !== 'active') {
+    const reactivatePatch: Record<string, unknown> =
+      existing.membership_status !== 'active'
+        ? {
+            membership_status: 'active',
+            confirmed_at: now,
+            confirmation_token: null,
+            confirmation_sent_at: null,
+          }
+        : {}
+    if (cleanInterests.length > 0) {
+      reactivatePatch.interests = cleanInterests
+    }
+    if (Object.keys(reactivatePatch).length > 0) {
       await supabase
         .from('calendars_members')
-        .update({
-          membership_status: 'active',
-          confirmed_at: now,
-          confirmation_token: null,
-          confirmation_sent_at: null,
-        })
+        .update(reactivatePatch)
         .eq('id', existing.id)
     }
   } else {
@@ -281,6 +301,7 @@ export async function POST(request: NextRequest) {
         confirmed_at: now,
         unsubscribe_token: generateUnsubscribeToken(),
         marketing_consent_at: body.marketing_consent ? now : null,
+        interests: cleanInterests.length > 0 ? cleanInterests : null,
       })
 
     if (insertErr) {

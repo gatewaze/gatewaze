@@ -3,8 +3,6 @@ import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 
 import "./i18n/config";
-import "./utils/setupEvents";
-import "./utils/validateEventsData";
 import "./utils/pdfjsSetup";
 import { setupFavicon } from './utils/favicon';
 

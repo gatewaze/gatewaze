@@ -119,6 +119,22 @@ export interface GatewazeModule {
               ((router: unknown, ctx: ModuleRuntimeContext) => void | Promise<void>);
   workers?: WorkerDefinition[];
   schedulers?: SchedulerDefinition[];
+  /**
+   * Module-owned BullMQ queues. Each declared queue gets its own Queue
+   * instance, Worker (with declared concurrency + defaultJobOptions), and
+   * handler set. Use this when the shared `jobs` queue's defaults don't
+   * fit (custom retry/backoff, distinct concurrency, or a LISTEN/NOTIFY
+   * wake path). Otherwise, prefer `workers[]` on the shared `jobs` queue.
+   *
+   * See spec-job-queue-redis-architecture.md §15.
+   */
+  queues?: QueueDefinition[];
+  /**
+   * Scheduled (repeatable) jobs registered by the scheduler process.
+   * Supersedes the legacy `schedulers[]` field — new modules should use
+   * this. Each entry becomes a BullMQ `upsertJobScheduler` call.
+   */
+  crons?: CronDefinition[];
   edgeFunctions?: string[];
   /**
    * Additional files from the module root to deploy into the edge functions
@@ -141,6 +157,19 @@ export interface GatewazeModule {
   guide?: string;
   /** Theme overrides — only meaningful when type === 'theme' */
   themeOverrides?: ThemeOverrides;
+
+  /**
+   * Declarative listing schemas per spec-platform-listing-pattern.md.
+   * When set, the platform's listing factories (createAdminListingRoute,
+   * createPublicApiListingRoute, etc.) consume these schemas to produce
+   * paginated, server-validated, properly-indexed list endpoints across
+   * admin / publicApi / mcp / portal consumers.
+   *
+   * The shape is opaque here to avoid pulling Supabase types into this
+   * file; the canonical type is `ListingSchema` from
+   * `@gatewaze/shared/listing`.
+   */
+  listings?: unknown[];
   onInstall?: (ctx?: ModuleRuntimeContext) => Promise<void>;
   onEnable?: (ctx?: ModuleRuntimeContext) => Promise<void>;
   onDisable?: (ctx?: ModuleRuntimeContext) => Promise<void>;
@@ -171,6 +200,14 @@ export interface GatewazeModule {
    * Used to generate the /api/v1/openapi.json spec.
    */
   publicApiSchema?: OpenApiContribution;
+
+  /**
+   * Content sources exposed via the unified /api/v1/content endpoint.
+   * Each source describes a content-bearing table that supports the
+   * platform-wide content_category column. The /content endpoint
+   * unions across all enabled modules' sources.
+   */
+  publicContentSources?: PublicContentSource[];
 
   // ── MCP contributions ─────────────────────────────────────────────────
 
@@ -228,11 +265,109 @@ export interface SlotRegistration {
 }
 
 export interface WorkerDefinition {
+  /** Job name this handler processes (e.g. `triage:resolve-route`). */
   name: string;
+  /** Handler path relative to the module's directory. */
   handler: string;
+  /**
+   * @deprecated Concurrency is a queue-level setting, not a handler one.
+   * Ignored by the worker; kept for backward-compat reading.
+   */
   concurrency?: number;
+  /**
+   * Optional handler-level payload schema. If present, the worker
+   * re-validates `job.data` against this schema on dequeue and fails the
+   * job with a validation error on mismatch. Path to a file that default-
+   * exports a Zod schema, relative to the module's directory.
+   */
+  schemaPath?: string;
 }
 
+/**
+ * BullMQ queue declared by a module. The worker process constructs a
+ * Queue + Worker pair for each entry. Handlers are dispatched by job
+ * `name`.
+ */
+export interface QueueDefinition {
+  /** Queue name; must be unique across all installed modules. By convention, prefix with `<moduleId>:`. */
+  name: string;
+  /**
+   * BullMQ defaultJobOptions. Overrides the global built-in defaults
+   * (3 attempts, 5s exponential backoff, 24h complete / 7d fail cleanup).
+   */
+  defaultJobOptions?: {
+    attempts?: number;
+    backoff?: {
+      type: 'fixed' | 'exponential' | 'custom';
+      delay?: number;
+      /** For type='custom': ms per attempt, index 0 = attempt 1. */
+      settings?: number[];
+    };
+    removeOnComplete?: { count?: number; age?: number };
+    removeOnFail?: { count?: number; age?: number };
+  };
+  /**
+   * Default concurrency for the Worker. May be overridden via env var
+   * `WORKER_CONCURRENCY_<MODULE_ID>_<QUEUE_NAME>` (uppercased, non-alphanumerics → `_`).
+   * Defaults to 2 if unset.
+   */
+  defaultConcurrency?: number;
+  /** Handlers dispatched by job `name` within this queue. */
+  handlers: QueueHandlerDefinition[];
+  /**
+   * Optional Postgres LISTEN/NOTIFY wake path. When set, the worker holds
+   * a dedicated PG connection LISTENing on the channel; on notification
+   * the worker invokes a module-provided reconcile hook. A poll fallback
+   * runs every `poll.intervalMs` in case NOTIFY is lost.
+   *
+   * The reconcile hook is a module handler registered by name under
+   * `handlers[]`; the worker dispatches a synthetic job of that name with
+   * `{ _trigger: 'listen' | 'poll', payload?: ... }` data.
+   */
+  listen?: {
+    channel: string;
+    /** Handler name (within this queue's `handlers[]`) invoked on wake. */
+    onWake: string;
+    poll?: { intervalMs: number };
+  };
+}
+
+export interface QueueHandlerDefinition {
+  /** Job name handled. */
+  name: string;
+  /** Handler path, relative to the module's directory. */
+  handler: string;
+  /**
+   * Path to a file that default-exports a Zod schema, relative to the
+   * module's directory. Strongly recommended.
+   */
+  schemaPath?: string;
+}
+
+/**
+ * Scheduled (repeatable) job. The scheduler process calls
+ * `Queue.upsertJobScheduler(name, schedule, { name: data.kind, data })`
+ * on the named queue at startup, and reconciles against installed
+ * modules on each restart.
+ */
+export interface CronDefinition {
+  /** Globally unique cron name (across all modules). */
+  name: string;
+  /**
+   * Target queue. Built-in values: `jobs`, `email`, `image`. Module-
+   * registered queues are referenced by their declared `name`.
+   */
+  queue: string;
+  schedule:
+    | { every: number }
+    | { pattern: string; tz?: string };
+  /** Payload. `data.kind` becomes the BullMQ job name. */
+  data: Record<string, unknown> & { kind: string };
+}
+
+/**
+ * @deprecated Use `crons[]`. Retained for backward-compat reading.
+ */
 export interface SchedulerDefinition {
   name: string;
   cron: string;
@@ -371,6 +506,12 @@ export interface InstalledModuleRow {
   }> | null;
   edge_functions_hash?: string | null;
   source_id?: string | null;
+  /**
+   * Content hash of the module source dir that was installed. The reconcile
+   * loop compares this against the upstream source's current hash to decide
+   * whether an update is available (see api/src/routes/modules.ts update-check).
+   */
+  source_snapshot_hash?: string | null;
   on_install_ran_at?: string | null;
   install_completed_at?: string | null;
   ui_contributions_ignored?: string[];
@@ -493,6 +634,47 @@ export interface OpenApiContribution {
   paths: Record<string, unknown>;
   /** Schema definitions (merged into components/schemas, auto-prefixed with moduleId) */
   schemas?: Record<string, unknown>;
+}
+
+/**
+ * Declares a content-bearing table for the unified /api/v1/content endpoint.
+ * The endpoint unions across all enabled modules' content sources, returning
+ * a normalized response with type, id, title, date, content_category, and a
+ * resource link for each record.
+ */
+export interface PublicContentSource {
+  /** Stable type identifier returned in each row, e.g. 'event' or 'newsletter_edition'. */
+  type: string;
+  /** Database table or view to query. */
+  table: string;
+  /** Required scope to access this source — checked per row before inclusion. */
+  scope: string;
+  /**
+   * Column mapping from the table to the normalized content row shape.
+   * The endpoint will SELECT exactly these columns plus content_category.
+   */
+  fields: {
+    id: string;
+    title: string;
+    date: string;
+    /** Optional summary/description column. */
+    summary?: string;
+  };
+  /** Filters that must always apply (e.g. `is_listed = true`). */
+  visibilityFilter?: Array<{ column: string; eq: string | boolean | number }>;
+  /**
+   * Build the resource path (relative to /api/v1) for a row.
+   * Example: (row) => `/events/${row.event_id ?? row.id}`
+   */
+  resourcePath: (row: Record<string, unknown>) => string;
+  /**
+   * All public columns to include when /content is called with ?expand=full.
+   * The unified endpoint will SELECT these for each windowed row and attach
+   * them under `full` on the response. If omitted, the source supports the
+   * normalized response shape only — `?expand=full` will fall back to the
+   * summary fields for that source.
+   */
+  fullFields?: readonly string[];
 }
 
 // ── MCP types ─────────────────────────────────────────────────────────────
