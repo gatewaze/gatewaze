@@ -30,33 +30,52 @@ export interface EventData {
   all: Event[]
 }
 
+// Supabase Cloud projects ship with a server-side PostgREST cap of 1000
+// rows per request (the "Max Rows" project-API setting). Production
+// brands quickly exceed that for past events, and the cap is enforced
+// regardless of the client's `.limit(N)` request — the response is
+// silently truncated. Page through 1000-row windows until exhausted.
+const PAGE_SIZE = 1000
+// Hard ceiling so a runaway dataset can't take the whole portal home page
+// down — 20k events is well past anything we have today.
+const MAX_PAGES = 20
+
 export async function getEvents(brandId: string): Promise<EventData> {
   const supabase = await createServerSupabase(brandId)
   const now = new Date().toISOString()
 
-  // Fetch upcoming events (future start date or no start date set)
-  // Only listed events appear in portal listings (unlisted events use custom domains)
-  const { data: upcomingEvents } = await supabase
-    .from('events')
-    .select(EVENT_SELECT_FIELDS)
-    .eq('is_live_in_production', true)
-    .eq('is_listed', true)
-    .or(`event_start.gte.${now},event_start.is.null`)
-    .order('event_start', { ascending: true, nullsFirst: false })
-    .limit(10000)
+  async function paginate(direction: 'upcoming' | 'past'): Promise<Event[]> {
+    const out: Event[] = []
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const from = page * PAGE_SIZE
+      const to = from + PAGE_SIZE - 1
+      let q = supabase
+        .from('events')
+        .select(EVENT_SELECT_FIELDS)
+        .eq('is_live_in_production', true)
+        .eq('is_listed', true)
+      q = direction === 'upcoming'
+        ? q
+            .or(`event_start.gte.${now},event_start.is.null`)
+            .order('event_start', { ascending: true, nullsFirst: false })
+        : q
+            .lt('event_start', now)
+            .order('event_start', { ascending: false })
+      const { data, error } = await q.range(from, to)
+      if (error) throw error
+      const rows = (data as Event[]) ?? []
+      out.push(...rows)
+      if (rows.length < PAGE_SIZE) break
+    }
+    return out
+  }
 
-  // Fetch past events (ordered by start date descending, most recent first)
-  const { data: pastEvents } = await supabase
-    .from('events')
-    .select(EVENT_SELECT_FIELDS)
-    .eq('is_live_in_production', true)
-    .eq('is_listed', true)
-    .lt('event_start', now)
-    .order('event_start', { ascending: false })
-    .limit(10000)
-
-  const upcoming = (upcomingEvents as Event[]) || []
-  const past = (pastEvents as Event[]) || []
+  // Fetch in parallel — the two windows don't overlap so they don't
+  // contend on the same rows.
+  const [upcoming, past] = await Promise.all([
+    paginate('upcoming'),
+    paginate('past'),
+  ])
 
   return {
     upcoming,
