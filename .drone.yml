@@ -1,0 +1,137 @@
+# Drone CI for Gatewaze
+#
+# Mirrors the helixos CD pattern (helixos/.drone.yml):
+# 1. Build pipeline: builds 5 production Docker images on every push/PR
+# 2. Deploy pipeline: SSH into VPS, pull pre-built images, restart
+#
+# Secrets required (configure in Drone UI for this repo):
+#   helix_registry_password - password for registry.helixml.tech (username: admin)
+#   gatewaze_ssh_host       - VPS IP (46.224.107.45 — same VPS as HelixOS)
+#   gatewaze_ssh_user       - SSH user (root)
+#   gatewaze_ssh_key        - Private SSH key for VPS
+#   gatewaze_anon_key       - Supabase anon JWT (baked into the admin bundle at build time)
+
+# ─── Build pipeline: runs on every push and PR ───────────────────────────────
+#
+# Builds the five app images. On main: pushes to registry tagged with the
+# commit SHA. The admin image bakes in VITE_SUPABASE_URL/ANON_KEY as
+# build args so the SPA points at the prod Supabase domain at runtime.
+
+kind: pipeline
+type: docker
+name: build
+
+trigger:
+  event:
+    - push
+    - pull_request
+
+volumes:
+  - name: dockersocket
+    host:
+      path: /var/run/docker.sock
+
+steps:
+  - name: build-and-push
+    image: docker:cli
+    commands:
+      - VERSION=$$(echo ${DRONE_COMMIT_SHA} | head -c 7)
+      - echo "Building gatewaze images at $${VERSION}"
+      # Admin: VITE_* baked in at build time so the SPA knows the prod Supabase URL
+      - docker build --pull --provenance=false
+        -f docker/admin/Dockerfile
+        --build-arg VITE_SUPABASE_URL=https://supabase.gatewaze.helix.ml
+        --build-arg VITE_SUPABASE_ANON_KEY=$${ANON_KEY}
+        -t registry.helixml.tech/helix/gatewaze-admin:$${VERSION}
+        .
+      - docker build --pull --provenance=false
+        -f docker/portal/Dockerfile
+        -t registry.helixml.tech/helix/gatewaze-portal:$${VERSION}
+        .
+      - docker build --pull --provenance=false
+        -f docker/api/Dockerfile
+        -t registry.helixml.tech/helix/gatewaze-api:$${VERSION}
+        .
+      - docker build --pull --provenance=false
+        -f docker/worker/Dockerfile
+        -t registry.helixml.tech/helix/gatewaze-worker:$${VERSION}
+        docker/worker
+      - docker build --pull --provenance=false
+        -f docker/scheduler/Dockerfile
+        -t registry.helixml.tech/helix/gatewaze-scheduler:$${VERSION}
+        .
+      # Only push on main (not PRs or feature branches)
+      - |
+        if [ "${DRONE_BRANCH}" = "main" ] && [ "${DRONE_BUILD_EVENT}" = "push" ]; then
+          echo "$${REGISTRY_PASSWORD}" | docker login registry.helixml.tech -u admin --password-stdin
+          for svc in admin portal api worker scheduler; do
+            docker push registry.helixml.tech/helix/gatewaze-$${svc}:$${VERSION}
+            docker tag  registry.helixml.tech/helix/gatewaze-$${svc}:$${VERSION} registry.helixml.tech/helix/gatewaze-$${svc}:latest
+            docker push registry.helixml.tech/helix/gatewaze-$${svc}:latest
+          done
+          echo "Pushed gatewaze-{admin,portal,api,worker,scheduler}:$${VERSION} + :latest"
+        else
+          echo "Not on main — skipping push (build-only validation)"
+        fi
+    environment:
+      REGISTRY_PASSWORD:
+        from_secret: helix_registry_password
+      ANON_KEY:
+        from_secret: gatewaze_anon_key
+    volumes:
+      - name: dockersocket
+        path: /var/run/docker.sock
+
+---
+# ─── Deploy pipeline: pulls pre-built images on VPS ─────────────────────────
+#
+# Mirrors helixos: instead of building on the VPS, pull what CI just built.
+# IMAGE_TAG=<sha> persists in .env so any restart uses the same version.
+
+kind: pipeline
+type: docker
+name: deploy-production
+
+trigger:
+  branch:
+    - main
+  event:
+    - push
+
+depends_on:
+  - build
+
+steps:
+  - name: deploy
+    image: appleboy/drone-ssh
+    settings:
+      host:
+        from_secret: gatewaze_ssh_host
+      username:
+        from_secret: gatewaze_ssh_user
+      key:
+        from_secret: gatewaze_ssh_key
+      port: 22
+      command_timeout: 15m
+      envs:
+        - DRONE_COMMIT_SHA
+      script:
+        - set -e
+        - VERSION=$(echo ${DRONE_COMMIT_SHA} | head -c 7)
+        - echo "Deploying gatewaze at $${VERSION}"
+        - cd /root/gatewaze
+        # Refresh repo so docker-compose.prod.yml + .env updates land
+        - git fetch origin main && git reset --hard origin/main
+        # Pull the five pre-built images
+        - for svc in admin portal api worker scheduler; do
+            docker pull registry.helixml.tech/helix/gatewaze-$${svc}:$${VERSION};
+          done
+        # Persist the image tag so future restarts pin this version
+        - sed -i '/^IMAGE_TAG=/d' docker/.env
+        - echo "IMAGE_TAG=$${VERSION}" >> docker/.env
+        # Roll forward (db + supabase services stay up; only app services restart)
+        - docker compose -f docker/docker-compose.prod.yml up -d
+        # Smoke check the admin endpoint via Caddy
+        - sleep 5
+        - curl -sf https://gatewaze.helix.ml/ > /dev/null || (docker compose -f docker/docker-compose.prod.yml logs --tail 30 admin && exit 1)
+        - echo "Deploy complete — running gatewaze-*:$${VERSION}"
