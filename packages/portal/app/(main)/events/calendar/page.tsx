@@ -36,7 +36,7 @@ export default async function CalendarPage() {
     <main className="relative z-10">
       <div className="max-w-7xl mx-auto px-6 sm:px-6 lg:px-8 py-8 sm:py-12">
         <TimelineContent
-          events={all}
+          allEvents={all}
           upcomingEvents={upcoming}
           pastEvents={past}
           brandConfig={brandConfig}

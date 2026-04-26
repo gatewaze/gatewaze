@@ -37,6 +37,8 @@ importers:
         specifier: '*'
         version: link:../../../gatewaze/packages/shared
 
+  ../gatewaze-modules/modules/content-platform: {}
+
   ../gatewaze-modules/modules/events:
     dependencies:
       '@gatewaze/shared':
@@ -543,6 +545,9 @@ importers:
       '@supabase/supabase-js':
         specifier: ^2.57.4
         version: 2.98.0
+      '@tanstack/react-virtual':
+        specifier: ^3.13.24
+        version: 3.13.24(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@types/leaflet':
         specifier: ^1.9.21
         version: 1.9.21
@@ -3291,6 +3296,12 @@ packages:
 
   '@tanstack/react-virtual@3.13.21':
     resolution: {integrity: sha512-SYXFrmrbPgXBvf+HsOsKhFgqSe4M6B29VHOsX9Jih9TlNkNkDWx0hWMiMLUghMEzyUz772ndzdEeCEBx+3GIZw==}
+    peerDependencies:
+      react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+      react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+
+  '@tanstack/react-virtual@3.13.24':
+    resolution: {integrity: sha512-aIJvz5OSkhNIhZIpYivrxrPTKYsjW9Uzy+sP/mx0S3sev2HyvPb7xmjbYvokzEpfgYHy/HjzJ2zFAETuUfgCpg==}
     peerDependencies:
       react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
       react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
@@ -10719,6 +10730,12 @@ snapshots:
   '@tanstack/react-virtual@3.13.21(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
     dependencies:
       '@tanstack/virtual-core': 3.13.21
+      react: 19.2.4
+      react-dom: 19.2.4(react@19.2.4)
+
+  '@tanstack/react-virtual@3.13.24(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
+    dependencies:
+      '@tanstack/virtual-core': 3.14.0
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
 

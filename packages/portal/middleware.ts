@@ -302,6 +302,21 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // Portal listing API — defense-in-depth Vary: Host header so
+  // multi-brand CDN caches never serve one brand's data on another's
+  // domain. The route handler also sets Vary on the response; this is a
+  // belt-and-suspenders pass.
+  if (pathname.startsWith('/api/portal/listing/')) {
+    const res = NextResponse.next()
+    const existingVary = res.headers.get('Vary')
+    if (existingVary && !/(^|,\s*)Host(\s*,|\s*$)/i.test(existingVary)) {
+      res.headers.set('Vary', `${existingVary}, Host`)
+    } else if (!existingVary) {
+      res.headers.set('Vary', 'Host, Accept-Encoding')
+    }
+    return res
+  }
+
   // Refresh Supabase auth session (syncs cookies for server components).
   // updateSupabaseSession mutates request.cookies so all downstream
   // NextResponse.next({ request }) calls will carry the refreshed tokens.

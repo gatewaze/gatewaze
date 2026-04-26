@@ -60,7 +60,12 @@ export async function validateListingSchema(
 
   // 4. Every filter's underlying column must appear in indexedColumns
   //    (unless the filter kind is for a tiny enum table where it's safe).
+  //    Virtual filters declare an indicative `column` but the resolver
+  //    may compose multiple columns or use indexed-by-derivation paths
+  //    (e.g. partial indexes); module authors are trusted to verify
+  //    coverage via dedicated unit tests.
   for (const [k, decl] of Object.entries(schema.filters)) {
+    if (decl.kind === 'virtual') continue;
     if (!schema.indexedColumns.includes(decl.column)) {
       push('LISTING_SCHEMA_INVALID', `filters.${k}`,
         `filter column '${decl.column}' is not declared in indexedColumns`);
