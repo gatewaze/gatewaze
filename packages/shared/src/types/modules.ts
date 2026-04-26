@@ -157,6 +157,19 @@ export interface GatewazeModule {
   guide?: string;
   /** Theme overrides — only meaningful when type === 'theme' */
   themeOverrides?: ThemeOverrides;
+
+  /**
+   * Declarative listing schemas per spec-platform-listing-pattern.md.
+   * When set, the platform's listing factories (createAdminListingRoute,
+   * createPublicApiListingRoute, etc.) consume these schemas to produce
+   * paginated, server-validated, properly-indexed list endpoints across
+   * admin / publicApi / mcp / portal consumers.
+   *
+   * The shape is opaque here to avoid pulling Supabase types into this
+   * file; the canonical type is `ListingSchema` from
+   * `@gatewaze/shared/listing`.
+   */
+  listings?: unknown[];
   onInstall?: (ctx?: ModuleRuntimeContext) => Promise<void>;
   onEnable?: (ctx?: ModuleRuntimeContext) => Promise<void>;
   onDisable?: (ctx?: ModuleRuntimeContext) => Promise<void>;
