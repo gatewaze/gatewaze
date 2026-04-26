@@ -28,12 +28,15 @@ const router = createBrowserRouter([
           Component: (await import("@/app/pages/setup/SetupPage")).SetupPage,
         }),
       },
-      // Public developer docs — accessible without authentication
+      // Public developer docs are served by a standalone Vite entry at /docs.html
+      // (see packages/admin/docs.html). Hard-redirect any in-app /docs nav so
+      // none of Scalar's bundled CSS leaks into the admin app.
       {
         path: "docs",
-        lazy: async () => ({
-          Component: (await import("@/app/pages/docs/DocsPage")).DocsPage,
-        }),
+        Component: () => {
+          if (typeof window !== 'undefined') window.location.replace('/docs.html');
+          return null;
+        },
       },
       {
         path: "onboarding",
