@@ -16,6 +16,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.91.1",
     "@gatewaze/shared": "workspace:*",
     "@supabase/supabase-js": "^2.49.0",
     "adm-zip": "^0.5.16",
