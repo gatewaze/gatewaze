@@ -12,21 +12,38 @@ import type { ListingQuery, ListingSchema } from './types';
  * Serialise a ListingQuery into URLSearchParams.
  * Pagination flat (page, pageSize); sort flat (sort, dir); single-valued
  * filters flat; list filters as repeated keys; search as `q`.
- * Unknown keys (already in `existing`) are preserved untouched.
+ *
+ * The schema is required so we know which existing URL params are
+ * filter-shaped (and should be dropped + re-emitted from the
+ * authoritative query.filters) vs unknown brand-injected params we
+ * should preserve.
  */
-export function listingQueryToSearchParams(q: ListingQuery, existing?: URLSearchParams): URLSearchParams {
+export function listingQueryToSearchParams(
+  q: ListingQuery,
+  schema: ListingSchema,
+  existing?: URLSearchParams
+): URLSearchParams {
   const out = new URLSearchParams();
-  // Preserve unknown keys first so reset semantics are deterministic.
+
+  const reservedKeys = new Set(['page', 'pageSize', 'sort', 'dir', 'q']);
+  // All keys the schema knows about (regular + dateRange parts). These
+  // get dropped from the "preserve unknown" pass below; the new filters
+  // are emitted as the authoritative source.
+  const schemaFilterKeys = new Set<string>();
+  for (const [filterKey, decl] of Object.entries(schema.filters)) {
+    if (decl.kind === 'dateRange') {
+      schemaFilterKeys.add(`${filterKey}.from`);
+      schemaFilterKeys.add(`${filterKey}.to`);
+    } else {
+      schemaFilterKeys.add(filterKey);
+    }
+  }
+
+  // Preserve only params we don't recognise.
   if (existing) {
-    const reservedKeys = new Set(['page', 'pageSize', 'sort', 'dir', 'q']);
     for (const [k, v] of existing.entries()) {
       if (reservedKeys.has(k)) continue;
-      // Strip filter keys that we'll re-add below.
-      // The caller decides what's a filter by passing the schema to the
-      // parse() function; for serialise, we trust the ListingQuery's
-      // filters object as authoritative — drop any key that appears in
-      // q.filters to avoid duplicates, and keep the rest.
-      if (q.filters && k in q.filters) continue;
+      if (schemaFilterKeys.has(k)) continue;
       out.append(k, v);
     }
   }
@@ -45,11 +62,11 @@ export function listingQueryToSearchParams(q: ListingQuery, existing?: URLSearch
 
   if (q.filters) {
     for (const [key, value] of Object.entries(q.filters)) {
-      if (value === undefined || value === null) continue;
+      if (value === undefined || value === null || value === '') continue;
       if (Array.isArray(value)) {
+        if (value.length === 0) continue;
         for (const v of value) out.append(key, String(v));
       } else if (typeof value === 'object') {
-        // dateRange: { from, to }
         if ('from' in value && 'to' in value) {
           const r = value as { from: string; to: string };
           out.set(`${key}.from`, r.from);
