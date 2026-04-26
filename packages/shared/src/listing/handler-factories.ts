@@ -192,7 +192,7 @@ export function createAdminDistinctRoute(config: AdminDistinctRouteConfig): Admi
       // Dedup + count in JS. With ~200 expected distinct values and at most
       // limit*10 rows fetched, this is microseconds.
       const counts = new Map<string, number>();
-      for (const row of (data ?? []) as Array<Record<string, unknown>>) {
+      for (const row of (data ?? []) as unknown as Array<Record<string, unknown>>) {
         const raw = row[requestedColumn];
         if (raw === null || raw === undefined) continue;
         const key = String(raw);
