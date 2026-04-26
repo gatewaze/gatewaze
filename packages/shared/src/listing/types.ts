@@ -205,6 +205,14 @@ export interface ListingSchema {
   filters: Record<string, FilterDeclaration>;
   searchable: ReadonlyArray<string>;
   indexedColumns: ReadonlyArray<string>;
+  /**
+   * Allowlist of columns the distinct-values endpoint will return for
+   * the admin filter UI. Each column SHOULD be indexed (otherwise the
+   * DISTINCT scan is expensive). Defaults to empty (no distinct
+   * endpoint exposed). Per spec §6 — modules opt in per-column to
+   * prevent accidental enumeration of sensitive columns.
+   */
+  distinctableColumns?: ReadonlyArray<string>;
   authFilters: {
     admin?: ((ctx: HandlerContext) => SupabaseFilterFn | null) | null;
     publicApi?: ((ctx: HandlerContext) => SupabaseFilterFn | null) | null;
