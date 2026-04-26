@@ -1,5 +1,6 @@
 import { Tabs as RadixTabs } from "@radix-ui/themes";
 import type { ReactNode } from "react";
+import clsx from "clsx";
 
 export interface Tab {
   id: string;
@@ -15,10 +16,74 @@ export interface TabsProps {
   className?: string;
   /** When true, uses wider padding suited for full-width hero headers */
   fullWidth?: boolean;
+  /**
+   * Visual variant.
+   * - `default`: Radix Themes Tabs (used for the primary/top-level tab strip)
+   * - `underline`: flat hand-rolled underline tabs, intended for secondary
+   *   sub-tabs nested under a primary tab strip so the two levels are
+   *   visually distinct.
+   */
+  variant?: "default" | "underline";
 }
 
-export function Tabs({ value, onChange, tabs, className, fullWidth }: TabsProps) {
-  return (
+export function Tabs({
+  value,
+  onChange,
+  tabs,
+  className,
+  fullWidth,
+  variant = "default",
+}: TabsProps) {
+  if (variant === "underline") {
+    return (
+      <div
+        role="tablist"
+        className={clsx(
+          "flex gap-1 border-b border-[var(--gray-a5)]",
+          fullWidth && "px-(--margin-x)",
+          className,
+        )}
+      >
+        {tabs.map((tab) => {
+          const active = tab.id === value;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => onChange(tab.id)}
+              className={clsx(
+                "px-4 py-2 text-sm font-medium transition-colors -mb-px inline-flex items-center gap-2 whitespace-nowrap",
+                active
+                  ? "border-b-2 border-[var(--accent-9)] text-[var(--accent-11)]"
+                  : "border-b-2 border-transparent text-[var(--gray-a9)] hover:text-[var(--gray-12)]",
+              )}
+            >
+              {tab.icon && <span className="inline-flex shrink-0">{tab.icon}</span>}
+              <span>{tab.label}</span>
+              {tab.count !== undefined && (
+                <span className={clsx("text-xs", active ? "text-[var(--accent-11)]" : "text-[var(--gray-a9)]")}>
+                  ({tab.count})
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // Default (Radix Themes) variant.
+  //
+  // When `fullWidth` is true, the tab strip sits flush under a hero/cover
+  // section (Calendar / Event Detail / People detail). The Radix default
+  // already gives us the bottom underline, which is what we want there.
+  //
+  // Otherwise — used in dashboards (content hub, modules page, etc.) — wrap
+  // in a bordered, rounded container so the tab strip reads as a card-like
+  // header with a border on all four sides.
+  const root = (
     <RadixTabs.Root value={value} onValueChange={onChange} className={className} {...(fullWidth ? { "data-full-width": "" } : {})}>
       <RadixTabs.List>
         {tabs.map((tab) => (
@@ -30,5 +95,12 @@ export function Tabs({ value, onChange, tabs, className, fullWidth }: TabsProps)
         ))}
       </RadixTabs.List>
     </RadixTabs.Root>
+  );
+
+  if (fullWidth) return root;
+  return (
+    <div className="rounded-md border border-[var(--gray-a5)] overflow-hidden">
+      {root}
+    </div>
   );
 }
