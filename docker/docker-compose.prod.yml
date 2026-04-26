@@ -385,6 +385,11 @@ services:
       - gatewaze-data:/var/lib/gatewaze
       - gatewaze-module-sources:/var/lib/gatewaze/sources
       - gatewaze-module-live:/var/lib/gatewaze/modules
+      # The module reconcile loop's deployEdgeFunctions() copies module
+      # functions to <projectRoot>/supabase/functions/ (= /app/supabase/functions
+      # in this container). Bind-mount the same host path the edge runtime
+      # reads from so writes here become visible to the edge runtime.
+      - ../supabase/functions:/app/supabase/functions
     environment:
       PORT: "3002"
       NODE_ENV: production
