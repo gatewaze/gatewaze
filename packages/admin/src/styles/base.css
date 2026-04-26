@@ -29,6 +29,11 @@ body.is-monochrome::before {
   @apply duration-[.25s] ease-in [transition-property:width,padding-left,padding-right,margin-left,margin-right];
 }
 
+@keyframes drawerSlideIn {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+
 .is-sidebar-open .transition-content {
   @apply ease-out;
 }
