@@ -180,7 +180,7 @@ async function fetchTableColumns(supabase: SupabaseClient, table: string): Promi
   // information_schema is exposed via PostgREST when the API uses service role.
   // We query without RLS for table metadata.
   const { data, error } = await supabase.rpc('listing_introspect_columns', { p_table: table }).then(
-    (r) => r,
+    (r: any) => r,
     () => ({ data: null, error: { message: 'rpc-missing' } as const })
   );
   if (error || !Array.isArray(data)) {
@@ -194,7 +194,7 @@ async function fetchTableColumns(supabase: SupabaseClient, table: string): Promi
 
 async function fetchIndexedColumns(supabase: SupabaseClient, table: string): Promise<Set<string> | null> {
   const { data, error } = await supabase.rpc('listing_introspect_indexes', { p_table: table }).then(
-    (r) => r,
+    (r: any) => r,
     () => ({ data: null, error: { message: 'rpc-missing' } as const })
   );
   if (error || !Array.isArray(data)) {
@@ -205,7 +205,7 @@ async function fetchIndexedColumns(supabase: SupabaseClient, table: string): Pro
 
 async function fetchExtensionPresent(supabase: SupabaseClient, extName: string): Promise<boolean> {
   const { data, error } = await supabase.rpc('listing_extension_installed', { p_name: extName }).then(
-    (r) => r,
+    (r: any) => r,
     () => ({ data: null, error: { message: 'rpc-missing' } as const })
   );
   if (error) return true; // Skip if RPC missing (don't fail-closed on an introspection gap).
@@ -214,7 +214,7 @@ async function fetchExtensionPresent(supabase: SupabaseClient, extName: string):
 
 async function fetchColumnIsUnique(supabase: SupabaseClient, table: string, column: string): Promise<boolean> {
   const { data, error } = await supabase.rpc('listing_column_is_unique', { p_table: table, p_column: column }).then(
-    (r) => r,
+    (r: any) => r,
     () => ({ data: null, error: { message: 'rpc-missing' } as const })
   );
   if (error) return true; // Skip if RPC missing.
