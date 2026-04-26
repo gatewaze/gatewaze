@@ -301,6 +301,7 @@ export async function POST(request: NextRequest) {
         confirmed_at: now,
         unsubscribe_token: generateUnsubscribeToken(),
         marketing_consent_at: body.marketing_consent ? now : null,
+        interests: cleanInterests.length > 0 ? cleanInterests : null,
       })
 
     if (insertErr) {
