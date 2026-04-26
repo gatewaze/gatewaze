@@ -32,18 +32,45 @@ export type {
   AdminListingHandler,
   AdminListingRequest,
   AdminListingResponse,
+  AdminDistinctRouteConfig,
+  AdminDistinctHandler,
+  AdminDistinctRequest,
+  AdminDistinctResponse,
+  DistinctValue,
   PublicApiListingRouteConfig,
+  PublicApiListingHandler,
   McpListingToolConfig,
+  McpListingTool,
+  McpListingToolInput,
+  McpListingToolOutput,
   PortalListingLoaderConfig,
+  PortalListingLoader,
+  PortalListingLoaderResult,
   BuildHandlerContextInput,
 } from './handler-factories';
 export {
   createAdminListingRoute,
+  createAdminDistinctRoute,
   createPublicApiListingRoute,
   createMcpListingTool,
   createPortalListingLoader,
+  publicApiCacheControl,
   parseListingQueryFromHttp,
   buildHandlerContext,
 } from './handler-factories';
+
+// Phase 12 — cache invalidation
+export {
+  listingCache,
+  type ListingCacheKey,
+  type ListingMutationEvent,
+} from './cache';
+
+// Phase 14 — summary endpoint
+export {
+  createAdminSummaryRoute,
+  type AdminSummaryRouteConfig,
+  type AdminSummaryHandler,
+} from './summary-factory';
 
 export { listingQueryToSearchParams, listingQueryFromSearchParams } from './url-state';
