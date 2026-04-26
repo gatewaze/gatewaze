@@ -4,7 +4,9 @@ import type { LoadedModule } from '../../types/modules';
 
 /**
  * Given a function's entry point, resolve all source files needed for deployment.
- * Scans imports to find _shared/ dependencies transitively.
+ * Scans imports transitively, picking up:
+ *   - sibling files (`./foo.ts`) from the function's own directory, and
+ *   - shared files (`../_shared/foo.ts`) from any of the provided sharedDirs.
  *
  * Searches for shared files in multiple directories (in order):
  * 1. The module's own functions/_shared/ directory
@@ -25,35 +27,59 @@ export function resolveSourceFiles(
 
   const entryContent = readFileSync(entryPath, 'utf-8');
   files.set('index.ts', entryContent);
+  visited.add('index.ts');
 
-  resolveSharedImports(entryContent, sharedDirs, files, visited);
+  resolveImports(entryContent, 'fn', functionDir, sharedDirs, files, visited);
 
   return files;
 }
 
-function resolveSharedImports(
+function resolveImports(
   content: string,
+  context: 'fn' | 'shared',
+  functionDir: string,
   sharedDirs: string[],
   files: Map<string, string>,
   visited: Set<string>,
 ): void {
-  // Match imports from ../_shared/ (function → shared) or ./ (shared → shared)
-  const sharedImportRegex = /from\s+['"](?:\.\.?\/_shared\/|\.\/)([\w.-]+\.ts)['"]/g;
+  // Three import shapes:
+  //   '../_shared/foo.ts' or './_shared/foo.ts'  → always a shared lookup
+  //   './foo.ts'                                  → sibling lookup, but its
+  //                                                 meaning depends on where
+  //                                                 the importing file lives:
+  //                                                   - in the function's own
+  //                                                     dir → sibling fn file
+  //                                                   - inside _shared/ → another
+  //                                                     shared file
+  const importRe = /from\s+['"](\.\.\/_shared\/|\.\/_shared\/|\.\/)([\w.-]+\.ts)['"]/g;
   let match;
+  while ((match = importRe.exec(content)) !== null) {
+    const prefix = match[1];
+    const fileName = match[2];
+    const isShared = prefix !== './' || context === 'shared';
 
-  while ((match = sharedImportRegex.exec(content)) !== null) {
-    const fileName = match[1];
-    if (visited.has(fileName)) continue;
-    visited.add(fileName);
-
-    // Search all shared directories for this file
-    for (const sharedDir of sharedDirs) {
-      const filePath = join(sharedDir, fileName);
+    if (isShared) {
+      const key = `_shared/${fileName}`;
+      if (visited.has(key)) continue;
+      visited.add(key);
+      for (const sharedDir of sharedDirs) {
+        const filePath = join(sharedDir, fileName);
+        if (existsSync(filePath)) {
+          const sharedContent = readFileSync(filePath, 'utf-8');
+          files.set(key, sharedContent);
+          resolveImports(sharedContent, 'shared', functionDir, sharedDirs, files, visited);
+          break;
+        }
+      }
+    } else {
+      const key = fileName;
+      if (visited.has(key)) continue;
+      visited.add(key);
+      const filePath = join(functionDir, fileName);
       if (existsSync(filePath)) {
-        const sharedContent = readFileSync(filePath, 'utf-8');
-        files.set(`_shared/${fileName}`, sharedContent);
-        resolveSharedImports(sharedContent, sharedDirs, files, visited);
-        break;
+        const fileContent = readFileSync(filePath, 'utf-8');
+        files.set(key, fileContent);
+        resolveImports(fileContent, 'fn', functionDir, sharedDirs, files, visited);
       }
     }
   }
