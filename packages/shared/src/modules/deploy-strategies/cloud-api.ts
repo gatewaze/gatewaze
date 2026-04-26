@@ -37,11 +37,14 @@ export class CloudApiStrategy implements DeploymentStrategy {
 
     for (const [path, content] of sourceFiles) {
       let fileContent = content;
-      // Rewrite import paths for cloud deployment: the Supabase API places all
-      // uploaded files at the same level, so '../_shared/' must become './_shared/'
-      if (path === 'index.ts') {
+      // Rewrite import paths for cloud deployment: Supabase flattens the
+      // upload, so any top-level file (index.ts plus any sibling helpers)
+      // sits at the same level as the _shared/ subdir. Their `../_shared/`
+      // imports must become `./_shared/`. Files already inside `_shared/`
+      // are at the right relative depth, so skip them.
+      if (!path.startsWith('_shared/')) {
         fileContent = content.replace(
-          /from\s+(['"])\.\.?\/_shared\//g,
+          /from\s+(['"])\.\.\/_shared\//g,
           "from $1./_shared/",
         );
       }
