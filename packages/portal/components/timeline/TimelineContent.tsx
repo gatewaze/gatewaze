@@ -1,6 +1,7 @@
 'use client'
 
-import { useMemo, useState, useCallback, useEffect, Suspense } from 'react'
+import { useMemo, useState, useCallback, useEffect, useLayoutEffect, useRef, Suspense } from 'react'
+import { useWindowVirtualizer } from '@tanstack/react-virtual'
 import type { ListingQuery } from '@gatewaze/shared/listing'
 import type { Event } from '@/types/event'
 import type { BrandConfig } from '@/config/brand'
@@ -20,6 +21,12 @@ import { getDistanceToEventByCity, usesImperialUnits } from '@/lib/location'
 import { eventsListingSchema } from '@gatewaze-modules/events/listing-schema'
 import { usePortalInfiniteListing, type PortalInitialPage } from '@/lib/listing/usePortalInfiniteListing'
 import { MAX_ACCUMULATED_ROWS, NEAR_ME_AUTO_LOAD_LIMIT } from '@/lib/listing/constants'
+
+// useLayoutEffect bails out on the server (no DOM). Use a no-op
+// alias so importing pages SSR cleanly even though the component is
+// 'use client' — Next.js still runs the module on the server for the
+// initial HTML render.
+const useIsoLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect
 
 // Near Me radius: 100 miles (~161 km) for imperial, 100 km for metric
 const NEAR_ME_RADIUS_IMPERIAL_KM = 100 / 0.621371 // ~161 km
@@ -350,15 +357,11 @@ function TimelineContentInner({
         <EmptyState viewMode={view} hasActiveFilters={hasActiveFilters || nearMe} onClearFilters={clearFilters} />
       ) : (
         <div className="max-w-7xl mx-auto">
-          {groupedEvents.map((group, index) => (
-            <EventTimelineGroup
-              key={group.dateKey}
-              group={group}
-              brandConfig={brandConfig}
-              isLast={index === groupedEvents.length - 1}
-              userLocation={userLocation}
-            />
-          ))}
+          <VirtualisedGroups
+            groups={groupedEvents}
+            brandConfig={brandConfig}
+            userLocation={userLocation}
+          />
           {isPaginatedView && initialPage && (
             <div
               ref={sentinelRef}
@@ -395,6 +398,114 @@ function TimelineContentInner({
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+/**
+ * Virtualised renderer for the grouped timeline.
+ *
+ * One virtual item per date group. Uses `useWindowVirtualizer` because
+ * the page itself scrolls (the timeline is a child of the document, not
+ * a fixed-height scroll container). Variable group heights are handled
+ * by `measureElement`, which re-measures each group after it mounts.
+ *
+ * Server vs client:
+ *   - On SSR + first hydration we render the natural-flow list (no
+ *     virtualizer) so the initial HTML matches what React produces on
+ *     hydration. Hydration mismatch errors would otherwise fire because
+ *     the virtualizer needs `window` to compute scroll positions.
+ *   - After mount, we flip to the virtualized rendering for the rest
+ *     of the session. The visible-content swap is invisible to the
+ *     user because the same groups stay rendered before/after.
+ */
+function VirtualisedGroups({
+  groups,
+  brandConfig,
+  userLocation,
+}: {
+  groups: ReturnType<typeof groupEventsByDate>
+  brandConfig: BrandConfig
+  userLocation: ReturnType<typeof useIpInfo>['userLocation']
+}) {
+  const parentRef = useRef<HTMLDivElement>(null)
+  const [parentOffset, setParentOffset] = useState(0)
+  const [isClient, setIsClient] = useState(false)
+
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
+
+  useIsoLayoutEffect(() => {
+    if (!parentRef.current) return
+    const update = () => {
+      if (parentRef.current) {
+        const rect = parentRef.current.getBoundingClientRect()
+        setParentOffset(rect.top + window.scrollY)
+      }
+    }
+    update()
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [groups.length])
+
+  const virtualizer = useWindowVirtualizer({
+    count: isClient ? groups.length : 0,
+    estimateSize: () => 480, // date header (~50px) + 1–2 event cards (~200–250px each)
+    overscan: 4,
+    scrollMargin: parentOffset,
+    getItemKey: (index) => groups[index]?.dateKey ?? `group-${index}`,
+  })
+
+  // SSR + first hydration render: natural flow, no virtualizer. Matches
+  // what the server emitted, so React reuses the DOM without mismatch.
+  if (!isClient) {
+    return (
+      <div ref={parentRef}>
+        {groups.map((group, index) => (
+          <EventTimelineGroup
+            key={group.dateKey}
+            group={group}
+            brandConfig={brandConfig}
+            isLast={index === groups.length - 1}
+            userLocation={userLocation}
+          />
+        ))}
+      </div>
+    )
+  }
+
+  const totalSize = virtualizer.getTotalSize()
+  const items = virtualizer.getVirtualItems()
+
+  return (
+    <div ref={parentRef} style={{ position: 'relative', height: totalSize, width: '100%' }}>
+      {items.map((virtualItem) => {
+        const group = groups[virtualItem.index]
+        if (!group) return null
+        const isLast = virtualItem.index === groups.length - 1
+        return (
+          <div
+            key={virtualItem.key}
+            data-index={virtualItem.index}
+            ref={virtualizer.measureElement}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              transform: `translateY(${virtualItem.start - virtualizer.options.scrollMargin}px)`,
+            }}
+          >
+            <EventTimelineGroup
+              group={group}
+              brandConfig={brandConfig}
+              isLast={isLast}
+              userLocation={userLocation}
+            />
+          </div>
+        )
+      })}
     </div>
   )
 }
