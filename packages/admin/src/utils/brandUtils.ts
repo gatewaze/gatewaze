@@ -70,7 +70,7 @@ export function hasAllFeatures(features: (keyof BrandFeatures)[]): boolean {
 export function getFeatureRoute(
   feature: keyof BrandFeatures,
   path: string,
-  fallback: string = '/home'
+  fallback: string = '/inbox'
 ): string {
   return isFeatureEnabled(feature) ? path : fallback;
 }
@@ -81,7 +81,7 @@ export function getFeatureRoute(
  */
 export function getDefaultDashboardRoute(): string {
   // Always prefer home if available
-  return '/home';
+  return '/inbox';
 }
 
 /**

@@ -16,19 +16,6 @@ import { moduleRoutes, moduleAdminRoutes } from "./moduleRoutes";
  */
 const coreChildren = [
   {
-    path: "home",
-    lazy: async () => {
-      const module = await import("@/app/pages/home");
-      return {
-        Component: () => (
-          <FeatureGuard feature="dashboard_home">
-            <module.default />
-          </FeatureGuard>
-        ),
-      };
-    },
-  },
-  {
     path: "people",
     children: [
       {

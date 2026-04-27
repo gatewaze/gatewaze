@@ -14,7 +14,7 @@ import type { BrandFeatures } from '@/config/brands';
  */
 export const NAVIGATION_PERMISSIONS: Record<string, AdminFeature> = {
   // Root-level routes (formerly dashboard routes)
-  '/home': 'dashboard_home',
+  '/inbox': 'content-platform.inbox' as AdminFeature,
   '/people': 'dashboard_people',
   '/events': 'events',
 
