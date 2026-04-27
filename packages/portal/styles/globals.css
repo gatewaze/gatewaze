@@ -1,5 +1,22 @@
 @import "tailwindcss";
 
+/*
+ * Tailwind v4 only auto-scans files under the CSS file's project tree by
+ * default, so classes used inside cloned module repos (gatewaze-modules,
+ * premium-gatewaze-modules, lf-gatewaze-modules) never make it into the
+ * compiled bundle. Without these @source directives, every Tailwind class
+ * touched solely from module code is a silent no-op — arbitrary values
+ * (min-h-[7rem]) AND standard scale classes (mt-12, pb-3) alike. Paths
+ * are written so the same relative jumps resolve in both layouts:
+ *   - container: /app/packages/portal/styles/globals.css → / (modules
+ *     are symlinked at /<reponame> by the entrypoint)
+ *   - workspace: …/gatewaze/packages/portal/styles/globals.css →
+ *     …/Git/gatewaze (sibling repos)
+ */
+@source "../../../../gatewaze-modules/modules/**/*.{ts,tsx,js,jsx,mdx}";
+@source "../../../../premium-gatewaze-modules/modules/**/*.{ts,tsx,js,jsx,mdx}";
+@source "../../../../lf-gatewaze-modules/modules/**/*.{ts,tsx,js,jsx,mdx}";
+
 @theme {
   /* Gatewaze brand colors */
   --color-gatewaze-primary: #00a2c7;
