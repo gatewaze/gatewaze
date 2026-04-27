@@ -4,13 +4,12 @@ import { NavigationTree } from "@/@types/navigation";
 // are now provided by each module's adminNavItems in their index.ts
 export const dashboardItems: NavigationTree[] = [
   {
-    id: "home",
-    path: "/home",
+    id: "inbox",
+    path: "/inbox",
     type: "item",
-    title: "Home",
-    transKey: "nav.dashboards.home",
-    icon: "dashboards.home",
-    requiredFeature: "dashboard_home",
+    title: "Inbox",
+    icon: "admin.inbox",
+    requiredFeature: "content-platform.inbox",
   },
   {
     id: "people",

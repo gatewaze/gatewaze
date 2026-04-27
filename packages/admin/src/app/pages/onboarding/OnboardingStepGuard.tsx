@@ -12,7 +12,7 @@ const STEP_ROUTE: Record<string, string> = {
   admin_created:    '/onboarding/modules',
   modules_selected: '/onboarding/setup',
   modules_setup:    '/onboarding/theme',
-  complete:         '/home',
+  complete:         '/inbox',
 };
 
 function getTargetRoute(step: string | null, setupComplete: boolean): string {
