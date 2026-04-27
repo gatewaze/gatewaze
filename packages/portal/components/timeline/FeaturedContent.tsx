@@ -106,50 +106,69 @@ function FeaturedCard({
   return (
     <Link href={eventUrl} className="block group mb-8">
       <div
-        className="relative overflow-hidden border transition-all duration-300 hover:scale-[1.01]"
+        className="relative overflow-hidden transition-all duration-300 hover:brightness-110"
         style={{
+          // Match the dark glass-panel look used by the regular timeline
+          // cards (see EventTimelineCard.tsx) so the featured card sits
+          // on the same surface tone as the rest of the list. The brand
+          // colour is already signalled by the category badge + the
+          // hover glow below, so no brand tint on the panel itself.
           borderRadius: 'var(--radius-control, 12px)',
-          borderColor: `${primaryColor}40`,
-          background: `linear-gradient(135deg, ${primaryColor}15 0%, transparent 60%)`,
+          backgroundColor: `rgba(var(--panel-tint, 0,0,0), var(--glass-opacity, 0.05))`,
+          backdropFilter: `blur(var(--glass-blur, 4px))`,
+          WebkitBackdropFilter: `blur(var(--glass-blur, 4px))`,
+          borderWidth: 1,
+          borderStyle: 'solid',
+          borderColor: `rgba(var(--panel-tint, 0,0,0), var(--glass-border-opacity, 0.1))`,
         }}
       >
         <div className="flex flex-col sm:flex-row">
-          {/* Content */}
-          <div className="flex-1 min-w-0 p-5 sm:p-6 flex flex-col justify-center">
-            {/* Category badge */}
-            <span
-              className="inline-flex self-start px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider rounded-sm mb-3"
-              style={{
-                backgroundColor: primaryColor,
-                color: light ? '#000000' : '#ffffff',
-              }}
-            >
-              {category.label}
-            </span>
+          {/* Content — top group at top, bottom group (location +
+              distance) pinned to the bottom on desktop. On mobile the
+              column stacks naturally; the bottom group still flows
+              after the top group, just without the justify-between
+              stretch. */}
+          <div className="flex-1 min-w-0 p-5 sm:p-6 flex flex-col items-start sm:justify-between gap-3">
+            <div className="flex flex-col items-start">
+              {/* Category badge */}
+              <span
+                className="inline-flex px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider rounded-sm mb-3"
+                style={{
+                  backgroundColor: primaryColor,
+                  color: light ? '#000000' : '#ffffff',
+                }}
+              >
+                {category.label}
+              </span>
 
-            {/* Title */}
-            <h2
-              className="text-white font-bold text-lg sm:text-xl lg:text-2xl
-                         group-hover:text-white/90 transition-colors line-clamp-2 mb-2"
-              style={{ fontWeight: 'var(--font-weight-heading, 700)' }}
-            >
-              {stripEmojis(event.event_title)}
-            </h2>
+              {/* Title */}
+              <h2
+                className="text-white font-bold text-lg sm:text-xl lg:text-2xl
+                           group-hover:text-white/90 transition-colors line-clamp-2 mb-2"
+                style={{ fontWeight: 'var(--font-weight-heading, 700)' }}
+              >
+                {stripEmojis(event.event_title)}
+              </h2>
 
-            {/* Date, time, location */}
-            <div className="space-y-1">
+              {/* Date + time */}
               <div className="text-white/80 text-sm sm:text-base" suppressHydrationWarning>
                 {[dateStr, timeStr].filter(Boolean).join(' · ')}
               </div>
-              {location && (
-                <div className="text-white/60 text-sm">{location}</div>
-              )}
-              {formattedDistance && (
-                <div className="text-white/50 text-xs mt-1">
-                  {formattedDistance} away
-                </div>
-              )}
             </div>
+
+            {/* Bottom-aligned: location + distance */}
+            {(location || formattedDistance) && (
+              <div className="flex flex-col items-start gap-1.5">
+                {location && (
+                  <div className="text-white/60 text-sm">{location}</div>
+                )}
+                {formattedDistance && (
+                  <div className="-ml-1">
+                    <DistanceBadge distance={formattedDistance} />
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Image */}
@@ -160,7 +179,8 @@ function FeaturedCard({
           )}
         </div>
 
-        {/* Subtle border glow on hover */}
+        {/* Subtle brand-coloured edge glow on hover — keeps the
+            "featured" affordance without tinting the panel itself. */}
         <div
           className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
           style={{
@@ -170,5 +190,33 @@ function FeaturedCard({
         />
       </div>
     </Link>
+  )
+}
+
+/**
+ * Black-pill distance chip with white pin + label. Mirrors the
+ * `DistanceBadge` defined locally in EventTimelineCard so the featured
+ * card uses the same visual language as the rest of the timeline.
+ * Kept inline rather than imported to avoid coupling the two cards.
+ */
+function DistanceBadge({ distance }: { distance: string }) {
+  return (
+    <span className="inline-flex items-center flex-shrink-0 relative text-[11px] leading-none">
+      <span className="relative z-10 w-5 h-5 flex-shrink-0">
+        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="#ffffff">
+          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
+        </svg>
+        <span
+          className="absolute w-1.5 h-1.5 rounded-full top-[5px] left-1/2 -translate-x-1/2"
+          style={{ backgroundColor: '#000000' }}
+        />
+      </span>
+      <span
+        className="rounded-r-full pl-2.5 pr-3 py-[3px] -ml-2.5"
+        style={{ backgroundColor: '#000000', color: '#ffffff' }}
+      >
+        {distance}
+      </span>
+    </span>
   )
 }
