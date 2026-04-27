@@ -62,7 +62,7 @@ export default function ThemeSetupStep() {
         sessionStorage.setItem(`gatewaze-onboarding-step:${user.id}`, 'complete');
       }
 
-      navigate("/home", { replace: true });
+      navigate("/inbox", { replace: true });
     } catch {
       toast.error("Failed to save theme settings");
     } finally {
