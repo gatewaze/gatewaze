@@ -4,7 +4,6 @@ import { useRef, useCallback } from 'react'
 import Link from 'next/link'
 import type { Event } from '@/types/event'
 import type { BrandConfig, ContentCategoryOption } from '@/config/brand'
-import { isLightColor } from '@/config/brand'
 import { useViewportBlur } from '@/hooks/useViewportBlur'
 import { formatEventTime, formatEventDate } from './utils'
 import { type UserLocation, getDistanceToEventByCity, formatUserDistance, usesImperialUnits } from '@/lib/location'
@@ -115,7 +114,7 @@ export function EventTimelineCard({ event, brandConfig, userLocation, showDate }
             </div>
             {formattedDistance && (
               <div className="mt-0.5 -ml-1">
-                <DistanceBadge distance={formattedDistance} primaryColor={brandConfig.primaryColor} />
+                <DistanceBadge distance={formattedDistance} />
               </div>
             )}
           </div>
@@ -130,7 +129,7 @@ export function EventTimelineCard({ event, brandConfig, userLocation, showDate }
             )}
             {formattedDistance && (
               <div className="mt-1.5 -ml-1">
-                <DistanceBadge distance={formattedDistance} primaryColor={brandConfig.primaryColor} />
+                <DistanceBadge distance={formattedDistance} />
               </div>
             )}
           </div>
@@ -147,23 +146,27 @@ export function EventTimelineCard({ event, brandConfig, userLocation, showDate }
   )
 }
 
-function DistanceBadge({ distance, primaryColor }: { distance: string; primaryColor: string }) {
+function DistanceBadge({ distance }: { distance: string }) {
+  // Fixed black-on-card chip with a white pin and white label so it
+  // reads consistently regardless of the brand's primary colour. The
+  // pin's inner cutout is black so it punches through to the pill,
+  // giving the classic map-pin "hole" look.
   return (
     <span className="inline-flex items-center flex-shrink-0 relative text-[11px] leading-none">
       {/* Pin icon — sits on top of the pill */}
       <span className="relative z-10 w-5 h-5 flex-shrink-0">
-        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="white">
+        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="#ffffff">
           <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
         </svg>
         <span
           className="absolute w-1.5 h-1.5 rounded-full top-[5px] left-1/2 -translate-x-1/2"
-          style={{ backgroundColor: primaryColor }}
+          style={{ backgroundColor: '#000000' }}
         />
       </span>
       {/* Pill — starts at icon center, square left corners, rounded right */}
       <span
         className="rounded-r-full pl-2.5 pr-3 py-[3px] -ml-2.5"
-        style={{ backgroundColor: primaryColor, color: isLightColor(primaryColor) ? '#000000' : '#ffffff' }}
+        style={{ backgroundColor: '#000000', color: '#ffffff' }}
       >
         {distance}
       </span>
