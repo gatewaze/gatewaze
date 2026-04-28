@@ -98,6 +98,23 @@ async function getEvent(identifier: string, brandId: string): Promise<EventWithU
   return resolveEventImages(event as EventWithUuid | null, brandConfig.storageBucketUrl) ?? null
 }
 
+/**
+ * Whether the virtual-events module has been configured for this event.
+ * Returns true when a row exists in `live_event_config` for the event uuid.
+ * Returns false if the table doesn't exist (module not installed) — table-
+ * not-found is treated as "no virtual event" rather than a hard error so
+ * the layout still renders cleanly on brands without the module.
+ */
+async function getHasVirtualEvent(eventUuid: string, brandId: string): Promise<boolean> {
+  const supabase = await createServerSupabase(brandId)
+  const { count, error } = await supabase
+    .from('live_event_config')
+    .select('id', { count: 'exact', head: true })
+    .eq('event_id', eventUuid)
+  if (error) return false
+  return (count ?? 0) > 0
+}
+
 async function getSpeakerCount(eventUuid: string, brandId: string): Promise<number> {
   const supabase = await createServerSupabase(brandId)
   // Count confirmed speakers first
@@ -233,13 +250,14 @@ export default async function EventDetailLayout({ children, params }: Props) {
     notFound()
   }
 
-  const [speakerCount, sponsorCount, competitionCount, discountCount, mediaCount, adPixelConfig] = await Promise.all([
+  const [speakerCount, sponsorCount, competitionCount, discountCount, mediaCount, adPixelConfig, hasVirtualEvent] = await Promise.all([
     getSpeakerCount(event.id, brand),
     getSponsorCount(event.event_id, brand),
     getCompetitionCount(event.event_id, brand),
     getDiscountCount(event.event_id, brand),
     getMediaCount(event.id, brand),
     getAdPixelConfig(event.event_id, brand),
+    getHasVirtualEvent(event.id, brand),
   ])
 
   const recommendedEvent = event.recommended_event_id
@@ -266,6 +284,7 @@ export default async function EventDetailLayout({ children, params }: Props) {
         competitionCount={competitionCount}
         discountCount={discountCount}
         mediaCount={mediaCount}
+        hasVirtualEvent={hasVirtualEvent}
         recommendedEvent={recommendedEvent}
       >
         {children}

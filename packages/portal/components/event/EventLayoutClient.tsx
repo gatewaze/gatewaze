@@ -26,6 +26,12 @@ interface Props {
   competitionCount: number
   discountCount: number
   mediaCount: number
+  /**
+   * True when a `live_event_config` row exists for this event (the
+   * virtual-events module has been configured). Drives the visibility
+   * of the "Live" sidebar item + CTA buttons.
+   */
+  hasVirtualEvent?: boolean
   recommendedEvent?: RecommendedEvent | null
   children: React.ReactNode
 }
@@ -65,7 +71,7 @@ function TrackingParamsCapture() {
   return null
 }
 
-export function EventLayoutClient({ event, brandConfig, eventIdentifier, speakerCount, sponsorCount, competitionCount, discountCount, mediaCount, recommendedEvent, children }: Props) {
+export function EventLayoutClient({ event, brandConfig, eventIdentifier, speakerCount, sponsorCount, competitionCount, discountCount, mediaCount, hasVirtualEvent = false, recommendedEvent, children }: Props) {
   // Resolve theme from event overrides or brand defaults
   const resolved = useMemo(() => resolveEventTheme(event, brandConfig), [event, brandConfig])
   const { theme, colors, primaryColor, secondaryColor } = resolved
@@ -140,6 +146,7 @@ export function EventLayoutClient({ event, brandConfig, eventIdentifier, speaker
           competitionCount={competitionCount}
           discountCount={discountCount}
           mediaCount={mediaCount}
+          hasVirtualEvent={hasVirtualEvent}
         >
           {children}
         </EventLayoutInner>
@@ -159,6 +166,7 @@ function EventLayoutInner({
   competitionCount,
   discountCount,
   mediaCount,
+  hasVirtualEvent,
   children,
 }: {
   event: Event & { id: string }
@@ -171,6 +179,7 @@ function EventLayoutInner({
   competitionCount: number
   discountCount: number
   mediaCount: number
+  hasVirtualEvent: boolean
   children: React.ReactNode
 }) {
   const { userState } = useEventContext()
@@ -199,6 +208,7 @@ function EventLayoutInner({
           competitionCount={competitionCount}
           discountCount={discountCount}
           mediaCount={mediaCount}
+          hasVirtualEvent={hasVirtualEvent}
           userState={userState}
         />
 
@@ -216,6 +226,7 @@ function EventLayoutInner({
               competitionCount={competitionCount}
               discountCount={discountCount}
               mediaCount={mediaCount}
+              hasVirtualEvent={hasVirtualEvent}
               userState={userState}
             />
           </div>
