@@ -101,11 +101,15 @@ cd /app && pnpm install --no-frozen-lockfile 2>&1 | tail -5
 # Build admin with Vite (modules are now available on disk). With all
 # premium modules in the graph the build reliably exceeds Node's default
 # ~1.5GB heap and the process exits 134 (SIGABRT) half-way through
-# transforming. Give it explicit headroom — the chart's admin container
-# memory limit is 3Gi, so 2.5GB of heap leaves ~500MB for buffers and
-# the nginx process that starts after build.
+# transforming. Give it explicit headroom — leave ~25% of the container
+# memory limit for buffers + the nginx process that starts after build.
+# Allow per-instance override via ADMIN_NODE_HEAP_MB env (set in the
+# Helm values when an instance's bundle outgrows the default), since
+# growing module graphs eventually outpace any single hardcoded value.
 echo "[admin] Building admin frontend..."
-cd /app/packages/admin && NODE_OPTIONS="--max-old-space-size=2560" npx vite build
+NODE_HEAP_MB="${ADMIN_NODE_HEAP_MB:-2560}"
+echo "[admin] Node heap cap: ${NODE_HEAP_MB}MB"
+cd /app/packages/admin && NODE_OPTIONS="--max-old-space-size=${NODE_HEAP_MB}" npx vite build
 
 # Copy built assets to nginx html directory
 cp -r /app/packages/admin/dist/* /usr/share/nginx/html/
