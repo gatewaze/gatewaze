@@ -74,16 +74,10 @@ export function Tabs({
     );
   }
 
-  // Default (Radix Themes) variant.
-  //
-  // When `fullWidth` is true, the tab strip sits flush under a hero/cover
-  // section (Calendar / Event Detail / People detail). The Radix default
-  // already gives us the bottom underline, which is what we want there.
-  //
-  // Otherwise — used in dashboards (content hub, modules page, etc.) — wrap
-  // in a bordered, rounded container so the tab strip reads as a card-like
-  // header with a border on all four sides.
-  const root = (
+  // Default (Radix Themes) variant. Radix already renders a horizontal
+  // bottom underline at the base of the tab strip; pages compose their
+  // own surrounding layout (action bars, cards, etc.) below it.
+  return (
     <RadixTabs.Root value={value} onValueChange={onChange} className={className} {...(fullWidth ? { "data-full-width": "" } : {})}>
       <RadixTabs.List>
         {tabs.map((tab) => (
@@ -95,12 +89,5 @@ export function Tabs({
         ))}
       </RadixTabs.List>
     </RadixTabs.Root>
-  );
-
-  if (fullWidth) return root;
-  return (
-    <div className="rounded-md border border-[var(--gray-a5)] overflow-hidden">
-      {root}
-    </div>
   );
 }
