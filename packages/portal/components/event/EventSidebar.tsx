@@ -33,6 +33,12 @@ interface Props {
   competitionCount: number
   discountCount: number
   mediaCount: number
+  /**
+   * True when the virtual-events module has a `live_event_config` row
+   * for this event. Drives the "Live" sidebar item + CTA visibility.
+   * Replaces the legacy (broken) `event.gradual_eventslug` check.
+   */
+  hasVirtualEvent?: boolean
   userState?: EventUserState
 }
 
@@ -62,7 +68,7 @@ function useIsAdmin() {
   return isAdmin
 }
 
-function useModuleNavItems(basePath: string, event: Event) {
+function useModuleNavItems(basePath: string, hasVirtualEvent: boolean) {
   const [items, setItems] = useState<NavItem[]>([])
   const isAdmin = useIsAdmin()
 
@@ -79,9 +85,10 @@ function useModuleNavItems(basePath: string, event: Event) {
             if (!localStorage.getItem(page.requiresLocalStorage)) continue
           } catch { continue }
         }
-        // "live" page from virtual-events module requires a configured virtual event
+        // "live" page from virtual-events module only renders when a
+        // `live_event_config` row exists for this event (gated server-side).
         if (page.moduleId === 'virtual-events' && page.slug === 'live') {
-          if (!event.gradual_eventslug) continue
+          if (!hasVirtualEvent) continue
         }
         navItems.push({
           label: page.label,
@@ -96,13 +103,13 @@ function useModuleNavItems(basePath: string, event: Event) {
       }
       setItems(navItems)
     }).catch(() => {})
-  }, [basePath, event.gradual_eventslug, isAdmin])
+  }, [basePath, hasVirtualEvent, isAdmin])
 
   return items
 }
 
-function useNavItems(event: Event, basePath: string, speakerCount: number, sponsorCount: number, competitionCount: number, discountCount: number, mediaCount: number, userState?: EventUserState) {
-  const moduleNavItems = useModuleNavItems(basePath, event)
+function useNavItems(event: Event, basePath: string, speakerCount: number, sponsorCount: number, competitionCount: number, discountCount: number, mediaCount: number, hasVirtualEvent: boolean, userState?: EventUserState) {
+  const moduleNavItems = useModuleNavItems(basePath, hasVirtualEvent)
 
   const navItems: NavItem[] = [
     {
@@ -297,12 +304,12 @@ export function EventMobileActions(props: Props) {
   )
 }
 
-function EventMobileActionsInner({ event, eventIdentifier, useDarkText, primaryColor, speakerCount, sponsorCount, competitionCount, discountCount, mediaCount, userState }: Props) {
+function EventMobileActionsInner({ event, eventIdentifier, useDarkText, primaryColor, speakerCount, sponsorCount, competitionCount, discountCount, mediaCount, hasVirtualEvent = false, userState }: Props) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const customDomain = isOnCustomDomain()
   const basePath = customDomain ? '' : `/events/${eventIdentifier}`
-  const visibleItems = useNavItems(event, basePath, speakerCount, sponsorCount, competitionCount, discountCount, mediaCount, userState)
+  const visibleItems = useNavItems(event, basePath, speakerCount, sponsorCount, competitionCount, discountCount, mediaCount, hasVirtualEvent, userState)
   const { showRegisterButton, useExternalLink, registerHref } = useRegisterLink(event, basePath)
   const handleExternalRegister = useExternalRegisterHandler(event)
   const { isRegistered: realIsRegistered } = useRegistrationStatus(event)
@@ -395,18 +402,15 @@ function EventMobileActionsInner({ event, eventIdentifier, useDarkText, primaryC
         )}
 
         {!isConfirmedSpeaker && isRegistered && (() => {
-          const slug = event.gradual_eventslug
-          if (slug) {
-            const portalDomain = process.env.NEXT_PUBLIC_PORTAL_DOMAIN
-            const eventUrl = `https://${portalDomain}/public/events/${slug}`
-            const joinUrl = `https://${portalDomain}/login?event=${slug}&returnTo=${encodeURIComponent(eventUrl)}&type=event`
+          // When the virtual-events module is configured for this event,
+          // surface an in-app "Join event" CTA that routes to the
+          // internal `/live` page (rendered by the virtual-events module).
+          if (hasVirtualEvent) {
             return (
               <PortalButton
                 variant="primary"
                 primaryColor={primaryColor}
-                href={joinUrl}
-                target="_blank"
-                rel="noopener noreferrer"
+                href={`${basePath}/live`}
                 glow
                 className="flex-1 justify-center"
               >
@@ -569,12 +573,12 @@ export function EventSidebar(props: Props) {
   )
 }
 
-function EventSidebarInner({ event, eventIdentifier, useDarkText, primaryColor, speakerCount, sponsorCount, competitionCount, discountCount, mediaCount, userState }: Props) {
+function EventSidebarInner({ event, eventIdentifier, useDarkText, primaryColor, speakerCount, sponsorCount, competitionCount, discountCount, mediaCount, hasVirtualEvent = false, userState }: Props) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const customDomain = isOnCustomDomain()
   const basePath = customDomain ? '' : `/events/${eventIdentifier}`
-  const visibleItems = useNavItems(event, basePath, speakerCount, sponsorCount, competitionCount, discountCount, mediaCount, userState)
+  const visibleItems = useNavItems(event, basePath, speakerCount, sponsorCount, competitionCount, discountCount, mediaCount, hasVirtualEvent, userState)
   const { showRegisterButton, useExternalLink, registerHref } = useRegisterLink(event, basePath)
   const handleExternalRegister = useExternalRegisterHandler(event)
   const { isRegistered: realIsRegistered } = useRegistrationStatus(event)
@@ -644,23 +648,21 @@ function EventSidebarInner({ event, eventIdentifier, useDarkText, primaryColor, 
       )}
 
       {!isConfirmedSpeaker && isRegistered && (() => {
-        const slug = event.gradual_eventslug
-        if (slug) {
-          const portalDomain = process.env.NEXT_PUBLIC_PORTAL_DOMAIN
-          const eventUrl = `https://${portalDomain}/public/events/${slug}`
-          const joinUrl = `https://${portalDomain}/login?event=${slug}&returnTo=${encodeURIComponent(eventUrl)}&type=event`
+        // When the virtual-events module is configured for this event,
+        // route the "Join event" CTA to the in-app /live page rendered
+        // by virtual-events.
+        if (hasVirtualEvent) {
           return (
             <PortalButton
               variant="primary"
               primaryColor={primaryColor}
-              href={joinUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+              href={`${basePath}/live`}
               glow
               className="w-full justify-center"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               Join event
             </PortalButton>
