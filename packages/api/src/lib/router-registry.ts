@@ -78,6 +78,37 @@ export function labelDirectRoute(method: string, path: string, label: AuthLabel)
 }
 
 /**
+ * Records an auth label covering ANY route under the given path
+ * prefix. Used by the dynamic module-loader to opt module-registered
+ * routes into the labelling system without requiring each module
+ * author to call labeledRouter() (which they can't, since they
+ * receive a plain Express app from apiRoutes(app, ctx)).
+ *
+ * The mount-prefix convention per spec §5.2 follow-up: every
+ * module's `apiRoutes` callback registers routes under a prefix
+ * computed from the module id (`/api/modules/<id>/...`). The core
+ * loader calls `labelMountPrefix('/api/modules/<id>', 'jwt')` before
+ * invoking the module's callback, so any route the module mounts
+ * inherits the JWT label.
+ */
+const PREFIX_LABELS: Array<{ prefix: string; label: AuthLabel }> = [];
+
+export function labelMountPrefix(prefix: string, label: AuthLabel): void {
+  PREFIX_LABELS.push({ prefix, label });
+}
+
+function findPrefixLabel(path: string): AuthLabel | null {
+  // Longest prefix wins (so `/api/modules/foo` beats `/api/modules`).
+  let best: { prefix: string; label: AuthLabel } | null = null;
+  for (const entry of PREFIX_LABELS) {
+    if (path === entry.prefix || path.startsWith(entry.prefix + '/')) {
+      if (!best || entry.prefix.length > best.prefix.length) best = entry;
+    }
+  }
+  return best?.label ?? null;
+}
+
+/**
  * Walks the Express app's internal route table and asserts every declared
  * route was registered through a labeledRouter (or labelDirectRoute).
  *
@@ -89,11 +120,15 @@ export function assertAllRoutesLabeled(app: Application): void {
   const missing: string[] = [];
   for (const route of declared) {
     const key = `${route.method} ${normalize(route.path)}`;
-    if (!labeled.has(key)) missing.push(key);
+    if (labeled.has(key)) continue;
+    // Fall back to prefix labels so dynamically-mounted module routes
+    // are accepted as long as the loader pre-registered the prefix.
+    if (findPrefixLabel(normalize(route.path)) !== null) continue;
+    missing.push(key);
   }
   if (missing.length > 0) {
     throw new Error(
-      `Routes lacking auth label: ${missing.join(', ')}. Use mountLabeled() or labelDirectRoute().`,
+      `Routes lacking auth label: ${missing.join(', ')}. Use mountLabeled() / labelDirectRoute() / labelMountPrefix().`,
     );
   }
 }
@@ -110,6 +145,7 @@ export function getRegistry(): readonly RouteRecord[] {
  */
 export function clearRegistry(): void {
   REGISTRY.length = 0;
+  PREFIX_LABELS.length = 0;
 }
 
 interface DeclaredRoute {
