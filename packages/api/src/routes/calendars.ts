@@ -6,6 +6,7 @@
 import { getSupabase } from '../lib/supabase.js';
 import { labeledRouter } from '../lib/router-registry.js';
 import { requireJwt } from '../lib/auth/require-jwt.js';
+import { logger } from '../lib/logger.js';
 
 export const calendarsRouter = labeledRouter('jwt');
 calendarsRouter.use(requireJwt());
@@ -34,7 +35,7 @@ calendarsRouter.get('/', async (req, res) => {
 
     res.json({ data, total: count, page, limit });
   } catch (err) {
-    console.error('Error fetching calendars:', err);
+    logger.error({ err }, 'failed to fetch calendars');
     res.status(500).json({ error: 'Failed to fetch calendars' });
   }
 });
@@ -72,7 +73,7 @@ calendarsRouter.get('/:id', async (req, res) => {
 
     res.json({ ...calendar, events });
   } catch (err) {
-    console.error('Error fetching calendar:', err);
+    logger.error({ err }, 'failed to fetch calendar');
     res.status(500).json({ error: 'Failed to fetch calendar' });
   }
 });
@@ -90,7 +91,7 @@ calendarsRouter.post('/', async (req, res) => {
     if (error) throw error;
     res.status(201).json(data);
   } catch (err) {
-    console.error('Error creating calendar:', err);
+    logger.error({ err }, 'failed to create calendar');
     res.status(500).json({ error: 'Failed to create calendar' });
   }
 });
@@ -111,7 +112,7 @@ calendarsRouter.patch('/:id', async (req, res) => {
 
     res.json(data);
   } catch (err) {
-    console.error('Error updating calendar:', err);
+    logger.error({ err }, 'failed to update calendar');
     res.status(500).json({ error: 'Failed to update calendar' });
   }
 });

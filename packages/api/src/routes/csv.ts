@@ -1,6 +1,7 @@
 import multer from 'multer';
 import { parse } from 'csv-parse';
 import { stringify } from 'csv-stringify';
+import { logger } from '../lib/logger.js';
 // SERVICE-ROLE OK: admin CSV import/export; bulk operations across
 // people, registrations, etc. need full table access. The bulk path
 // will continue to use service-role even after tenancy_v2 — admins
@@ -81,7 +82,7 @@ csvRouter.post('/import/people', upload.single('file'), async (req, res) => {
       errors: errors.length > 0 ? errors : undefined,
     });
   } catch (err) {
-    console.error('Error importing people CSV:', err);
+    logger.error({ err }, 'failed to import people csv');
     res.status(500).json({ error: 'Failed to import people' });
   }
 });
@@ -141,7 +142,7 @@ csvRouter.get('/export/people', async (req, res) => {
 
     stringifier.end();
   } catch (err) {
-    console.error('Error exporting people CSV:', err);
+    logger.error({ err }, 'failed to export people csv');
     res.status(500).json({ error: 'Failed to export people' });
   }
 });
