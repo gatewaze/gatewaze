@@ -24,6 +24,6 @@ declare module "@tanstack/react-table" {
     isHiddenColumn?: boolean;
     label?: string;
     filterColumn?: string;
-    options?: any[];
+    options?: unknown[];
   }
 }

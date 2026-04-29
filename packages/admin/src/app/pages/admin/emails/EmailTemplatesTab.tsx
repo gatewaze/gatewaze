@@ -158,8 +158,8 @@ export function EmailTemplatesTab() {
       }
       handleCloseModal();
       loadTemplates();
-    } catch (error: any) {
-      toast.error(error?.message || 'Failed to save template');
+    } catch (error) {
+      toast.error((error instanceof Error ? error.message : '') || 'Failed to save template');
     } finally {
       setSubmitting(false);
     }
