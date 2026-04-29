@@ -15,7 +15,7 @@ export default defineConfig({
     // Ensure bare imports from external module sources (gatewaze-modules) resolve
     // from the admin app's node_modules, not from the module's filesystem location
     dedupe: [
-      "date-fns", "jszip", "react", "react-dom", "react-router", "react-router-dom",
+      "jszip", "react", "react-dom", "react-router", "react-router-dom",
       "sonner", "@heroicons/react", "@headlessui/react", "@dnd-kit/core",
       "@dnd-kit/sortable", "@dnd-kit/utilities", "@supabase/supabase-js",
       "@tanstack/react-table", "react-hook-form", "@hookform/resolvers",
@@ -51,7 +51,7 @@ export default defineConfig({
     // Listing them here forces esbuild to pre-bundle with proper named-export
     // re-exports so consumer imports work in dev mode.
     include: [
-      "date-fns", "jszip", "qr-code-styling", "pdf-lib", "@pdf-lib/fontkit", "pdfjs-dist",
+      "jszip", "qr-code-styling", "pdf-lib", "@pdf-lib/fontkit", "pdfjs-dist",
       "cookie", "set-cookie-parser", "turbo-stream", "leaflet", "react-leaflet",
       "@heroicons/react/24/outline", "@heroicons/react/24/solid", "@heroicons/react/20/solid",
       // react-router-dom v7 imports `cookie`, `set-cookie-parser`, `turbo-stream`
