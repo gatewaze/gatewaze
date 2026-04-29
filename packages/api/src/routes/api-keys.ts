@@ -1,8 +1,10 @@
-import { Router } from 'express';
 import { getSupabase } from '../lib/supabase.js';
 import { generateApiKey } from '../lib/api-key-utils.js';
+import { labeledRouter } from '../lib/router-registry.js';
+import { requireJwt } from '../lib/auth/require-jwt.js';
 
-export const apiKeysRouter = Router();
+export const apiKeysRouter = labeledRouter('jwt');
+apiKeysRouter.use(requireJwt());
 
 /** Transform snake_case DB row to camelCase response (omitting key_hash). */
 function toApiKey(row: Record<string, unknown>) {

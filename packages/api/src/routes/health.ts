@@ -1,7 +1,7 @@
-import { Router } from 'express';
 import { queueHealth, isQueueConfigured } from '../lib/queue/index.js';
+import { labeledRouter } from '../lib/router-registry.js';
 
-export const healthRouter = Router();
+export const healthRouter = labeledRouter('public');
 
 healthRouter.get('/health', async (_req, res) => {
   const queue = isQueueConfigured()

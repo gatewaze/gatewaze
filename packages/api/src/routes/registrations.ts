@@ -1,7 +1,9 @@
-import { Router } from 'express';
 import { getSupabase } from '../lib/supabase.js';
+import { labeledRouter } from '../lib/router-registry.js';
+import { requireJwt } from '../lib/auth/require-jwt.js';
 
-export const registrationsRouter = Router();
+export const registrationsRouter = labeledRouter('jwt');
+registrationsRouter.use(requireJwt());
 
 // List registrations (optionally filtered by event_id)
 registrationsRouter.get('/', async (req, res) => {

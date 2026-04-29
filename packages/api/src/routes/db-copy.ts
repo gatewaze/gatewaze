@@ -1,8 +1,10 @@
-import { Router } from 'express';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { getSupabase } from '../lib/supabase.js';
+import { labeledRouter } from '../lib/router-registry.js';
+import { requireJwt } from '../lib/auth/require-jwt.js';
 
-export const dbCopyRouter = Router();
+export const dbCopyRouter = labeledRouter('jwt');
+dbCopyRouter.use(requireJwt());
 
 /**
  * Tables to copy, ordered so that parent tables come before children

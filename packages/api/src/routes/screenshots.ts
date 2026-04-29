@@ -5,7 +5,7 @@
  * Actual generation happens via job queue workers or external services.
  */
 
-import { Router, type Request, type Response } from 'express';
+import { type Request, type Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getSupabase } from '../lib/supabase.js';
 import {
@@ -14,8 +14,11 @@ import {
   JobTypes,
   getRedisConnection,
 } from '../lib/queue/index.js';
+import { labeledRouter } from '../lib/router-registry.js';
+import { requireJwt } from '../lib/auth/require-jwt.js';
 
-export const screenshotsRouter = Router();
+export const screenshotsRouter = labeledRouter('jwt');
+screenshotsRouter.use(requireJwt());
 
 // Health check
 screenshotsRouter.get('/health', (_req: Request, res: Response) => {

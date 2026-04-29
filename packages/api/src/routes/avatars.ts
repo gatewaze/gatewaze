@@ -5,14 +5,17 @@
  * Puppeteer is dynamically imported and optional.
  */
 
-import { Router, type Request, type Response } from 'express';
+import { type Request, type Response } from 'express';
 import crypto from 'crypto';
 import { getSupabase } from '../lib/supabase.js';
+import { labeledRouter } from '../lib/router-registry.js';
+import { requireJwt } from '../lib/auth/require-jwt.js';
 
 const AVATAR_BUCKET = 'media';
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
-export const avatarsRouter = Router();
+export const avatarsRouter = labeledRouter('jwt');
+avatarsRouter.use(requireJwt());
 
 function getGravatarUrl(email: string, size = 200): string {
   const hash = crypto.createHash('md5').update(email.trim().toLowerCase()).digest('hex');

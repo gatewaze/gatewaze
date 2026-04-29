@@ -4,10 +4,13 @@
  * Provides endpoints for marking event attendance/check-in.
  */
 
-import { Router, type Request, type Response } from 'express';
+import { type Request, type Response } from 'express';
 import { getSupabase } from '../lib/supabase.js';
+import { labeledRouter } from '../lib/router-registry.js';
+import { requireJwt } from '../lib/auth/require-jwt.js';
 
-export const attendanceRouter = Router();
+export const attendanceRouter = labeledRouter('jwt');
+attendanceRouter.use(requireJwt());
 
 const VALID_CHECK_IN_METHODS = ['qr_scan', 'manual_entry', 'badge_scan', 'mobile_app', 'sponsor_booth'];
 
