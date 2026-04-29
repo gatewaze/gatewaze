@@ -42,6 +42,19 @@ async function main(): Promise<void> {
         data: { kind: 'send-reminder-emails', type: 'reminder' },
       },
     },
+    {
+      // Hourly prune of expired service-token revocations per spec
+      // §6.3 / §7.3 task 3.14. The job fires the
+      // 'prune-service-token-revocations' queue handler defined by
+      // the system queue.
+      module: 'core',
+      def: {
+        name: 'prune-service-token-revocations',
+        queue: 'system',
+        schedule: { every: 3600_000 },
+        data: { kind: 'prune-service-token-revocations' },
+      },
+    },
   ];
 
   // Module crons (and legacy `schedulers[]` kept for backward-compat).
