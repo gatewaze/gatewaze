@@ -79,21 +79,23 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
 
-  // Image optimization domains
+  // Image optimization domains. Add new hosts here when migrating an
+  // <img> to next/image so the bundler can fetch + transform the
+  // remote asset at request time.
   images: {
     remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: '**.supabase.co',
-      },
-      {
-        protocol: 'https',
-        hostname: 'lu.ma',
-      },
-      {
-        protocol: 'https',
-        hostname: 'images.lumacdn.com',
-      },
+      { protocol: 'https', hostname: '**.supabase.co' },
+      { protocol: 'https', hostname: 'lu.ma' },
+      { protocol: 'https', hostname: 'images.lumacdn.com' },
+      // User avatar sources
+      { protocol: 'https', hostname: 'www.gravatar.com' },
+      { protocol: 'https', hostname: '*.licdn.com' },
+      { protocol: 'https', hostname: 'media.licdn.com' },
+      // Customer.io profile pics
+      { protocol: 'https', hostname: 'cdn.customer.io' },
+      // Generic image hosts that brands commonly use
+      { protocol: 'https', hostname: 'images.unsplash.com' },
+      { protocol: 'https', hostname: '**.cloudfront.net' },
     ],
   },
 
