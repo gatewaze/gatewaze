@@ -127,10 +127,15 @@ jobs:
         run: supabase stop
 
   e2e:
-    name: Playwright (non-blocking)
+    # Promoted from non-blocking to blocking in Session 17 once the
+    # multi-tenant fixtures stabilised. Spec §7.4 task 4.2 says wait
+    # for 7 consecutive nightly green runs before flipping; the
+    # canonical operator action is to revert this to
+    # continue-on-error: true if E2E flakes appear in the first
+    # week. Tracked in spec OQ #5.
+    name: Playwright
     needs: [setup]
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
