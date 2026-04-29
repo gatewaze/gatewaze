@@ -179,7 +179,7 @@ export function createAdminDistinctRoute(config: AdminDistinctRouteConfig): Admi
         .order(requestedColumn, { ascending: true })
         .limit(limit * 10);
 
-      if (authFn) qb = authFn(qb);
+      if (authFn) qb = authFn(qb) as unknown as typeof qb;
 
       const { data, error } = await qb;
       if (error) {

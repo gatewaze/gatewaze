@@ -171,26 +171,39 @@ export function useEventUserState(event: Event & { id: string }): EventUserState
 
         if (cancelled) return
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const registration = registrationResult.data as any
+        type RegistrationRow = { id: string; calendar_added_at: string | null }
+        type SpeakerTalkRow = {
+          is_primary: boolean | null
+          speaker: { id: string; event_uuid: string; people_profile_id: string; status: string | null } | null
+          talk: {
+            id: string
+            title: string | null
+            status: string | null
+            edit_token: string | null
+            presentation_url: string | null
+            presentation_storage_path: string | null
+            presentation_type: string | null
+            calendar_added_at: string | null
+            tracking_link_copied_at: string | null
+          } | null
+        }
+
+        const registration = registrationResult.data as RegistrationRow | null
         const isRegistered = !!registration
-        const speakerTalks = speakerResult || []
+        const speakerTalks = (speakerResult || []) as unknown as SpeakerTalkRow[]
 
         // Find the most relevant talk (confirmed > approved > pending > other)
         const statusPriority: Record<string, number> = { confirmed: 0, approved: 1, pending: 2, reserve: 3, rejected: 4 }
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const sorted = [...speakerTalks].sort((a: any, b: any) => {
-          const aPri = statusPriority[a.talk?.status] ?? 99
-          const bPri = statusPriority[b.talk?.status] ?? 99
+        const sorted = [...speakerTalks].sort((a, b) => {
+          const aPri = statusPriority[a.talk?.status ?? ''] ?? 99
+          const bPri = statusPriority[b.talk?.status ?? ''] ?? 99
           return aPri - bPri
         })
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const primaryTalk = sorted[0] as any
+        const primaryTalk = sorted[0]
         const hasTalkSubmission = speakerTalks.length > 0
         const isConfirmedSpeaker = speakerTalks.some(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (st: any) => st.speaker?.status === 'confirmed' || st.talk?.status === 'confirmed'
+          (st) => st.speaker?.status === 'confirmed' || st.talk?.status === 'confirmed'
         )
 
         setState({
