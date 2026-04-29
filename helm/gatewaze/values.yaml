@@ -382,6 +382,14 @@ monitoring:
     release: ""
     # -- Performance traces sample rate (0.0–1.0). Default 0 = errors only.
     tracesSampleRate: "0"
+  # OpenTelemetry tracing — opt-in via spec §5.6. Set otel.endpoint to
+  # the OTLP/HTTP collector URL (e.g. http://otel-collector:4318) and
+  # the API/worker/scheduler emit auto-instrumented spans for express,
+  # ioredis, pg, and supabase-js. Empty disables OTel entirely.
+  otel:
+    endpoint: ""
+    resourceAttributes: ""
+    headers: ""
 
 # =============================================================================
 # API Service Configuration
