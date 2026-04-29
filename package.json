@@ -32,9 +32,6 @@
     ],
     "packages/portal/{app,components,lib}/**/*.{ts,tsx}": [
       "pnpm --filter @gatewaze/portal exec eslint --fix"
-    ],
-    "packages/shared/src/**/*.{ts,tsx}": [
-      "pnpm --filter @gatewaze/shared exec eslint --fix"
     ]
   },
   "engines": {
