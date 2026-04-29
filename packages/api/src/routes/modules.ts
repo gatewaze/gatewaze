@@ -23,14 +23,22 @@ import {
 } from '@gatewaze/shared/modules';
 import type { InstalledModuleRow, LoadedModule } from '@gatewaze/shared/modules';
 import { resolve } from 'path';
-import { existsSync, mkdirSync, readdirSync, unlinkSync, readFileSync } from 'fs';
-import { execSync } from 'child_process';
+import { existsSync, mkdirSync, readdirSync, rmSync, renameSync, unlinkSync, readFileSync } from 'fs';
 import crypto from 'crypto';
 import multer from 'multer';
+import AdmZip from 'adm-zip';
 import { writeAuditLog } from '../lib/audit-log';
 import { createRedactedLogger } from '../lib/log-redaction';
 import { isLeader } from '../lib/leadership';
 import { validateGitUrl } from '../lib/zip-validation';
+import { safeExec } from '../lib/safe-exec.js';
+
+const BRANCH_RE = /^[\w][\w.\-/]{0,254}$/;
+function validateBranch(branch: string): void {
+  if (!BRANCH_RE.test(branch)) {
+    throw new Error(`Invalid branch name: ${branch}`);
+  }
+}
 import _configImport from '../../../../gatewaze.config.js';
 // Unwrap CJS→ESM double-default wrapping (root package.json has no "type":"module")
 const config = (_configImport as any)?.default ?? _configImport;
@@ -1517,13 +1525,27 @@ modulesRouter.post('/sources', async (req, res) => {
       }
     }
 
+    // Validate branch name. The branch flows into a git invocation later
+    // (sources/refresh). Even with safeExec we keep this gate so DB-poisoned
+    // branches never reach the wrapper.
+    const trimmedBranch = branch?.trim();
+    if (trimmedBranch && !BRANCH_RE.test(trimmedBranch)) {
+      return res.status(400).json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Branch name contains invalid characters',
+          details: { field: 'branch' },
+        },
+      });
+    }
+
     const supabase = createClient(supabaseUrl, serviceRoleKey);
     const { data, error } = await supabase
       .from('module_sources')
       .insert({
         url: url.trim(),
         path: path?.trim() || null,
-        branch: branch?.trim() || null,
+        branch: trimmedBranch || null,
         label: label?.trim() || null,
         token: token?.trim() || null,
         origin: 'user',
@@ -1649,12 +1671,16 @@ modulesRouter.post('/sources/refresh', async (_req, res) => {
       const { sourcesRoot: srcRoot, repoSlug: slugFn } = await import('@gatewaze/shared/modules');
       const repoDir = resolve(srcRoot(), slugFn(url));
       try {
+        // Defense-in-depth: revalidate branch from the DB before passing to git.
+        // BRANCH_RE was applied at write time, but if a row was inserted before
+        // this gate landed, refuse to act.
+        validateBranch(branch);
         if (existsSync(resolve(repoDir, '.git'))) {
-          execSync(`git -C "${repoDir}" fetch --depth 1 origin "${branch}"`, { stdio: 'pipe' });
-          execSync(`git -C "${repoDir}" reset --hard "origin/${branch}"`, { stdio: 'pipe' });
+          safeExec('git', ['-C', repoDir, 'fetch', '--depth', '1', 'origin', branch]);
+          safeExec('git', ['-C', repoDir, 'reset', '--hard', `origin/${branch}`]);
         } else {
           mkdirSync(srcRoot(), { recursive: true });
-          execSync(`git clone --depth 1 --branch "${branch}" "${url}" "${repoDir}"`, { stdio: 'pipe' });
+          safeExec('git', ['clone', '--depth', '1', '--branch', branch, url, repoDir]);
         }
       } catch (cloneErr) {
         const message = cloneErr instanceof Error ? cloneErr.message : String(cloneErr);
@@ -1956,42 +1982,51 @@ modulesRouter.post('/upload', upload.single('file'), async (req, res) => {
     const extractDir = resolve(UPLOAD_DIR, `.tmp-${Date.now()}`);
     mkdirSync(extractDir, { recursive: true });
 
-    try {
-      execSync(`unzip -o "${file.path}" -d "${extractDir}"`, { stdio: 'pipe' });
-    } catch {
-      // Clean up on extraction failure
-      execSync(`rm -rf "${extractDir}"`, { stdio: 'pipe' });
-      unlinkSync(file.path);
-      return res.status(400).json({ error: 'Failed to extract zip file' });
-    }
+    const cleanupExtract = (): void => {
+      try { rmSync(extractDir, { recursive: true, force: true }); } catch { /* best-effort */ }
+    };
 
-    // Security: validate no path traversal in extracted files
+    // Validate zip manifest BEFORE extraction (closes the TOCTOU at the
+    // previous unzip → unzip -l → find sequence). Reject any entry whose
+    // resolved path escapes extractDir, plus symlink entries.
+    let zip: AdmZip;
     try {
-      const listOutput = execSync(`unzip -l "${file.path}"`, { stdio: 'pipe' }).toString();
-      if (listOutput.includes('../') || listOutput.includes('..\\')) {
-        execSync(`rm -rf "${extractDir}"`, { stdio: 'pipe' });
+      zip = new AdmZip(file.path);
+    } catch {
+      cleanupExtract();
+      unlinkSync(file.path);
+      return res.status(400).json({ error: 'Failed to read zip file' });
+    }
+    const resolvedExtractDir = resolve(extractDir);
+    for (const entry of zip.getEntries()) {
+      const entryName = entry.entryName;
+      if (entryName.includes('..') || entryName.startsWith('/') || entryName.startsWith('\\')) {
+        cleanupExtract();
         unlinkSync(file.path);
         return res.status(400).json({ error: 'Zip file contains path traversal sequences' });
       }
-    } catch {
-      // If we can't list the zip, the extraction above would have also failed
-    }
-
-    // Security: verify all extracted files are within the extraction directory
-    try {
-      const findOutput = execSync(`find "${extractDir}" -type f`, { stdio: 'pipe' }).toString();
-      const resolvedExtractDir = resolve(extractDir);
-      const hasEscape = findOutput.split('\n').some((f) => {
-        if (!f.trim()) return false;
-        return !resolve(f).startsWith(resolvedExtractDir);
-      });
-      if (hasEscape) {
-        execSync(`rm -rf "${extractDir}"`, { stdio: 'pipe' });
+      const resolved = resolve(extractDir, entryName);
+      if (!resolved.startsWith(resolvedExtractDir + '/') && resolved !== resolvedExtractDir) {
+        cleanupExtract();
         unlinkSync(file.path);
         return res.status(400).json({ error: 'Zip file contains files outside extraction directory' });
       }
+      // adm-zip exposes attr in the central directory; high bits 0xA000 signal symlinks.
+      const attr = (entry.header as { attr?: number }).attr ?? 0;
+      if ((attr & 0xa0000000) === 0xa0000000) {
+        cleanupExtract();
+        unlinkSync(file.path);
+        return res.status(400).json({ error: 'Zip file contains symlink entries' });
+      }
+    }
+
+    // Manifest is safe — extract.
+    try {
+      zip.extractAllTo(extractDir, /* overwrite */ true);
     } catch {
-      // find failure is non-fatal — extraction was already successful
+      cleanupExtract();
+      unlinkSync(file.path);
+      return res.status(400).json({ error: 'Failed to extract zip file' });
     }
 
     // Find the module directory (may be nested one level inside the zip)
@@ -2004,7 +2039,7 @@ modulesRouter.post('/upload', upload.single('file'), async (req, res) => {
     }
 
     if (!existsSync(resolve(moduleDir, 'index.ts'))) {
-      execSync(`rm -rf "${extractDir}"`, { stdio: 'pipe' });
+      cleanupExtract();
       unlinkSync(file.path);
       return res.status(400).json({
         error: 'Invalid module: no index.ts found in zip root',
@@ -2019,13 +2054,13 @@ modulesRouter.post('/upload', upload.single('file'), async (req, res) => {
     // Move to final location
     const finalDir = resolve(UPLOAD_DIR, slug);
     if (existsSync(finalDir)) {
-      execSync(`rm -rf "${finalDir}"`, { stdio: 'pipe' });
+      rmSync(finalDir, { recursive: true, force: true });
     }
-    execSync(`mv "${moduleDir}" "${finalDir}"`, { stdio: 'pipe' });
+    renameSync(moduleDir, finalDir);
 
     // Clean up temp
     if (existsSync(extractDir)) {
-      execSync(`rm -rf "${extractDir}"`, { stdio: 'pipe' });
+      rmSync(extractDir, { recursive: true, force: true });
     }
     unlinkSync(file.path);
 
