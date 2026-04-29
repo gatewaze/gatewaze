@@ -18,7 +18,7 @@ calendarsRouter.use(requireJwt());
 // List calendars
 calendarsRouter.get('/', async (req, res) => {
   try {
-    const supabase = await getRequestSupabase(req);
+    const supabase = getRequestSupabase(req);
     const page = parseInt(req.query.page as string) || 1;
     const limit = Math.min(parseInt(req.query.limit as string) || 25, 100);
     const search = req.query.search as string;
@@ -47,7 +47,7 @@ calendarsRouter.get('/', async (req, res) => {
 // Get single calendar with its events via calendar_events junction table
 calendarsRouter.get('/:id', async (req, res) => {
   try {
-    const supabase = await getRequestSupabase(req);
+    const supabase = getRequestSupabase(req);
     const identifier = req.params.id;
 
     // Look up by id, slug, or calendar_id (CAL-XXX format)
@@ -85,7 +85,7 @@ calendarsRouter.get('/:id', async (req, res) => {
 // Create calendar
 calendarsRouter.post('/', async (req, res) => {
   try {
-    const supabase = await getRequestSupabase(req);
+    const supabase = getRequestSupabase(req);
     const { data, error } = await supabase
       .from('calendars')
       .insert(req.body)
@@ -103,7 +103,7 @@ calendarsRouter.post('/', async (req, res) => {
 // Update calendar
 calendarsRouter.patch('/:id', async (req, res) => {
   try {
-    const supabase = await getRequestSupabase(req);
+    const supabase = getRequestSupabase(req);
     const { data, error } = await supabase
       .from('calendars')
       .update(req.body)

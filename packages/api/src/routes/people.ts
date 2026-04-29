@@ -1,9 +1,6 @@
-// SERVICE-ROLE OK: admin people CRUD; the v1 people RLS already lets
-// admins see all rows so a switch to user-scoped (getRequestSupabase)
-// would behave correctly today, but the v2 path requires `account_id`
-// on every people row — the backfill (Session 6) populates that, then
-// Session 16 migrates this file under integration test coverage.
-import { getSupabase } from '../lib/supabase.js';
+// User-scoped Supabase per spec §5.1. The v1 people RLS lets admins
+// see all rows + users see their own; v2 scopes by account_in_scope.
+import { getRequestSupabase } from '../lib/supabase.js';
 import { labeledRouter } from '../lib/router-registry.js';
 import { requireJwt } from '../lib/auth/require-jwt.js';
 import { logger } from '../lib/logger.js';
@@ -14,7 +11,7 @@ peopleRouter.use(requireJwt());
 // List people with search and pagination
 peopleRouter.get('/', async (req, res) => {
   try {
-    const supabase = getSupabase();
+    const supabase = getRequestSupabase(req);
     const page = parseInt(req.query.page as string) || 1;
     const limit = Math.min(parseInt(req.query.limit as string) || 25, 100);
     const search = req.query.search as string;
@@ -47,7 +44,7 @@ peopleRouter.get('/', async (req, res) => {
 // Get single person
 peopleRouter.get('/:id', async (req, res) => {
   try {
-    const supabase = getSupabase();
+    const supabase = getRequestSupabase(req);
     const { data, error } = await supabase
       .from('people')
       .select('*')
@@ -67,7 +64,7 @@ peopleRouter.get('/:id', async (req, res) => {
 // Create person
 peopleRouter.post('/', async (req, res) => {
   try {
-    const supabase = getSupabase();
+    const supabase = getRequestSupabase(req);
     const { data, error } = await supabase
       .from('people')
       .insert(req.body)
@@ -85,7 +82,7 @@ peopleRouter.post('/', async (req, res) => {
 // Update person
 peopleRouter.patch('/:id', async (req, res) => {
   try {
-    const supabase = getSupabase();
+    const supabase = getRequestSupabase(req);
     const { data, error } = await supabase
       .from('people')
       .update(req.body)
@@ -106,7 +103,7 @@ peopleRouter.patch('/:id', async (req, res) => {
 // Delete person
 peopleRouter.delete('/:id', async (req, res) => {
   try {
-    const supabase = getSupabase();
+    const supabase = getRequestSupabase(req);
     const { error } = await supabase
       .from('people')
       .delete()

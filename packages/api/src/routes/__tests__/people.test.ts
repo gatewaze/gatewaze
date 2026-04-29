@@ -6,6 +6,8 @@ const mockSupabase = createMockSupabase();
 
 vi.mock('../../lib/supabase.js', () => ({
   getSupabase: () => mockSupabase.client,
+  getServiceSupabase: () => mockSupabase.client,
+  getRequestSupabase: () => mockSupabase.client,
 }));
 
 const { default: app } = await import('../../server.js');
