@@ -257,12 +257,18 @@ export async function POST(req: NextRequest) {
         .eq('event_id', event_id)
         .order('pinned_at', { ascending: false })
 
-      const pinned = (data || [])
-        .filter((p: any) => p.live_chat_messages?.track_id === track_id)
-        .map((p: any) => ({
+      interface PinnedRow {
+        id: string
+        message_id: string
+        pinned_at: string
+        live_chat_messages?: { content?: string; track_id?: string | null }
+      }
+      const pinned = ((data ?? []) as PinnedRow[])
+        .filter((p) => p.live_chat_messages?.track_id === track_id)
+        .map((p) => ({
           id: p.id,
           message_id: p.message_id,
-          content: p.live_chat_messages?.content || '',
+          content: p.live_chat_messages?.content ?? '',
           pinned_at: p.pinned_at,
         }))
 
