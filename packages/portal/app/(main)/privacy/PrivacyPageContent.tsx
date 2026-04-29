@@ -6,6 +6,7 @@ import { GlassPanel } from '@/components/ui/GlassPanel'
 import type { BrandConfig } from '@/config/brand'
 import { DataRightsRequestForm } from '@/components/privacy/DataRightsRequestForm'
 import { CCPAPreferences } from '@/components/privacy/CCPAPreferences'
+import { sanitizeHtml } from '@/lib/sanitize-html'
 
 interface Props {
   brandConfig: BrandConfig
@@ -24,7 +25,7 @@ export function PrivacyPageContent({ brandConfig, customHtml }: Props) {
         {customHtml ? (
           <div
             className="legal-prose"
-            dangerouslySetInnerHTML={{ __html: customHtml }}
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(customHtml, 'marketing-page') }}
           />
         ) : (
           <p className="text-white/50 text-center py-8">

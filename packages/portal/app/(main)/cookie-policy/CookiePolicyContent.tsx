@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { sanitizeHtml } from '@/lib/sanitize-html'
 
 export function CookiePolicyContent() {
   const [policyHtml, setPolicyHtml] = useState<string | null>(null)
@@ -67,13 +68,13 @@ export function CookiePolicyContent() {
   return (
     <>
       {/* Inject the policy styles */}
-      {policyStyles && <style dangerouslySetInnerHTML={{ __html: policyStyles }} />}
+      {policyStyles && <style dangerouslySetInnerHTML={{ __html: sanitizeHtml(policyStyles, 'inline-style') }} />}
 
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
         {policyHtml && (
           <div
             className="cookie-policy-content"
-            dangerouslySetInnerHTML={{ __html: policyHtml }}
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(policyHtml, 'marketing-page') }}
           />
         )}
       </div>
