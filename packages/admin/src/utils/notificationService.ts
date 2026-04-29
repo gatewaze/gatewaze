@@ -56,7 +56,7 @@ class NotificationService {
         console.error('Failed to send notification:', error);
         return {
           success: false,
-          error: error.message || 'Failed to send notification',
+          error: (error instanceof Error ? error.message : String(error)) || 'Failed to send notification',
         };
       }
 
@@ -65,11 +65,11 @@ class NotificationService {
         data: data,
         message: `Notification sent to ${data.successful || 0} recipients`,
       };
-    } catch (error: any) {
+    } catch (error) {
       console.error('Notification service error:', error);
       return {
         success: false,
-        error: error.message || 'An unexpected error occurred',
+        error: (error instanceof Error ? error.message : String(error)) || 'An unexpected error occurred',
       };
     }
   }
@@ -123,11 +123,11 @@ class NotificationService {
         recipients,
         eventId,
       });
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to send to event attendees:', error);
       return {
         success: false,
-        error: error.message || 'Failed to send to event attendees',
+        error: (error instanceof Error ? error.message : String(error)) || 'Failed to send to event attendees',
       };
     }
   }
@@ -141,11 +141,11 @@ class NotificationService {
         notification,
         sendToAll: true,
       });
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to send to all users:', error);
       return {
         success: false,
-        error: error.message || 'Failed to send to all users',
+        error: (error instanceof Error ? error.message : String(error)) || 'Failed to send to all users',
       };
     }
   }
@@ -172,11 +172,11 @@ class NotificationService {
         success: true,
         data: { count: count || 0 },
       };
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to get subscriptions count:', error);
       return {
         success: false,
-        error: error.message || 'Failed to get subscriptions count',
+        error: (error instanceof Error ? error.message : String(error)) || 'Failed to get subscriptions count',
       };
     }
   }
@@ -230,11 +230,11 @@ class NotificationService {
         success: true,
         data: { count: count || 0 },
       };
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to get event subscribers count:', error);
       return {
         success: false,
-        error: error.message || 'Failed to get event subscribers count',
+        error: (error instanceof Error ? error.message : String(error)) || 'Failed to get event subscribers count',
       };
     }
   }
