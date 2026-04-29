@@ -56,7 +56,6 @@
     "clsx": "^2.1.1",
     "color": "^5.0.0",
     "cookie": "^1.1.1",
-    "date-fns": "^4.1.0",
     "dayjs": "^1.11.13",
     "isomorphic-dompurify": "^3.0.0-rc.2",
     "@sentry/react": "^10.51.0",
