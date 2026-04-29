@@ -33,7 +33,7 @@ import {
 // file are by-design service-role.
 import { getSupabase } from '../lib/supabase.js';
 import { initSentry, installCrashHandlers } from '../lib/sentry.js';
-import { initTracing } from '../lib/tracing.js';
+import { initTracing, shutdownTracing } from '../lib/tracing.js';
 
 void initTracing();
 initSentry({ service: 'worker' });
@@ -280,6 +280,7 @@ async function main(): Promise<void> {
     await closeAllQueues();
     await closeAllConnections();
     await metricsServer.close();
+    await shutdownTracing();
     process.exit(0);
   };
   process.on('SIGTERM', () => shutdown('SIGTERM'));

@@ -34,7 +34,7 @@ import { logger as appLogger, requestLogger, attachRequestId } from './lib/logge
 import { errorEnvelope } from './lib/errors.js';
 import { initSentry, installCrashHandlers } from './lib/sentry.js';
 import { initRedMetrics, redMetricsMiddleware } from './lib/red-metrics.js';
-import { initTracing } from './lib/tracing.js';
+import { initTracing, shutdownTracing } from './lib/tracing.js';
 import { register as promRegister } from 'prom-client';
 import { loadModules, loadModulesWithDbSources, reconcileModules } from '@gatewaze/shared/modules';
 import type { ModuleRuntimeContext } from '@gatewaze/shared/modules';
@@ -278,6 +278,9 @@ if (process.env.NODE_ENV !== 'test') {
         })(),
         new Promise((resolve) => setTimeout(resolve, drainSec * 1000)),
       ]);
+      // 3. Flush OTel spans last so the drain operations themselves
+      //    appear in the trace.
+      await shutdownTracing();
       process.exit(0);
     };
     process.on('SIGTERM', () => shutdown('SIGTERM'));
