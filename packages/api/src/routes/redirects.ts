@@ -11,6 +11,7 @@ import { type Request, type Response } from 'express';
 import { getSupabase } from '../lib/supabase.js';
 import { labeledRouter } from '../lib/router-registry.js';
 import { requireJwt } from '../lib/auth/require-jwt.js';
+import { logger } from '../lib/logger.js';
 
 const SHORTIO_API_BASE = 'https://api.short.io';
 const RATE_LIMIT_DELAY_MS = 200;
@@ -69,7 +70,7 @@ redirectsRouter.post('/sync', async (req: Request, res: Response) => {
   }
 
   // Start sync in background
-  syncShortIoLinks(supabase, apiKey, domain, syncLog.id).catch(console.error);
+  syncShortIoLinks(supabase, apiKey, domain, syncLog.id).catch((err) => logger.error({ err }, "redirect sync background failure"));
 
   res.json({ success: true, message: 'Sync started', syncLogId: syncLog.id });
 });
@@ -191,7 +192,7 @@ async function syncShortIoLinks(supabase: any, apiKey: string, domain: string, s
     }).eq('id', syncLogId);
 
   } catch (error: any) {
-    console.error('Redirect sync error:', error);
+    logger.error({ err: error }, 'redirect sync error');
     await supabase.from('redirects_sync_logs').update({
       status: 'failed',
       completed_at: new Date().toISOString(),
