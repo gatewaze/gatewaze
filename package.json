@@ -20,7 +20,13 @@
     "test": "pnpm --filter @gatewaze/* test",
     "test:watch": "pnpm --filter @gatewaze/* test:watch",
     "modules:migrate": "tsx scripts/modules/run-migrations.ts",
-    "modules:deploy-functions": "tsx scripts/modules/deploy-functions.ts"
+    "modules:deploy-functions": "tsx scripts/modules/deploy-functions.ts",
+    "prepare": "husky || true"
+  },
+  "lint-staged": {
+    "packages/*/{src,app,components,lib}/**/*.{ts,tsx,js,cjs,mjs}": [
+      "pnpm exec eslint --fix"
+    ]
   },
   "engines": {
     "node": ">=20.0.0",
@@ -35,6 +41,8 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.5.0",
     "vitest": "^4.1.0"
   },
   "dependencies": {
