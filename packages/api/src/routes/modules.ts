@@ -1,5 +1,6 @@
-import { Router } from 'express';
 import { createClient } from '@supabase/supabase-js';
+import { labeledRouter } from '../lib/router-registry.js';
+import { requireJwt } from '../lib/auth/require-jwt.js';
 import {
   loadModulesWithDbSources,
   reconcileModules,
@@ -52,7 +53,8 @@ const upload = multer({
   limits: { fileSize: MAX_UPLOAD_SIZE },
 });
 
-export const modulesRouter = Router();
+export const modulesRouter = labeledRouter('jwt');
+modulesRouter.use(requireJwt());
 
 /** Middleware: require leadership for all mutating operations */
 function requireLeadership(req: any, res: any, next: any) {

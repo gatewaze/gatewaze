@@ -22,6 +22,11 @@ import { calendarProxyRouter } from './routes/calendar-proxy.js';
 import { modulesRouter } from './routes/modules.js';
 import { apiKeysRouter } from './routes/api-keys.js';
 import { hateoasMiddleware } from './lib/hateoas.js';
+import {
+  mountLabeled,
+  labelDirectRoute,
+  assertAllRoutesLabeled,
+} from './lib/router-registry.js';
 import { loadModules, loadModulesWithDbSources, reconcileModules } from '@gatewaze/shared/modules';
 import type { ModuleRuntimeContext } from '@gatewaze/shared/modules';
 import { createClient } from '@supabase/supabase-js';
@@ -69,28 +74,37 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(hateoasMiddleware);
 
-// Prometheus metrics
+// Prometheus metrics — registered directly on the app (not via a Router),
+// so we record the auth label explicitly. /metrics is intended to be
+// network-restricted (PodMonitor in k8s), not routed through Traefik.
 app.get('/metrics', async (req, res) => {
   await metricsHandler(req, res as never);
 });
+labelDirectRoute('GET', '/metrics', 'public');
 
 // Routes - existing
-app.use('/api', healthRouter);
-app.use('/api/people', peopleRouter);
-app.use('/api/csv', csvRouter);
-app.use('/api/calendars', calendarsRouter);
-app.use('/api/db-copy', dbCopyRouter);
+mountLabeled(app, '/api', healthRouter);
+mountLabeled(app, '/api/people', peopleRouter);
+mountLabeled(app, '/api/csv', csvRouter);
+mountLabeled(app, '/api/calendars', calendarsRouter);
+mountLabeled(app, '/api/db-copy', dbCopyRouter);
 
 // Routes - added for admin
-app.use('/api/jobs', jobsRouter);
-app.use('/api/screenshots', screenshotsRouter);
-app.use('/api/customerio', customerioRouter);
-app.use('/api/avatars', avatarsRouter);
-app.use('/api/redirects', redirectsRouter);
-app.use('/api/slack', slackRouter);
-app.use('/api/calendar', calendarProxyRouter);
-app.use('/api/modules', modulesRouter);
-app.use('/api/api-keys', apiKeysRouter);
+mountLabeled(app, '/api/jobs', jobsRouter);
+mountLabeled(app, '/api/screenshots', screenshotsRouter);
+mountLabeled(app, '/api/customerio', customerioRouter);
+mountLabeled(app, '/api/avatars', avatarsRouter);
+mountLabeled(app, '/api/redirects', redirectsRouter);
+mountLabeled(app, '/api/slack', slackRouter);
+mountLabeled(app, '/api/calendar', calendarProxyRouter);
+mountLabeled(app, '/api/modules', modulesRouter);
+mountLabeled(app, '/api/api-keys', apiKeysRouter);
+
+// Deny-by-default self-check: every static route must be labeled
+// 'jwt' or 'public'. Throws on first miss → server fails to boot.
+// Dynamic module routes registered below are exempt (their auth is
+// the module author's responsibility; tracked as a phase-4 follow-up).
+assertAllRoutesLabeled(app);
 
 // Module routes — loaded async before server starts
 async function registerModuleRoutes() {

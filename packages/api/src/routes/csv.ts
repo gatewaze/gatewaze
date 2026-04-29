@@ -1,11 +1,13 @@
-import { Router } from 'express';
 import multer from 'multer';
 import { parse } from 'csv-parse';
 import { stringify } from 'csv-stringify';
 import { getSupabase } from '../lib/supabase.js';
 import { Readable } from 'stream';
+import { labeledRouter } from '../lib/router-registry.js';
+import { requireJwt } from '../lib/auth/require-jwt.js';
 
-export const csvRouter = Router();
+export const csvRouter = labeledRouter('jwt');
+csvRouter.use(requireJwt());
 
 // Configure multer for in-memory file uploads (max 10MB)
 const upload = multer({
