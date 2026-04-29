@@ -1,3 +1,8 @@
+// SERVICE-ROLE OK: admin people CRUD; the v1 people RLS already lets
+// admins see all rows so a switch to user-scoped (getRequestSupabase)
+// would behave correctly today, but the v2 path requires `account_id`
+// on every people row — the backfill (Session 6) populates that, then
+// Session 16 migrates this file under integration test coverage.
 import { getSupabase } from '../lib/supabase.js';
 import { labeledRouter } from '../lib/router-registry.js';
 import { requireJwt } from '../lib/auth/require-jwt.js';
