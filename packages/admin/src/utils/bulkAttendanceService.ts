@@ -76,7 +76,7 @@ export class BulkAttendanceService {
         console.warn(`Row ${i + 1}: Too many columns, extra columns will be ignored`);
       }
 
-      const row: any = {};
+      const row: Record<string, string> = {};
       header.forEach((col, index) => {
         const value = values[index]?.trim() || '';
         // Only include supported columns
@@ -270,7 +270,7 @@ export class BulkAttendanceService {
 
       // Transform rows to match API format
       const attendanceRecords = rows.map(row => {
-        const record: any = {
+        const record: Record<string, unknown> = {
           email: row.email,
         };
 
@@ -337,24 +337,26 @@ export class BulkAttendanceService {
       }
 
       // Transform API result to match our interface
+      interface ApiError { index: number; email: string; error: string }
+      interface ApiSkip { index: number; email: string; reason: string }
       return {
         total: apiResult.total,
         successful: apiResult.successful,
         failed: apiResult.failed + (apiResult.skipped || 0),
         errors: [
-          ...(apiResult.errors || []).map((err: any) => ({
+          ...((apiResult.errors ?? []) as ApiError[]).map((err) => ({
             row: err.index + 2,
             email: err.email,
             error: err.error,
           })),
-          ...(apiResult.skipped || []).map((skip: any) => ({
+          ...((apiResult.skipped ?? []) as ApiSkip[]).map((skip) => ({
             row: skip.index + 2,
             email: skip.email,
             error: `Skipped: ${skip.reason}`,
           })),
         ],
       };
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error processing bulk attendance:', error);
       return {
         total: rows.length,
@@ -363,7 +365,7 @@ export class BulkAttendanceService {
         errors: [{
           row: 0,
           email: 'N/A',
-          error: error.message || 'Failed to process bulk attendance',
+          error: (error instanceof Error ? error.message : String(error)) || 'Failed to process bulk attendance',
         }],
       };
     }
