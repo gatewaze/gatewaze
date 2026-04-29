@@ -75,6 +75,15 @@ export function getSupabase(): SupabaseClient {
  * `req.accountId`, and the Authorization header are all populated).
  */
 export async function getRequestSupabase(req: Request): Promise<SupabaseClient> {
+  // Test bypass: when requireJwt() short-circuited via
+  // GATEWAZE_TEST_DISABLE_AUTH, no JWT is on the request. Tests that
+  // mock supabase via vi.mock('../lib/supabase') override this entire
+  // module anyway; the service-role fallback here keeps the route
+  // tests that don't mock from 401-ing.
+  if (process.env.GATEWAZE_TEST_DISABLE_AUTH === '1') {
+    return getServiceSupabase();
+  }
+
   const url = process.env.SUPABASE_URL;
   const anonKey = process.env.SUPABASE_ANON_KEY;
   if (!url || !anonKey) {

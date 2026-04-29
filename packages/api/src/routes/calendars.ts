@@ -1,9 +1,13 @@
-// SERVICE-ROLE OK: admin calendars CRUD; the calendars table is not yet
-// part of the tenancy_v2 RLS rewrite. Per-route migration to
-// getRequestSupabase() is deferred to phase 4 (Session 16) where
-// integration tests against a real Supabase instance can validate the
-// flag-on path.
-import { getSupabase } from '../lib/supabase.js';
+// User-scoped Supabase per spec §5.1: every CRUD on the calendars
+// table runs under the caller's JWT, so v1 RLS (admin or self) and
+// v2 RLS (account_in_scope) both apply automatically. Service-role is
+// no longer used here.
+//
+// First proof-of-concept route migrated from getSupabase() to
+// getRequestSupabase(req). The pattern: every handler awaits the
+// per-request client (which sets app.account_id GUC), and admin
+// authorization is enforced by the v1 RLS policies (is_admin()).
+import { getRequestSupabase } from '../lib/supabase.js';
 import { labeledRouter } from '../lib/router-registry.js';
 import { requireJwt } from '../lib/auth/require-jwt.js';
 import { logger } from '../lib/logger.js';
@@ -14,7 +18,7 @@ calendarsRouter.use(requireJwt());
 // List calendars
 calendarsRouter.get('/', async (req, res) => {
   try {
-    const supabase = getSupabase();
+    const supabase = await getRequestSupabase(req);
     const page = parseInt(req.query.page as string) || 1;
     const limit = Math.min(parseInt(req.query.limit as string) || 25, 100);
     const search = req.query.search as string;
@@ -43,7 +47,7 @@ calendarsRouter.get('/', async (req, res) => {
 // Get single calendar with its events via calendar_events junction table
 calendarsRouter.get('/:id', async (req, res) => {
   try {
-    const supabase = getSupabase();
+    const supabase = await getRequestSupabase(req);
     const identifier = req.params.id;
 
     // Look up by id, slug, or calendar_id (CAL-XXX format)
@@ -81,7 +85,7 @@ calendarsRouter.get('/:id', async (req, res) => {
 // Create calendar
 calendarsRouter.post('/', async (req, res) => {
   try {
-    const supabase = getSupabase();
+    const supabase = await getRequestSupabase(req);
     const { data, error } = await supabase
       .from('calendars')
       .insert(req.body)
@@ -99,7 +103,7 @@ calendarsRouter.post('/', async (req, res) => {
 // Update calendar
 calendarsRouter.patch('/:id', async (req, res) => {
   try {
-    const supabase = getSupabase();
+    const supabase = await getRequestSupabase(req);
     const { data, error } = await supabase
       .from('calendars')
       .update(req.body)
