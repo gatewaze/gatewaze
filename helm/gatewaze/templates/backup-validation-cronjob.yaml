@@ -1,0 +1,73 @@
+{{- if and .Values.backup.enabled .Values.backup.validation.enabled }}
+# Weekly restore-validation Job per spec §5.5. Restores the latest
+# backup into a temporary database namespace and runs a smoke test.
+# Alerts via Prometheus (BackupValidationFailed) on any failure.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "gatewaze.fullname" . }}-backup-validation
+  labels:
+    {{- include "gatewaze.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup-validation
+spec:
+  schedule: {{ .Values.backup.validation.schedule | default "0 3 * * 0" | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 7
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: restore-validation
+              image: {{ .Values.backup.image | default "pgbackrest/pgbackrest:latest" | quote }}
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -euo pipefail
+                  echo "Restoring latest backup into temp namespace..."
+                  pgbackrest --stanza=gatewaze --type=full restore \
+                    --target=immediate --target-action=promote
+                  echo "Running smoke test..."
+                  psql -h {{ .Values.backup.postgres.host | quote }} \
+                       -U {{ .Values.backup.postgres.user | default "postgres" | quote }} \
+                       -d {{ .Values.backup.postgres.database | default "postgres" | quote }} \
+                       -c "SELECT count(*) FROM platform_settings;" \
+                       -c "SELECT count(*) FROM accounts;" \
+                       -c "SELECT count(*) FROM events;" \
+                       -c "SELECT count(*) FROM people;"
+                  echo "Validation OK."
+              env:
+                - name: PGBACKREST_REPO1_TYPE
+                  value: s3
+                - name: PGBACKREST_REPO1_S3_BUCKET
+                  value: {{ .Values.backup.s3.bucket | quote }}
+                - name: PGBACKREST_REPO1_S3_ENDPOINT
+                  value: {{ .Values.backup.s3.endpoint | quote }}
+                - name: PGBACKREST_REPO1_S3_REGION
+                  value: {{ .Values.backup.s3.region | quote }}
+                - name: PGBACKREST_REPO1_S3_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.backup.s3.secretName | quote }}
+                      key: access_key
+                - name: PGBACKREST_REPO1_S3_KEY_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.backup.s3.secretName | quote }}
+                      key: secret_key
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.backup.postgres.secretName | quote }}
+                      key: password
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  cpu: 500m
+                  memory: 1Gi
+{{- end }}

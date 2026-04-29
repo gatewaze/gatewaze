@@ -280,6 +280,31 @@ affinity: {}
 extraEnvFrom: []
 
 # =============================================================================
+# Backups (pgbackrest) — spec §5.5
+# =============================================================================
+# Off by default. Operators on Supabase Cloud already have native PITR;
+# self-hosted k8s deployments enable this for daily-full + 5-min-WAL
+# backups to S3-compatible storage. Restore-validation Job runs weekly.
+backup:
+  enabled: false
+  schedule: "0 2 * * *"
+  image: "pgbackrest/pgbackrest:latest"
+  postgres:
+    host: ""        # e.g. supabase-db.svc.cluster.local
+    port: "5432"
+    user: "postgres"
+    database: "postgres"
+    secretName: ""  # Secret holding key=password
+  s3:
+    bucket: ""
+    endpoint: "s3.amazonaws.com"
+    region: "us-east-1"
+    secretName: ""  # Secret holding keys access_key, secret_key
+  validation:
+    enabled: true
+    schedule: "0 3 * * 0"  # Sunday 03:00
+
+# =============================================================================
 # Monitoring (Sentry)
 # =============================================================================
 # Sentry is opt-in. Set monitoring.sentry.dsn to enable error tracking
