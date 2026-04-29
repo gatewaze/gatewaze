@@ -33,7 +33,9 @@ import {
 // file are by-design service-role.
 import { getSupabase } from '../lib/supabase.js';
 import { initSentry, installCrashHandlers } from '../lib/sentry.js';
+import { initTracing } from '../lib/tracing.js';
 
+void initTracing();
 initSentry({ service: 'worker' });
 installCrashHandlers({
   log: (level, obj, msg) => logger[level](obj, msg),
