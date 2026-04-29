@@ -56,30 +56,21 @@ export function getSupabase(): SupabaseClient {
 /**
  * Constructs a user-scoped Supabase client for the current request.
  *
- * Steps performed:
- *   1. Reads the caller's JWT from the Authorization header (extracted
- *      by requireJwt() and re-passed via the Express Request).
- *   2. Builds a fresh SupabaseClient with that JWT as the auth header.
- *      The client therefore inherits the user's `auth.uid()` and
- *      `auth.jwt()` claims under RLS — every query is filtered by
- *      whichever policies apply to that role.
- *   3. Calls `select set_config('app.account_id', <accountId>, true)`
- *      so RLS policies that use the GUC fast path (per spec §5.1)
- *      narrow scope to the request's active account immediately.
- *
- * The returned client is single-use — do not cache or share it across
- * requests. It must be created at the start of a route handler that
- * needs user-scoped access, and discarded when the response is sent.
+ * Returns synchronously so route handlers can do
+ * `const supabase = getRequestSupabase(req)` without an extra await.
+ * The GUC-set RPC fires in the background — RLS falls back to the
+ * user_account_ids() subquery if the GUC isn't ready yet, which is
+ * correct for the small set of in-flight queries before
+ * set_app_account_id resolves.
  *
  * Requires that requireJwt() ran first (so `req.userId`,
  * `req.accountId`, and the Authorization header are all populated).
  */
-export async function getRequestSupabase(req: Request): Promise<SupabaseClient> {
+export function getRequestSupabase(req: Request): SupabaseClient {
   // Test bypass: when requireJwt() short-circuited via
-  // GATEWAZE_TEST_DISABLE_AUTH, no JWT is on the request. Tests that
-  // mock supabase via vi.mock('../lib/supabase') override this entire
-  // module anyway; the service-role fallback here keeps the route
-  // tests that don't mock from 401-ing.
+  // GATEWAZE_TEST_DISABLE_AUTH, no JWT is on the request. The
+  // service-role fallback keeps route tests that don't mock supabase
+  // from 401-ing.
   if (process.env.GATEWAZE_TEST_DISABLE_AUTH === '1') {
     return getServiceSupabase();
   }
@@ -101,21 +92,19 @@ export async function getRequestSupabase(req: Request): Promise<SupabaseClient> 
     global: { headers: { Authorization: `Bearer ${token}` } },
   });
 
-  // Set the per-request GUC so RLS policies that prefer the fast-path
-  // (current_account_id()) narrow scope without falling back to the
-  // user_account_ids() subquery. The set_app_account_id() RPC is a
-  // SECURITY INVOKER wrapper around pg_catalog.set_config (not exposed
-  // by PostgREST). is_local=true reverts the GUC at end of transaction.
+  // Fire-and-forget: set the per-request GUC so RLS policies that
+  // prefer the fast-path (current_account_id()) narrow scope without
+  // the user_account_ids() subquery. Failure is recoverable — RLS
+  // simply falls back to the subquery path.
   if (req.accountId) {
-    const { error } = await client.rpc('set_app_account_id', {
-      p_account_id: req.accountId,
-    });
-    if (error) {
-      // Recoverable — RLS falls back to the user_account_ids()
-      // subquery. Log via Pino once Session 9 lands; console for now.
-      // eslint-disable-next-line no-console
-      console.warn('[supabase] set_app_account_id failed:', error.message);
-    }
+    const accountId = req.accountId;
+    void (async () => {
+      try {
+        await client.rpc('set_app_account_id', { p_account_id: accountId });
+      } catch {
+        // ignore — subquery fallback handles it.
+      }
+    })();
   }
 
   return client;
