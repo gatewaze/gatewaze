@@ -102,7 +102,7 @@ export class ScreenshotService {
     } catch (error) {
 
       // Check if it's a network error
-      if (error.name === 'TypeError' && (error instanceof Error ? error.message : String(error)).includes('fetch')) {
+      if (error instanceof TypeError && error.message.includes('fetch')) {
         return {
           success: false,
           message: `Cannot connect to screenshot API server. Make sure it's running on port 3002.`,
@@ -161,7 +161,7 @@ export class ScreenshotService {
     } catch (error) {
 
       // Check if it's a network error
-      if (error.name === 'TypeError' && (error instanceof Error ? error.message : String(error)).includes('fetch')) {
+      if (error instanceof TypeError && error.message.includes('fetch')) {
         return {
           success: false,
           message: `Cannot connect to screenshot API server. Make sure it's running on port 3002.`,
@@ -213,7 +213,7 @@ export class ScreenshotService {
 
     } catch (error) {
 
-      if (error.name === 'TypeError' && (error instanceof Error ? error.message : String(error)).includes('fetch')) {
+      if (error instanceof TypeError && error.message.includes('fetch')) {
         return {
           success: false,
           message: `Cannot connect to screenshot API server. Make sure it's running on port 3002.`,
@@ -265,7 +265,7 @@ export class ScreenshotService {
 
     } catch (error) {
 
-      if (error.name === 'TypeError' && (error instanceof Error ? error.message : String(error)).includes('fetch')) {
+      if (error instanceof TypeError && error.message.includes('fetch')) {
         return {
           success: false,
           message: `Cannot connect to screenshot API server. Make sure it's running on port 3002.`,
