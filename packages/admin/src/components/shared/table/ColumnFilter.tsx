@@ -17,6 +17,12 @@ import { DatePicker } from "../form/Datepicker";
 
 // ----------------------------------------------------------------------
 
+interface ColumnFilterOption {
+  value: string;
+  label: string;
+  icon?: React.ComponentType<{ className?: string }>;
+}
+
 export function ColumnFilter({ column }: { column: Column<any> }) {
   const columnFilterValue = column.getFilterValue() as any;
 
@@ -93,13 +99,14 @@ export function ColumnFilter({ column }: { column: Column<any> }) {
   }
 
   if (column.columnDef.filterColumn === "select") {
+    const selectOptions = (column.columnDef?.options ?? []) as ColumnFilterOption[];
     return (
       <Listbox
         as="div"
-        value={column.columnDef?.options?.filter(({ value }) =>
+        value={selectOptions.filter(({ value }) =>
           columnFilterValue?.includes(value),
         )}
-        onChange={(list) => {
+        onChange={(list: ColumnFilterOption[]) => {
           column.setFilterValue(list.map((item) => item.value));
         }}
         multiple
@@ -145,7 +152,7 @@ export function ColumnFilter({ column }: { column: Column<any> }) {
                 leaveTo="opacity-0 translate-y-2"
               >
                 <ListboxOptions className="text-xs-plus shadow-soft absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-[var(--gray-a5)] bg-[var(--color-background)] py-1 capitalize outline-hidden focus-visible:outline-hidden dark:shadow-none">
-                  {column?.columnDef?.options?.map((item) => (
+                  {selectOptions.map((item) => (
                     <ListboxOption
                       key={item.value}
                       className={({ focus }) =>

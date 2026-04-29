@@ -16,7 +16,7 @@ export interface RegisterAttendee {
   amountPaid?: number;
   currency?: string;
   discountCodeId?: string;
-  registrationMetadata?: any;
+  registrationMetadata?: Record<string, unknown>;
 }
 
 export interface CheckInAttendee {

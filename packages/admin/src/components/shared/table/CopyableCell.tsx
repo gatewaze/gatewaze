@@ -32,7 +32,7 @@ export function CopyableCell({
       <Button
         data-tooltip
         data-tooltip-content={copied ? "Copied" : "Copy"}
-        onClick={() => copy(val)}
+        onClick={() => copy(ensureString(val))}
         isIcon
         variant="ghost"
         className="size-5 rounded-full opacity-0 group-hover/td:opacity-100"

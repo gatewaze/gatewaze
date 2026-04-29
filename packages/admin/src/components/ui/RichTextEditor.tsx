@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { useEditor, EditorContent } from '@tiptap/react';
+import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
 import Link from '@tiptap/extension-link';
@@ -168,7 +168,7 @@ interface RichTextEditorProps {
 }
 
 interface MenuBarProps {
-  editor: any;
+  editor: Editor;
   templateVariables?: TemplateVariableConfig;
   onInsertVariable?: (variable: string) => void;
 }
@@ -650,6 +650,15 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     },
   });
 
+  const handleInsertVariable = useCallback((variable: string) => {
+    if (isHtmlMode) {
+      setHtmlContent(prev => prev + variable);
+      onChange(htmlContent + variable);
+    } else {
+      editor?.chain().focus().insertContent(variable).run();
+    }
+  }, [editor, isHtmlMode, htmlContent, onChange]);
+
   if (!editor) {
     return null;
   }
@@ -659,10 +668,8 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
 
   const toggleHtmlMode = () => {
     if (!isHtmlMode) {
-      // Switching to HTML mode - get current HTML
       setHtmlContent(editor.getHTML());
     } else {
-      // Switching back to visual mode - update editor with HTML
       editor.commands.setContent(htmlContent);
       onChange(
         storageBucketUrl
@@ -678,18 +685,6 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     setHtmlContent(newHtml);
     onChange(newHtml);
   };
-
-  // Handle inserting template variables at cursor position
-  const handleInsertVariable = useCallback((variable: string) => {
-    if (isHtmlMode) {
-      // In HTML mode, just append to the content
-      setHtmlContent(prev => prev + variable);
-      onChange(htmlContent + variable);
-    } else {
-      // In visual mode, insert at cursor position
-      editor.chain().focus().insertContent(variable).run();
-    }
-  }, [editor, isHtmlMode, htmlContent, onChange]);
 
   return (
     <div className={`border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden ${className}`}>

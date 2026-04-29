@@ -117,7 +117,7 @@ export function EmailLogsTab() {
       }
 
       // Fetch Customer.io email events (only when module is installed)
-      let cioQueryPromise: Promise<{ data: any[] }> = Promise.resolve({ data: [] });
+      let cioQueryPromise: Promise<{ data: CIOEmailEvent[] | null }> = Promise.resolve({ data: [] });
       if (hasCIO && sourceFilter !== 'sendgrid') {
         let cioQuery = supabase
           .from('email_events')
@@ -128,16 +128,18 @@ export function EmailLogsTab() {
         if (searchQuery) {
           cioQuery = cioQuery.or(`email.ilike.%${searchQuery}%,subject.ilike.%${searchQuery}%`);
         }
-        cioQueryPromise = cioQuery as any;
+        cioQueryPromise = cioQuery as unknown as Promise<{ data: CIOEmailEvent[] | null }>;
       }
 
       const [sendgridResult, cioResult] = await Promise.all([
-        sourceFilter !== 'customerio' ? sendgridQuery : Promise.resolve({ data: [] }),
+        sourceFilter !== 'customerio'
+          ? (sendgridQuery as unknown as Promise<{ data: SendGridEmailLog[] | null }>)
+          : Promise.resolve({ data: [] as SendGridEmailLog[] }),
         cioQueryPromise,
       ]);
 
       // Process SendGrid emails
-      const sendgridEmails: UnifiedEmail[] = ((sendgridResult as any).data || []).map((log: SendGridEmailLog) => ({
+      const sendgridEmails: UnifiedEmail[] = (sendgridResult.data || []).map((log: SendGridEmailLog) => ({
         id: `sg-${log.id}`,
         source: 'sendgrid' as const,
         email: log.recipient_email,
@@ -155,7 +157,7 @@ export function EmailLogsTab() {
 
       // Process Customer.io events - group by email_id
       const cioEventsByEmailId = new Map<string, CIOEmailEvent[]>();
-      ((cioResult as any).data || []).forEach((event: CIOEmailEvent) => {
+      (cioResult.data || []).forEach((event: CIOEmailEvent) => {
         const key = event.email_id || `no-id-${event.created_at}`;
         if (!cioEventsByEmailId.has(key)) {
           cioEventsByEmailId.set(key, []);
