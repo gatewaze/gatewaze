@@ -280,6 +280,24 @@ affinity: {}
 extraEnvFrom: []
 
 # =============================================================================
+# Monitoring (Sentry)
+# =============================================================================
+# Sentry is opt-in. Set monitoring.sentry.dsn to enable error tracking
+# in api / worker / scheduler. US region for all brands per OQ #2.
+# Self-host operators with strict residency can point dsn at a self-
+# hosted GlitchTip instance.
+monitoring:
+  sentry:
+    # -- Sentry DSN. Empty disables Sentry entirely (no-op SDK).
+    dsn: ""
+    # -- Environment label (production | staging | self-host).
+    environment: "production"
+    # -- Release identifier (image tag or git SHA recommended).
+    release: ""
+    # -- Performance traces sample rate (0.0–1.0). Default 0 = errors only.
+    tracesSampleRate: "0"
+
+# =============================================================================
 # API Service Configuration
 # =============================================================================
 api:
