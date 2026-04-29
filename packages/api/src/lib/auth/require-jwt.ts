@@ -67,9 +67,21 @@ function extractToken(req: Request): string | null {
  *
  * On success, attaches `req.userId`, `req.accountId`, and `req.jwtClaims`.
  * On failure, returns the standard error envelope.
+ *
+ * Test bypass: when `GATEWAZE_TEST_DISABLE_AUTH=1` (set by the api test
+ * setup), the middleware injects a fixed test user/account and skips JWT
+ * verification. The auth-specific tests in `require-jwt.test.ts` clear
+ * this env var so their assertions still exercise the real path.
  */
 export function requireJwt() {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    if (process.env.GATEWAZE_TEST_DISABLE_AUTH === '1') {
+      req.userId = '00000000-0000-0000-0000-000000000001';
+      req.accountId = '00000000-0000-0000-0000-0000000000a1';
+      req.jwtClaims = {};
+      next();
+      return;
+    }
     const token = extractToken(req);
     if (!token) {
       errorResponse(res, 401, 'unauthenticated', 'Missing or malformed Authorization header');

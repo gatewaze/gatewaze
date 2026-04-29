@@ -5,9 +5,10 @@
  * Google Calendar, Outlook, and ICS file downloads.
  */
 
-import { Router, type Request, type Response } from 'express';
+import { type Request, type Response } from 'express';
+import { labeledRouter } from '../lib/router-registry.js';
 
-export const calendarProxyRouter = Router();
+export const calendarProxyRouter = labeledRouter('public');
 
 function getEdgeFunctionUrl(): string {
   const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
