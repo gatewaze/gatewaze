@@ -48,8 +48,8 @@ export interface EventRegistration {
   registration_metadata?: {
     registration_answers?: Array<{
       label: string;
-      value: any;
-      answer: any;
+      value: unknown;
+      answer: unknown;
       question_type?: string;
       question_id?: string;
     }>;
@@ -87,8 +87,8 @@ export interface EventAttendance {
 
 export interface DiscountCodeClaim {
   id: string;
-  customer_id: number;
-  discount_code_id: number;
+  customer_id: string | number;
+  discount_code_id: string | number;
   event_id: string;
   claimed_at: string;
   used_for_purchase: boolean;
@@ -110,6 +110,87 @@ export interface Sponsor {
   contact_phone: string | null;
   is_active: boolean;
 }
+
+// Internal row shapes for raw Supabase query results — narrow to fields we use
+interface PeopleAttributes {
+  first_name?: string | null;
+  last_name?: string | null;
+  company?: string | null;
+  job_title?: string | null;
+  job_function?: string | null;
+  job_seniority?: string | null;
+}
+
+interface PeopleRow {
+  id?: string;
+  email: string;
+  cio_id?: string | null;
+  attributes?: PeopleAttributes | null;
+}
+
+interface DiscountCodeRow {
+  id: string;
+  code: string;
+  issued_to: string;
+  registered_at?: string | null;
+  attended_at?: string | null;
+  issued_at?: string | null;
+  member_profile_id?: string | null;
+  event_registration_id?: string | null;
+  events_registrations?: { sponsor_team_id?: string | null } | null;
+}
+
+interface DiscountInteractionRow {
+  id: string;
+  customer_cio_id: string;
+  timestamp: string;
+  offer_status: string;
+}
+
+interface TeamMemberRegistrationRow {
+  id?: string;
+  people_profile_id: string;
+  registration_type?: string | null;
+  people_profiles?: unknown;
+}
+
+interface ScanRow {
+  scanner_people_profile_id: string;
+  scanned_people_profile_id?: string;
+  scanned_at?: string | null;
+  scanner?: { customer?: { email?: string; attributes?: PeopleAttributes } | null } | null;
+  scanned?: { customer?: { email?: string; attributes?: PeopleAttributes } | null } | null;
+  interest_level?: string | null;
+  rating?: number | null;
+  notes?: string | null;
+  tags?: string[] | null;
+  follow_up_required?: boolean | null;
+  location?: string | null;
+}
+
+interface RegistrationPermissionRow {
+  id: string;
+  sponsor_permission: boolean | null;
+}
+
+interface PeopleProfileIdRow {
+  id?: string;
+  person_id?: number | null;
+}
+
+interface CustomerAttributesRow {
+  attributes?: PeopleAttributes | null;
+}
+
+interface ScannerAggregate {
+  scanner_people_profile_id: string;
+  scanner_name: string;
+  scanner_email: string;
+  scanner_company: string | null;
+  scan_count: number;
+}
+
+type CsvCell = string | number | boolean | null | undefined;
 
 /**
  * Service for managing event QR/badge system data
@@ -434,13 +515,14 @@ export class EventQrService {
 
       // If we have discount codes registration data, use that
       if (!codesError && discountCodes && discountCodes.length > 0) {
+        const codes = discountCodes as unknown as DiscountCodeRow[];
         // Get unique email addresses
-        const emails = [...new Set(discountCodes.map((c: any) => c.issued_to).filter(Boolean))];
+        const emails = [...new Set(codes.map((c) => c.issued_to).filter(Boolean))];
 
         // Fetch customer details by email (batched to avoid URL length limits)
         const BATCH_SIZE = 100;
         const emailBatches = this.batchArray(emails, BATCH_SIZE);
-        let allCustomers: any[] = [];
+        let allCustomers: PeopleRow[] = [];
 
         for (const batch of emailBatches) {
           const { data: customers, error: customersError } = await supabase
@@ -451,15 +533,15 @@ export class EventQrService {
           if (customersError) {
             console.warn('Error fetching customer data for registrations:', customersError);
           } else if (customers) {
-            allCustomers = allCustomers.concat(customers);
+            allCustomers = allCustomers.concat(customers as unknown as PeopleRow[]);
           }
         }
 
         // Create a map of customers by email for quick lookup
-        const customerMap = new Map(allCustomers.map((c: any) => [c.email, c]));
+        const customerMap = new Map(allCustomers.map((c) => [c.email, c]));
 
         // Transform to EventRegistration format
-        return discountCodes.map((code: any) => {
+        return codes.map((code) => {
           const customer = customerMap.get(code.issued_to);
           return {
             id: code.id,
@@ -469,14 +551,14 @@ export class EventQrService {
             ticket_type: 'discount_code',
             registration_source: 'discount_code',
             status: 'confirmed',
-            registered_at: code.registered_at,
+            registered_at: code.registered_at ?? '',
             qr_code_id: code.code,
             full_name: customer?.attributes?.first_name && customer?.attributes?.last_name
               ? `${customer.attributes.first_name} ${customer.attributes.last_name}`
               : customer?.attributes?.first_name || code.issued_to,
             email: code.issued_to,
-            company: customer?.attributes?.company,
-            job_title: customer?.attributes?.job_title,
+            company: customer?.attributes?.company ?? undefined,
+            job_title: customer?.attributes?.job_title ?? undefined,
             ticket_quantity: 1,
             sponsor_team_id: code.events_registrations?.sponsor_team_id || null,
           };
@@ -540,13 +622,14 @@ export class EventQrService {
 
       // If the table exists and has data, use it
       if (!codesError && discountCodes && discountCodes.length > 0) {
+        const codes = discountCodes as unknown as DiscountCodeRow[];
         // Get unique email addresses
-        const emails = [...new Set(discountCodes.map((c: any) => c.issued_to).filter(Boolean))];
+        const emails = [...new Set(codes.map((c) => c.issued_to).filter(Boolean))];
 
         // Fetch customer details by email (batched to avoid URL length limits)
         const BATCH_SIZE = 100;
         const emailBatches = this.batchArray(emails, BATCH_SIZE);
-        let allCustomers: any[] = [];
+        let allCustomers: PeopleRow[] = [];
 
         for (const batch of emailBatches) {
           const { data: customers, error: customersError } = await supabase
@@ -557,22 +640,22 @@ export class EventQrService {
           if (customersError) {
             console.warn('Error fetching customer data for attendance:', customersError);
           } else if (customers) {
-            allCustomers = allCustomers.concat(customers);
+            allCustomers = allCustomers.concat(customers as unknown as PeopleRow[]);
           }
         }
 
         // Create a map of customers by email for quick lookup
-        const customerMap = new Map(allCustomers.map((c: any) => [c.email, c]));
+        const customerMap = new Map(allCustomers.map((c) => [c.email, c]));
 
         // Transform to EventAttendance format
-        return discountCodes.map((code: any) => {
+        return codes.map((code) => {
           const customer = customerMap.get(code.issued_to);
           return {
             id: code.id,
             people_profile_id: code.member_profile_id || customer?.cio_id || code.issued_to,
             event_id: eventId,
-            event_registration_id: code.event_registration_id,
-            checked_in_at: code.attended_at,
+            event_registration_id: code.event_registration_id ?? null,
+            checked_in_at: code.attended_at ?? '',
             checked_out_at: null,
             check_in_method: 'manual',
             badge_printed_on_site: false,
@@ -581,7 +664,7 @@ export class EventQrService {
               ? `${customer.attributes.first_name} ${customer.attributes.last_name}`
               : customer?.attributes?.first_name || code.issued_to,
             email: code.issued_to,
-            company: customer?.attributes?.company,
+            company: customer?.attributes?.company ?? undefined,
           };
         });
       }
@@ -661,8 +744,9 @@ export class EventQrService {
 
       // If we have discount codes data, use that
       if (!codesError && codes && codes.length > 0) {
+        const codeRows = codes as unknown as DiscountCodeRow[];
         // Get unique email addresses
-        const emails = [...new Set(codes.map((c: any) => c.issued_to).filter(Boolean))];
+        const emails = [...new Set(codeRows.map((c) => c.issued_to).filter(Boolean))];
 
         // Fetch customer details by email
         const { data: customers, error: customersError } = await supabase
@@ -675,23 +759,23 @@ export class EventQrService {
         }
 
         // Create a map of customers by email for quick lookup
-        const customerMap = new Map((customers || []).map((c: any) => [c.email, c]));
+        const customerMap = new Map(((customers || []) as unknown as PeopleRow[]).map((c) => [c.email, c]));
 
         // Transform the data to include parsed customer info
-        return codes.map((code: any) => {
+        return codeRows.map((code) => {
           const customer = customerMap.get(code.issued_to);
           return {
             id: code.id,
             customer_id: customer?.cio_id || code.issued_to,
             discount_code_id: code.id,
             event_id: eventId,
-            claimed_at: code.issued_at,
+            claimed_at: code.issued_at ?? '',
             used_for_purchase: false, // Not tracked in discount_codes table
             email: code.issued_to,
             full_name: customer?.attributes?.first_name && customer?.attributes?.last_name
               ? `${customer.attributes.first_name} ${customer.attributes.last_name}`
               : customer?.attributes?.first_name || code.issued_to,
-            company: customer?.attributes?.company,
+            company: customer?.attributes?.company ?? undefined,
           };
         });
       }
@@ -720,8 +804,9 @@ export class EventQrService {
       if (error) throw error;
       if (!data || data.length === 0) return [];
 
+      const interactionRows = data as unknown as DiscountInteractionRow[];
       // Get unique customer IDs
-      const customerCioIds = [...new Set(data.map((d: any) => d.customer_cio_id))];
+      const customerCioIds = [...new Set(interactionRows.map((d) => d.customer_cio_id))];
 
       // Fetch customer details
       const { data: customers, error: customersError } = await supabase
@@ -732,10 +817,14 @@ export class EventQrService {
       if (customersError) throw customersError;
 
       // Create a map of customers by cio_id for quick lookup
-      const customerMap = new Map((customers || []).map((c: any) => [c.cio_id, c]));
+      const customerMap = new Map(
+        ((customers || []) as unknown as PeopleRow[])
+          .filter((c): c is PeopleRow & { cio_id: string } => Boolean(c.cio_id))
+          .map((c) => [c.cio_id, c]),
+      );
 
       // Transform the data to include parsed customer info
-      return data.map((interaction: any) => {
+      return interactionRows.map((interaction) => {
         const customer = customerMap.get(interaction.customer_cio_id);
         return {
           id: interaction.id,
@@ -744,11 +833,11 @@ export class EventQrService {
           event_id: eventId,
           claimed_at: interaction.timestamp,
           used_for_purchase: interaction.offer_status === 'converted',
-          email: customer?.email,
-          full_name: customer?.attributes?.first_name && customer?.attributes?.last_name
+          email: customer?.email ?? undefined,
+          full_name: (customer?.attributes?.first_name && customer?.attributes?.last_name
             ? `${customer.attributes.first_name} ${customer.attributes.last_name}`
-            : customer?.attributes?.first_name || customer?.email,
-          company: customer?.attributes?.company,
+            : customer?.attributes?.first_name || customer?.email) ?? undefined,
+          company: customer?.attributes?.company ?? undefined,
         };
       });
     } catch (error) {
@@ -863,8 +952,9 @@ export class EventQrService {
         return [];
       }
 
+      const teamRows = teamMembers as unknown as TeamMemberRegistrationRow[];
       // Get scan counts for each team member
-      const memberIds = teamMembers.map((m: any) => m.people_profile_id);
+      const memberIds = teamRows.map((m) => m.people_profile_id);
 
       const { data: scans, error: scansError } = await supabase
         .from('people_contact_scans')
@@ -877,21 +967,31 @@ export class EventQrService {
       }
 
       // Aggregate results
-      const scansByMember = (scans || []).reduce((acc: any, scan: any) => {
-        if (!acc[scan.scanner_people_profile_id]) {
-          acc[scan.scanner_people_profile_id] = { count: 0, latest: null };
+      const scansByMember = ((scans || []) as unknown as ScanRow[]).reduce<
+        Record<string, { count: number; latest: string | null }>
+      >((acc, scan) => {
+        const id = scan.scanner_people_profile_id;
+        if (!acc[id]) {
+          acc[id] = { count: 0, latest: null };
         }
-        acc[scan.scanner_people_profile_id].count++;
-        if (!acc[scan.scanner_people_profile_id].latest || scan.scanned_at > acc[scan.scanner_people_profile_id].latest) {
-          acc[scan.scanner_people_profile_id].latest = scan.scanned_at;
+        acc[id].count++;
+        const scannedAt = scan.scanned_at ?? null;
+        if (scannedAt && (!acc[id].latest || scannedAt > acc[id].latest!)) {
+          acc[id].latest = scannedAt;
         }
         return acc;
       }, {});
 
-      return teamMembers.map((member: any) => {
-        const profile = Array.isArray(member.people_profiles) ? member.people_profiles[0] : member.people_profiles;
-        const customer = Array.isArray(profile?.customers) ? profile.customers[0] : profile?.customers;
-        const attributes = customer?.attributes || {};
+      return teamRows.map((member) => {
+        const profilesField = member.people_profiles as
+          | { customers?: { email?: string; attributes?: PeopleAttributes } | { email?: string; attributes?: PeopleAttributes }[] }
+          | { customers?: { email?: string; attributes?: PeopleAttributes } | { email?: string; attributes?: PeopleAttributes }[] }[]
+          | null
+          | undefined;
+        const profile = Array.isArray(profilesField) ? profilesField[0] : profilesField;
+        const customersField = profile?.customers;
+        const customer = Array.isArray(customersField) ? customersField[0] : customersField;
+        const attributes: PeopleAttributes = customer?.attributes || {};
         const scanStats = scansByMember[member.people_profile_id] || { count: 0, latest: null };
 
         const firstName = attributes.first_name || '';
@@ -904,7 +1004,7 @@ export class EventQrService {
           people_profile_id: member.people_profile_id,
           full_name: fullName,
           email: customer?.email || '',
-          registration_type: member.registration_type,
+          registration_type: member.registration_type ?? '',
           scan_count: scanStats.count,
           latest_scan_at: scanStats.latest,
         };
@@ -922,7 +1022,7 @@ export class EventQrService {
     scannerId?: string;
     interestLevel?: string;
     minRating?: number;
-  }): Promise<Array<any>> {
+  }): Promise<ScanRow[]> {
     try {
       // Get all team members for this sponsor
       const { data: teamMembers, error: teamError } = await supabase
@@ -937,7 +1037,7 @@ export class EventQrService {
         return [];
       }
 
-      const memberProfileIds = teamMembers.map((m: any) => m.people_profile_id);
+      const memberProfileIds = (teamMembers as unknown as TeamMemberRegistrationRow[]).map((m) => m.people_profile_id);
 
       // Get all scans by these team members (includes historical scans from before they joined the team)
       let query = supabase
@@ -983,7 +1083,7 @@ export class EventQrService {
       const { data, error } = await query;
       if (error) throw error;
 
-      return data || [];
+      return (data || []) as unknown as ScanRow[];
     } catch (error) {
       console.error('Error fetching sponsor team scans:', error);
       return [];
@@ -1027,7 +1127,7 @@ export class EventQrService {
       ];
 
       // Convert scans to CSV rows
-      const rows = scans.map((scan: any) => {
+      const rows: CsvCell[][] = scans.map((scan) => {
         const scannerCustomer = scan.scanner?.customer;
         const scannedCustomer = scan.scanned?.customer;
 
@@ -1055,10 +1155,10 @@ export class EventQrService {
       // Build CSV string
       const csvContent = [
         headers.join(','),
-        ...rows.map((row: any[]) =>
-          row.map((cell: any) => {
+        ...rows.map((row) =>
+          row.map((cell) => {
             // Escape quotes and wrap in quotes if contains comma or quote
-            const cellStr = String(cell || '');
+            const cellStr = String(cell ?? '');
             if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
               return `"${cellStr.replace(/"/g, '""')}"`;
             }
@@ -1192,13 +1292,13 @@ export class EventQrService {
   /**
    * Get attendance with scan counts for each attendee
    */
-  static async getAttendanceWithScanCounts(eventId: string, options?: { hasDiscountCodes?: boolean; hasBadgeScanning?: boolean }): Promise<Array<any>> {
+  static async getAttendanceWithScanCounts(eventId: string, options?: { hasDiscountCodes?: boolean; hasBadgeScanning?: boolean }): Promise<Array<EventAttendance & { scan_count: number; sponsor_permission: boolean | null }>> {
     try {
       // Get attendance records
       const attendance = await this.getEventAttendance(eventId, options);
 
       // Get scan counts for all attendees
-      const memberIds = attendance.map((a: any) => a.people_profile_id);
+      const memberIds = attendance.map((a) => a.people_profile_id);
 
       if (memberIds.length === 0) {
         return [];
@@ -1209,7 +1309,7 @@ export class EventQrService {
       const memberIdBatches = this.batchArray(memberIds, BATCH_SIZE);
 
       // Fetch scans in batches (table only exists when badge-scanning module is installed)
-      let allScans: any[] = [];
+      let allScans: Array<{ scanner_people_profile_id: string }> = [];
       if (options?.hasBadgeScanning !== false) {
         for (const batch of memberIdBatches) {
           const { data: scans, error: scansError } = await supabase
@@ -1220,26 +1320,26 @@ export class EventQrService {
 
           // If the table doesn't exist, skip scan counts entirely
           if (scansError) break;
-          if (scans) allScans = allScans.concat(scans);
+          if (scans) allScans = allScans.concat(scans as Array<{ scanner_people_profile_id: string }>);
         }
       }
 
       // Count scans per member
-      const scanCounts = allScans.reduce((acc: any, scan: any) => {
+      const scanCounts = allScans.reduce<Record<string, number>>((acc, scan) => {
         acc[scan.scanner_people_profile_id] = (acc[scan.scanner_people_profile_id] || 0) + 1;
         return acc;
       }, {});
 
       // Get registration IDs to fetch sponsor_permission data
       const registrationIds = attendance
-        .map((a: any) => a.event_registration_id)
-        .filter(Boolean);
+        .map((a) => a.event_registration_id)
+        .filter((id): id is string => Boolean(id));
 
-      let registrationData: any = {};
+      let registrationData: Record<string, RegistrationPermissionRow> = {};
       if (registrationIds.length > 0) {
         // Batch registration ID queries as well
         const registrationBatches = this.batchArray(registrationIds, BATCH_SIZE);
-        let allRegistrations: any[] = [];
+        let allRegistrations: RegistrationPermissionRow[] = [];
 
         for (const batch of registrationBatches) {
           const { data: registrations, error: regError } = await supabase
@@ -1248,11 +1348,11 @@ export class EventQrService {
             .in('id', batch);
 
           if (!regError && registrations) {
-            allRegistrations = allRegistrations.concat(registrations);
+            allRegistrations = allRegistrations.concat(registrations as unknown as RegistrationPermissionRow[]);
           }
         }
 
-        registrationData = allRegistrations.reduce((acc: any, reg: any) => {
+        registrationData = allRegistrations.reduce<Record<string, RegistrationPermissionRow>>((acc, reg) => {
           acc[reg.id] = reg;
           return acc;
         }, {});
@@ -1261,18 +1361,19 @@ export class EventQrService {
         console.log('📊 Attendance with registrations debug:', {
           totalAttendance: attendance.length,
           registrationIds: registrationIds.length,
-          registrationsWithPermission: allRegistrations.filter((r: any) => r.sponsor_permission === true).length,
-          registrationsWithoutPermission: allRegistrations.filter((r: any) => r.sponsor_permission === false).length,
-          registrationsWithNull: allRegistrations.filter((r: any) => r.sponsor_permission === null).length,
+          registrationsWithPermission: allRegistrations.filter((r) => r.sponsor_permission === true).length,
+          registrationsWithoutPermission: allRegistrations.filter((r) => r.sponsor_permission === false).length,
+          registrationsWithNull: allRegistrations.filter((r) => r.sponsor_permission === null).length,
         });
       }
 
       // Add scan counts and sponsor permission to attendance records
-      return attendance.map((record: any) => {
+      return attendance.map((record) => {
+        const recordWithPermission = record as EventAttendance & { sponsor_permission?: boolean | null };
         const registration = record.event_registration_id ? registrationData[record.event_registration_id] : null;
         // Use the sponsor_permission from the view if available, otherwise from registration lookup
-        const sponsorPermission = record.sponsor_permission !== undefined
-          ? record.sponsor_permission
+        const sponsorPermission = recordWithPermission.sponsor_permission !== undefined
+          ? recordWithPermission.sponsor_permission
           : (registration?.sponsor_permission ?? false);
 
         return {
@@ -1328,7 +1429,7 @@ export class EventQrService {
       ];
 
       // Convert scans to CSV rows
-      const rows = (scans || []).map((scan: any) => {
+      const rows: CsvCell[][] = ((scans || []) as unknown as ScanRow[]).map((scan) => {
         const scannedCustomer = scan.scanned?.customer;
 
         return [
@@ -1351,10 +1452,10 @@ export class EventQrService {
       // Build CSV string
       const csvContent = [
         headers.join(','),
-        ...rows.map((row: any[]) =>
-          row.map((cell: any) => {
+        ...rows.map((row) =>
+          row.map((cell) => {
             // Escape quotes and wrap in quotes if contains comma or quote
-            const cellStr = String(cell || '');
+            const cellStr = String(cell ?? '');
             if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
               return `"${cellStr.replace(/"/g, '""')}"`;
             }
@@ -1391,25 +1492,28 @@ export class EventQrService {
       ];
 
       // Convert attendance to CSV rows
-      const rows = attendance.map((record: any) => [
+      const rows: CsvCell[][] = attendance.map((record) => {
+        const badgePrintedAt = (record as unknown as { badge_printed_at?: string | null }).badge_printed_at;
+        return [
         record.full_name || '',
         record.email || '',
         record.company || '',
         record.check_in_method || '',
         record.checked_in_at ? new Date(record.checked_in_at).toLocaleString() : '',
         record.badge_printed_on_site ? 'Yes' : 'No',
-        record.badge_printed_at ? new Date(record.badge_printed_at).toLocaleString() : '',
+        badgePrintedAt ? new Date(badgePrintedAt).toLocaleString() : '',
         record.qr_code_id || '',
         record.scan_count || 0,
-      ]);
+      ];
+      });
 
       // Build CSV string
       const csvContent = [
         headers.join(','),
-        ...rows.map((row: any[]) =>
-          row.map((cell: any) => {
+        ...rows.map((row) =>
+          row.map((cell) => {
             // Escape quotes and wrap in quotes if contains comma or quote
-            const cellStr = String(cell || '');
+            const cellStr = String(cell ?? '');
             if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
               return `"${cellStr.replace(/"/g, '""')}"`;
             }
@@ -1561,7 +1665,7 @@ export class EventQrService {
       const avgScansPerScanner = scans.length / uniqueScanners;
 
       // Get top scanners
-      const scannerStats = scans.reduce((acc: any, scan: any) => {
+      const scannerStats = (scans as unknown as ScanRow[]).reduce<Record<string, ScannerAggregate>>((acc, scan) => {
         const scannerId = scan.scanner_people_profile_id;
         if (!acc[scannerId]) {
           const customer = scan.scanner?.customer;
@@ -1580,7 +1684,7 @@ export class EventQrService {
       }, {});
 
       const topScanners = Object.values(scannerStats)
-        .sort((a: any, b: any) => b.scan_count - a.scan_count)
+        .sort((a, b) => b.scan_count - a.scan_count)
         .slice(0, 10);
 
       // Create timeline grouped by 1-minute intervals
@@ -1611,7 +1715,7 @@ export class EventQrService {
         uniqueScanners,
         uniqueScanned,
         avgScansPerScanner: Math.round(avgScansPerScanner * 10) / 10,
-        topScanners: topScanners as any,
+        topScanners,
         timeline,
       };
     } catch (error) {
@@ -1835,7 +1939,7 @@ export class EventQrService {
         .in('email', paidEmails);
 
       const customerDataMap = new Map(
-        (customers || []).map((c: any) => [c.email, {
+        ((customers || []) as unknown as PeopleRow[]).map((c) => [c.email, {
           job_title: c.attributes?.job_title || null,
           job_function: c.attributes?.job_function || null,
           job_seniority: c.attributes?.job_seniority || null,
@@ -1846,7 +1950,7 @@ export class EventQrService {
       let totalRevenue = 0;
       let totalTax = 0;
       let totalDiscount = 0;
-      let currency = paidRegistrations[0]?.currency || null;
+      const currency = paidRegistrations[0]?.currency || null;
 
       const ticketTypeMap: Record<string, { count: number; revenue: number }> = {};
       const couponCodeMap: Record<string, { count: number; totalDiscount: number }> = {};
@@ -2005,28 +2109,28 @@ export class EventQrService {
       const BATCH_SIZE = 100;
       const batches = this.batchArray(memberProfileIds, BATCH_SIZE);
 
-      let allProfiles: any[] = [];
+      let allProfiles: PeopleProfileIdRow[] = [];
       for (const batch of batches) {
         const { data: profiles, error: profileError } = await supabase
           .from('people_profiles')
           .select('person_id')
           .in('id', batch);
         if (profileError) throw profileError;
-        if (profiles) allProfiles = allProfiles.concat(profiles);
+        if (profiles) allProfiles = allProfiles.concat(profiles as unknown as PeopleProfileIdRow[]);
       }
 
       // Get customer attributes (job_function, job_seniority, job_title)
-      const customerIds = allProfiles.map(p => p.person_id).filter(Boolean);
+      const customerIds = allProfiles.map(p => p.person_id).filter((id): id is number => Boolean(id));
       const customerBatches = this.batchArray(customerIds, BATCH_SIZE);
 
-      let allCustomers: any[] = [];
+      let allCustomers: CustomerAttributesRow[] = [];
       for (const batch of customerBatches) {
         const { data: customers, error: custError } = await supabase
           .from('people')
           .select('attributes')
           .in('id', batch);
         if (custError) throw custError;
-        if (customers) allCustomers = allCustomers.concat(customers);
+        if (customers) allCustomers = allCustomers.concat(customers as unknown as CustomerAttributesRow[]);
       }
 
       // Aggregate by function and seniority, including job titles
@@ -2097,28 +2201,28 @@ export class EventQrService {
       const BATCH_SIZE = 100;
       const batches = this.batchArray(memberProfileIds, BATCH_SIZE);
 
-      let allProfiles: any[] = [];
+      let allProfiles: PeopleProfileIdRow[] = [];
       for (const batch of batches) {
         const { data: profiles, error: profileError } = await supabase
           .from('people_profiles')
           .select('person_id')
           .in('id', batch);
         if (profileError) throw profileError;
-        if (profiles) allProfiles = allProfiles.concat(profiles);
+        if (profiles) allProfiles = allProfiles.concat(profiles as unknown as PeopleProfileIdRow[]);
       }
 
       // Get customer attributes (job_function, job_seniority, job_title)
-      const customerIds = allProfiles.map(p => p.person_id).filter(Boolean);
+      const customerIds = allProfiles.map(p => p.person_id).filter((id): id is number => Boolean(id));
       const customerBatches = this.batchArray(customerIds, BATCH_SIZE);
 
-      let allCustomers: any[] = [];
+      let allCustomers: CustomerAttributesRow[] = [];
       for (const batch of customerBatches) {
         const { data: customers, error: custError } = await supabase
           .from('people')
           .select('attributes')
           .in('id', batch);
         if (custError) throw custError;
-        if (customers) allCustomers = allCustomers.concat(customers);
+        if (customers) allCustomers = allCustomers.concat(customers as unknown as CustomerAttributesRow[]);
       }
 
       // Aggregate by function and seniority, including job titles
@@ -2183,14 +2287,14 @@ export class EventQrService {
 
       // Get customers by email (batched)
       const emailBatches = this.batchArray(uniqueEmails, BATCH_SIZE);
-      let allCustomers: any[] = [];
+      let allCustomers: Array<{ id: string; email: string }> = [];
       for (const batch of emailBatches) {
         const { data: customers, error: customerError } = await supabase
           .from('people')
           .select('id, email')
           .in('email', batch);
         if (customerError) throw customerError;
-        if (customers) allCustomers = allCustomers.concat(customers);
+        if (customers) allCustomers = allCustomers.concat(customers as Array<{ id: string; email: string }>);
       }
 
       const customerMap = new Map(allCustomers.map(c => [c.email, c.id]));
@@ -2198,14 +2302,14 @@ export class EventQrService {
       // Get member profiles for these customers (batched)
       const customerIds = Array.from(customerMap.values());
       const customerIdBatches = this.batchArray(customerIds, BATCH_SIZE);
-      let allMemberProfiles: any[] = [];
+      let allMemberProfiles: Array<{ id: string; person_id: string }> = [];
       for (const batch of customerIdBatches) {
         const { data: memberProfiles, error: profileError } = await supabase
           .from('people_profiles')
           .select('id, person_id')
           .in('person_id', batch);
         if (profileError) throw profileError;
-        if (memberProfiles) allMemberProfiles = allMemberProfiles.concat(memberProfiles);
+        if (memberProfiles) allMemberProfiles = allMemberProfiles.concat(memberProfiles as Array<{ id: string; person_id: string }>);
       }
 
       const profileMap = new Map(allMemberProfiles.map(p => [p.person_id, p.id]));
@@ -2214,11 +2318,14 @@ export class EventQrService {
       const memberProfileIds = Array.from(profileMap.values());
       const memberIdBatches = this.batchArray(memberProfileIds, BATCH_SIZE);
 
+      type RegistrationLite = { people_profile_id: string; status: string; registered_at: string };
+      type AttendanceLite = { people_profile_id: string; checked_in_at: string };
+
       // Fetch registrations and attendance in parallel batches
       const [allRegistrations, allAttendance] = await Promise.all([
         // Registrations
         (async () => {
-          let results: any[] = [];
+          let results: RegistrationLite[] = [];
           for (const batch of memberIdBatches) {
             const { data, error } = await supabase
               .from('events_registrations')
@@ -2226,13 +2333,13 @@ export class EventQrService {
               .eq('event_id', eventId)
               .in('people_profile_id', batch);
             if (error) throw error;
-            if (data) results = results.concat(data);
+            if (data) results = results.concat(data as RegistrationLite[]);
           }
           return results;
         })(),
         // Attendance
         (async () => {
-          let results: any[] = [];
+          let results: AttendanceLite[] = [];
           for (const batch of memberIdBatches) {
             const { data, error } = await supabase
               .from('events_attendance')
@@ -2240,7 +2347,7 @@ export class EventQrService {
               .eq('event_id', eventId)
               .in('people_profile_id', batch);
             if (error) throw error;
-            if (data) results = results.concat(data);
+            if (data) results = results.concat(data as AttendanceLite[]);
           }
           return results;
         })(),
