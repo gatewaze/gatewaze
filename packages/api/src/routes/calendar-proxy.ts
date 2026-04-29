@@ -69,10 +69,10 @@ calendarProxyRouter.get('/:eventId/:calendarType/:emailEncoded', async (req: Req
     const data = await response.json();
     if (!response.ok) return res.status(response.status).json(data);
     return res.json(data);
-  } catch (error: any) {
+  } catch (error) {
     res.status(500).json({
       error: 'Internal server error',
-      message: error.message,
+      message: (error instanceof Error ? error.message : String(error)),
       details: 'Failed to proxy calendar request',
     });
   }

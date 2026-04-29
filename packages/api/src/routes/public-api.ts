@@ -385,7 +385,7 @@ function ctxSetCache(res: Response, maxAge: number, sMaxAge: number): void {
  */
 export async function createPublicApiRouter(
   enabledModules: LoadedModule[],
-  supabase: any,
+  supabase: import('@supabase/supabase-js').SupabaseClient | null,
 ): Promise<Router> {
   const router = Router();
 
@@ -473,12 +473,22 @@ export async function createPublicApiRouter(
       prompts: Array<{ name: string; description: string }>;
     }> = [];
 
+    interface McpTool { name: string; description?: string }
+    interface McpResource { uriTemplate: string; name: string; description?: string }
+    interface McpPrompt { name: string; description?: string }
+    interface McpContributions {
+      tools?: McpTool[];
+      resources?: McpResource[];
+      prompts?: McpPrompt[];
+    }
     for (const mod of enabledModules) {
       const raw = mod.config.mcpContributions;
       if (!raw) continue;
-      let contributions: any;
+      let contributions: McpContributions;
       try {
-        contributions = typeof raw === 'function' ? raw({} as any) : raw;
+        contributions = (typeof raw === 'function'
+          ? raw({} as Parameters<typeof raw>[0])
+          : raw) as McpContributions;
       } catch {
         continue;
       }
@@ -486,16 +496,16 @@ export async function createPublicApiRouter(
       moduleTools.push({
         moduleId,
         moduleName: mod.config.name,
-        tools: (contributions.tools ?? []).map((t: any) => ({
+        tools: (contributions.tools ?? []).map((t) => ({
           name: `${moduleId}_${t.name}`,
           description: t.description,
         })),
-        resources: (contributions.resources ?? []).map((r: any) => ({
+        resources: (contributions.resources ?? []).map((r) => ({
           uriTemplate: r.uriTemplate,
           name: r.name,
           description: r.description,
         })),
-        prompts: (contributions.prompts ?? []).map((p: any) => ({
+        prompts: (contributions.prompts ?? []).map((p) => ({
           name: `${moduleId}_${p.name}`,
           description: p.description,
         })),
@@ -650,7 +660,7 @@ export async function createPublicApiRouter(
           const { data, count, error } = await q;
           if (error) throw new Error(`${src.type}: ${error.message}`);
 
-          const rows: Row[] = (data ?? []).map((row: any) => {
+          const rows: Row[] = ((data ?? []) as Record<string, unknown>[]).map((row) => {
             const base: Row = {
               type: src.type,
               id: String(row[src.fields.id]),

@@ -78,7 +78,7 @@ slackRouter.post('/invite', async (req: Request, res: Response) => {
       status: 'pending',
       queuePosition: count || 0,
     });
-  } catch (error: any) {
+  } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to process invitation request' });
   }
 });
@@ -103,8 +103,8 @@ slackRouter.get('/invitation-status/:id', async (req: Request, res: Response) =>
     }
 
     res.json({ success: true, invitation });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+  } catch (error) {
+    res.status(500).json({ success: false, error: (error instanceof Error ? error.message : String(error)) });
   }
 });
 
@@ -125,8 +125,8 @@ slackRouter.get('/queue-stats', async (_req: Request, res: Response) => {
     }
 
     res.json({ success: true, stats });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+  } catch (error) {
+    res.status(500).json({ success: false, error: (error instanceof Error ? error.message : String(error)) });
   }
 });
 
@@ -140,7 +140,7 @@ slackRouter.get('/pending-count', async (_req: Request, res: Response) => {
       .eq('status', 'pending');
 
     res.json({ success: true, pendingCount: count || 0 });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+  } catch (error) {
+    res.status(500).json({ success: false, error: (error instanceof Error ? error.message : String(error)) });
   }
 });

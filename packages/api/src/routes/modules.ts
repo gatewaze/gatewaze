@@ -58,7 +58,7 @@ export const modulesRouter = labeledRouter('jwt');
 modulesRouter.use(requireJwt());
 
 /** Middleware: require leadership for all mutating operations */
-function requireLeadership(req: any, res: any, next: any) {
+function requireLeadership(req: import('express').Request, res: import('express').Response, next: import('express').NextFunction) {
   if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
     return next();
   }
@@ -77,8 +77,8 @@ function requireLeadership(req: any, res: any, next: any) {
 modulesRouter.use(requireLeadership);
 
 /** Middleware: attach request-id from header or generate one */
-modulesRouter.use((req: any, _res: any, next: any) => {
-  req.requestId = req.headers['x-request-id'] || crypto.randomUUID();
+modulesRouter.use((req: import('express').Request, _res: import('express').Response, next: import('express').NextFunction) => {
+  (req as { requestId?: string }).requestId = (req.headers['x-request-id'] as string | undefined) || crypto.randomUUID();
   next();
 });
 
@@ -1620,7 +1620,7 @@ modulesRouter.delete('/sources/:id', async (req, res) => {
         error: {
           code: 'SOURCE_IN_USE',
           message: `Cannot delete source: ${usingModules.length} installed module(s) reference it. Disable them first.`,
-          details: { modules: usingModules.map((m: any) => ({ id: m.module_id, status: m.status })) },
+          details: { modules: (usingModules as Array<{ module_id: string; status: string }>).map((m) => ({ id: m.module_id, status: m.status })) },
         },
       });
     }

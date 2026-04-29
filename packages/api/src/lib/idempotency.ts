@@ -114,7 +114,7 @@ export function idempotencyMiddleware(
     // We claimed the key — proceed with the request
     // Capture the response to store it
     const originalJson = res.json.bind(res);
-    res.json = function (body: any) {
+    res.json = function (body: unknown) {
       // Store the response (fire-and-forget)
       const responseJson = JSON.stringify(body).length > MAX_RESPONSE_SIZE
         ? { truncated: true, code: res.statusCode }

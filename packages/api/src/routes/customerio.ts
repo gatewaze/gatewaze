@@ -12,7 +12,18 @@ import { requireJwt } from '../lib/auth/require-jwt.js';
 const CUSTOMERIO_BASE_URL = 'https://api.customer.io/v1';
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-let segmentsCache: any = null;
+interface CustomerioIdentifier {
+  cio_id?: string;
+  id?: string;
+  email?: string;
+  [key: string]: unknown;
+}
+interface SegmentsResponse {
+  segments?: unknown[];
+  [key: string]: unknown;
+}
+
+let segmentsCache: SegmentsResponse | null = null;
 let segmentsCacheTime: number | null = null;
 
 export const customerioRouter = labeledRouter('jwt');
@@ -50,12 +61,12 @@ customerioRouter.get('/segments', async (_req: Request, res: Response) => {
       return res.status(response.status).json({ error: `Customer.io API error: ${response.status}`, details: errorText });
     }
 
-    const data = await response.json();
+    const data = (await response.json()) as SegmentsResponse;
     segmentsCache = data;
     segmentsCacheTime = now;
     res.json(data);
-  } catch (error: any) {
-    res.status(500).json({ error: 'Internal server error', message: error.message });
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error', message: error instanceof Error ? error.message : String(error) });
   }
 });
 
@@ -76,15 +87,15 @@ customerioRouter.get('/segments/:id/customer_count', async (req: Request, res: R
     }
 
     res.json(await response.json());
-  } catch (error: any) {
-    res.status(500).json({ error: 'Internal server error', message: error.message });
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error', message: error instanceof Error ? error.message : String(error) });
   }
 });
 
 // Get ALL customers in a segment (server-side pagination)
 customerioRouter.get('/segments/:id/customers', async (req: Request, res: Response) => {
   try {
-    const allIdentifiers: any[] = [];
+    const allIdentifiers: CustomerioIdentifier[] = [];
     let cursor: string | null = null;
 
     do {
@@ -104,21 +115,21 @@ customerioRouter.get('/segments/:id/customers', async (req: Request, res: Respon
         return res.status(response.status).json({ error: 'Failed to fetch segment membership', message: errorText });
       }
 
-      const data: any = await response.json();
-      allIdentifiers.push(...(data.identifiers || []));
-      cursor = data.next || null;
+      const data = (await response.json()) as { identifiers?: CustomerioIdentifier[]; next?: string };
+      allIdentifiers.push(...(data.identifiers ?? []));
+      cursor = data.next ?? null;
     } while (cursor);
 
     res.json({
-      customers: allIdentifiers.map((id: any) => ({
+      customers: allIdentifiers.map((id) => ({
         cio_id: id.cio_id,
         id: id.id,
         email: id.email,
         created_at: id.created_at,
       })),
     });
-  } catch (error: any) {
-    res.status(500).json({ error: 'Internal server error', message: error.message });
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error', message: error instanceof Error ? error.message : String(error) });
   }
 });
 
@@ -137,10 +148,10 @@ customerioRouter.get('/customers/:cio_id/details', async (req: Request, res: Res
       return res.status(response.status).json({ error: `Customer.io API error: ${response.status}`, details: errorText });
     }
 
-    const data: any = await response.json();
+    const data = (await response.json()) as { customer: { email?: string; attributes?: Record<string, unknown> } };
     res.json({ cio_id: req.params.cio_id, email: data.customer.email, ...data.customer.attributes });
-  } catch (error: any) {
-    res.status(500).json({ error: 'Internal server error', message: error.message });
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error', message: error instanceof Error ? error.message : String(error) });
   }
 });
 
@@ -159,10 +170,10 @@ customerioRouter.get('/customers/:cio_id/activities', async (req: Request, res: 
       return res.status(response.status).json({ error: `Customer.io API error: ${response.status}`, details: errorText });
     }
 
-    const data: any = await response.json();
-    res.json({ activities: data.activities || [] });
-  } catch (error: any) {
-    res.status(500).json({ error: 'Internal server error', message: error.message });
+    const data = (await response.json()) as { activities?: unknown[] };
+    res.json({ activities: data.activities ?? [] });
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error', message: error instanceof Error ? error.message : String(error) });
   }
 });
 
@@ -210,7 +221,7 @@ customerioRouter.post('/sync/:syncType', async (req: Request, res: Response) => 
     syncProcess.unref();
 
     res.json({ success: true, message: `${syncType} sync started`, syncType, fullSync, pid: syncProcess.pid });
-  } catch (error: any) {
-    res.status(500).json({ error: 'Failed to trigger sync', message: error.message });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to trigger sync', message: error instanceof Error ? error.message : String(error) });
   }
 });
