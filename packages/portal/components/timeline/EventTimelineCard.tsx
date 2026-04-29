@@ -2,6 +2,7 @@
 
 import { useRef, useCallback } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import type { Event } from '@/types/event'
 import type { BrandConfig, ContentCategoryOption } from '@/config/brand'
 import { useViewportBlur } from '@/hooks/useViewportBlur'
@@ -137,8 +138,14 @@ export function EventTimelineCard({ event, brandConfig, userLocation, showDate }
 
         {/* Event Screenshot — flush to top, right & bottom edges */}
         {imageUrl && (
-          <div className="flex-shrink-0 w-28 sm:w-36">
-            <img src={imageUrl} alt="" className="w-full h-full object-cover" />
+          <div className="relative flex-shrink-0 w-28 sm:w-36 aspect-square overflow-hidden">
+            <Image
+              src={imageUrl}
+              alt=""
+              fill
+              sizes="(min-width: 640px) 144px, 112px"
+              className="object-cover"
+            />
           </div>
         )}
       </div>

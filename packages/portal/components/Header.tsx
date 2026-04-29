@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { getClientBrandConfig, isLightColor } from '@/config/brand'
@@ -231,7 +232,14 @@ export function Header({ brandConfig, navItems = [] }: Props) {
                       style={{ backgroundColor: userProfile?.avatarUrl ? undefined : brandConfig.primaryColor, color: isLightColor(brandConfig.primaryColor) ? '#000000' : '#ffffff' }}
                     >
                       {userProfile?.avatarUrl ? (
-                        <img src={userProfile.avatarUrl} alt={displayName} className="w-full h-full object-cover" />
+                        <Image
+                          src={userProfile.avatarUrl}
+                          alt={displayName}
+                          width={28}
+                          height={28}
+                          className="w-full h-full object-cover"
+                          unoptimized
+                        />
                       ) : (
                         avatarInitial
                       )}
@@ -374,7 +382,14 @@ export function Header({ brandConfig, navItems = [] }: Props) {
                       style={{ backgroundColor: userProfile?.avatarUrl ? undefined : brandConfig.primaryColor, color: isLightColor(brandConfig.primaryColor) ? '#000000' : '#ffffff' }}
                     >
                       {userProfile?.avatarUrl ? (
-                        <img src={userProfile.avatarUrl} alt={displayName} className="w-full h-full object-cover" />
+                        <Image
+                          src={userProfile.avatarUrl}
+                          alt={displayName}
+                          width={28}
+                          height={28}
+                          className="w-full h-full object-cover"
+                          unoptimized
+                        />
                       ) : (
                         avatarInitial
                       )}
