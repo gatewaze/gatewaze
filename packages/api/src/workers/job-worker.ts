@@ -32,6 +32,12 @@ import {
 // processing, integration-event consumers). All call sites in this
 // file are by-design service-role.
 import { getSupabase } from '../lib/supabase.js';
+import { initSentry, installCrashHandlers } from '../lib/sentry.js';
+
+initSentry({ service: 'worker' });
+installCrashHandlers({
+  log: (level, obj, msg) => logger[level](obj, msg),
+});
 
 const PROJECT_ROOT = resolve(import.meta.dirname ?? __dirname, '../../../..');
 const METRICS_PORT = parseInt(process.env.WORKER_METRICS_PORT ?? '9090', 10);
