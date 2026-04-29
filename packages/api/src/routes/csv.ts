@@ -109,7 +109,15 @@ csvRouter.get('/export/people', async (req, res) => {
     }
 
     // Flatten attributes into top-level columns for CSV readability
-    const flatRows = data.map((row: any) => {
+    interface PersonRow {
+      id: string;
+      email: string;
+      attributes?: Record<string, string | undefined> | null;
+      auth_user_id?: string | null;
+      created_at: string;
+      updated_at: string;
+    }
+    const flatRows = (data as PersonRow[]).map((row) => {
       const attrs = row.attributes || {};
       return {
         id: row.id,

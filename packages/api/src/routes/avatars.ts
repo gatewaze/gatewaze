@@ -115,8 +115,8 @@ avatarsRouter.post('/sync/:customerId', async (req: Request, res: Response) => {
     }
 
     res.status(400).json({ success: false, error: 'No avatar found' });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+  } catch (error) {
+    res.status(500).json({ error: (error instanceof Error ? error.message : String(error)) });
   }
 });
 
@@ -135,9 +135,18 @@ avatarsRouter.post('/sync-batch', async (req: Request, res: Response) => {
       .select('*')
       .in('id', customerIds);
 
-    if (error) return res.status(500).json({ error: error.message });
+    if (error) return res.status(500).json({ error: (error instanceof Error ? error.message : String(error)) });
 
-    const results: any[] = [];
+    interface SyncResult {
+      customerId: string;
+      success?: boolean;
+      skipped?: boolean;
+      reason?: string;
+      path?: string;
+      source?: string;
+      error?: string;
+    }
+    const results: SyncResult[] = [];
 
     for (const customer of customers || []) {
       if (customer.avatar_source === 'uploaded') {
@@ -163,7 +172,7 @@ avatarsRouter.post('/sync-batch', async (req: Request, res: Response) => {
     const failed = results.filter(r => !r.success && !r.skipped).length;
 
     res.json({ total: (customers || []).length, synced, skipped, failed, results });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+  } catch (error) {
+    res.status(500).json({ error: (error instanceof Error ? error.message : String(error)) });
   }
 });

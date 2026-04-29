@@ -90,8 +90,8 @@ redirectsRouter.get('/sync/:logId', async (req: Request, res: Response) => {
     }
 
     res.json({ success: true, syncLog: data });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+  } catch (error) {
+    res.status(500).json({ error: (error instanceof Error ? error.message : String(error)) });
   }
 });
 
@@ -113,14 +113,30 @@ redirectsRouter.get('/', async (req: Request, res: Response) => {
 
     const { data, error, count } = await query;
 
-    if (error) return res.status(500).json({ error: error.message });
+    if (error) return res.status(500).json({ error: (error instanceof Error ? error.message : String(error)) });
     res.json({ success: true, redirects: data, total: count });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+  } catch (error) {
+    res.status(500).json({ error: (error instanceof Error ? error.message : String(error)) });
   }
 });
 
-async function syncShortIoLinks(supabase: any, apiKey: string, domain: string, syncLogId: string) {
+interface ShortIoDomain {
+  id: number;
+  hostname: string;
+}
+interface ShortIoLink {
+  id: number | string;
+  path: string;
+  title?: string;
+  originalURL: string;
+  clicks?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+import type { SupabaseClient } from '@supabase/supabase-js';
+
+async function syncShortIoLinks(supabase: SupabaseClient, apiKey: string, domain: string, syncLogId: string) {
   let totalSynced = 0;
   let totalErrors = 0;
 
@@ -132,8 +148,8 @@ async function syncShortIoLinks(supabase: any, apiKey: string, domain: string, s
 
     if (!domainsResponse.ok) throw new Error('Failed to fetch Short.io domains');
 
-    const domains: any = await domainsResponse.json();
-    const domainData = domains.find((d: any) => d.hostname === domain);
+    const domains = (await domainsResponse.json()) as ShortIoDomain[];
+    const domainData = domains.find((d) => d.hostname === domain);
 
     if (!domainData) throw new Error(`Domain '${domain}' not found in Short.io account`);
 
@@ -151,8 +167,8 @@ async function syncShortIoLinks(supabase: any, apiKey: string, domain: string, s
 
       if (!response.ok) break;
 
-      const data: any = await response.json();
-      const links = data.links || [];
+      const data = (await response.json()) as { links?: ShortIoLink[] };
+      const links = data.links ?? [];
 
       if (links.length === 0) break;
 
@@ -191,12 +207,12 @@ async function syncShortIoLinks(supabase: any, apiKey: string, domain: string, s
       errors: totalErrors,
     }).eq('id', syncLogId);
 
-  } catch (error: any) {
+  } catch (error) {
     logger.error({ err: error }, 'redirect sync error');
     await supabase.from('redirects_sync_logs').update({
       status: 'failed',
       completed_at: new Date().toISOString(),
-      error_message: error.message,
+      error_message: (error instanceof Error ? error.message : String(error)),
       links_synced: totalSynced,
       errors: totalErrors,
     }).eq('id', syncLogId);
