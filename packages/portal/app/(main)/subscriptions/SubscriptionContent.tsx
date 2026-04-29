@@ -42,22 +42,35 @@ export function SubscriptionContent({ brandConfig }: SubscriptionContentProps) {
 
   async function loadData() {
     try {
+      interface ListRow {
+        id: string
+        slug: string
+        name: string
+        description: string | null
+        is_public: boolean
+        default_subscribed: boolean | null
+      }
+      interface SubscriptionRow {
+        list_id: string
+        subscribed: boolean
+      }
+
       // Load all active lists and user's subscriptions in parallel
       const [listsRes, subsRes] = await Promise.all([
         supabase.from('lists').select('id, slug, name, description, is_public, default_subscribed').eq('is_active', true).order('name'),
         user?.email
           ? supabase.from('list_subscriptions').select('list_id, subscribed').eq('email', user.email)
-          : Promise.resolve({ data: [] as any[] }),
+          : Promise.resolve({ data: [] as SubscriptionRow[] }),
       ])
 
-      const allLists = listsRes.data || []
-      const subData = subsRes.data || []
-      const subscribedListIds = new Set(subData.map((s: any) => s.list_id))
+      const allLists = (listsRes.data ?? []) as ListRow[]
+      const subData = (subsRes.data ?? []) as SubscriptionRow[]
+      const subscribedListIds = new Set(subData.map((s) => s.list_id))
 
       // Show public lists + any non-public lists the user is already subscribed to
-      const visibleLists = allLists.filter((l: any) => l.is_public || subscribedListIds.has(l.id))
+      const visibleLists = allLists.filter((l) => l.is_public || subscribedListIds.has(l.id))
 
-      const mappedTopics = visibleLists.map((l: any) => ({
+      const mappedTopics = visibleLists.map((l) => ({
         id: l.id,
         list_id: l.id,
         label: l.name,

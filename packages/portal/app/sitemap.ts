@@ -19,7 +19,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const eventsEnabled = eventsModule?.status === 'enabled'
 
   // Fetch events only if module is enabled
-  let events: any[] = []
+  let events: Array<{ event_slug: string; event_id: string }> = []
   if (eventsEnabled) {
     const { data } = await supabase
       .from('events')

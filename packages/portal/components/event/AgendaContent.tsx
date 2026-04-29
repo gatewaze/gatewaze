@@ -113,8 +113,25 @@ export function AgendaContent() {
             .in('id', talkIds)
 
           if (!talksError && talksData) {
-            talksData.forEach((talk: any) => {
-              const speakers = (talk.speakers || []).map((s: any) => ({
+            interface RawTalkSpeaker {
+              full_name?: string
+              first_name?: string | null
+              last_name?: string | null
+              company?: string | null
+              job_title?: string | null
+              avatar_url?: string | null
+              company_logo_storage_path?: string | null
+              [key: string]: unknown
+            }
+            interface RawTalkRow {
+              id: string
+              title?: string | null
+              synopsis?: string | null
+              session_type?: string | null
+              speakers?: RawTalkSpeaker[]
+            }
+            (talksData as RawTalkRow[]).forEach((talk) => {
+              const speakers = (talk.speakers ?? []).map((s) => ({
                 full_name: s.full_name || '',
                 first_name: s.first_name || null,
                 last_name: s.last_name || null,

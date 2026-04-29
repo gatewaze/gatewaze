@@ -200,9 +200,9 @@ export function ConfirmedSpeakerTasks({
 
       setUploadSuccess(true)
       setShowPresentationForm(false)
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error saving presentation:', error)
-      setUploadError(error.message || 'Failed to save presentation')
+      setUploadError((error instanceof Error ? error.message : String(error)) || 'Failed to save presentation')
     } finally {
       setIsUploading(false)
     }
@@ -235,9 +235,9 @@ export function ConfirmedSpeakerTasks({
       } else {
         throw new Error(data.error || 'Failed to generate tracking link')
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error generating tracking link:', error)
-      setPromoteLinkError(error.message || 'Failed to generate tracking link')
+      setPromoteLinkError((error instanceof Error ? error.message : String(error)) || 'Failed to generate tracking link')
     } finally {
       setIsGeneratingLink(false)
     }

@@ -47,7 +47,7 @@ export async function getBlogPosts(limit?: number): Promise<BlogPostPreview[]> {
     return []
   }
 
-  return (data ?? []).map((row: any) => ({
+  return ((data ?? []) as Array<Record<string, unknown> & { category?: unknown }>).map((row) => ({
     ...row,
     category: Array.isArray(row.category) ? row.category[0] ?? null : row.category,
   }))
