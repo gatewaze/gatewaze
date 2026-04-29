@@ -33,6 +33,7 @@ import { createRedactedLogger } from '../lib/log-redaction';
 import { isLeader } from '../lib/leadership';
 import { validateGitUrl } from '../lib/zip-validation';
 import { safeExec } from '../lib/safe-exec.js';
+import { logger } from '../lib/logger.js';
 
 const BRANCH_RE = /^[\w][\w.\-/]{0,254}$/;
 function validateBranch(branch: string): void {
@@ -148,7 +149,7 @@ modulesRouter.get('/bootstrap-check', async (_req, res) => {
     const result = await bootstrapCheck(supabase as never);
     return res.json(result);
   } catch (err) {
-    console.error('[modules] Bootstrap check failed:', err);
+    logger.error({ err }, '[modules] Bootstrap check failed:');
     return res.status(500).json({
       error: err instanceof Error ? err.message : 'Bootstrap check failed',
     });
@@ -170,7 +171,7 @@ modulesRouter.post('/bootstrap', async (_req, res) => {
     const { applied, errors } = await applyCoreMigrations(supabase as never, PROJECT_ROOT);
 
     if (errors.length > 0) {
-      console.warn('[modules] Bootstrap migration errors:', errors);
+      logger.warn({ errors }, '[modules] Bootstrap migration errors:');
     }
 
     return res.json({
@@ -180,7 +181,7 @@ modulesRouter.post('/bootstrap', async (_req, res) => {
       errors,
     });
   } catch (err) {
-    console.error('[modules] Bootstrap failed:', err);
+    logger.error({ err }, '[modules] Bootstrap failed:');
     return res.status(500).json({
       error: err instanceof Error ? err.message : 'Bootstrap failed',
     });
@@ -252,7 +253,7 @@ modulesRouter.post('/select', async (req, res) => {
         try {
           await applyModuleMigrations(mod, supabase as never);
         } catch (migErr) {
-          console.error(`[modules] Migration failed for "${mod.config.id}" during selection:`, migErr);
+          logger.error({ migErr }, `[modules] Migration failed for "${mod.config.id}" during selection:`);
         }
 
         await supabase
@@ -284,10 +285,10 @@ modulesRouter.post('/select', async (req, res) => {
         });
         const totalDeployed = deployResult.copied.length + deployResult.deployed.length;
         if (totalDeployed > 0) {
-          console.log(`[modules] Deployed ${totalDeployed} edge function(s) during onboarding`);
+          logger.info(`[modules] Deployed ${totalDeployed} edge function(s) during onboarding`);
         }
         if (deployResult.errors.length > 0) {
-          console.warn('[modules] Edge function deployment warnings:', deployResult.errors);
+          logger.warn({ data: deployResult.errors }, '[modules] Edge function deployment warnings:');
         }
 
         // Store edge function hashes for all deployed modules
@@ -317,7 +318,7 @@ modulesRouter.post('/select', async (req, res) => {
 
     return res.json({ success: true });
   } catch (err) {
-    console.error('[modules] Selection failed:', err);
+    logger.error({ err }, '[modules] Selection failed:');
     return res.status(500).json({
       error: err instanceof Error ? err.message : 'Module selection failed',
     });
@@ -418,7 +419,7 @@ modulesRouter.post('/select-stream', async (req, res) => {
           send('module-complete', { module: mod.config.id, name: mod.config.name, status: 'ok' });
         } catch (migErr) {
           const errMsg = migErr instanceof Error ? migErr.message : String(migErr);
-          console.error(`[modules] Migration failed for "${mod.config.id}":`, migErr);
+          logger.error({ migErr }, `[modules] Migration failed for "${mod.config.id}":`);
           migrationErrors.push({ module: mod.config.id, error: errMsg });
           // Still enable the module (migrations may be partially applied)
           await supabase.from('installed_modules').update({ status: 'enabled' }).eq('id', mod.config.id);
@@ -492,7 +493,7 @@ modulesRouter.post('/select-stream', async (req, res) => {
       migrationErrors,
     });
   } catch (err) {
-    console.error('[modules] Selection stream failed:', err);
+    logger.error({ err }, '[modules] Selection stream failed:');
     send('error', { message: err instanceof Error ? err.message : 'Module selection failed' });
   } finally {
     res.end();
@@ -527,7 +528,7 @@ modulesRouter.post('/settings', async (req, res) => {
 
     return res.json({ success: true });
   } catch (err) {
-    console.error('[modules] Settings update failed:', err);
+    logger.error({ err }, '[modules] Settings update failed:');
     return res.status(500).json({
       error: err instanceof Error ? err.message : 'Settings update failed',
     });
@@ -559,7 +560,7 @@ modulesRouter.post('/reconcile', async (_req, res) => {
       const { data } = await supabase.from('module_sources').select('*');
       dbSources = data ?? [];
     } catch {
-      console.warn('[modules] module_sources table not available — using config sources only');
+      logger.warn('[modules] module_sources table not available — using config sources only');
     }
 
     const modules = await loadModulesWithDbSources(
@@ -586,7 +587,7 @@ modulesRouter.post('/reconcile', async (_req, res) => {
         allModules: modules,
       });
       if (deployResult.copied.length > 0 || deployResult.deployed.length > 0) {
-        console.log(`[modules] Deployed ${deployResult.copied.length + deployResult.deployed.length} edge function(s) during reconciliation`);
+        logger.info(`[modules] Deployed ${deployResult.copied.length + deployResult.deployed.length} edge function(s) during reconciliation`);
       }
     }
 
@@ -603,7 +604,7 @@ modulesRouter.post('/reconcile', async (_req, res) => {
 
     return res.json({ success: true, modules: results });
   } catch (err) {
-    console.error('[modules] Reconciliation failed:', err);
+    logger.error({ err }, '[modules] Reconciliation failed:');
     return res.status(500).json({
       error: err instanceof Error ? err.message : 'Module reconciliation failed',
     });
@@ -657,7 +658,7 @@ modulesRouter.put('/:id/config', async (req, res) => {
 
     return res.json({ success: true, config: mergedConfig });
   } catch (err) {
-    console.error('[modules] Config update failed:', err);
+    logger.error({ err }, '[modules] Config update failed:');
     return res.status(500).json({
       error: err instanceof Error ? err.message : 'Failed to save config',
     });
@@ -758,7 +759,7 @@ modulesRouter.post('/:id/enable', async (req, res) => {
             try { await prevMod.config.onDisable(); } catch { /* non-critical */ }
           }
 
-          console.log(`[modules] Auto-disabled previous theme module: ${(prev as Record<string, unknown>).id}`);
+          logger.info(`[modules] Auto-disabled previous theme module: ${(prev as Record<string, unknown>).id}`);
         }
       }
     }
@@ -843,7 +844,7 @@ modulesRouter.post('/:id/enable', async (req, res) => {
             })
             .eq('id', moduleId);
         } catch (snapErr) {
-          console.error('[modules] Live snapshot install failed:', snapErr);
+          logger.error({ snapErr }, '[modules] Live snapshot install failed:');
           return res.status(500).json({
             error: {
               code: 'SNAPSHOT_INSTALL_FAILED',
@@ -868,7 +869,7 @@ modulesRouter.post('/:id/enable', async (req, res) => {
         edgeFunctionsDeployed = [...deployResult.copied, ...deployResult.deployed].map((r) => r.functionName);
 
         if (deployResult.errors.length > 0) {
-          console.warn('[modules] Edge function deployment warnings:', deployResult.errors);
+          logger.warn({ data: deployResult.errors }, '[modules] Edge function deployment warnings:');
         }
       }
 
@@ -893,7 +894,7 @@ modulesRouter.post('/:id/enable', async (req, res) => {
           reason: `enable:${moduleId}`,
         });
       } catch (rebuildErr) {
-        console.warn('[modules] Rebuild trigger failed:', rebuildErr);
+        logger.warn({ rebuildErr }, '[modules] Rebuild trigger failed:');
       }
     }
 
@@ -904,7 +905,7 @@ modulesRouter.post('/:id/enable', async (req, res) => {
       rebuildCounter,
     });
   } catch (err) {
-    console.error('[modules] Enable failed:', err);
+    logger.error({ err }, '[modules] Enable failed:');
     return res.status(500).json({
       error: err instanceof Error ? err.message : 'Failed to enable module',
     });
@@ -1000,7 +1001,7 @@ modulesRouter.post('/:id/disable', async (req, res) => {
         .update({ source_snapshot_hash: null, snapshot_taken_at: null })
         .eq('id', moduleId);
     } catch (snapErr) {
-      console.warn('[modules] Live snapshot removal warning:', snapErr);
+      logger.warn({ snapErr }, '[modules] Live snapshot removal warning:');
     }
 
     // Clear any pending update row.
@@ -1017,12 +1018,12 @@ modulesRouter.post('/:id/disable', async (req, res) => {
         reason: `disable:${moduleId}`,
       });
     } catch (rebuildErr) {
-      console.warn('[modules] Rebuild trigger failed:', rebuildErr);
+      logger.warn({ rebuildErr }, '[modules] Rebuild trigger failed:');
     }
 
     return res.json({ success: true, rebuildCounter });
   } catch (err) {
-    console.error('[modules] Disable failed:', err);
+    logger.error({ err }, '[modules] Disable failed:');
     return res.status(500).json({
       error: err instanceof Error ? err.message : 'Failed to disable module',
     });
@@ -1069,7 +1070,7 @@ modulesRouter.get('/available', async (_req, res) => {
     });
     return res.json({ modules: available });
   } catch (err) {
-    console.error('[modules] Failed to load available modules:', err);
+    logger.error({ err }, '[modules] Failed to load available modules:');
     return res.status(500).json({
       error: err instanceof Error ? err.message : 'Failed to load modules',
     });
@@ -1176,7 +1177,7 @@ modulesRouter.get('/check-updates', async (_req, res) => {
 
     return res.json({ updates, platformVersion: config.platformVersion });
   } catch (err) {
-    console.error('[modules] Check updates failed:', err);
+    logger.error({ err }, '[modules] Check updates failed:');
     return res.status(500).json({
       error: err instanceof Error ? err.message : 'Failed to check updates',
     });
@@ -1298,7 +1299,10 @@ modulesRouter.post('/:id/update', async (req, res) => {
     }
 
     const reason = hasVersionUpdate ? 'version' : 'edge_functions_changed';
-    console.log(`[modules] Updated "${mod.config.name}" (${reason})${hasVersionUpdate ? ` v${previousVersion} → v${mod.config.version}` : ' (edge functions redeployed)'}`);
+    logger.info(
+      { module: mod.config.id, reason, previousVersion, version: mod.config.version, hasVersionUpdate },
+      '[modules] updated',
+    );
 
     return res.json({
       success: true,
@@ -1312,7 +1316,7 @@ modulesRouter.post('/:id/update', async (req, res) => {
       edgeFunctionsDeployed,
     });
   } catch (err) {
-    console.error('[modules] Update failed:', err);
+    logger.error({ err }, '[modules] Update failed:');
     return res.status(500).json({
       error: err instanceof Error ? err.message : 'Failed to update module',
     });
@@ -1419,7 +1423,7 @@ modulesRouter.post('/update-all', async (_req, res) => {
       edgeFunctionsDeployed,
     });
   } catch (err) {
-    console.error('[modules] Update all failed:', err);
+    logger.error({ err }, '[modules] Update all failed:');
     return res.status(500).json({
       error: err instanceof Error ? err.message : 'Failed to update modules',
     });
@@ -1750,7 +1754,7 @@ modulesRouter.post('/sources/refresh', async (_req, res) => {
       errors,
     });
   } catch (err) {
-    console.error('[modules] Sources refresh failed:', err);
+    logger.error({ err }, '[modules] Sources refresh failed:');
     return res.status(500).json({
       error: { code: 'INTERNAL_ERROR', message: err instanceof Error ? err.message : 'Failed to refresh sources' },
     });
@@ -1897,7 +1901,7 @@ modulesRouter.post('/:id/apply-update', async (req, res) => {
       startedAt: snap.installedAt,
     });
   } catch (err) {
-    console.error('[modules] apply-update failed:', err);
+    logger.error({ err }, '[modules] apply-update failed:');
     return res.status(500).json({
       error: { code: 'INTERNAL_ERROR', message: err instanceof Error ? err.message : 'Failed to apply update' },
     });
@@ -2170,7 +2174,7 @@ modulesRouter.post('/invoke-function/:name', async (req, res) => {
 
     return res.status(response.status).json(body);
   } catch (err) {
-    console.error(`[modules] Edge function invoke failed:`, err);
+    logger.error({ err }, `[modules] Edge function invoke failed:`);
     return res.status(502).json({
       error: err instanceof Error ? err.message : 'Failed to invoke edge function',
     });
