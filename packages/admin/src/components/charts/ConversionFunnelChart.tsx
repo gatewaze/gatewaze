@@ -37,7 +37,7 @@ export function ConversionFunnelChart({
         enabled: false
       },
       events: {
-        mounted: function(chartContext: any, config: any) {
+        mounted: function() {
           // Disable mouse wheel events to prevent interference with page scrolling
           const chartElement = document.querySelector('.funnel-chart-white-labels');
           if (chartElement) {
@@ -63,7 +63,7 @@ export function ConversionFunnelChart({
       enabled: true,
       textAnchor: 'middle',
       distributed: false,
-      formatter: function(val: string | number | number[], opt?: any) {
+      formatter: function(_val: string | number | number[], opt?: { dataPointIndex?: number }) {
         const labels = ['Claimed', 'Registered', 'Attended'];
         const values = [claimed, registered, attended];
         const idx = opt?.dataPointIndex ?? 0;
@@ -114,7 +114,7 @@ export function ConversionFunnelChart({
     tooltip: {
       enabled: true,
       y: {
-        formatter: function(value: number, { dataPointIndex }: any) {
+        formatter: function(value: number, { dataPointIndex }: { dataPointIndex: number }) {
           const stages = [
             { name: 'Claimed', prev: null, current: claimed },
             { name: 'Registered', prev: claimed, current: registered },

@@ -596,7 +596,7 @@ export class PeopleService {
       const total = data && data.length > 0 ? (data[0].total_count ?? 0) : 0;
 
       // Remove total_count from each row
-      const people = (data || []).map(({ total_count, ...person }: any) => person);
+      const people = (data || []).map(({ total_count: _total, ...person }: Record<string, unknown> & { total_count?: number }) => person);
 
       return { people, total };
 
