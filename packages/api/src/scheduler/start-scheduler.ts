@@ -16,7 +16,9 @@ import {
   type LoadedCron,
 } from '../lib/queue/index.js';
 import { initSentry, installCrashHandlers } from '../lib/sentry.js';
+import { initTracing } from '../lib/tracing.js';
 
+void initTracing();
 initSentry({ service: 'scheduler' });
 installCrashHandlers({
   log: (level, obj, msg) => logger[level](obj, msg),
