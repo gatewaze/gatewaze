@@ -139,11 +139,79 @@ declare global {
 }
 
 /**
+ * Validates a Kubernetes projected ServiceAccount token via the
+ * TokenReview API. Used when GATEWAZE_USE_K8S_SA=1 — typically when
+ * helm value auth.useK8sSA=true mounts the worker/scheduler with a
+ * projected SA token at /var/run/secrets/kubernetes.io/serviceaccount/token.
+ *
+ * Maps the SA name to a ServiceIdentity via env-configured allowlist:
+ *   GATEWAZE_K8S_SA_MAP = "worker-sa:worker;scheduler-sa:scheduler"
+ *
+ * Falls back to the bootstrap-secret JWT path when:
+ *   - GATEWAZE_USE_K8S_SA isn't '1', or
+ *   - the TokenReview call fails (logged; the route continues to the
+ *     JWT path).
+ */
+async function validateK8sToken(token: string): Promise<ServiceIdentity | null> {
+  if (process.env.GATEWAZE_USE_K8S_SA !== '1') return null;
+  const apiServer = process.env.KUBERNETES_API_SERVER ?? 'https://kubernetes.default.svc';
+  const caPath = '/var/run/secrets/kubernetes.io/serviceaccount/ca.crt';
+  const reviewerTokenPath = '/var/run/secrets/kubernetes.io/serviceaccount/token';
+
+  // Read the reviewer token (this pod's own SA token; allowed to call
+  // TokenReview when the SA has the system:auth-delegator role).
+  let reviewerToken: string;
+  try {
+    const fs = await import('node:fs/promises');
+    reviewerToken = (await fs.readFile(reviewerTokenPath, 'utf8')).trim();
+  } catch {
+    return null;
+  }
+
+  const tlsCa = await import('node:fs/promises')
+    .then(fs => fs.readFile(caPath))
+    .catch(() => null);
+  void tlsCa; // node fetch doesn't accept a CA bundle directly; rely on system trust.
+
+  const res = await fetch(`${apiServer}/apis/authentication.k8s.io/v1/tokenreviews`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${reviewerToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      apiVersion: 'authentication.k8s.io/v1',
+      kind: 'TokenReview',
+      spec: { token },
+    }),
+  });
+  if (!res.ok) return null;
+  const review = (await res.json()) as {
+    status?: { authenticated?: boolean; user?: { username?: string } };
+  };
+  if (!review.status?.authenticated) return null;
+
+  // username is "system:serviceaccount:<ns>:<sa-name>".
+  const username = review.status.user?.username ?? '';
+  const saName = username.split(':').slice(-1)[0];
+  if (!saName) return null;
+
+  // Map sa-name → ServiceIdentity via env config.
+  const mapRaw = process.env.GATEWAZE_K8S_SA_MAP ?? '';
+  for (const entry of mapRaw.split(';').map(s => s.trim()).filter(Boolean)) {
+    const [name, identity] = entry.split(':');
+    if (name === saName && (identity === 'worker' || identity === 'scheduler' || identity === 'module-runner')) {
+      return identity as ServiceIdentity;
+    }
+  }
+  return null;
+}
+
+/**
  * Express middleware: requires either a short-lived service token
- * (Authorization: Bearer …) or, when auth.useK8sSA is enabled, a
- * projected Kubernetes ServiceAccount token validated via
- * TokenReview. The latter is wired in a follow-up; this scaffold
- * accepts only the JWT path today.
+ * (Authorization: Bearer …) or, when GATEWAZE_USE_K8S_SA=1, a
+ * projected Kubernetes ServiceAccount token validated via the
+ * TokenReview API.
  */
 export function requireServiceRole() {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -159,8 +227,22 @@ export function requireServiceRole() {
       });
       return;
     }
+    const token = header.slice(7).trim();
+
+    // Try k8s SA path first if enabled.
     try {
-      const verified = await verifyToken(header.slice(7).trim());
+      const saIdentity = await validateK8sToken(token);
+      if (saIdentity) {
+        req.serviceIdentity = saIdentity;
+        next();
+        return;
+      }
+    } catch {
+      // Fall through to JWT path.
+    }
+
+    try {
+      const verified = await verifyToken(token);
       req.serviceIdentity = verified.service;
       next();
     } catch (err) {

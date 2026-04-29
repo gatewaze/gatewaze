@@ -295,6 +295,19 @@ database:
     defaultPoolSize: "20"
 
 # =============================================================================
+# Service-to-service authentication (spec §5.3)
+# =============================================================================
+# Default: bootstrap-secret → short-lived JWT path. Set
+# auth.useK8sSA=true to validate worker/scheduler tokens via the k8s
+# TokenReview API instead. Requires the API's ServiceAccount to hold
+# the system:auth-delegator ClusterRole (or equivalent).
+auth:
+  useK8sSA: false
+  # SA-name → ServiceIdentity allowlist when useK8sSA=true.
+  # Example: "worker-sa:worker;scheduler-sa:scheduler"
+  k8sSAMap: ""
+
+# =============================================================================
 # Migration runner (Helm pre-upgrade Job)
 # =============================================================================
 # When enabled, a Job runs scripts/run-migrations-pre-upgrade.ts before
