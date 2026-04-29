@@ -7,6 +7,10 @@
 
 import { type Request, type Response } from 'express';
 import crypto from 'crypto';
+// SERVICE-ROLE OK: avatar processing uploads to the media storage
+// bucket and upserts people rows. The storage policies require admin
+// or 'profiles' folder; the people upserts touch the email column
+// which v1 RLS lets admins do. Phase 4 may split admin vs self paths.
 import { getSupabase } from '../lib/supabase.js';
 import { labeledRouter } from '../lib/router-registry.js';
 import { requireJwt } from '../lib/auth/require-jwt.js';

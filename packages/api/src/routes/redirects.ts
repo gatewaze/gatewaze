@@ -5,6 +5,9 @@
  */
 
 import { type Request, type Response } from 'express';
+// SERVICE-ROLE OK: admin sync to Short.io; the redirects table is
+// platform-wide (no account_id), populated by an admin-driven sync
+// from an external API. Service-role is appropriate.
 import { getSupabase } from '../lib/supabase.js';
 import { labeledRouter } from '../lib/router-registry.js';
 import { requireJwt } from '../lib/auth/require-jwt.js';

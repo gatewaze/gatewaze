@@ -22,6 +22,9 @@ import {
   JobTypes,
   listQueues,
 } from '../lib/queue/index.js';
+// SERVICE-ROLE OK: admin job-queue management. Reads job-state tables
+// that are platform-wide (no account_id); BullMQ data lives in Redis
+// and is operator-managed. Service-role here is correct.
 import { getSupabase } from '../lib/supabase.js';
 import { labeledRouter } from '../lib/router-registry.js';
 import { requireJwt } from '../lib/auth/require-jwt.js';
