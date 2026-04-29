@@ -3,6 +3,7 @@ import type { LoadedModule, OpenApiContribution, ModuleRuntimeContext } from '@g
 import { apiKeyAuth } from '../lib/api-key-auth.js';
 import { createPublicApiContext } from '../lib/public-api-context.js';
 import { sendPublicApiError, publicApiErrorHandler } from '../lib/public-api-response.js';
+import { logger } from '../lib/logger.js';
 
 // ---------------------------------------------------------------------------
 // OpenAPI spec assembly
@@ -715,7 +716,7 @@ export async function createPublicApiRouter(
 
   const modulesWithPublicApi = enabledModules.filter(m => m.config.publicApiRoutes);
   if (modulesWithPublicApi.length === 0) {
-    console.log('[public-api] No modules have publicApiRoutes');
+    logger.info('[public-api] no modules have publicApiRoutes');
   }
 
   for (const mod of enabledModules) {
@@ -726,33 +727,35 @@ export async function createPublicApiRouter(
 
     // Validate base path format
     if (!BASE_PATH_PATTERN.test(basePath)) {
-      console.error(
-        `[public-api] Invalid base path "${basePath}" for module "${mod.config.id}" ` +
-        `(must match /[a-z0-9-/]+). Skipping.`,
+      logger.error(
+        { module: mod.config.id, basePath },
+        '[public-api] invalid base path (must match /[a-z0-9-/]+); skipping module',
       );
       continue;
     }
 
     // Check for path conflicts
     if (registeredPaths.has(basePath)) {
-      console.error(
-        `[public-api] Duplicate base path "${basePath}" — module "${mod.config.id}" ` +
-        `conflicts with an already-registered module. Skipping.`,
+      logger.error(
+        { module: mod.config.id, basePath },
+        '[public-api] duplicate base path; skipping module',
       );
       continue;
     }
     registeredPaths.add(basePath);
 
-    // Build runtime context for this module
+    // Build runtime context for this module — use a child logger so
+    // module logs carry { module: <id> } automatically.
+    const moduleLogger = logger.child({ module: mod.config.id });
     const runtimeCtx: ModuleRuntimeContext = {
       moduleId: mod.config.id,
       moduleDir: mod.resolvedDir ?? '',
       projectRoot: '', // populated by caller if needed
       logger: {
-        info: (msg, meta) => console.log(`[${mod.config.id}]`, msg, meta ?? ''),
-        warn: (msg, meta) => console.warn(`[${mod.config.id}]`, msg, meta ?? ''),
-        error: (msg, meta) => console.error(`[${mod.config.id}]`, msg, meta ?? ''),
-        debug: (msg, meta) => console.debug(`[${mod.config.id}]`, msg, meta ?? ''),
+        info: (msg, meta) => moduleLogger.info(meta ?? {}, msg),
+        warn: (msg, meta) => moduleLogger.warn(meta ?? {}, msg),
+        error: (msg, meta) => moduleLogger.error(meta ?? {}, msg),
+        debug: (msg, meta) => moduleLogger.debug(meta ?? {}, msg),
       },
       supabase,
       config: {} as any,
@@ -767,7 +770,7 @@ export async function createPublicApiRouter(
     try {
       await mod.config.publicApiRoutes(scopedRouter, ctx);
     } catch (err) {
-      console.error(`[public-api] Failed to register routes for "${mod.config.id}":`, err);
+      logger.error({ err, module: mod.config.id }, '[public-api] failed to register routes');
       continue;
     }
     router.use(basePath, scopedRouter);
@@ -781,7 +784,7 @@ export async function createPublicApiRouter(
       });
     }
 
-    console.log(`[public-api] Registered: ${mod.config.name} at /api/v1${basePath}`);
+    logger.info({ module: mod.config.id, basePath }, '[public-api] registered');
   }
 
   // ------------------------------------------------------------------
