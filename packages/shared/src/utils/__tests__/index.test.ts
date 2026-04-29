@@ -10,7 +10,8 @@ describe('formatDate', () => {
   });
 
   it('formats a Date object', () => {
-    const result = formatDate(new Date('2024-01-01T00:00:00Z'));
+    // Use noon UTC so timezone offsets can't roll the date across midnight.
+    const result = formatDate(new Date('2024-01-01T12:00:00Z'));
     expect(result).toContain('2024');
     expect(result).toContain('Jan');
   });
