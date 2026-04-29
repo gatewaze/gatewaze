@@ -278,6 +278,23 @@ autoscaling:
       targetCPUUtilization: 75
 
 # =============================================================================
+# Database connection pooling (PgBouncer) — spec §5.16
+# =============================================================================
+# Off by default. Required for >=2 API replicas under load. Operators
+# on cloud Supabase already have built-in pooling via Supavisor.
+database:
+  poolingEnabled: false
+  host: ""        # Postgres host PgBouncer connects to.
+  port: "5432"
+  secretName: ""  # Secret with keys `user`, `password`.
+  pgbouncer:
+    image: "edoburu/pgbouncer:1.23"
+    replicas: 2
+    poolMode: "transaction"
+    maxClientConn: "1000"
+    defaultPoolSize: "20"
+
+# =============================================================================
 # Migration runner (Helm pre-upgrade Job)
 # =============================================================================
 # When enabled, a Job runs scripts/run-migrations-pre-upgrade.ts before
