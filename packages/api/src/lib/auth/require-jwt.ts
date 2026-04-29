@@ -1,5 +1,9 @@
 import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+// SERVICE-ROLE OK: requireJwt() resolves the active account by reading
+// accounts_users *before* the user-scoped client can be constructed.
+// This is the bootstrap path for tenancy; it's bounded to a single
+// (user_id, account_id) lookup and emits no data beyond membership.
 import { getSupabase } from '../supabase.js';
 import {
   resolveActiveAccount,

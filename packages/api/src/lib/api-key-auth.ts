@@ -3,6 +3,9 @@ import type { Request, Response, NextFunction } from 'express';
 import { hashApiKey } from './api-key-utils.js';
 import { getFromCache, setInCache, type CachedApiKey } from './api-key-cache.js';
 import { checkKeyRateLimit, checkGlobalRateLimit } from './public-api-rate-limiter.js';
+// SERVICE-ROLE OK: API-key authentication runs before any user-scoped
+// client can exist. The api_keys and public_api_idempotency_keys tables
+// are service-role-only by RLS (00025_silent_table_policies.sql).
 import { getSupabase } from './supabase.js';
 
 declare global {

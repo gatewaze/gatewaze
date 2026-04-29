@@ -27,6 +27,10 @@ import {
   type EmailJobData,
   type ImageProcessJobData,
 } from '../lib/queue/index.js';
+// SERVICE-ROLE OK: background workers run without a user JWT. They
+// process jobs on behalf of the system (email sending, image
+// processing, integration-event consumers). All call sites in this
+// file are by-design service-role.
 import { getSupabase } from '../lib/supabase.js';
 
 const PROJECT_ROOT = resolve(import.meta.dirname ?? __dirname, '../../../..');

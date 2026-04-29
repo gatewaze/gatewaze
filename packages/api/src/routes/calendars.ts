@@ -1,3 +1,8 @@
+// SERVICE-ROLE OK: admin calendars CRUD; the calendars table is not yet
+// part of the tenancy_v2 RLS rewrite. Per-route migration to
+// getRequestSupabase() is deferred to phase 4 (Session 16) where
+// integration tests against a real Supabase instance can validate the
+// flag-on path.
 import { getSupabase } from '../lib/supabase.js';
 import { labeledRouter } from '../lib/router-registry.js';
 import { requireJwt } from '../lib/auth/require-jwt.js';
