@@ -63,8 +63,9 @@ export function captureException(err: unknown, context?: Record<string, unknown>
 
 /**
  * Wires uncaughtException + unhandledRejection handlers. Both log via
- * Pino (caller-supplied), report to Sentry if initialised, then exit
- * non-zero so the process manager (k8s/PM2) can restart the process.
+ * Pino (caller-supplied), report to Sentry if initialised, flush
+ * outstanding telemetry (Sentry + OTel), then exit non-zero so the
+ * process manager (k8s/PM2) can restart the process.
  *
  * Call once per Node entrypoint, after Pino has been initialised.
  */
@@ -74,19 +75,35 @@ export function installCrashHandlers(opts: {
 }): void {
   const flushMs = opts.flushTimeoutMs ?? 2000;
 
+  const flushAndExit = async (): Promise<never> => {
+    const tasks: Promise<unknown>[] = [];
+    if (initialized) tasks.push(Sentry.flush(flushMs));
+    // Flush OTel spans too — the crashing span should reach the
+    // collector. Lazy import so test environments without the SDK
+    // don't pay the resolution cost.
+    tasks.push(
+      import('./tracing.js')
+        .then(m => m.shutdownTracing())
+        .catch(() => undefined),
+    );
+    await Promise.race([
+      Promise.allSettled(tasks),
+      new Promise(resolve => setTimeout(resolve, flushMs + 500)),
+    ]);
+    process.exit(1);
+  };
+
   process.on('uncaughtException', (err: Error) => {
     opts.log('error', { err: { message: err.message, stack: err.stack } }, 'uncaught exception');
     captureException(err, { source: 'uncaughtException' });
-    if (initialized) Sentry.flush(flushMs).finally(() => process.exit(1));
-    else process.exit(1);
+    void flushAndExit();
   });
 
   process.on('unhandledRejection', (reason: unknown) => {
     const err = reason instanceof Error ? reason : new Error(String(reason));
     opts.log('error', { err: { message: err.message, stack: err.stack } }, 'unhandled rejection');
     captureException(err, { source: 'unhandledRejection' });
-    if (initialized) Sentry.flush(flushMs).finally(() => process.exit(1));
-    else process.exit(1);
+    void flushAndExit();
   });
 }
 

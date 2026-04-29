@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import type { Event } from '@/types/event'
 import type { BrandConfig, ContentCategoryOption } from '@/config/brand'
 import { isLightColor } from '@/config/brand'
@@ -173,8 +174,14 @@ function FeaturedCard({
 
           {/* Image */}
           {imageUrl && (
-            <div className="flex-shrink-0 w-full sm:w-48 lg:w-64 h-32 sm:h-auto">
-              <img src={imageUrl} alt="" className="w-full h-full object-cover" />
+            <div className="relative flex-shrink-0 w-full sm:w-48 lg:w-64 h-32 sm:h-auto sm:min-h-32 overflow-hidden">
+              <Image
+                src={imageUrl}
+                alt=""
+                fill
+                sizes="(min-width: 1024px) 256px, (min-width: 640px) 192px, 100vw"
+                className="object-cover"
+              />
             </div>
           )}
         </div>
