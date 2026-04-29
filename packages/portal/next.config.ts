@@ -96,6 +96,9 @@ const nextConfig: NextConfig = {
       // Generic image hosts that brands commonly use
       { protocol: 'https', hostname: 'images.unsplash.com' },
       { protocol: 'https', hostname: '**.cloudfront.net' },
+      // YouTube thumbnails (MediaContent video previews)
+      { protocol: 'https', hostname: 'i.ytimg.com' },
+      { protocol: 'https', hostname: 'img.youtube.com' },
     ],
   },
 
