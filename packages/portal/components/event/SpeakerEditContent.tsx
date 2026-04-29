@@ -131,9 +131,45 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
           global: { headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {} }
         })
 
-        let talkData: any = null
-        let speakerRecordData: any = null
-        let personProfile: any = null
+        // Types for the nested Supabase select results below.
+        interface PersonRow {
+          id: string
+          email: string
+          auth_user_id: string | null
+          attributes?: Record<string, unknown> | null
+          avatar_source?: string | null
+          avatar_storage_path?: string | null
+        }
+        interface PersonProfileRow {
+          id: string
+          person_id: string
+          people: PersonRow | PersonRow[]
+        }
+        interface SpeakerRow {
+          id: string
+          speaker_bio?: string | null
+          speaker_title?: string | null
+          edit_token: string | null
+          people_profiles: PersonProfileRow | PersonProfileRow[]
+        }
+        interface TalkSpeakerLink {
+          speaker_id: string
+          is_primary: boolean
+          speaker: SpeakerRow | SpeakerRow[]
+        }
+        interface TalkRow {
+          id: string
+          title: string | null
+          synopsis: string | null
+          duration_minutes: number | null
+          status: string | null
+          edit_token: string | null
+          event_talk_speakers?: TalkSpeakerLink[]
+        }
+
+        let talkData: TalkRow | null = null
+        let speakerRecordData: SpeakerRow | null = null
+        let personProfile: PersonProfileRow | null = null
 
         if (editToken) {
           const { data: talk, error: talkError } = await supabase
@@ -172,11 +208,18 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
             .maybeSingle()
 
           if (!talkError && talk) {
-            talkData = talk
-            const primaryTalkSpeaker = (talk.event_talk_speakers as any[])?.find((ts: any) => ts.is_primary) || talk.event_talk_speakers?.[0]
+            talkData = talk as TalkRow
+            const links = (talkData.event_talk_speakers ?? []) as TalkSpeakerLink[]
+            const primaryTalkSpeaker = links.find((ts) => ts.is_primary) ?? links[0]
             if (primaryTalkSpeaker?.speaker) {
-              speakerRecordData = primaryTalkSpeaker.speaker
-              personProfile = speakerRecordData.people_profiles
+              const speaker = Array.isArray(primaryTalkSpeaker.speaker)
+                ? primaryTalkSpeaker.speaker[0]
+                : primaryTalkSpeaker.speaker
+              if (speaker) {
+                speakerRecordData = speaker
+                const profiles = speaker.people_profiles
+                personProfile = Array.isArray(profiles) ? profiles[0] : profiles
+              }
             }
           }
         }

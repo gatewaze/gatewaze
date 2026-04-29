@@ -162,7 +162,7 @@ export function SpeakersPageContent({ event, brandConfig, initialStatus = 'pendi
           .eq('is_primary', true)
 
         if (speakerTalks && speakerTalks.length > 0) {
-          const talks: ExistingTalk[] = speakerTalks.map((st: any) => ({
+          const talks: ExistingTalk[] = (speakerTalks as Array<{ talk: { id: string; status?: string; title?: string; synopsis?: string | null; duration_minutes?: number; rejection_reason?: string | null; edit_token?: string | null } }>).map((st) => ({
             id: st.talk.id,
             status: st.talk.status || 'pending',
             title: st.talk.title || '',
