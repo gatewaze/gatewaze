@@ -106,7 +106,7 @@ export class BulkRegistrationService {
         continue;
       }
 
-      rows.push(row as BulkRegistrationRow);
+      rows.push(row as unknown as BulkRegistrationRow);
     }
 
     return rows;

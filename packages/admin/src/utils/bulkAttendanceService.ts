@@ -90,7 +90,7 @@ export class BulkAttendanceService {
         continue;
       }
 
-      rows.push(row as BulkAttendanceRow);
+      rows.push(row as unknown as BulkAttendanceRow);
     }
 
     return rows;
