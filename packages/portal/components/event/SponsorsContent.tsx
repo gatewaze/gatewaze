@@ -77,8 +77,18 @@ export function SponsorsContent() {
         }
 
         // Flatten the data and add sponsor details
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const flattenedSponsors: Sponsor[] = (data || []).map((item: any) => ({
+        interface RawSponsorRow {
+          id: string
+          sponsor_id: string
+          sponsorship_tier: string | null
+          sponsors?: {
+            name?: string
+            logo_url?: string | null
+            website?: string | null
+            description?: string | null
+          }
+        }
+        const flattenedSponsors: Sponsor[] = ((data ?? []) as RawSponsorRow[]).map((item) => ({
           id: item.id,
           sponsor_id: item.sponsor_id,
           sponsorship_tier: item.sponsorship_tier,

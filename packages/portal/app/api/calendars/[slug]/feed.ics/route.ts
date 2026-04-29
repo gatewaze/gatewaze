@@ -111,7 +111,7 @@ export async function GET(
     .order('event_start', { foreignTable: 'events', ascending: true })
     .limit(2000)
 
-  const events: any[] = (rows || []).map((r: any) => r.events).filter(Boolean)
+  const events = ((rows ?? []) as Array<{ events?: unknown }>).map((r) => r.events).filter(Boolean) as Array<Record<string, unknown>>
 
   const portalBase = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '')
   const cal = calendar as any
