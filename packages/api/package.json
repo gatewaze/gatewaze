@@ -18,6 +18,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.91.1",
     "@gatewaze/shared": "workspace:*",
+    "@sentry/node": "^10.51.0",
     "@supabase/supabase-js": "^2.49.0",
     "adm-zip": "^0.5.16",
     "bullmq": "^5.25.0",

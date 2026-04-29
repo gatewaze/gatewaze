@@ -29,6 +29,7 @@ import {
 } from './lib/router-registry.js';
 import { logger as appLogger, requestLogger, attachRequestId } from './lib/logger.js';
 import { errorEnvelope } from './lib/errors.js';
+import { initSentry, installCrashHandlers } from './lib/sentry.js';
 import { loadModules, loadModulesWithDbSources, reconcileModules } from '@gatewaze/shared/modules';
 import type { ModuleRuntimeContext } from '@gatewaze/shared/modules';
 import { createClient } from '@supabase/supabase-js';
@@ -38,6 +39,12 @@ import _configImport from '../../../gatewaze.config.js';
 const config = (_configImport as any)?.default ?? _configImport;
 
 const PROJECT_ROOT = resolve(import.meta.dirname ?? __dirname, '../../..');
+
+// Initialise Sentry before any other module that may throw.
+initSentry({ service: 'api' });
+installCrashHandlers({
+  log: (level, obj, msg) => appLogger[level](obj, msg),
+});
 
 const app = express();
 const PORT = parseInt(process.env.PORT ?? '3002', 10);
