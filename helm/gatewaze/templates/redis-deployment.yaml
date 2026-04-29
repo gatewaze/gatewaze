@@ -1,4 +1,7 @@
 {{- if .Values.redis.enabled }}
+{{- if not .Values.redis.password }}
+{{- fail "redis.password must be set to a strong random value (was an insecure default in earlier chart versions)" }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:

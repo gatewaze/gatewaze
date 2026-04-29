@@ -64,8 +64,12 @@ redis:
   # -- External Redis URL (used when redis.enabled is false)
   externalUrl: ""
 
-  # -- Redis password
-  password: gatewaze
+  # -- Redis password.
+  # SECURITY: must be set to a strong random value before deploy. The
+  # previous default `gatewaze` was a publicly known string; operators
+  # upgrading from earlier charts MUST rotate this. The Helm template
+  # rejects an empty value.
+  password: ""
 
   # -- Redis image
   image: redis:7-alpine
