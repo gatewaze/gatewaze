@@ -1,4 +1,4 @@
-import { RouteObject } from "react-router";
+import { Navigate, RouteObject } from "react-router";
 
 import AuthGuard from "@/middleware/AuthGuard";
 import AdminGuard from "@/middleware/AdminGuard";
@@ -15,6 +15,10 @@ import { moduleRoutes, moduleAdminRoutes } from "./moduleRoutes";
  * are now declared in each module's index.ts and loaded via moduleRoutes.
  */
 const coreChildren = [
+  {
+    path: "inbox",
+    Component: () => <Navigate to="/admin/recipes" replace />,
+  },
   {
     path: "people",
     children: [
