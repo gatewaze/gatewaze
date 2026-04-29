@@ -93,10 +93,10 @@ export function GeographicHeatmap({
         fontSize: '12px',
         colors: ['#fff']
       },
-      formatter: function(text: any, opts: any) {
+      formatter: function(text: string | number) {
         // In ApexCharts treemaps, the text is the x value (country name)
         // and we need to look up the y value (count) from the series data
-        let country = text || 'Unknown Country';
+        const country = (text as string) || 'Unknown Country';
         let count = 0;
 
         // Get the count directly from the series data we created
@@ -176,7 +176,7 @@ export function GeographicHeatmap({
       : ['#1E3A8A', '#1E40AF', '#1D4ED8', '#2563EB', '#3B82F6', '#60A5FA', '#93C5FD', '#BFDBFE', '#DBEAFE'],
     dataLabels: {
       enabled: true,
-      formatter: function(val: any) {
+      formatter: function(val: string | number) {
         return val + ' codes';
       },
       style: {

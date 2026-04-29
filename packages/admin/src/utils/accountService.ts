@@ -377,7 +377,7 @@ export class AccountService {
       }
 
       // Extract accounts from the nested structure
-      const accounts = data.map((item: any) => item.accounts).filter(Boolean)
+      const accounts = (data as unknown as Array<{ accounts: Account }>).map((item) => item.accounts).filter(Boolean)
 
       return { accounts, error: null }
     } catch (error) {

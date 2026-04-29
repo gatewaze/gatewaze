@@ -66,7 +66,7 @@ export function ColumnFilter({ column }: { column: Column<any> }) {
           type="number"
           value={columnFilterValue?.[0] ?? ""}
           onChange={(e) =>
-            column.setFilterValue((old: any) => [e.target.value, old?.[1]])
+            column.setFilterValue((old: [string, string] | undefined) => [e.target.value, old?.[1]])
           }
           placeholder="Min"
           classNames={{
@@ -79,7 +79,7 @@ export function ColumnFilter({ column }: { column: Column<any> }) {
           type="number"
           value={columnFilterValue?.[1] ?? ""}
           onChange={(e) =>
-            column.setFilterValue((old: any) => [old?.[0], e.target.value])
+            column.setFilterValue((old: [string, string] | undefined) => [old?.[0], e.target.value])
           }
           placeholder="Max"
           classNames={{
@@ -117,7 +117,7 @@ export function ColumnFilter({ column }: { column: Column<any> }) {
               >
                 {columnFilterValue && columnFilterValue.length > 0 ? (
                   <span className="block truncate capitalize">
-                    {columnFilterValue.map((val: any) => val).join(", ")}
+                    {columnFilterValue.map((val: string) => val).join(", ")}
                   </span>
                 ) : (
                   <span className="font-light text-[var(--gray-11)]">

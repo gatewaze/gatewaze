@@ -169,7 +169,7 @@ export function isBrandDevelopment(brandId?: string): boolean {
  * @param defaultValue Default value if not found
  * @returns The config value or default
  */
-export function getBrandEnvConfig(key: string, defaultValue: any = null): any {
+export function getBrandEnvConfig(key: string, defaultValue: unknown = null): unknown {
   const brandId = getBrandId();
   const envKey = `VITE_${brandId.toUpperCase()}_${key.toUpperCase()}`;
   return import.meta.env[envKey] || import.meta.env[`VITE_${key.toUpperCase()}`] || defaultValue;
