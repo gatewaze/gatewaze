@@ -34,11 +34,41 @@ export interface HandlerContext {
 // ============================================================================
 
 /**
+ * Structural shape of the Supabase PostgREST query builder, narrowed to the
+ * parameterised methods the listing primitive uses. Defining this
+ * structurally (rather than importing the heavyweight
+ * PostgrestFilterBuilder<...> generic) keeps the listing primitive
+ * schema-agnostic — any object exposing these methods is acceptable, and
+ * Supabase's real builder is structurally compatible.
+ */
+export interface ListingQueryBuilder {
+  eq(column: string, value: unknown): ListingQueryBuilder;
+  neq(column: string, value: unknown): ListingQueryBuilder;
+  gt(column: string, value: unknown): ListingQueryBuilder;
+  gte(column: string, value: unknown): ListingQueryBuilder;
+  lt(column: string, value: unknown): ListingQueryBuilder;
+  lte(column: string, value: unknown): ListingQueryBuilder;
+  in(column: string, values: readonly unknown[]): ListingQueryBuilder;
+  is(column: string, value: unknown): ListingQueryBuilder;
+  not(column: string, op: string, value: unknown): ListingQueryBuilder;
+  like(column: string, value: string): ListingQueryBuilder;
+  ilike(column: string, value: string): ListingQueryBuilder;
+  contains(column: string, value: unknown): ListingQueryBuilder;
+  containedBy(column: string, value: unknown): ListingQueryBuilder;
+  overlaps(column: string, values: readonly unknown[]): ListingQueryBuilder;
+  match(query: Record<string, unknown>): ListingQueryBuilder;
+  filter(column: string, operator: string, value: unknown): ListingQueryBuilder;
+  or(filters: string, opts?: { foreignTable?: string; referencedTable?: string }): ListingQueryBuilder;
+  order(column: string, opts?: { ascending?: boolean; nullsFirst?: boolean }): ListingQueryBuilder;
+  range(from: number, to: number): ListingQueryBuilder;
+}
+
+/**
  * Returning a function that mutates a Supabase query builder keeps
  * everything parameterised; raw SQL string concatenation is forbidden in
  * the listing primitive.
  */
-export type SupabaseFilterFn = (q: any) => any;
+export type SupabaseFilterFn = (q: ListingQueryBuilder) => ListingQueryBuilder;
 
 // ============================================================================
 // ProjectionItem — column references, computed expressions, FK lookups
@@ -123,9 +153,9 @@ export type FilterDeclaration =
       multi?: boolean;
       resolve: (
         value: unknown,
-        qb: any,
+        qb: ListingQueryBuilder,
         ctx: HandlerContext,
-      ) => any;
+      ) => ListingQueryBuilder;
     };
 
 // ============================================================================

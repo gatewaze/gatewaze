@@ -12,6 +12,7 @@ import type {
   ListingResult,
   ListingSchema,
   ListingQuery,
+  ListingQueryBuilder,
   ProjectionItem,
   ComputedExpr,
   FilterDeclaration,
@@ -67,14 +68,14 @@ export async function buildListingQuery<Row = Record<string, unknown>>(
   //    only further-narrow, never widen.
   const authFilterResolver = schema.authFilters[consumer];
   const authFn: SupabaseFilterFn | null = authFilterResolver ? authFilterResolver(enrichedCtx) : null;
-  if (authFn) qb = authFn(qb);
+  if (authFn) qb = authFn(qb) as unknown as typeof qb;
 
   // 7. Apply user filters via parameterised builders.
-  qb = applyFilters(qb, schema, filters, enrichedCtx);
+  qb = applyFilters(qb, schema, filters, enrichedCtx) as unknown as typeof qb;
 
   // 8. Apply search (ilike OR across searchable columns).
   if (search && schema.searchable.length > 0) {
-    qb = applySearch(qb, schema, search);
+    qb = applySearch(qb, schema, search) as unknown as typeof qb;
   }
 
   // 9. Apply sort + tie-break on primary key for stable pagination.
@@ -130,11 +131,11 @@ export async function buildListingCount(
 
   const authFilterResolver = schema.authFilters[consumer];
   const authFn: SupabaseFilterFn | null = authFilterResolver ? authFilterResolver(enrichedCtx) : null;
-  if (authFn) qb = authFn(qb);
+  if (authFn) qb = authFn(qb) as unknown as typeof qb;
 
-  qb = applyFilters(qb, schema, filters, enrichedCtx);
+  qb = applyFilters(qb, schema, filters, enrichedCtx) as unknown as typeof qb;
   if (search && schema.searchable.length > 0) {
-    qb = applySearch(qb, schema, search);
+    qb = applySearch(qb, schema, search) as unknown as typeof qb;
   }
 
   const { error, count } = await qb;
@@ -142,9 +143,9 @@ export async function buildListingCount(
     if (error.code === '57014' || /timeout/i.test(error.message)) {
       // Retry with planner estimate (cheap, no exact scan).
       let retry = supabase.from(schema.table).select(schema.primaryKey, { count: 'estimated', head: true });
-      if (authFn) retry = authFn(retry);
-      retry = applyFilters(retry, schema, filters, enrichedCtx);
-      if (search && schema.searchable.length > 0) retry = applySearch(retry, schema, search);
+      if (authFn) retry = authFn(retry) as unknown as typeof retry;
+      retry = applyFilters(retry, schema, filters, enrichedCtx) as unknown as typeof retry;
+      if (search && schema.searchable.length > 0) retry = applySearch(retry, schema, search) as unknown as typeof retry;
       const { error: retryError, count: retryCount } = await retry;
       if (retryError) {
         throw new ListingError('LISTING_INTERNAL_ERROR', `Estimated count fallback failed: ${retryError.message}`);
@@ -371,7 +372,12 @@ export function renderComputedExpr(_expr: ComputedExpr): { sql: string; params: 
 // Filter application — invokes the parameterised builder per filter kind.
 // ----------------------------------------------------------------------------
 
-function applyFilters(qb: any, schema: ListingSchema, filters: Record<string, unknown>, ctx: HandlerContext): any {
+function applyFilters(
+  qb: ListingQueryBuilder,
+  schema: ListingSchema,
+  filters: Record<string, unknown>,
+  ctx: HandlerContext,
+): ListingQueryBuilder {
   let q = qb;
   for (const [key, value] of Object.entries(filters)) {
     const decl = schema.filters[key];
@@ -380,7 +386,13 @@ function applyFilters(qb: any, schema: ListingSchema, filters: Record<string, un
   return q;
 }
 
-function applyFilter(qb: any, decl: FilterDeclaration, value: unknown, key: string, ctx: HandlerContext): any {
+function applyFilter(
+  qb: ListingQueryBuilder,
+  decl: FilterDeclaration,
+  value: unknown,
+  key: string,
+  ctx: HandlerContext,
+): ListingQueryBuilder {
   switch (decl.kind) {
     case 'virtual': {
       return decl.resolve(value, qb, ctx);
@@ -422,7 +434,7 @@ function applyFilter(qb: any, decl: FilterDeclaration, value: unknown, key: stri
 // Search application — OR'd ilikes across schema.searchable.
 // ----------------------------------------------------------------------------
 
-function applySearch(qb: any, schema: ListingSchema, search: string): any {
+function applySearch(qb: ListingQueryBuilder, schema: ListingSchema, search: string): ListingQueryBuilder {
   // Supabase .or() takes a comma-separated string of condition fragments.
   // Each ilike value is auto-quoted by PostgREST when used through .or() with the standard syntax.
   const wildcardEscaped = search.replace(/[*]/g, '').replace(/[%_]/g, (c) => `\\${c}`);
@@ -466,10 +478,10 @@ async function retryWithEstimatedCount<Row>(opts: BuildListingQueryOpts, args: R
   const selectString = renderProjection(args.projectionItems);
 
   let qb = supabase.from(schema.table).select(selectString, { count: 'estimated' });
-  if (args.authFn) qb = args.authFn(qb);
-  qb = applyFilters(qb, schema, args.filters, ctx);
+  if (args.authFn) qb = args.authFn(qb) as unknown as typeof qb;
+  qb = applyFilters(qb, schema, args.filters, ctx) as unknown as typeof qb;
   if (args.search && schema.searchable.length > 0) {
-    qb = applySearch(qb, schema, args.search);
+    qb = applySearch(qb, schema, args.search) as unknown as typeof qb;
   }
   const sortDbColumn = schema.sortable[args.sort.column];
   qb = qb.order(sortDbColumn, { ascending: args.sort.direction === 'asc' });
