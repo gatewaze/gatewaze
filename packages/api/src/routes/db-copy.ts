@@ -90,7 +90,7 @@ interface CopyProgress {
   message?: string;
 }
 
-function sendSSE(res: any, data: CopyProgress) {
+function sendSSE(res: import('express').Response, data: CopyProgress) {
   res.write(`data: ${JSON.stringify(data)}\n\n`);
 }
 
@@ -98,9 +98,9 @@ function sendSSE(res: any, data: CopyProgress) {
  * Fetch all rows from a table in the source Supabase, paginating with
  * range headers so we don't hit the default 1000-row limit.
  */
-async function fetchAllRows(source: SupabaseClient, table: string): Promise<any[]> {
+async function fetchAllRows(source: SupabaseClient, table: string): Promise<Record<string, unknown>[]> {
   const PAGE_SIZE = 1000;
-  const allRows: any[] = [];
+  const allRows: Record<string, unknown>[] = [];
   let offset = 0;
 
   while (true) {
