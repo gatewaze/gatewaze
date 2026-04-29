@@ -76,7 +76,7 @@ interface CompetitionEvent {
   event_title?: string;
   event_city?: string;
   event_start?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface CompetitionWin {
@@ -424,7 +424,11 @@ export default function MemberDetailPage() {
 
         if (segmentsData) {
           setSegments(
-            segmentsData.map((item: any) => ({
+            (segmentsData as Array<{
+              id: string;
+              joined_at: string;
+              segment: { id: string; name: string; description: string | null; type: string };
+            }>).map((item) => ({
               id: item.id,
               segment_id: item.segment.id,
               name: item.segment.name,
@@ -460,7 +464,9 @@ export default function MemberDetailPage() {
         }
 
         // Group competition interactions by offer_id
-        const fetchedEvents: any[] = []; // TODO: load events data
+        // TODO: load events data; the empty fetchedEvents array makes
+        // the fallback "competition: null" path always fire.
+        const fetchedEvents: Array<CompetitionEvent & { offerSlug?: string }> = [];
         const competitionActivities: CompetitionActivity[] = [];
         const compMap = new Map<string, CompetitionActivity>();
 
@@ -532,10 +538,14 @@ export default function MemberDetailPage() {
           .order('created_at', { ascending: false });
 
         if (winnersData && winnersData.length > 0) {
-          const fetchedEvents: any[] = []; // TODO: load events data
+          // TODO: load events data; until then, every CompetitionWin
+          // will have competition: null because the lookup table is
+          // empty. The .find() type is asserted as CompetitionEvent
+          // to match the CompetitionWin interface.
+          const fetchedEvents: CompetitionEvent[] = [];
           const wins: CompetitionWin[] = winnersData.map(winner => ({
             winner,
-            competition: fetchedEvents.find((e: any) => e.eventId === winner.event_id) || null
+            competition: fetchedEvents.find((e) => e.event_id === winner.event_id) ?? null
           }));
 
           setCompetitionWins(wins);
@@ -552,7 +562,7 @@ export default function MemberDetailPage() {
           .select('id')
           .eq('person_id', id!);
 
-        const memberProfileIds = (profileData || []).map((p: any) => p.id);
+        const memberProfileIds = ((profileData ?? []) as Array<{ id: string }>).map((p) => p.id);
 
         if (memberProfileIds.length > 0) {
           const [regResult, attendResult, speakerResult] = await Promise.all([
@@ -578,11 +588,13 @@ export default function MemberDetailPage() {
           const speakerData = speakerResult.data || [];
 
           // Collect all event IDs to fetch titles in one query
+          interface EventRefRow { event_id: string }
+          interface EventUuidRow { event_uuid?: string | number | null }
           const allEventIds = [
             ...new Set([
-              ...regData.map((r: any) => r.event_id),
-              ...attendData.map((a: any) => a.event_id),
-              ...speakerData.map((s: any) => s.event_uuid?.toString()),
+              ...(regData as EventRefRow[]).map((r) => r.event_id),
+              ...(attendData as EventRefRow[]).map((a) => a.event_id),
+              ...(speakerData as EventUuidRow[]).map((s) => s.event_uuid?.toString()),
             ].filter(Boolean)),
           ];
 
@@ -592,12 +604,12 @@ export default function MemberDetailPage() {
               .from('events')
               .select('event_id, event_title, event_city, event_country_code, event_start, event_end, event_logo')
               .in('event_id', allEventIds);
-            (eventDetails || []).forEach((e: any) => eventsMap.set(e.event_id, e));
+            ((eventDetails ?? []) as EventDetails[]).forEach((e) => eventsMap.set(e.event_id ?? '', e));
           }
 
-          setEventRegistrations(regData.map((r: any) => ({ ...r, event: eventsMap.get(r.event_id) })));
-          setEventAttendances(attendData.map((a: any) => ({ ...a, event: eventsMap.get(a.event_id) })));
-          setSpeakerSubmissions(speakerData.map((s: any) => ({ ...s, event: eventsMap.get(s.event_uuid?.toString()) })));
+          setEventRegistrations((regData as Array<EventRefRow & Record<string, unknown>>).map((r) => ({ ...r, event: eventsMap.get(r.event_id) })));
+          setEventAttendances((attendData as Array<EventRefRow & Record<string, unknown>>).map((a) => ({ ...a, event: eventsMap.get(a.event_id) })));
+          setSpeakerSubmissions((speakerData as Array<EventUuidRow & Record<string, unknown>>).map((s) => ({ ...s, event: eventsMap.get(s.event_uuid?.toString() ?? '') })));
         }
       }
     } catch (error) {
