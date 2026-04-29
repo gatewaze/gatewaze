@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import {
   registerBuiltInQueues,
   metricsHandler,
@@ -30,6 +31,8 @@ import {
 import { logger as appLogger, requestLogger, attachRequestId } from './lib/logger.js';
 import { errorEnvelope } from './lib/errors.js';
 import { initSentry, installCrashHandlers } from './lib/sentry.js';
+import { initRedMetrics, redMetricsMiddleware } from './lib/red-metrics.js';
+import { register as promRegister } from 'prom-client';
 import { loadModules, loadModulesWithDbSources, reconcileModules } from '@gatewaze/shared/modules';
 import type { ModuleRuntimeContext } from '@gatewaze/shared/modules';
 import { createClient } from '@supabase/supabase-js';
@@ -79,10 +82,26 @@ app.use(cors({
   },
   credentials: true,
 }));
+// helmet: security headers (X-Content-Type-Options, HSTS, referrer
+// policy, etc.). CSP starts in report-only mode and gets promoted to
+// enforced after 14 d clean in staging (spec §5.11). The default
+// helmet CSP is too restrictive for our admin/portal — disable it
+// here and serve CSP at the edge or via a separate middleware once
+// promotion criteria are met.
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+}));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(requestLogger);
 app.use(attachRequestId);
+// HTTP RED metrics — must be registered before route mounting so the
+// finish handler is invoked on every response. The metric definitions
+// share the prom-client global registry served by /metrics below.
+initRedMetrics(promRegister);
+app.use(redMetricsMiddleware);
 app.use(hateoasMiddleware);
 
 // Prometheus metrics — registered directly on the app (not via a Router),
@@ -218,16 +237,29 @@ if (process.env.NODE_ENV !== 'test') {
       appLogger.info({ port: PORT }, 'gatewaze api server listening');
     });
 
+    // Graceful shutdown per spec §5.7. Stop accepting new connections,
+    // wait up to SHUTDOWN_DRAIN_SECONDS (default 25, k8s
+    // terminationGracePeriodSeconds 30) for in-flight requests to
+    // finish, then close queue/Redis connections. The 25s default
+    // gives in-flight HTTP requests time to drain rather than the
+    // prior 10s which dropped them.
+    const drainSec = parseInt(process.env.SHUTDOWN_DRAIN_SECONDS ?? '25', 10);
+    let shuttingDown = false;
     const shutdown = async (signal: string) => {
-      queueLogger.info({ signal }, 'api shutting down');
-      server.close();
-      // Give in-flight enqueue calls up to 10s to settle, then close.
+      if (shuttingDown) return;
+      shuttingDown = true;
+      appLogger.info({ signal, drainSec }, 'api shutting down');
+      // 1. Stop accepting new connections; existing ones drain naturally.
+      server.close((err) => {
+        if (err) appLogger.warn({ err }, 'server.close error');
+      });
+      // 2. Drain queue/Redis with a budget.
       await Promise.race([
         (async () => {
           await closeAllQueues();
           await closeAllConnections();
         })(),
-        new Promise((resolve) => setTimeout(resolve, 10_000)),
+        new Promise((resolve) => setTimeout(resolve, drainSec * 1000)),
       ]);
       process.exit(0);
     };
