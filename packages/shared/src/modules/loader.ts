@@ -1,9 +1,11 @@
 import type { GatewazeConfig, GatewazeModule, LoadedModule, ModuleSource, ModuleSourceRow, ModuleWarning } from '../types/modules';
 import { existsSync, readdirSync } from 'fs';
 import { resolve, isAbsolute } from 'path';
-import { execSync, type ExecSyncOptions } from 'child_process';
+import { execFileSync, type ExecFileSyncOptions } from 'child_process';
 import { mkdirSync } from 'fs';
 import { liveModuleDir } from './module-paths';
+
+const BRANCH_RE = /^[\w][\w.\-/]{0,254}$/;
 
 /**
  * Validate that a module export satisfies the GatewazeModule interface.
@@ -443,7 +445,15 @@ function cloneOrUpdateRepo(
     .replace(/\.git$/, '')
     .replace(/[^a-zA-Z0-9-]/g, '-');
   const repoDir = resolve(cacheDir, repoSlug);
-  const execOpts: ExecSyncOptions = { stdio: 'pipe' };
+  const execOpts: ExecFileSyncOptions = { stdio: 'pipe' };
+
+  // Defense-in-depth: branch is validated at write time in the API, but
+  // gatewaze.config.ts paths reach this function too — re-check before
+  // letting it flow into git argv.
+  if (branch && !BRANCH_RE.test(branch)) {
+    console.error(`[gatewaze-modules] Refusing to clone with invalid branch: ${branch}`);
+    return null;
+  }
 
   // Inject token into HTTPS URLs for private repo access
   const authUrl = token && gitUrl.startsWith('https://')
@@ -456,13 +466,23 @@ function cloneOrUpdateRepo(
     if (existsSync(resolve(repoDir, '.git'))) {
       // Update the remote URL in case the token changed
       if (token) {
-        execSync(`git -C "${repoDir}" remote set-url origin "${authUrl}"`, execOpts);
+        execFileSync('git', ['-C', repoDir, 'remote', 'set-url', 'origin', authUrl], execOpts);
       }
-      const branchArg = branch ? `origin ${branch}` : '';
-      execSync(`git -C "${repoDir}" pull ${branchArg} --ff-only 2>/dev/null || true`, execOpts);
+      // `--ff-only` plus an empty refspec list is valid; we used to swallow
+      // pull errors with `|| true`. Now we catch the throw instead.
+      try {
+        const args = ['-C', repoDir, 'pull'];
+        if (branch) args.push('origin', branch);
+        args.push('--ff-only');
+        execFileSync('git', args, execOpts);
+      } catch {
+        // Non-fast-forward / network blip — proceed with cached repo.
+      }
     } else {
-      const branchFlag = branch ? `--branch ${branch}` : '';
-      execSync(`git clone --depth 1 ${branchFlag} "${authUrl}" "${repoDir}"`, execOpts);
+      const args = ['clone', '--depth', '1'];
+      if (branch) args.push('--branch', branch);
+      args.push(authUrl, repoDir);
+      execFileSync('git', args, execOpts);
     }
 
     console.log(`[gatewaze-modules] Resolved git source: ${gitUrl} → ${repoDir}`);
