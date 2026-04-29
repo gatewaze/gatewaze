@@ -164,9 +164,9 @@ async function registerModuleRoutes() {
           .from('installed_modules')
           .select('id, status');
         enabledModuleIds = new Set(
-          (installed ?? [])
-            .filter((r: any) => r.status === 'enabled')
-            .map((r: any) => r.id)
+          ((installed ?? []) as Array<{ id: string; status: string }>)
+            .filter((r) => r.status === 'enabled')
+            .map((r) => r.id)
         );
       } catch {
         appLogger.warn('[modules] module_sources table not available — using config sources only');
