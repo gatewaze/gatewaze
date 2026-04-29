@@ -6,6 +6,9 @@
  */
 
 import { type Request, type Response } from 'express';
+// SERVICE-ROLE OK: Slack invite queue is a system-managed table the
+// scheduler/worker drain on a cron. The route writes to it on behalf
+// of the admin user but the table itself is service-role-managed.
 import { getSupabase } from '../lib/supabase.js';
 import { labeledRouter } from '../lib/router-registry.js';
 import { requireJwt } from '../lib/auth/require-jwt.js';

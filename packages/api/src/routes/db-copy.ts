@@ -1,4 +1,8 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+// SERVICE-ROLE OK: cross-database copy tool that bulk-replicates entire
+// tables between environments. By design needs full table access on
+// both source and destination. Restricted at the route level (admin
+// JWT required); the operation itself is necessarily service-role.
 import { getSupabase } from '../lib/supabase.js';
 import { labeledRouter } from '../lib/router-registry.js';
 import { requireJwt } from '../lib/auth/require-jwt.js';

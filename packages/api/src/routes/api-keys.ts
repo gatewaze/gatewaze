@@ -1,3 +1,8 @@
+// SERVICE-ROLE OK: api_keys is a service-role-only table by RLS
+// (00025_silent_table_policies.sql). Admin CRUD on api keys runs
+// here with service-role; requireJwt() guards the route, and the
+// admin status check belongs in the route handler (phase-3 service
+// token work adds super_admin gating where needed).
 import { getSupabase } from '../lib/supabase.js';
 import { generateApiKey } from '../lib/api-key-utils.js';
 import { labeledRouter } from '../lib/router-registry.js';

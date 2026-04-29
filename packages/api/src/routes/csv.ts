@@ -1,6 +1,10 @@
 import multer from 'multer';
 import { parse } from 'csv-parse';
 import { stringify } from 'csv-stringify';
+// SERVICE-ROLE OK: admin CSV import/export; bulk operations across
+// people, registrations, etc. need full table access. The bulk path
+// will continue to use service-role even after tenancy_v2 — admins
+// must be able to operate across all tenant rows they manage.
 import { getSupabase } from '../lib/supabase.js';
 import { Readable } from 'stream';
 import { labeledRouter } from '../lib/router-registry.js';
