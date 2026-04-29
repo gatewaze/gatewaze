@@ -1595,7 +1595,7 @@ export default function MembersPage() {
                           disabled={addingMember}
                           data={[
                             { label: `Select ${attr.label}...`, value: '', disabled: true },
-                            ...(attr.options || []).map((opt: any) => ({ label: opt, value: opt })),
+                            ...(attr.options || []).map((opt: string) => ({ label: opt, value: opt })),
                           ]}
                         />
                       );
@@ -1607,7 +1607,7 @@ export default function MembersPage() {
                         <div key={attr.key} className="flex flex-col">
                           <span className="text-sm font-medium text-[var(--gray-12)] mb-1">{fieldLabel}</span>
                           <div className="flex flex-wrap gap-1.5 rounded-lg border border-[var(--gray-6)] bg-[var(--color-surface)] p-2 min-h-[38px]">
-                            {(attr.options || []).map((opt: any) => {
+                            {(attr.options || []).map((opt: string) => {
                               const isSelected = selected.includes(opt);
                               return (
                                 <button
