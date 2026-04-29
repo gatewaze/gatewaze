@@ -4,15 +4,18 @@
  * Provides endpoints to sync and manage Short.io shortened URLs.
  */
 
-import { Router, type Request, type Response } from 'express';
+import { type Request, type Response } from 'express';
 import { getSupabase } from '../lib/supabase.js';
+import { labeledRouter } from '../lib/router-registry.js';
+import { requireJwt } from '../lib/auth/require-jwt.js';
 
 const SHORTIO_API_BASE = 'https://api.short.io';
 const RATE_LIMIT_DELAY_MS = 200;
 const RATE_LIMIT_RETRY_DELAY_MS = 2000;
 const MAX_RETRIES = 5;
 
-export const redirectsRouter = Router();
+export const redirectsRouter = labeledRouter('jwt');
+redirectsRouter.use(requireJwt());
 
 function getApiKey(): string | null {
   return process.env.SHORTIO_API_KEY || null;

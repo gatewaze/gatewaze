@@ -5,7 +5,9 @@
  * All routes require CUSTOMERIO_APP_API_KEY environment variable.
  */
 
-import { Router, type Request, type Response } from 'express';
+import { type Request, type Response } from 'express';
+import { labeledRouter } from '../lib/router-registry.js';
+import { requireJwt } from '../lib/auth/require-jwt.js';
 
 const CUSTOMERIO_BASE_URL = 'https://api.customer.io/v1';
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
@@ -13,7 +15,8 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 let segmentsCache: any = null;
 let segmentsCacheTime: number | null = null;
 
-export const customerioRouter = Router();
+export const customerioRouter = labeledRouter('jwt');
+customerioRouter.use(requireJwt());
 
 function getApiKey(): string | null {
   return process.env.CUSTOMERIO_APP_API_KEY || null;

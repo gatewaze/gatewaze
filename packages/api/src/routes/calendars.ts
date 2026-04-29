@@ -1,7 +1,9 @@
-import { Router } from 'express';
 import { getSupabase } from '../lib/supabase.js';
+import { labeledRouter } from '../lib/router-registry.js';
+import { requireJwt } from '../lib/auth/require-jwt.js';
 
-export const calendarsRouter = Router();
+export const calendarsRouter = labeledRouter('jwt');
+calendarsRouter.use(requireJwt());
 
 // List calendars
 calendarsRouter.get('/', async (req, res) => {

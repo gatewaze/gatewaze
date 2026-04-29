@@ -42,13 +42,18 @@ function buildApp() {
   return app;
 }
 
+let savedDisable: string | undefined;
 beforeEach(() => {
   process.env.SUPABASE_JWT_SECRET = TEST_SECRET;
+  // Disable the test bypass so requireJwt() actually verifies tokens here.
+  savedDisable = process.env.GATEWAZE_TEST_DISABLE_AUTH;
+  delete process.env.GATEWAZE_TEST_DISABLE_AUTH;
   memberRows = [];
 });
 
 afterEach(() => {
   delete process.env.SUPABASE_JWT_SECRET;
+  if (savedDisable !== undefined) process.env.GATEWAZE_TEST_DISABLE_AUTH = savedDisable;
 });
 
 describe('requireJwt', () => {

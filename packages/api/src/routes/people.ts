@@ -1,7 +1,9 @@
-import { Router } from 'express';
 import { getSupabase } from '../lib/supabase.js';
+import { labeledRouter } from '../lib/router-registry.js';
+import { requireJwt } from '../lib/auth/require-jwt.js';
 
-export const peopleRouter = Router();
+export const peopleRouter = labeledRouter('jwt');
+peopleRouter.use(requireJwt());
 
 // List people with search and pagination
 peopleRouter.get('/', async (req, res) => {

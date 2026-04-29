@@ -1,7 +1,9 @@
-import { Router } from 'express';
 import { getSupabase } from '../lib/supabase.js';
+import { labeledRouter } from '../lib/router-registry.js';
+import { requireJwt } from '../lib/auth/require-jwt.js';
 
-export const eventsRouter = Router();
+export const eventsRouter = labeledRouter('jwt');
+eventsRouter.use(requireJwt());
 
 // Generate 6-character event ID (matches gatewaze-admin logic)
 // 3-4 random lowercase letters + remaining digits, shuffled
