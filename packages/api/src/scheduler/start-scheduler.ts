@@ -15,6 +15,12 @@ import {
   markNotReady,
   type LoadedCron,
 } from '../lib/queue/index.js';
+import { initSentry, installCrashHandlers } from '../lib/sentry.js';
+
+initSentry({ service: 'scheduler' });
+installCrashHandlers({
+  log: (level, obj, msg) => logger[level](obj, msg),
+});
 
 const PROJECT_ROOT = resolve(import.meta.dirname ?? __dirname, '../../../..');
 const METRICS_PORT = parseInt(process.env.SCHEDULER_METRICS_PORT ?? '9091', 10);
