@@ -59,6 +59,7 @@
     "date-fns": "^4.1.0",
     "dayjs": "^1.11.13",
     "isomorphic-dompurify": "^3.0.0-rc.2",
+    "@sentry/react": "^10.51.0",
     "filepond": "^4.32.8",
     "filepond-plugin-image-preview": "^4.6.12",
     "flatpickr": "^4.6.13",
