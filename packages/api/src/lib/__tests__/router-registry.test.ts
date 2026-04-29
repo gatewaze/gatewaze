@@ -4,6 +4,7 @@ import {
   labeledRouter,
   mountLabeled,
   labelDirectRoute,
+  labelMountPrefix,
   assertAllRoutesLabeled,
   getRegistry,
   clearRegistry,
@@ -71,5 +72,32 @@ describe('router-registry', () => {
     const app = express();
     const r = express.Router();
     expect(() => mountLabeled(app, '/api', r)).toThrow(/not created via labeledRouter/);
+  });
+
+  it('labelMountPrefix accepts any route under the prefix', () => {
+    const app = express();
+    // Module mounts a route directly on app — bypasses labeledRouter.
+    app.get('/api/modules/foo/bar', (_req, res) => res.json({}));
+    app.post('/api/modules/foo/baz', (_req, res) => res.json({}));
+    labelMountPrefix('/api/modules/foo', 'jwt');
+    expect(() => assertAllRoutesLabeled(app)).not.toThrow();
+  });
+
+  it('labelMountPrefix does NOT cover routes outside the prefix', () => {
+    const app = express();
+    app.get('/api/modules/foo/in', (_req, res) => res.json({}));
+    app.get('/api/modules/bar/out', (_req, res) => res.json({}));
+    labelMountPrefix('/api/modules/foo', 'jwt');
+    expect(() => assertAllRoutesLabeled(app)).toThrow(/api\/modules\/bar\/out/);
+  });
+
+  it('longest matching prefix wins', () => {
+    const app = express();
+    app.get('/api/modules/foo/specific', (_req, res) => res.json({}));
+    labelMountPrefix('/api/modules', 'public');
+    labelMountPrefix('/api/modules/foo', 'jwt');
+    // Both prefixes match; the longer one (jwt) takes effect, but
+    // the assertion only cares that the route is labeled at all.
+    expect(() => assertAllRoutesLabeled(app)).not.toThrow();
   });
 });

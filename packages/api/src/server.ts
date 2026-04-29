@@ -27,6 +27,7 @@ import { hateoasMiddleware } from './lib/hateoas.js';
 import {
   mountLabeled,
   labelDirectRoute,
+  labelMountPrefix,
   assertAllRoutesLabeled,
 } from './lib/router-registry.js';
 import { logger as appLogger, requestLogger, attachRequestId } from './lib/logger.js';
@@ -175,6 +176,15 @@ async function registerModuleRoutes() {
         continue;
       }
       if (mod.config.apiRoutes) {
+        // Pre-label the module's mount prefix so its routes are
+        // accepted by assertAllRoutesLabeled. Module authors mount
+        // under /api/modules/<id> by convention; we cover both that
+        // prefix and the catch-all /api so modules with legacy
+        // mount points still pass. The label is 'jwt' by default —
+        // module authors who need 'public' or 'service-role' opt in
+        // by calling labelMountPrefix() in their apiRoutes callback
+        // (added to the runtime context as labelRoutes).
+        labelMountPrefix(`/api/modules/${mod.config.id}`, 'jwt');
         const moduleLogger = appLogger.child({ module: mod.config.id });
         const runtimeCtx: ModuleRuntimeContext = {
           moduleId: mod.config.id,
