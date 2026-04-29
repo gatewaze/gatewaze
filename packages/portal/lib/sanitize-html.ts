@@ -50,6 +50,11 @@ const MARKETING_PAGE_CONFIG = {
 const INLINE_STYLE_CONFIG = {
   ALLOWED_TAGS: ['style'],
   ALLOWED_ATTR: [],
+  // ADD_TAGS forces DOMPurify to permit <style> which it strips by
+  // default (even when listed in ALLOWED_TAGS); FORCE_BODY keeps the
+  // node even though it would normally be moved to <head>.
+  ADD_TAGS: ['style'],
+  FORCE_BODY: true,
   FORBID_TAGS: ['script', 'iframe', 'object', 'embed'],
   FORBID_ATTR: ['onload', 'onerror', 'onclick', 'href', 'src'],
 }
