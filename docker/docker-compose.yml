@@ -218,7 +218,10 @@ services:
       SUPABASE_ANON_KEY: ${ANON_KEY}
       SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
       SUPABASE_DB_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@supabase-db:5432/${POSTGRES_DB:-postgres}
-      VERIFY_JWT: "${VERIFY_JWT:-false}"
+      # VERIFY_JWT defaults to true so edge functions reject unverified
+      # tokens out of the box. Set VERIFY_JWT=false in .env only for
+      # local development that explicitly needs to bypass JWT checks.
+      VERIFY_JWT: "${VERIFY_JWT:-true}"
       EMAIL_PROVIDER: ${EMAIL_PROVIDER:-none}
       SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
       EMAIL_FROM: ${EMAIL_FROM:-noreply@localhost}
