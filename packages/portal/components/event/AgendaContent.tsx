@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo, useCallback } from 'react'
+import Image from 'next/image'
 import { getClientBrandConfig, isLightColor } from '@/config/brand'
 import { useEventContext } from './EventContext'
 import { GlowBorder } from '@/components/ui/GlowBorder'
@@ -553,9 +554,11 @@ export function AgendaContent() {
                             {speakers.map((speaker, idx) => (
                               <div key={idx} className="flex items-center gap-3">
                                 {speaker.avatar_url ? (
-                                  <img
+                                  <Image
                                     src={speaker.avatar_url}
                                     alt={speaker.full_name}
+                                    width={32}
+                                    height={32}
                                     className="w-8 h-8 rounded-full object-cover"
                                   />
                                 ) : (

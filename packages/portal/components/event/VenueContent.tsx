@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import dynamic from 'next/dynamic'
+import Image from 'next/image'
 import { useEventContext } from './EventContext'
 import { GlowBorder } from '@/components/ui/GlowBorder'
 
@@ -98,10 +99,13 @@ export function VenueContent() {
       {event.venue_map_image && (
         <div>
           <p className={`font-semibold mb-4 ${textColor}`}>Venue Map</p>
-          <img
+          <Image
             src={event.venue_map_image}
             alt="Indoor venue map"
-            className="w-full rounded-xl"
+            width={1200}
+            height={800}
+            sizes="(min-width: 1024px) 800px, 100vw"
+            className="w-full h-auto rounded-xl"
           />
         </div>
       )}
