@@ -100,9 +100,9 @@ export function SendEmailModal({
       } else {
         toast.error(result.error || 'Failed to send email');
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error sending email:', error);
-      toast.error(error.message || 'Failed to send email');
+      toast.error((error instanceof Error ? error.message : '') || 'Failed to send email');
     } finally {
       setIsSending(false);
     }
