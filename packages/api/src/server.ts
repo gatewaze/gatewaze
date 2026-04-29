@@ -34,6 +34,7 @@ import { logger as appLogger, requestLogger, attachRequestId } from './lib/logge
 import { errorEnvelope } from './lib/errors.js';
 import { initSentry, installCrashHandlers } from './lib/sentry.js';
 import { initRedMetrics, redMetricsMiddleware } from './lib/red-metrics.js';
+import { initTracing } from './lib/tracing.js';
 import { register as promRegister } from 'prom-client';
 import { loadModules, loadModulesWithDbSources, reconcileModules } from '@gatewaze/shared/modules';
 import type { ModuleRuntimeContext } from '@gatewaze/shared/modules';
@@ -44,6 +45,10 @@ import _configImport from '../../../gatewaze.config.js';
 const config = (_configImport as any)?.default ?? _configImport;
 
 const PROJECT_ROOT = resolve(import.meta.dirname ?? __dirname, '../../..');
+
+// Initialise OTel tracing before any module that creates spans.
+// No-op when OTEL_EXPORTER_OTLP_ENDPOINT is unset.
+void initTracing();
 
 // Initialise Sentry before any other module that may throw.
 initSentry({ service: 'api' });

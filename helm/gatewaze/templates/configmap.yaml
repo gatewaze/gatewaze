@@ -91,6 +91,19 @@ data:
   SENTRY_TRACES_SAMPLE_RATE: {{ .tracesSampleRate | default "0" | quote }}
   {{- end }}
 
+  # OpenTelemetry — opt-in via monitoring.otel.endpoint. See spec §5.6.
+  {{- with .Values.monitoring.otel }}
+  {{- if .endpoint }}
+  OTEL_EXPORTER_OTLP_ENDPOINT: {{ .endpoint | quote }}
+  {{- end }}
+  {{- if .resourceAttributes }}
+  OTEL_RESOURCE_ATTRIBUTES: {{ .resourceAttributes | quote }}
+  {{- end }}
+  {{- if .headers }}
+  OTEL_EXPORTER_OTLP_HEADERS: {{ .headers | quote }}
+  {{- end }}
+  {{- end }}
+
   # Arbitrary extra env from values.yaml `env:` block. Passed through
   # verbatim so brand-specific keys (BRAND_ID, OPENAI_API_KEY,
   # BROWSERLESS_API_KEY, BRAVE_SEARCH_API_KEY, etc.) land in pods via the
