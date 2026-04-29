@@ -140,7 +140,12 @@ export function GradientWaveBackground({
     const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0
     if (!isTouchDevice) return
 
-    let camera: any = null
+    // Three.js Camera shape (subset). The full PerspectiveCamera type
+    // would require importing from 'three'; we only touch position.
+    interface Camera {
+      position: { x: number; y: number; z: number }
+    }
+    let camera: Camera | null = null
     let baseX = 0
     let baseY = 0
     let hasBase = false
