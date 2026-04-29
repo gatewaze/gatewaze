@@ -27,6 +27,8 @@ import {
   labelDirectRoute,
   assertAllRoutesLabeled,
 } from './lib/router-registry.js';
+import { logger as appLogger, requestLogger, attachRequestId } from './lib/logger.js';
+import { errorEnvelope } from './lib/errors.js';
 import { loadModules, loadModulesWithDbSources, reconcileModules } from '@gatewaze/shared/modules';
 import type { ModuleRuntimeContext } from '@gatewaze/shared/modules';
 import { createClient } from '@supabase/supabase-js';
@@ -72,6 +74,8 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true }));
+app.use(requestLogger);
+app.use(attachRequestId);
 app.use(hateoasMiddleware);
 
 // Prometheus metrics — registered directly on the app (not via a Router),
@@ -131,7 +135,7 @@ async function registerModuleRoutes() {
             .map((r: any) => r.id)
         );
       } catch {
-        console.warn('[modules] module_sources table not available — using config sources only');
+        appLogger.warn('[modules] module_sources table not available — using config sources only');
       }
     }
 
@@ -139,30 +143,31 @@ async function registerModuleRoutes() {
     for (const mod of modules) {
       // Only register API routes for enabled modules
       if (enabledModuleIds.size > 0 && !enabledModuleIds.has(mod.config.id)) {
-        console.log(`[modules] Skipping API routes for disabled module: ${mod.config.name}`);
+        appLogger.info({ module: mod.config.id }, '[modules] skipping disabled module');
         continue;
       }
       if (mod.config.apiRoutes) {
+        const moduleLogger = appLogger.child({ module: mod.config.id });
         const runtimeCtx: ModuleRuntimeContext = {
           moduleId: mod.config.id,
           moduleDir: mod.resolvedDir || PROJECT_ROOT,
           projectRoot: PROJECT_ROOT,
           logger: {
-            info: (msg, meta) => console.log(`[${mod.config.id}]`, msg, meta ?? ''),
-            warn: (msg, meta) => console.warn(`[${mod.config.id}]`, msg, meta ?? ''),
-            error: (msg, meta) => console.error(`[${mod.config.id}]`, msg, meta ?? ''),
-            debug: (msg, meta) => console.debug(`[${mod.config.id}]`, msg, meta ?? ''),
+            info: (msg, meta) => moduleLogger.info(meta ?? {}, msg),
+            warn: (msg, meta) => moduleLogger.warn(meta ?? {}, msg),
+            error: (msg, meta) => moduleLogger.error(meta ?? {}, msg),
+            debug: (msg, meta) => moduleLogger.debug(meta ?? {}, msg),
           },
           supabase: null,
           config: config as never,
           moduleConfig: (mod as { moduleConfig?: Record<string, unknown> }).moduleConfig ?? {},
         };
         await mod.config.apiRoutes(app, runtimeCtx);
-        console.log(`[modules] Registered API routes for: ${mod.config.name}`);
+        appLogger.info({ module: mod.config.id }, '[modules] registered API routes');
       }
     }
     if (modules.length > 0) {
-      console.log(`[modules] ${modules.length} module(s) loaded`);
+      appLogger.info({ count: modules.length }, '[modules] loaded');
     }
 
     // Register public API v1 routes for enabled modules
@@ -176,9 +181,9 @@ async function registerModuleRoutes() {
         supabaseUrl && serviceRoleKey ? createClient(supabaseUrl, serviceRoleKey) : null
       );
       app.use('/api/v1', publicApiRouter);
-      console.log('[public-api] Mounted at /api/v1');
+      appLogger.info('[public-api] mounted at /api/v1');
     } catch (err) {
-      console.warn('[public-api] Failed to mount public API:', err instanceof Error ? err.message : err);
+      appLogger.warn({ err: (err as Error).message }, '[public-api] failed to mount');
     }
 
     // Reconcile modules with DB (syncs admin_nav, portal_nav, features, etc.)
@@ -187,25 +192,23 @@ async function registerModuleRoutes() {
         const supabase = createClient(supabaseUrl, serviceRoleKey);
         await reconcileModules(modules, supabase as never);
       } catch (err) {
-        console.warn('[modules] Reconciliation failed:', err instanceof Error ? err.message : err);
+        appLogger.warn({ err: (err as Error).message }, '[modules] reconciliation failed');
       }
     }
   } catch (err) {
-    console.error('[modules] Failed to load module routes:', err);
+    appLogger.error({ err }, '[modules] failed to load module routes');
   }
 }
 
-// Error handler
-app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error('Unhandled error:', err);
-  res.status(500).json({ error: 'Internal server error' });
-});
+// Standard error envelope per spec §5.13. Mounted last so it catches
+// thrown ApiError instances and any uncaught errors from route handlers.
+app.use(errorEnvelope);
 
 // Only start the server when run directly (not imported by tests)
 if (process.env.NODE_ENV !== 'test') {
   registerModuleRoutes().then(() => {
     const server = app.listen(PORT, () => {
-      console.log(`Gatewaze API server running on port ${PORT}`);
+      appLogger.info({ port: PORT }, 'gatewaze api server listening');
     });
 
     const shutdown = async (signal: string) => {
