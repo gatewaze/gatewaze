@@ -24,6 +24,21 @@ const FORBIDDEN_PATTERNS: Array<{ pattern: RegExp; reason: string }> = [
   { pattern: /\bCREATE\s+(UNIQUE\s+)?INDEX\s+CONCURRENTLY\b/i, reason: 'CREATE INDEX CONCURRENTLY cannot run inside a transaction' },
   { pattern: /\bVACUUM\b/i, reason: 'VACUUM cannot run inside a transaction' },
   { pattern: /\bCOPY\s+.*\bPROGRAM\b/i, reason: 'COPY ... PROGRAM is not allowed in module migrations' },
+  // Spec §5.9 expand/contract — destructive single-release DDL is forbidden
+  // because it breaks single-release rollback. Drop columns / type
+  // changes must ship in their own release after a coexist release.
+  {
+    pattern: /\bALTER\s+TABLE\s+\S+\s+DROP\s+COLUMN\b/i,
+    reason: 'DROP COLUMN must follow expand/contract: ship the read-fallback in release N, drop in N+1 (spec §5.9). Wrap with a feature flag if you need the migration to be no-op on N.',
+  },
+  {
+    pattern: /\bALTER\s+TABLE\s+\S+\s+ALTER\s+COLUMN\s+\S+\s+TYPE\b/i,
+    reason: 'ALTER COLUMN ... TYPE must follow expand/contract: add a new column in release N, backfill, switch reads, drop the old column in N+1 (spec §5.9).',
+  },
+  {
+    pattern: /\bALTER\s+TABLE\s+\S+\s+RENAME\s+COLUMN\b/i,
+    reason: 'RENAME COLUMN breaks single-release rollback. Add the new column, dual-write, switch reads, drop the old column across two releases (spec §5.9).',
+  },
 ];
 
 export interface MigrationLintResult {

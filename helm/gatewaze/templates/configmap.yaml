@@ -71,6 +71,14 @@ data:
   SCHEDULER_METRICS_PORT: {{ .Values.scheduler.metricsPort | default 9091 | quote }}
   LOG_LEVEL: {{ .Values.logLevel | default "info" | quote }}
 
+  # Service auth — k8s ServiceAccount path (opt-in via auth.useK8sSA).
+  {{- if .Values.auth.useK8sSA }}
+  GATEWAZE_USE_K8S_SA: "1"
+  {{- if .Values.auth.k8sSAMap }}
+  GATEWAZE_K8S_SA_MAP: {{ .Values.auth.k8sSAMap | quote }}
+  {{- end }}
+  {{- end }}
+
   # Sentry — opt-in. Empty SENTRY_DSN = no-op SDK. See spec §5.6.
   {{- with .Values.monitoring.sentry }}
   {{- if .dsn }}
