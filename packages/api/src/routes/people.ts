@@ -6,6 +6,7 @@
 import { getSupabase } from '../lib/supabase.js';
 import { labeledRouter } from '../lib/router-registry.js';
 import { requireJwt } from '../lib/auth/require-jwt.js';
+import { logger } from '../lib/logger.js';
 
 export const peopleRouter = labeledRouter('jwt');
 peopleRouter.use(requireJwt());
@@ -38,7 +39,7 @@ peopleRouter.get('/', async (req, res) => {
 
     res.json({ data, total: count, page, limit });
   } catch (err) {
-    console.error('Error fetching people:', err);
+    logger.error({ err }, 'failed to fetch people');
     res.status(500).json({ error: 'Failed to fetch people' });
   }
 });
@@ -58,7 +59,7 @@ peopleRouter.get('/:id', async (req, res) => {
 
     res.json(data);
   } catch (err) {
-    console.error('Error fetching person:', err);
+    logger.error({ err }, 'failed to fetch person');
     res.status(500).json({ error: 'Failed to fetch person' });
   }
 });
@@ -76,7 +77,7 @@ peopleRouter.post('/', async (req, res) => {
     if (error) throw error;
     res.status(201).json(data);
   } catch (err) {
-    console.error('Error creating person:', err);
+    logger.error({ err }, 'failed to create person');
     res.status(500).json({ error: 'Failed to create person' });
   }
 });
@@ -97,7 +98,7 @@ peopleRouter.patch('/:id', async (req, res) => {
 
     res.json(data);
   } catch (err) {
-    console.error('Error updating person:', err);
+    logger.error({ err }, 'failed to update person');
     res.status(500).json({ error: 'Failed to update person' });
   }
 });
@@ -114,7 +115,7 @@ peopleRouter.delete('/:id', async (req, res) => {
     if (error) throw error;
     res.status(204).send();
   } catch (err) {
-    console.error('Error deleting person:', err);
+    logger.error({ err }, 'failed to delete person');
     res.status(500).json({ error: 'Failed to delete person' });
   }
 });
