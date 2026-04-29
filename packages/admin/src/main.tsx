@@ -2,6 +2,11 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 
+// Initialise Sentry as early as possible so component tree errors are
+// captured. No-op when VITE_SENTRY_DSN is unset.
+import { initSentry } from './lib/sentry'
+initSentry()
+
 import "./i18n/config";
 import "./utils/pdfjsSetup";
 import { setupFavicon } from './utils/favicon';
