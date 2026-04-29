@@ -81,7 +81,7 @@ export default function ModulesPage() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [isUpdatingAll, setIsUpdatingAll] = useState(false);
   const [availableUpdates, setAvailableUpdates] = useState<ModuleUpdateInfo[]>([]);
-  const [availableModules, setAvailableModules] = useState<{ id: string; name: string; description: string; version: string; type: string; group: string; features: string[]; sourceLabel?: string }[]>([]);
+  const [availableModules, setAvailableModules] = useState<{ id: string; name: string; description: string; version: string; type: string; group: string; features: string[]; sourceLabel?: string; guide?: string }[]>([]);
   const [activeSourceTab, setActiveSourceTab] = useState<string>(ALL_SOURCES_TAB);
   const [infoModule, setInfoModule] = useState<ModuleCardData | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);

@@ -131,9 +131,9 @@ export function RegistrationFieldMappings({ eventId }: RegistrationFieldMappings
           question_type: m.source_question_type,
           occurrence_count: 0,
           sample_value: null,
-          target_type: m.target_type,
+          target_type: m.target_type as 'customer_attribute' | 'registration_field' | '',
           target_field: m.target_field,
-          transform: m.transform,
+          transform: typeof m.transform === 'string' ? m.transform : '',
           existingId: m.id,
         })));
       }
