@@ -5,10 +5,13 @@
  * Uses a database-backed queue processed by a background worker.
  */
 
-import { Router, type Request, type Response } from 'express';
+import { type Request, type Response } from 'express';
 import { getSupabase } from '../lib/supabase.js';
+import { labeledRouter } from '../lib/router-registry.js';
+import { requireJwt } from '../lib/auth/require-jwt.js';
 
-export const slackRouter = Router();
+export const slackRouter = labeledRouter('jwt');
+slackRouter.use(requireJwt());
 
 // Request a Slack invitation
 slackRouter.post('/invite', async (req: Request, res: Response) => {
