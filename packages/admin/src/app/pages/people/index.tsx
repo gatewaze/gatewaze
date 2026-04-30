@@ -20,8 +20,6 @@ import {
   useReactTable,
   getCoreRowModel,
   getSortedRowModel,
-  getPaginationRowModel,
-  getFilteredRowModel,
   createColumnHelper,
   SortingState,
 } from '@tanstack/react-table';
@@ -38,7 +36,6 @@ import {
   Input,
   ConfirmModal,
   Avatar,
-  Badge,
   Tabs,
   Select,
   Textarea,
