@@ -40,6 +40,7 @@ export interface Event {
   register_button_text: string | null
   page_content: string | null
   recommended_event_id: string | null
+  gradual_eventslug?: string | null
   venue_content: string | null
   venue_map_image: string | null
   addedpage_content: string | null

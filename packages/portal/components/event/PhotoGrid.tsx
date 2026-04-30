@@ -80,7 +80,10 @@ export function PhotoGrid({ photos, onPhotoClick }: PhotoGridProps) {
 
     const imagePromises = imagesToLoad.map((photo) => {
       return new Promise<void>((resolve) => {
-        const img = new Image()
+        // Use window.Image so we get the DOM constructor — the local
+        // `Image` symbol is `next/image` (a React component), which TS
+        // sees as missing the bare-call signature.
+        const img = new window.Image()
         img.onload = () => resolve()
         img.onerror = () => resolve()
         img.src = photo.media_url
