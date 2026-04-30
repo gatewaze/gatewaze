@@ -27,12 +27,10 @@ export function Sidebar() {
   const { isFeatureEnabled, allModuleFeatures, ready: modulesReady } = useModulesContext();
   const navigation = useNavigation();
 
-  // Hide sidebar while loading permissions or modules to prevent flash of wrong content
-  if (isLoading || !modulesReady) {
-    return null;
-  }
-
-  // Filter navigation based on user permissions and module state
+  // Filter navigation based on user permissions and module state.
+  // All hooks must run on every render — the loading guard moved BELOW
+  // them to satisfy react-hooks/rules-of-hooks. Hooks below early-return
+  // were a latent crash waiting for the conditional to flip.
   const filteredNavigation = useMemo(() => {
     return filterNavigationByPermissions(navigation, permissions, isSuperAdmin, isFeatureEnabled, allModuleFeatures);
   }, [navigation, permissions, isSuperAdmin, isFeatureEnabled, allModuleFeatures]);
@@ -62,6 +60,11 @@ export function Sidebar() {
   useDidUpdate(() => {
     if (lgAndDown && isExpanded) close();
   }, [name]);
+
+  // Hide sidebar while loading permissions or modules to prevent flash of wrong content
+  if (isLoading || !modulesReady) {
+    return null;
+  }
 
   return (
     <>

@@ -6,7 +6,5 @@
 //
 // Path: from packages/admin/src/utils/ → up 4 to project root → sibling
 // gatewaze-modules → modules/events/admin/utils/eventService.
-// eslint-disable-next-line import/no-relative-parent-imports
 export * from '../../../../../gatewaze-modules/modules/events/admin/utils/eventService';
-// eslint-disable-next-line import/no-relative-parent-imports
 export type { Event } from '../../../../../gatewaze-modules/modules/events/admin/utils/eventService';

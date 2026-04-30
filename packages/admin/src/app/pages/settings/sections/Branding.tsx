@@ -205,7 +205,7 @@ function BrandingCard({ section }: { section: "system" | "admin" | "portal" }) {
     if (data) {
       const loaded = { ...BRANDING_DEFAULTS };
       let loadedTheme: PortalTheme = "gradient_wave";
-      let loadedColors: ThemeColorsMap = { ...DEFAULT_THEME_COLORS };
+      const loadedColors: ThemeColorsMap = { ...DEFAULT_THEME_COLORS };
       let loadedAdminAccentColor: PrimaryColor = "cyan";
       let loadedPortalNavOverrides: PortalNavOverrides = { items: [] };
       let loadedPortalUiMode: "frost" | "smoke" | "obsidian" | "paper" = "smoke";
