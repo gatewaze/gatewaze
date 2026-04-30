@@ -3,7 +3,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '@/app/contexts/auth/Provider';
+import { useAuthContext as useAuth } from '@/app/contexts/auth/context';
 import { PermissionsService } from '@/lib/permissions/service';
 import type {
   AdminFeature,
