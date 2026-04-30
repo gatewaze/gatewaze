@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { escapeICSText, sanitizeICSLineValue, foldLine, formatICSDate } from '@/lib/ics-helpers'
 
 /**
  * Public ICS feed for a calendar.
@@ -23,56 +24,6 @@ function getSupabase() {
   return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } })
 }
 
-function pad(n: number): string { return n < 10 ? `0${n}` : `${n}` }
-
-function formatICSDate(iso: string): string {
-  const d = new Date(iso)
-  // YYYYMMDDTHHMMSSZ
-  return (
-    `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}` +
-    `T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`
-  )
-}
-
-/**
- * Escape a value per RFC 5545 §3.3.11. Newlines become `\n`, commas/semicolons
- * are backslash-escaped, and we strip CR characters that would break folding.
- */
-function escapeICSText(input: string | null | undefined): string {
-  if (!input) return ''
-  return input
-    .replace(/\\/g, '\\\\')
-    .replace(/\r/g, '')
-    .replace(/\n/g, '\\n')
-    .replace(/,/g, '\\,')
-    .replace(/;/g, '\\;')
-}
-
-/**
- * Sanitise a value for use in non-text ICS properties (URI, UID, etc.) per
- * RFC 5545 §3.3.13. The text-escape helper is wrong here because it
- * backslash-escapes commas/semicolons (legal characters in URIs); but
- * raw CR/LF would let an attacker inject a new property line. Strip them
- * and any other control characters defensively.
- */
-function sanitizeICSLineValue(input: string | null | undefined): string {
-  if (!input) return ''
-  // eslint-disable-next-line no-control-regex
-  return input.replace(/[\r\n\u0000-\u001f\u007f]/g, '')
-}
-
-/**
- * Fold a content line per RFC 5545 §3.1: lines longer than 75 octets must
- * be split, with each continuation prefixed by a single space.
- */
-function foldLine(line: string): string {
-  if (line.length <= 75) return line
-  const parts: string[] = []
-  for (let i = 0; i < line.length; i += 73) {
-    parts.push(i === 0 ? line.slice(i, i + 75) : ' ' + line.slice(i, i + 73))
-  }
-  return parts.join('\r\n')
-}
 
 export async function GET(
   request: NextRequest,
