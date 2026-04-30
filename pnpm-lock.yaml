@@ -505,6 +505,9 @@ importers:
         specifier: ^3.23.0
         version: 3.25.76
     devDependencies:
+      '@eslint/js':
+        specifier: ^9.33.0
+        version: 9.39.4
       '@types/adm-zip':
         specifier: ^0.5.8
         version: 0.5.8
@@ -532,12 +535,18 @@ importers:
       '@types/uuid':
         specifier: ^10.0.0
         version: 10.0.0
+      eslint:
+        specifier: ^9.33.0
+        version: 9.39.4(jiti@2.6.1)
       supertest:
         specifier: ^7.2.2
         version: 7.2.2
       typescript:
         specifier: ^5.9.0
         version: 5.9.3
+      typescript-eslint:
+        specifier: ^8.39.1
+        version: 8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3)
 
   packages/mcp:
     dependencies:

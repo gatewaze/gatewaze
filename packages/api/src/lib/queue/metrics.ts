@@ -63,7 +63,6 @@ export async function metricsHandler(_req: unknown, res: {
  */
 export function startMetricsServer(port: number): { close: () => Promise<void> } {
   // Lazy-require http to keep the hot path (API) free of the server import.
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   const http = require('http') as typeof import('http');
   const server = http.createServer((req, res) => {
     if (req.url === '/metrics') {
