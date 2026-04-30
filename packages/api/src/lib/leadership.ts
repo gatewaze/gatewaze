@@ -18,7 +18,7 @@ export interface LeadershipState {
   inSafeMode: boolean;
 }
 
-let state: LeadershipState = {
+const state: LeadershipState = {
   isLeader: false,
   instanceId: randomUUID(),
   inSafeMode: false,

@@ -90,8 +90,8 @@ export function errorEnvelope(
   req: Request,
   res: Response,
   // The fourth param is required for Express to recognise this as an
-  // error handler. ESLint complains about it being unused.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // error handler — the `_next` underscore prefix matches eslint's
+  // argsIgnorePattern, so no disable is needed.
   _next: NextFunction,
 ): void {
   const requestId = req.requestId ?? (req as unknown as { id?: string }).id ?? '';

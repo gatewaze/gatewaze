@@ -44,7 +44,6 @@ describe('JWT enforcement on admin routers', () => {
   for (const spec of jwtPaths) {
     const [method, path] = spec.split(/\s+/);
     it(`${method} ${path} returns 401 when no JWT is present`, async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const res = await (request(app) as any)[method.toLowerCase()](path);
       expect(res.status).toBe(401);
       expect(res.body?.error?.code).toBe('unauthenticated');
