@@ -5,7 +5,7 @@
 
 import { ReactNode } from 'react';
 import { Navigate } from 'react-router';
-import { useFeaturePermissions, useHasFeature } from '@/hooks/useFeaturePermissions';
+import { useFeaturePermissions } from '@/hooks/useFeaturePermissions';
 import type { AdminFeature } from '@/lib/permissions/types';
 
 interface FeatureGuardProps {
@@ -100,31 +100,8 @@ export function FeatureGuard({
   return <>{children}</>;
 }
 
-/**
- * useFeatureGuard hook
- * Use this in components to conditionally render content based on permissions
- *
- * Usage:
- * ```tsx
- * const { hasPermission, isLoading } = useFeatureGuard('events');
- *
- * if (isLoading) return <Loading />;
- * if (!hasPermission) return <AccessDenied />;
- *
- * return <EventsList />;
- * ```
- */
-export function useFeatureGuard(
-  feature: AdminFeature,
-  accountId?: string | null
-) {
-  const hasPermission = useHasFeature(feature, accountId);
-
-  return {
-    hasPermission,
-    isLoading: false, // Hook handles loading internally
-  };
-}
+// `useFeatureGuard` moved to `@/hooks/useFeatureGuard` so this file only
+// exports components — required for react-refresh fast refresh.
 
 /**
  * Unauthorized page component
