@@ -305,7 +305,7 @@ export class SegmentService {
   /**
    * Manually add members to a manual segment
    */
-  async addMembersToSegment(segmentId: string, customerIds: number[]): Promise<void> {
+  async addMembersToSegment(segmentId: string, customerIds: string[]): Promise<void> {
     const memberships = customerIds.map((customerId) => ({
       segment_id: segmentId,
       person_id: customerId,
@@ -333,7 +333,7 @@ export class SegmentService {
   /**
    * Remove members from a manual segment
    */
-  async removeMembersFromSegment(segmentId: string, customerIds: number[]): Promise<void> {
+  async removeMembersFromSegment(segmentId: string, customerIds: string[]): Promise<void> {
     const { error } = await this.supabase
       .from('segments_memberships')
       .delete()

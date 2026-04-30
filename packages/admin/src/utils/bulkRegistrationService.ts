@@ -410,7 +410,7 @@ export class BulkRegistrationService {
    * Update customer attributes in Supabase
    */
   static async updatePersonAttributes(
-    customerId: number,
+    customerId: string,
     attributes: {
       first_name: string;
       last_name: string;
@@ -449,7 +449,7 @@ export class BulkRegistrationService {
   /**
    * Get or create member profile for customer
    */
-  static async getOrCreatePeopleProfile(customerId: number): Promise<any | null> {
+  static async getOrCreatePeopleProfile(customerId: string): Promise<any | null> {
     try {
       // Use the RPC function that properly handles QR code generation
       const { data: memberProfileId, error: rpcError } = await supabase

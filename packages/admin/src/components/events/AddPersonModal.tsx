@@ -76,7 +76,7 @@ export const AddPersonModal = ({ eventId, onComplete }: AddPersonModalProps) => 
 
     try {
       // Get or create member profile
-      const peopleProfile = await BulkRegistrationService.getOrCreatePeopleProfile(selectedPerson.id as any);
+      const peopleProfile = await BulkRegistrationService.getOrCreatePeopleProfile(selectedPerson.id);
 
       if (!peopleProfile) {
         toast.error('Failed to create member profile');
