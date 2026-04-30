@@ -20,7 +20,6 @@ import {
   summariseRebuild,
   readSnapshot,
   liveModuleDir,
-  sweepOrphanedNewDirs,
 } from '@gatewaze/shared/modules';
 import type { InstalledModuleRow, LoadedModule } from '@gatewaze/shared/modules';
 import { resolve } from 'path';
@@ -29,7 +28,6 @@ import crypto from 'crypto';
 import multer from 'multer';
 import AdmZip from 'adm-zip';
 import { writeAuditLog } from '../lib/audit-log';
-import { createRedactedLogger } from '../lib/log-redaction';
 import { isLeader } from '../lib/leadership';
 import { validateGitUrl } from '../lib/zip-validation';
 import { safeExec } from '../lib/safe-exec.js';
@@ -917,7 +915,7 @@ modulesRouter.post('/:id/enable', async (req, res) => {
  * entry in MODULE_SOURCES should be symlinked into the live tree rather
  * than copied, so HMR/dev workflows pick up in-place edits.
  */
-function isLocalPathSource(resolvedDir: string, configSources: unknown[]): boolean {
+function isLocalPathSource(resolvedDir: string, _configSources: unknown[]): boolean {
   // Any local absolute path MODULE_SOURCES entry produces a resolvedDir
   // that matches one of those mount points. Git sources resolve under
   // .gatewaze-sources/<slug>/ or /<reponame>/.

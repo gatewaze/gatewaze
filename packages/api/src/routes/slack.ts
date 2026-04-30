@@ -78,7 +78,7 @@ slackRouter.post('/invite', async (req: Request, res: Response) => {
       status: 'pending',
       queuePosition: count || 0,
     });
-  } catch (error) {
+  } catch {
     res.status(500).json({ success: false, error: 'Failed to process invitation request' });
   }
 });
