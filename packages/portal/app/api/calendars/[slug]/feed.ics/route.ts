@@ -42,13 +42,24 @@ export async function GET(
   const supabase = getSupabase()
 
   // Resolve the calendar by slug or calendar_id (CAL-XXXXXXXX).
+  // Cast at the boundary (we don't generate Supabase Database types in
+  // the portal) so the rest of the handler can read fields without
+  // sprinkling `as any` at every site.
+  interface CalendarRow {
+    id: string
+    calendar_id: string
+    name: string
+    slug: string
+    description: string | null
+    external_url: string | null
+  }
   const { data: calendar } = await supabase
     .from('calendars')
     .select('id, calendar_id, name, slug, description, external_url')
     .or(`slug.eq.${slug},calendar_id.eq.${slug}`)
     .eq('is_active', true)
     .eq('visibility', 'public')
-    .maybeSingle()
+    .maybeSingle<CalendarRow>()
 
   if (!calendar) {
     return new NextResponse('Calendar not found', { status: 404 })
@@ -78,7 +89,7 @@ export async function GET(
         event_country_code
       )
     `)
-    .eq('calendar_id', (calendar as any).id)
+    .eq('calendar_id', calendar.id)
     .eq('events.is_live_in_production', true)
     .gte('events.event_start', sixMonthsAgo)
     .order('event_start', { foreignTable: 'events', ascending: true })
@@ -87,9 +98,8 @@ export async function GET(
   const events = ((rows ?? []) as Array<{ events?: unknown }>).map((r) => r.events).filter(Boolean) as Array<Record<string, unknown>>
 
   const portalBase = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '')
-  const cal = calendar as any
-  const calName = `${cal.name}`
-  const calDesc = cal.description || `Events from ${cal.name}`
+  const calName = calendar.name
+  const calDesc = calendar.description || `Events from ${calendar.name}`
 
   const lines: string[] = []
   lines.push('BEGIN:VCALENDAR')
@@ -122,7 +132,7 @@ export async function GET(
 
     lines.push('BEGIN:VEVENT')
     const uidLocal = sanitizeICSLineValue((ev.event_id as string | undefined) || (ev.id as string | undefined))
-    const uidDomain = sanitizeICSLineValue(cal.calendar_id as string | undefined)
+    const uidDomain = sanitizeICSLineValue(calendar.calendar_id)
     lines.push(foldLine(`UID:${uidLocal}@gatewaze.calendars.${uidDomain}`))
     lines.push(`DTSTAMP:${stamp}`)
     lines.push(`DTSTART:${formatICSDate(start)}`)
@@ -154,7 +164,7 @@ export async function GET(
     status: 200,
     headers: {
       'Content-Type': 'text/calendar; charset=utf-8',
-      'Content-Disposition': `inline; filename="${(cal.slug || cal.calendar_id)}.ics"`,
+      'Content-Disposition': `inline; filename="${(calendar.slug || calendar.calendar_id)}.ics"`,
       // Allow CDNs / clients to cache for 5 minutes; calendar clients
       // typically poll every hour or two anyway.
       'Cache-Control': 'public, max-age=300, s-maxage=300',
