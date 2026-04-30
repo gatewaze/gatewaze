@@ -5,7 +5,6 @@ import type { BrandConfig } from '@/config/brand'
 import { useAuth } from '@/hooks/useAuth'
 import { GlassPanel } from '@/components/ui/GlassPanel'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { PortalButton } from '@/components/ui/PortalButton'
 import { getSupabaseClient } from '@/lib/supabase/client'
 
 interface TopicLabel {
@@ -16,16 +15,11 @@ interface TopicLabel {
   default_subscribed: boolean
 }
 
-interface Subscription {
-  list_id: string
-  subscribed: boolean
-}
-
 interface SubscriptionContentProps {
   brandConfig: BrandConfig
 }
 
-export function SubscriptionContent({ brandConfig }: SubscriptionContentProps) {
+export function SubscriptionContent({ brandConfig: _brandConfig }: SubscriptionContentProps) {
   const { user } = useAuth()
   const supabase = getSupabaseClient()
 
