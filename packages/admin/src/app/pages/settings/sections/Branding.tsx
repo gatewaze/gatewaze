@@ -2,18 +2,12 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useModulesContext } from "@/app/contexts/modules/context";
 import { Tabs as RadixTabs, Text, Heading, Callout } from "@radix-ui/themes";
 import {
-  Sun,
-  Moon,
-  Monitor,
   Palette,
-  Upload,
   Loader2,
   Check,
-  FileText,
   Info,
   Users,
   Lock,
-  Tags,
 } from "lucide-react";
 import { useActiveThemeModule } from "@/hooks/useActiveThemeModule";
 import { EventTypesEditor } from "@/components/shared/branding/EventTypesEditor";
@@ -22,7 +16,6 @@ import { PeopleAttributesEditor } from "@/components/shared/branding/PeopleAttri
 import {
   type EventTypeOption,
   DEFAULT_EVENT_TYPES,
-  saveEventTypes,
 } from "@/hooks/useEventTypes";
 import {
   type ContentCategoryOption,
