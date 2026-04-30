@@ -1594,7 +1594,7 @@ export default function MemberDetailPage() {
             </h2>
             <EmailHistorySection
               customerEmail={person.email || ''}
-              customerId={person.id}
+              personId={person.id}
             />
           </Card>
         )}
