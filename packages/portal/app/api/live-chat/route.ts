@@ -120,6 +120,18 @@ export async function POST(req: NextRequest) {
     if (action === 'react') {
       const { message_id, reaction_type } = body
 
+      // Validate inputs — the service-role client is typed as `any` so
+      // TS won't catch a missing/wrong-shape message_id or reaction_type.
+      // An undefined message_id would silently produce a NULL filter on
+      // the DELETE branch; a non-string reaction_type would let arbitrary
+      // shapes flow into the row.
+      if (
+        typeof message_id !== 'string' || !message_id ||
+        typeof reaction_type !== 'string' || !reaction_type
+      ) {
+        return NextResponse.json({ error: 'Missing or invalid fields' }, { status: 400 })
+      }
+
       // Try insert — if duplicate, toggle off
       const { error } = await getServiceSupabase()
         .from('live_chat_reactions')
