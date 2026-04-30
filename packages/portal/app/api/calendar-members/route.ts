@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { createAuthenticatedServerSupabase } from '@/lib/supabase/server'
 import { getServerBrand } from '@/config/brand'
+import { checkRateLimit } from '@/lib/rate-limit'
 
 /**
  * Portal-internal API for calendar member signup.
@@ -182,6 +183,20 @@ async function triggerPeopleSignupMagicLink(args: {
 }
 
 export async function POST(request: NextRequest) {
+  // Rate-limit by client IP — this endpoint dispatches a magic-link
+  // email on every signup, so an unbounded caller can flood arbitrary
+  // addresses or burn the upstream email budget. 5 sign-ups per minute
+  // per IP is enough for a real user typing a friend's email and
+  // re-trying once or twice; everything beyond that is automated.
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+  const rateLimit = checkRateLimit(`calendar-members:${ip}`, 5, 60_000)
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: { code: 'RATE_LIMITED', message: 'Too many sign-ups. Try again in a minute.' } },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter ?? 60) } },
+    )
+  }
+
   let body: SignupBody
   try {
     body = (await request.json()) as SignupBody
