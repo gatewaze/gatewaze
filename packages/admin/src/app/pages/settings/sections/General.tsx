@@ -1,16 +1,13 @@
 // Import Dependencies
-import { PhoneIcon, XMarkIcon } from "@heroicons/react/20/solid";
 import { EnvelopeIcon, UserIcon, LockClosedIcon } from "@heroicons/react/24/outline";
 import { useState, useEffect } from "react";
-import { HiPencil } from "react-icons/hi";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as Yup from 'yup';
 import { toast } from "sonner";
 
 // Local Imports
-import { PreviewImg } from "@/components/shared/PreviewImg";
-import { Avatar, Button, Input, Upload } from "@/components/ui";
+import { Avatar, Button, Input } from "@/components/ui";
 import { useAuthContext } from "@/app/contexts/auth/context";
 import { AdminUserService, UpdatePasswordData } from "@/utils/adminUserService";
 
