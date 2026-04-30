@@ -108,7 +108,13 @@ redirectsRouter.get('/', async (req: Request, res: Response) => {
       .range(parseInt(offset as string, 10), parseInt(offset as string, 10) + parseInt(limit as string, 10) - 1);
 
     if (search) {
-      query = query.or(`original_url.ilike.%${search}%,short_url.ilike.%${search}%,title.ilike.%${search}%`);
+      // Strip PostgREST filter-grammar metacharacters before interpolation.
+      // Without this, a `,` or `(` in `search` injects additional disjunction
+      // clauses into the .or() string and can return rows the user shouldn't see.
+      const safe = String(search).replace(/[,()*\\]/g, '').slice(0, 100);
+      if (safe) {
+        query = query.or(`original_url.ilike.%${safe}%,short_url.ilike.%${safe}%,title.ilike.%${safe}%`);
+      }
     }
 
     const { data, error, count } = await query;
