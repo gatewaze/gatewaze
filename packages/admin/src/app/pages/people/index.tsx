@@ -395,7 +395,7 @@ export default function MembersPage() {
       });
 
       // Update database with gravatar status
-      await PeopleService.updateGravatarStatus(parseInt(person.id), hasGravatar);
+      await PeopleService.updateGravatarStatus(person.id, hasGravatar);
 
       // Reload gallery if status changed to true
       if (hasGravatar) {
@@ -677,7 +677,7 @@ export default function MembersPage() {
 
     try {
       const result = await PeopleService.updatePerson(
-        parseInt(selectedPerson.id),
+        selectedPerson.id,
         {
           email: editFormData.email,
           attributes: {

@@ -3,7 +3,7 @@ import md5 from 'md5';
 
 // Person interface matching Supabase table
 export interface Person {
-  id?: number;
+  id?: string;
   cio_id: string;
   email?: string;
   phone?: string;
@@ -78,7 +78,7 @@ export class PeopleService {
   /**
    * Check if email has Gravatar and update database
    */
-  private static async checkAndUpdateGravatar(personId: number, email: string): Promise<void> {
+  private static async checkAndUpdateGravatar(personId: string, email: string): Promise<void> {
     try {
       // Dynamic import to avoid bundling md5 in all cases
       const md5 = (await import('md5')).default;
@@ -660,7 +660,7 @@ export class PeopleService {
    * Update person data
    */
   static async updatePerson(
-    id: number,
+    id: string,
     data: Partial<Person>
   ): Promise<{ success: boolean; error?: string; person?: Person }> {
     try {
@@ -854,7 +854,7 @@ export class PeopleService {
    * Update person gravatar status
    */
   static async updateGravatarStatus(
-    id: number,
+    id: string,
     hasGravatar: boolean
   ): Promise<{ success: boolean; error?: string }> {
     try {

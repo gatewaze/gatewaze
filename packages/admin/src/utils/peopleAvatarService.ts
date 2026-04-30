@@ -44,7 +44,7 @@ export class PeopleAvatarService {
    * Upload an avatar image for a person
    */
   static async uploadAvatar(
-    personId: number,
+    personId: string,
     file: File
   ): Promise<{ success: boolean; error?: string; path?: string }> {
     try {
@@ -101,7 +101,7 @@ export class PeopleAvatarService {
    * Download an image from a URL and store it in Supabase Storage
    */
   static async downloadAndStoreAvatar(
-    personId: number,
+    personId: string,
     imageUrl: string,
     source: AvatarSource
   ): Promise<{ success: boolean; error?: string; path?: string }> {
@@ -203,7 +203,7 @@ export class PeopleAvatarService {
    * Download Gravatar and store it
    */
   static async downloadGravatar(
-    personId: number,
+    personId: string,
     email: string
   ): Promise<{ success: boolean; error?: string; path?: string }> {
     const gravatarUrl = this.getGravatarUrl(email);
@@ -222,7 +222,7 @@ export class PeopleAvatarService {
    * Delete avatar from storage and clear person record
    */
   static async deleteAvatar(
-    personId: number,
+    personId: string,
     storagePath: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
@@ -260,7 +260,7 @@ export class PeopleAvatarService {
    * 3. Fall back to Gravatar
    */
   static async syncPersonAvatar(
-    personId: number,
+    personId: string,
     email: string,
     linkedinAvatarUrl?: string
   ): Promise<{ success: boolean; error?: string; source?: AvatarSource }> {
