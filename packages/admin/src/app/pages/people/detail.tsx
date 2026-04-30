@@ -235,7 +235,7 @@ export default function MemberDetailPage() {
     setIsSaving(true);
     try {
       const result = await PeopleService.updatePerson(
-        Number(person.id),
+        person.id,
         {
           email: editFormData.email,
           attributes: {
