@@ -44,6 +44,29 @@ describe('People API', () => {
       );
     });
 
+    it('strips PostgREST filter metacharacters from search', async () => {
+      mockSupabase.mockResult([], null, 0);
+
+      // Comma + paren + asterisk + backslash all need to be stripped
+      // before interpolating into .or() — otherwise the request can
+      // inject extra disjunction clauses (e.g. 'jane,id.gt.0' would
+      // become a top-level OR clause that returns every row).
+      await request(app).get(
+        '/api/people?search=' + encodeURIComponent('jane,id.gt.0(*\\)')
+      );
+
+      const orArg = mockSupabase.client.or.mock.calls[0]?.[0] as string;
+      expect(orArg).toBeDefined();
+      // Sanitised value is 'janeid.gt.0' — note: the surrounding
+      // .or(...) string legitimately contains commas as filter
+      // separators, so we look for the injection signature inside
+      // the ilike %...% patterns rather than against the whole string.
+      expect(orArg).toContain('%janeid.gt.0%');
+      expect(orArg).not.toContain('%jane,');
+      expect(orArg).not.toContain('(*');
+      expect(orArg).not.toContain('\\)');
+    });
+
     it('filters by status', async () => {
       mockSupabase.mockResult([], null, 0);
 
