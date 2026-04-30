@@ -12,7 +12,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
-import { Card, Button, Input, Modal, ConfirmModal, Badge } from '@/components/ui';
+import { Card, Button, Input, Modal, ConfirmModal } from '@/components/ui';
 import { RichTextEditor } from '@/components/ui/RichTextEditor';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import EmailTemplateService, { EmailTemplate, CreateEmailTemplateInput, UpdateEmailTemplateInput } from '@/utils/emailTemplateService';
