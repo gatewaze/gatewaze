@@ -24,9 +24,6 @@
     "prepare": "husky || true"
   },
   "lint-staged": {
-    "packages/api/src/**/*.{ts,tsx}": [
-      "pnpm --filter @gatewaze/api exec eslint --fix"
-    ],
     "packages/admin/src/**/*.{ts,tsx}": [
       "pnpm --filter @gatewaze/admin exec eslint --fix"
     ]
