@@ -406,6 +406,14 @@ export async function createPublicApiRouter(
   // Health check
   router.get('/health', async (_req: Request, res: Response) => {
     try {
+      if (!supabase) {
+        return res.status(503).json({
+          status: 'degraded',
+          error: 'Database not configured',
+          modules: enabledModules.length,
+          timestamp: new Date().toISOString(),
+        });
+      }
       // Verify Supabase is reachable with a lightweight query
       const { error } = await supabase
         .from('platform_settings')
@@ -468,9 +476,9 @@ export async function createPublicApiRouter(
     const moduleTools: Array<{
       moduleId: string;
       moduleName: string;
-      tools: Array<{ name: string; description: string }>;
-      resources: Array<{ uriTemplate: string; name: string; description: string }>;
-      prompts: Array<{ name: string; description: string }>;
+      tools: Array<{ name: string; description?: string }>;
+      resources: Array<{ uriTemplate: string; name: string; description?: string }>;
+      prompts: Array<{ name: string; description?: string }>;
     }> = [];
 
     interface McpTool { name: string; description?: string }
@@ -532,6 +540,9 @@ export async function createPublicApiRouter(
   // GET /api/v1/categories — list configured content categories
   router.get('/categories', async (_req: Request, res: Response) => {
     try {
+      if (!supabase) {
+        return res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'Database not configured' } });
+      }
       const { data, error } = await supabase
         .from('platform_settings')
         .select('value')
@@ -563,6 +574,9 @@ export async function createPublicApiRouter(
   // GET /api/v1/content — unified content across all enabled modules
   router.get('/content', async (req: Request, res: Response) => {
     try {
+      if (!supabase) {
+        return res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'Database not configured' } });
+      }
       const limit = Math.min(parseInt(req.query.limit as string) || 25, 100);
       const offset = parseInt(req.query.offset as string) || 0;
       if (limit < 1 || offset < 0) {
@@ -660,14 +674,14 @@ export async function createPublicApiRouter(
           const { data, count, error } = await q;
           if (error) throw new Error(`${src.type}: ${error.message}`);
 
-          const rows: Row[] = ((data ?? []) as Record<string, unknown>[]).map((row) => {
+          const rows: Row[] = ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => {
             const base: Row = {
               type: src.type,
               id: String(row[src.fields.id]),
-              title: row[src.fields.title] ?? null,
-              date: row[src.fields.date] ?? null,
-              summary: src.fields.summary ? row[src.fields.summary] ?? null : null,
-              content_category: row.content_category ?? null,
+              title: (row[src.fields.title] as string | null | undefined) ?? null,
+              date: (row[src.fields.date] as string | null | undefined) ?? null,
+              summary: src.fields.summary ? (row[src.fields.summary] as string | null | undefined) ?? null : null,
+              content_category: (row.content_category as string | null | undefined) ?? null,
               _links: { self: `/api/v1${src.resourcePath(row)}` },
             };
             if (expandFull && src.fullFields) {
