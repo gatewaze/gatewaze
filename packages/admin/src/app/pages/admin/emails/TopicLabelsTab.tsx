@@ -46,7 +46,7 @@ export function TopicLabelsTab() {
         .rpc('email_get_topic_counts');
 
       // If RPC doesn't exist, fall back to a simpler approach
-      let topicCounts: Record<string, number> = {};
+      const topicCounts: Record<string, number> = {};
 
       if (countError) {
         // Fallback: Get distinct topics and count separately

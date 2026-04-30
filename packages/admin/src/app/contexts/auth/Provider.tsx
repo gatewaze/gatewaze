@@ -132,8 +132,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
-    let initializeTimeout: NodeJS.Timeout;
     let isInitializing = true;
+
+    // Failsafe timeout — declared first so `initialize()` can reference
+    // and clear it from inside its async body.
+    const initializeTimeout: NodeJS.Timeout = setTimeout(() => {
+      if (mounted) {
+        console.warn('Auth initialization timed out, forcing unauthenticated state');
+        dispatch({
+          type: "INITIALIZE",
+          payload: {
+            isAuthenticated: false,
+            user: null,
+            errorMessage: null, // Don't show timeout error to user
+          }
+        });
+        isInitializing = false;
+      }
+    }, 3000);
 
     const initialize = async () => {
       try {
@@ -223,23 +239,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isInitializing = false;
       }
     };
-
-    // Failsafe timeout to prevent infinite loading
-    initializeTimeout = setTimeout(() => {
-      if (mounted) {
-        console.warn('Auth initialization timed out, forcing unauthenticated state');
-        dispatch({
-          type: "INITIALIZE",
-          payload: {
-            isAuthenticated: false,
-            user: null,
-            errorMessage: null, // Don't show timeout error to user
-          }
-        });
-        // Mark initialization as complete on timeout
-        isInitializing = false;
-      }
-    }, 3000); // 3 second timeout
 
     // Set up auth state listener - but only act on explicit sign in/out events
     const { data: { subscription } } = SupabaseAuthService.onAuthStateChange(
