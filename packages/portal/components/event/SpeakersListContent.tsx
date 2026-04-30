@@ -24,7 +24,7 @@ interface Speaker {
 }
 
 export function SpeakersListContent() {
-  const { event, useDarkText, primaryColor, eventIdentifier, basePath, userState } = useEventContext()
+  const { event, useDarkText, primaryColor, basePath, userState } = useEventContext()
   const [speakers, setSpeakers] = useState<Speaker[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [storageUrl, setStorageUrl] = useState('')

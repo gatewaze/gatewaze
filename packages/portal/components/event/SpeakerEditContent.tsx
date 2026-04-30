@@ -58,7 +58,7 @@ interface FormErrors {
 
 export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: Props) {
   const router = useRouter()
-  const { event, useDarkText, primaryColor, eventIdentifier, basePath } = useEventContext()
+  const { event, useDarkText, primaryColor, basePath } = useEventContext()
   const { session, isLoading: authLoading } = useAuth()
 
   const durationOptions = event.talk_duration_options || []
