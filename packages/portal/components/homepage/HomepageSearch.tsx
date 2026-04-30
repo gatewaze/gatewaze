@@ -4,7 +4,6 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import type { BrandConfig } from '@/config/brand'
-import { isLightColor } from '@/config/brand'
 import { useUniversalSearch, type UniversalSearchResult } from '@/hooks/useUniversalSearch'
 
 interface Props {
