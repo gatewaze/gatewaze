@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense, lazy, useMemo } from 'react';
-import { getPortalSlots, type PortalSlotEntry } from './registry';
+import { getPortalSlots } from './registry';
 
 interface ModuleSlotProps {
   /** The slot name to render, e.g. 'event-detail:tabs' */
