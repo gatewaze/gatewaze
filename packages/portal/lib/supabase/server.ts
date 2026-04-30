@@ -37,7 +37,11 @@ export async function createAuthenticatedServerSupabase(brandId: string): Promis
           cookiesToSet.forEach(({ name, value, options }) =>
             cookieStore.set(name, value, options)
           )
-        } catch {}
+        } catch {
+          // cookieStore.set throws on Server Components (which are
+          // read-only contexts). The auth flow tolerates that — the
+          // session refresh just won't persist there.
+        }
       },
     },
     // Override the REST/auth URLs to use the internal network URL
