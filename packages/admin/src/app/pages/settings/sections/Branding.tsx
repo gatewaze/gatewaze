@@ -99,12 +99,13 @@ const BRANDING_DEFAULTS: BrandingSettings = {
 
 import { ColorInput } from "@/components/shared/branding/ColorInput";
 import { LogoUploadField } from "@/components/shared/branding/LogoUploadField";
-import { StorageSettings, validateStorageBucketUrl } from "./StorageSettings";
+import { StorageSettings } from "./StorageSettings";
+import { validateStorageBucketUrl } from "./storage-bucket-validation";
+import { GradientWaveEditor } from "@/components/shared/branding/GradientWaveEditor";
 import {
-  GradientWaveEditor,
   DEFAULT_GRADIENT_WAVE_CONFIG,
   type GradientWaveConfig,
-} from "@/components/shared/branding/GradientWaveEditor";
+} from "@/components/shared/branding/gradient-wave-config";
 import { PortalNavEditor, type PortalNavOverrides } from "@/components/shared/branding/PortalNavEditor";
 
 // ── BrandingCard ───────────────────────────────────────────────────
