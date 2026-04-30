@@ -52,7 +52,7 @@ export function idempotencyMiddleware(
     // Atomic claim using INSERT ... ON CONFLICT
     const expiresAt = new Date(Date.now() + EXPIRY_HOURS * 60 * 60 * 1000).toISOString();
 
-    const { data: inserted, error: insertErr } = await supabase
+    const { error: insertErr } = await supabase
       .from('idempotency_keys')
       .insert({
         idempotency_key: key,
