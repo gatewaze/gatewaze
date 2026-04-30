@@ -14,7 +14,6 @@ import {
   Badge,
   Avatar,
   Modal,
-  Select,
   ConfirmModal,
   Table,
   THead,
