@@ -47,6 +47,9 @@ export async function initTracing(): Promise<void> {
     url: endpoint.endsWith('/v1/traces') ? endpoint : `${endpoint.replace(/\/$/, '')}/v1/traces`,
   });
 
+  // Cast to the local minimal shape; NodeSDK's actual `.start()` returns
+  // `void` in some versions and `Promise<void>` in others, and we don't
+  // want a hard pin on either.
   sdk = new NodeSDK({
     traceExporter: exporter,
     instrumentations: [
@@ -56,7 +59,7 @@ export async function initTracing(): Promise<void> {
         '@opentelemetry/instrumentation-dns': { enabled: false },
       }),
     ],
-  }) as never;
+  }) as unknown as { start: () => Promise<void>; shutdown: () => Promise<void> };
 
   try {
     await sdk!.start();

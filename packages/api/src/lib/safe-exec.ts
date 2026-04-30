@@ -43,7 +43,7 @@ export function safeExec(
     ...rest,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
-  });
+  }) as string | Buffer;
   // execFileSync returns the captured stdout when stdio[1]='pipe' and
   // encoding is set. stderr is bubbled via thrown error on non-zero exit.
   return { stdout: typeof stdout === 'string' ? stdout : stdout.toString('utf8'), stderr: '' };
