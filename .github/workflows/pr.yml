@@ -43,10 +43,13 @@ jobs:
         run: pnpm --filter @gatewaze/api typecheck
       - name: Typecheck (shared)
         run: pnpm --filter @gatewaze/shared typecheck
-      # admin / portal typecheck is non-blocking until phase-4 cleanup.
-      - name: Typecheck (admin / portal — non-blocking)
-        run: pnpm --filter @gatewaze/admin typecheck && pnpm --filter @gatewaze/portal typecheck
-        continue-on-error: true
+      # admin + portal promoted to blocking now that phase-4 cleanup
+      # has driven both packages to 0 errors. Reverted by reintroducing
+      # `continue-on-error: true` here if either backslides.
+      - name: Typecheck (admin)
+        run: pnpm --filter @gatewaze/admin typecheck
+      - name: Typecheck (portal)
+        run: pnpm --filter @gatewaze/portal typecheck
 
   lint:
     name: Lint
