@@ -195,7 +195,7 @@ async function syncShortIoLinks(supabase: SupabaseClient, apiKey: string, domain
         }
       }
 
-      lastId = links[links.length - 1].id;
+      lastId = String(links[links.length - 1].id);
       await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY_MS));
     }
 

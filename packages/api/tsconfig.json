@@ -5,7 +5,7 @@
     "moduleResolution": "bundler",
     "lib": ["ES2022"],
     "outDir": "dist",
-    "rootDir": "src",
+    "rootDir": "../..",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -18,6 +18,6 @@
     },
     "baseUrl": "."
   },
-  "include": ["src"],
+  "include": ["src", "test", "../../gatewaze.config.ts", "../shared/src"],
   "exclude": ["node_modules", "dist"]
 }
