@@ -27,10 +27,12 @@ interface Props {
  */
 export function FeaturedContent({ events, brandConfig, userLocation }: Props) {
   const categories = brandConfig.contentCategories
-  if (!categories || categories.length === 0) return null
 
-  // Find the highest-priority category that has at least one upcoming event
+  // Find the highest-priority category that has at least one upcoming event.
+  // Hook must run unconditionally — the empty-categories check moved below
+  // so we don't violate rules-of-hooks if categories ever flips at runtime.
   const featured = useMemo(() => {
+    if (!categories || categories.length === 0) return null
     for (const category of categories) {
       const matching = events.filter((e) => e.content_category === category.value)
       if (matching.length === 0) continue
