@@ -1,5 +1,5 @@
 import type { Viewport } from 'next'
-import { getServerBrandConfig, buildGoogleFontsUrl, buildFontStack, isLightColor, getThemeBackgroundColor } from '@/config/brand'
+import { getServerBrandConfig, buildGoogleFontsUrl, buildFontStack, isLightColor } from '@/config/brand'
 import '@/styles/globals.css'
 
 export const viewport: Viewport = {
