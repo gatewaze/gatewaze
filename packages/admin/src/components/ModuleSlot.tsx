@@ -67,19 +67,5 @@ export function ModuleSlot({ name, props, wrapper: Wrapper, fallback }: ModuleSl
   );
 }
 
-/**
- * Hook to check if any module has registered components for a given slot.
- * Useful for conditionally rendering container elements around a slot.
- *
- * @example
- * const hasSidebarSlots = useHasSlot('person-detail:sidebar');
- * {hasSidebarSlots && (
- *   <aside>
- *     <ModuleSlot name="person-detail:sidebar" props={{ personId }} />
- *   </aside>
- * )}
- */
-export function useHasSlot(slotName: string): boolean {
-  const slots = useModuleSlots(slotName);
-  return slots.length > 0;
-}
+// `useHasSlot` moved to `@/hooks/useHasSlot` so this file stays
+// component-only — required for react-refresh fast-refresh to work.
