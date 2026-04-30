@@ -25,7 +25,12 @@ describe('People API', () => {
       const res = await request(app).get('/api/people');
 
       expect(res.status).toBe(200);
-      expect(res.body.data).toEqual(people);
+      // Each row is enriched with HATEOAS _links.self; assert the
+      // domain fields and the link separately rather than deep-equal
+      // on the augmented shape.
+      expect(res.body.data).toHaveLength(1);
+      expect(res.body.data[0]).toMatchObject(people[0]);
+      expect(res.body.data[0]._links?.self?.href).toBe('/api/people/1');
       expect(res.body.total).toBe(1);
     });
 
