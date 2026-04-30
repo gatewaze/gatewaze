@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getEnabledModules, isModuleEnabled } from '@/lib/modules/enabledModules'
-import { getServerBrandConfig } from '@/config/brand'
+import { getServerBrandConfig, type BrandConfig } from '@/config/brand'
 import { getEvents } from '@/lib/events'
 import { getBlogPosts } from '@/lib/blog'
 import { HomepageContent } from '@/components/homepage/HomepageContent'
@@ -17,7 +17,7 @@ export default async function HomePage() {
     const { trackingHead: _, trackingBody: __, ...clientBrandConfig } = brandConfig
     return (
       <HomepageContent
-        brandConfig={clientBrandConfig as any}
+        brandConfig={clientBrandConfig as BrandConfig}
         navItems={[]}
         upcomingEvents={[]}
         blogPosts={[]}
