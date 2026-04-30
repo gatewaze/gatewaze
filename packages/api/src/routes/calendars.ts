@@ -82,13 +82,39 @@ calendarsRouter.get('/:id', async (req, res) => {
   }
 });
 
+// Allowlist of fields callers may set on POST/PATCH. Internal columns
+// (account_id, created_at, etc.) are excluded — the request body is
+// untrusted and RLS alone shouldn't be the only line of defence against
+// callers attempting mass-assignment of those fields.
+const CALENDAR_WRITE_FIELDS = new Set([
+  'name',
+  'slug',
+  'description',
+  'visibility',
+  'is_active',
+  'external_url',
+  'cover_image_url',
+  'theme',
+  'theme_colors',
+  'category',
+]);
+
+function pickCalendarFields(body: unknown): Record<string, unknown> {
+  if (!body || typeof body !== 'object') return {};
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(body as Record<string, unknown>)) {
+    if (CALENDAR_WRITE_FIELDS.has(k)) out[k] = v;
+  }
+  return out;
+}
+
 // Create calendar
 calendarsRouter.post('/', async (req, res) => {
   try {
     const supabase = getRequestSupabase(req);
     const { data, error } = await supabase
       .from('calendars')
-      .insert(req.body)
+      .insert(pickCalendarFields(req.body))
       .select()
       .single();
 
@@ -106,7 +132,7 @@ calendarsRouter.patch('/:id', async (req, res) => {
     const supabase = getRequestSupabase(req);
     const { data, error } = await supabase
       .from('calendars')
-      .update(req.body)
+      .update(pickCalendarFields(req.body))
       .eq('id', req.params.id)
       .select()
       .single();
