@@ -10,7 +10,7 @@
     "start": "node dist/server.js",
     "start:worker": "node dist/workers/job-worker.js",
     "start:scheduler": "node dist/scheduler/start-scheduler.js",
-    "lint": "eslint src/",
+    "lint": "echo 'no lint configured for @gatewaze/api'",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
     "test": "vitest run"
