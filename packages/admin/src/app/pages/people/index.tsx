@@ -1493,7 +1493,7 @@ export default function MembersPage() {
                 ? `${selectedPerson.attributes?.first_name || ''} ${selectedPerson.attributes?.last_name || ''}`.trim()
                 : undefined
             }
-            customerId={selectedPerson.id}
+            personId={selectedPerson.id}
           />
         )}
 

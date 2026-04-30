@@ -15,7 +15,7 @@ export interface EmailRequest {
   text?: string;
   html?: string;
   replyTo?: string;
-  customerId?: string;
+  personId?: string;
   attachments?: EmailAttachment[];
 }
 
@@ -134,7 +134,7 @@ class EmailService {
           text: request.text,
           html: request.html,
           replyTo: replyToEmail,
-          customerId: request.customerId,
+          personId: request.personId,
           attachments: request.attachments,
         },
       });

@@ -12,7 +12,7 @@ interface SendEmailModalProps {
   onClose: () => void;
   recipientEmail: string;
   recipientName?: string;
-  customerId?: string;
+  personId?: string;
 }
 
 export function SendEmailModal({
@@ -20,7 +20,7 @@ export function SendEmailModal({
   onClose,
   recipientEmail,
   recipientName,
-  customerId,
+  personId,
 }: SendEmailModalProps) {
   const fromAddresses = EmailService.getFromAddresses();
   const [selectedFromOption, setSelectedFromOption] = useState('members');
@@ -91,7 +91,7 @@ export function SendEmailModal({
         subject,
         html: message,
         replyTo: replyTo.trim() || undefined,
-        customerId,
+        personId,
       });
 
       if (result.success) {
