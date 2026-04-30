@@ -23,7 +23,7 @@ export class PeopleProfileService {
    * Get or create people profile for a person
    * This just adds QR capability to an existing person
    */
-  async getOrCreatePeopleProfile(customerId: number) {
+  async getOrCreatePeopleProfile(customerId: string) {
     const { data, error } = await this.supabase
       .rpc('people_get_or_create_profile', {
         p_person_id: customerId,
@@ -46,7 +46,7 @@ export class PeopleProfileService {
    * This updates the person's profile information
    */
   async updatePersonAttributes(
-    customerId: number,
+    customerId: string,
     attributes: UpdatePersonAttributes
   ) {
     const { error } = await this.supabase.rpc('people_update_attributes', {

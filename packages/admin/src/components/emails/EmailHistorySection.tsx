@@ -73,7 +73,7 @@ interface UnifiedEmail {
 
 interface EmailHistorySectionProps {
   customerEmail: string;
-  customerId?: number;
+  customerId?: string;
 }
 
 export function EmailHistorySection({ customerEmail, customerId }: EmailHistorySectionProps) {

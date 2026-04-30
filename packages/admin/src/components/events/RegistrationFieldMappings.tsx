@@ -30,7 +30,7 @@ interface MappingRow {
 
 interface ApplyResult {
   registration_id: string;
-  customer_id: number;
+  customer_id: string;
   fields_updated: string[];
   errors: string[];
 }
