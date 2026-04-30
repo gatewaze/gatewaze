@@ -1,6 +1,5 @@
 // Import Dependencies
 import { Link } from "react-router";
-import clsx from "clsx";
 import { SetStateAction, Dispatch } from "react";
 import { Theme } from "@radix-ui/themes";
 
