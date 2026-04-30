@@ -133,7 +133,7 @@ export default function AdminUsers() {
 
         setUsers(usersWithFeatureCounts);
       }
-    } catch (error) {
+    } catch {
       toast.error('Failed to load users');
     } finally {
       setLoading(false);
@@ -252,7 +252,7 @@ export default function AdminUsers() {
           toast.error(error || 'Failed to create user');
         }
       }
-    } catch (error) {
+    } catch {
       toast.error('An error occurred');
     } finally {
       setSubmitting(false);
@@ -272,7 +272,7 @@ export default function AdminUsers() {
       } else {
         toast.error(error || 'Failed to deactivate user');
       }
-    } catch (error) {
+    } catch {
       toast.error('An error occurred while deactivating user');
     }
   };
@@ -312,7 +312,7 @@ export default function AdminUsers() {
       } else {
         toast.error('Failed to start impersonation');
       }
-    } catch (error) {
+    } catch {
       toast.error('An error occurred while starting impersonation');
     } finally {
       setImpersonating(null);
