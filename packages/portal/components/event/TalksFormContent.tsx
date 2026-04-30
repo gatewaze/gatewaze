@@ -13,7 +13,7 @@ interface ExistingTalk {
   id: string
   status: string
   title: string
-  edit_token: string
+  edit_token: string | null
 }
 
 interface UserProfile {
@@ -136,12 +136,29 @@ export function TalksFormContent({ initialStatus = 'pending', confirmedDurationC
           .eq('is_primary', true)
 
         if (speakerTalks && speakerTalks.length > 0) {
-          const talks: ExistingTalk[] = (speakerTalks as Array<{ talk: { id: string; status?: string; title?: string; synopsis?: string | null; duration_minutes?: number; rejection_reason?: string | null; edit_token?: string | null } }>).map((st) => ({
-            id: st.talk.id,
-            status: st.talk.status || 'pending',
-            title: st.talk.title || '',
-            edit_token: st.talk.edit_token,
-          }))
+          // Supabase types !inner joins as arrays even when the relation
+          // is structurally 1:1, so cast through unknown and unwrap arrays
+          // defensively at the boundary.
+          type RawSpeakerTalk = {
+            talk: {
+              id: string; status?: string | null; title?: string | null;
+              synopsis?: string | null; duration_minutes?: number | null;
+              rejection_reason?: string | null; edit_token?: string | null;
+            } | Array<{
+              id: string; status?: string | null; title?: string | null;
+              synopsis?: string | null; duration_minutes?: number | null;
+              rejection_reason?: string | null; edit_token?: string | null;
+            }>
+          }
+          const talks: ExistingTalk[] = (speakerTalks as unknown as RawSpeakerTalk[])
+            .map((st) => (Array.isArray(st.talk) ? st.talk[0] : st.talk))
+            .filter((t): t is NonNullable<typeof t> => Boolean(t))
+            .map((talk) => ({
+              id: talk.id,
+              status: talk.status || 'pending',
+              title: talk.title || '',
+              edit_token: talk.edit_token ?? null,
+            }))
           setExistingTalks(talks)
         }
       } catch (err) {

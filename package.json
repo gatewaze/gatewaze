@@ -29,9 +29,6 @@
     ],
     "packages/admin/src/**/*.{ts,tsx}": [
       "pnpm --filter @gatewaze/admin exec eslint --fix"
-    ],
-    "packages/portal/{app,components,lib}/**/*.{ts,tsx}": [
-      "pnpm --filter @gatewaze/portal exec eslint --fix"
     ]
   },
   "engines": {
