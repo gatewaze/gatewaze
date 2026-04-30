@@ -367,7 +367,7 @@ async function searchBlogContent(
   const keywordMatchIds = new Set((keywordMatches || []).map((p: { id: string }) => p.id))
 
   // Vector search (if blog_embeddings table + RPC exist)
-  let vectorMatchMap = new Map<string, number>()
+  const vectorMatchMap = new Map<string, number>()
   try {
     const { data: similarPosts } = await supabase.rpc('blog_search_similar', {
       query_embedding: embeddingString,
@@ -393,7 +393,7 @@ async function searchBlogContent(
 
   // Fetch full post data for any that came from vector search but not keyword
   const missingIds = [...allPostIds].filter(id => !keywordMatchIds.has(id))
-  let allPosts = [...(keywordMatches || [])]
+  const allPosts = [...(keywordMatches || [])]
 
   if (missingIds.length > 0) {
     const { data: extraPosts } = await supabase
