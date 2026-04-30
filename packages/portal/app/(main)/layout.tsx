@@ -18,7 +18,7 @@ import { WhiteLabelFooter } from '@/components/ui/WhiteLabelFooter'
 import { PersistentBackground } from '@/components/ui/PersistentBackground'
 import { ProfileCompletionWrapper } from '@/components/wizard'
 import { AnalyticsProvider } from '@/components/AnalyticsProvider'
-import { getServerBrandConfig, buildGoogleFontsUrl, buildFontStack, isLightColor, getThemeBackgroundColor, resolveEventTheme } from '@/config/brand'
+import { getServerBrandConfig, buildGoogleFontsUrl, buildFontStack, isLightColor, getThemeBackgroundColor, resolveEventTheme, type ThemeColors } from '@/config/brand'
 import { OrganizationJsonLd } from '@/components/structured-data'
 import { createServerSupabase } from '@/lib/supabase/server'
 import { ChatWidgetLoader } from '@/components/chat/ChatWidgetLoader'
@@ -59,7 +59,7 @@ async function getCustomDomainEventByUuid(uuid: string, brandId: string) {
 async function resolveCustomDomainEvent(
   headersList: Headers,
   brandId: string,
-): Promise<{ event_title: string; event_logo: string | null; gradient_color_1: string | null; gradient_color_2: string | null; gradient_color_3: string | null; portal_theme: string | null; theme_colors: unknown } | null> {
+): Promise<{ event_title: string; event_logo: string | null; gradient_color_1: string | null; gradient_color_2: string | null; gradient_color_3: string | null; portal_theme: string | null; theme_colors: ThemeColors | null } | null> {
   if (headersList.get('x-custom-domain') !== 'true') return null
 
   const eventIdentifier = headersList.get('x-event-identifier')
