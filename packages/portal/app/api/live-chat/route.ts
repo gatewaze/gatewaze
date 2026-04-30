@@ -11,6 +11,7 @@ export const dynamic = 'force-dynamic'
 // Supabase Database types in the portal — typing the cache via
 // `ReturnType<typeof createClient>` resolves rows to `never`, which breaks
 // every `.insert()` and `.select()` overload below.
+/* eslint-disable @typescript-eslint/no-explicit-any -- intentional Database/Schema generics; see comment */
 let _serviceSupabase: ReturnType<typeof createClient<any, any, any>> | null = null
 function getServiceSupabase() {
   if (!_serviceSupabase) {
@@ -22,6 +23,7 @@ function getServiceSupabase() {
   }
   return _serviceSupabase
 }
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 async function getAuthenticatedPersonId(): Promise<string | null> {
   try {

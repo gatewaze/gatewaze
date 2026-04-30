@@ -103,9 +103,18 @@ async function getSpeakerInfo(editToken: string, brandId: string): Promise<Speak
 
   if (!talk) return { status: null, avatarUrl: null, talkTitle: null, presentationUrl: null, presentationStoragePath: null, presentationType: null, speakerEmail: null, calendarAddedAt: null, trackingLinkCopiedAt: null }
 
-  // Build avatar URL from storage path
+  // Build avatar URL from storage path. Supabase types nested !inner
+  // joins as deeply-nested arrays even when the relation is structurally
+  // 1:1; cast through a narrow shape rather than `any`.
+  type TalkSpeakerJoin = {
+    speaker?: {
+      people_profiles?: {
+        people?: { email?: string | null; avatar_storage_path?: string | null } | null
+      } | null
+    } | null
+  }
   let avatarUrl: string | null = null
-  const talkSpeaker = (talk.event_talk_speakers as any)?.[0]
+  const talkSpeaker = (talk.event_talk_speakers as TalkSpeakerJoin[] | null | undefined)?.[0]
   const avatarPath = talkSpeaker?.speaker?.people_profiles?.people?.avatar_storage_path
   if (avatarPath) {
     const { data: { publicUrl } } = supabase.storage
@@ -132,7 +141,7 @@ async function getSpeakerInfo(editToken: string, brandId: string): Promise<Speak
     presentationType: talk.presentation_type,
     speakerEmail: talkSpeaker?.speaker?.people_profiles?.people?.email || null,
     calendarAddedAt: talk.calendar_added_at,
-    trackingLinkCopiedAt: (talk as any).tracking_link_copied_at
+    trackingLinkCopiedAt: (talk as { tracking_link_copied_at?: string | null }).tracking_link_copied_at ?? null
   }
 }
 
