@@ -7,11 +7,14 @@ import { cookies } from 'next/headers'
 export const dynamic = 'force-dynamic'
 
 // Service role client for DB writes (lazy so build-time page data collection
-// doesn't fail when env vars aren't set)
-let _serviceSupabase: ReturnType<typeof createClient> | null = null
+// doesn't fail when env vars aren't set). Untyped because we don't generate
+// Supabase Database types in the portal — typing the cache via
+// `ReturnType<typeof createClient>` resolves rows to `never`, which breaks
+// every `.insert()` and `.select()` overload below.
+let _serviceSupabase: ReturnType<typeof createClient<any, any, any>> | null = null
 function getServiceSupabase() {
   if (!_serviceSupabase) {
-    _serviceSupabase = createClient(
+    _serviceSupabase = createClient<any, any, any>(
       process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
       { auth: { autoRefreshToken: false, persistSession: false } }
