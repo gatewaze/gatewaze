@@ -4,7 +4,6 @@
  * and non-allowed file extensions.
  */
 
-import { readFileSync } from 'fs';
 import { basename, extname } from 'path';
 
 /** Allowed file extensions for uploaded module archives */
