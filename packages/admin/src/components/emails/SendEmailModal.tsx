@@ -12,7 +12,7 @@ interface SendEmailModalProps {
   onClose: () => void;
   recipientEmail: string;
   recipientName?: string;
-  customerId?: number;
+  customerId?: string;
 }
 
 export function SendEmailModal({
