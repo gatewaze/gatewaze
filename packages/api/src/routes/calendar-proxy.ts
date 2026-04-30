@@ -25,9 +25,33 @@ calendarProxyRouter.get('/health', (_req: Request, res: Response) => {
   });
 });
 
+// Allowlist of calendar types this proxy supports. Keeping this here
+// (rather than passing the raw param through to the edge function)
+// prevents an attacker who finds an unrelated edge-function path from
+// using this proxy as a generic forward.
+const ALLOWED_CALENDAR_TYPES = new Set(['google', 'outlook', 'ics']);
+
 // Proxy calendar requests to Supabase Edge Function
 calendarProxyRouter.get('/:eventId/:calendarType/:emailEncoded', async (req: Request, res: Response) => {
-  const { eventId, calendarType, emailEncoded } = req.params;
+  // Express types params as `string | string[]` to allow multi-value
+  // matchers; coerce to plain strings before validating.
+  const eventId = String(req.params.eventId ?? '');
+  const calendarType = String(req.params.calendarType ?? '');
+  const emailEncoded = String(req.params.emailEncoded ?? '');
+
+  // Path-segment validation. Express's :param matcher already rejects
+  // forward-slashes, but we additionally constrain the shape so the
+  // upstream URL is always well-formed and a path-traversal attempt
+  // (e.g. `..%2F..`) is rejected before the fetch runs.
+  if (!ALLOWED_CALENDAR_TYPES.has(calendarType)) {
+    return res.status(400).json({ error: 'Unsupported calendar type' });
+  }
+  if (!/^[a-zA-Z0-9_-]{1,128}$/.test(eventId)) {
+    return res.status(400).json({ error: 'Invalid eventId' });
+  }
+  if (emailEncoded.length > 256 || /[^A-Za-z0-9%._-]/.test(emailEncoded)) {
+    return res.status(400).json({ error: 'Invalid emailEncoded' });
+  }
 
   try {
     const fullUrl = `${getEdgeFunctionUrl()}/${eventId}/${calendarType}/${emailEncoded}`;
@@ -42,7 +66,10 @@ calendarProxyRouter.get('/:eventId/:calendarType/:emailEncoded', async (req: Req
       redirect: 'manual',
     });
 
-    // Handle redirects (Google/Outlook calendars)
+    // Handle redirects (Google/Outlook calendars). The upstream edge
+    // function is operator-controlled (SUPABASE_URL), so we trust the
+    // Location header here — but keep this comment so a future change
+    // that swaps in a third-party upstream prompts a re-evaluation.
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get('location');
       if (location) return res.redirect(response.status, location);
