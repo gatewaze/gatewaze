@@ -56,7 +56,7 @@ export default function SignIn() {
     try {
       await login({ email: data.email });
       setMagicLinkSent(true);
-    } catch (error) {
+    } catch {
       // Error will be handled by the auth context
     }
   };
