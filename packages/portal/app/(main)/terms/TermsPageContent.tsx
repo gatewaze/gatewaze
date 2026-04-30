@@ -11,7 +11,7 @@ interface Props {
   customHtml: string | null
 }
 
-export function TermsPageContent({ brandConfig, customHtml }: Props) {
+export function TermsPageContent({ brandConfig: _brandConfig, customHtml }: Props) {
   return (
     <PortalPageLayout>
       <PageHeader title="Terms of Service" />

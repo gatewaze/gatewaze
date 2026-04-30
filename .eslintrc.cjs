@@ -20,7 +20,14 @@ module.exports = {
   },
   plugins: ['@typescript-eslint', 'react-hooks'],
   rules: {
-    '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+    // varsIgnorePattern matches admin's flat config — silences the
+    // common `const { trackingHead: _, trackingBody: __, ...rest } = ...`
+    // destructure pattern that's idiomatic for stripping server-only
+    // fields before forwarding to client components.
+    '@typescript-eslint/no-unused-vars': ['warn', {
+      argsIgnorePattern: '^_',
+      varsIgnorePattern: '^_',
+    }],
     '@typescript-eslint/no-explicit-any': 'warn',
     'react-hooks/rules-of-hooks': 'error',
     'react-hooks/exhaustive-deps': 'warn',
