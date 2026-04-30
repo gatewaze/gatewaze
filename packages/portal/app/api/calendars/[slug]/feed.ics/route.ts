@@ -136,23 +136,25 @@ export async function GET(
     if (!ev.event_start) continue
     const start = ev.event_start as string
     // Default to a 1-hour window if no end time is recorded.
-    const end = ev.event_end || new Date(new Date(start).getTime() + 60 * 60 * 1000).toISOString()
+    const end = (ev.event_end as string | undefined)
+      || new Date(new Date(start).getTime() + 60 * 60 * 1000).toISOString()
     const eventUrl = portalBase
-      ? `${portalBase}/events/${ev.event_slug || ev.event_id}`
-      : (ev.event_link || '')
-    const location = ev.event_location
-      || ev.venue_address
+      ? `${portalBase}/events/${(ev.event_slug as string | undefined) || (ev.event_id as string | undefined)}`
+      : ((ev.event_link as string | undefined) || '')
+    const location =
+      (ev.event_location as string | undefined)
+      || (ev.venue_address as string | undefined)
       || [ev.event_city, ev.event_country_code].filter(Boolean).join(', ')
       || ''
 
     lines.push('BEGIN:VEVENT')
-    lines.push(foldLine(`UID:${ev.event_id || ev.id}@gatewaze.calendars.${cal.calendar_id}`))
+    lines.push(foldLine(`UID:${(ev.event_id as string | undefined) || (ev.id as string | undefined)}@gatewaze.calendars.${cal.calendar_id}`))
     lines.push(`DTSTAMP:${stamp}`)
     lines.push(`DTSTART:${formatICSDate(start)}`)
     lines.push(`DTEND:${formatICSDate(end)}`)
-    lines.push(foldLine(`SUMMARY:${escapeICSText(ev.event_title)}`))
+    lines.push(foldLine(`SUMMARY:${escapeICSText(ev.event_title as string | null | undefined)}`))
     if (ev.event_description) {
-      lines.push(foldLine(`DESCRIPTION:${escapeICSText(ev.event_description)}`))
+      lines.push(foldLine(`DESCRIPTION:${escapeICSText(ev.event_description as string | null | undefined)}`))
     }
     if (location) {
       lines.push(foldLine(`LOCATION:${escapeICSText(location)}`))

@@ -161,9 +161,10 @@ export function GradientWaveBackground({
       if (!r3f?.store) return false
       const state = r3f.store.getState()
       if (!state.camera) return false
-      camera = state.camera
-      baseX = camera.position.x
-      baseY = camera.position.y
+      const cam: Camera = state.camera
+      camera = cam
+      baseX = cam.position.x
+      baseY = cam.position.y
       return true
     }
 

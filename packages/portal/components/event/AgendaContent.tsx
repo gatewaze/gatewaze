@@ -144,8 +144,8 @@ export function AgendaContent() {
               }))
               talksMap[talk.id] = {
                 id: talk.id,
-                title: talk.title,
-                synopsis: talk.synopsis,
+                title: talk.title ?? '',
+                synopsis: talk.synopsis ?? null,
                 session_type: talk.session_type || null,
                 speakers,
               }

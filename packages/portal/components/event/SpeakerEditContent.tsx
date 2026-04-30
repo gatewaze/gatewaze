@@ -147,6 +147,10 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
         }
         interface SpeakerRow {
           id: string
+          status?: string | null
+          talk_title?: string | null
+          talk_synopsis?: string | null
+          talk_duration_minutes?: number | null
           speaker_bio?: string | null
           speaker_title?: string | null
           edit_token: string | null
@@ -271,8 +275,9 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
             return
           }
 
-          speakerRecordData = data
-          personProfile = data.people_profiles
+          speakerRecordData = data as SpeakerRow
+          const profiles = (data as SpeakerRow).people_profiles
+          personProfile = (Array.isArray(profiles) ? profiles[0] : profiles) ?? null
         }
 
         if (!speakerRecordData) {
@@ -307,12 +312,12 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
         const speaker: SpeakerData = {
           id: speakerRecordData.id,
           talk_id: talkData?.id,
-          status: talkData?.status || speakerRecordData.status,
+          status: talkData?.status || speakerRecordData.status || '',
           talk_title: talkData?.title || speakerRecordData.talk_title || '',
           talk_synopsis: talkData?.synopsis || speakerRecordData.talk_synopsis || '',
-          talk_duration_minutes: talkData?.duration_minutes ?? speakerRecordData.talk_duration_minutes,
-          speaker_bio: speakerRecordData.speaker_bio,
-          speaker_title: speakerRecordData.speaker_title,
+          talk_duration_minutes: talkData?.duration_minutes ?? speakerRecordData.talk_duration_minutes ?? null,
+          speaker_bio: speakerRecordData.speaker_bio ?? null,
+          speaker_title: speakerRecordData.speaker_title ?? null,
           first_name: personAttrs.first_name || '',
           last_name: personAttrs.last_name || '',
           email: typedPersonProfile?.people?.email || '',
