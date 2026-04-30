@@ -24,9 +24,17 @@ peopleRouter.get('/', async (req, res) => {
       .range((page - 1) * limit, page * limit - 1);
 
     if (search) {
-      query = query.or(
-        `email.ilike.%${search}%,attributes->>first_name.ilike.%${search}%,attributes->>last_name.ilike.%${search}%,attributes->>company.ilike.%${search}%`
-      );
+      // PostgREST .or() takes a comma-separated filter string. Strip
+      // characters that have meaning in that grammar before interpolating
+      // — without this, a search value containing a `,` or `(` can inject
+      // additional disjunction clauses (e.g. `%x%,id.gt.0` would return
+      // every row in the table).
+      const safe = search.replace(/[,()*\\]/g, '').slice(0, 100);
+      if (safe) {
+        query = query.or(
+          `email.ilike.%${safe}%,attributes->>first_name.ilike.%${safe}%,attributes->>last_name.ilike.%${safe}%,attributes->>company.ilike.%${safe}%`
+        );
+      }
     }
 
     if (status) query = query.eq('status', status);
@@ -61,13 +69,32 @@ peopleRouter.get('/:id', async (req, res) => {
   }
 });
 
+// Allowlist of fields a POST /people caller may set. Internal columns
+// (account_id, created_at, auth_user_id, etc.) are deliberately excluded
+// — RLS shouldn't be the only line of defence against mass-assignment.
+const PERSON_WRITE_FIELDS = new Set([
+  'email',
+  'first_name',
+  'last_name',
+  'phone',
+  'attributes',
+  'status',
+  'is_guest',
+  'cio_id',
+]);
+
 // Create person
 peopleRouter.post('/', async (req, res) => {
   try {
     const supabase = getRequestSupabase(req);
+    const body = (req.body && typeof req.body === 'object') ? req.body as Record<string, unknown> : {};
+    const insert: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(body)) {
+      if (PERSON_WRITE_FIELDS.has(k)) insert[k] = v;
+    }
     const { data, error } = await supabase
       .from('people')
-      .insert(req.body)
+      .insert(insert)
       .select()
       .single();
 
