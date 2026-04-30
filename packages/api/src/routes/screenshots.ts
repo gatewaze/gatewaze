@@ -7,10 +7,6 @@
 
 import { type Request, type Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-// SERVICE-ROLE OK: enqueues screenshot jobs and writes job-state rows
-// the worker reads. The route handler is admin-gated by requireJwt();
-// the job-state table is platform-wide.
-import { getSupabase } from '../lib/supabase.js';
 import {
   enqueue,
   isQueueConfigured,
@@ -152,7 +148,7 @@ screenshotsRouter.post('/generate-stream', async (req: Request, res: Response) =
             res.end();
             break;
         }
-      } catch (e) {
+      } catch {
         // malformed payload — skip
       }
     });

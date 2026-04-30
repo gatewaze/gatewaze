@@ -36,7 +36,7 @@ import { initSentry, installCrashHandlers } from './lib/sentry.js';
 import { initRedMetrics, redMetricsMiddleware } from './lib/red-metrics.js';
 import { initTracing, shutdownTracing } from './lib/tracing.js';
 import { register as promRegister } from 'prom-client';
-import { loadModules, loadModulesWithDbSources, reconcileModules } from '@gatewaze/shared/modules';
+import { loadModulesWithDbSources, reconcileModules } from '@gatewaze/shared/modules';
 import type { ModuleRuntimeContext } from '@gatewaze/shared/modules';
 import { createClient } from '@supabase/supabase-js';
 import { resolve } from 'path';
