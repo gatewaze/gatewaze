@@ -59,7 +59,7 @@ export interface EventRegistration {
   } | null;
   // Joined member data
   qr_code_id?: string;
-  person_id?: number;
+  person_id?: string;
   full_name?: string;
   email?: string;
   company?: string;
@@ -78,7 +78,7 @@ export interface EventAttendance {
   badge_printed_on_site: boolean;
   // Joined member data
   qr_code_id?: string;
-  person_id?: number;
+  person_id?: string;
   full_name?: string;
   email?: string;
   company?: string;
@@ -175,7 +175,7 @@ interface RegistrationPermissionRow {
 
 interface PeopleProfileIdRow {
   id?: string;
-  person_id?: number | null;
+  person_id?: string | null;
 }
 
 interface CustomerAttributesRow {
@@ -2120,7 +2120,7 @@ export class EventQrService {
       }
 
       // Get customer attributes (job_function, job_seniority, job_title)
-      const customerIds = allProfiles.map(p => p.person_id).filter((id): id is number => Boolean(id));
+      const customerIds = allProfiles.map(p => p.person_id).filter((id): id is string => Boolean(id));
       const customerBatches = this.batchArray(customerIds, BATCH_SIZE);
 
       let allCustomers: CustomerAttributesRow[] = [];
@@ -2212,7 +2212,7 @@ export class EventQrService {
       }
 
       // Get customer attributes (job_function, job_seniority, job_title)
-      const customerIds = allProfiles.map(p => p.person_id).filter((id): id is number => Boolean(id));
+      const customerIds = allProfiles.map(p => p.person_id).filter((id): id is string => Boolean(id));
       const customerBatches = this.batchArray(customerIds, BATCH_SIZE);
 
       let allCustomers: CustomerAttributesRow[] = [];
