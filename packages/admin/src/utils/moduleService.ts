@@ -1,6 +1,25 @@
 import { supabase } from '@/lib/supabase';
 import type { InstalledModuleRow, ModuleSourceRow } from '@gatewaze/shared/modules';
 
+/**
+ * Wrap fetch to attach the user's Supabase session JWT.
+ *
+ * The platform API mounts /api/modules/* on labeledRouter('jwt') with
+ * requireJwt(), so every call must carry a valid Authorization: Bearer
+ * header. Plain fetch() in the browser doesn't include the supabase
+ * cookie/token automatically — we read the session here and add the
+ * header per-call.
+ */
+async function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  const headers = new Headers(init.headers);
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+  return fetch(input, { ...init, headers });
+}
+
 export interface ModuleInfo {
   id: string;
   name: string;
@@ -43,7 +62,7 @@ export class ModuleService {
   ): Promise<{ success: boolean; migrationsApplied?: string[]; edgeFunctionsDeployed?: string[]; error?: string }> {
     try {
       const apiUrl = import.meta.env.VITE_API_URL ?? '';
-      const res = await fetch(`${apiUrl}/api/modules/${moduleId}/enable`, {
+      const res = await apiFetch(`${apiUrl}/api/modules/${moduleId}/enable`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -120,7 +139,7 @@ export class ModuleService {
   }> {
     try {
       const apiUrl = import.meta.env.VITE_API_URL ?? '';
-      const res = await fetch(`${apiUrl}/api/modules/reconcile`, {
+      const res = await apiFetch(`${apiUrl}/api/modules/reconcile`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -148,7 +167,7 @@ export class ModuleService {
   ): Promise<{ success: boolean; error?: string }> {
     try {
       const apiUrl = import.meta.env.VITE_API_URL ?? '';
-      const res = await fetch(`${apiUrl}/api/modules/${moduleId}/disable`, {
+      const res = await apiFetch(`${apiUrl}/api/modules/${moduleId}/disable`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -177,7 +196,7 @@ export class ModuleService {
   }> {
     try {
       const apiUrl = import.meta.env.VITE_API_URL ?? '';
-      const res = await fetch(`${apiUrl}/api/modules/available`);
+      const res = await apiFetch(`${apiUrl}/api/modules/available`);
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
         return { modules: [], error: body.error ?? `Failed (${res.status})` };
@@ -202,7 +221,7 @@ export class ModuleService {
   }> {
     try {
       const apiUrl = import.meta.env.VITE_API_URL ?? '';
-      const res = await fetch(`${apiUrl}/api/modules/check-updates`);
+      const res = await apiFetch(`${apiUrl}/api/modules/check-updates`);
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
         return { updates: [], error: body.error ?? `Failed (${res.status})` };
@@ -225,7 +244,7 @@ export class ModuleService {
   }> {
     try {
       const apiUrl = import.meta.env.VITE_API_URL ?? '';
-      const res = await fetch(`${apiUrl}/api/modules/${moduleId}/update`, {
+      const res = await apiFetch(`${apiUrl}/api/modules/${moduleId}/update`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -257,7 +276,7 @@ export class ModuleService {
   }> {
     try {
       const apiUrl = import.meta.env.VITE_API_URL ?? '';
-      const res = await fetch(`${apiUrl}/api/modules/update-all`, {
+      const res = await apiFetch(`${apiUrl}/api/modules/update-all`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -290,7 +309,7 @@ export class ModuleService {
   }> {
     try {
       const apiUrl = import.meta.env.VITE_API_URL ?? '';
-      const res = await fetch(`${apiUrl}/api/modules/sources`);
+      const res = await apiFetch(`${apiUrl}/api/modules/sources`);
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         return { sources: null, error: body.error ?? `Failed (${res.status})` };
@@ -314,7 +333,7 @@ export class ModuleService {
   }): Promise<{ success: boolean; source?: ModuleSourceRow; error?: string }> {
     try {
       const apiUrl = import.meta.env.VITE_API_URL ?? '';
-      const res = await fetch(`${apiUrl}/api/modules/sources`, {
+      const res = await apiFetch(`${apiUrl}/api/modules/sources`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(source),
@@ -345,7 +364,7 @@ export class ModuleService {
   }> {
     try {
       const apiUrl = import.meta.env.VITE_API_URL ?? '';
-      const res = await fetch(`${apiUrl}/api/modules/sources/refresh`, { method: 'POST' });
+      const res = await apiFetch(`${apiUrl}/api/modules/sources/refresh`, { method: 'POST' });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         return {
@@ -372,7 +391,7 @@ export class ModuleService {
   }> {
     try {
       const apiUrl = import.meta.env.VITE_API_URL ?? '';
-      const res = await fetch(`${apiUrl}/api/modules/${moduleId}/apply-update`, {
+      const res = await apiFetch(`${apiUrl}/api/modules/${moduleId}/apply-update`, {
         method: 'POST',
       });
       if (!res.ok) {
@@ -398,7 +417,7 @@ export class ModuleService {
   ): Promise<{ success: boolean; error?: string }> {
     try {
       const apiUrl = import.meta.env.VITE_API_URL ?? '';
-      const res = await fetch(`${apiUrl}/api/modules/sources/${id}`, {
+      const res = await apiFetch(`${apiUrl}/api/modules/sources/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
@@ -423,7 +442,7 @@ export class ModuleService {
   ): Promise<{ success: boolean; error?: string }> {
     try {
       const apiUrl = import.meta.env.VITE_API_URL ?? '';
-      const res = await fetch(`${apiUrl}/api/modules/sources/${id}`, {
+      const res = await apiFetch(`${apiUrl}/api/modules/sources/${id}`, {
         method: 'DELETE',
       });
 
@@ -447,7 +466,7 @@ export class ModuleService {
   ): Promise<{ success: boolean; error?: string }> {
     try {
       const apiUrl = import.meta.env.VITE_API_URL ?? '';
-      const res = await fetch(`${apiUrl}/api/modules/${moduleId}/config`, {
+      const res = await apiFetch(`${apiUrl}/api/modules/${moduleId}/config`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ config }),
@@ -475,7 +494,7 @@ export class ModuleService {
       const formData = new FormData();
       formData.append('file', file);
 
-      const res = await fetch(`${apiUrl}/api/modules/upload`, {
+      const res = await apiFetch(`${apiUrl}/api/modules/upload`, {
         method: 'POST',
         body: formData,
       });
