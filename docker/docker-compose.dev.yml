@@ -31,8 +31,6 @@ services:
       API_PROXY_TARGET: http://api:3002
       VITE_PORTAL_DOMAIN: ${PORTAL_HOST:-gatewaze-app.localhost}
       VITE_API_URL: ${API_URL:-http://gatewaze-api.localhost}
-      EXTRA_MODULE_SOURCES: ${EXTRA_MODULE_SOURCES:-}
-      MODULE_SOURCES: ${EXTRA_MODULE_SOURCES:-}
 
   portal:
     build:
