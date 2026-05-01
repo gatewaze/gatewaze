@@ -5,10 +5,16 @@
  * Uses a database-backed queue processed by a background worker.
  */
 
-import { Router, type Request, type Response } from 'express';
+import { type Request, type Response } from 'express';
+// SERVICE-ROLE OK: Slack invite queue is a system-managed table the
+// scheduler/worker drain on a cron. The route writes to it on behalf
+// of the admin user but the table itself is service-role-managed.
 import { getSupabase } from '../lib/supabase.js';
+import { labeledRouter } from '../lib/router-registry.js';
+import { requireJwt } from '../lib/auth/require-jwt.js';
 
-export const slackRouter = Router();
+export const slackRouter = labeledRouter('jwt');
+slackRouter.use(requireJwt());
 
 // Request a Slack invitation
 slackRouter.post('/invite', async (req: Request, res: Response) => {
@@ -72,7 +78,7 @@ slackRouter.post('/invite', async (req: Request, res: Response) => {
       status: 'pending',
       queuePosition: count || 0,
     });
-  } catch (error: any) {
+  } catch {
     res.status(500).json({ success: false, error: 'Failed to process invitation request' });
   }
 });
@@ -97,8 +103,8 @@ slackRouter.get('/invitation-status/:id', async (req: Request, res: Response) =>
     }
 
     res.json({ success: true, invitation });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+  } catch (error) {
+    res.status(500).json({ success: false, error: (error instanceof Error ? error.message : String(error)) });
   }
 });
 
@@ -119,8 +125,8 @@ slackRouter.get('/queue-stats', async (_req: Request, res: Response) => {
     }
 
     res.json({ success: true, stats });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+  } catch (error) {
+    res.status(500).json({ success: false, error: (error instanceof Error ? error.message : String(error)) });
   }
 });
 
@@ -134,7 +140,7 @@ slackRouter.get('/pending-count', async (_req: Request, res: Response) => {
       .eq('status', 'pending');
 
     res.json({ success: true, pendingCount: count || 0 });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+  } catch (error) {
+    res.status(500).json({ success: false, error: (error instanceof Error ? error.message : String(error)) });
   }
 });

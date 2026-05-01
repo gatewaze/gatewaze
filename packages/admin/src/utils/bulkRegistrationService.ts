@@ -92,7 +92,7 @@ export class BulkRegistrationService {
         console.warn(`Row ${i + 1}: Too many columns, extra columns will be ignored`);
       }
 
-      const row: any = {};
+      const row: Record<string, string> = {};
       header.forEach((col, index) => {
         const value = values[index]?.trim() || '';
         // Only include supported columns
@@ -106,7 +106,7 @@ export class BulkRegistrationService {
         continue;
       }
 
-      rows.push(row as BulkRegistrationRow);
+      rows.push(row as unknown as BulkRegistrationRow);
     }
 
     return rows;
@@ -410,7 +410,7 @@ export class BulkRegistrationService {
    * Update customer attributes in Supabase
    */
   static async updatePersonAttributes(
-    customerId: number,
+    customerId: string,
     attributes: {
       first_name: string;
       last_name: string;
@@ -420,7 +420,7 @@ export class BulkRegistrationService {
     }
   ): Promise<boolean> {
     try {
-      const payload: any = {
+      const payload: Record<string, unknown> = {
         p_person_id: customerId,
         p_first_name: attributes.first_name,
         p_last_name: attributes.last_name,
@@ -449,7 +449,7 @@ export class BulkRegistrationService {
   /**
    * Get or create member profile for customer
    */
-  static async getOrCreatePeopleProfile(customerId: number): Promise<any | null> {
+  static async getOrCreatePeopleProfile(customerId: string): Promise<any | null> {
     try {
       // Use the RPC function that properly handles QR code generation
       const { data: memberProfileId, error: rpcError } = await supabase
@@ -607,9 +607,9 @@ export class BulkRegistrationService {
       }
 
       return { success: true };
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error processing registration:', error);
-      return { success: false, error: error.message || 'Unknown error' };
+      return { success: false, error: (error instanceof Error ? error.message : String(error)) || 'Unknown error' };
     }
   }
 
@@ -643,7 +643,7 @@ export class BulkRegistrationService {
         }
 
         // Build registration object with only provided fields
-        const registration: any = {
+        const registration: Record<string, unknown> = {
           email: row.email,
         };
 
@@ -752,24 +752,26 @@ export class BulkRegistrationService {
       }
 
       // Transform API result to match our interface
+      interface ApiError { index: number; email: string; error: string }
+      interface ApiSkip { index: number; email: string; reason: string }
       return {
         total: apiResult.total,
         successful: apiResult.successful,
         failed: apiResult.failed + (apiResult.skipped || 0),
         errors: [
-          ...(apiResult.errors || []).map((err: any) => ({
+          ...((apiResult.errors ?? []) as ApiError[]).map((err) => ({
             row: err.index + 2, // +2 for header and 0-indexing
             email: err.email,
             error: err.error,
           })),
-          ...(apiResult.skipped || []).map((skip: any) => ({
+          ...((apiResult.skipped ?? []) as ApiSkip[]).map((skip) => ({
             row: skip.index + 2,
             email: skip.email,
             error: `Skipped: ${skip.reason}`,
           })),
         ],
       };
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error processing bulk registrations:', error);
       return {
         total: rows.length,
@@ -778,7 +780,7 @@ export class BulkRegistrationService {
         errors: [{
           row: 0,
           email: 'N/A',
-          error: error.message || 'Failed to process bulk registration',
+          error: (error instanceof Error ? error.message : String(error)) || 'Failed to process bulk registration',
         }],
       };
     }

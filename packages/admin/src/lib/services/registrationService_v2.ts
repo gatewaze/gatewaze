@@ -24,7 +24,7 @@ export interface RegisterAttendee {
   amountPaid?: number;
   currency?: string;
   discountCodeId?: string;
-  registrationMetadata?: any;
+  registrationMetadata?: Record<string, unknown>;
 }
 
 export interface CheckInAttendee {
@@ -52,7 +52,7 @@ export class RegistrationService {
    */
   async registerForEvent(data: RegisterAttendee) {
     // 1. Find or create customer by email
-    let customer = await this.supabase
+    const customer = await this.supabase
       .from('people')
       .select('*')
       .eq('email', data.customerEmail)

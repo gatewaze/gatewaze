@@ -1,8 +1,16 @@
-import { Router } from 'express';
+// SERVICE-ROLE OK: api_keys is a service-role-only table by RLS
+// (00025_silent_table_policies.sql). Admin CRUD on api keys runs
+// here with service-role; requireJwt() guards the route, and the
+// admin status check belongs in the route handler (phase-3 service
+// token work adds super_admin gating where needed).
 import { getSupabase } from '../lib/supabase.js';
 import { generateApiKey } from '../lib/api-key-utils.js';
+import { labeledRouter } from '../lib/router-registry.js';
+import { requireJwt } from '../lib/auth/require-jwt.js';
+import { logger } from '../lib/logger.js';
 
-export const apiKeysRouter = Router();
+export const apiKeysRouter = labeledRouter('jwt');
+apiKeysRouter.use(requireJwt());
 
 /** Transform snake_case DB row to camelCase response (omitting key_hash). */
 function toApiKey(row: Record<string, unknown>) {
@@ -86,7 +94,7 @@ apiKeysRouter.post('/', async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('Error creating API key:', err);
+    logger.error({ err }, 'failed to create api key');
     res.status(500).json({ error: 'Failed to create API key' });
   }
 });
@@ -124,7 +132,7 @@ apiKeysRouter.get('/', async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('Error listing API keys:', err);
+    logger.error({ err }, 'failed to list api keys');
     res.status(500).json({ error: 'Failed to list API keys' });
   }
 });
@@ -149,7 +157,7 @@ apiKeysRouter.get('/:id', async (req, res) => {
 
     res.json({ data: toApiKey(data) });
   } catch (err) {
-    console.error('Error fetching API key:', err);
+    logger.error({ err }, 'failed to fetch api key');
     res.status(500).json({ error: 'Failed to fetch API key' });
   }
 });
@@ -216,7 +224,7 @@ apiKeysRouter.patch('/:id', async (req, res) => {
 
     res.json({ data: toApiKey(data) });
   } catch (err) {
-    console.error('Error updating API key:', err);
+    logger.error({ err }, 'failed to update api key');
     res.status(500).json({ error: 'Failed to update API key' });
   }
 });
@@ -237,7 +245,7 @@ apiKeysRouter.delete('/:id', async (req, res) => {
 
     res.json({ ok: true });
   } catch (err) {
-    console.error('Error revoking API key:', err);
+    logger.error({ err }, 'failed to revoke api key');
     res.status(500).json({ error: 'Failed to revoke API key' });
   }
 });
@@ -262,7 +270,7 @@ apiKeysRouter.get('/:id/usage', async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('Error fetching API key usage:', err);
+    logger.error({ err }, 'failed to fetch api key usage');
     res.status(500).json({ error: 'Failed to fetch API key usage' });
   }
 });

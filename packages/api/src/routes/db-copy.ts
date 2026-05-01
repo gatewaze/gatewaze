@@ -1,8 +1,14 @@
-import { Router } from 'express';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+// SERVICE-ROLE OK: cross-database copy tool that bulk-replicates entire
+// tables between environments. By design needs full table access on
+// both source and destination. Restricted at the route level (admin
+// JWT required); the operation itself is necessarily service-role.
 import { getSupabase } from '../lib/supabase.js';
+import { labeledRouter } from '../lib/router-registry.js';
+import { requireJwt } from '../lib/auth/require-jwt.js';
 
-export const dbCopyRouter = Router();
+export const dbCopyRouter = labeledRouter('jwt');
+dbCopyRouter.use(requireJwt());
 
 /**
  * Tables to copy, ordered so that parent tables come before children
@@ -84,7 +90,7 @@ interface CopyProgress {
   message?: string;
 }
 
-function sendSSE(res: any, data: CopyProgress) {
+function sendSSE(res: import('express').Response, data: CopyProgress) {
   res.write(`data: ${JSON.stringify(data)}\n\n`);
 }
 
@@ -92,9 +98,9 @@ function sendSSE(res: any, data: CopyProgress) {
  * Fetch all rows from a table in the source Supabase, paginating with
  * range headers so we don't hit the default 1000-row limit.
  */
-async function fetchAllRows(source: SupabaseClient, table: string): Promise<any[]> {
+async function fetchAllRows(source: SupabaseClient, table: string): Promise<Record<string, unknown>[]> {
   const PAGE_SIZE = 1000;
-  const allRows: any[] = [];
+  const allRows: Record<string, unknown>[] = [];
   let offset = 0;
 
   while (true) {
@@ -247,7 +253,7 @@ dbCopyRouter.post('/test-connection', async (req, res) => {
     });
 
     // Try to read from a table that should always exist
-    const { data, error } = await source.from('platform_settings').select('key').limit(1);
+    const { error } = await source.from('platform_settings').select('key').limit(1);
 
     if (error) {
       return res.status(400).json({ error: `Connection failed: ${error.message}` });

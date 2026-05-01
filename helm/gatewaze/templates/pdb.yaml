@@ -1,0 +1,22 @@
+{{- if .Values.podDisruptionBudget.enabled }}
+# PodDisruptionBudgets per spec §7.3 task 3.7. Ensures rolling drains
+# don't take an entire component to zero capacity. With api.replicas
+# default 2 and PDB minAvailable=1, voluntary disruptions always leave
+# one pod serving.
+{{- range $component := list "api" "admin" "portal" "worker" }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "gatewaze.fullname" $ }}-{{ $component }}
+  labels:
+    {{- include "gatewaze.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $component }}
+spec:
+  minAvailable: {{ $.Values.podDisruptionBudget.minAvailable | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "gatewaze.selectorLabels" $ | nindent 6 }}
+      app.kubernetes.io/component: {{ $component }}
+{{- end }}
+{{- end }}

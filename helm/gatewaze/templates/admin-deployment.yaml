@@ -24,7 +24,7 @@ spec:
       serviceAccountName: {{ include "gatewaze.serviceAccountName" . }}
       containers:
         - name: admin
-          image: "{{ .Values.image.registry }}/admin:{{ .Values.image.tag }}"
+          image: "{{ .Values.image.registry }}/admin:{{ include "gatewaze.imageTag" . }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http

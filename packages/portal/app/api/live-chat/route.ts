@@ -7,11 +7,15 @@ import { cookies } from 'next/headers'
 export const dynamic = 'force-dynamic'
 
 // Service role client for DB writes (lazy so build-time page data collection
-// doesn't fail when env vars aren't set)
-let _serviceSupabase: ReturnType<typeof createClient> | null = null
+// doesn't fail when env vars aren't set). Untyped because we don't generate
+// Supabase Database types in the portal — typing the cache via
+// `ReturnType<typeof createClient>` resolves rows to `never`, which breaks
+// every `.insert()` and `.select()` overload below.
+/* eslint-disable @typescript-eslint/no-explicit-any -- intentional Database/Schema generics; see comment */
+let _serviceSupabase: ReturnType<typeof createClient<any, any, any>> | null = null
 function getServiceSupabase() {
   if (!_serviceSupabase) {
-    _serviceSupabase = createClient(
+    _serviceSupabase = createClient<any, any, any>(
       process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
       { auth: { autoRefreshToken: false, persistSession: false } }
@@ -19,6 +23,7 @@ function getServiceSupabase() {
   }
   return _serviceSupabase
 }
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 async function getAuthenticatedPersonId(): Promise<string | null> {
   try {
@@ -116,6 +121,18 @@ export async function POST(req: NextRequest) {
 
     if (action === 'react') {
       const { message_id, reaction_type } = body
+
+      // Validate inputs — the service-role client is typed as `any` so
+      // TS won't catch a missing/wrong-shape message_id or reaction_type.
+      // An undefined message_id would silently produce a NULL filter on
+      // the DELETE branch; a non-string reaction_type would let arbitrary
+      // shapes flow into the row.
+      if (
+        typeof message_id !== 'string' || !message_id ||
+        typeof reaction_type !== 'string' || !reaction_type
+      ) {
+        return NextResponse.json({ error: 'Missing or invalid fields' }, { status: 400 })
+      }
 
       // Try insert — if duplicate, toggle off
       const { error } = await getServiceSupabase()
@@ -257,12 +274,18 @@ export async function POST(req: NextRequest) {
         .eq('event_id', event_id)
         .order('pinned_at', { ascending: false })
 
-      const pinned = (data || [])
-        .filter((p: any) => p.live_chat_messages?.track_id === track_id)
-        .map((p: any) => ({
+      interface PinnedRow {
+        id: string
+        message_id: string
+        pinned_at: string
+        live_chat_messages?: { content?: string; track_id?: string | null }
+      }
+      const pinned = ((data ?? []) as PinnedRow[])
+        .filter((p) => p.live_chat_messages?.track_id === track_id)
+        .map((p) => ({
           id: p.id,
           message_id: p.message_id,
-          content: p.live_chat_messages?.content || '',
+          content: p.live_chat_messages?.content ?? '',
           pinned_at: p.pinned_at,
         }))
 

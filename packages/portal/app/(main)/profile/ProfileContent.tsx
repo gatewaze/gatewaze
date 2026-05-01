@@ -196,7 +196,7 @@ export function ProfileContent({ brandConfig }: Props) {
         // Show public lists + any non-public lists the user is already subscribed to
         const visibleLists = allLists.filter(l => l.is_public || subscribedListIds.has(l.id))
 
-        const topics = visibleLists.map((l: any) => ({
+        const topics = visibleLists.map((l) => ({
           id: l.id,
           list_id: l.id,
           label: l.name,

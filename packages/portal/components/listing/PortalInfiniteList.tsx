@@ -19,7 +19,6 @@
 import { useMemo } from 'react';
 import {
   usePortalInfiniteListing,
-  type PortalInitialPage,
   type UsePortalInfiniteListingOpts,
 } from '@/lib/listing/usePortalInfiniteListing';
 import { MAX_ACCUMULATED_ROWS } from '@/lib/listing/constants';

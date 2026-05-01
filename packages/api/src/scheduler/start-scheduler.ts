@@ -15,6 +15,14 @@ import {
   markNotReady,
   type LoadedCron,
 } from '../lib/queue/index.js';
+import { initSentry, installCrashHandlers } from '../lib/sentry.js';
+import { initTracing, shutdownTracing } from '../lib/tracing.js';
+
+void initTracing();
+initSentry({ service: 'scheduler' });
+installCrashHandlers({
+  log: (level, obj, msg) => logger[level](obj, msg),
+});
 
 const PROJECT_ROOT = resolve(import.meta.dirname ?? __dirname, '../../../..');
 const METRICS_PORT = parseInt(process.env.SCHEDULER_METRICS_PORT ?? '9091', 10);
@@ -34,6 +42,19 @@ async function main(): Promise<void> {
         queue: 'email',
         schedule: { every: 3600_000 },
         data: { kind: 'send-reminder-emails', type: 'reminder' },
+      },
+    },
+    {
+      // Hourly prune of expired service-token revocations per spec
+      // §6.3 / §7.3 task 3.14. The job fires the
+      // 'prune-service-token-revocations' queue handler defined by
+      // the system queue.
+      module: 'core',
+      def: {
+        name: 'prune-service-token-revocations',
+        queue: 'system',
+        schedule: { every: 3600_000 },
+        data: { kind: 'prune-service-token-revocations' },
       },
     },
   ];
@@ -64,6 +85,7 @@ async function main(): Promise<void> {
     await closeAllQueues();
     await closeAllConnections();
     await metricsServer.close();
+    await shutdownTracing();
     process.exit(0);
   };
   process.on('SIGTERM', () => shutdown('SIGTERM'));
