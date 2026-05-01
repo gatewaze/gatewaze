@@ -5,11 +5,11 @@
 # No build step required.
 #
 # Uses a shared Traefik reverse proxy for clean .localhost domains:
-#   - http://gatewaze-admin.localhost   → Admin dashboard
-#   - http://gatewaze-app.localhost     → Public portal
-#   - http://gatewaze-api.localhost     → API server
-#   - http://gatewaze-supabase.localhost → Supabase API (Kong)
-#   - http://gatewaze-studio.localhost  → Supabase Studio
+#   - http://admin.gatewaze.localhost   → Admin dashboard
+#   - http://app.gatewaze.localhost     → Public portal
+#   - http://api.gatewaze.localhost     → API server
+#   - http://supabase.gatewaze.localhost → Supabase API (Kong)
+#   - http://studio.gatewaze.localhost  → Supabase Studio
 #
 # Start Traefik first (if not already running):
 #   docker compose -f docker-compose.traefik.yml up -d
@@ -63,10 +63,10 @@ services:
     environment:
       GOTRUE_API_HOST: "0.0.0.0"
       GOTRUE_API_PORT: "9999"
-      API_EXTERNAL_URL: ${API_EXTERNAL_URL:-http://gatewaze-supabase.localhost}
+      API_EXTERNAL_URL: ${API_EXTERNAL_URL:-http://supabase.gatewaze.localhost}
       GOTRUE_DB_DRIVER: postgres
       GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${POSTGRES_PASSWORD}@supabase-db:5432/${POSTGRES_DB:-postgres}
-      GOTRUE_SITE_URL: ${SITE_URL:-http://gatewaze-admin.localhost}
+      GOTRUE_SITE_URL: ${SITE_URL:-http://admin.gatewaze.localhost}
       GOTRUE_URI_ALLOW_LIST: ${ADDITIONAL_REDIRECT_URLS:-}
       GOTRUE_DISABLE_SIGNUP: ${DISABLE_SIGNUP:-false}
       GOTRUE_JWT_ADMIN_ROLES: service_role
@@ -172,7 +172,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik"
-      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-supabase.rule=Host(`${SUPABASE_HOST:-gatewaze-supabase.localhost}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-supabase.rule=Host(`${SUPABASE_HOST:-supabase.gatewaze.localhost}`)"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-supabase.entrypoints=web"
       - "traefik.http.services.${COMPOSE_PROJECT_NAME:-gatewaze}-supabase.loadbalancer.server.port=8000"
     environment:
@@ -225,7 +225,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik"
-      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-studio.rule=Host(`${STUDIO_HOST:-gatewaze-studio.localhost}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-studio.rule=Host(`${STUDIO_HOST:-studio.gatewaze.localhost}`)"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-studio.entrypoints=web"
       - "traefik.http.services.${COMPOSE_PROJECT_NAME:-gatewaze}-studio.loadbalancer.server.port=3000"
     environment:
@@ -234,7 +234,7 @@ services:
       DEFAULT_ORGANIZATION_NAME: ${STUDIO_DEFAULT_ORGANIZATION:-Gatewaze}
       DEFAULT_PROJECT_NAME: ${STUDIO_DEFAULT_PROJECT:-Gatewaze}
       SUPABASE_URL: http://supabase-kong:8000
-      SUPABASE_PUBLIC_URL: ${API_EXTERNAL_URL:-http://gatewaze-supabase.localhost}
+      SUPABASE_PUBLIC_URL: ${API_EXTERNAL_URL:-http://supabase.gatewaze.localhost}
       SUPABASE_ANON_KEY: ${ANON_KEY}
       SUPABASE_SERVICE_KEY: ${SERVICE_ROLE_KEY}
     depends_on:
@@ -274,13 +274,13 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik"
-      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-admin.rule=Host(`${ADMIN_HOST:-gatewaze-admin.localhost}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-admin.rule=Host(`${ADMIN_HOST:-admin.gatewaze.localhost}`)"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-admin.entrypoints=web"
       - "traefik.http.services.${COMPOSE_PROJECT_NAME:-gatewaze}-admin.loadbalancer.server.port=80"
     environment:
-      VITE_SUPABASE_URL: ${SUPABASE_URL:-http://gatewaze-supabase.localhost}
+      VITE_SUPABASE_URL: ${SUPABASE_URL:-http://supabase.gatewaze.localhost}
       VITE_SUPABASE_ANON_KEY: ${ANON_KEY}
-      VITE_API_URL: ${API_URL:-http://gatewaze-api.localhost}
+      VITE_API_URL: ${API_URL:-http://api.gatewaze.localhost}
     depends_on:
       supabase-kong:
         condition: service_started
@@ -295,11 +295,11 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik"
-      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-portal.rule=Host(`${PORTAL_HOST:-gatewaze-app.localhost}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-portal.rule=${PORTAL_TRAEFIK_RULE:-Host(`${PORTAL_HOST:-app.gatewaze.localhost}`)}"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-portal.entrypoints=web"
       - "traefik.http.services.${COMPOSE_PROJECT_NAME:-gatewaze}-portal.loadbalancer.server.port=3100"
     environment:
-      NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_URL:-http://gatewaze-supabase.localhost}
+      NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_URL:-http://supabase.gatewaze.localhost}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${ANON_KEY}
       SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
       NODE_ENV: production
@@ -317,7 +317,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik"
-      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-api.rule=Host(`${API_HOST:-gatewaze-api.localhost}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-api.rule=Host(`${API_HOST:-api.gatewaze.localhost}`)"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-api.entrypoints=web"
       - "traefik.http.services.${COMPOSE_PROJECT_NAME:-gatewaze}-api.loadbalancer.server.port=3002"
     environment:

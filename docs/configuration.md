@@ -79,7 +79,7 @@ All environment variables are defined in the `.env` file. Copy `.env.example` to
 
 | Variable              | Description                                              | Required | Default                              |
 |------------------------|----------------------------------------------------------|----------|--------------------------------------|
-| `SUPABASE_URL`         | URL of the Supabase API gateway (Kong)                   | Yes      | `http://gatewaze-supabase.localhost` |
+| `SUPABASE_URL`         | URL of the Supabase API gateway (Kong)                   | Yes      | `http://supabase.gatewaze.localhost` |
 | `ANON_KEY`             | Supabase anonymous (public) API key                      | Yes      | --                                   |
 | `SERVICE_ROLE_KEY`     | Supabase service role key (server-side only, never expose)| Yes     | --                                   |
 | `JWT_SECRET`           | JWT signing secret shared between Supabase services      | Yes      | --                                   |
@@ -107,27 +107,27 @@ All environment variables are defined in the `.env` file. Copy `.env.example` to
 
 | Variable                  | Description                                          | Required | Default                              |
 |----------------------------|------------------------------------------------------|----------|--------------------------------------|
-| `VITE_SUPABASE_URL`       | Supabase URL for the admin frontend                  | Yes      | `http://gatewaze-supabase.localhost` |
+| `VITE_SUPABASE_URL`       | Supabase URL for the admin frontend                  | Yes      | `http://supabase.gatewaze.localhost` |
 | `VITE_SUPABASE_ANON_KEY`  | Supabase anon key for the admin frontend             | Yes      | --                                   |
-| `VITE_API_URL`            | API server URL for the admin frontend                | Yes      | `http://gatewaze-api.localhost`      |
-| `ADMIN_HOST`              | Traefik hostname for the admin app (Docker)          | No       | `gatewaze-admin.localhost`           |
+| `VITE_API_URL`            | API server URL for the admin frontend                | Yes      | `http://api.gatewaze.localhost`      |
+| `ADMIN_HOST`              | Traefik hostname for the admin app (Docker)          | No       | `admin.gatewaze.localhost`           |
 
 ### Public Portal (Next.js)
 
 | Variable                          | Description                                  | Required | Default                              |
 |------------------------------------|----------------------------------------------|----------|--------------------------------------|
-| `NEXT_PUBLIC_SUPABASE_URL`        | Supabase URL for the portal frontend         | Yes      | `http://gatewaze-supabase.localhost` |
+| `NEXT_PUBLIC_SUPABASE_URL`        | Supabase URL for the portal frontend         | Yes      | `http://supabase.gatewaze.localhost` |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY`   | Supabase anon key for the portal frontend    | Yes      | --                                   |
 | `SUPABASE_SERVICE_ROLE_KEY`       | Service role key for server-side operations  | Yes      | --                                   |
-| `PORTAL_HOST`                     | Traefik hostname for the portal (Docker)     | No       | `gatewaze-app.localhost`             |
+| `PORTAL_HOST`                     | Traefik hostname for the portal (Docker)     | No       | `app.gatewaze.localhost`             |
 
 ### API Server
 
 | Variable              | Description                                              | Required | Default                         |
 |------------------------|----------------------------------------------------------|---------|---------------------------------|
 | `PORT`                 | Port the API server listens on                           | No       | `3002`                          |
-| `API_HOST`             | Traefik hostname for the API server (Docker)             | No       | `gatewaze-api.localhost`        |
-| `API_URL`              | Public-facing API URL                                    | No       | `http://gatewaze-api.localhost` |
+| `API_HOST`             | Traefik hostname for the API server (Docker)             | No       | `api.gatewaze.localhost`        |
+| `API_URL`              | Public-facing API URL                                    | No       | `http://api.gatewaze.localhost` |
 
 ### Email -- SendGrid
 
@@ -161,16 +161,16 @@ When running with Docker Compose and Traefik, Supabase services are accessed via
 
 | Variable              | Description                                              | Required | Default                              |
 |------------------------|----------------------------------------------------------|----------|--------------------------------------|
-| `SUPABASE_HOST`        | Traefik hostname for the Supabase API gateway            | No       | `gatewaze-supabase.localhost`        |
-| `STUDIO_HOST`          | Traefik hostname for Supabase Studio                     | No       | `gatewaze-studio.localhost`          |
+| `SUPABASE_HOST`        | Traefik hostname for the Supabase API gateway            | No       | `supabase.gatewaze.localhost`        |
+| `STUDIO_HOST`          | Traefik hostname for Supabase Studio                     | No       | `studio.gatewaze.localhost`          |
 | `KONG_HTTPS_PORT`      | Host port for Supabase API gateway (HTTPS)               | No       | `54322`                              |
 
 ### Supabase Self-Hosted Misc
 
 | Variable                         | Description                                | Required | Default                              |
 |-----------------------------------|--------------------------------------------|----------|--------------------------------------|
-| `API_EXTERNAL_URL`               | External URL for Supabase API              | No       | `http://gatewaze-supabase.localhost` |
-| `SITE_URL`                       | URL that Supabase Auth redirects to        | No       | `http://gatewaze-admin.localhost`    |
+| `API_EXTERNAL_URL`               | External URL for Supabase API              | No       | `http://supabase.gatewaze.localhost` |
+| `SITE_URL`                       | URL that Supabase Auth redirects to        | No       | `http://admin.gatewaze.localhost`    |
 | `ADDITIONAL_REDIRECT_URLS`       | Comma-separated additional redirect URLs   | No       | --                                   |
 | `DISABLE_SIGNUP`                 | Disable public sign-up via Supabase Auth   | No       | `false`                              |
 | `ENABLE_EMAIL_SIGNUP`            | Enable email-based sign-up                 | No       | `true`                               |
@@ -269,7 +269,7 @@ The default `docker-compose.yml` starts a full self-hosted Supabase stack includ
 - **Edge Functions** (Deno runtime)
 - **Studio** (database management UI)
 
-All Supabase services communicate over the internal Docker network. Traefik routes external traffic to the Kong gateway via `http://gatewaze-supabase.localhost` and to Supabase Studio via `http://gatewaze-studio.localhost`.
+All Supabase services communicate over the internal Docker network. Traefik routes external traffic to the Kong gateway via `http://supabase.gatewaze.localhost` and to Supabase Studio via `http://studio.gatewaze.localhost`.
 
 ### Supabase Cloud
 
