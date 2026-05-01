@@ -7,6 +7,7 @@ import { GlassPanel } from '@/components/ui/GlassPanel'
 import { GlowInput } from '@/components/ui/GlowInput'
 import { PortalButton } from '@/components/ui/PortalButton'
 import { setDoNotSell, setDoNotShare } from '@/lib/privacyCompliance'
+import { sanitizeHtml } from '@/lib/sanitize-html'
 import type { BrandConfig } from '@/config/brand'
 
 interface Props {
@@ -74,7 +75,7 @@ export function DoNotSellPageContent({ brandConfig, brand, customHtml }: Props) 
         {customHtml ? (
           <div
             className="legal-prose mb-6"
-            dangerouslySetInnerHTML={{ __html: customHtml }}
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(customHtml, 'marketing-page') }}
           />
         ) : (
           <p className="text-white/70 mb-6">

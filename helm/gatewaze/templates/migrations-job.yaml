@@ -1,0 +1,44 @@
+{{- if .Values.migrations.preUpgradeJob.enabled }}
+# Pre-upgrade migration Job per spec §5.9 / §7.3 task 3.6. Runs core
+# + module migrations before the new image rolls out. Failure blocks
+# the rollout — existing pods continue running on the old image.
+#
+# The Job uses Postgres advisory locks so concurrent helm upgrades
+# (rare but possible during a multi-cluster operator run) serialise
+# instead of corrupting state.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "gatewaze.fullname" . }}-migrations-{{ .Release.Revision }}
+  labels:
+    {{- include "gatewaze.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migrations
+  annotations:
+    "helm.sh/hook": pre-upgrade,pre-install
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 3600
+  template:
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ include "gatewaze.serviceAccountName" . }}
+      containers:
+        - name: migrations
+          image: "{{ .Values.image.registry }}/api:{{ include "gatewaze.imageTag" . }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["pnpm", "exec", "tsx", "scripts/run-migrations-pre-upgrade.ts"]
+          envFrom:
+            - configMapRef:
+                name: {{ include "gatewaze.fullname" . }}-config
+            - secretRef:
+                name: {{ include "gatewaze.fullname" . }}-secret
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1
+              memory: 1Gi
+{{- end }}

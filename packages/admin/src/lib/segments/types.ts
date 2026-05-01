@@ -116,7 +116,7 @@ export interface Segment {
 export interface SegmentMembership {
   id: number;
   segment_id: string;
-  person_id: number;
+  person_id: string;
   joined_at: string;
   last_verified_at: string;
   added_by?: string;

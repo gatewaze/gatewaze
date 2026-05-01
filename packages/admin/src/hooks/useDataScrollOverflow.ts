@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type DependencyList } from "react";
 import { capitalize } from "@/utils/capitalize";
 
 export type ScrollOverflowVisibility =
@@ -25,7 +25,7 @@ export interface UseDataScrollOverflowProps {
   visibility?: ScrollOverflowVisibility;
   isEnabled?: boolean;
   offset?: number;
-  updateDeps?: any[];
+  updateDeps?: DependencyList;
   onVisibilityChange?: (overflow: ScrollOverflowVisibility) => void;
 }
 

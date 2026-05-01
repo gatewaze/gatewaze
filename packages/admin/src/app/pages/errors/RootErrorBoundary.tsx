@@ -22,10 +22,8 @@ function RootErrorBoundary() {
   // the console. Log it ourselves so the underlying cause is visible.
   useEffect(() => {
     if (error) {
-      // eslint-disable-next-line no-console
       console.error("[RootErrorBoundary]", error);
       if (error instanceof Error && error.stack) {
-        // eslint-disable-next-line no-console
         console.error("[RootErrorBoundary] stack:", error.stack);
       }
     }

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import DOMPurify from 'isomorphic-dompurify';
 import {
   PlusIcon,
   PencilIcon,
@@ -11,7 +12,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
-import { Card, Button, Input, Modal, ConfirmModal, Badge } from '@/components/ui';
+import { Card, Button, Input, Modal, ConfirmModal } from '@/components/ui';
 import { RichTextEditor } from '@/components/ui/RichTextEditor';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import EmailTemplateService, { EmailTemplate, CreateEmailTemplateInput, UpdateEmailTemplateInput } from '@/utils/emailTemplateService';
@@ -157,8 +158,8 @@ export function EmailTemplatesTab() {
       }
       handleCloseModal();
       loadTemplates();
-    } catch (error: any) {
-      toast.error(error?.message || 'Failed to save template');
+    } catch (error) {
+      toast.error((error instanceof Error ? error.message : '') || 'Failed to save template');
     } finally {
       setSubmitting(false);
     }
@@ -493,7 +494,16 @@ export function EmailTemplatesTab() {
             </div>
             <div
               className="prose prose-sm dark:prose-invert max-w-none p-4 border border-gray-200 dark:border-gray-700 rounded-lg"
-              dangerouslySetInnerHTML={{ __html: previewTemplate.content_html }}
+              dangerouslySetInnerHTML={{
+                // SECURITY: email template HTML may contain attacker-supplied
+                // content (template imports, manual edits). Sanitize before
+                // rendering so a stored XSS in a template can't hijack the
+                // admin's session. Closes spec PR-H-2.
+                __html: DOMPurify.sanitize(previewTemplate.content_html ?? '', {
+                  FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form'],
+                  FORBID_ATTR: ['onload', 'onerror', 'onclick', 'onmouseover', 'onfocus', 'onblur'],
+                }),
+              }}
             />
             <p className="text-xs text-gray-500 dark:text-gray-400">
               Note: Template variables like {'{{customer.first_name}}'} will be replaced with actual values when sending.

@@ -33,7 +33,7 @@ spec:
           # which silently shipped most of the legacy cron families
           # disabled (scraper / embedding / luma / meetup schedulers
           # only exist in the legacy script).
-          image: "{{ .Values.image.registry }}/scheduler:{{ .Values.image.tag }}"
+          image: "{{ .Values.image.registry }}/scheduler:{{ include "gatewaze.imageTag" . }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           {{- if .Values.scheduler.healthCheck.enabled }}
           # Opt-in to the new TS-compiled scheduler. The scheduler

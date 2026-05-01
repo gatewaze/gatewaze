@@ -180,7 +180,7 @@ export class SupabaseSetupService {
           })
           console.log('Default admin user created')
         }
-      } catch (error) {
+      } catch {
         console.log('Default user creation skipped (may already exist)')
       }
 

@@ -24,7 +24,7 @@ spec:
       serviceAccountName: {{ include "gatewaze.serviceAccountName" . }}
       containers:
         - name: worker
-          image: "{{ .Values.image.registry }}/worker:{{ .Values.image.tag }}"
+          image: "{{ .Values.image.registry }}/worker:{{ include "gatewaze.imageTag" . }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           {{- with .Values.worker.securityContext }}
           securityContext:

@@ -3,6 +3,7 @@ import type { LoadedModule, OpenApiContribution, ModuleRuntimeContext } from '@g
 import { apiKeyAuth } from '../lib/api-key-auth.js';
 import { createPublicApiContext } from '../lib/public-api-context.js';
 import { sendPublicApiError, publicApiErrorHandler } from '../lib/public-api-response.js';
+import { logger } from '../lib/logger.js';
 
 // ---------------------------------------------------------------------------
 // OpenAPI spec assembly
@@ -384,7 +385,7 @@ function ctxSetCache(res: Response, maxAge: number, sMaxAge: number): void {
  */
 export async function createPublicApiRouter(
   enabledModules: LoadedModule[],
-  supabase: any,
+  supabase: import('@supabase/supabase-js').SupabaseClient | null,
 ): Promise<Router> {
   const router = Router();
 
@@ -405,6 +406,14 @@ export async function createPublicApiRouter(
   // Health check
   router.get('/health', async (_req: Request, res: Response) => {
     try {
+      if (!supabase) {
+        return res.status(503).json({
+          status: 'degraded',
+          error: 'Database not configured',
+          modules: enabledModules.length,
+          timestamp: new Date().toISOString(),
+        });
+      }
       // Verify Supabase is reachable with a lightweight query
       const { error } = await supabase
         .from('platform_settings')
@@ -467,17 +476,27 @@ export async function createPublicApiRouter(
     const moduleTools: Array<{
       moduleId: string;
       moduleName: string;
-      tools: Array<{ name: string; description: string }>;
-      resources: Array<{ uriTemplate: string; name: string; description: string }>;
-      prompts: Array<{ name: string; description: string }>;
+      tools: Array<{ name: string; description?: string }>;
+      resources: Array<{ uriTemplate: string; name: string; description?: string }>;
+      prompts: Array<{ name: string; description?: string }>;
     }> = [];
 
+    interface McpTool { name: string; description?: string }
+    interface McpResource { uriTemplate: string; name: string; description?: string }
+    interface McpPrompt { name: string; description?: string }
+    interface McpContributions {
+      tools?: McpTool[];
+      resources?: McpResource[];
+      prompts?: McpPrompt[];
+    }
     for (const mod of enabledModules) {
       const raw = mod.config.mcpContributions;
       if (!raw) continue;
-      let contributions: any;
+      let contributions: McpContributions;
       try {
-        contributions = typeof raw === 'function' ? raw({} as any) : raw;
+        contributions = (typeof raw === 'function'
+          ? raw({} as Parameters<typeof raw>[0])
+          : raw) as McpContributions;
       } catch {
         continue;
       }
@@ -485,16 +504,16 @@ export async function createPublicApiRouter(
       moduleTools.push({
         moduleId,
         moduleName: mod.config.name,
-        tools: (contributions.tools ?? []).map((t: any) => ({
+        tools: (contributions.tools ?? []).map((t) => ({
           name: `${moduleId}_${t.name}`,
           description: t.description,
         })),
-        resources: (contributions.resources ?? []).map((r: any) => ({
+        resources: (contributions.resources ?? []).map((r) => ({
           uriTemplate: r.uriTemplate,
           name: r.name,
           description: r.description,
         })),
-        prompts: (contributions.prompts ?? []).map((p: any) => ({
+        prompts: (contributions.prompts ?? []).map((p) => ({
           name: `${moduleId}_${p.name}`,
           description: p.description,
         })),
@@ -521,6 +540,9 @@ export async function createPublicApiRouter(
   // GET /api/v1/categories — list configured content categories
   router.get('/categories', async (_req: Request, res: Response) => {
     try {
+      if (!supabase) {
+        return res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'Database not configured' } });
+      }
       const { data, error } = await supabase
         .from('platform_settings')
         .select('value')
@@ -552,6 +574,9 @@ export async function createPublicApiRouter(
   // GET /api/v1/content — unified content across all enabled modules
   router.get('/content', async (req: Request, res: Response) => {
     try {
+      if (!supabase) {
+        return res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'Database not configured' } });
+      }
       const limit = Math.min(parseInt(req.query.limit as string) || 25, 100);
       const offset = parseInt(req.query.offset as string) || 0;
       if (limit < 1 || offset < 0) {
@@ -649,14 +674,14 @@ export async function createPublicApiRouter(
           const { data, count, error } = await q;
           if (error) throw new Error(`${src.type}: ${error.message}`);
 
-          const rows: Row[] = (data ?? []).map((row: any) => {
+          const rows: Row[] = ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => {
             const base: Row = {
               type: src.type,
               id: String(row[src.fields.id]),
-              title: row[src.fields.title] ?? null,
-              date: row[src.fields.date] ?? null,
-              summary: src.fields.summary ? row[src.fields.summary] ?? null : null,
-              content_category: row.content_category ?? null,
+              title: (row[src.fields.title] as string | null | undefined) ?? null,
+              date: (row[src.fields.date] as string | null | undefined) ?? null,
+              summary: src.fields.summary ? (row[src.fields.summary] as string | null | undefined) ?? null : null,
+              content_category: (row.content_category as string | null | undefined) ?? null,
               _links: { self: `/api/v1${src.resourcePath(row)}` },
             };
             if (expandFull && src.fullFields) {
@@ -715,7 +740,7 @@ export async function createPublicApiRouter(
 
   const modulesWithPublicApi = enabledModules.filter(m => m.config.publicApiRoutes);
   if (modulesWithPublicApi.length === 0) {
-    console.log('[public-api] No modules have publicApiRoutes');
+    logger.info('[public-api] no modules have publicApiRoutes');
   }
 
   for (const mod of enabledModules) {
@@ -726,33 +751,35 @@ export async function createPublicApiRouter(
 
     // Validate base path format
     if (!BASE_PATH_PATTERN.test(basePath)) {
-      console.error(
-        `[public-api] Invalid base path "${basePath}" for module "${mod.config.id}" ` +
-        `(must match /[a-z0-9-/]+). Skipping.`,
+      logger.error(
+        { module: mod.config.id, basePath },
+        '[public-api] invalid base path (must match /[a-z0-9-/]+); skipping module',
       );
       continue;
     }
 
     // Check for path conflicts
     if (registeredPaths.has(basePath)) {
-      console.error(
-        `[public-api] Duplicate base path "${basePath}" — module "${mod.config.id}" ` +
-        `conflicts with an already-registered module. Skipping.`,
+      logger.error(
+        { module: mod.config.id, basePath },
+        '[public-api] duplicate base path; skipping module',
       );
       continue;
     }
     registeredPaths.add(basePath);
 
-    // Build runtime context for this module
+    // Build runtime context for this module — use a child logger so
+    // module logs carry { module: <id> } automatically.
+    const moduleLogger = logger.child({ module: mod.config.id });
     const runtimeCtx: ModuleRuntimeContext = {
       moduleId: mod.config.id,
       moduleDir: mod.resolvedDir ?? '',
       projectRoot: '', // populated by caller if needed
       logger: {
-        info: (msg, meta) => console.log(`[${mod.config.id}]`, msg, meta ?? ''),
-        warn: (msg, meta) => console.warn(`[${mod.config.id}]`, msg, meta ?? ''),
-        error: (msg, meta) => console.error(`[${mod.config.id}]`, msg, meta ?? ''),
-        debug: (msg, meta) => console.debug(`[${mod.config.id}]`, msg, meta ?? ''),
+        info: (msg, meta) => moduleLogger.info(meta ?? {}, msg),
+        warn: (msg, meta) => moduleLogger.warn(meta ?? {}, msg),
+        error: (msg, meta) => moduleLogger.error(meta ?? {}, msg),
+        debug: (msg, meta) => moduleLogger.debug(meta ?? {}, msg),
       },
       supabase,
       config: {} as any,
@@ -767,7 +794,7 @@ export async function createPublicApiRouter(
     try {
       await mod.config.publicApiRoutes(scopedRouter, ctx);
     } catch (err) {
-      console.error(`[public-api] Failed to register routes for "${mod.config.id}":`, err);
+      logger.error({ err, module: mod.config.id }, '[public-api] failed to register routes');
       continue;
     }
     router.use(basePath, scopedRouter);
@@ -781,7 +808,7 @@ export async function createPublicApiRouter(
       });
     }
 
-    console.log(`[public-api] Registered: ${mod.config.name} at /api/v1${basePath}`);
+    logger.info({ module: mod.config.id, basePath }, '[public-api] registered');
   }
 
   // ------------------------------------------------------------------

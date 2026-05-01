@@ -4,13 +4,14 @@ import { PortalPageLayout } from '@/components/ui/PortalPageLayout'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { GlassPanel } from '@/components/ui/GlassPanel'
 import type { BrandConfig } from '@/config/brand'
+import { sanitizeHtml } from '@/lib/sanitize-html'
 
 interface Props {
   brandConfig: BrandConfig
   customHtml: string | null
 }
 
-export function TermsPageContent({ brandConfig, customHtml }: Props) {
+export function TermsPageContent({ brandConfig: _brandConfig, customHtml }: Props) {
   return (
     <PortalPageLayout>
       <PageHeader title="Terms of Service" />
@@ -19,7 +20,7 @@ export function TermsPageContent({ brandConfig, customHtml }: Props) {
         {customHtml ? (
           <div
             className="legal-prose"
-            dangerouslySetInnerHTML={{ __html: customHtml }}
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(customHtml, 'marketing-page') }}
           />
         ) : (
           <p className="text-white/50 text-center py-8">
