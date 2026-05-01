@@ -142,11 +142,11 @@ When running via Docker Compose (with Traefik), services are available at `.loca
 
 | Service          | URL                                  |
 |------------------|--------------------------------------|
-| Admin App        | http://gatewaze-admin.localhost      |
-| Public Portal    | http://gatewaze-app.localhost        |
-| API Server       | http://gatewaze-api.localhost        |
-| Supabase API     | http://gatewaze-supabase.localhost   |
-| Supabase Studio  | http://gatewaze-studio.localhost     |
+| Admin App        | http://admin.gatewaze.localhost      |
+| Public Portal    | http://app.gatewaze.localhost        |
+| API Server       | http://api.gatewaze.localhost        |
+| Supabase API     | http://supabase.gatewaze.localhost   |
+| Supabase Studio  | http://studio.gatewaze.localhost     |
 | Traefik Dashboard| http://localhost:8080                |
 
 `.localhost` domains resolve automatically per RFC 6761 -- no `/etc/hosts` edits are required.
@@ -295,7 +295,7 @@ This creates `supabase/functions/my-function/index.ts`.
 Edge functions are served automatically when the Docker Compose stack is running. Call them through the Supabase API gateway:
 
 ```bash
-curl -X POST http://gatewaze-supabase.localhost/functions/v1/my-function \
+curl -X POST http://supabase.gatewaze.localhost/functions/v1/my-function \
   -H "Authorization: Bearer $ANON_KEY" \
   -H "Content-Type: application/json" \
   -d '{"key": "value"}'
