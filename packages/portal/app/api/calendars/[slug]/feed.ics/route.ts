@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { escapeICSText, sanitizeICSLineValue, foldLine, formatICSDate } from '@/lib/ics-helpers'
 
 /**
  * Public ICS feed for a calendar.
@@ -23,59 +24,42 @@ function getSupabase() {
   return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } })
 }
 
-function pad(n: number): string { return n < 10 ? `0${n}` : `${n}` }
-
-function formatICSDate(iso: string): string {
-  const d = new Date(iso)
-  // YYYYMMDDTHHMMSSZ
-  return (
-    `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}` +
-    `T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`
-  )
-}
-
-/**
- * Escape a value per RFC 5545 §3.3.11. Newlines become `\n`, commas/semicolons
- * are backslash-escaped, and we strip CR characters that would break folding.
- */
-function escapeICSText(input: string | null | undefined): string {
-  if (!input) return ''
-  return input
-    .replace(/\\/g, '\\\\')
-    .replace(/\r/g, '')
-    .replace(/\n/g, '\\n')
-    .replace(/,/g, '\\,')
-    .replace(/;/g, '\\;')
-}
-
-/**
- * Fold a content line per RFC 5545 §3.1: lines longer than 75 octets must
- * be split, with each continuation prefixed by a single space.
- */
-function foldLine(line: string): string {
-  if (line.length <= 75) return line
-  const parts: string[] = []
-  for (let i = 0; i < line.length; i += 73) {
-    parts.push(i === 0 ? line.slice(i, i + 75) : ' ' + line.slice(i, i + 73))
-  }
-  return parts.join('\r\n')
-}
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params
+
+  // Slug arrives from the URL path. Reject anything that isn't a sane
+  // identifier shape so we never interpolate commas or PostgREST filter
+  // operators into the .or() string below — slugs in our schema match
+  // /^[a-zA-Z0-9_-]+$/ (calendar_id format is CAL-XXXXXXXX).
+  if (!/^[a-zA-Z0-9_-]+$/.test(slug) || slug.length > 100) {
+    return new NextResponse('Calendar not found', { status: 404 })
+  }
+
   const supabase = getSupabase()
 
   // Resolve the calendar by slug or calendar_id (CAL-XXXXXXXX).
+  // Cast at the boundary (we don't generate Supabase Database types in
+  // the portal) so the rest of the handler can read fields without
+  // sprinkling `as any` at every site.
+  interface CalendarRow {
+    id: string
+    calendar_id: string
+    name: string
+    slug: string
+    description: string | null
+    external_url: string | null
+  }
   const { data: calendar } = await supabase
     .from('calendars')
     .select('id, calendar_id, name, slug, description, external_url')
     .or(`slug.eq.${slug},calendar_id.eq.${slug}`)
     .eq('is_active', true)
     .eq('visibility', 'public')
-    .maybeSingle()
+    .maybeSingle<CalendarRow>()
 
   if (!calendar) {
     return new NextResponse('Calendar not found', { status: 404 })
@@ -105,18 +89,17 @@ export async function GET(
         event_country_code
       )
     `)
-    .eq('calendar_id', (calendar as any).id)
+    .eq('calendar_id', calendar.id)
     .eq('events.is_live_in_production', true)
     .gte('events.event_start', sixMonthsAgo)
     .order('event_start', { foreignTable: 'events', ascending: true })
     .limit(2000)
 
-  const events: any[] = (rows || []).map((r: any) => r.events).filter(Boolean)
+  const events = ((rows ?? []) as Array<{ events?: unknown }>).map((r) => r.events).filter(Boolean) as Array<Record<string, unknown>>
 
   const portalBase = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '')
-  const cal = calendar as any
-  const calName = `${cal.name}`
-  const calDesc = cal.description || `Events from ${cal.name}`
+  const calName = calendar.name
+  const calDesc = calendar.description || `Events from ${calendar.name}`
 
   const lines: string[] = []
   lines.push('BEGIN:VCALENDAR')
@@ -136,29 +119,37 @@ export async function GET(
     if (!ev.event_start) continue
     const start = ev.event_start as string
     // Default to a 1-hour window if no end time is recorded.
-    const end = ev.event_end || new Date(new Date(start).getTime() + 60 * 60 * 1000).toISOString()
+    const end = (ev.event_end as string | undefined)
+      || new Date(new Date(start).getTime() + 60 * 60 * 1000).toISOString()
     const eventUrl = portalBase
-      ? `${portalBase}/events/${ev.event_slug || ev.event_id}`
-      : (ev.event_link || '')
-    const location = ev.event_location
-      || ev.venue_address
+      ? `${portalBase}/events/${(ev.event_slug as string | undefined) || (ev.event_id as string | undefined)}`
+      : ((ev.event_link as string | undefined) || '')
+    const location =
+      (ev.event_location as string | undefined)
+      || (ev.venue_address as string | undefined)
       || [ev.event_city, ev.event_country_code].filter(Boolean).join(', ')
       || ''
 
     lines.push('BEGIN:VEVENT')
-    lines.push(foldLine(`UID:${ev.event_id || ev.id}@gatewaze.calendars.${cal.calendar_id}`))
+    const uidLocal = sanitizeICSLineValue((ev.event_id as string | undefined) || (ev.id as string | undefined))
+    const uidDomain = sanitizeICSLineValue(calendar.calendar_id)
+    lines.push(foldLine(`UID:${uidLocal}@gatewaze.calendars.${uidDomain}`))
     lines.push(`DTSTAMP:${stamp}`)
     lines.push(`DTSTART:${formatICSDate(start)}`)
     lines.push(`DTEND:${formatICSDate(end)}`)
-    lines.push(foldLine(`SUMMARY:${escapeICSText(ev.event_title)}`))
+    lines.push(foldLine(`SUMMARY:${escapeICSText(ev.event_title as string | null | undefined)}`))
     if (ev.event_description) {
-      lines.push(foldLine(`DESCRIPTION:${escapeICSText(ev.event_description)}`))
+      lines.push(foldLine(`DESCRIPTION:${escapeICSText(ev.event_description as string | null | undefined)}`))
     }
     if (location) {
       lines.push(foldLine(`LOCATION:${escapeICSText(location)}`))
     }
     if (eventUrl) {
-      lines.push(foldLine(`URL:${eventUrl}`))
+      // URL: is a URI property — use sanitizeICSLineValue (strips
+      // CR/LF/control chars), NOT escapeICSText (which backslash-escapes
+      // commas/semicolons that are legal in URIs). Without this, a stored
+      // event_link containing CR/LF could inject a new ICS property line.
+      lines.push(foldLine(`URL:${sanitizeICSLineValue(eventUrl)}`))
     }
     lines.push('STATUS:CONFIRMED')
     lines.push('TRANSP:OPAQUE')
@@ -173,7 +164,7 @@ export async function GET(
     status: 200,
     headers: {
       'Content-Type': 'text/calendar; charset=utf-8',
-      'Content-Disposition': `inline; filename="${(cal.slug || cal.calendar_id)}.ics"`,
+      'Content-Disposition': `inline; filename="${(calendar.slug || calendar.calendar_id)}.ics"`,
       // Allow CDNs / clients to cache for 5 minutes; calendar clients
       // typically poll every hour or two anyway.
       'Cache-Control': 'public, max-age=300, s-maxage=300',

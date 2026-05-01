@@ -149,7 +149,9 @@ export default async function CustomPage({ params }: Props) {
             .maybeSingle()
           currentPersonId = person?.id || null
         }
-      } catch {}
+      } catch {
+        // Best-effort person lookup; missing or unreadable is fine.
+      }
 
       const { default: PageComponent } = await modulePage.component()
       return (

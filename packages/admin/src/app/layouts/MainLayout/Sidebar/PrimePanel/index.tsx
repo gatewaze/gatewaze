@@ -1,5 +1,4 @@
 // Import Dependencies
-import clsx from "clsx";
 import { ChevronLeftIcon } from "@heroicons/react/20/solid";
 import { useTranslation } from "react-i18next";
 import { Theme } from "@radix-ui/themes";

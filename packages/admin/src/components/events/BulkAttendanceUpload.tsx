@@ -36,8 +36,8 @@ export const BulkAttendanceUpload = ({ eventId, onComplete }: BulkAttendanceUplo
       const parsedRows = await BulkAttendanceService.parseCsvFile(selectedFile);
       setRows(parsedRows);
       toast.success(`Parsed ${parsedRows.length} rows from CSV`);
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to parse CSV file');
+    } catch (error) {
+      toast.error((error instanceof Error ? error.message : '') || 'Failed to parse CSV file');
       setFile(null);
     }
   };
@@ -70,8 +70,8 @@ export const BulkAttendanceUpload = ({ eventId, onComplete }: BulkAttendanceUplo
       if (uploadResult.failed > 0) {
         toast.error(`Failed to record ${uploadResult.failed} attendance records. Check details below.`);
       }
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to process attendance records');
+    } catch (error) {
+      toast.error((error instanceof Error ? error.message : '') || 'Failed to process attendance records');
     } finally {
       setUploading(false);
     }

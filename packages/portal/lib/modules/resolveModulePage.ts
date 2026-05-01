@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, statSync } from 'fs'
+import { existsSync, readdirSync, statSync, readFileSync } from 'fs'
 import { resolve, isAbsolute } from 'path'
 import { createClient } from '@supabase/supabase-js'
 
@@ -75,7 +75,6 @@ interface SourceEntry {
 
 function parseConfigSources(projectRoot: string): SourceEntry[] {
   try {
-    const { readFileSync } = require('fs')
     const configPath = resolve(projectRoot, 'gatewaze.config.ts')
     const rawContent = readFileSync(configPath, 'utf-8')
     const content = rawContent.replace(/\/\/.*$/gm, '')
@@ -192,7 +191,9 @@ function resolveSegments(currentDir: string, segments: string[]): string | null 
         const nested = resolveSegments(staticDir, rest)
         if (nested) return nested
       }
-    } catch {}
+    } catch {
+      // statSync throws on non-existent paths — fine, fall through.
+    }
   }
 
   // 2. If this is the final segment, try a static file `<head>.tsx`.

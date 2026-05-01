@@ -58,7 +58,7 @@ interface FormErrors {
 
 export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: Props) {
   const router = useRouter()
-  const { event, useDarkText, primaryColor, eventIdentifier, basePath } = useEventContext()
+  const { event, useDarkText, primaryColor, basePath } = useEventContext()
   const { session, isLoading: authLoading } = useAuth()
 
   const durationOptions = event.talk_duration_options || []
@@ -131,9 +131,49 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
           global: { headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {} }
         })
 
-        let talkData: any = null
-        let speakerRecordData: any = null
-        let personProfile: any = null
+        // Types for the nested Supabase select results below.
+        interface PersonRow {
+          id: string
+          email: string
+          auth_user_id: string | null
+          attributes?: Record<string, unknown> | null
+          avatar_source?: string | null
+          avatar_storage_path?: string | null
+        }
+        interface PersonProfileRow {
+          id: string
+          person_id: string
+          people: PersonRow | PersonRow[]
+        }
+        interface SpeakerRow {
+          id: string
+          status?: string | null
+          talk_title?: string | null
+          talk_synopsis?: string | null
+          talk_duration_minutes?: number | null
+          speaker_bio?: string | null
+          speaker_title?: string | null
+          edit_token: string | null
+          people_profiles: PersonProfileRow | PersonProfileRow[]
+        }
+        interface TalkSpeakerLink {
+          speaker_id: string
+          is_primary: boolean
+          speaker: SpeakerRow | SpeakerRow[]
+        }
+        interface TalkRow {
+          id: string
+          title: string | null
+          synopsis: string | null
+          duration_minutes: number | null
+          status: string | null
+          edit_token: string | null
+          event_talk_speakers?: TalkSpeakerLink[]
+        }
+
+        let talkData: TalkRow | null = null
+        let speakerRecordData: SpeakerRow | null = null
+        let personProfile: PersonProfileRow | null = null
 
         if (editToken) {
           const { data: talk, error: talkError } = await supabase
@@ -172,11 +212,18 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
             .maybeSingle()
 
           if (!talkError && talk) {
-            talkData = talk
-            const primaryTalkSpeaker = (talk.event_talk_speakers as any[])?.find((ts: any) => ts.is_primary) || talk.event_talk_speakers?.[0]
+            talkData = talk as TalkRow
+            const links = (talkData.event_talk_speakers ?? []) as TalkSpeakerLink[]
+            const primaryTalkSpeaker = links.find((ts) => ts.is_primary) ?? links[0]
             if (primaryTalkSpeaker?.speaker) {
-              speakerRecordData = primaryTalkSpeaker.speaker
-              personProfile = speakerRecordData.people_profiles
+              const speaker = Array.isArray(primaryTalkSpeaker.speaker)
+                ? primaryTalkSpeaker.speaker[0]
+                : primaryTalkSpeaker.speaker
+              if (speaker) {
+                speakerRecordData = speaker
+                const profiles = speaker.people_profiles
+                personProfile = Array.isArray(profiles) ? profiles[0] : profiles
+              }
             }
           }
         }
@@ -228,8 +275,9 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
             return
           }
 
-          speakerRecordData = data
-          personProfile = data.people_profiles
+          speakerRecordData = data as SpeakerRow
+          const profiles = (data as SpeakerRow).people_profiles
+          personProfile = (Array.isArray(profiles) ? profiles[0] : profiles) ?? null
         }
 
         if (!speakerRecordData) {
@@ -264,12 +312,12 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
         const speaker: SpeakerData = {
           id: speakerRecordData.id,
           talk_id: talkData?.id,
-          status: talkData?.status || speakerRecordData.status,
+          status: talkData?.status || speakerRecordData.status || '',
           talk_title: talkData?.title || speakerRecordData.talk_title || '',
           talk_synopsis: talkData?.synopsis || speakerRecordData.talk_synopsis || '',
-          talk_duration_minutes: talkData?.duration_minutes ?? speakerRecordData.talk_duration_minutes,
-          speaker_bio: speakerRecordData.speaker_bio,
-          speaker_title: speakerRecordData.speaker_title,
+          talk_duration_minutes: talkData?.duration_minutes ?? speakerRecordData.talk_duration_minutes ?? null,
+          speaker_bio: speakerRecordData.speaker_bio ?? null,
+          speaker_title: speakerRecordData.speaker_title ?? null,
           first_name: personAttrs.first_name || '',
           last_name: personAttrs.last_name || '',
           email: typedPersonProfile?.people?.email || '',

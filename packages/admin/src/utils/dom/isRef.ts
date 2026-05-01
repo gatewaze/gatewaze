@@ -6,7 +6,7 @@ import type { RefObject } from "react";
  * @param obj - The object to check.
  * @returns True if the object is a React ref object, false otherwise.
  */
-export const isRef = (obj: any): obj is RefObject<any> => {
+export const isRef = (obj: unknown): obj is RefObject<unknown> => {
   return (
     obj !== null &&
     typeof obj === "object" &&

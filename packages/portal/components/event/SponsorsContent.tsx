@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
+import Image from 'next/image'
 import { getClientBrandConfig } from '@/config/brand'
 import { useEventContext } from './EventContext'
 import { GlowBorder } from '@/components/ui/GlowBorder'
@@ -76,8 +77,18 @@ export function SponsorsContent() {
         }
 
         // Flatten the data and add sponsor details
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const flattenedSponsors: Sponsor[] = (data || []).map((item: any) => ({
+        interface RawSponsorRow {
+          id: string
+          sponsor_id: string
+          sponsorship_tier: string | null
+          sponsors?: {
+            name?: string
+            logo_url?: string | null
+            website?: string | null
+            description?: string | null
+          }
+        }
+        const flattenedSponsors: Sponsor[] = ((data ?? []) as RawSponsorRow[]).map((item) => ({
           id: item.id,
           sponsor_id: item.sponsor_id,
           sponsorship_tier: item.sponsorship_tier,
@@ -222,11 +233,15 @@ function SponsorCard({ sponsor, tier, useDarkText, primaryColor, panelTheme }: S
         {/* Logo */}
         <div className={`flex items-center justify-center ${isPremiumTier ? 'h-24 sm:h-32' : 'h-16 sm:h-20'} mb-3`}>
           {sponsor.logo_url ? (
-            <img
-              src={sponsor.logo_url}
-              alt={sponsor.name}
-              className={`max-h-full max-w-full object-contain ${useDarkText ? '' : 'brightness-0 invert'} group-hover:brightness-100 group-hover:invert-0 transition-all duration-300`}
-            />
+            <div className={`relative ${isPremiumTier ? 'h-24 sm:h-32 w-full' : 'h-16 sm:h-20 w-full'}`}>
+              <Image
+                src={sponsor.logo_url}
+                alt={sponsor.name}
+                fill
+                sizes="(min-width: 640px) 200px, 150px"
+                className={`object-contain ${useDarkText ? '' : 'brightness-0 invert'} group-hover:brightness-100 group-hover:invert-0 transition-all duration-300`}
+              />
+            </div>
           ) : (
             <div
               className={`${isPremiumTier ? 'text-2xl sm:text-3xl' : 'text-lg sm:text-xl'} font-bold text-center`}

@@ -2,18 +2,12 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useModulesContext } from "@/app/contexts/modules/context";
 import { Tabs as RadixTabs, Text, Heading, Callout } from "@radix-ui/themes";
 import {
-  Sun,
-  Moon,
-  Monitor,
   Palette,
-  Upload,
   Loader2,
   Check,
-  FileText,
   Info,
   Users,
   Lock,
-  Tags,
 } from "lucide-react";
 import { useActiveThemeModule } from "@/hooks/useActiveThemeModule";
 import { EventTypesEditor } from "@/components/shared/branding/EventTypesEditor";
@@ -22,7 +16,6 @@ import { PeopleAttributesEditor } from "@/components/shared/branding/PeopleAttri
 import {
   type EventTypeOption,
   DEFAULT_EVENT_TYPES,
-  saveEventTypes,
 } from "@/hooks/useEventTypes";
 import {
   type ContentCategoryOption,
@@ -106,12 +99,13 @@ const BRANDING_DEFAULTS: BrandingSettings = {
 
 import { ColorInput } from "@/components/shared/branding/ColorInput";
 import { LogoUploadField } from "@/components/shared/branding/LogoUploadField";
-import { StorageSettings, validateStorageBucketUrl } from "./StorageSettings";
+import { StorageSettings } from "./StorageSettings";
+import { validateStorageBucketUrl } from "./storage-bucket-validation";
+import { GradientWaveEditor } from "@/components/shared/branding/GradientWaveEditor";
 import {
-  GradientWaveEditor,
   DEFAULT_GRADIENT_WAVE_CONFIG,
   type GradientWaveConfig,
-} from "@/components/shared/branding/GradientWaveEditor";
+} from "@/components/shared/branding/gradient-wave-config";
 import { PortalNavEditor, type PortalNavOverrides } from "@/components/shared/branding/PortalNavEditor";
 
 // ── BrandingCard ───────────────────────────────────────────────────
@@ -205,7 +199,7 @@ function BrandingCard({ section }: { section: "system" | "admin" | "portal" }) {
     if (data) {
       const loaded = { ...BRANDING_DEFAULTS };
       let loadedTheme: PortalTheme = "gradient_wave";
-      let loadedColors: ThemeColorsMap = { ...DEFAULT_THEME_COLORS };
+      const loadedColors: ThemeColorsMap = { ...DEFAULT_THEME_COLORS };
       let loadedAdminAccentColor: PrimaryColor = "cyan";
       let loadedPortalNavOverrides: PortalNavOverrides = { items: [] };
       let loadedPortalUiMode: "frost" | "smoke" | "obsidian" | "paper" = "smoke";

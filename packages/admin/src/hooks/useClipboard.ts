@@ -11,8 +11,7 @@ export function useClipboard({ timeout = 2000 } = {}) {
     setCopied(value);
   };
 
-   
-  const copy = (valueToCopy: any) => {
+  const copy = (valueToCopy: string) => {
     if ('clipboard' in navigator) {
       navigator.clipboard
         .writeText(valueToCopy)

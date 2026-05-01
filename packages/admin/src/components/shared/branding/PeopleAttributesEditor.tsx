@@ -83,7 +83,7 @@ export function PeopleAttributesEditor({ value, onChange }: Props) {
   const removeOption = (attrIndex: number, optionIndex: number) => {
     const next = [...value];
     const attr = { ...next[attrIndex] };
-    attr.options = (attr.options || []).filter((_: any, i: any) => i !== optionIndex);
+    attr.options = (attr.options || []).filter((_: string, i: number) => i !== optionIndex);
     next[attrIndex] = attr;
     onChange(next);
   };
@@ -227,7 +227,7 @@ export function PeopleAttributesEditor({ value, onChange }: Props) {
                       <p className="text-xs font-medium text-[var(--gray-9)]">Options</p>
                       {(attr.options || []).length > 0 && (
                         <div className="flex flex-wrap gap-1.5">
-                          {(attr.options || []).map((opt: any, oi: any) => (
+                          {(attr.options || []).map((opt: string, oi: number) => (
                             <span
                               key={oi}
                               className="inline-flex items-center gap-1 rounded-md bg-[var(--gray-3)] border border-[var(--gray-6)] px-2 py-1 text-xs"

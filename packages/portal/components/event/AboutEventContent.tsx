@@ -633,10 +633,10 @@ function MobileCompetitionPortal({ mounted, children }: { mounted: boolean; chil
 
 function CompetitionCountdownPanel({
   competition,
-  eventIdentifier,
+  eventIdentifier: _eventIdentifier,
   basePath,
   useDarkText,
-  primaryColor,
+  primaryColor: _primaryColor,
   panelTheme,
   isSingleCompetition,
 }: {

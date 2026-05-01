@@ -344,7 +344,7 @@ export class PermissionsService {
     try {
       // Update group metadata
       if (request.name || request.description !== undefined || request.is_active !== undefined) {
-        const updates: any = {};
+        const updates: { name?: string; description?: string; is_active?: boolean } = {};
         if (request.name) updates.name = request.name;
         if (request.description !== undefined) updates.description = request.description;
         if (request.is_active !== undefined) updates.is_active = request.is_active;

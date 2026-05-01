@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { getClientBrandConfig, isLightColor } from '@/config/brand'
 import { useEventContext } from './EventContext'
 import { GlowBorder } from '@/components/ui/GlowBorder'
@@ -23,7 +24,7 @@ interface Speaker {
 }
 
 export function SpeakersListContent() {
-  const { event, useDarkText, primaryColor, eventIdentifier, basePath, userState } = useEventContext()
+  const { event, useDarkText, primaryColor, basePath, userState } = useEventContext()
   const [speakers, setSpeakers] = useState<Speaker[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [storageUrl, setStorageUrl] = useState('')
@@ -291,9 +292,11 @@ function SpeakerCard({ speaker, useDarkText, primaryColor, panelTheme, isFeature
           {/* Avatar */}
           <div className="flex-shrink-0">
             {speaker.avatar_url ? (
-              <img
+              <Image
                 src={toPublicUrl(speaker.avatar_url, bucketUrl) ?? speaker.avatar_url}
                 alt={speaker.full_name}
+                width={isFeatured ? 96 : 80}
+                height={isFeatured ? 96 : 80}
                 className={`${isFeatured ? 'w-24 h-24' : 'w-20 h-20'} rounded-lg object-cover grayscale contrast-[1.1] group-hover:grayscale-0 group-hover:contrast-100 transition-all duration-300`}
               />
             ) : (

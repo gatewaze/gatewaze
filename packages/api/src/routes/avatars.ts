@@ -5,14 +5,20 @@
  * Puppeteer is dynamically imported and optional.
  */
 
-import { Router, type Request, type Response } from 'express';
+import { type Request, type Response } from 'express';
 import crypto from 'crypto';
-import { getSupabase } from '../lib/supabase.js';
+// User-scoped Supabase per spec §5.1. Storage policies + people RLS
+// (both v1 admin/self and v2 account-scoped) gate what the route can
+// do; the route itself doesn't need service-role escalation.
+import { getRequestSupabase } from '../lib/supabase.js';
+import { labeledRouter } from '../lib/router-registry.js';
+import { requireJwt } from '../lib/auth/require-jwt.js';
 
 const AVATAR_BUCKET = 'media';
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
-export const avatarsRouter = Router();
+export const avatarsRouter = labeledRouter('jwt');
+avatarsRouter.use(requireJwt());
 
 function getGravatarUrl(email: string, size = 200): string {
   const hash = crypto.createHash('md5').update(email.trim().toLowerCase()).digest('hex');
@@ -28,8 +34,13 @@ async function checkGravatarExists(email: string): Promise<boolean> {
   }
 }
 
-async function downloadAndStoreImage(customerId: string, imageUrl: string, source: string) {
-  const supabase = getSupabase();
+async function downloadAndStoreImage(
+  req: Request,
+  customerId: string,
+  imageUrl: string,
+  source: string,
+) {
+  const supabase = getRequestSupabase(req);
 
   const response = await fetch(imageUrl);
   if (!response.ok) return { success: false, error: 'Failed to download image' };
@@ -77,7 +88,7 @@ avatarsRouter.post('/sync/:customerId', async (req: Request, res: Response) => {
   const { customerId } = req.params;
 
   try {
-    const supabase = getSupabase();
+    const supabase = getRequestSupabase(req);
     const { data: customer, error } = await supabase
       .from('people')
       .select('*')
@@ -96,7 +107,7 @@ avatarsRouter.post('/sync/:customerId', async (req: Request, res: Response) => {
     if (customer.email) {
       const hasGravatar = await checkGravatarExists(customer.email);
       if (hasGravatar) {
-        const result = await downloadAndStoreImage(customerId as string, getGravatarUrl(customer.email), 'gravatar');
+        const result = await downloadAndStoreImage(req, customerId as string, getGravatarUrl(customer.email), 'gravatar');
         if (result.success) {
           return res.json({ success: true, source: 'gravatar', path: result.path });
         }
@@ -104,8 +115,8 @@ avatarsRouter.post('/sync/:customerId', async (req: Request, res: Response) => {
     }
 
     res.status(400).json({ success: false, error: 'No avatar found' });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+  } catch (error) {
+    res.status(500).json({ error: (error instanceof Error ? error.message : String(error)) });
   }
 });
 
@@ -118,15 +129,24 @@ avatarsRouter.post('/sync-batch', async (req: Request, res: Response) => {
   }
 
   try {
-    const supabase = getSupabase();
+    const supabase = getRequestSupabase(req);
     const { data: customers, error } = await supabase
       .from('people')
       .select('*')
       .in('id', customerIds);
 
-    if (error) return res.status(500).json({ error: error.message });
+    if (error) return res.status(500).json({ error: (error instanceof Error ? error.message : String(error)) });
 
-    const results: any[] = [];
+    interface SyncResult {
+      customerId: string;
+      success?: boolean;
+      skipped?: boolean;
+      reason?: string;
+      path?: string;
+      source?: string;
+      error?: string;
+    }
+    const results: SyncResult[] = [];
 
     for (const customer of customers || []) {
       if (customer.avatar_source === 'uploaded') {
@@ -137,7 +157,7 @@ avatarsRouter.post('/sync-batch', async (req: Request, res: Response) => {
       if (customer.email) {
         const hasGravatar = await checkGravatarExists(customer.email);
         if (hasGravatar) {
-          const result = await downloadAndStoreImage(customer.id, getGravatarUrl(customer.email), 'gravatar');
+          const result = await downloadAndStoreImage(req, customer.id, getGravatarUrl(customer.email), 'gravatar');
           results.push({ customerId: customer.id, ...result });
           await new Promise(resolve => setTimeout(resolve, 200));
           continue;
@@ -152,7 +172,7 @@ avatarsRouter.post('/sync-batch', async (req: Request, res: Response) => {
     const failed = results.filter(r => !r.success && !r.skipped).length;
 
     res.json({ total: (customers || []).length, synced, skipped, failed, results });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+  } catch (error) {
+    res.status(500).json({ error: (error instanceof Error ? error.message : String(error)) });
   }
 });

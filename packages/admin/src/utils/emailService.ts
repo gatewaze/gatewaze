@@ -15,7 +15,7 @@ export interface EmailRequest {
   text?: string;
   html?: string;
   replyTo?: string;
-  customerId?: number;
+  personId?: string;
   attachments?: EmailAttachment[];
 }
 
@@ -134,7 +134,7 @@ class EmailService {
           text: request.text,
           html: request.html,
           replyTo: replyToEmail,
-          customerId: request.customerId,
+          personId: request.personId,
           attachments: request.attachments,
         },
       });
@@ -153,11 +153,11 @@ class EmailService {
         data: data,
         message: `Email sent successfully to ${recipients} recipient${recipients > 1 ? 's' : ''}`,
       };
-    } catch (error: any) {
+    } catch (error) {
       console.error('Email service error:', error);
       return {
         success: false,
-        error: error.message || 'An unexpected error occurred',
+        error: (error instanceof Error ? error.message : '') || 'An unexpected error occurred',
       };
     }
   }
