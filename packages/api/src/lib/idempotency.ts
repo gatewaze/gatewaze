@@ -52,7 +52,7 @@ export function idempotencyMiddleware(
     // Atomic claim using INSERT ... ON CONFLICT
     const expiresAt = new Date(Date.now() + EXPIRY_HOURS * 60 * 60 * 1000).toISOString();
 
-    const { data: inserted, error: insertErr } = await supabase
+    const { error: insertErr } = await supabase
       .from('idempotency_keys')
       .insert({
         idempotency_key: key,
@@ -114,7 +114,7 @@ export function idempotencyMiddleware(
     // We claimed the key — proceed with the request
     // Capture the response to store it
     const originalJson = res.json.bind(res);
-    res.json = function (body: any) {
+    res.json = function (body: unknown) {
       // Store the response (fire-and-forget)
       const responseJson = JSON.stringify(body).length > MAX_RESPONSE_SIZE
         ? { truncated: true, code: res.statusCode }

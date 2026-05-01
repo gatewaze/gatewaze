@@ -20,7 +20,7 @@ import { compareArrays } from "@/utils/compareArrays";
 // ----------------------------------------------------------------------
 
 interface OptionType {
-  value: any[];
+  value: unknown[];
   label: string;
 }
 
@@ -43,7 +43,7 @@ export function RadioFilter({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => () => column?.setFilterValue(undefined), []);
 
-  const selectedValue = (column?.getFilterValue() || []) as any[];
+  const selectedValue = (column?.getFilterValue() || []) as unknown[];
 
   const selectedItem = options.find(({ value }) => {
     return compareArrays(value, selectedValue);
@@ -83,7 +83,7 @@ function Content({ column, title, options }: ContentProps) {
     matchAllOnEmptyQuery: true,
   });
 
-  const selectedValue = (column?.getFilterValue() || []) as any[];
+  const selectedValue = (column?.getFilterValue() || []) as unknown[];
 
   useEffect(() => {
     if (!smAndDown && inputRef.current) {

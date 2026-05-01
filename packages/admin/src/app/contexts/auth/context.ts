@@ -8,6 +8,18 @@ export interface ImpersonationState {
   sessionId: string | null;
 }
 
+export interface AdminProfile {
+  id: string;
+  email?: string;
+  name?: string;
+  role?: string;
+  avatar_url?: string | null;
+  is_active?: boolean;
+  permissions?: Record<string, unknown> | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -15,7 +27,7 @@ export interface AuthContextType {
   isInitialized: boolean;
   errorMessage: string | null;
   user: User | null;
-  adminProfile?: any;
+  adminProfile?: AdminProfile;
   isAdmin?: boolean;
   login: (credentials: { email: string }) => Promise<void>;
   logout: () => Promise<void>;

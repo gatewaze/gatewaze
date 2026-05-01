@@ -39,7 +39,7 @@ interface SubmissionData {
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function SpeakerSuccessContent({ editToken, isExisting, isUpdated, statusReset, speakerStatus, speakerAvatarUrl, talkTitle: _talkTitle, presentationUrl, presentationStoragePath, presentationType, speakerEmail, calendarAddedAt, trackingLinkCopiedAt }: Props) {
-  const { event, eventIdentifier, basePath, primaryColor, useDarkText } = useEventContext()
+  const { event, basePath, primaryColor, useDarkText } = useEventContext()
   const { session, isLoading: authLoading } = useAuth()
 
   // Require sign-in if accessing via token without an active session

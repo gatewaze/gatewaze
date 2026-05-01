@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type MouseEvent } from 'react';
 import {
   MagnifyingGlassIcon,
   ArrowPathIcon,
@@ -30,7 +30,7 @@ interface MappingRow {
 
 interface ApplyResult {
   registration_id: string;
-  customer_id: number;
+  customer_id: string;
   fields_updated: string[];
   errors: string[];
 }
@@ -117,15 +117,23 @@ export function RegistrationFieldMappings({ eventId }: RegistrationFieldMappings
 
       if (error) throw error;
 
+      interface MappingRow {
+        id: string;
+        source_label: string;
+        source_question_type: string;
+        target_type: string;
+        target_field: string;
+        transform: unknown;
+      }
       if (data && data.length > 0) {
-        setMappings(data.map((m: any) => ({
+        setMappings((data as MappingRow[]).map((m) => ({
           question_label: m.source_label,
           question_type: m.source_question_type,
           occurrence_count: 0,
           sample_value: null,
-          target_type: m.target_type,
+          target_type: m.target_type as 'customer_attribute' | 'registration_field' | '',
           target_field: m.target_field,
-          transform: m.transform,
+          transform: typeof m.transform === 'string' ? m.transform : '',
           existingId: m.id,
         })));
       }
@@ -180,7 +188,7 @@ export function RegistrationFieldMappings({ eventId }: RegistrationFieldMappings
 
       setMappings(merged);
       toast.success(`Found ${questions.length} question${questions.length !== 1 ? 's' : ''}`);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error detecting questions:', error);
       toast.error('Failed to detect questions');
     } finally {
@@ -258,7 +266,7 @@ export function RegistrationFieldMappings({ eventId }: RegistrationFieldMappings
       toast.success('Mappings saved');
       setHasUnsavedChanges(false);
       fetchExistingMappings();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error saving mappings:', error);
       toast.error('Failed to save mappings');
     } finally {
@@ -287,7 +295,7 @@ export function RegistrationFieldMappings({ eventId }: RegistrationFieldMappings
       } else {
         toast.info('No registrations needed updating');
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error applying mappings:', error);
       toast.error('Failed to apply mappings');
     } finally {
@@ -329,7 +337,7 @@ export function RegistrationFieldMappings({ eventId }: RegistrationFieldMappings
             color="cyan"
             variant="soft"
             className="text-xs px-3 py-1.5 cursor-pointer"
-            onClick={(e: any) => {
+            onClick={(e: MouseEvent) => {
               e.stopPropagation();
               handleDetectQuestions();
             }}

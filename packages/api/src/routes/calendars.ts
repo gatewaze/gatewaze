@@ -1,12 +1,24 @@
-import { Router } from 'express';
-import { getSupabase } from '../lib/supabase.js';
+// User-scoped Supabase per spec §5.1: every CRUD on the calendars
+// table runs under the caller's JWT, so v1 RLS (admin or self) and
+// v2 RLS (account_in_scope) both apply automatically. Service-role is
+// no longer used here.
+//
+// First proof-of-concept route migrated from getSupabase() to
+// getRequestSupabase(req). The pattern: every handler awaits the
+// per-request client (which sets app.account_id GUC), and admin
+// authorization is enforced by the v1 RLS policies (is_admin()).
+import { getRequestSupabase } from '../lib/supabase.js';
+import { labeledRouter } from '../lib/router-registry.js';
+import { requireJwt } from '../lib/auth/require-jwt.js';
+import { logger } from '../lib/logger.js';
 
-export const calendarsRouter = Router();
+export const calendarsRouter = labeledRouter('jwt');
+calendarsRouter.use(requireJwt());
 
 // List calendars
 calendarsRouter.get('/', async (req, res) => {
   try {
-    const supabase = getSupabase();
+    const supabase = getRequestSupabase(req);
     const page = parseInt(req.query.page as string) || 1;
     const limit = Math.min(parseInt(req.query.limit as string) || 25, 100);
     const search = req.query.search as string;
@@ -27,7 +39,7 @@ calendarsRouter.get('/', async (req, res) => {
 
     res.json({ data, total: count, page, limit });
   } catch (err) {
-    console.error('Error fetching calendars:', err);
+    logger.error({ err }, 'failed to fetch calendars');
     res.status(500).json({ error: 'Failed to fetch calendars' });
   }
 });
@@ -35,7 +47,7 @@ calendarsRouter.get('/', async (req, res) => {
 // Get single calendar with its events via calendar_events junction table
 calendarsRouter.get('/:id', async (req, res) => {
   try {
-    const supabase = getSupabase();
+    const supabase = getRequestSupabase(req);
     const identifier = req.params.id;
 
     // Look up by id, slug, or calendar_id (CAL-XXX format)
@@ -65,25 +77,51 @@ calendarsRouter.get('/:id', async (req, res) => {
 
     res.json({ ...calendar, events });
   } catch (err) {
-    console.error('Error fetching calendar:', err);
+    logger.error({ err }, 'failed to fetch calendar');
     res.status(500).json({ error: 'Failed to fetch calendar' });
   }
 });
 
+// Allowlist of fields callers may set on POST/PATCH. Internal columns
+// (account_id, created_at, etc.) are excluded — the request body is
+// untrusted and RLS alone shouldn't be the only line of defence against
+// callers attempting mass-assignment of those fields.
+const CALENDAR_WRITE_FIELDS = new Set([
+  'name',
+  'slug',
+  'description',
+  'visibility',
+  'is_active',
+  'external_url',
+  'cover_image_url',
+  'theme',
+  'theme_colors',
+  'category',
+]);
+
+function pickCalendarFields(body: unknown): Record<string, unknown> {
+  if (!body || typeof body !== 'object') return {};
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(body as Record<string, unknown>)) {
+    if (CALENDAR_WRITE_FIELDS.has(k)) out[k] = v;
+  }
+  return out;
+}
+
 // Create calendar
 calendarsRouter.post('/', async (req, res) => {
   try {
-    const supabase = getSupabase();
+    const supabase = getRequestSupabase(req);
     const { data, error } = await supabase
       .from('calendars')
-      .insert(req.body)
+      .insert(pickCalendarFields(req.body))
       .select()
       .single();
 
     if (error) throw error;
     res.status(201).json(data);
   } catch (err) {
-    console.error('Error creating calendar:', err);
+    logger.error({ err }, 'failed to create calendar');
     res.status(500).json({ error: 'Failed to create calendar' });
   }
 });
@@ -91,10 +129,10 @@ calendarsRouter.post('/', async (req, res) => {
 // Update calendar
 calendarsRouter.patch('/:id', async (req, res) => {
   try {
-    const supabase = getSupabase();
+    const supabase = getRequestSupabase(req);
     const { data, error } = await supabase
       .from('calendars')
-      .update(req.body)
+      .update(pickCalendarFields(req.body))
       .eq('id', req.params.id)
       .select()
       .single();
@@ -104,7 +142,7 @@ calendarsRouter.patch('/:id', async (req, res) => {
 
     res.json(data);
   } catch (err) {
-    console.error('Error updating calendar:', err);
+    logger.error({ err }, 'failed to update calendar');
     res.status(500).json({ error: 'Failed to update calendar' });
   }
 });

@@ -3,9 +3,16 @@ import type { Request, Response, NextFunction } from 'express';
 import { hashApiKey } from './api-key-utils.js';
 import { getFromCache, setInCache, type CachedApiKey } from './api-key-cache.js';
 import { checkKeyRateLimit, checkGlobalRateLimit } from './public-api-rate-limiter.js';
+// SERVICE-ROLE OK: API-key authentication runs before any user-scoped
+// client can exist. The api_keys and public_api_idempotency_keys tables
+// are service-role-only by RLS (00025_silent_table_policies.sql).
 import { getSupabase } from './supabase.js';
 
+// Express's own type-augmentation contract requires `namespace Express`;
+// this is the canonical pattern documented in @types/express. The
+// no-namespace rule is disabled for just this one declaration.
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
       apiKey?: { id: string; name: string; scopes: string[]; rateLimitRpm: number; writeRateLimitRpm: number };

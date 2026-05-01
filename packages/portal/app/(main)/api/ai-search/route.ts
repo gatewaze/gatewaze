@@ -43,8 +43,47 @@ interface PopularityScore {
   speaker_prominence_score: number
 }
 
+// In-memory IP bucket for rate limiting per spec PR-H-6 / §5.12. The
+// portal runs as a single Next.js process per replica; for >=2
+// replicas this needs to be Redis-backed (follow-up). 30 req/min is
+// the operational target.
+const RATE_WINDOW_MS = 60_000
+const RATE_LIMIT = 30
+const ipBuckets = new Map<string, number[]>()
+
+function checkIpRate(ip: string): boolean {
+  const now = Date.now()
+  let bucket = ipBuckets.get(ip)
+  if (!bucket) {
+    bucket = []
+    ipBuckets.set(ip, bucket)
+  }
+  while (bucket.length > 0 && now - bucket[0] >= RATE_WINDOW_MS) bucket.shift()
+  if (bucket.length >= RATE_LIMIT) return false
+  bucket.push(now)
+  return true
+}
+
+function getClientIp(req: NextRequest): string {
+  const xff = req.headers.get('x-forwarded-for')
+  if (xff) return xff.split(',')[0]!.trim()
+  return req.headers.get('x-real-ip') ?? 'unknown'
+}
+
 export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIp(req)
+    if (!checkIpRate(ip)) {
+      return NextResponse.json(
+        {
+          error: {
+            code: 'rate_limited',
+            message: `Rate limit exceeded (${RATE_LIMIT}/min per IP). Try again shortly.`,
+          },
+        },
+        { status: 429, headers: { 'Retry-After': '60' } },
+      )
+    }
     const body: SearchRequest = await req.json()
     const { query, brandId, contentTypes, userLocation, sessionId } = body
 
@@ -328,7 +367,7 @@ async function searchBlogContent(
   const keywordMatchIds = new Set((keywordMatches || []).map((p: { id: string }) => p.id))
 
   // Vector search (if blog_embeddings table + RPC exist)
-  let vectorMatchMap = new Map<string, number>()
+  const vectorMatchMap = new Map<string, number>()
   try {
     const { data: similarPosts } = await supabase.rpc('blog_search_similar', {
       query_embedding: embeddingString,
@@ -354,7 +393,7 @@ async function searchBlogContent(
 
   // Fetch full post data for any that came from vector search but not keyword
   const missingIds = [...allPostIds].filter(id => !keywordMatchIds.has(id))
-  let allPosts = [...(keywordMatches || [])]
+  const allPosts = [...(keywordMatches || [])]
 
   if (missingIds.length > 0) {
     const { data: extraPosts } = await supabase

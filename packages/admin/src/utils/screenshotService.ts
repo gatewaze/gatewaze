@@ -99,10 +99,10 @@ export class ScreenshotService {
         output: result.output || '',
       };
 
-    } catch (error: any) {
+    } catch (error) {
 
       // Check if it's a network error
-      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+      if (error instanceof TypeError && error.message.includes('fetch')) {
         return {
           success: false,
           message: `Cannot connect to screenshot API server. Make sure it's running on port 3002.`,
@@ -113,7 +113,7 @@ export class ScreenshotService {
       return {
         success: false,
         message: `Screenshot generation failed for event ${eventId}`,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
       };
     }
   }
@@ -158,10 +158,10 @@ export class ScreenshotService {
         output: result.output || '',
       };
 
-    } catch (error: any) {
+    } catch (error) {
 
       // Check if it's a network error
-      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+      if (error instanceof TypeError && error.message.includes('fetch')) {
         return {
           success: false,
           message: `Cannot connect to screenshot API server. Make sure it's running on port 3002.`,
@@ -172,7 +172,7 @@ export class ScreenshotService {
       return {
         success: false,
         message: `Forced BrowserLess.io screenshot generation failed for event ${eventId}`,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
       };
     }
   }
@@ -211,9 +211,9 @@ export class ScreenshotService {
         message: `Screenshots generated successfully for ${eventIds.length} events`,
       };
 
-    } catch (error: any) {
+    } catch (error) {
 
-      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+      if (error instanceof TypeError && error.message.includes('fetch')) {
         return {
           success: false,
           message: `Cannot connect to screenshot API server. Make sure it's running on port 3002.`,
@@ -224,7 +224,7 @@ export class ScreenshotService {
       return {
         success: false,
         message: `Screenshot generation failed for ${eventIds.length} events`,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
       };
     }
   }
@@ -263,9 +263,9 @@ export class ScreenshotService {
         message: 'Screenshots generated successfully for all events',
       };
 
-    } catch (error: any) {
+    } catch (error) {
 
-      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+      if (error instanceof TypeError && error.message.includes('fetch')) {
         return {
           success: false,
           message: `Cannot connect to screenshot API server. Make sure it's running on port 3002.`,
@@ -276,7 +276,7 @@ export class ScreenshotService {
       return {
         success: false,
         message: 'Screenshot generation failed for all events',
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
       };
     }
   }
@@ -396,9 +396,9 @@ export class ScreenshotService {
         console.log('Frontend SSE: Stream processing complete. Total messages processed:', messageCount);
       }
 
-    } catch (error: any) {
+    } catch (error) {
       console.error('Streaming error:', error);
-      callback.onError(error.message || 'Streaming connection failed');
+      callback.onError((error instanceof Error ? error.message : String(error)) || 'Streaming connection failed');
     }
   }
 
@@ -491,9 +491,9 @@ export class ScreenshotService {
         reader.releaseLock();
       }
 
-    } catch (error: any) {
+    } catch (error) {
       console.error('BrowserLess.io streaming error:', error);
-      callback.onError(error.message || 'BrowserLess.io streaming connection failed');
+      callback.onError((error instanceof Error ? error.message : String(error)) || 'BrowserLess.io streaming connection failed');
     }
   }
 
@@ -585,9 +585,9 @@ export class ScreenshotService {
         reader.releaseLock();
       }
 
-    } catch (error: any) {
+    } catch (error) {
       console.error('Streaming error:', error);
-      callback.onError(error.message || 'Streaming connection failed');
+      callback.onError((error instanceof Error ? error.message : String(error)) || 'Streaming connection failed');
     }
   }
 
@@ -678,9 +678,9 @@ export class ScreenshotService {
         reader.releaseLock();
       }
 
-    } catch (error: any) {
+    } catch (error) {
       console.error('Streaming error:', error);
-      callback.onError(error.message || 'Streaming connection failed');
+      callback.onError((error instanceof Error ? error.message : String(error)) || 'Streaming connection failed');
     }
   }
 

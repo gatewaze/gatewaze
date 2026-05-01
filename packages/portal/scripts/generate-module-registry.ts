@@ -20,7 +20,9 @@
 import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync, statSync } from 'fs'
 import { resolve, relative, dirname, isAbsolute } from 'path'
 import { fileURLToPath } from 'url'
-import { execSync } from 'child_process'
+import { execFileSync } from 'child_process'
+
+const BRANCH_RE = /^[\w][\w.\-/]{0,254}$/
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -146,19 +148,28 @@ function cloneOrUpdateRepo(gitUrl: string, branch: string | undefined): string |
     .replace(/[^a-zA-Z0-9-]/g, '-')
   const repoDir = resolve(cacheDir, repoSlug)
 
+  if (branch && !BRANCH_RE.test(branch)) {
+    console.error(`[generate-module-registry] Refusing to clone with invalid branch: ${branch}`)
+    return null
+  }
+
   try {
     mkdirSync(cacheDir, { recursive: true })
 
     if (existsSync(resolve(repoDir, '.git'))) {
-      const branchArg = branch ? `origin ${branch}` : ''
-      execSync(`git -C "${repoDir}" pull ${branchArg} --ff-only 2>/dev/null || true`, {
-        stdio: 'pipe',
-      })
+      try {
+        const args = ['-C', repoDir, 'pull']
+        if (branch) args.push('origin', branch)
+        args.push('--ff-only')
+        execFileSync('git', args, { stdio: 'pipe' })
+      } catch {
+        // Non-fast-forward / network blip — proceed with cached repo.
+      }
     } else {
-      const branchFlag = branch ? `--branch ${branch}` : ''
-      execSync(`git clone --depth 1 ${branchFlag} "${gitUrl}" "${repoDir}"`, {
-        stdio: 'pipe',
-      })
+      const args = ['clone', '--depth', '1']
+      if (branch) args.push('--branch', branch)
+      args.push(gitUrl, repoDir)
+      execFileSync('git', args, { stdio: 'pipe' })
     }
 
     return repoDir

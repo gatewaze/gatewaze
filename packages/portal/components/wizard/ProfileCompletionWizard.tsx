@@ -9,7 +9,7 @@ import { ProfileWizard, WizardStep } from './ProfileWizard'
 import { ProfileDetailsStep, ProfileDetails, validateLinkedInUrlExists } from './ProfileDetailsStep'
 import { PreferencesStep } from './PreferencesStep'
 import type { PeopleAttributeConfig } from '@gatewaze/shared/types/people'
-import { DEFAULT_PEOPLE_ATTRIBUTES, LOCKED_ATTRIBUTE_KEYS } from '@gatewaze/shared/types/people'
+import { DEFAULT_PEOPLE_ATTRIBUTES } from '@gatewaze/shared/types/people'
 
 interface Props {
   brandConfig: BrandConfig

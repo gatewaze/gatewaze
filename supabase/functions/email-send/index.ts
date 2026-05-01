@@ -20,7 +20,7 @@ interface EmailRequest {
   text?: string;
   html?: string;
   replyTo?: string;
-  personId?: number; // Optional person ID for linking
+  personId?: string; // Optional person ID for linking (people.id uuid)
   attachments?: EmailAttachment[];
 }
 
@@ -169,7 +169,7 @@ async function handler(req: Request) {
 
     // Look up person IDs for recipients if not provided
     const recipients = Array.isArray(to) ? to : [to];
-    const personIdMap = new Map<string, number>();
+    const personIdMap = new Map<string, string>();
 
     if (!personId) {
       // Batch lookup person IDs by email

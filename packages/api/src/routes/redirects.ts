@@ -4,15 +4,22 @@
  * Provides endpoints to sync and manage Short.io shortened URLs.
  */
 
-import { Router, type Request, type Response } from 'express';
+import { type Request, type Response } from 'express';
+// SERVICE-ROLE OK: admin sync to Short.io; the redirects table is
+// platform-wide (no account_id), populated by an admin-driven sync
+// from an external API. Service-role is appropriate.
 import { getSupabase } from '../lib/supabase.js';
+import { labeledRouter } from '../lib/router-registry.js';
+import { requireJwt } from '../lib/auth/require-jwt.js';
+import { logger } from '../lib/logger.js';
 
 const SHORTIO_API_BASE = 'https://api.short.io';
 const RATE_LIMIT_DELAY_MS = 200;
 const RATE_LIMIT_RETRY_DELAY_MS = 2000;
 const MAX_RETRIES = 5;
 
-export const redirectsRouter = Router();
+export const redirectsRouter = labeledRouter('jwt');
+redirectsRouter.use(requireJwt());
 
 function getApiKey(): string | null {
   return process.env.SHORTIO_API_KEY || null;
@@ -63,7 +70,7 @@ redirectsRouter.post('/sync', async (req: Request, res: Response) => {
   }
 
   // Start sync in background
-  syncShortIoLinks(supabase, apiKey, domain, syncLog.id).catch(console.error);
+  syncShortIoLinks(supabase, apiKey, domain, syncLog.id).catch((err) => logger.error({ err }, "redirect sync background failure"));
 
   res.json({ success: true, message: 'Sync started', syncLogId: syncLog.id });
 });
@@ -83,8 +90,8 @@ redirectsRouter.get('/sync/:logId', async (req: Request, res: Response) => {
     }
 
     res.json({ success: true, syncLog: data });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+  } catch (error) {
+    res.status(500).json({ error: (error instanceof Error ? error.message : String(error)) });
   }
 });
 
@@ -101,19 +108,41 @@ redirectsRouter.get('/', async (req: Request, res: Response) => {
       .range(parseInt(offset as string, 10), parseInt(offset as string, 10) + parseInt(limit as string, 10) - 1);
 
     if (search) {
-      query = query.or(`original_url.ilike.%${search}%,short_url.ilike.%${search}%,title.ilike.%${search}%`);
+      // Strip PostgREST filter-grammar metacharacters before interpolation.
+      // Without this, a `,` or `(` in `search` injects additional disjunction
+      // clauses into the .or() string and can return rows the user shouldn't see.
+      const safe = String(search).replace(/[,()*\\]/g, '').slice(0, 100);
+      if (safe) {
+        query = query.or(`original_url.ilike.%${safe}%,short_url.ilike.%${safe}%,title.ilike.%${safe}%`);
+      }
     }
 
     const { data, error, count } = await query;
 
-    if (error) return res.status(500).json({ error: error.message });
+    if (error) return res.status(500).json({ error: (error instanceof Error ? error.message : String(error)) });
     res.json({ success: true, redirects: data, total: count });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+  } catch (error) {
+    res.status(500).json({ error: (error instanceof Error ? error.message : String(error)) });
   }
 });
 
-async function syncShortIoLinks(supabase: any, apiKey: string, domain: string, syncLogId: string) {
+interface ShortIoDomain {
+  id: number;
+  hostname: string;
+}
+interface ShortIoLink {
+  id: number | string;
+  path: string;
+  title?: string;
+  originalURL: string;
+  clicks?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+import type { SupabaseClient } from '@supabase/supabase-js';
+
+async function syncShortIoLinks(supabase: SupabaseClient, apiKey: string, domain: string, syncLogId: string) {
   let totalSynced = 0;
   let totalErrors = 0;
 
@@ -125,8 +154,8 @@ async function syncShortIoLinks(supabase: any, apiKey: string, domain: string, s
 
     if (!domainsResponse.ok) throw new Error('Failed to fetch Short.io domains');
 
-    const domains: any = await domainsResponse.json();
-    const domainData = domains.find((d: any) => d.hostname === domain);
+    const domains = (await domainsResponse.json()) as ShortIoDomain[];
+    const domainData = domains.find((d) => d.hostname === domain);
 
     if (!domainData) throw new Error(`Domain '${domain}' not found in Short.io account`);
 
@@ -144,8 +173,8 @@ async function syncShortIoLinks(supabase: any, apiKey: string, domain: string, s
 
       if (!response.ok) break;
 
-      const data: any = await response.json();
-      const links = data.links || [];
+      const data = (await response.json()) as { links?: ShortIoLink[] };
+      const links = data.links ?? [];
 
       if (links.length === 0) break;
 
@@ -172,7 +201,7 @@ async function syncShortIoLinks(supabase: any, apiKey: string, domain: string, s
         }
       }
 
-      lastId = links[links.length - 1].id;
+      lastId = String(links[links.length - 1].id);
       await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY_MS));
     }
 
@@ -184,12 +213,12 @@ async function syncShortIoLinks(supabase: any, apiKey: string, domain: string, s
       errors: totalErrors,
     }).eq('id', syncLogId);
 
-  } catch (error: any) {
-    console.error('Redirect sync error:', error);
+  } catch (error) {
+    logger.error({ err: error }, 'redirect sync error');
     await supabase.from('redirects_sync_logs').update({
       status: 'failed',
       completed_at: new Date().toISOString(),
-      error_message: error.message,
+      error_message: (error instanceof Error ? error.message : String(error)),
       links_synced: totalSynced,
       errors: totalErrors,
     }).eq('id', syncLogId);

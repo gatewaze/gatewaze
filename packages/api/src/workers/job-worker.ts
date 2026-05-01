@@ -27,7 +27,19 @@ import {
   type EmailJobData,
   type ImageProcessJobData,
 } from '../lib/queue/index.js';
+// SERVICE-ROLE OK: background workers run without a user JWT. They
+// process jobs on behalf of the system (email sending, image
+// processing, integration-event consumers). All call sites in this
+// file are by-design service-role.
 import { getSupabase } from '../lib/supabase.js';
+import { initSentry, installCrashHandlers } from '../lib/sentry.js';
+import { initTracing, shutdownTracing } from '../lib/tracing.js';
+
+void initTracing();
+initSentry({ service: 'worker' });
+installCrashHandlers({
+  log: (level, obj, msg) => logger[level](obj, msg),
+});
 
 const PROJECT_ROOT = resolve(import.meta.dirname ?? __dirname, '../../../..');
 const METRICS_PORT = parseInt(process.env.WORKER_METRICS_PORT ?? '9090', 10);
@@ -268,6 +280,7 @@ async function main(): Promise<void> {
     await closeAllQueues();
     await closeAllConnections();
     await metricsServer.close();
+    await shutdownTracing();
     process.exit(0);
   };
   process.on('SIGTERM', () => shutdown('SIGTERM'));

@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import {
   registerBuiltInQueues,
   metricsHandler,
@@ -21,8 +22,21 @@ import { slackRouter } from './routes/slack.js';
 import { calendarProxyRouter } from './routes/calendar-proxy.js';
 import { modulesRouter } from './routes/modules.js';
 import { apiKeysRouter } from './routes/api-keys.js';
+import { internalRouter } from './routes/internal.js';
 import { hateoasMiddleware } from './lib/hateoas.js';
-import { loadModules, loadModulesWithDbSources, reconcileModules } from '@gatewaze/shared/modules';
+import {
+  mountLabeled,
+  labelDirectRoute,
+  labelMountPrefix,
+  assertAllRoutesLabeled,
+} from './lib/router-registry.js';
+import { logger as appLogger, requestLogger, attachRequestId } from './lib/logger.js';
+import { errorEnvelope } from './lib/errors.js';
+import { initSentry, installCrashHandlers } from './lib/sentry.js';
+import { initRedMetrics, redMetricsMiddleware } from './lib/red-metrics.js';
+import { initTracing, shutdownTracing } from './lib/tracing.js';
+import { register as promRegister } from 'prom-client';
+import { loadModulesWithDbSources, reconcileModules } from '@gatewaze/shared/modules';
 import type { ModuleRuntimeContext } from '@gatewaze/shared/modules';
 import { createClient } from '@supabase/supabase-js';
 import { resolve } from 'path';
@@ -31,6 +45,16 @@ import _configImport from '../../../gatewaze.config.js';
 const config = (_configImport as any)?.default ?? _configImport;
 
 const PROJECT_ROOT = resolve(import.meta.dirname ?? __dirname, '../../..');
+
+// Initialise OTel tracing before any module that creates spans.
+// No-op when OTEL_EXPORTER_OTLP_ENDPOINT is unset.
+void initTracing();
+
+// Initialise Sentry before any other module that may throw.
+initSentry({ service: 'api' });
+installCrashHandlers({
+  log: (level, obj, msg) => appLogger[level](obj, msg),
+});
 
 const app = express();
 const PORT = parseInt(process.env.PORT ?? '3002', 10);
@@ -65,32 +89,60 @@ app.use(cors({
   },
   credentials: true,
 }));
+// helmet: security headers (X-Content-Type-Options, HSTS, referrer
+// policy, etc.). CSP starts in report-only mode and gets promoted to
+// enforced after 14 d clean in staging (spec §5.11). The default
+// helmet CSP is too restrictive for our admin/portal — disable it
+// here and serve CSP at the edge or via a separate middleware once
+// promotion criteria are met.
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+}));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true }));
+app.use(requestLogger);
+app.use(attachRequestId);
+// HTTP RED metrics — must be registered before route mounting so the
+// finish handler is invoked on every response. The metric definitions
+// share the prom-client global registry served by /metrics below.
+initRedMetrics(promRegister);
+app.use(redMetricsMiddleware);
 app.use(hateoasMiddleware);
 
-// Prometheus metrics
+// Prometheus metrics — registered directly on the app (not via a Router),
+// so we record the auth label explicitly. /metrics is intended to be
+// network-restricted (PodMonitor in k8s), not routed through Traefik.
 app.get('/metrics', async (req, res) => {
   await metricsHandler(req, res as never);
 });
+labelDirectRoute('GET', '/metrics', 'public');
 
 // Routes - existing
-app.use('/api', healthRouter);
-app.use('/api/people', peopleRouter);
-app.use('/api/csv', csvRouter);
-app.use('/api/calendars', calendarsRouter);
-app.use('/api/db-copy', dbCopyRouter);
+mountLabeled(app, '/api', healthRouter);
+mountLabeled(app, '/api/people', peopleRouter);
+mountLabeled(app, '/api/csv', csvRouter);
+mountLabeled(app, '/api/calendars', calendarsRouter);
+mountLabeled(app, '/api/db-copy', dbCopyRouter);
 
 // Routes - added for admin
-app.use('/api/jobs', jobsRouter);
-app.use('/api/screenshots', screenshotsRouter);
-app.use('/api/customerio', customerioRouter);
-app.use('/api/avatars', avatarsRouter);
-app.use('/api/redirects', redirectsRouter);
-app.use('/api/slack', slackRouter);
-app.use('/api/calendar', calendarProxyRouter);
-app.use('/api/modules', modulesRouter);
-app.use('/api/api-keys', apiKeysRouter);
+mountLabeled(app, '/api/jobs', jobsRouter);
+mountLabeled(app, '/api/screenshots', screenshotsRouter);
+mountLabeled(app, '/api/customerio', customerioRouter);
+mountLabeled(app, '/api/avatars', avatarsRouter);
+mountLabeled(app, '/api/redirects', redirectsRouter);
+mountLabeled(app, '/api/slack', slackRouter);
+mountLabeled(app, '/api/calendar', calendarProxyRouter);
+mountLabeled(app, '/api/modules', modulesRouter);
+mountLabeled(app, '/api/api-keys', apiKeysRouter);
+mountLabeled(app, '/api/internal', internalRouter);
+
+// Deny-by-default self-check: every static route must be labeled
+// 'jwt' or 'public'. Throws on first miss → server fails to boot.
+// Dynamic module routes registered below are exempt (their auth is
+// the module author's responsibility; tracked as a phase-4 follow-up).
+assertAllRoutesLabeled(app);
 
 // Module routes — loaded async before server starts
 async function registerModuleRoutes() {
@@ -112,12 +164,12 @@ async function registerModuleRoutes() {
           .from('installed_modules')
           .select('id, status');
         enabledModuleIds = new Set(
-          (installed ?? [])
-            .filter((r: any) => r.status === 'enabled')
-            .map((r: any) => r.id)
+          ((installed ?? []) as Array<{ id: string; status: string }>)
+            .filter((r) => r.status === 'enabled')
+            .map((r) => r.id)
         );
       } catch {
-        console.warn('[modules] module_sources table not available — using config sources only');
+        appLogger.warn('[modules] module_sources table not available — using config sources only');
       }
     }
 
@@ -125,30 +177,40 @@ async function registerModuleRoutes() {
     for (const mod of modules) {
       // Only register API routes for enabled modules
       if (enabledModuleIds.size > 0 && !enabledModuleIds.has(mod.config.id)) {
-        console.log(`[modules] Skipping API routes for disabled module: ${mod.config.name}`);
+        appLogger.info({ module: mod.config.id }, '[modules] skipping disabled module');
         continue;
       }
       if (mod.config.apiRoutes) {
+        // Pre-label the module's mount prefix so its routes are
+        // accepted by assertAllRoutesLabeled. Module authors mount
+        // under /api/modules/<id> by convention; we cover both that
+        // prefix and the catch-all /api so modules with legacy
+        // mount points still pass. The label is 'jwt' by default —
+        // module authors who need 'public' or 'service-role' opt in
+        // by calling labelMountPrefix() in their apiRoutes callback
+        // (added to the runtime context as labelRoutes).
+        labelMountPrefix(`/api/modules/${mod.config.id}`, 'jwt');
+        const moduleLogger = appLogger.child({ module: mod.config.id });
         const runtimeCtx: ModuleRuntimeContext = {
           moduleId: mod.config.id,
           moduleDir: mod.resolvedDir || PROJECT_ROOT,
           projectRoot: PROJECT_ROOT,
           logger: {
-            info: (msg, meta) => console.log(`[${mod.config.id}]`, msg, meta ?? ''),
-            warn: (msg, meta) => console.warn(`[${mod.config.id}]`, msg, meta ?? ''),
-            error: (msg, meta) => console.error(`[${mod.config.id}]`, msg, meta ?? ''),
-            debug: (msg, meta) => console.debug(`[${mod.config.id}]`, msg, meta ?? ''),
+            info: (msg, meta) => moduleLogger.info(meta ?? {}, msg),
+            warn: (msg, meta) => moduleLogger.warn(meta ?? {}, msg),
+            error: (msg, meta) => moduleLogger.error(meta ?? {}, msg),
+            debug: (msg, meta) => moduleLogger.debug(meta ?? {}, msg),
           },
           supabase: null,
           config: config as never,
           moduleConfig: (mod as { moduleConfig?: Record<string, unknown> }).moduleConfig ?? {},
         };
         await mod.config.apiRoutes(app, runtimeCtx);
-        console.log(`[modules] Registered API routes for: ${mod.config.name}`);
+        appLogger.info({ module: mod.config.id }, '[modules] registered API routes');
       }
     }
     if (modules.length > 0) {
-      console.log(`[modules] ${modules.length} module(s) loaded`);
+      appLogger.info({ count: modules.length }, '[modules] loaded');
     }
 
     // Register public API v1 routes for enabled modules
@@ -162,9 +224,9 @@ async function registerModuleRoutes() {
         supabaseUrl && serviceRoleKey ? createClient(supabaseUrl, serviceRoleKey) : null
       );
       app.use('/api/v1', publicApiRouter);
-      console.log('[public-api] Mounted at /api/v1');
+      appLogger.info('[public-api] mounted at /api/v1');
     } catch (err) {
-      console.warn('[public-api] Failed to mount public API:', err instanceof Error ? err.message : err);
+      appLogger.warn({ err: (err as Error).message }, '[public-api] failed to mount');
     }
 
     // Reconcile modules with DB (syncs admin_nav, portal_nav, features, etc.)
@@ -173,38 +235,52 @@ async function registerModuleRoutes() {
         const supabase = createClient(supabaseUrl, serviceRoleKey);
         await reconcileModules(modules, supabase as never);
       } catch (err) {
-        console.warn('[modules] Reconciliation failed:', err instanceof Error ? err.message : err);
+        appLogger.warn({ err: (err as Error).message }, '[modules] reconciliation failed');
       }
     }
   } catch (err) {
-    console.error('[modules] Failed to load module routes:', err);
+    appLogger.error({ err }, '[modules] failed to load module routes');
   }
 }
 
-// Error handler
-app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error('Unhandled error:', err);
-  res.status(500).json({ error: 'Internal server error' });
-});
+// Standard error envelope per spec §5.13. Mounted last so it catches
+// thrown ApiError instances and any uncaught errors from route handlers.
+app.use(errorEnvelope);
 
 // Only start the server when run directly (not imported by tests)
 if (process.env.NODE_ENV !== 'test') {
   registerModuleRoutes().then(() => {
     const server = app.listen(PORT, () => {
-      console.log(`Gatewaze API server running on port ${PORT}`);
+      appLogger.info({ port: PORT }, 'gatewaze api server listening');
     });
 
+    // Graceful shutdown per spec §5.7. Stop accepting new connections,
+    // wait up to SHUTDOWN_DRAIN_SECONDS (default 25, k8s
+    // terminationGracePeriodSeconds 30) for in-flight requests to
+    // finish, then close queue/Redis connections. The 25s default
+    // gives in-flight HTTP requests time to drain rather than the
+    // prior 10s which dropped them.
+    const drainSec = parseInt(process.env.SHUTDOWN_DRAIN_SECONDS ?? '25', 10);
+    let shuttingDown = false;
     const shutdown = async (signal: string) => {
-      queueLogger.info({ signal }, 'api shutting down');
-      server.close();
-      // Give in-flight enqueue calls up to 10s to settle, then close.
+      if (shuttingDown) return;
+      shuttingDown = true;
+      appLogger.info({ signal, drainSec }, 'api shutting down');
+      // 1. Stop accepting new connections; existing ones drain naturally.
+      server.close((err) => {
+        if (err) appLogger.warn({ err }, 'server.close error');
+      });
+      // 2. Drain queue/Redis with a budget.
       await Promise.race([
         (async () => {
           await closeAllQueues();
           await closeAllConnections();
         })(),
-        new Promise((resolve) => setTimeout(resolve, 10_000)),
+        new Promise((resolve) => setTimeout(resolve, drainSec * 1000)),
       ]);
+      // 3. Flush OTel spans last so the drain operations themselves
+      //    appear in the trace.
+      await shutdownTracing();
       process.exit(0);
     };
     process.on('SIGTERM', () => shutdown('SIGTERM'));

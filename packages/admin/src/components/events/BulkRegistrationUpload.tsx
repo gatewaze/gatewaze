@@ -36,8 +36,8 @@ export const BulkRegistrationUpload = ({ eventId, onComplete }: BulkRegistration
       const parsedRows = await BulkRegistrationService.parseCsvFile(selectedFile);
       setRows(parsedRows);
       toast.success(`Parsed ${parsedRows.length} rows from CSV`);
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to parse CSV file');
+    } catch (error) {
+      toast.error((error instanceof Error ? error.message : '') || 'Failed to parse CSV file');
       setFile(null);
     }
   };
@@ -70,8 +70,8 @@ export const BulkRegistrationUpload = ({ eventId, onComplete }: BulkRegistration
       if (uploadResult.failed > 0) {
         toast.error(`Failed to register ${uploadResult.failed} users. Check details below.`);
       }
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to process registrations');
+    } catch (error) {
+      toast.error((error instanceof Error ? error.message : '') || 'Failed to process registrations');
     } finally {
       setUploading(false);
     }

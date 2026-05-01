@@ -49,12 +49,12 @@ function getAvatarUrl(person: Person, size: number = 80): string {
 }
 
 interface Segment {
-  id: number;
+  id: string;
   segment_id: string;
   name: string;
-  description?: string;
-  type?: string;
-  joined_at?: string;
+  description: string | null;
+  type: string;
+  joined_at: string;
 }
 
 interface EmailSubscription {
@@ -73,10 +73,10 @@ interface TopicLabelInfo {
 
 interface CompetitionEvent {
   event_id?: string;
-  event_title?: string;
-  event_city?: string;
-  event_start?: string;
-  [key: string]: any;
+  eventTitle?: string;
+  eventCity?: string;
+  eventCountryCode?: string;
+  eventStart?: string;
 }
 
 interface CompetitionWin {
@@ -235,7 +235,7 @@ export default function MemberDetailPage() {
     setIsSaving(true);
     try {
       const result = await PeopleService.updatePerson(
-        Number(person.id),
+        person.id,
         {
           email: editFormData.email,
           attributes: {
@@ -424,7 +424,11 @@ export default function MemberDetailPage() {
 
         if (segmentsData) {
           setSegments(
-            segmentsData.map((item: any) => ({
+            (segmentsData as unknown as Array<{
+              id: string;
+              joined_at: string;
+              segment: { id: string; name: string; description: string | null; type: string };
+            }>).map((item) => ({
               id: item.id,
               segment_id: item.segment.id,
               name: item.segment.name,
@@ -460,7 +464,9 @@ export default function MemberDetailPage() {
         }
 
         // Group competition interactions by offer_id
-        const fetchedEvents: any[] = []; // TODO: load events data
+        // TODO: load events data; the empty fetchedEvents array makes
+        // the fallback "competition: null" path always fire.
+        const fetchedEvents: Array<CompetitionEvent & { offerSlug?: string }> = [];
         const competitionActivities: CompetitionActivity[] = [];
         const compMap = new Map<string, CompetitionActivity>();
 
@@ -532,10 +538,14 @@ export default function MemberDetailPage() {
           .order('created_at', { ascending: false });
 
         if (winnersData && winnersData.length > 0) {
-          const fetchedEvents: any[] = []; // TODO: load events data
+          // TODO: load events data; until then, every CompetitionWin
+          // will have competition: null because the lookup table is
+          // empty. The .find() type is asserted as CompetitionEvent
+          // to match the CompetitionWin interface.
+          const fetchedEvents: CompetitionEvent[] = [];
           const wins: CompetitionWin[] = winnersData.map(winner => ({
             winner,
-            competition: fetchedEvents.find((e: any) => e.eventId === winner.event_id) || null
+            competition: fetchedEvents.find((e) => e.event_id === winner.event_id) ?? null
           }));
 
           setCompetitionWins(wins);
@@ -552,7 +562,7 @@ export default function MemberDetailPage() {
           .select('id')
           .eq('person_id', id!);
 
-        const memberProfileIds = (profileData || []).map((p: any) => p.id);
+        const memberProfileIds = ((profileData ?? []) as Array<{ id: string }>).map((p) => p.id);
 
         if (memberProfileIds.length > 0) {
           const [regResult, attendResult, speakerResult] = await Promise.all([
@@ -573,16 +583,29 @@ export default function MemberDetailPage() {
               .order('submitted_at', { ascending: false }),
           ]);
 
-          const regData = regResult.data || [];
-          const attendData = attendResult.data || [];
-          const speakerData = speakerResult.data || [];
+          interface RegRow {
+            id: string; event_id: string; status: string;
+            registered_at?: string; ticket_type?: string; registration_type?: string;
+          }
+          interface AttendRow {
+            id: string; event_id: string;
+            checked_in_at?: string; checked_out_at?: string;
+          }
+          interface SpeakerRow {
+            id: string; event_uuid?: string | number | null;
+            status: string; talk_title?: string; submitted_at?: string;
+          }
+
+          const regData = (regResult.data ?? []) as unknown as RegRow[];
+          const attendData = (attendResult.data ?? []) as unknown as AttendRow[];
+          const speakerData = (speakerResult.data ?? []) as unknown as SpeakerRow[];
 
           // Collect all event IDs to fetch titles in one query
           const allEventIds = [
             ...new Set([
-              ...regData.map((r: any) => r.event_id),
-              ...attendData.map((a: any) => a.event_id),
-              ...speakerData.map((s: any) => s.event_uuid?.toString()),
+              ...regData.map((r) => r.event_id),
+              ...attendData.map((a) => a.event_id),
+              ...speakerData.map((s) => s.event_uuid?.toString()),
             ].filter(Boolean)),
           ];
 
@@ -592,12 +615,19 @@ export default function MemberDetailPage() {
               .from('events')
               .select('event_id, event_title, event_city, event_country_code, event_start, event_end, event_logo')
               .in('event_id', allEventIds);
-            (eventDetails || []).forEach((e: any) => eventsMap.set(e.event_id, e));
+            ((eventDetails ?? []) as EventDetails[]).forEach((e) => eventsMap.set(e.event_id ?? '', e));
           }
 
-          setEventRegistrations(regData.map((r: any) => ({ ...r, event: eventsMap.get(r.event_id) })));
-          setEventAttendances(attendData.map((a: any) => ({ ...a, event: eventsMap.get(a.event_id) })));
-          setSpeakerSubmissions(speakerData.map((s: any) => ({ ...s, event: eventsMap.get(s.event_uuid?.toString()) })));
+          setEventRegistrations(regData.map((r) => ({ ...r, event: eventsMap.get(r.event_id) })));
+          setEventAttendances(attendData.map((a) => ({ ...a, event: eventsMap.get(a.event_id) })));
+          setSpeakerSubmissions(speakerData.map((s) => ({
+            id: s.id,
+            event_uuid: s.event_uuid?.toString() ?? '',
+            status: s.status,
+            talk_title: s.talk_title,
+            submitted_at: s.submitted_at,
+            event: eventsMap.get(s.event_uuid?.toString() ?? ''),
+          })));
         }
       }
     } catch (error) {
@@ -1564,7 +1594,7 @@ export default function MemberDetailPage() {
             </h2>
             <EmailHistorySection
               customerEmail={person.email || ''}
-              customerId={person.id ? Number(person.id) : undefined}
+              personId={person.id}
             />
           </Card>
         )}

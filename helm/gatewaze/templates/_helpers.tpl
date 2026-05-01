@@ -70,3 +70,16 @@ Redis URL — internal or external
 {{- .Values.redis.externalUrl }}
 {{- end }}
 {{- end }}
+
+{{/*
+Image tag — defaults to Chart.AppVersion when image.tag is empty.
+Rejects `latest` to avoid non-deterministic rollbacks (spec §5.9 /
+PR-M-5).
+*/}}
+{{- define "gatewaze.imageTag" -}}
+{{- $tag := .Values.image.tag | default .Chart.AppVersion -}}
+{{- if eq $tag "latest" -}}
+{{- fail "image.tag=latest is forbidden — pin to a semver or git-SHA tag (spec §5.9)" -}}
+{{- end -}}
+{{- $tag -}}
+{{- end -}}

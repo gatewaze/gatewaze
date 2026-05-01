@@ -1,6 +1,5 @@
 // Import Dependencies
 import { useTranslation } from "react-i18next";
-import clsx from "clsx";
 import invariant from "tiny-invariant";
 
 // Local Imports

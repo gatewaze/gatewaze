@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { Navigate } from 'react-router-dom';
-import { useAuth } from '@/app/contexts/auth/Provider';
+import { useAuthContext as useAuth } from '@/app/contexts/auth/context';
 import { useHasPermission } from '@/hooks/usePermissions';
 import type { AdminFeature } from '@/lib/permissions/types';
 

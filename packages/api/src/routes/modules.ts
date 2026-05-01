@@ -1,5 +1,6 @@
-import { Router } from 'express';
 import { createClient } from '@supabase/supabase-js';
+import { labeledRouter } from '../lib/router-registry.js';
+import { requireJwt } from '../lib/auth/require-jwt.js';
 import {
   loadModulesWithDbSources,
   reconcileModules,
@@ -19,18 +20,25 @@ import {
   summariseRebuild,
   readSnapshot,
   liveModuleDir,
-  sweepOrphanedNewDirs,
 } from '@gatewaze/shared/modules';
 import type { InstalledModuleRow, LoadedModule } from '@gatewaze/shared/modules';
 import { resolve } from 'path';
-import { existsSync, mkdirSync, readdirSync, unlinkSync, readFileSync } from 'fs';
-import { execSync } from 'child_process';
+import { existsSync, mkdirSync, readdirSync, rmSync, renameSync, unlinkSync, readFileSync } from 'fs';
 import crypto from 'crypto';
 import multer from 'multer';
+import AdmZip from 'adm-zip';
 import { writeAuditLog } from '../lib/audit-log';
-import { createRedactedLogger } from '../lib/log-redaction';
 import { isLeader } from '../lib/leadership';
 import { validateGitUrl } from '../lib/zip-validation';
+import { safeExec } from '../lib/safe-exec.js';
+import { logger } from '../lib/logger.js';
+
+const BRANCH_RE = /^[\w][\w.\-/]{0,254}$/;
+function validateBranch(branch: string): void {
+  if (!BRANCH_RE.test(branch)) {
+    throw new Error(`Invalid branch name: ${branch}`);
+  }
+}
 import _configImport from '../../../../gatewaze.config.js';
 // Unwrap CJS→ESM double-default wrapping (root package.json has no "type":"module")
 const config = (_configImport as any)?.default ?? _configImport;
@@ -44,10 +52,11 @@ const upload = multer({
   limits: { fileSize: MAX_UPLOAD_SIZE },
 });
 
-export const modulesRouter = Router();
+export const modulesRouter = labeledRouter('jwt');
+modulesRouter.use(requireJwt());
 
 /** Middleware: require leadership for all mutating operations */
-function requireLeadership(req: any, res: any, next: any) {
+function requireLeadership(req: import('express').Request, res: import('express').Response, next: import('express').NextFunction) {
   if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
     return next();
   }
@@ -66,8 +75,8 @@ function requireLeadership(req: any, res: any, next: any) {
 modulesRouter.use(requireLeadership);
 
 /** Middleware: attach request-id from header or generate one */
-modulesRouter.use((req: any, _res: any, next: any) => {
-  req.requestId = req.headers['x-request-id'] || crypto.randomUUID();
+modulesRouter.use((req: import('express').Request, _res: import('express').Response, next: import('express').NextFunction) => {
+  (req as { requestId?: string }).requestId = (req.headers['x-request-id'] as string | undefined) || crypto.randomUUID();
   next();
 });
 
@@ -138,7 +147,7 @@ modulesRouter.get('/bootstrap-check', async (_req, res) => {
     const result = await bootstrapCheck(supabase as never);
     return res.json(result);
   } catch (err) {
-    console.error('[modules] Bootstrap check failed:', err);
+    logger.error({ err }, '[modules] Bootstrap check failed:');
     return res.status(500).json({
       error: err instanceof Error ? err.message : 'Bootstrap check failed',
     });
@@ -160,7 +169,7 @@ modulesRouter.post('/bootstrap', async (_req, res) => {
     const { applied, errors } = await applyCoreMigrations(supabase as never, PROJECT_ROOT);
 
     if (errors.length > 0) {
-      console.warn('[modules] Bootstrap migration errors:', errors);
+      logger.warn({ errors }, '[modules] Bootstrap migration errors:');
     }
 
     return res.json({
@@ -170,7 +179,7 @@ modulesRouter.post('/bootstrap', async (_req, res) => {
       errors,
     });
   } catch (err) {
-    console.error('[modules] Bootstrap failed:', err);
+    logger.error({ err }, '[modules] Bootstrap failed:');
     return res.status(500).json({
       error: err instanceof Error ? err.message : 'Bootstrap failed',
     });
@@ -242,7 +251,7 @@ modulesRouter.post('/select', async (req, res) => {
         try {
           await applyModuleMigrations(mod, supabase as never);
         } catch (migErr) {
-          console.error(`[modules] Migration failed for "${mod.config.id}" during selection:`, migErr);
+          logger.error({ migErr }, `[modules] Migration failed for "${mod.config.id}" during selection:`);
         }
 
         await supabase
@@ -274,10 +283,10 @@ modulesRouter.post('/select', async (req, res) => {
         });
         const totalDeployed = deployResult.copied.length + deployResult.deployed.length;
         if (totalDeployed > 0) {
-          console.log(`[modules] Deployed ${totalDeployed} edge function(s) during onboarding`);
+          logger.info(`[modules] Deployed ${totalDeployed} edge function(s) during onboarding`);
         }
         if (deployResult.errors.length > 0) {
-          console.warn('[modules] Edge function deployment warnings:', deployResult.errors);
+          logger.warn({ data: deployResult.errors }, '[modules] Edge function deployment warnings:');
         }
 
         // Store edge function hashes for all deployed modules
@@ -307,7 +316,7 @@ modulesRouter.post('/select', async (req, res) => {
 
     return res.json({ success: true });
   } catch (err) {
-    console.error('[modules] Selection failed:', err);
+    logger.error({ err }, '[modules] Selection failed:');
     return res.status(500).json({
       error: err instanceof Error ? err.message : 'Module selection failed',
     });
@@ -408,7 +417,7 @@ modulesRouter.post('/select-stream', async (req, res) => {
           send('module-complete', { module: mod.config.id, name: mod.config.name, status: 'ok' });
         } catch (migErr) {
           const errMsg = migErr instanceof Error ? migErr.message : String(migErr);
-          console.error(`[modules] Migration failed for "${mod.config.id}":`, migErr);
+          logger.error({ migErr }, `[modules] Migration failed for "${mod.config.id}":`);
           migrationErrors.push({ module: mod.config.id, error: errMsg });
           // Still enable the module (migrations may be partially applied)
           await supabase.from('installed_modules').update({ status: 'enabled' }).eq('id', mod.config.id);
@@ -482,7 +491,7 @@ modulesRouter.post('/select-stream', async (req, res) => {
       migrationErrors,
     });
   } catch (err) {
-    console.error('[modules] Selection stream failed:', err);
+    logger.error({ err }, '[modules] Selection stream failed:');
     send('error', { message: err instanceof Error ? err.message : 'Module selection failed' });
   } finally {
     res.end();
@@ -517,7 +526,7 @@ modulesRouter.post('/settings', async (req, res) => {
 
     return res.json({ success: true });
   } catch (err) {
-    console.error('[modules] Settings update failed:', err);
+    logger.error({ err }, '[modules] Settings update failed:');
     return res.status(500).json({
       error: err instanceof Error ? err.message : 'Settings update failed',
     });
@@ -549,7 +558,7 @@ modulesRouter.post('/reconcile', async (_req, res) => {
       const { data } = await supabase.from('module_sources').select('*');
       dbSources = data ?? [];
     } catch {
-      console.warn('[modules] module_sources table not available — using config sources only');
+      logger.warn('[modules] module_sources table not available — using config sources only');
     }
 
     const modules = await loadModulesWithDbSources(
@@ -576,7 +585,7 @@ modulesRouter.post('/reconcile', async (_req, res) => {
         allModules: modules,
       });
       if (deployResult.copied.length > 0 || deployResult.deployed.length > 0) {
-        console.log(`[modules] Deployed ${deployResult.copied.length + deployResult.deployed.length} edge function(s) during reconciliation`);
+        logger.info(`[modules] Deployed ${deployResult.copied.length + deployResult.deployed.length} edge function(s) during reconciliation`);
       }
     }
 
@@ -593,7 +602,7 @@ modulesRouter.post('/reconcile', async (_req, res) => {
 
     return res.json({ success: true, modules: results });
   } catch (err) {
-    console.error('[modules] Reconciliation failed:', err);
+    logger.error({ err }, '[modules] Reconciliation failed:');
     return res.status(500).json({
       error: err instanceof Error ? err.message : 'Module reconciliation failed',
     });
@@ -647,7 +656,7 @@ modulesRouter.put('/:id/config', async (req, res) => {
 
     return res.json({ success: true, config: mergedConfig });
   } catch (err) {
-    console.error('[modules] Config update failed:', err);
+    logger.error({ err }, '[modules] Config update failed:');
     return res.status(500).json({
       error: err instanceof Error ? err.message : 'Failed to save config',
     });
@@ -748,7 +757,7 @@ modulesRouter.post('/:id/enable', async (req, res) => {
             try { await prevMod.config.onDisable(); } catch { /* non-critical */ }
           }
 
-          console.log(`[modules] Auto-disabled previous theme module: ${(prev as Record<string, unknown>).id}`);
+          logger.info(`[modules] Auto-disabled previous theme module: ${(prev as Record<string, unknown>).id}`);
         }
       }
     }
@@ -833,7 +842,7 @@ modulesRouter.post('/:id/enable', async (req, res) => {
             })
             .eq('id', moduleId);
         } catch (snapErr) {
-          console.error('[modules] Live snapshot install failed:', snapErr);
+          logger.error({ snapErr }, '[modules] Live snapshot install failed:');
           return res.status(500).json({
             error: {
               code: 'SNAPSHOT_INSTALL_FAILED',
@@ -858,7 +867,7 @@ modulesRouter.post('/:id/enable', async (req, res) => {
         edgeFunctionsDeployed = [...deployResult.copied, ...deployResult.deployed].map((r) => r.functionName);
 
         if (deployResult.errors.length > 0) {
-          console.warn('[modules] Edge function deployment warnings:', deployResult.errors);
+          logger.warn({ data: deployResult.errors }, '[modules] Edge function deployment warnings:');
         }
       }
 
@@ -883,7 +892,7 @@ modulesRouter.post('/:id/enable', async (req, res) => {
           reason: `enable:${moduleId}`,
         });
       } catch (rebuildErr) {
-        console.warn('[modules] Rebuild trigger failed:', rebuildErr);
+        logger.warn({ rebuildErr }, '[modules] Rebuild trigger failed:');
       }
     }
 
@@ -894,7 +903,7 @@ modulesRouter.post('/:id/enable', async (req, res) => {
       rebuildCounter,
     });
   } catch (err) {
-    console.error('[modules] Enable failed:', err);
+    logger.error({ err }, '[modules] Enable failed:');
     return res.status(500).json({
       error: err instanceof Error ? err.message : 'Failed to enable module',
     });
@@ -906,7 +915,7 @@ modulesRouter.post('/:id/enable', async (req, res) => {
  * entry in MODULE_SOURCES should be symlinked into the live tree rather
  * than copied, so HMR/dev workflows pick up in-place edits.
  */
-function isLocalPathSource(resolvedDir: string, configSources: unknown[]): boolean {
+function isLocalPathSource(resolvedDir: string, _configSources: unknown[]): boolean {
   // Any local absolute path MODULE_SOURCES entry produces a resolvedDir
   // that matches one of those mount points. Git sources resolve under
   // .gatewaze-sources/<slug>/ or /<reponame>/.
@@ -990,7 +999,7 @@ modulesRouter.post('/:id/disable', async (req, res) => {
         .update({ source_snapshot_hash: null, snapshot_taken_at: null })
         .eq('id', moduleId);
     } catch (snapErr) {
-      console.warn('[modules] Live snapshot removal warning:', snapErr);
+      logger.warn({ snapErr }, '[modules] Live snapshot removal warning:');
     }
 
     // Clear any pending update row.
@@ -1007,12 +1016,12 @@ modulesRouter.post('/:id/disable', async (req, res) => {
         reason: `disable:${moduleId}`,
       });
     } catch (rebuildErr) {
-      console.warn('[modules] Rebuild trigger failed:', rebuildErr);
+      logger.warn({ rebuildErr }, '[modules] Rebuild trigger failed:');
     }
 
     return res.json({ success: true, rebuildCounter });
   } catch (err) {
-    console.error('[modules] Disable failed:', err);
+    logger.error({ err }, '[modules] Disable failed:');
     return res.status(500).json({
       error: err instanceof Error ? err.message : 'Failed to disable module',
     });
@@ -1059,7 +1068,7 @@ modulesRouter.get('/available', async (_req, res) => {
     });
     return res.json({ modules: available });
   } catch (err) {
-    console.error('[modules] Failed to load available modules:', err);
+    logger.error({ err }, '[modules] Failed to load available modules:');
     return res.status(500).json({
       error: err instanceof Error ? err.message : 'Failed to load modules',
     });
@@ -1166,7 +1175,7 @@ modulesRouter.get('/check-updates', async (_req, res) => {
 
     return res.json({ updates, platformVersion: config.platformVersion });
   } catch (err) {
-    console.error('[modules] Check updates failed:', err);
+    logger.error({ err }, '[modules] Check updates failed:');
     return res.status(500).json({
       error: err instanceof Error ? err.message : 'Failed to check updates',
     });
@@ -1288,7 +1297,10 @@ modulesRouter.post('/:id/update', async (req, res) => {
     }
 
     const reason = hasVersionUpdate ? 'version' : 'edge_functions_changed';
-    console.log(`[modules] Updated "${mod.config.name}" (${reason})${hasVersionUpdate ? ` v${previousVersion} → v${mod.config.version}` : ' (edge functions redeployed)'}`);
+    logger.info(
+      { module: mod.config.id, reason, previousVersion, version: mod.config.version, hasVersionUpdate },
+      '[modules] updated',
+    );
 
     return res.json({
       success: true,
@@ -1302,7 +1314,7 @@ modulesRouter.post('/:id/update', async (req, res) => {
       edgeFunctionsDeployed,
     });
   } catch (err) {
-    console.error('[modules] Update failed:', err);
+    logger.error({ err }, '[modules] Update failed:');
     return res.status(500).json({
       error: err instanceof Error ? err.message : 'Failed to update module',
     });
@@ -1409,7 +1421,7 @@ modulesRouter.post('/update-all', async (_req, res) => {
       edgeFunctionsDeployed,
     });
   } catch (err) {
-    console.error('[modules] Update all failed:', err);
+    logger.error({ err }, '[modules] Update all failed:');
     return res.status(500).json({
       error: err instanceof Error ? err.message : 'Failed to update modules',
     });
@@ -1517,13 +1529,27 @@ modulesRouter.post('/sources', async (req, res) => {
       }
     }
 
+    // Validate branch name. The branch flows into a git invocation later
+    // (sources/refresh). Even with safeExec we keep this gate so DB-poisoned
+    // branches never reach the wrapper.
+    const trimmedBranch = branch?.trim();
+    if (trimmedBranch && !BRANCH_RE.test(trimmedBranch)) {
+      return res.status(400).json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Branch name contains invalid characters',
+          details: { field: 'branch' },
+        },
+      });
+    }
+
     const supabase = createClient(supabaseUrl, serviceRoleKey);
     const { data, error } = await supabase
       .from('module_sources')
       .insert({
         url: url.trim(),
         path: path?.trim() || null,
-        branch: branch?.trim() || null,
+        branch: trimmedBranch || null,
         label: label?.trim() || null,
         token: token?.trim() || null,
         origin: 'user',
@@ -1592,7 +1618,7 @@ modulesRouter.delete('/sources/:id', async (req, res) => {
         error: {
           code: 'SOURCE_IN_USE',
           message: `Cannot delete source: ${usingModules.length} installed module(s) reference it. Disable them first.`,
-          details: { modules: usingModules.map((m: any) => ({ id: m.module_id, status: m.status })) },
+          details: { modules: (usingModules as Array<{ module_id: string; status: string }>).map((m) => ({ id: m.module_id, status: m.status })) },
         },
       });
     }
@@ -1649,12 +1675,16 @@ modulesRouter.post('/sources/refresh', async (_req, res) => {
       const { sourcesRoot: srcRoot, repoSlug: slugFn } = await import('@gatewaze/shared/modules');
       const repoDir = resolve(srcRoot(), slugFn(url));
       try {
+        // Defense-in-depth: revalidate branch from the DB before passing to git.
+        // BRANCH_RE was applied at write time, but if a row was inserted before
+        // this gate landed, refuse to act.
+        validateBranch(branch);
         if (existsSync(resolve(repoDir, '.git'))) {
-          execSync(`git -C "${repoDir}" fetch --depth 1 origin "${branch}"`, { stdio: 'pipe' });
-          execSync(`git -C "${repoDir}" reset --hard "origin/${branch}"`, { stdio: 'pipe' });
+          safeExec('git', ['-C', repoDir, 'fetch', '--depth', '1', 'origin', branch]);
+          safeExec('git', ['-C', repoDir, 'reset', '--hard', `origin/${branch}`]);
         } else {
           mkdirSync(srcRoot(), { recursive: true });
-          execSync(`git clone --depth 1 --branch "${branch}" "${url}" "${repoDir}"`, { stdio: 'pipe' });
+          safeExec('git', ['clone', '--depth', '1', '--branch', branch, url, repoDir]);
         }
       } catch (cloneErr) {
         const message = cloneErr instanceof Error ? cloneErr.message : String(cloneErr);
@@ -1722,7 +1752,7 @@ modulesRouter.post('/sources/refresh', async (_req, res) => {
       errors,
     });
   } catch (err) {
-    console.error('[modules] Sources refresh failed:', err);
+    logger.error({ err }, '[modules] Sources refresh failed:');
     return res.status(500).json({
       error: { code: 'INTERNAL_ERROR', message: err instanceof Error ? err.message : 'Failed to refresh sources' },
     });
@@ -1869,7 +1899,7 @@ modulesRouter.post('/:id/apply-update', async (req, res) => {
       startedAt: snap.installedAt,
     });
   } catch (err) {
-    console.error('[modules] apply-update failed:', err);
+    logger.error({ err }, '[modules] apply-update failed:');
     return res.status(500).json({
       error: { code: 'INTERNAL_ERROR', message: err instanceof Error ? err.message : 'Failed to apply update' },
     });
@@ -1956,42 +1986,51 @@ modulesRouter.post('/upload', upload.single('file'), async (req, res) => {
     const extractDir = resolve(UPLOAD_DIR, `.tmp-${Date.now()}`);
     mkdirSync(extractDir, { recursive: true });
 
-    try {
-      execSync(`unzip -o "${file.path}" -d "${extractDir}"`, { stdio: 'pipe' });
-    } catch {
-      // Clean up on extraction failure
-      execSync(`rm -rf "${extractDir}"`, { stdio: 'pipe' });
-      unlinkSync(file.path);
-      return res.status(400).json({ error: 'Failed to extract zip file' });
-    }
+    const cleanupExtract = (): void => {
+      try { rmSync(extractDir, { recursive: true, force: true }); } catch { /* best-effort */ }
+    };
 
-    // Security: validate no path traversal in extracted files
+    // Validate zip manifest BEFORE extraction (closes the TOCTOU at the
+    // previous unzip → unzip -l → find sequence). Reject any entry whose
+    // resolved path escapes extractDir, plus symlink entries.
+    let zip: AdmZip;
     try {
-      const listOutput = execSync(`unzip -l "${file.path}"`, { stdio: 'pipe' }).toString();
-      if (listOutput.includes('../') || listOutput.includes('..\\')) {
-        execSync(`rm -rf "${extractDir}"`, { stdio: 'pipe' });
+      zip = new AdmZip(file.path);
+    } catch {
+      cleanupExtract();
+      unlinkSync(file.path);
+      return res.status(400).json({ error: 'Failed to read zip file' });
+    }
+    const resolvedExtractDir = resolve(extractDir);
+    for (const entry of zip.getEntries()) {
+      const entryName = entry.entryName;
+      if (entryName.includes('..') || entryName.startsWith('/') || entryName.startsWith('\\')) {
+        cleanupExtract();
         unlinkSync(file.path);
         return res.status(400).json({ error: 'Zip file contains path traversal sequences' });
       }
-    } catch {
-      // If we can't list the zip, the extraction above would have also failed
-    }
-
-    // Security: verify all extracted files are within the extraction directory
-    try {
-      const findOutput = execSync(`find "${extractDir}" -type f`, { stdio: 'pipe' }).toString();
-      const resolvedExtractDir = resolve(extractDir);
-      const hasEscape = findOutput.split('\n').some((f) => {
-        if (!f.trim()) return false;
-        return !resolve(f).startsWith(resolvedExtractDir);
-      });
-      if (hasEscape) {
-        execSync(`rm -rf "${extractDir}"`, { stdio: 'pipe' });
+      const resolved = resolve(extractDir, entryName);
+      if (!resolved.startsWith(resolvedExtractDir + '/') && resolved !== resolvedExtractDir) {
+        cleanupExtract();
         unlinkSync(file.path);
         return res.status(400).json({ error: 'Zip file contains files outside extraction directory' });
       }
+      // adm-zip exposes attr in the central directory; high bits 0xA000 signal symlinks.
+      const attr = (entry.header as { attr?: number }).attr ?? 0;
+      if ((attr & 0xa0000000) === 0xa0000000) {
+        cleanupExtract();
+        unlinkSync(file.path);
+        return res.status(400).json({ error: 'Zip file contains symlink entries' });
+      }
+    }
+
+    // Manifest is safe — extract.
+    try {
+      zip.extractAllTo(extractDir, /* overwrite */ true);
     } catch {
-      // find failure is non-fatal — extraction was already successful
+      cleanupExtract();
+      unlinkSync(file.path);
+      return res.status(400).json({ error: 'Failed to extract zip file' });
     }
 
     // Find the module directory (may be nested one level inside the zip)
@@ -2004,7 +2043,7 @@ modulesRouter.post('/upload', upload.single('file'), async (req, res) => {
     }
 
     if (!existsSync(resolve(moduleDir, 'index.ts'))) {
-      execSync(`rm -rf "${extractDir}"`, { stdio: 'pipe' });
+      cleanupExtract();
       unlinkSync(file.path);
       return res.status(400).json({
         error: 'Invalid module: no index.ts found in zip root',
@@ -2019,13 +2058,13 @@ modulesRouter.post('/upload', upload.single('file'), async (req, res) => {
     // Move to final location
     const finalDir = resolve(UPLOAD_DIR, slug);
     if (existsSync(finalDir)) {
-      execSync(`rm -rf "${finalDir}"`, { stdio: 'pipe' });
+      rmSync(finalDir, { recursive: true, force: true });
     }
-    execSync(`mv "${moduleDir}" "${finalDir}"`, { stdio: 'pipe' });
+    renameSync(moduleDir, finalDir);
 
     // Clean up temp
     if (existsSync(extractDir)) {
-      execSync(`rm -rf "${extractDir}"`, { stdio: 'pipe' });
+      rmSync(extractDir, { recursive: true, force: true });
     }
     unlinkSync(file.path);
 
@@ -2133,7 +2172,7 @@ modulesRouter.post('/invoke-function/:name', async (req, res) => {
 
     return res.status(response.status).json(body);
   } catch (err) {
-    console.error(`[modules] Edge function invoke failed:`, err);
+    logger.error({ err }, `[modules] Edge function invoke failed:`);
     return res.status(502).json({
       error: err instanceof Error ? err.message : 'Failed to invoke edge function',
     });

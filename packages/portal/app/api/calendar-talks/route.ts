@@ -25,7 +25,7 @@ function errorResponse(status: number, code: string, message: string, details: R
 }
 
 export async function POST(request: NextRequest) {
-  let body: any
+  let body: { calendar_slug?: string; [key: string]: unknown }
   try {
     body = await request.json()
   } catch {

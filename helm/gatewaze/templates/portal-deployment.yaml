@@ -24,7 +24,7 @@ spec:
       serviceAccountName: {{ include "gatewaze.serviceAccountName" . }}
       containers:
         - name: portal
-          image: "{{ .Values.image.registry }}/portal:{{ .Values.image.tag }}"
+          image: "{{ .Values.image.registry }}/portal:{{ include "gatewaze.imageTag" . }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http

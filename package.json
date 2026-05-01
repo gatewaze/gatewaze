@@ -20,7 +20,16 @@
     "test": "pnpm --filter @gatewaze/* test",
     "test:watch": "pnpm --filter @gatewaze/* test:watch",
     "modules:migrate": "tsx scripts/modules/run-migrations.ts",
-    "modules:deploy-functions": "tsx scripts/modules/deploy-functions.ts"
+    "modules:deploy-functions": "tsx scripts/modules/deploy-functions.ts",
+    "prepare": "husky || true"
+  },
+  "lint-staged": {
+    "packages/admin/src/**/*.{ts,tsx}": [
+      "pnpm --filter @gatewaze/admin exec eslint --fix"
+    ],
+    "packages/api/src/**/*.{ts,tsx}": [
+      "pnpm --filter @gatewaze/api exec eslint --fix"
+    ]
   },
   "engines": {
     "node": ">=20.0.0",
@@ -31,10 +40,20 @@
       "esbuild",
       "msgpackr-extract",
       "sharp"
-    ]
+    ],
+    "overrides": {
+      "undici@>=7.0.0 <7.24.0": "^7.24.0",
+      "fast-xml-parser@>=5.0.0 <5.5.6": "^5.5.6",
+      "flatted@<=3.4.1": "^3.4.2",
+      "picomatch@>=4.0.0 <4.0.4": "^4.0.4",
+      "path-to-regexp@<0.1.13": "^0.1.13",
+      "highlight.js@<10.4.1": "^11.10.0"
+    }
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.5.0",
     "vitest": "^4.1.0"
   },
   "dependencies": {

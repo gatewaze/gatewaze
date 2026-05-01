@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import ImageGallery from 'react-image-gallery'
 import 'react-image-gallery/styles/image-gallery.css'
+import Image from 'next/image'
 import { getClientBrandConfig, isLightColor } from '@/config/brand'
 import { useEventContext } from './EventContext'
 import { GlowBorder } from '@/components/ui/GlowBorder'
@@ -704,10 +705,12 @@ export function MediaContent() {
                   className="relative aspect-video rounded-xl overflow-hidden cursor-pointer border-0 p-0 bg-black transition-all duration-200 hover:scale-[1.02] hover:shadow-[0_8px_24px_rgba(0,0,0,0.15)]"
                   onClick={() => { setCurrentVideoIndex(index); setShowVideoLightbox(true) }}
                 >
-                  <img
+                  <Image
                     src={getYouTubeThumbnail(videoId)}
                     alt={video.caption || 'Video thumbnail'}
-                    className="w-full h-full object-cover"
+                    fill
+                    sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+                    className="object-cover"
                   />
                   <div className="absolute inset-0 flex items-center justify-center pb-10 bg-gradient-to-b from-black/5 to-black/15 hover:from-black/10 hover:to-black/25 transition-all">
                     <svg className="w-12 h-12 text-white" fill="currentColor" viewBox="0 0 24 24">

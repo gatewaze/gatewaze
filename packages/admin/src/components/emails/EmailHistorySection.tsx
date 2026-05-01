@@ -73,10 +73,10 @@ interface UnifiedEmail {
 
 interface EmailHistorySectionProps {
   customerEmail: string;
-  customerId?: number;
+  personId?: string;
 }
 
-export function EmailHistorySection({ customerEmail, customerId }: EmailHistorySectionProps) {
+export function EmailHistorySection({ customerEmail, personId }: EmailHistorySectionProps) {
   const hasCIO = useHasModule('customerio');
   const [emails, setEmails] = useState<UnifiedEmail[]>([]);
   const [loading, setLoading] = useState(true);
@@ -93,7 +93,7 @@ export function EmailHistorySection({ customerEmail, customerId }: EmailHistoryS
 
   useEffect(() => {
     fetchEmails();
-  }, [customerEmail, customerId]);
+  }, [customerEmail, personId]);
 
   const fetchEmails = async () => {
     setLoading(true);
@@ -104,8 +104,8 @@ export function EmailHistorySection({ customerEmail, customerId }: EmailHistoryS
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (customerId) {
-        sendgridQuery = sendgridQuery.eq('recipient_customer_id', customerId);
+      if (personId) {
+        sendgridQuery = sendgridQuery.eq('recipient_customer_id', personId);
       } else {
         sendgridQuery = sendgridQuery.ilike('recipient_email', customerEmail);
       }

@@ -180,10 +180,10 @@ export class BlogCategoriesService {
         success: true,
         data: data || []
       };
-    } catch (error: any) {
+    } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       };
     }
   }
@@ -202,10 +202,10 @@ export class BlogCategoriesService {
         success: true,
         data
       };
-    } catch (error: any) {
+    } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       };
     }
   }
@@ -232,10 +232,10 @@ export class BlogCategoriesService {
         data,
         message: 'Category created successfully'
       };
-    } catch (error: any) {
+    } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       };
     }
   }
@@ -265,10 +265,10 @@ export class BlogCategoriesService {
         data,
         message: 'Category updated successfully'
       };
-    } catch (error: any) {
+    } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       };
     }
   }
@@ -298,11 +298,11 @@ export class BlogCategoriesService {
         success: true,
         message: 'Category deleted successfully'
       };
-    } catch (error: any) {
+    } catch (error) {
       console.error('Delete category error:', error);
       return {
         success: false,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       };
     }
   }
@@ -323,10 +323,10 @@ export class BlogTagsService {
         success: true,
         data: data || []
       };
-    } catch (error: any) {
+    } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       };
     }
   }
@@ -352,10 +352,10 @@ export class BlogTagsService {
         data,
         message: 'Tag created successfully'
       };
-    } catch (error: any) {
+    } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       };
     }
   }
@@ -384,10 +384,10 @@ export class BlogTagsService {
         data,
         message: 'Tag updated successfully'
       };
-    } catch (error: any) {
+    } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       };
     }
   }
@@ -408,11 +408,11 @@ export class BlogTagsService {
         success: true,
         message: 'Tag deleted successfully'
       };
-    } catch (error: any) {
+    } catch (error) {
       console.error('Delete tag error:', error);
       return {
         success: false,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       };
     }
   }
@@ -469,17 +469,17 @@ export class BlogPostsService {
       // Transform the nested tags structure
       const posts = (data || []).map(post => ({
         ...post,
-        tags: post.tags?.map((pt: any) => pt.tag) || []
+        tags: post.tags?.map((pt: { tag: unknown }) => pt.tag) || []
       }));
 
       return {
         success: true,
         data: posts
       };
-    } catch (error: any) {
+    } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       };
     }
   }
@@ -501,17 +501,17 @@ export class BlogPostsService {
       // Transform the nested tags structure
       const post = {
         ...data,
-        tags: data.tags?.map((pt: any) => pt.tag) || []
+        tags: data.tags?.map((pt: { tag: unknown }) => pt.tag) || []
       };
 
       return {
         success: true,
         data: post
       };
-    } catch (error: any) {
+    } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       };
     }
   }
@@ -557,10 +557,10 @@ export class BlogPostsService {
         data,
         message: 'Blog post created successfully'
       };
-    } catch (error: any) {
+    } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       };
     }
   }
@@ -611,10 +611,10 @@ export class BlogPostsService {
         data,
         message: 'Blog post updated successfully'
       };
-    } catch (error: any) {
+    } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       };
     }
   }
@@ -632,10 +632,10 @@ export class BlogPostsService {
         success: true,
         message: 'Blog post deleted successfully'
       };
-    } catch (error: any) {
+    } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       };
     }
   }
@@ -704,7 +704,7 @@ export class BlogPostsService {
       // Transform the nested tags structure and filter by tag if needed
       let posts = (data || []).map(post => ({
         ...post,
-        tags: post.tags?.map((pt: any) => pt.tag) || []
+        tags: post.tags?.map((pt: { tag: unknown }) => pt.tag) || []
       }));
 
       // Filter by tag slug if provided (since we can't do this in the query easily)
@@ -718,10 +718,10 @@ export class BlogPostsService {
         success: true,
         data: posts
       };
-    } catch (error: any) {
+    } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       };
     }
   }
@@ -738,10 +738,10 @@ export class BlogPostsService {
       return {
         success: true
       };
-    } catch (error: any) {
+    } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       };
     }
   }

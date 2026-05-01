@@ -1,0 +1,41 @@
+# Optional overlay: nightly pg_dump cron container that writes to a
+# host-mounted volume. Per spec §5.5, the docker-compose path is best-
+# effort; operators with stricter RPO needs should use the k8s
+# pgbackrest CronJob via the Helm chart.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.backup.yml up -d
+#
+# Env:
+#   BACKUP_DIR              host path to write dumps to (required)
+#   BACKUP_SCHEDULE         cron expression (default "0 2 * * *")
+#   POSTGRES_PASSWORD       password for the postgres user
+#   POSTGRES_DB             database name (default "postgres")
+
+services:
+  pg-backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    depends_on:
+      - supabase-db
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGUSER: ${POSTGRES_USER:-postgres}
+      PGHOST: supabase-db
+      PGDATABASE: ${POSTGRES_DB:-postgres}
+      BACKUP_SCHEDULE: ${BACKUP_SCHEDULE:-0 2 * * *}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -euo pipefail
+        # Install cron if missing.
+        apk add --no-cache dcron tzdata >/dev/null
+        # Compose the cron entry.
+        echo "${BACKUP_SCHEDULE} pg_dump -Fc -f /backups/gatewaze-\\$(date +\\%Y\\%m\\%d-\\%H\\%M).dump 2>>/var/log/backup.log" > /etc/crontabs/root
+        # Run cron in foreground.
+        touch /var/log/backup.log
+        echo "[pg-backup] schedule=${BACKUP_SCHEDULE} dest=/backups"
+        crond -f -d 8 &
+        tail -f /var/log/backup.log
+    volumes:
+      - ${BACKUP_DIR:-./backups}:/backups

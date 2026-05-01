@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import type { Event } from '@/types/event'
 import type { BrandConfig } from '@/config/brand'
 import { GlowBorder } from '@/components/ui/GlowBorder'
@@ -165,34 +166,19 @@ export function EventHero({ event, brandConfig, useDarkText, heroRef }: Props) {
   const [startTime, setStartTime] = useState(() => formatTimeSSR(event.event_start))
   const [endTime, setEndTime] = useState(() => event.event_end ? formatTimeSSR(event.event_end) : '')
 
-  // Track image aspect ratio for natural sizing
+  // Track image aspect ratio for natural sizing. Default to 1 (square)
+  // until the image's natural dimensions resolve via next/image's
+  // onLoadingComplete callback. Layout-shift budget: the container is
+  // square initially, so the visible jump is minimal even on a tall
+  // hero image.
   const [imageAspectRatio, setImageAspectRatio] = useState<number | null>(null)
-  const imageRef = useRef<HTMLImageElement>(null)
   const imageUrl = event.event_logo || event.screenshot_url || ''
+  const imageContainerRef = useRef<HTMLDivElement>(null)
 
+  // Reset aspect ratio when image URL changes (parent component
+  // reloading with a new event).
   useEffect(() => {
-    // Reset aspect ratio when image URL changes
     setImageAspectRatio(null)
-
-    if (!imageUrl) return
-
-    const img = imageRef.current
-    if (!img) return
-
-    const updateAspectRatio = () => {
-      if (img.naturalWidth && img.naturalHeight) {
-        setImageAspectRatio(img.naturalWidth / img.naturalHeight)
-      }
-    }
-
-    // If image is already loaded (cached), get dimensions immediately
-    if (img.complete && img.naturalWidth) {
-      updateAspectRatio()
-    } else {
-      // Otherwise wait for load event
-      img.addEventListener('load', updateAspectRatio)
-      return () => img.removeEventListener('load', updateAspectRatio)
-    }
   }, [imageUrl])
 
   useEffect(() => {
@@ -242,14 +228,25 @@ export function EventHero({ event, brandConfig, useDarkText, heroRef }: Props) {
               className="block w-full transition-transform hover:scale-[1.02]"
             >
               <GlowBorder useDarkTheme={useDarkText} className="" autoRotate autoRotateSpeed={50}>
-                <div className={`rounded-2xl overflow-hidden ${theme.imageBorder}`}>
-                  <img
-                    ref={imageRef}
+                <div
+                  ref={imageContainerRef}
+                  className={`relative rounded-2xl overflow-hidden ${theme.imageBorder}`}
+                  style={{
+                    aspectRatio: imageAspectRatio ? `${imageAspectRatio}` : '1',
+                  }}
+                >
+                  <Image
                     src={imageUrl}
                     alt={stripEmojis(event.event_title)}
-                    className="w-full h-auto"
-                    style={{
-                      aspectRatio: imageAspectRatio ? `${imageAspectRatio}` : undefined,
+                    fill
+                    sizes="(min-width: 1024px) 320px, 100vw"
+                    className="object-cover"
+                    priority
+                    onLoad={(e) => {
+                      const img = e.target as HTMLImageElement
+                      if (img.naturalWidth && img.naturalHeight) {
+                        setImageAspectRatio(img.naturalWidth / img.naturalHeight)
+                      }
                     }}
                   />
                 </div>
@@ -269,11 +266,15 @@ export function EventHero({ event, brandConfig, useDarkText, heroRef }: Props) {
                   }}
                 >
                   {brandConfig.faviconUrl ? (
-                    <img
-                      src={brandConfig.faviconUrl}
-                      alt={stripEmojis(event.event_title)}
-                      className="w-3/5 h-3/5 object-contain"
-                    />
+                    <div className="relative w-3/5 h-3/5">
+                      <Image
+                        src={brandConfig.faviconUrl}
+                        alt={stripEmojis(event.event_title)}
+                        fill
+                        sizes="(min-width: 1024px) 192px, 60vw"
+                        className="object-contain"
+                      />
+                    </div>
                   ) : (
                     <span className={`text-6xl font-bold ${theme.fallbackTextColor}`}>{stripEmojis(event.event_title).charAt(0)}</span>
                   )}

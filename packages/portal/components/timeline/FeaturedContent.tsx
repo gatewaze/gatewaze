@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import type { Event } from '@/types/event'
 import type { BrandConfig, ContentCategoryOption } from '@/config/brand'
 import { isLightColor } from '@/config/brand'
@@ -26,10 +27,12 @@ interface Props {
  */
 export function FeaturedContent({ events, brandConfig, userLocation }: Props) {
   const categories = brandConfig.contentCategories
-  if (!categories || categories.length === 0) return null
 
-  // Find the highest-priority category that has at least one upcoming event
+  // Find the highest-priority category that has at least one upcoming event.
+  // Hook must run unconditionally — the empty-categories check moved below
+  // so we don't violate rules-of-hooks if categories ever flips at runtime.
   const featured = useMemo(() => {
+    if (!categories || categories.length === 0) return null
     for (const category of categories) {
       const matching = events.filter((e) => e.content_category === category.value)
       if (matching.length === 0) continue
@@ -173,8 +176,14 @@ function FeaturedCard({
 
           {/* Image */}
           {imageUrl && (
-            <div className="flex-shrink-0 w-full sm:w-48 lg:w-64 h-32 sm:h-auto">
-              <img src={imageUrl} alt="" className="w-full h-full object-cover" />
+            <div className="relative flex-shrink-0 w-full sm:w-48 lg:w-64 h-32 sm:h-auto sm:min-h-32 overflow-hidden">
+              <Image
+                src={imageUrl}
+                alt=""
+                fill
+                sizes="(min-width: 1024px) 256px, (min-width: 640px) 192px, 100vw"
+                className="object-cover"
+              />
             </div>
           )}
         </div>

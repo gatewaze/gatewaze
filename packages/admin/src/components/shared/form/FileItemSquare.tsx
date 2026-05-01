@@ -8,7 +8,7 @@ import { Button } from "@/components/ui";
 
 interface FileItemSquareProps {
   file: File;
-  handleRemove: (e: any) => void;
+  handleRemove: (e: React.MouseEvent<HTMLButtonElement>) => void;
   className?: string;
 }
 

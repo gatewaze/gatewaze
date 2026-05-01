@@ -225,6 +225,20 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // Allowlist for rsvp_status — the value lands directly in
+      // invite_party_member_events.rsvp_status, so any string the caller
+      // sends would persist. Reject early if the value isn't one of the
+      // three states the rest of the pipeline reads.
+      const VALID_RSVP_STATUSES = new Set(['accepted', 'declined', 'pending'])
+      for (const r of responses) {
+        if (!VALID_RSVP_STATUSES.has(r.rsvp_status)) {
+          return NextResponse.json(
+            { error: 'INVALID_RSVP_STATUS', message: `rsvp_status must be one of: accepted, declined, pending` },
+            { status: 400 },
+          )
+        }
+      }
+
       // Apply RSVP updates
       const acceptedMembers = new Set<string>()
       const declinedMembers = new Set<string>()
@@ -351,9 +365,14 @@ export async function POST(req: NextRequest) {
           : (po.event_ids || []).map(e => ({ event_id: e, sub_event_id: null }))
 
         for (const a of assignments) {
-          const rsvpStatus = po.rsvp_statuses?.[`${a.event_id}|${a.sub_event_id ?? ''}`]
+          const rawStatus = po.rsvp_statuses?.[`${a.event_id}|${a.sub_event_id ?? ''}`]
             || po.rsvp_statuses?.[a.event_id]
             || 'accepted'
+          // Allowlist guard — see VALID_RSVP_STATUSES above. Any value
+          // that isn't a known state silently coerces to 'accepted' so the
+          // plus-one row is still created with a sane state instead of
+          // persisting attacker-supplied values.
+          const rsvpStatus = VALID_RSVP_STATUSES.has(rawStatus) ? rawStatus : 'accepted'
           const { data: newMemberEvent } = await getSupabase()
             .from('invite_party_member_events')
             .insert({

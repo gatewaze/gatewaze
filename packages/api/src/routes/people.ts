@@ -1,12 +1,17 @@
-import { Router } from 'express';
-import { getSupabase } from '../lib/supabase.js';
+// User-scoped Supabase per spec §5.1. The v1 people RLS lets admins
+// see all rows + users see their own; v2 scopes by account_in_scope.
+import { getRequestSupabase } from '../lib/supabase.js';
+import { labeledRouter } from '../lib/router-registry.js';
+import { requireJwt } from '../lib/auth/require-jwt.js';
+import { logger } from '../lib/logger.js';
 
-export const peopleRouter = Router();
+export const peopleRouter = labeledRouter('jwt');
+peopleRouter.use(requireJwt());
 
 // List people with search and pagination
 peopleRouter.get('/', async (req, res) => {
   try {
-    const supabase = getSupabase();
+    const supabase = getRequestSupabase(req);
     const page = parseInt(req.query.page as string) || 1;
     const limit = Math.min(parseInt(req.query.limit as string) || 25, 100);
     const search = req.query.search as string;
@@ -19,9 +24,17 @@ peopleRouter.get('/', async (req, res) => {
       .range((page - 1) * limit, page * limit - 1);
 
     if (search) {
-      query = query.or(
-        `email.ilike.%${search}%,attributes->>first_name.ilike.%${search}%,attributes->>last_name.ilike.%${search}%,attributes->>company.ilike.%${search}%`
-      );
+      // PostgREST .or() takes a comma-separated filter string. Strip
+      // characters that have meaning in that grammar before interpolating
+      // — without this, a search value containing a `,` or `(` can inject
+      // additional disjunction clauses (e.g. `%x%,id.gt.0` would return
+      // every row in the table).
+      const safe = search.replace(/[,()*\\]/g, '').slice(0, 100);
+      if (safe) {
+        query = query.or(
+          `email.ilike.%${safe}%,attributes->>first_name.ilike.%${safe}%,attributes->>last_name.ilike.%${safe}%,attributes->>company.ilike.%${safe}%`
+        );
+      }
     }
 
     if (status) query = query.eq('status', status);
@@ -31,7 +44,7 @@ peopleRouter.get('/', async (req, res) => {
 
     res.json({ data, total: count, page, limit });
   } catch (err) {
-    console.error('Error fetching people:', err);
+    logger.error({ err }, 'failed to fetch people');
     res.status(500).json({ error: 'Failed to fetch people' });
   }
 });
@@ -39,7 +52,7 @@ peopleRouter.get('/', async (req, res) => {
 // Get single person
 peopleRouter.get('/:id', async (req, res) => {
   try {
-    const supabase = getSupabase();
+    const supabase = getRequestSupabase(req);
     const { data, error } = await supabase
       .from('people')
       .select('*')
@@ -51,25 +64,44 @@ peopleRouter.get('/:id', async (req, res) => {
 
     res.json(data);
   } catch (err) {
-    console.error('Error fetching person:', err);
+    logger.error({ err }, 'failed to fetch person');
     res.status(500).json({ error: 'Failed to fetch person' });
   }
 });
 
+// Allowlist of fields a POST /people caller may set. Internal columns
+// (account_id, created_at, auth_user_id, etc.) are deliberately excluded
+// — RLS shouldn't be the only line of defence against mass-assignment.
+const PERSON_WRITE_FIELDS = new Set([
+  'email',
+  'first_name',
+  'last_name',
+  'phone',
+  'attributes',
+  'status',
+  'is_guest',
+  'cio_id',
+]);
+
 // Create person
 peopleRouter.post('/', async (req, res) => {
   try {
-    const supabase = getSupabase();
+    const supabase = getRequestSupabase(req);
+    const body = (req.body && typeof req.body === 'object') ? req.body as Record<string, unknown> : {};
+    const insert: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(body)) {
+      if (PERSON_WRITE_FIELDS.has(k)) insert[k] = v;
+    }
     const { data, error } = await supabase
       .from('people')
-      .insert(req.body)
+      .insert(insert)
       .select()
       .single();
 
     if (error) throw error;
     res.status(201).json(data);
   } catch (err) {
-    console.error('Error creating person:', err);
+    logger.error({ err }, 'failed to create person');
     res.status(500).json({ error: 'Failed to create person' });
   }
 });
@@ -77,7 +109,7 @@ peopleRouter.post('/', async (req, res) => {
 // Update person
 peopleRouter.patch('/:id', async (req, res) => {
   try {
-    const supabase = getSupabase();
+    const supabase = getRequestSupabase(req);
     const { data, error } = await supabase
       .from('people')
       .update(req.body)
@@ -90,7 +122,7 @@ peopleRouter.patch('/:id', async (req, res) => {
 
     res.json(data);
   } catch (err) {
-    console.error('Error updating person:', err);
+    logger.error({ err }, 'failed to update person');
     res.status(500).json({ error: 'Failed to update person' });
   }
 });
@@ -98,7 +130,7 @@ peopleRouter.patch('/:id', async (req, res) => {
 // Delete person
 peopleRouter.delete('/:id', async (req, res) => {
   try {
-    const supabase = getSupabase();
+    const supabase = getRequestSupabase(req);
     const { error } = await supabase
       .from('people')
       .delete()
@@ -107,7 +139,7 @@ peopleRouter.delete('/:id', async (req, res) => {
     if (error) throw error;
     res.status(204).send();
   } catch (err) {
-    console.error('Error deleting person:', err);
+    logger.error({ err }, 'failed to delete person');
     res.status(500).json({ error: 'Failed to delete person' });
   }
 });

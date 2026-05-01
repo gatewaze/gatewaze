@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { checkRateLimit } from '@/lib/rate-limit'
 
 /**
  * Portal-internal API for the Open RSVP self-serve flow.
@@ -264,6 +265,21 @@ async function ensureRegistration(
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate-limit by client IP — this endpoint is public and creates
+    // invite_parties + people + (eventually) auth.users rows. Without a
+    // limit, an attacker can flood the people / auth tables and burn
+    // upstream email budget. 10 req/min/IP is generous for a real user
+    // submitting an RSVP form (one or two retries on validation errors)
+    // and tight enough that automated abuse trips quickly.
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+    const rateLimit = checkRateLimit(`open-rsvp:${ip}`, 10, 60_000)
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: 'RATE_LIMITED', message: 'Too many requests. Try again shortly.' },
+        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter ?? 60) } },
+      )
+    }
+
     const body = await req.json()
     const { action, code } = body
 
