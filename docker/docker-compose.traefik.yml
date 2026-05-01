@@ -10,15 +10,17 @@
 
 services:
   traefik:
-    image: traefik:v2.11
+    image: traefik:v3.5
     container_name: gatewaze-traefik
     restart: unless-stopped
     command:
       - "--api.insecure=true"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=traefik"
       - "--entrypoints.web.address=:80"
       - "--log.level=DEBUG"
+      - "--accesslog=true"
     ports:
       - "80:80"
       - "8080:8080"
