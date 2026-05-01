@@ -85,7 +85,12 @@ services:
       # Custom email templates (mounted via volume below). Removes the
       # OTP code block from the default magic-link template since the
       # portal UI doesn't offer a code entry surface.
-      GOTRUE_MAILER_TEMPLATES_MAGIC_LINK: /email-templates/magic_link.html
+      # MUST use the file:// scheme so GoTrue reads from the mounted
+      # volume; without a scheme, GoTrue treats the value as an HTTP
+      # path relative to SITE_URL and tries to fetch the template,
+      # which deadlocks the request with a 504 (the admin container
+      # does not serve /email-templates/).
+      GOTRUE_MAILER_TEMPLATES_MAGIC_LINK: file:///email-templates/magic_link.html
       GOTRUE_MAILER_SUBJECTS_MAGIC_LINK: ${MAGIC_LINK_SUBJECT:-Sign in to ${INSTANCE_NAME:-Gatewaze}}
     volumes:
       - ./supabase/email-templates:/email-templates:ro
