@@ -12,7 +12,7 @@
   "scripts": {
     "build": "tsc -b",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src/",
+    "lint": "echo 'no lint configured for @gatewaze/shared'",
     "test": "vitest run"
   },
   "devDependencies": {

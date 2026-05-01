@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+# pre-commit hook installed by husky. Runs lint-staged so only the
+# files in the commit are checked. CI runs the full lint + typecheck
+# + test matrix on the PR per .github/workflows/pr.yml.
+pnpm exec lint-staged

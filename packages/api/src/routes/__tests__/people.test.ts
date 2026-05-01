@@ -6,6 +6,8 @@ const mockSupabase = createMockSupabase();
 
 vi.mock('../../lib/supabase.js', () => ({
   getSupabase: () => mockSupabase.client,
+  getServiceSupabase: () => mockSupabase.client,
+  getRequestSupabase: () => mockSupabase.client,
 }));
 
 const { default: app } = await import('../../server.js');
@@ -23,7 +25,12 @@ describe('People API', () => {
       const res = await request(app).get('/api/people');
 
       expect(res.status).toBe(200);
-      expect(res.body.data).toEqual(people);
+      // Each row is enriched with HATEOAS _links.self; assert the
+      // domain fields and the link separately rather than deep-equal
+      // on the augmented shape.
+      expect(res.body.data).toHaveLength(1);
+      expect(res.body.data[0]).toMatchObject(people[0]);
+      expect(res.body.data[0]._links?.self?.href).toBe('/api/people/1');
       expect(res.body.total).toBe(1);
     });
 
@@ -35,6 +42,29 @@ describe('People API', () => {
       expect(mockSupabase.client.or).toHaveBeenCalledWith(
         expect.stringContaining('jane')
       );
+    });
+
+    it('strips PostgREST filter metacharacters from search', async () => {
+      mockSupabase.mockResult([], null, 0);
+
+      // Comma + paren + asterisk + backslash all need to be stripped
+      // before interpolating into .or() — otherwise the request can
+      // inject extra disjunction clauses (e.g. 'jane,id.gt.0' would
+      // become a top-level OR clause that returns every row).
+      await request(app).get(
+        '/api/people?search=' + encodeURIComponent('jane,id.gt.0(*\\)')
+      );
+
+      const orArg = mockSupabase.client.or.mock.calls[0]?.[0] as string;
+      expect(orArg).toBeDefined();
+      // Sanitised value is 'janeid.gt.0' — note: the surrounding
+      // .or(...) string legitimately contains commas as filter
+      // separators, so we look for the injection signature inside
+      // the ilike %...% patterns rather than against the whole string.
+      expect(orArg).toContain('%janeid.gt.0%');
+      expect(orArg).not.toContain('%jane,');
+      expect(orArg).not.toContain('(*');
+      expect(orArg).not.toContain('\\)');
     });
 
     it('filters by status', async () => {

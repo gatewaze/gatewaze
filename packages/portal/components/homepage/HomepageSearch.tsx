@@ -2,8 +2,8 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import type { BrandConfig } from '@/config/brand'
-import { isLightColor } from '@/config/brand'
 import { useUniversalSearch, type UniversalSearchResult } from '@/hooks/useUniversalSearch'
 
 interface Props {
@@ -139,8 +139,14 @@ function SearchResultItem({ result, brandConfig }: { result: UniversalSearchResu
            style={{ backgroundColor: `rgba(var(--panel-tint,0,0,0),var(--glass-opacity,0.05))`, border: `1px solid rgba(var(--panel-tint,0,0,0),var(--glass-border-opacity,0.1))` }}>
         {/* Image thumbnail */}
         {result.image_url ? (
-          <div className="flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden bg-white/5">
-            <img src={result.image_url} alt="" className="w-full h-full object-cover" />
+          <div className="relative flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden bg-white/5">
+            <Image
+              src={result.image_url}
+              alt=""
+              fill
+              sizes="48px"
+              className="object-cover"
+            />
           </div>
         ) : (
           <div

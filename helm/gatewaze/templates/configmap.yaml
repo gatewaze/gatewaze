@@ -71,6 +71,39 @@ data:
   SCHEDULER_METRICS_PORT: {{ .Values.scheduler.metricsPort | default 9091 | quote }}
   LOG_LEVEL: {{ .Values.logLevel | default "info" | quote }}
 
+  # Service auth — k8s ServiceAccount path (opt-in via auth.useK8sSA).
+  {{- if .Values.auth.useK8sSA }}
+  GATEWAZE_USE_K8S_SA: "1"
+  {{- if .Values.auth.k8sSAMap }}
+  GATEWAZE_K8S_SA_MAP: {{ .Values.auth.k8sSAMap | quote }}
+  {{- end }}
+  {{- end }}
+
+  # Sentry — opt-in. Empty SENTRY_DSN = no-op SDK. See spec §5.6.
+  {{- with .Values.monitoring.sentry }}
+  {{- if .dsn }}
+  SENTRY_DSN: {{ .dsn | quote }}
+  {{- end }}
+  SENTRY_ENVIRONMENT: {{ .environment | default "production" | quote }}
+  {{- if .release }}
+  SENTRY_RELEASE: {{ .release | quote }}
+  {{- end }}
+  SENTRY_TRACES_SAMPLE_RATE: {{ .tracesSampleRate | default "0" | quote }}
+  {{- end }}
+
+  # OpenTelemetry — opt-in via monitoring.otel.endpoint. See spec §5.6.
+  {{- with .Values.monitoring.otel }}
+  {{- if .endpoint }}
+  OTEL_EXPORTER_OTLP_ENDPOINT: {{ .endpoint | quote }}
+  {{- end }}
+  {{- if .resourceAttributes }}
+  OTEL_RESOURCE_ATTRIBUTES: {{ .resourceAttributes | quote }}
+  {{- end }}
+  {{- if .headers }}
+  OTEL_EXPORTER_OTLP_HEADERS: {{ .headers | quote }}
+  {{- end }}
+  {{- end }}
+
   # Arbitrary extra env from values.yaml `env:` block. Passed through
   # verbatim so brand-specific keys (BRAND_ID, OPENAI_API_KEY,
   # BROWSERLESS_API_KEY, BRAVE_SEARCH_API_KEY, etc.) land in pods via the

@@ -1,11 +1,18 @@
-import { Router } from 'express';
 import multer from 'multer';
 import { parse } from 'csv-parse';
 import { stringify } from 'csv-stringify';
+import { logger } from '../lib/logger.js';
+// SERVICE-ROLE OK: admin CSV import/export; bulk operations across
+// people, registrations, etc. need full table access. The bulk path
+// will continue to use service-role even after tenancy_v2 — admins
+// must be able to operate across all tenant rows they manage.
 import { getSupabase } from '../lib/supabase.js';
 import { Readable } from 'stream';
+import { labeledRouter } from '../lib/router-registry.js';
+import { requireJwt } from '../lib/auth/require-jwt.js';
 
-export const csvRouter = Router();
+export const csvRouter = labeledRouter('jwt');
+csvRouter.use(requireJwt());
 
 // Configure multer for in-memory file uploads (max 10MB)
 const upload = multer({
@@ -75,7 +82,7 @@ csvRouter.post('/import/people', upload.single('file'), async (req, res) => {
       errors: errors.length > 0 ? errors : undefined,
     });
   } catch (err) {
-    console.error('Error importing people CSV:', err);
+    logger.error({ err }, 'failed to import people csv');
     res.status(500).json({ error: 'Failed to import people' });
   }
 });
@@ -102,7 +109,15 @@ csvRouter.get('/export/people', async (req, res) => {
     }
 
     // Flatten attributes into top-level columns for CSV readability
-    const flatRows = data.map((row: any) => {
+    interface PersonRow {
+      id: string;
+      email: string;
+      attributes?: Record<string, string | undefined> | null;
+      auth_user_id?: string | null;
+      created_at: string;
+      updated_at: string;
+    }
+    const flatRows = (data as PersonRow[]).map((row) => {
       const attrs = row.attributes || {};
       return {
         id: row.id,
@@ -135,7 +150,7 @@ csvRouter.get('/export/people', async (req, res) => {
 
     stringifier.end();
   } catch (err) {
-    console.error('Error exporting people CSV:', err);
+    logger.error({ err }, 'failed to export people csv');
     res.status(500).json({ error: 'Failed to export people' });
   }
 });

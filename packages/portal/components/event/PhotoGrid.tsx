@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import Image from 'next/image'
 import { useEventContext } from './EventContext'
 
 interface Photo {
@@ -79,7 +80,10 @@ export function PhotoGrid({ photos, onPhotoClick }: PhotoGridProps) {
 
     const imagePromises = imagesToLoad.map((photo) => {
       return new Promise<void>((resolve) => {
-        const img = new Image()
+        // Use window.Image so we get the DOM constructor — the local
+        // `Image` symbol is `next/image` (a React component), which TS
+        // sees as missing the bare-call signature.
+        const img = new window.Image()
         img.onload = () => resolve()
         img.onerror = () => resolve()
         img.src = photo.media_url
@@ -143,10 +147,14 @@ export function PhotoGrid({ photos, onPhotoClick }: PhotoGridProps) {
             style={{ display: 'none', background: useDarkText ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)' }}
             onClick={() => onPhotoClick(index)}
           >
-            <img
+            <Image
               src={photo.media_url}
               alt={photo.caption || `Photo ${index + 1}`}
+              width={800}
+              height={600}
+              sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
               className="w-full h-auto block"
+              unoptimized
             />
             {photo.caption && (
               <div className="px-2 py-1.5 bg-black/70 text-white text-xs">

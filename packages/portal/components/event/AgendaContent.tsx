@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo, useCallback } from 'react'
+import Image from 'next/image'
 import { getClientBrandConfig, isLightColor } from '@/config/brand'
 import { useEventContext } from './EventContext'
 import { GlowBorder } from '@/components/ui/GlowBorder'
@@ -112,8 +113,25 @@ export function AgendaContent() {
             .in('id', talkIds)
 
           if (!talksError && talksData) {
-            talksData.forEach((talk: any) => {
-              const speakers = (talk.speakers || []).map((s: any) => ({
+            interface RawTalkSpeaker {
+              full_name?: string
+              first_name?: string | null
+              last_name?: string | null
+              company?: string | null
+              job_title?: string | null
+              avatar_url?: string | null
+              company_logo_storage_path?: string | null
+              [key: string]: unknown
+            }
+            interface RawTalkRow {
+              id: string
+              title?: string | null
+              synopsis?: string | null
+              session_type?: string | null
+              speakers?: RawTalkSpeaker[]
+            }
+            (talksData as RawTalkRow[]).forEach((talk) => {
+              const speakers = (talk.speakers ?? []).map((s) => ({
                 full_name: s.full_name || '',
                 first_name: s.first_name || null,
                 last_name: s.last_name || null,
@@ -126,8 +144,8 @@ export function AgendaContent() {
               }))
               talksMap[talk.id] = {
                 id: talk.id,
-                title: talk.title,
-                synopsis: talk.synopsis,
+                title: talk.title ?? '',
+                synopsis: talk.synopsis ?? null,
                 session_type: talk.session_type || null,
                 speakers,
               }
@@ -553,9 +571,11 @@ export function AgendaContent() {
                             {speakers.map((speaker, idx) => (
                               <div key={idx} className="flex items-center gap-3">
                                 {speaker.avatar_url ? (
-                                  <img
+                                  <Image
                                     src={speaker.avatar_url}
                                     alt={speaker.full_name}
+                                    width={32}
+                                    height={32}
                                     className="w-8 h-8 rounded-full object-cover"
                                   />
                                 ) : (

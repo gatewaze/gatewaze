@@ -1,0 +1,30 @@
+{{- if .Values.autoscaling.enabled }}
+# HorizontalPodAutoscalers per spec §7.3 task 3.7. CPU-based by default;
+# operators can layer custom metrics via .Values.autoscaling.metrics.
+{{- range $component, $cfg := .Values.autoscaling.components }}
+{{- if $cfg.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "gatewaze.fullname" $ }}-{{ $component }}
+  labels:
+    {{- include "gatewaze.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $component }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "gatewaze.fullname" $ }}-{{ $component }}
+  minReplicas: {{ $cfg.minReplicas | default 2 }}
+  maxReplicas: {{ $cfg.maxReplicas | default 10 }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ $cfg.targetCPUUtilization | default 75 }}
+{{- end }}
+{{- end }}
+{{- end }}

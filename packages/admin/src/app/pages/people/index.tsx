@@ -20,8 +20,6 @@ import {
   useReactTable,
   getCoreRowModel,
   getSortedRowModel,
-  getPaginationRowModel,
-  getFilteredRowModel,
   createColumnHelper,
   SortingState,
 } from '@tanstack/react-table';
@@ -38,7 +36,6 @@ import {
   Input,
   ConfirmModal,
   Avatar,
-  Badge,
   Tabs,
   Select,
   Textarea,
@@ -398,7 +395,7 @@ export default function MembersPage() {
       });
 
       // Update database with gravatar status
-      await PeopleService.updateGravatarStatus(parseInt(person.id), hasGravatar);
+      await PeopleService.updateGravatarStatus(person.id, hasGravatar);
 
       // Reload gallery if status changed to true
       if (hasGravatar) {
@@ -680,7 +677,7 @@ export default function MembersPage() {
 
     try {
       const result = await PeopleService.updatePerson(
-        parseInt(selectedPerson.id),
+        selectedPerson.id,
         {
           email: editFormData.email,
           attributes: {
@@ -1496,7 +1493,7 @@ export default function MembersPage() {
                 ? `${selectedPerson.attributes?.first_name || ''} ${selectedPerson.attributes?.last_name || ''}`.trim()
                 : undefined
             }
-            customerId={selectedPerson.id ? parseInt(selectedPerson.id) : undefined}
+            personId={selectedPerson.id}
           />
         )}
 
@@ -1595,7 +1592,7 @@ export default function MembersPage() {
                           disabled={addingMember}
                           data={[
                             { label: `Select ${attr.label}...`, value: '', disabled: true },
-                            ...(attr.options || []).map((opt: any) => ({ label: opt, value: opt })),
+                            ...(attr.options || []).map((opt: string) => ({ label: opt, value: opt })),
                           ]}
                         />
                       );
@@ -1607,7 +1604,7 @@ export default function MembersPage() {
                         <div key={attr.key} className="flex flex-col">
                           <span className="text-sm font-medium text-[var(--gray-12)] mb-1">{fieldLabel}</span>
                           <div className="flex flex-wrap gap-1.5 rounded-lg border border-[var(--gray-6)] bg-[var(--color-surface)] p-2 min-h-[38px]">
-                            {(attr.options || []).map((opt: any) => {
+                            {(attr.options || []).map((opt: string) => {
                               const isSelected = selected.includes(opt);
                               return (
                                 <button

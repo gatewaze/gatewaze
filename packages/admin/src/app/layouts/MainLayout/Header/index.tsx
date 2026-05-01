@@ -1,6 +1,3 @@
-// Import Dependencies
-import clsx from "clsx";
-
 // Local Imports
 import { SidebarToggleBtn } from "@/components/shared/SidebarToggleBtn";
 import { Profile } from "../Profile";
