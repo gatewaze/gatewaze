@@ -2,11 +2,11 @@
 # Gatewaze Full Stack — Self-Hosted Supabase + Application Services
 #
 # Uses Traefik reverse proxy for clean .localhost domains:
-#   - http://gatewaze-admin.localhost   → Admin dashboard
-#   - http://gatewaze-app.localhost     → Public portal
-#   - http://gatewaze-api.localhost     → API server
-#   - http://gatewaze-supabase.localhost → Supabase API (Kong)
-#   - http://gatewaze-studio.localhost  → Supabase Studio
+#   - http://admin.gatewaze.localhost   → Admin dashboard
+#   - http://app.gatewaze.localhost     → Public portal
+#   - http://api.gatewaze.localhost     → API server
+#   - http://supabase.gatewaze.localhost → Supabase API (Kong)
+#   - http://studio.gatewaze.localhost  → Supabase Studio
 #
 # Usage:
 #   cp .env.example .env   # edit values
@@ -57,10 +57,10 @@ services:
     environment:
       GOTRUE_API_HOST: "0.0.0.0"
       GOTRUE_API_PORT: "9999"
-      API_EXTERNAL_URL: ${API_EXTERNAL_URL:-http://gatewaze-supabase.localhost}
+      API_EXTERNAL_URL: ${API_EXTERNAL_URL:-http://supabase.gatewaze.localhost}
       GOTRUE_DB_DRIVER: postgres
       GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${POSTGRES_PASSWORD}@supabase-db:5432/${POSTGRES_DB:-postgres}
-      GOTRUE_SITE_URL: ${SITE_URL:-http://gatewaze-admin.localhost}
+      GOTRUE_SITE_URL: ${SITE_URL:-http://admin.gatewaze.localhost}
       GOTRUE_URI_ALLOW_LIST: ${ADDITIONAL_REDIRECT_URLS:-}
       GOTRUE_DISABLE_SIGNUP: ${DISABLE_SIGNUP:-false}
       GOTRUE_JWT_ADMIN_ROLES: service_role
@@ -85,7 +85,12 @@ services:
       # Custom email templates (mounted via volume below). Removes the
       # OTP code block from the default magic-link template since the
       # portal UI doesn't offer a code entry surface.
-      GOTRUE_MAILER_TEMPLATES_MAGIC_LINK: /email-templates/magic_link.html
+      # MUST use the file:// scheme so GoTrue reads from the mounted
+      # volume; without a scheme, GoTrue treats the value as an HTTP
+      # path relative to SITE_URL and tries to fetch the template,
+      # which deadlocks the request with a 504 (the admin container
+      # does not serve /email-templates/).
+      GOTRUE_MAILER_TEMPLATES_MAGIC_LINK: file:///email-templates/magic_link.html
       GOTRUE_MAILER_SUBJECTS_MAGIC_LINK: ${MAGIC_LINK_SUBJECT:-Sign in to ${INSTANCE_NAME:-Gatewaze}}
     volumes:
       - ./supabase/email-templates:/email-templates:ro
@@ -179,7 +184,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik"
-      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-supabase.rule=Host(`${SUPABASE_HOST:-gatewaze-supabase.localhost}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-supabase.rule=Host(`${SUPABASE_HOST:-supabase.gatewaze.localhost}`)"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-supabase.entrypoints=web"
       - "traefik.http.services.${COMPOSE_PROJECT_NAME:-gatewaze}-supabase.loadbalancer.server.port=8000"
     environment:
@@ -272,7 +277,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik"
-      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-studio.rule=Host(`${STUDIO_HOST:-gatewaze-studio.localhost}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-studio.rule=Host(`${STUDIO_HOST:-studio.gatewaze.localhost}`)"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-studio.entrypoints=web"
       - "traefik.http.services.${COMPOSE_PROJECT_NAME:-gatewaze}-studio.loadbalancer.server.port=3000"
     environment:
@@ -286,7 +291,7 @@ services:
       DEFAULT_ORGANIZATION_NAME: ${STUDIO_DEFAULT_ORGANIZATION:-Gatewaze}
       DEFAULT_PROJECT_NAME: ${STUDIO_DEFAULT_PROJECT:-Gatewaze}
       SUPABASE_URL: http://supabase-kong:8000
-      SUPABASE_PUBLIC_URL: ${API_EXTERNAL_URL:-http://gatewaze-supabase.localhost}
+      SUPABASE_PUBLIC_URL: ${API_EXTERNAL_URL:-http://supabase.gatewaze.localhost}
       SUPABASE_ANON_KEY: ${ANON_KEY}
       SUPABASE_SERVICE_KEY: ${SERVICE_ROLE_KEY}
       NEXT_PUBLIC_ENABLE_LOGS: "false"
@@ -331,9 +336,9 @@ services:
       context: ..
       dockerfile: docker/admin/Dockerfile
       args:
-        VITE_SUPABASE_URL: ${SUPABASE_URL:-http://gatewaze-supabase.localhost}
+        VITE_SUPABASE_URL: ${SUPABASE_URL:-http://supabase.gatewaze.localhost}
         VITE_SUPABASE_ANON_KEY: ${ANON_KEY}
-        VITE_API_URL: ${API_URL:-http://gatewaze-api.localhost}
+        VITE_API_URL: ${API_URL:-http://api.gatewaze.localhost}
         VITE_AUTH_PROVIDER: ${AUTH_PROVIDER:-supabase}
         VITE_DISABLE_BRANDING: ${DISABLE_BRANDING:-false}
         VITE_APP_NAME: ${GW_APP_NAME:-}
@@ -344,15 +349,15 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik"
-      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-admin.rule=Host(`${ADMIN_HOST:-gatewaze-admin.localhost}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-admin.rule=Host(`${ADMIN_HOST:-admin.gatewaze.localhost}`)"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-admin.entrypoints=web"
       - "traefik.http.services.${COMPOSE_PROJECT_NAME:-gatewaze}-admin.loadbalancer.server.port=80"
     environment:
-      VITE_SUPABASE_URL: ${SUPABASE_URL:-http://gatewaze-supabase.localhost}
+      VITE_SUPABASE_URL: ${SUPABASE_URL:-http://supabase.gatewaze.localhost}
       VITE_SUPABASE_ANON_KEY: ${ANON_KEY}
-      VITE_API_URL: ${API_URL:-http://gatewaze-api.localhost}
-      VITE_PORTAL_DOMAIN: ${PORTAL_HOST:-gatewaze-app.localhost}
-      VITE_APP_URL: http://${PORTAL_HOST:-gatewaze-app.localhost}
+      VITE_API_URL: ${API_URL:-http://api.gatewaze.localhost}
+      VITE_PORTAL_DOMAIN: ${PORTAL_HOST:-app.gatewaze.localhost}
+      VITE_APP_URL: http://${PORTAL_HOST:-app.gatewaze.localhost}
       VITE_APP_NAME: ${GW_APP_NAME:-}
       MODULE_SOURCES: ${MODULE_SOURCES:-}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
@@ -380,13 +385,16 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik"
-      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-portal.rule=Host(`${PORTAL_HOST:-gatewaze-app.localhost}`)"
+      # Portal routes both `app.<brand>.localhost` and the sites regex
+      # (`<slug>.sites.<brand>.localhost`). The brand env file sets
+      # PORTAL_TRAEFIK_RULE; falls back to a Host-only rule if absent.
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-portal.rule=${PORTAL_TRAEFIK_RULE:-Host(`${PORTAL_HOST:-app.gatewaze.localhost}`)}"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-portal.entrypoints=web"
       - "traefik.http.services.${COMPOSE_PROJECT_NAME:-gatewaze}-portal.loadbalancer.server.port=3100"
     environment:
-      NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_URL:-http://gatewaze-supabase.localhost}
+      NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_URL:-http://supabase.gatewaze.localhost}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${ANON_KEY}
-      NEXT_PUBLIC_API_URL: ${API_URL:-http://gatewaze-api.localhost}
+      NEXT_PUBLIC_API_URL: ${API_URL:-http://api.gatewaze.localhost}
       # Public portal URL used by server-rendered pages + confirmation links.
       # Falls back to http://$PORTAL_HOST (set in the brand env file).
       NEXT_PUBLIC_APP_URL: ${PORTAL_URL:-http://${PORTAL_HOST}}
@@ -435,11 +443,11 @@ services:
     # push/pull from inside docker. Internal-network calls keep using
     # SUPABASE_URL=http://supabase-kong:8000 unaffected.
     extra_hosts:
-      - "${SUPABASE_HOST:-gatewaze-supabase.localhost}:host-gateway"
+      - "${SUPABASE_HOST:-supabase.gatewaze.localhost}:host-gateway"
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik"
-      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-api.rule=Host(`${API_HOST:-gatewaze-api.localhost}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-api.rule=Host(`${API_HOST:-api.gatewaze.localhost}`)"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-api.entrypoints=web"
       - "traefik.http.services.${COMPOSE_PROJECT_NAME:-gatewaze}-api.loadbalancer.server.port=3002"
     volumes:
@@ -497,7 +505,7 @@ services:
       NODE_ENV: production
       BRAND: ${BRAND:-default}
       SUPABASE_URL: http://supabase-kong:8000
-      SUPABASE_PUBLIC_URL: ${API_EXTERNAL_URL:-http://gatewaze-supabase.localhost}
+      SUPABASE_PUBLIC_URL: ${API_EXTERNAL_URL:-http://supabase.gatewaze.localhost}
       VITE_SUPABASE_URL: http://supabase-kong:8000
       SUPABASE_ANON_KEY: ${ANON_KEY}
       VITE_SUPABASE_ANON_KEY: ${ANON_KEY}
