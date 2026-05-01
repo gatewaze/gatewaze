@@ -27,9 +27,9 @@ A full Gatewaze deployment consists of the following components:
                           |  Dashboard: :8080    |
                           +----------+----------+
                                      |
-           gatewaze-admin.localhost  |  gatewaze-app.localhost
-           gatewaze-api.localhost    |  gatewaze-supabase.localhost
-           gatewaze-studio.localhost |
+           admin.gatewaze.localhost  |  app.gatewaze.localhost
+           api.gatewaze.localhost    |  supabase.gatewaze.localhost
+           studio.gatewaze.localhost |
                                      |
                   +------------------+------------------+
                   |                  |                  |
@@ -62,13 +62,13 @@ A full Gatewaze deployment consists of the following components:
 | Service     | Image / Build              | URL / Port                           | Description                                    |
 |-------------|----------------------------|--------------------------------------|------------------------------------------------|
 | Traefik     | `traefik:v3`               | Dashboard: http://localhost:8080     | Reverse proxy (Apache 2.0 licensed)            |
-| Admin       | `docker/admin/Dockerfile`  | http://gatewaze-admin.localhost      | React admin UI served by NGINX                 |
-| Portal      | `docker/portal/Dockerfile` | http://gatewaze-app.localhost        | Next.js public event portal                    |
-| API         | `docker/api/Dockerfile`    | http://gatewaze-api.localhost        | Express API server                             |
+| Admin       | `docker/admin/Dockerfile`  | http://admin.gatewaze.localhost      | React admin UI served by NGINX                 |
+| Portal      | `docker/portal/Dockerfile` | http://app.gatewaze.localhost        | Next.js public event portal                    |
+| API         | `docker/api/Dockerfile`    | http://api.gatewaze.localhost        | Express API server                             |
 | Worker      | `docker/worker/Dockerfile` | --                                   | BullMQ job worker (no exposed port)            |
 | Scheduler   | `docker/api/Dockerfile`    | --                                   | Cron-based job scheduler (no exposed port)     |
-| Supabase    | Multiple official images   | http://gatewaze-supabase.localhost   | Full Supabase stack (Kong gateway)             |
-| Supabase UI | Official studio image      | http://gatewaze-studio.localhost     | Supabase Studio database management UI         |
+| Supabase    | Multiple official images   | http://supabase.gatewaze.localhost   | Full Supabase stack (Kong gateway)             |
+| Supabase UI | Official studio image      | http://studio.gatewaze.localhost     | Supabase Studio database management UI         |
 | Redis       | `redis:7-alpine`           | 6379 (internal)                      | Job queue backend                              |
 
 ---
@@ -330,13 +330,13 @@ services:
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.admin.rule=Host(`${ADMIN_HOST:-gatewaze-admin.localhost}`)"
+      - "traefik.http.routers.admin.rule=Host(`${ADMIN_HOST:-admin.gatewaze.localhost}`)"
       - "traefik.http.routers.admin.entrypoints=web"
       - "traefik.http.services.admin.loadbalancer.server.port=80"
     environment:
       VITE_SUPABASE_URL: ${SUPABASE_URL}
       VITE_SUPABASE_ANON_KEY: ${ANON_KEY}
-      VITE_API_URL: ${API_URL:-http://gatewaze-api.localhost}
+      VITE_API_URL: ${API_URL:-http://api.gatewaze.localhost}
 
   portal:
     build:
@@ -345,7 +345,7 @@ services:
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.portal.rule=Host(`${PORTAL_HOST:-gatewaze-app.localhost}`)"
+      - "traefik.http.routers.portal.rule=Host(`${PORTAL_HOST:-app.gatewaze.localhost}`)"
       - "traefik.http.routers.portal.entrypoints=web"
       - "traefik.http.services.portal.loadbalancer.server.port=3100"
     environment:
@@ -361,7 +361,7 @@ services:
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.api.rule=Host(`${API_HOST:-gatewaze-api.localhost}`)"
+      - "traefik.http.routers.api.rule=Host(`${API_HOST:-api.gatewaze.localhost}`)"
       - "traefik.http.routers.api.entrypoints=web"
       - "traefik.http.services.api.loadbalancer.server.port=3002"
     environment:
