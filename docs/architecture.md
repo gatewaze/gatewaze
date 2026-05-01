@@ -29,11 +29,11 @@ The backend is powered by **Supabase** (PostgreSQL, Auth, Storage, Edge Function
                           ┌──────────────────▼──────────────────┐
                           │     Traefik Reverse Proxy           │
                           │          (Apache 2.0)               │
-                          │  gatewaze-admin.localhost    → admin │
-                          │  gatewaze-app.localhost      → portal│
-                          │  gatewaze-api.localhost      → api   │
-                          │  gatewaze-supabase.localhost → kong  │
-                          │  gatewaze-studio.localhost   → studio│
+                          │  admin.gatewaze.localhost    → admin │
+                          │  app.gatewaze.localhost      → portal│
+                          │  api.gatewaze.localhost      → api   │
+                          │  supabase.gatewaze.localhost → kong  │
+                          │  studio.gatewaze.localhost   → studio│
                           │  Dashboard: http://localhost:8080    │
                           └──────┬──────────────┬───────────────┘
                                  │              │
@@ -100,7 +100,7 @@ The admin dashboard is a single-page React application for administrators.
 
 | Concern | Technology |
 |---------|------------|
-| Build | Vite (dev server on port 5173; Docker: http://gatewaze-admin.localhost via Traefik) |
+| Build | Vite (dev server on port 5173; Docker: http://admin.gatewaze.localhost via Traefik) |
 | UI Components | Radix Themes + Tailwind CSS |
 | Routing | React Router v7 |
 | Data Tables | TanStack Table |
@@ -141,7 +141,7 @@ A lightweight Express server handling operations that do not fit into client-sid
 | Concern | Technology |
 |---------|------------|
 | Framework | Express |
-| Port | 3002 (Docker: http://gatewaze-api.localhost via Traefik) |
+| Port | 3002 (Docker: http://api.gatewaze.localhost via Traefik) |
 | Auth | Supabase service role key (bypasses RLS) |
 | Jobs | BullMQ workers + Redis |
 

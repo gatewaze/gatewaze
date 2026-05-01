@@ -146,20 +146,20 @@ Services are accessible via Traefik `.localhost` domains (resolve automatically 
 
 | Service          | Traefik URL                         | Direct Port               |
 |------------------|-------------------------------------|---------------------------|
-| Admin App        | http://gatewaze-admin.localhost     | http://localhost:5274      |
-| Public Portal    | http://gatewaze-app.localhost       | http://localhost:3100      |
-| API Server       | http://gatewaze-api.localhost       | http://localhost:3002      |
-| Supabase API     | http://gatewaze-supabase.localhost  | http://localhost:54321     |
-| Supabase Studio  | http://gatewaze-studio.localhost    | http://localhost:54323     |
+| Admin App        | http://admin.gatewaze.localhost     | http://localhost:5274      |
+| Public Portal    | http://app.gatewaze.localhost       | http://localhost:3100      |
+| API Server       | http://api.gatewaze.localhost       | http://localhost:3002      |
+| Supabase API     | http://supabase.gatewaze.localhost  | http://localhost:54321     |
+| Supabase Studio  | http://studio.gatewaze.localhost    | http://localhost:54323     |
 | PostgreSQL       | --                                  | localhost:54322            |
 | Traefik Dashboard| --                                  | http://localhost:8080      |
 
 ### First Login
 
-1. Open the admin app at http://gatewaze-admin.localhost (or http://localhost:5274)
+1. Open the admin app at http://admin.gatewaze.localhost (or http://localhost:5274)
 2. Enter the default admin email: `admin@example.com`
 3. Click "Send Magic Link"
-4. Open Supabase Studio at http://gatewaze-studio.localhost (or http://localhost:54323)
+4. Open Supabase Studio at http://studio.gatewaze.localhost (or http://localhost:54323)
 5. Navigate to **Authentication** to find the magic link in email logs
 6. Click the magic link to complete sign-in
 
