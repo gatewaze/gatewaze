@@ -2,6 +2,20 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { updateSupabaseSession } from './lib/supabase/middleware'
 import modulePrefixes from './lib/modules/generated-module-prefixes.json'
+import { parseHost, getBrandLocalDomain } from './lib/host-parser'
+
+// Resolved once at module load — re-evaluated only when the dev server
+// or container restarts. Throws if BRAND_ID/BRAND_LOCAL_DOMAIN are
+// invalid; we'd rather fail fast than serve traffic with a broken parser.
+const BRAND_LOCAL_DOMAIN: string | null = (() => {
+  try {
+    return getBrandLocalDomain()
+  } catch {
+    // Tests, build steps and env-less invocations land here. The
+    // middleware then falls back to the legacy isKnownHost check.
+    return null
+  }
+})()
 
 // Known brand hostnames that should pass through normally.
 // Derived from PORTAL_HOST / ADMIN_HOST env vars (set per deployment),
@@ -315,6 +329,29 @@ export async function middleware(request: NextRequest) {
       res.headers.set('Vary', 'Host, Accept-Encoding')
     }
     return res
+  }
+
+  // Defense-in-depth brand-identity check (spec-local-dev-hostnames.md §6.3).
+  // If the request hostname parses as portal/site under our brand-local
+  // domain but the brand label doesn't match this container's BRAND_ID,
+  // return 404 — that's a Traefik routing leak or a direct port hit.
+  // Custom-domain hosts and unknown hosts fall through to the existing
+  // logic (the `isKnownHost` check + `lookupCustomDomain`).
+  if (BRAND_LOCAL_DOMAIN && process.env.BRAND_ID) {
+    const parsed = await parseHost({
+      rawHostname: hostname,
+      brandLocalDomain: BRAND_LOCAL_DOMAIN,
+      expectedBrand: process.env.BRAND_ID,
+      // Skip the DB lookup here — the existing custom-domain path runs
+      // it later. We only want the pattern-based dispatch.
+      customDomainLookup: async () => null,
+    })
+    if (
+      (parsed.kind === 'portal' || parsed.kind === 'site') &&
+      parsed.brand !== process.env.BRAND_ID
+    ) {
+      return new NextResponse('Not Found', { status: 404 })
+    }
   }
 
   // Refresh Supabase auth session (syncs cookies for server components).
