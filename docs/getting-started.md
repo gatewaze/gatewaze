@@ -73,11 +73,11 @@ Services are accessible via Traefik `.localhost` domains (resolve to 127.0.0.1 a
 
 | Service          | Traefik URL                         | Direct Port               |
 |------------------|-------------------------------------|---------------------------|
-| Admin App        | http://gatewaze-admin.localhost     | http://localhost:5274      |
-| Public Portal    | http://gatewaze-app.localhost       | http://localhost:3100      |
-| API Server       | http://gatewaze-api.localhost       | http://localhost:3002      |
-| Supabase API     | http://gatewaze-supabase.localhost  | http://localhost:54321     |
-| Supabase Studio  | http://gatewaze-studio.localhost    | http://localhost:54323     |
+| Admin App        | http://admin.gatewaze.localhost     | http://localhost:5274      |
+| Public Portal    | http://app.gatewaze.localhost       | http://localhost:3100      |
+| API Server       | http://api.gatewaze.localhost       | http://localhost:3002      |
+| Supabase API     | http://supabase.gatewaze.localhost  | http://localhost:54321     |
+| Supabase Studio  | http://studio.gatewaze.localhost    | http://localhost:54323     |
 | PostgreSQL       | --                                  | localhost:54322            |
 | Traefik Dashboard| --                                  | http://localhost:8080      |
 
@@ -176,7 +176,7 @@ pnpm dev:api      # API server only
 
 Open the admin application in your browser:
 
-- **Docker:** http://gatewaze-admin.localhost or http://localhost:5274
+- **Docker:** http://admin.gatewaze.localhost or http://localhost:5274
 - **From source:** http://localhost:5173
 
 ### 2. Sign in with the default admin account
@@ -191,7 +191,7 @@ Enter this email on the login page and click "Send Magic Link."
 
 When running locally with the default Supabase configuration, emails are captured by Supabase's built-in email testing tool:
 
-1. Open Supabase Studio at http://gatewaze-studio.localhost or http://localhost:54323
+1. Open Supabase Studio at http://studio.gatewaze.localhost or http://localhost:54323
 2. Navigate to **Authentication** in the sidebar
 3. Find the magic link in the email logs
 4. Click the magic link to complete sign-in
