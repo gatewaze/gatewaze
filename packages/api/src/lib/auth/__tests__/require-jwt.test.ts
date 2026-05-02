@@ -144,4 +144,19 @@ describe('requireJwt', () => {
     expect(res.status).toBe(200);
     expect(res.body.accountId).toBe(accountB);
   });
+
+  it('falls back to JWT_SECRET when SUPABASE_JWT_SECRET is unset (matches docker-compose env)', async () => {
+    // Repro the local-dev / docker-compose case: only JWT_SECRET is set.
+    delete process.env.SUPABASE_JWT_SECRET;
+    process.env.JWT_SECRET = TEST_SECRET;
+    try {
+      memberRows = [{ user_id: 'user-1', account_id: '00000000-0000-0000-0000-000000000001', created_at: '2024-01-01' }];
+      const token = jwt.sign({ sub: 'user-1' }, TEST_SECRET, { algorithm: 'HS256' });
+      const res = await request(buildApp()).get('/private').set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(200);
+      expect(res.body.userId).toBe('user-1');
+    } finally {
+      delete process.env.JWT_SECRET;
+    }
+  });
 });
