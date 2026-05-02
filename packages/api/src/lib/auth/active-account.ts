@@ -28,10 +28,16 @@ export class HeaderAccountMismatchError extends Error {
  *   2. active_account_id JWT claim, validated against accounts_users.
  *   3. The user's first account by accounts_users.created_at.
  *
+ * accounts_users keys membership by admin_profile_id (FK to admin_profiles.id),
+ * not the raw auth user_id. We resolve the auth user → admin_profile.id
+ * first, then look up memberships. Cached per-call via two queries; the
+ * service-role client bypasses RLS for both.
+ *
  * The DB call uses the service-role client because the active-account check
  * runs *before* the user-scoped client is constructed for a request. This
  * lookup is the only service-role read in the request path; it is bounded
- * to (account_id, user_id) keys and discloses nothing beyond membership.
+ * to (account_id, admin_profile_id) keys and discloses nothing beyond
+ * membership.
  */
 export async function resolveActiveAccount(
   req: Request,
@@ -44,24 +50,29 @@ export async function resolveActiveAccount(
     ? (jwtClaims['active_account_id'] as string).trim()
     : undefined;
 
+  // Resolve auth user → admin_profile.id once. Without an admin profile,
+  // the user can't be a member of any account (the FK is admin_profile_id).
+  const profileId = await resolveAdminProfileId(serviceClient, userId);
+  if (!profileId) throw new NoAccountMembershipError(userId);
+
   if (headerAccountId) {
     if (!UUID_RE.test(headerAccountId)) {
       throw new HeaderAccountMismatchError(userId, headerAccountId);
     }
-    const ok = await isMember(serviceClient, userId, headerAccountId);
+    const ok = await isMember(serviceClient, profileId, headerAccountId);
     if (!ok) throw new HeaderAccountMismatchError(userId, headerAccountId);
     return { accountId: headerAccountId, source: 'header' };
   }
 
   if (claimAccountId && UUID_RE.test(claimAccountId)) {
-    const ok = await isMember(serviceClient, userId, claimAccountId);
+    const ok = await isMember(serviceClient, profileId, claimAccountId);
     if (ok) return { accountId: claimAccountId, source: 'jwt-claim' };
   }
 
   const { data, error } = await serviceClient
     .from('accounts_users')
     .select('account_id, created_at')
-    .eq('user_id', userId)
+    .eq('admin_profile_id', profileId)
     .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle();
@@ -71,11 +82,20 @@ export async function resolveActiveAccount(
   return { accountId: data.account_id as string, source: 'first-membership' };
 }
 
-async function isMember(client: SupabaseClient, userId: string, accountId: string): Promise<boolean> {
+async function resolveAdminProfileId(client: SupabaseClient, userId: string): Promise<string | null> {
+  const { data } = await client
+    .from('admin_profiles')
+    .select('id')
+    .eq('user_id', userId)
+    .maybeSingle();
+  return data ? (data.id as string) : null;
+}
+
+async function isMember(client: SupabaseClient, adminProfileId: string, accountId: string): Promise<boolean> {
   const { data } = await client
     .from('accounts_users')
     .select('account_id')
-    .eq('user_id', userId)
+    .eq('admin_profile_id', adminProfileId)
     .eq('account_id', accountId)
     .maybeSingle();
   return !!data;

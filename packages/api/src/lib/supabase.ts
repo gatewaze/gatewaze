@@ -27,10 +27,31 @@ import type { Request } from 'express';
 
 let serviceClient: SupabaseClient | null = null;
 
+/**
+ * Resolve the Supabase URL from the environment. The docker-compose stack
+ * (and gatewaze.config.ts demo) names the var differently in different
+ * places — the api service mostly sees `SUPABASE_URL`, the admin Vite app
+ * uses `VITE_SUPABASE_URL`. Local dev shells running `pnpm dev` outside
+ * compose commonly only have one of the two; check both.
+ */
+export function resolveSupabaseUrl(): string | undefined {
+  return process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
+}
+
+/** Service-role key with fallback to the .env.example unprefixed name. */
+export function resolveServiceRoleKey(): string | undefined {
+  return process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SERVICE_ROLE_KEY;
+}
+
+/** Anon key with fallback to the .env.example unprefixed name. */
+export function resolveAnonKey(): string | undefined {
+  return process.env.SUPABASE_ANON_KEY ?? process.env.ANON_KEY;
+}
+
 function buildServiceClient(): SupabaseClient {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
+  const url = resolveSupabaseUrl();
+  const key = resolveServiceRoleKey();
+  if (!url || !key) throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY (also accepts SERVICE_ROLE_KEY)');
   return createClient(url, key, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
@@ -75,10 +96,10 @@ export function getRequestSupabase(req: Request): SupabaseClient {
     return getServiceSupabase();
   }
 
-  const url = process.env.SUPABASE_URL;
-  const anonKey = process.env.SUPABASE_ANON_KEY;
+  const url = resolveSupabaseUrl();
+  const anonKey = resolveAnonKey();
   if (!url || !anonKey) {
-    throw new Error('Missing SUPABASE_URL or SUPABASE_ANON_KEY for user-scoped client');
+    throw new Error('Missing SUPABASE_URL or SUPABASE_ANON_KEY (also accepts ANON_KEY) for user-scoped client');
   }
 
   const authHeader = req.headers.authorization;

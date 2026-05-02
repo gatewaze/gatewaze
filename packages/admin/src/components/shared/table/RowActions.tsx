@@ -24,6 +24,11 @@ export function RowActions({ actions }: RowActionsProps) {
     <DropdownMenu.Root>
       <DropdownMenu.Trigger>
         <button
+          // type="button" is required: without it, <button> defaults to
+          // type="submit" inside any form ancestor — a stray dbl-click
+          // on a row could land its second click on this trigger and
+          // submit a form (full page refresh).
+          type="button"
           className="inline-flex items-center justify-center size-8 rounded-md text-[var(--accent-9)] hover:text-[var(--accent-11)] hover:bg-[var(--accent-a3)] transition-colors cursor-pointer"
           aria-label="Row actions"
         >
