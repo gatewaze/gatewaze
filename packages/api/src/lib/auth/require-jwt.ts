@@ -36,9 +36,13 @@ function errorResponse(res: Response, status: number, code: string, message: str
 }
 
 function getJwtSecret(): string {
-  const secret = process.env.SUPABASE_JWT_SECRET;
+  // The docker-compose stack — and Supabase itself — uses JWT_SECRET. The
+  // SUPABASE_JWT_SECRET name is an alias kept for explicit overrides (e.g.
+  // when an operator wants to scope a different secret to the api service
+  // alone). Prefer the explicit name, fall back to the standard one.
+  const secret = process.env.SUPABASE_JWT_SECRET ?? process.env.JWT_SECRET;
   if (!secret) {
-    throw new Error('SUPABASE_JWT_SECRET is not set; requireJwt() cannot verify tokens');
+    throw new Error('JWT_SECRET (or SUPABASE_JWT_SECRET) is not set; requireJwt() cannot verify tokens');
   }
   return secret;
 }

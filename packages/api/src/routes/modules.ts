@@ -83,7 +83,7 @@ modulesRouter.use((req: import('express').Request, _res: import('express').Respo
 /** Helper: create a service-role Supabase client or throw */
 function getServiceClient() {
   const supabaseUrl = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const serviceRoleKey = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SERVICE_ROLE_KEY);
   if (!supabaseUrl || !serviceRoleKey) {
     throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
   }
@@ -204,7 +204,7 @@ modulesRouter.post('/bootstrap', async (_req, res) => {
 modulesRouter.post('/select', async (req, res) => {
   try {
     const supabaseUrl = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const serviceRoleKey = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SERVICE_ROLE_KEY);
 
     if (!supabaseUrl || !serviceRoleKey) {
       return res.status(500).json({ error: 'Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY' });
@@ -350,7 +350,7 @@ modulesRouter.post('/select-stream', async (req, res) => {
 
   try {
     const supabaseUrl = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const serviceRoleKey = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SERVICE_ROLE_KEY);
 
     if (!supabaseUrl || !serviceRoleKey) {
       send('error', { message: 'Missing Supabase credentials' });
@@ -507,7 +507,7 @@ modulesRouter.post('/select-stream', async (req, res) => {
 modulesRouter.post('/settings', async (req, res) => {
   try {
     const supabaseUrl = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const serviceRoleKey = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SERVICE_ROLE_KEY);
 
     if (!supabaseUrl || !serviceRoleKey) {
       return res.status(500).json({ error: 'Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY' });
@@ -536,7 +536,7 @@ modulesRouter.post('/settings', async (req, res) => {
 modulesRouter.post('/reconcile', async (_req, res) => {
   try {
     const supabaseUrl = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const serviceRoleKey = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SERVICE_ROLE_KEY);
 
     if (!supabaseUrl || !serviceRoleKey) {
       return res.status(500).json({
@@ -1435,7 +1435,7 @@ modulesRouter.post('/update-all', async (_req, res) => {
 modulesRouter.get('/sources', async (_req, res) => {
   try {
     const supabaseUrl = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const serviceRoleKey = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SERVICE_ROLE_KEY);
     if (!supabaseUrl || !serviceRoleKey) {
       return res.status(500).json({ error: 'Missing Supabase credentials' });
     }
@@ -1482,7 +1482,7 @@ modulesRouter.get('/sources', async (_req, res) => {
 modulesRouter.post('/sources', async (req, res) => {
   try {
     const supabaseUrl = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const serviceRoleKey = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SERVICE_ROLE_KEY);
     if (!supabaseUrl || !serviceRoleKey) {
       return res.status(500).json({ error: 'Missing Supabase credentials' });
     }
@@ -1572,7 +1572,7 @@ modulesRouter.post('/sources', async (req, res) => {
 modulesRouter.patch('/sources/:id', async (req, res) => {
   try {
     const supabaseUrl = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const serviceRoleKey = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SERVICE_ROLE_KEY);
     if (!supabaseUrl || !serviceRoleKey) {
       return res.status(500).json({ error: 'Missing Supabase credentials' });
     }
@@ -1600,7 +1600,7 @@ modulesRouter.patch('/sources/:id', async (req, res) => {
 modulesRouter.delete('/sources/:id', async (req, res) => {
   try {
     const supabaseUrl = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const serviceRoleKey = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SERVICE_ROLE_KEY);
     if (!supabaseUrl || !serviceRoleKey) {
       return res.status(500).json({ error: 'Missing Supabase credentials' });
     }
@@ -1971,7 +1971,7 @@ modulesRouter.get('/:id/snapshot', async (req, res) => {
 modulesRouter.post('/upload', upload.single('file'), async (req, res) => {
   try {
     const supabaseUrl = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const serviceRoleKey = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SERVICE_ROLE_KEY);
     if (!supabaseUrl || !serviceRoleKey) {
       return res.status(500).json({ error: 'Missing Supabase credentials' });
     }
@@ -2113,7 +2113,7 @@ modulesRouter.post('/upload', upload.single('file'), async (req, res) => {
 modulesRouter.post('/invoke-function/:name', async (req, res) => {
   try {
     const supabaseUrl = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const serviceRoleKey = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SERVICE_ROLE_KEY);
     if (!supabaseUrl || !serviceRoleKey) {
       return res.status(500).json({ error: 'Missing Supabase credentials' });
     }
