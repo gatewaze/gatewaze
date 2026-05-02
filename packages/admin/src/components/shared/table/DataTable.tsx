@@ -148,8 +148,16 @@ export function DataTable<T>({
                       ? () => onRowDoubleClick(row.original)
                       : undefined
                   }
+                  // user-select: none on dbl-click rows: prevents the first
+                  // click from starting a text selection that swallows the
+                  // dblclick event (Chrome ships dblclick AFTER both clicks
+                  // complete; if the in-between produces a text selection,
+                  // the dblclick is sometimes dropped and the user sees
+                  // "nothing happened" instead of the navigate).
                   style={
-                    onRowDoubleClick ? { cursor: "pointer" } : undefined
+                    onRowDoubleClick
+                      ? { cursor: "pointer", userSelect: "none" }
+                      : undefined
                   }
                 >
                   {cells.map((cell, index) => (
