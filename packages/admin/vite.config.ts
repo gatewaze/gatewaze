@@ -36,6 +36,20 @@ export default defineConfig({
         path.resolve(__dirname, "../.."),
       ],
     },
+    // Stop chokidar from waking on platform-internal sentinel files.
+    // The API server writes these through symlinks into module source
+    // directories on every enable / disable / apply-update; without this,
+    // every module toggle propagates a watch event into the dev server
+    // and Vite triggers a full page reload.
+    watch: {
+      ignored: [
+        '**/.snapshot',
+        '**/.snapshot.tmp',
+        '**/.rebuild-requested',
+        '**/.rebuild-status-*',
+        '**/.gatewaze-modules/**',
+      ],
+    },
     proxy: {
       '/api': {
         target: process.env.API_PROXY_TARGET || 'http://localhost:3002',

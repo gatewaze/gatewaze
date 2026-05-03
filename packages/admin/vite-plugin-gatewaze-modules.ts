@@ -249,6 +249,17 @@ export function gatewazeModulesPlugin(): Plugin {
           ...cssImports,
           ...guideAssignments,
           `export default [${refs.join(', ')}];`,
+          // Accept HMR updates silently. Without this, any filesystem event
+          // under MODULE_SOURCES paths (including the live-tree symlink the
+          // API server creates on enable/disable via installLiveSnapshot)
+          // invalidates this virtual module — and because no importer
+          // declares a hot.accept handler for it, Vite cascades to a full
+          // page reload. The runtime source of truth for enabled modules is
+          // the installed_modules DB table (read by ModulesProviderWrapper),
+          // not this build-time list — so accepting silently is safe.
+          // The empty callback means consumers keep their existing reference;
+          // the React context refetch (refreshModulesContext) handles state.
+          'if (import.meta.hot) import.meta.hot.accept(() => {});',
           '',
         ].join('\n');
       }
