@@ -165,6 +165,21 @@ export function requireJwt() {
       next();
     } catch (err) {
       if (err instanceof NoAccountMembershipError) {
+        // The 1.1 hardening doc explicitly promises "Runtime behaviour
+        // is unchanged for users with tenancy_v2_enforced=false (the
+        // default)" — operators are supposed to run preflight + backfill
+        // before flipping the flag. Without this gate the middleware
+        // hard-fails 403 even on freshly-upgraded brands where the
+        // backfill hasn't run yet, which broke admin-route auth on
+        // every cloud brand we deployed v1.2.x to. Soft-fail when the
+        // flag is off (or absent): proceed without an accountId; legacy
+        // v1 RLS keeps scoping. Hard-fail only once the flag is on.
+        if (!(await isTenancyV2Enforced())) {
+          req.userId = claims.sub;
+          req.jwtClaims = claims;
+          next();
+          return;
+        }
         errorResponse(res, 403, 'no_account', 'User has no account membership');
         return;
       }
@@ -175,4 +190,35 @@ export function requireJwt() {
       errorResponse(res, 500, 'internal_error', 'Failed to resolve active account');
     }
   };
+}
+
+/**
+ * Cached read of the tenancy_v2_enforced platform setting. Cache TTL is
+ * 60 s — short enough that flag flips reach the api without a restart,
+ * long enough that we don't hit platform_settings on every request.
+ *
+ * Defaults to `false` on read failure so the fallback path keeps the
+ * pre-1.1 contract (legacy RLS, no account scoping). Operators flip the
+ * flag deliberately after running the preflight + backfill.
+ */
+let cachedTenancyFlag: { value: boolean; fetchedAt: number } | null = null;
+const TENANCY_FLAG_TTL_MS = 60_000;
+
+async function isTenancyV2Enforced(): Promise<boolean> {
+  if (cachedTenancyFlag && Date.now() - cachedTenancyFlag.fetchedAt < TENANCY_FLAG_TTL_MS) {
+    return cachedTenancyFlag.value;
+  }
+  try {
+    const { data } = await getSupabase()
+      .from('platform_settings')
+      .select('value')
+      .eq('key', 'tenancy_v2_enforced')
+      .maybeSingle();
+    const raw = (data as { value?: unknown } | null)?.value;
+    const value = raw === 'true' || raw === true;
+    cachedTenancyFlag = { value, fetchedAt: Date.now() };
+    return value;
+  } catch {
+    return false;
+  }
 }
