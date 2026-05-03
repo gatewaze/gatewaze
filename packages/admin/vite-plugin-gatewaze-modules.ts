@@ -2,7 +2,7 @@ import type { Plugin } from 'vite';
 import { readFileSync, existsSync, mkdirSync, readdirSync } from 'fs';
 import { resolve, dirname, isAbsolute, relative } from 'path';
 import { execSync } from 'child_process';
-import { createRequire } from 'module';
+import { createRequire, isBuiltin } from 'module';
 
 const VIRTUAL_MODULE_ID = 'virtual:gatewaze-modules';
 const RESOLVED_ID = '\0' + VIRTUAL_MODULE_ID;
@@ -135,6 +135,18 @@ export function gatewazeModulesPlugin(): Plugin {
           }
           try {
             const pkgName = id.startsWith('@') ? id.split('/').slice(0, 2).join('/') : id.split('/')[0];
+            // Node builtins (path, fs, crypto, …) — adminRequire.resolve()
+            // returns the bare specifier verbatim because the runtime can
+            // satisfy them. Vite then leaves `import "path"` literally in
+            // the output, which the browser can't parse. Catch builtins
+            // explicitly (with or without the `node:` prefix) and stub
+            // them. The wider stubbing system already handles `node:foo`
+            // transparently because no node_modules/<name> dir exists,
+            // but the un-prefixed form leaks through.
+            if (isBuiltin(id) || isBuiltin(pkgName)) {
+              console.warn(`[gatewaze-modules] Stubbing Node builtin "${id}" imported from module`);
+              return `\0stub:${id}`;
+            }
             const pkgPath = resolve(projectRoot, 'node_modules', pkgName);
             const adminPkgPath = resolve(__dirname, 'node_modules', pkgName);
             if (!existsSync(pkgPath) && !existsSync(adminPkgPath)) {
