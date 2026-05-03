@@ -107,6 +107,30 @@ export function gatewazeModulesPlugin(): Plugin {
       if (id === VIRTUAL_MODULE_ID) {
         return RESOLVED_ID;
       }
+
+      // Node builtins anywhere in the dependency graph — stub before
+      // any other resolver fires. Vite's default vite:resolve plugin
+      // externalizes Node builtins to `__vite-browser-external` (which
+      // exports nothing), so `import { resolve } from 'path'` then
+      // fails the build with `"resolve" is not exported by
+      // __vite-browser-external`. Rollup's external option (if set)
+      // emits raw `import "path"` and crashes the browser at runtime.
+      // Both paths are wrong for browser bundles. Stubbing here covers
+      // module files, shared/src/modules/* (which import fs/path for
+      // server-side use), and anything else — the browser side simply
+      // doesn't run that code, so an empty stub is correct.
+      if (importer && !id.startsWith('\0') && !id.startsWith('.') && !id.startsWith('/') && !id.startsWith('@/')) {
+        try {
+          const pkgName = id.startsWith('@') ? id.split('/').slice(0, 2).join('/') : id.split('/')[0];
+          if (isBuiltin(id) || isBuiltin(pkgName)) {
+            console.warn(`[gatewaze-modules] Stubbing Node builtin "${id}" imported by ${importer}`);
+            return `\0stub:${id}`;
+          }
+        } catch {
+          // ignore — fall through to existing logic
+        }
+      }
+
       // For imports from module files that can't be resolved,
       // return an empty stub module instead of failing the build
       if (importer && importer.includes('gatewaze-modules') && !id.startsWith('\0')) {
