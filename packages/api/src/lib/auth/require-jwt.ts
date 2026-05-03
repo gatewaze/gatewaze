@@ -11,6 +11,20 @@ import {
   HeaderAccountMismatchError,
 } from './active-account.js';
 
+/**
+ * Supabase Cloud rotated default auth-key signing from HS256 (shared
+ * secret) to ES256 (asymmetric, kid + JWKS) in early 2026. Tokens issued
+ * by the cloud now carry alg=ES256 and the local-HS256 verify path
+ * always rejects them with "JWT verification failed". Self-hosted
+ * Supabase still uses HS256.
+ *
+ * Verify via the Supabase auth REST API as a primary path — it's the
+ * service that issued the token and knows which key signed it. Local
+ * HS256 stays as a fallback for self-hosted deployments where the auth
+ * REST round-trip is undesirable, and to keep the legacy test path
+ * (GATEWAZE_TEST_DISABLE_AUTH) working.
+ */
+
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
@@ -96,13 +110,46 @@ export function requireJwt() {
       return;
     }
 
-    let claims: SupabaseJwtClaims;
-    try {
-      claims = jwt.verify(token, getJwtSecret(), { algorithms: ['HS256'] }) as SupabaseJwtClaims;
-    } catch (err) {
-      const code = (err as Error).name === 'TokenExpiredError' ? 'token_expired' : 'invalid_token';
-      errorResponse(res, 401, code, 'JWT verification failed');
+    // Decode without verifying first to read the alg + claims. We still
+    // require the auth service to confirm the token below; the decode
+    // is just to differentiate ES256 (cloud) vs HS256 (self-hosted) and
+    // surface clean error codes.
+    const decoded = jwt.decode(token, { complete: true }) as
+      | { header: { alg?: string }; payload: SupabaseJwtClaims }
+      | null;
+    if (!decoded?.payload) {
+      errorResponse(res, 401, 'invalid_token', 'JWT verification failed');
       return;
+    }
+    const alg = decoded.header.alg;
+    let claims: SupabaseJwtClaims = decoded.payload;
+
+    if (alg === 'HS256') {
+      // Self-hosted path: verify locally against the shared secret. No
+      // network round-trip; keeps existing single-node deploys snappy.
+      try {
+        claims = jwt.verify(token, getJwtSecret(), { algorithms: ['HS256'] }) as SupabaseJwtClaims;
+      } catch (err) {
+        const code = (err as Error).name === 'TokenExpiredError' ? 'token_expired' : 'invalid_token';
+        errorResponse(res, 401, code, 'JWT verification failed');
+        return;
+      }
+    } else {
+      // Cloud / asymmetric path (ES256, RS256, …). Ask the auth service
+      // — it owns the signing keys. supabase-js handles the JWKS lookup
+      // and kid match for us.
+      const { data, error } = await getSupabase().auth.getUser(token);
+      if (error || !data?.user) {
+        const msg = error?.message ?? 'JWT verification failed';
+        const code = /expired/i.test(msg) ? 'token_expired' : 'invalid_token';
+        errorResponse(res, 401, code, msg);
+        return;
+      }
+      // Trust the unverified payload's claims (sub/email/role) only after
+      // the auth service has confirmed the token. supabase-js validated
+      // signature + expiry; the decoded payload carries the rest.
+      claims.sub = data.user.id;
+      claims.email = data.user.email ?? claims.email;
     }
 
     if (!claims.sub) {
