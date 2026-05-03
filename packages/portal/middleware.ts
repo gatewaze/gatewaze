@@ -352,6 +352,21 @@ export async function middleware(request: NextRequest) {
     ) {
       return new NextResponse('Not Found', { status: 404 })
     }
+
+    // Site preview rewrite: <slug>.sites.<brand>.<tld> requests are
+    // served by the (sites) route group at app/(sites)/[siteSlug]/[[...path]].
+    // Per spec-content-modules-git-architecture §17 — gatewaze-served
+    // preview URL for any site (regardless of publishing target).
+    // The rewrite happens BEFORE auth-session refresh so cookies on
+    // .brandname.com flow through to the site-rendering route.
+    if (parsed.kind === 'site' && parsed.brand === process.env.BRAND_ID) {
+      // Skip rewrite for the actual API + Next.js internals + asset paths
+      if (!pathname.startsWith('/_next') && !pathname.startsWith('/api') && !/\.\w+$/.test(pathname)) {
+        const url = request.nextUrl.clone()
+        url.pathname = `/_sites/${parsed.slug}${pathname}`
+        return NextResponse.rewrite(url)
+      }
+    }
   }
 
   // Refresh Supabase auth session (syncs cookies for server components).
