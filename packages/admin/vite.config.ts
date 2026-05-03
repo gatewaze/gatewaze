@@ -83,8 +83,16 @@ export default defineConfig({
         main: path.resolve(__dirname, 'index.html'),
         docs: path.resolve(__dirname, 'docs.html'),
       },
-      // Externalize Node built-ins that get pulled in via shared module system barrel exports
-      external: ['fs', 'path', 'crypto', 'child_process', 'os', 'http', 'https', 'zlib', 'stream', 'util', 'net', 'tls', 'events', 'url', 'querystring', 'buffer'],
+      // NOTE: Do NOT externalize Node builtins here. `external` runs
+      // before plugin resolveId, so listing 'path', 'fs', etc. as
+      // external causes Rollup to emit raw `import "path"` in the
+      // browser bundle — the runtime then crashes with "Failed to
+      // resolve module specifier 'path'". The
+      // vite-plugin-gatewaze-modules plugin uses module.isBuiltin()
+      // to detect both `path` and `node:path` forms and stub them
+      // (returning an empty module), which is what we actually want
+      // for browser-bound chunks created from module api.ts files.
+      //
       // UNRESOLVED_IMPORT was previously suppressed here; it masked a
       // real bug where module-file imports of admin-owned deps (e.g.
       // react-leaflet) shipped as raw bare specifiers and blew up in
