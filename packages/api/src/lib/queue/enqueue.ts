@@ -69,11 +69,14 @@ export async function enqueue<T extends ZodTypeAny>(
 
   if (opts.requireConnected) {
     try {
+      // Same QUEUE_HEALTH_TIMEOUT_MS budget as queue/health.ts (default 2s);
+      // 500ms was tighter than cross-node RTT on production LKE.
+      const timeoutMs = parseInt(process.env.QUEUE_HEALTH_TIMEOUT_MS ?? '2000', 10);
       const conn = getRedisConnection('client');
       const pong = await Promise.race([
         conn.ping(),
         new Promise<string>((_, reject) =>
-          setTimeout(() => reject(new Error('ping timeout')), 500),
+          setTimeout(() => reject(new Error('ping timeout')), timeoutMs),
         ),
       ]);
       if (pong !== 'PONG') throw new Error(`unexpected ping response: ${pong}`);
