@@ -10,7 +10,6 @@ import { CLICK_ID_PARAMS, UTM_PARAMS } from '@/config/platforms'
 import { trackEvent } from '@/lib/analytics'
 import { hasConsentFor } from '@/hooks/useConsent'
 import { EventHero } from './EventHero'
-import { EventCompactBar } from './EventCompactBar'
 import { EventSidebar } from './EventSidebar'
 import { EventMobileActions } from './EventSidebar'
 import { EventProvider, useEventContext } from './EventContext'
@@ -187,9 +186,6 @@ function EventLayoutInner({
 
   return (
     <main className="relative z-10">
-      {/* Compact sticky bar — slides in when hero scrolls out of view */}
-      <EventCompactBar event={event} brandConfig={brandConfig} heroRef={heroRef} eventIdentifier={eventIdentifier} />
-
       <div className="max-w-7xl mx-auto px-6 sm:px-6 lg:px-8">
         {/* Hero Section */}
         <EventHero event={event} brandConfig={brandConfig} useDarkText={useDarkText} heroRef={heroRef} />

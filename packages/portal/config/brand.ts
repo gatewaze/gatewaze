@@ -177,6 +177,41 @@ const CACHE_TTL_MS = 60_000
 // Defaults
 // ---------------------------------------------------------------------------
 
+/**
+ * If `bucketUrl`'s host matches `internalUrl`'s host AND a separate `publicUrl`
+ * is configured with a different host, return `bucketUrl` rewritten to use
+ * `publicUrl`'s host. Otherwise return `bucketUrl` unchanged.
+ *
+ * Why: in Docker self-host, `SUPABASE_URL` is the internal Kong service name
+ * (`http://supabase-kong:8000`) which the server can resolve but a browser
+ * cannot. `NEXT_PUBLIC_SUPABASE_URL` is the externally-reachable hostname
+ * (e.g. `http://supabase.brand.localhost`). Image src URLs ship to the
+ * browser, so they must use the public host.
+ *
+ * If platform_settings.storage_bucket_url was seeded with the internal URL
+ * (a known footgun on first-boot), this rewrite saves it.
+ */
+function rewriteInternalToPublic(
+  bucketUrl: string,
+  internalUrl: string,
+  publicUrl: string,
+): string {
+  if (!bucketUrl || !internalUrl || !publicUrl) return bucketUrl
+  if (internalUrl === publicUrl) return bucketUrl
+  try {
+    const bucketHost = new URL(bucketUrl).host
+    const internalHost = new URL(internalUrl).host
+    const publicParsed = new URL(publicUrl)
+    if (bucketHost !== internalHost) return bucketUrl
+    const rewritten = new URL(bucketUrl)
+    rewritten.protocol = publicParsed.protocol
+    rewritten.host = publicParsed.host
+    return rewritten.toString().replace(/\/+$/, '')
+  } catch {
+    return bucketUrl
+  }
+}
+
 const defaults: BrandConfig = {
   id: process.env.INSTANCE_NAME || 'gatewaze',
   name: 'Gatewaze',
@@ -442,13 +477,21 @@ export async function getServerBrandConfig(): Promise<BrandConfig> {
 
     // Resolve the effective storage bucket URL with allow-list enforcement (defense-in-depth
      // — see spec-relative-storage-paths.md §Security Considerations).
+    //
+    // The bucket URL is consumed by the browser (it's the prefix of `<img src>` /
+    // `<next/image src>` strings emitted in SSR HTML), so the fallback MUST be
+    // the externally-reachable Supabase URL — not the Docker-internal one. Use
+    // NEXT_PUBLIC_SUPABASE_URL when set; only fall back to SUPABASE_URL (which
+    // in self-hosted Docker is `http://supabase-kong:8000`, browser-unreachable)
+    // when no public URL is configured.
+    const publicSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || supabaseUrl
     const allowedHosts = (process.env.ALLOWED_STORAGE_DOMAINS || '')
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean)
     const resolved = resolveBucketUrl({
       configured: config.storageBucketUrlRaw,
-      supabaseUrl,
+      supabaseUrl: publicSupabaseUrl,
       allowedHosts: allowedHosts.length > 0 ? allowedHosts : undefined,
     })
     config.storageBucketUrl = resolved.url
@@ -459,6 +502,17 @@ export async function getServerBrandConfig(): Promise<BrandConfig> {
     } else if (resolved.usedFallback && config.storageBucketUrlRaw === '') {
       // Empty setting on a fresh install — quiet at boot, noisy only if unexpected.
     }
+
+    // Defensive: if the configured bucket URL points at the Docker-internal
+    // Supabase host (server reaches it but browser can't), rewrite to the
+    // public host so <next/image src> strings work end-to-end. Operators can
+    // fix the underlying Platform Settings → Storage Bucket URL value to
+    // silence this rewrite.
+    config.storageBucketUrl = rewriteInternalToPublic(
+      config.storageBucketUrl,
+      supabaseUrl,
+      publicSupabaseUrl,
+    )
 
     // Resolve branding image fields to full URLs using the effective bucket URL.
     // Idempotent — already-full URLs (legacy data) pass through unchanged.

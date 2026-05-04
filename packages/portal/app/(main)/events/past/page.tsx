@@ -4,6 +4,7 @@ import { createPortalListingLoader, roundedNowIsoBucket } from '@gatewaze/shared
 import { eventsListingSchema } from '@gatewaze-modules/events/listing-schema'
 import { getServerBrand, getBrandConfigById } from '@/config/brand'
 import { createServerSupabase } from '@/lib/supabase/server'
+import { resolveEventImagesList } from '@/lib/storage-resolve'
 import { TimelineContent } from '@/components/timeline/TimelineContent'
 import { PortalListingErrorBoundary } from '@/components/listing/PortalListingErrorBoundary'
 import { eventListingQueryFromUrl, parseEventUrl } from '@/lib/listing/event-url-filters'
@@ -86,8 +87,15 @@ export default async function PastEventsPage({ searchParams }: PageProps) {
         { ts },
       ),
     ])
+    // Resolve relative storage paths (e.g. "event-logos/abc.jpg") to full
+    // public URLs — the listing loader returns raw column values, but
+    // <next/image> rejects bare paths without a leading slash.
+    const rows = resolveEventImagesList(
+      pageResult.rows as unknown as Event[],
+      brandConfig.storageBucketUrl,
+    )
     initialPage = {
-      rows: pageResult.rows as unknown as Event[],
+      rows,
       page: pageResult.page,
       pageSize: pageResult.pageSize,
       totalCount: pageResult.totalCount,
