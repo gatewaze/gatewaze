@@ -57,7 +57,7 @@ csvRouter.post('/import/people', upload.single('file'), async (req, res) => {
           });
           return null;
         }
-      }).filter(Boolean);
+      }).filter((r): r is Record<string, unknown> => r !== null);
 
       if (batch.length > 0) {
         const { error, count } = await supabase
