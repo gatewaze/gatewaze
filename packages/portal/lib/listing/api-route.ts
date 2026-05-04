@@ -17,7 +17,8 @@ import {
   roundedNowIsoBucket,
 } from '@gatewaze/shared/listing';
 import { createServerSupabase } from '@/lib/supabase/server';
-import { getServerBrand } from '@/config/brand';
+import { getServerBrand, getBrandConfigById } from '@/config/brand';
+import { resolveEventImagesList } from '@/lib/storage-resolve';
 
 const TS_TOLERANCE_MS = 24 * 60 * 60 * 1000;
 
@@ -92,8 +93,20 @@ export function createPortalListingApiRoute({ schema }: CreatePortalListingApiRo
         supabase,
       });
 
+      // Per-module row transforms. The events schema returns raw column
+      // values (e.g. `event_logo: "event-logos/abc.jpg"` — bare storage
+      // paths), but <next/image> on the client requires absolute URLs or
+      // leading-slash paths. Resolve here before serialisation so the
+      // SSR initial page (resolved at the page level) and the infinite-
+      // scroll fetches (resolved here) emit the same shape.
+      let rows: unknown[] = result.rows;
+      if (schema.id === 'events') {
+        const brandConfig = await getBrandConfigById(brandId);
+        rows = resolveEventImagesList(rows, brandConfig.storageBucketUrl);
+      }
+
       const responseBody = {
-        rows: result.rows,
+        rows,
         page: result.page,
         pageSize: result.pageSize,
         totalCount: result.totalCount,

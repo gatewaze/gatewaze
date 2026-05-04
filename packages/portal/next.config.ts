@@ -12,6 +12,104 @@ const moduleDirs: string[] = existsSync(dirsPath)
   ? JSON.parse(readFileSync(dirsPath, 'utf-8'))
   : []
 
+/**
+ * Build the next/image `remotePatterns` allow-list. Static entries cover
+ * external services (Luma, LinkedIn, etc.); dynamic entries are derived from
+ * the running deployment's Supabase URL(s) so each brand's own storage host
+ * is allowed without per-brand config edits.
+ */
+function buildRemotePatterns() {
+  const staticEntries = [
+    { protocol: 'https' as const, hostname: '**.supabase.co' },
+    { protocol: 'https' as const, hostname: 'lu.ma' },
+    { protocol: 'https' as const, hostname: 'images.lumacdn.com' },
+    // User avatar sources
+    { protocol: 'https' as const, hostname: 'www.gravatar.com' },
+    { protocol: 'https' as const, hostname: '*.licdn.com' },
+    { protocol: 'https' as const, hostname: 'media.licdn.com' },
+    // Customer.io profile pics
+    { protocol: 'https' as const, hostname: 'cdn.customer.io' },
+    // Generic image hosts that brands commonly use
+    { protocol: 'https' as const, hostname: 'images.unsplash.com' },
+    { protocol: 'https' as const, hostname: '**.cloudfront.net' },
+    // YouTube thumbnails (MediaContent video previews)
+    { protocol: 'https' as const, hostname: 'i.ytimg.com' },
+    { protocol: 'https' as const, hostname: 'img.youtube.com' },
+  ]
+
+  const dynamic: Array<{ protocol: 'http' | 'https'; hostname: string }> = []
+  const seen = new Set<string>()
+  const addHostFromUrl = (raw: string | undefined) => {
+    if (!raw) return
+    try {
+      const parsed = new URL(raw)
+      const protocol = parsed.protocol.replace(':', '') === 'https' ? 'https' : 'http'
+      const key = `${protocol}://${parsed.hostname}`
+      if (seen.has(key)) return
+      seen.add(key)
+      dynamic.push({ protocol, hostname: parsed.hostname })
+    } catch {
+      /* ignore unparseable URL */
+    }
+  }
+
+  // Self-host / per-brand Supabase hosts (where uploaded images live).
+  addHostFromUrl(process.env.NEXT_PUBLIC_SUPABASE_URL)
+  addHostFromUrl(process.env.SUPABASE_URL)
+
+  // Operator escape hatch: comma-separated extra hosts.
+  const extras = (process.env.IMAGE_REMOTE_HOSTS || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+  for (const h of extras) {
+    // Accept either bare hostname or a full URL — addHostFromUrl handles URLs;
+    // for bare hostnames, allow both http + https since we can't tell.
+    if (h.includes('://')) addHostFromUrl(h)
+    else {
+      const key = `*://${h}`
+      if (!seen.has(key)) {
+        seen.add(key)
+        dynamic.push({ protocol: 'http', hostname: h })
+        dynamic.push({ protocol: 'https', hostname: h })
+      }
+    }
+  }
+
+  return [...staticEntries, ...dynamic]
+}
+
+/**
+ * Decide whether to bypass next/image optimization entirely.
+ *
+ * The optimizer runs inside the portal container and fetches the original
+ * image to transform it. When the storage host is a `.localhost` name (dev
+ * docker-compose with `/etc/hosts` on the host machine only), the container
+ * can't resolve it and 500s. Browsers loading the URL directly work fine —
+ * `/etc/hosts` is on the same machine — so `unoptimized: true` is the right
+ * answer here: the `<Image>` element just emits the configured URL and the
+ * browser fetches straight from Supabase Storage.
+ *
+ * Operators can force-set this either way via `NEXT_IMAGE_UNOPTIMIZED=true`
+ * or `NEXT_IMAGE_UNOPTIMIZED=false`.
+ */
+function shouldDisableImageOptimizer(): boolean {
+  const explicit = process.env.NEXT_IMAGE_UNOPTIMIZED
+  if (explicit === 'true' || explicit === '1') return true
+  if (explicit === 'false' || explicit === '0') return false
+  // Auto-detect: any *.localhost host in either Supabase URL.
+  const candidates = [process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_URL].filter(Boolean) as string[]
+  for (const raw of candidates) {
+    try {
+      const host = new URL(raw).hostname
+      if (host.endsWith('.localhost') || host === 'localhost') return true
+    } catch {
+      /* ignore unparseable URL */
+    }
+  }
+  return false
+}
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
 
@@ -82,24 +180,23 @@ const nextConfig: NextConfig = {
   // Image optimization domains. Add new hosts here when migrating an
   // <img> to next/image so the bundler can fetch + transform the
   // remote asset at request time.
+  //
+  // The Supabase storage host varies per deployment — Cloud uses
+  // `*.supabase.co`, self-host uses whatever `SUPABASE_URL` /
+  // `NEXT_PUBLIC_SUPABASE_URL` is set to (e.g. `supabase.brand.com` in
+  // production, `supabase.brand.localhost` in dev). Derive those at
+  // config-load time so we don't need a manual entry per brand. Operators
+  // can also add extras via the comma-separated `IMAGE_REMOTE_HOSTS` env.
+  //
+  // unoptimized: when the storage host is a `.localhost` name, the Next.js
+  // optimizer (which runs inside the portal container) can't resolve it via
+  // /etc/hosts (those entries live on the host machine), so it 500s when
+  // trying to fetch the original to transform. Disable optimization for
+  // these dev setups — the browser loads the URL directly. Production
+  // (Supabase Cloud or any public TLD) keeps optimization on.
   images: {
-    remotePatterns: [
-      { protocol: 'https', hostname: '**.supabase.co' },
-      { protocol: 'https', hostname: 'lu.ma' },
-      { protocol: 'https', hostname: 'images.lumacdn.com' },
-      // User avatar sources
-      { protocol: 'https', hostname: 'www.gravatar.com' },
-      { protocol: 'https', hostname: '*.licdn.com' },
-      { protocol: 'https', hostname: 'media.licdn.com' },
-      // Customer.io profile pics
-      { protocol: 'https', hostname: 'cdn.customer.io' },
-      // Generic image hosts that brands commonly use
-      { protocol: 'https', hostname: 'images.unsplash.com' },
-      { protocol: 'https', hostname: '**.cloudfront.net' },
-      // YouTube thumbnails (MediaContent video previews)
-      { protocol: 'https', hostname: 'i.ytimg.com' },
-      { protocol: 'https', hostname: 'img.youtube.com' },
-    ],
+    remotePatterns: buildRemotePatterns(),
+    unoptimized: shouldDisableImageOptimizer(),
   },
 
   // Headers for caching static assets
