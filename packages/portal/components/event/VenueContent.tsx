@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import { useEventContext } from './EventContext'
 import { GlowBorder } from '@/components/ui/GlowBorder'
+import { NearbyHotelsList } from './NearbyHotelsList'
 
 const VenueLeafletMap = dynamic(
   () => import('./VenueLeafletMap').then((mod) => mod.VenueLeafletMap),
@@ -14,16 +15,32 @@ const VenueLeafletMap = dynamic(
 export function VenueContent() {
   const { event, useDarkText, primaryColor, theme } = useEventContext()
   const [sanitizedVenueHtml, setSanitizedVenueHtml] = useState<string | null>(null)
+  const [highlightHotelId, setHighlightHotelId] = useState<string | null>(null)
 
-  // Parse lat/lng from event_location ("lat,lon" format)
+  // Prefer the dedicated lat/lng columns; fall back to legacy event_location ("lat,lon").
   const coords = useMemo(() => {
+    if (typeof event.event_latitude === 'number' && typeof event.event_longitude === 'number') {
+      return { lat: event.event_latitude, lng: event.event_longitude }
+    }
     if (!event.event_location) return null
     const parts = event.event_location.split(',').map(Number)
     if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
       return { lat: parts[0], lng: parts[1] }
     }
     return null
-  }, [event.event_location])
+  }, [event.event_latitude, event.event_longitude, event.event_location])
+
+  // Hotels sorted ascending by distance from venue. Filter out un-geocoded
+  // entries when computing markers, but keep them in the list (so the editor
+  // sees they're still there) — the renderer handles missing lat/lng.
+  const hotels = useMemo(() => event.nearby_hotels ?? [], [event.nearby_hotels])
+  const mapHotels = useMemo(
+    () =>
+      hotels
+        .filter((h) => typeof h.lat === 'number' && typeof h.lng === 'number')
+        .map((h) => ({ id: h.id, name: h.name, lat: h.lat as number, lng: h.lng as number })),
+    [hotels],
+  )
 
   // Sanitize venue_content HTML
   useEffect(() => {
@@ -51,7 +68,13 @@ export function VenueContent() {
       {coords && (
         <GlowBorder useDarkTheme={useDarkText}>
           <div className={`${panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${panelBorder}`}>
-            <VenueLeafletMap lat={coords.lat} lng={coords.lng} primaryColor={primaryColor} />
+            <VenueLeafletMap
+              lat={coords.lat}
+              lng={coords.lng}
+              primaryColor={primaryColor}
+              hotels={mapHotels}
+              highlightHotelId={highlightHotelId}
+            />
           </div>
         </GlowBorder>
       )}
@@ -84,6 +107,20 @@ export function VenueContent() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Nearby accommodation list. Renders even without venue coords —
+          falls back to alphabetical sort and hides the distance/drive-time
+          column until the admin sets lat/lng on the Venue tab. */}
+      {hotels.length > 0 && (
+        <NearbyHotelsList
+          hotels={hotels}
+          venueLat={coords?.lat ?? null}
+          venueLng={coords?.lng ?? null}
+          useDarkText={useDarkText}
+          theme={theme}
+          onHover={setHighlightHotelId}
+        />
       )}
 
       {/* Venue Details (rich text) */}
