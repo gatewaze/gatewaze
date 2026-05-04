@@ -57,9 +57,13 @@ CREATE OR REPLACE FUNCTION public.user_account_ids()
 RETURNS SETOF uuid
 LANGUAGE sql STABLE SECURITY DEFINER
 AS $$
-  SELECT account_id
-  FROM public.accounts_users
-  WHERE user_id = auth.uid()
+  -- accounts_users keys to admin_profiles (admin_profile_id), not directly
+  -- to auth.users. admin_profiles.user_id is the link to auth.uid(); join
+  -- through it to resolve the current user's account memberships.
+  SELECT au.account_id
+  FROM public.accounts_users au
+  JOIN public.admin_profiles ap ON ap.id = au.admin_profile_id
+  WHERE ap.user_id = auth.uid()
 $$;
 
 COMMENT ON FUNCTION public.user_account_ids() IS
@@ -124,7 +128,11 @@ COMMENT ON FUNCTION public.account_in_scope(uuid) IS
 
 CREATE POLICY "accounts_users_select_self"
   ON public.accounts_users FOR SELECT TO authenticated
-  USING (user_id = auth.uid());
+  USING (
+    admin_profile_id IN (
+      SELECT id FROM public.admin_profiles WHERE user_id = auth.uid()
+    )
+  );
 
 -- =============================================================================
 -- STEP 5: dual-track RLS on people
