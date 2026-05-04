@@ -43,6 +43,14 @@ export interface Event {
   gradual_eventslug?: string | null
   venue_content: string | null
   venue_map_image: string | null
+  /** Latitude/longitude of the venue. Used to plot the venue marker + sort
+   *  nearby_hotels ascending by distance. */
+  event_latitude?: number | null
+  event_longitude?: number | null
+  /** Geocoded list of nearby accommodation, persisted as a JSONB array on
+   *  events.nearby_hotels. Each entry has its own lat/lng + optional drive
+   *  time/distance from the venue (computed at admin save time via OSRM). */
+  nearby_hotels?: NearbyHotel[] | null
   addedpage_content: string | null
   addedpage_title: string | null
   event_type: string | null
@@ -50,6 +58,27 @@ export interface Event {
   event_topics: string[] | null
   custom_domain: string | null
   custom_domain_status: string | null
+}
+
+/**
+ * One nearby accommodation entry, surfaced on the venue page sorted ascending
+ * by distance from (event_latitude, event_longitude). Mirrors the admin's
+ * NearbyHotel shape — JSONB stored verbatim (camelCase) so the admin form
+ * round-trips without a translation layer.
+ */
+export interface NearbyHotel {
+  id: string
+  name: string
+  postcode: string
+  url?: string | null
+  priceRange?: string | null
+  lat: number | null
+  lng: number | null
+  geocodedAt?: string | null
+  /** Driving time hotel → venue, in seconds. Best-effort (OSRM lookup). */
+  driveSeconds?: number | null
+  /** Driving distance hotel → venue via the road network, in metres. */
+  driveDistanceMeters?: number | null
 }
 
 export interface EventCompetition {

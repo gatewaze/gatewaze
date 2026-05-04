@@ -13,7 +13,8 @@ interface Props {
   params: Promise<{ identifier: string }>
 }
 
-const EVENT_SELECT_FIELDS = `
+// Stable columns — present on every supported events schema. Always selected.
+const EVENT_SELECT_FIELDS_STABLE = `
   id,
   event_id,
   event_slug,
@@ -51,48 +52,63 @@ const EVENT_SELECT_FIELDS = `
   gradual_eventslug,
   venue_content,
   venue_map_image,
+  event_latitude,
+  event_longitude,
   addedpage_content,
   addedpage_title
 `
 
+// Optional columns added by later migrations. Selected when present, gracefully
+// dropped if PostgREST 400s with "column events.X does not exist" (means the
+// brand hasn't applied that migration yet — page should still render, the
+// dependent feature just stays empty).
+const EVENT_SELECT_FIELDS = `${EVENT_SELECT_FIELDS_STABLE},nearby_hotels`
+
 export interface EventWithUuid extends Event {
   id: string
+}
+
+/** True when the PostgREST error means a column in our SELECT doesn't exist
+ *  in the live schema (brand hasn't applied a recent migration). Treated as
+ *  a signal to retry with the stable SELECT only. */
+function isMissingColumnError(err: { message?: string; code?: string } | null | undefined): boolean {
+  if (!err) return false
+  // Postgres SQLSTATE 42703 = undefined_column. PostgREST surfaces this as
+  // a 400 with the SQLSTATE code preserved in `code`.
+  if (err.code === '42703') return true
+  return /column .* does not exist/i.test(err.message || '')
 }
 
 async function getEvent(identifier: string, brandId: string): Promise<EventWithUuid | null> {
   const supabase = await createServerSupabase(brandId)
   const brandConfig = await getBrandConfigById(brandId)
 
-  // Try slug first, then event_id
-  let { data: event } = await supabase
-    .from('events')
-    .select(EVENT_SELECT_FIELDS)
-    .eq('event_slug', identifier)
-    .eq('is_live_in_production', true)
-    .maybeSingle()
-
-  if (!event) {
-    const result = await supabase
-      .from('events')
-      .select(EVENT_SELECT_FIELDS)
-      .eq('event_id', identifier)
-      .eq('is_live_in_production', true)
-      .maybeSingle()
-    event = result.data
+  async function fetchByColumn(column: 'event_slug' | 'event_id', value: string) {
+    const tryFields = async (fields: string) =>
+      supabase
+        .from('events')
+        .select(fields)
+        .eq(column, value)
+        .eq('is_live_in_production', true)
+        .maybeSingle()
+    const first = await tryFields(EVENT_SELECT_FIELDS)
+    if (first.error && isMissingColumnError(first.error)) {
+      // Retry with only the stable columns — the dependent feature (e.g.
+      // nearby_hotels) will be missing from the row but the page renders.
+      const fallback = await tryFields(EVENT_SELECT_FIELDS_STABLE)
+      return fallback.data
+    }
+    return first.data
   }
+
+  // Try slug first, then event_id
+  let event = await fetchByColumn('event_slug', identifier)
+  if (!event) event = await fetchByColumn('event_id', identifier)
 
   // Fallback: extract event_id from end of slug (handles stale/modified slugs)
   if (!event && identifier.includes('-')) {
     const extractedId = extractEventIdFromSlug(identifier)
-    if (extractedId !== identifier) {
-      const result = await supabase
-        .from('events')
-        .select(EVENT_SELECT_FIELDS)
-        .eq('event_id', extractedId)
-        .eq('is_live_in_production', true)
-        .maybeSingle()
-      event = result.data
-    }
+    if (extractedId !== identifier) event = await fetchByColumn('event_id', extractedId)
   }
 
   return resolveEventImages(event as EventWithUuid | null, brandConfig.storageBucketUrl) ?? null
