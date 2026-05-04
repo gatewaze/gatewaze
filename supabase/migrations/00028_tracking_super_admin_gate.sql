@@ -51,15 +51,22 @@ SECURITY DEFINER
 AS $$
 BEGIN
   IF NEW.key IN ('tracking_head', 'tracking_body') THEN
-    INSERT INTO public.audit_log (actor, action, target_kind, target_id, metadata)
+    -- audit_log schema (00020): actor_user_id, actor_role, action,
+    -- target_module_id, target_source_id, request_id, ts, metadata.
+    -- The original draft of this trigger used actor/target_kind/target_id
+    -- which never existed in 00020's table — every upsert to a tracking
+    -- key 400'd. Stash the human-readable actor label in metadata since
+    -- there's no free-form actor column to land it in.
+    INSERT INTO public.audit_log (actor_user_id, action, target_module_id, metadata)
     VALUES (
-      COALESCE(auth.email(), 'system'),
+      auth.uid(),
       'platform_settings.' || TG_OP || '.' || NEW.key,
-      'platform_setting',
-      NEW.key,
+      'platform_settings',
       jsonb_build_object(
+        'key',          NEW.key,
+        'op',           TG_OP,
         'value_length', length(NEW.value),
-        'op', TG_OP
+        'actor_email',  COALESCE(auth.email(), 'system')
       )
     );
   END IF;
