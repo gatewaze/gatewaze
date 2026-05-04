@@ -1,4 +1,17 @@
 import { getApiBaseUrl } from '@/config/brands';
+import { supabase } from '@/lib/supabase';
+
+/**
+ * Build auth headers for /api/screenshots/* requests. The router on the
+ * api server is mounted under requireJwt() — every endpoint, including
+ * /health, 401s without a Bearer token. Each call site grabs a fresh
+ * session token rather than caching, so an admin who re-authenticates
+ * mid-session keeps working.
+ */
+async function authHeaders(): Promise<HeadersInit> {
+  const token = (await supabase.auth.getSession()).data.session?.access_token;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 export interface ScreenshotServiceResponse {
   success: boolean;
@@ -33,7 +46,10 @@ export class ScreenshotService {
       return this._serviceAvailable;
     }
     try {
-      const res = await fetch(`${this.getApiBase()}/health`, { signal: AbortSignal.timeout(3000) });
+      const res = await fetch(`${this.getApiBase()}/health`, {
+        headers: await authHeaders(),
+        signal: AbortSignal.timeout(3000),
+      });
       const data = await res.json();
       this._serviceAvailable = res.ok && data.queueAvailable === true;
     } catch {
@@ -56,6 +72,7 @@ export class ScreenshotService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(await authHeaders()),
         },
         body: JSON.stringify({
           eventIds: [eventId],
@@ -126,6 +143,7 @@ export class ScreenshotService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(await authHeaders()),
         },
         body: JSON.stringify({
           eventIds: [eventId],
@@ -184,6 +202,7 @@ export class ScreenshotService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(await authHeaders()),
         },
         body: JSON.stringify({
           eventIds,
@@ -236,6 +255,7 @@ export class ScreenshotService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(await authHeaders()),
         },
         body: JSON.stringify({
           eventIds: [],
@@ -294,6 +314,7 @@ export class ScreenshotService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(await authHeaders()),
         },
         body: JSON.stringify({
           eventIds: [eventId],
@@ -414,6 +435,7 @@ export class ScreenshotService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(await authHeaders()),
         },
         body: JSON.stringify({
           eventIds: [eventId],
@@ -509,6 +531,7 @@ export class ScreenshotService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(await authHeaders()),
         },
         body: JSON.stringify({
           eventIds,
@@ -602,6 +625,7 @@ export class ScreenshotService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(await authHeaders()),
         },
         body: JSON.stringify({
           eventIds: [],
