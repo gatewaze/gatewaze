@@ -21,7 +21,8 @@ import { AnalyticsProvider } from '@/components/AnalyticsProvider'
 import { getServerBrandConfig, buildGoogleFontsUrl, buildFontStack, isLightColor, getThemeBackgroundColor, resolveEventTheme, type ThemeColors } from '@/config/brand'
 import { OrganizationJsonLd } from '@/components/structured-data'
 import { createServerSupabase } from '@/lib/supabase/server'
-import { ChatWidgetLoader } from '@/components/chat/ChatWidgetLoader'
+// ChatWidgetLoader currently disabled — see comment near the JSX use site.
+// import { ChatWidgetLoader } from '@/components/chat/ChatWidgetLoader'
 import '@/styles/globals.css'
 
 const EVENT_META_FIELDS =
@@ -214,7 +215,19 @@ export default async function MainLayout({
           </TrackingProvider>
         </AnalyticsProvider>
         {complianceEnabled && <CookieConsentLoader />}
-        {process.env.NEXT_PUBLIC_ENABLE_CHAT === 'true' && <ChatWidgetLoader />}
+        {/*
+          ChatWidgetLoader is currently disabled across all brands — the
+          underlying agent isn't wired up. Re-enable by uncommenting the
+          conditional below once chat actually works end-to-end.
+
+          NOTE: NEXT_PUBLIC_* env vars are baked into the client bundle at
+          build time but read at runtime on the server. If the bake-time
+          value disagrees with the runtime value, hydration fails (React
+          #418). When re-enabling, gate the widget on a server-side prop
+          (passed via cookies, brand config, or a server component) rather
+          than `process.env.NEXT_PUBLIC_*` directly.
+        */}
+        {/* {process.env.NEXT_PUBLIC_ENABLE_CHAT === 'true' && <ChatWidgetLoader />} */}
         {brandConfig.trackingBody && (
           <script dangerouslySetInnerHTML={{ __html: brandConfig.trackingBody }} />
         )}
