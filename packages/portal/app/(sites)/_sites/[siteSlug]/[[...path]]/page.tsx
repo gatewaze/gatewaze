@@ -160,7 +160,10 @@ function SiteShellInline({
           © {new Date().getFullYear()} — Powered by gatewaze
         </footer>
         {cookieBannerEnabled && (
-          // eslint-disable-next-line @next/next/no-sync-scripts
+          // The @next/next/no-sync-scripts rule isn't loaded by the portal's
+          // root eslintrc (it's a `next lint`-only plugin we don't extend).
+          // The script must run synchronously before consent state is read,
+          // so a <Script strategy="..."> swap would change behaviour.
           <script src="/js/cookieconsent/custom-consent.js?v=6" />
         )}
       </body>
