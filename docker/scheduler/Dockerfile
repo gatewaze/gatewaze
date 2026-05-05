@@ -1,7 +1,7 @@
 # Scheduler Dockerfile
 # Runs background jobs (scraper scheduler, embedding scheduler)
 
-FROM node:20-slim
+FROM node:22-slim
 
 # Install Chromium and dependencies for browser automation
 RUN apt-get update && apt-get install -y \

@@ -5,7 +5,7 @@
 # so the entrypoint can clone MODULE_SOURCES at pod start, regenerate the
 # module registry, and run `next build` — mirroring how the admin image
 # works, so premium-module event pages make it into the bundle.
-FROM node:20-slim
+FROM node:22-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git ca-certificates curl \
