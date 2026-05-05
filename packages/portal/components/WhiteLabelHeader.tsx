@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { getClientBrandConfig, isLightColor } from '@/config/brand'
 import type { BrandConfig } from '@/config/brand'
@@ -24,13 +23,10 @@ interface UserProfile {
 
 export function WhiteLabelHeader({ brandConfig }: Props) {
   const { user, session, isLoading, signOut } = useAuth()
-  const pathname = usePathname()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const [profileRefreshKey, setProfileRefreshKey] = useState(0)
-
-  const isOnSignInPage = pathname === '/sign-in'
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -181,18 +177,12 @@ export function WhiteLabelHeader({ brandConfig }: Props) {
                 </div>
               )}
             </div>
-          ) : !isOnSignInPage ? (
-            <Link
-              href={`/sign-in?redirectTo=${encodeURIComponent(pathname)}`}
-              className="flex items-center gap-1.5 px-4 py-2 bg-white/10 hover:bg-white/20 transition-colors text-white font-medium"
-              style={{ borderRadius: 'var(--radius-control)', backdropFilter: 'blur(var(--glass-blur, 4px))', WebkitBackdropFilter: 'blur(var(--glass-blur, 4px))' }}
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-              </svg>
-              Sign in
-            </Link>
           ) : null}
+          {/* Sign in CTA intentionally omitted for custom-domain pages —
+              guests landing on a white-labelled event (e.g. a wedding
+              invite) shouldn't be prompted to authenticate. The signed-in
+              user menu above is still rendered for admins who happen to
+              be authenticated. */}
         </nav>
       </div>
     </header>
