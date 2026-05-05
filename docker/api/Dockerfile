@@ -1,5 +1,5 @@
 # ---- Stage 1: Build ----
-FROM node:20-slim AS builder
+FROM node:22-slim AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@latest --activate
@@ -38,7 +38,7 @@ RUN pnpm --filter shared build
 RUN pnpm --filter api build
 
 # ---- Stage 2: Run ----
-FROM node:20-slim
+FROM node:22-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@latest --activate
