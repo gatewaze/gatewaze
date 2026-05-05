@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import type { Event } from '@/types/event'
@@ -161,6 +162,54 @@ export function EventHero({ event, brandConfig, useDarkText, heroRef }: Props) {
     fallbackGradientAlpha: useDarkText ? '80' : '40',
   }), [useDarkText])
 
+  // When the user lands on the event with an invite token (?invite=…),
+  // override the displayed start / end with the union of the sub-events
+  // their party was actually invited to. Falls back to the main event
+  // times if the lookup fails or no invite token is present.
+  const searchParams = useSearchParams()
+  const inviteToken = searchParams?.get('invite') ?? null
+  const [effectiveStart, setEffectiveStart] = useState<string>(event.event_start)
+  const [effectiveEnd, setEffectiveEnd] = useState<string | null>(event.event_end ?? null)
+
+  useEffect(() => {
+    setEffectiveStart(event.event_start)
+    setEffectiveEnd(event.event_end ?? null)
+    if (!inviteToken) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch('/api/invite-rsvp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'load', token: inviteToken }),
+          cache: 'no-store',
+        })
+        if (!res.ok) return
+        const data = await res.json()
+        const starts: number[] = []
+        const ends: number[] = []
+        for (const member of data.members ?? []) {
+          for (const ev of member.events ?? []) {
+            if (ev.event_start) {
+              const s = Date.parse(ev.event_start)
+              if (!Number.isNaN(s)) starts.push(s)
+            }
+            if (ev.event_end) {
+              const e = Date.parse(ev.event_end)
+              if (!Number.isNaN(e)) ends.push(e)
+            }
+          }
+        }
+        if (cancelled || starts.length === 0) return
+        setEffectiveStart(new Date(Math.min(...starts)).toISOString())
+        setEffectiveEnd(ends.length > 0 ? new Date(Math.max(...ends)).toISOString() : null)
+      } catch {
+        // ignore; stick with the event-level times
+      }
+    })()
+    return () => { cancelled = true }
+  }, [inviteToken, event.event_start, event.event_end])
+
   // Use SSR-safe date formatting initially, then update to client locale after hydration
   const [dateParts, setDateParts] = useState<DateParts>(() => formatDatePartsSSR(event.event_start))
   const [startTime, setStartTime] = useState(() => formatTimeSSR(event.event_start))
@@ -182,13 +231,12 @@ export function EventHero({ event, brandConfig, useDarkText, heroRef }: Props) {
   }, [imageUrl])
 
   useEffect(() => {
-    // Update to client locale after hydration
-    setDateParts(formatDatePartsClient(event.event_start))
-    setStartTime(formatTimeClient(event.event_start))
-    if (event.event_end) {
-      setEndTime(formatTimeClient(event.event_end))
-    }
-  }, [event.event_start, event.event_end])
+    // Reformat whenever the effective start / end changes (initial render,
+    // hydration, or invite-driven sub-event override).
+    setDateParts(formatDatePartsClient(effectiveStart))
+    setStartTime(formatTimeClient(effectiveStart))
+    setEndTime(effectiveEnd ? formatTimeClient(effectiveEnd) : '')
+  }, [effectiveStart, effectiveEnd])
 
   // Helper to detect if a string looks like coordinates (e.g., "37.3893889,-122.0832101")
   const isCoordinates = (str: string | null): boolean => {
@@ -200,8 +248,10 @@ export function EventHero({ event, brandConfig, useDarkText, heroRef }: Props) {
   const venueName = (event.venue_address ? event.venue_address.split(',')[0].trim() : null)
     || (event.event_location && !isCoordinates(event.event_location) ? event.event_location : null)
 
-  // Build city/region string for subtitle
-  const cityRegion = [event.event_city, event.event_region]
+  // Build city subtitle. Continent codes (eu/na/sa/etc) are intentionally
+  // excluded — they're useful for region filtering on listing pages but
+  // read as noise on the event hero (e.g. "Newton Aycliffe, eu").
+  const cityRegion = [event.event_city]
     .filter(Boolean)
     .filter(s => s && s.toLowerCase() !== 'na' && s.toLowerCase() !== 'on') // Filter out placeholder values
     .join(', ')
@@ -296,7 +346,11 @@ export function EventHero({ event, brandConfig, useDarkText, heroRef }: Props) {
 
           {/* Date & Location Panel */}
           {/* Use horizontal layout when image is landscape (creates gap below image) */}
-          <div className={`flex items-center lg:items-start ${
+          {/* items-start (vs items-center) keeps the calendar and pin icon
+              boxes vertically aligned at the same x within the panel — the
+              panel itself is still horizontally centered by the parent's
+              items-center on mobile. */}
+          <div className={`flex items-start ${
             imageAspectRatio && imageAspectRatio > 1.3 && hasLocation
               ? 'flex-col lg:flex-row gap-0 lg:gap-12'
               : 'flex-col'
