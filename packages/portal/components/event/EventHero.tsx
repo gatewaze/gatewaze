@@ -162,26 +162,30 @@ export function EventHero({ event, brandConfig, useDarkText, heroRef }: Props) {
     fallbackGradientAlpha: useDarkText ? '80' : '40',
   }), [useDarkText])
 
-  // When the user lands on the event with an invite token (?invite=…),
+  // When an invite token is available (either in the URL as ?invite=… or
+  // already cached in localStorage from a prior /rsvp/<code> redirect),
   // override the displayed start / end with the union of the sub-events
-  // their party was actually invited to. Falls back to the main event
-  // times if the lookup fails or no invite token is present.
+  // the party was actually invited to. Falls back to the main event
+  // times if no token is present or the lookup fails.
   const searchParams = useSearchParams()
-  const inviteToken = searchParams?.get('invite') ?? null
   const [effectiveStart, setEffectiveStart] = useState<string>(event.event_start)
   const [effectiveEnd, setEffectiveEnd] = useState<string | null>(event.event_end ?? null)
 
   useEffect(() => {
     setEffectiveStart(event.event_start)
     setEffectiveEnd(event.event_end ?? null)
-    if (!inviteToken) return
+    let token = searchParams?.get('invite') ?? null
+    if (!token && typeof window !== 'undefined') {
+      try { token = window.localStorage.getItem('invite_short_code') } catch { /* ignore */ }
+    }
+    if (!token) return
     let cancelled = false
     ;(async () => {
       try {
         const res = await fetch('/api/invite-rsvp', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'load', token: inviteToken }),
+          body: JSON.stringify({ action: 'load', token }),
           cache: 'no-store',
         })
         if (!res.ok) return
@@ -208,7 +212,7 @@ export function EventHero({ event, brandConfig, useDarkText, heroRef }: Props) {
       }
     })()
     return () => { cancelled = true }
-  }, [inviteToken, event.event_start, event.event_end])
+  }, [searchParams, event.event_start, event.event_end])
 
   // Use SSR-safe date formatting initially, then update to client locale after hydration
   const [dateParts, setDateParts] = useState<DateParts>(() => formatDatePartsSSR(event.event_start))
