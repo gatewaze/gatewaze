@@ -566,6 +566,71 @@ services:
     networks:
       - gatewaze
 
+  # ---------------------------------------------------------------------------
+  # umami — self-hosted analytics. Per spec-analytics-module §10.3
+  # (local-dev parity). Reachable at analytics.<brand>.localhost via
+  # Traefik. Same Postgres as the platform; Umami's tables live in a
+  # separate `gatewaze_umami` database which the umami-init script below
+  # creates idempotently.
+  # ---------------------------------------------------------------------------
+  umami-init:
+    image: postgres:16-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-umami-init
+    restart: "no"
+    depends_on:
+      supabase-db:
+        condition: service_healthy
+    environment:
+      PGHOST: supabase-db
+      PGPORT: 5432
+      PGUSER: ${POSTGRES_USER:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: postgres
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        # Idempotent CREATE DATABASE / CREATE ROLE — local-dev parity for
+        # the Helm pre-install Job in
+        # premium-gatewaze-modules/modules/analytics/helm/templates/job-bootstrap-db.yaml.
+        psql -v ON_ERROR_STOP=1 <<SQL
+          DO \$\$
+          BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'gatewaze_umami_role') THEN
+              CREATE ROLE gatewaze_umami_role LOGIN PASSWORD 'gatewaze-umami-dev';
+            END IF;
+          END
+          \$\$;
+        SQL
+        psql -v ON_ERROR_STOP=1 -tAc \
+          "SELECT 1 FROM pg_database WHERE datname = 'gatewaze_umami'" \
+          | grep -q 1 || \
+          psql -v ON_ERROR_STOP=1 -c "CREATE DATABASE gatewaze_umami OWNER gatewaze_umami_role"
+    networks:
+      - gatewaze
+
+  umami:
+    image: ghcr.io/umami-software/umami:postgresql-v2-latest
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-umami
+    restart: unless-stopped
+    depends_on:
+      umami-init:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql://gatewaze_umami_role:gatewaze-umami-dev@supabase-db:5432/gatewaze_umami
+      APP_SECRET: ${ANALYTICS_APP_SECRET:-dev-app-secret-change-me}
+      DISABLE_TELEMETRY: "1"
+      PROXY_TRUST: "1"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-analytics.rule=Host(`${ANALYTICS_HOST:-analytics.gatewaze.localhost}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-analytics.entrypoints=web"
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME:-gatewaze}-analytics.loadbalancer.server.port=3000"
+    networks:
+      - gatewaze
+      - traefik
+
 # ---------------------------------------------------------------------------
 # Volumes
 # ---------------------------------------------------------------------------
