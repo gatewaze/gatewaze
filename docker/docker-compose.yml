@@ -638,6 +638,10 @@ services:
         # Idempotent CREATE DATABASE / CREATE ROLE — local-dev parity for
         # the Helm pre-install Job in
         # premium-gatewaze-modules/modules/analytics/helm/templates/job-bootstrap-db.yaml.
+        #
+        # The GRANT to PGUSER is required because CREATE DATABASE ... OWNER
+        # demands the connecting user be a member of the target owner role.
+        # Idempotent — re-grants are no-ops.
         psql -v ON_ERROR_STOP=1 <<SQL
           DO \$\$
           BEGIN
@@ -646,6 +650,7 @@ services:
             END IF;
           END
           \$\$;
+          GRANT gatewaze_umami_role TO "${PGUSER}";
         SQL
         psql -v ON_ERROR_STOP=1 -tAc \
           "SELECT 1 FROM pg_database WHERE datname = 'gatewaze_umami'" \
