@@ -523,6 +523,12 @@ services:
       MODULE_SOURCES: ${MODULE_SOURCES:-}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       GATEWAZE_DATA_DIR: /var/lib/gatewaze
+      # spec-scrapling-fetcher-service §4.2 — adapter calls these to reach
+      # the new Python service. When unset the adapter raises
+      # ScraplingNotConfiguredError and the *Fast scrapers fall back to
+      # their existing Puppeteer paths.
+      SCRAPLING_FETCHER_URL: http://scrapling-fetcher:8080
+      SCRAPLING_INTERNAL_TOKEN: ${SCRAPLING_INTERNAL_TOKEN:-}
     volumes:
       - ${PREMIUM_MODULES_PATH:-../../premium-gatewaze-modules}:/premium-gatewaze-modules
       - gatewaze-module-sources:/var/lib/gatewaze/sources:ro
@@ -534,6 +540,45 @@ services:
         condition: service_healthy
     networks:
       - gatewaze
+
+  # ---------------------------------------------------------------------------
+  # scrapling-fetcher — Python sidecar exposing Scrapling's Fetcher /
+  # StealthyFetcher / DynamicFetcher behind one HTTP endpoint. Used by
+  # the *Fast Luma scraper variants for the per-event-page fetches that
+  # don't need a browser. See gatewaze-environments/specs/spec-scrapling-fetcher-service.md
+  # ---------------------------------------------------------------------------
+  scrapling-fetcher:
+    build:
+      context: ../../gatewaze-environments/services/scrapling-fetcher
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-scrapling-fetcher
+    restart: unless-stopped
+    networks:
+      - gatewaze
+    environment:
+      SCRAPLING_INTERNAL_TOKEN: ${SCRAPLING_INTERNAL_TOKEN:-}
+      SCRAPLING_PROXY_PROVIDER: ${SCRAPLING_PROXY_PROVIDER:-none}
+      SCRAPLING_PROXY_CONFIG: ${SCRAPLING_PROXY_CONFIG:-}
+      SCRAPLING_PROXY_MODE: ${SCRAPLING_PROXY_MODE:-none}
+      SCRAPLING_BROWSER_POOL_SIZE: ${SCRAPLING_BROWSER_POOL_SIZE:-4}
+      SCRAPLING_FAST_CONCURRENCY: ${SCRAPLING_FAST_CONCURRENCY:-10}
+      SCRAPLING_PER_DOMAIN_RPS: ${SCRAPLING_PER_DOMAIN_RPS:-5}
+      SCRAPLING_DEFAULT_TIMEOUT_MS: ${SCRAPLING_DEFAULT_TIMEOUT_MS:-30000}
+      SCRAPLING_PROXY_DAILY_GB_CAP: ${SCRAPLING_PROXY_DAILY_GB_CAP:-10}
+      SCRAPLING_BRAND_ID: ${BRAND:-default}
+      SUPABASE_URL: http://supabase-kong:8000
+      SUPABASE_SERVICE_KEY: ${SERVICE_ROLE_KEY}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8080/healthz').status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 3G
+        reservations:
+          memory: 1G
 
   scheduler:
     build:
@@ -610,7 +655,11 @@ services:
       - gatewaze
 
   umami:
-    image: ghcr.io/umami-software/umami:postgresql-v2-latest
+    # Pin per the codebase's "no :latest ghost-rollback" pattern (see
+    # values-autodb.yaml comment on image.tag). The Umami v2 series is
+    # what we wired Helm + the schema bootstrap against; bump to v3 only
+    # after exercising the schema migration in dev.
+    image: ghcr.io/umami-software/umami:postgresql-v2.20.2
     container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-umami
     restart: unless-stopped
     depends_on:
