@@ -650,7 +650,7 @@ services:
             END IF;
           END
           \$\$;
-          GRANT gatewaze_umami_role TO "${PGUSER}";
+          GRANT gatewaze_umami_role TO "$${PGUSER}";
         SQL
         psql -v ON_ERROR_STOP=1 -tAc \
           "SELECT 1 FROM pg_database WHERE datname = 'gatewaze_umami'" \
