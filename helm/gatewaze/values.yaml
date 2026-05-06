@@ -505,3 +505,40 @@ customDomains:
   # -- Create RBAC resources for the controller
   rbac:
     create: true
+
+# =============================================================================
+# scrapling-fetcher service
+# spec: gatewaze-environments/specs/spec-scrapling-fetcher-service.md
+# =============================================================================
+scraplingFetcher:
+  # -- Enable the scrapling-fetcher Deployment + Service + NetworkPolicy + Secret
+  enabled: false
+  # -- replicas; spec recommends 1 for Phase 1, scale to 2-3 if needed
+  replicaCount: 1
+  image:
+    repository: ghcr.io/gatewaze/scrapling-fetcher
+    tag: latest
+    pullPolicy: IfNotPresent
+  # -- Shared secret between worker and service. Generate with `openssl rand -hex 32`
+  internalToken: ""
+  # -- Provider plugin: 'none' | 'rayobyte' | 'brightdata' | 'oxylabs' | 'decodo' | 'iproyal' | 'mymodule.MyClass'
+  proxyProvider: "none"
+  # -- When to engage the proxy: 'none' | 'stealth-only' | 'always'
+  proxyMode: "none"
+  # -- Provider-specific JSON config (rendered to JSON in the Secret).
+  # Example (Rayobyte): {"username":"user","password":"$RAYOBYTE_PASSWORD"}
+  # Values starting with $ are resolved from the service's env at startup.
+  proxyConfig: {}
+  browserPoolSize: 4
+  fastConcurrency: 10
+  perDomainRps: 5
+  defaultTimeoutMs: 30000
+  proxyDailyGbCap: 10
+  logLevel: "INFO"
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "1Gi"
+    limits:
+      cpu: "2"
+      memory: "3Gi"
