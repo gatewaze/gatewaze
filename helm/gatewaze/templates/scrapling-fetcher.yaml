@@ -1,0 +1,177 @@
+{{- if .Values.scraplingFetcher.enabled }}
+###############################################################################
+# scrapling-fetcher — Python service exposing Scrapling's Fetcher /
+# StealthyFetcher / DynamicFetcher behind one HTTP endpoint. Used by the
+# *Fast Luma scraper variants for per-event-page fetches that don't need
+# a browser. See gatewaze-environments/specs/spec-scrapling-fetcher-service.md
+#
+# Toggle: set `scraplingFetcher.enabled: true` in values-{brand}.yaml.
+###############################################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "gatewaze.fullname" . }}-scrapling-fetcher
+  labels:
+    {{- include "gatewaze.labels" . | nindent 4 }}
+    app.kubernetes.io/component: scrapling-fetcher
+spec:
+  replicas: {{ .Values.scraplingFetcher.replicaCount | default 1 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "gatewaze.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: scrapling-fetcher
+  template:
+    metadata:
+      labels:
+        {{- include "gatewaze.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: scrapling-fetcher
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: scrapling-fetcher
+          image: "{{ .Values.scraplingFetcher.image.repository }}:{{ .Values.scraplingFetcher.image.tag }}"
+          imagePullPolicy: {{ .Values.scraplingFetcher.image.pullPolicy | default "IfNotPresent" }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: SCRAPLING_INTERNAL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "gatewaze.fullname" . }}-scrapling-fetcher-secrets
+                  key: internalToken
+            - name: SCRAPLING_PROXY_PROVIDER
+              value: {{ .Values.scraplingFetcher.proxyProvider | default "none" | quote }}
+            - name: SCRAPLING_PROXY_MODE
+              value: {{ .Values.scraplingFetcher.proxyMode | default "none" | quote }}
+            - name: SCRAPLING_PROXY_CONFIG
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "gatewaze.fullname" . }}-scrapling-fetcher-secrets
+                  key: proxyConfig
+                  optional: true
+            - name: SCRAPLING_BROWSER_POOL_SIZE
+              value: {{ .Values.scraplingFetcher.browserPoolSize | default 4 | quote }}
+            - name: SCRAPLING_FAST_CONCURRENCY
+              value: {{ .Values.scraplingFetcher.fastConcurrency | default 10 | quote }}
+            - name: SCRAPLING_PER_DOMAIN_RPS
+              value: {{ .Values.scraplingFetcher.perDomainRps | default 5 | quote }}
+            - name: SCRAPLING_DEFAULT_TIMEOUT_MS
+              value: {{ .Values.scraplingFetcher.defaultTimeoutMs | default 30000 | quote }}
+            - name: SCRAPLING_PROXY_DAILY_GB_CAP
+              value: {{ .Values.scraplingFetcher.proxyDailyGbCap | default 10 | quote }}
+            - name: SCRAPLING_BRAND_ID
+              value: {{ .Values.instanceName | quote }}
+            - name: SUPABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "gatewaze.fullname" . }}-secret
+                  key: SUPABASE_URL
+            - name: SUPABASE_SERVICE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "gatewaze.fullname" . }}-secret
+                  key: SUPABASE_SERVICE_ROLE_KEY
+            - name: LOG_LEVEL
+              value: {{ .Values.scraplingFetcher.logLevel | default "INFO" | quote }}
+          # Memory rationale (per spec §7.2): each Chromium context
+          # consumes ~300–500 MB resident; pool of 4 contexts alone is
+          # ~1.6–2.0 GB at peak. 3 GiB gives headroom; revisit downward
+          # if observed peak < 1.8 GiB sustained over a month.
+          resources:
+            requests:
+              cpu: {{ .Values.scraplingFetcher.resources.requests.cpu | default "200m" }}
+              memory: {{ .Values.scraplingFetcher.resources.requests.memory | default "1Gi" }}
+            limits:
+              cpu: {{ .Values.scraplingFetcher.resources.limits.cpu | default "2" }}
+              memory: {{ .Values.scraplingFetcher.resources.limits.memory | default "3Gi" }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+            initialDelaySeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "gatewaze.fullname" . }}-scrapling-fetcher
+  labels:
+    {{- include "gatewaze.labels" . | nindent 4 }}
+    app.kubernetes.io/component: scrapling-fetcher
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+  selector:
+    {{- include "gatewaze.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: scrapling-fetcher
+---
+###############################################################################
+# Secret — values come from values-{brand}.yaml under
+#   scraplingFetcher.internalToken / scraplingFetcher.proxyConfig
+###############################################################################
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "gatewaze.fullname" . }}-scrapling-fetcher-secrets
+  labels:
+    {{- include "gatewaze.labels" . | nindent 4 }}
+    app.kubernetes.io/component: scrapling-fetcher
+type: Opaque
+stringData:
+  internalToken: {{ required "scraplingFetcher.internalToken is required when scraplingFetcher.enabled=true" .Values.scraplingFetcher.internalToken | quote }}
+  {{- if .Values.scraplingFetcher.proxyConfig }}
+  proxyConfig: {{ .Values.scraplingFetcher.proxyConfig | toJson | quote }}
+  {{- end }}
+---
+###############################################################################
+# NetworkPolicy — only the worker can reach the fetcher.
+# api/portal pods are deliberately excluded (defence in depth — only the
+# worker should call the fetcher; if a future caller needs access we add
+# them explicitly).
+###############################################################################
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "gatewaze.fullname" . }}-scrapling-fetcher
+  labels:
+    {{- include "gatewaze.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "gatewaze.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: scrapling-fetcher
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "gatewaze.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: worker
+      ports:
+        - port: 8080
+          protocol: TCP
+{{- end }}

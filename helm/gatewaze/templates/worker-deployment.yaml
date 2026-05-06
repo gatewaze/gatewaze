@@ -42,6 +42,19 @@ spec:
             {{- with .Values.extraEnvFrom }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+          {{- if .Values.scraplingFetcher.enabled }}
+          # spec-scrapling-fetcher-service.md §4.2 — adapter calls these
+          # to reach the new Python service. Service is reached via the
+          # ClusterIP service in the same namespace.
+          env:
+            - name: SCRAPLING_FETCHER_URL
+              value: "http://{{ include "gatewaze.fullname" . }}-scrapling-fetcher:8080"
+            - name: SCRAPLING_INTERNAL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "gatewaze.fullname" . }}-scrapling-fetcher-secrets
+                  key: internalToken
+          {{- end }}
           {{- if .Values.worker.healthCheck.enabled }}
           # Startup probe: gives the worker time to load modules,
           # register handlers, and open Postgres LISTEN channels before
