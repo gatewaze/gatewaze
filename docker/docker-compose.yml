@@ -660,11 +660,14 @@ services:
       - gatewaze
 
   umami:
-    # Pin per the codebase's "no :latest ghost-rollback" pattern (see
-    # values-autodb.yaml comment on image.tag). The Umami v2 series is
-    # what we wired Helm + the schema bootstrap against; bump to v3 only
-    # after exercising the schema migration in dev.
-    image: ghcr.io/umami-software/umami:postgresql-v2.20.2
+    # v3 lives on Docker Hub, not GHCR — the v3 release unified the
+    # postgres + mysql builds (you pick via DATABASE_TYPE) so the
+    # `postgresql-` tag prefix went away. Pin to a concrete version per
+    # the codebase's "no :latest ghost-rollback" pattern. Upgrade from
+    # v2 is one-shot: stop the container, bump this tag, restart —
+    # Umami auto-runs the schema migration on first startup. BACK UP
+    # gatewaze_umami first; the migration is irreversible.
+    image: docker.io/umamisoftware/umami:3.1.0
     container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-umami
     restart: unless-stopped
     depends_on:
@@ -672,6 +675,7 @@ services:
         condition: service_completed_successfully
     environment:
       DATABASE_URL: postgresql://gatewaze_umami_role:gatewaze-umami-dev@supabase-db:5432/gatewaze_umami
+      DATABASE_TYPE: postgresql
       APP_SECRET: ${ANALYTICS_APP_SECRET:-dev-app-secret-change-me}
       DISABLE_TELEMETRY: "1"
       PROXY_TRUST: "1"
