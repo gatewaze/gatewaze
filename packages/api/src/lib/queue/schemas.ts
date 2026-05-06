@@ -58,6 +58,11 @@ export const JobTypes = {
   LUMA_CONTENT_PROCESS: 'luma:content-process',
   MEETUP_CONTENT_PROCESS: 'meetup:content-process',
   MEDIA_PROCESS_ZIP: 'media:process-zip',
+  // Bulk speaker extraction enqueued at the end of a scrape run; payload
+  // is { event_uuids: string[], scraper_id, brand_id }. The handler runs
+  // Anthropic per-event with budget enforcement via callAnthropic.
+  // See premium-gatewaze-modules/modules/scrapers/scripts/workers/speaker-extract-handler.js
+  SCRAPER_SPEAKER_EXTRACT: 'scraper:speaker-extract',
 } as const;
 
 export type JobTypeValue = (typeof JobTypes)[keyof typeof JobTypes];
