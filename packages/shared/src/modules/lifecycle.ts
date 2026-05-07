@@ -202,9 +202,13 @@ export async function reconcileModules(
       const existing = installedMap.get(mod.config.id);
 
       if (!existing) {
-        // New module: register it but leave disabled.
-        // Migrations and lifecycle hooks run when the admin explicitly enables it.
-        console.log(`[modules] Registering "${mod.config.name}" v${mod.config.version}...`);
+        // New module: register it. Modules of type='core' auto-enable
+        // (their migrations + lifecycle hooks run immediately) because they
+        // are platform infrastructure other modules depend on. All other
+        // types register as disabled and require explicit admin opt-in.
+        const isCore = (mod.config.type ?? 'feature') === 'core';
+        const initialStatus = isCore ? 'enabled' : 'disabled';
+        console.log(`[modules] Registering "${mod.config.name}" v${mod.config.version} (status=${initialStatus})...`);
 
         const { error: insertErr } = await supabase
           .from('installed_modules')
@@ -217,7 +221,7 @@ export async function reconcileModules(
             type: mod.config.type ?? 'feature',
             source: mod.packageName,
             visibility: mod.config.visibility ?? 'public',
-            status: 'disabled',
+            status: initialStatus,
             config: mod.moduleConfig,
             portal_nav: mod.config.portalNav || null,
             admin_nav: mod.config.adminNavItems || null,
@@ -240,6 +244,28 @@ export async function reconcileModules(
 
         summary.registered.push(mod.config.id);
         console.log(`[modules] Registered "${mod.config.name}" v${mod.config.version}`);
+
+        // For auto-enabled core modules, apply migrations now so dependents
+        // processed later in this same reconcile pass can use them.
+        if (isCore) {
+          const migrationResult = await applyModuleMigrations(mod, supabase);
+          if (migrationResult.failed) {
+            summary.failed.push({
+              moduleId: mod.config.id,
+              phase: 'migration',
+              filename: migrationResult.failed.filename,
+              message: migrationResult.failed.message,
+            });
+            await recordReconcileError(supabase, mod.config.id, {
+              phase: 'migration',
+              filename: migrationResult.failed.filename,
+              message: migrationResult.failed.message,
+              code: migrationResult.failed.code,
+            });
+            continue;
+          }
+          summary.ok.push(mod.config.id);
+        }
       } else if (existing.status === 'disabled' || existing.status === 'not_installed') {
         // Module exists but is not active — update metadata (version, features)
         // but do NOT run migrations. Migrations are applied when the module is
