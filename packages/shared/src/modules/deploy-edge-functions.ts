@@ -102,7 +102,7 @@ export async function deployEdgeFunctions(
 
   // Build the list of all _shared/ directories for source resolution.
   // Functions may import shared files from their own module or from other modules
-  // (e.g., events-registration imports integrationEvents.ts from luma-integration's _shared/).
+  // (e.g., events-registration imports integrationEvents.ts from luma's _shared/).
   // Search ALL loaded modules (not just those being deployed) so cross-module
   // dependencies resolve correctly.
   const allSharedDirs: string[] = [];
