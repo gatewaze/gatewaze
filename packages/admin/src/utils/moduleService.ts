@@ -191,7 +191,7 @@ export class ModuleService {
   // ---------------------------------------------------------------------------
 
   static async getAvailableModules(): Promise<{
-    modules: { id: string; name: string; description: string; version: string; type: string; group: string; features: string[]; visibility?: string; sourceLabel?: string; guide?: string }[];
+    modules: { id: string; name: string; description: string; version: string; type: string; group: string; features: string[]; visibility?: string; sourceLabel?: string; guide?: string; lastModifiedAt?: string }[];
     error: string | null;
   }> {
     try {

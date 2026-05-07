@@ -1063,6 +1063,7 @@ modulesRouter.get('/available', async (_req, res) => {
         minPlatformVersion: m.config.minPlatformVersion,
         sourceLabel: m.sourceLabel,
         locationHint: m.sourceLabel ?? 'built-in',
+        lastModifiedAt: m.lastModifiedAt,
         guide,
       };
     });

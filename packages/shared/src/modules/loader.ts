@@ -1,9 +1,56 @@
 import type { GatewazeConfig, GatewazeModule, LoadedModule, ModuleSource, ModuleSourceRow, ModuleWarning } from '../types/modules';
-import { existsSync, readdirSync } from 'fs';
+import { existsSync, readdirSync, statSync } from 'fs';
 import { resolve, isAbsolute } from 'path';
 import { execFileSync, type ExecFileSyncOptions } from 'child_process';
 import { mkdirSync } from 'fs';
 import { liveModuleDir } from './module-paths';
+
+/** Subdirectories within a module that contribute to its "last modified" time. */
+const MTIME_DIRS = ['migrations', 'admin', 'portal', 'api', 'lib', 'workers', 'helm'];
+
+/** Files (relative to module dir) that contribute to its "last modified" time. */
+const MTIME_FILES = ['index.ts', 'guide.md', 'package.json'];
+
+/**
+ * Walk a module directory and return the most-recent mtime as an ISO
+ * timestamp. Returns undefined if nothing exists or anything throws.
+ *
+ * Skips node_modules / .snapshot / hidden dirs to avoid noise from
+ * incidental rebuilds.
+ */
+function computeModuleLastModifiedAt(moduleDir: string): string | undefined {
+  let latestMs = 0;
+
+  const visit = (path: string) => {
+    try {
+      const s = statSync(path);
+      if (s.isFile()) {
+        if (s.mtimeMs > latestMs) latestMs = s.mtimeMs;
+        return;
+      }
+      if (s.isDirectory()) {
+        for (const entry of readdirSync(path)) {
+          if (entry.startsWith('.')) continue;
+          if (entry === 'node_modules') continue;
+          visit(resolve(path, entry));
+        }
+      }
+    } catch {
+      // Permission errors, broken symlinks, etc. — ignore.
+    }
+  };
+
+  for (const file of MTIME_FILES) {
+    const p = resolve(moduleDir, file);
+    if (existsSync(p)) visit(p);
+  }
+  for (const sub of MTIME_DIRS) {
+    const p = resolve(moduleDir, sub);
+    if (existsSync(p)) visit(p);
+  }
+
+  return latestMs > 0 ? new Date(latestMs).toISOString() : undefined;
+}
 
 const BRANCH_RE = /^[\w][\w.\-/]{0,254}$/;
 
@@ -178,6 +225,7 @@ export async function loadModules(
         moduleConfig: config.moduleConfig?.[moduleExport.id] ?? {},
         resolvedDir,
         sourceLabel,
+        lastModifiedAt: resolvedDir ? computeModuleLastModifiedAt(resolvedDir) : undefined,
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
