@@ -1,5 +1,6 @@
 import { resolve } from 'path';
-import { loadModules } from '@gatewaze/shared/modules';
+import { loadModulesWithDbSources } from '@gatewaze/shared/modules';
+import { createClient } from '@supabase/supabase-js';
 import type { CronDefinition, GatewazeModule } from '@gatewaze/shared/modules';
 import config from '../../../../gatewaze.config.js';
 
@@ -60,7 +61,23 @@ async function main(): Promise<void> {
   ];
 
   // Module crons (and legacy `schedulers[]` kept for backward-compat).
-  const modules = await loadModules(config as never, PROJECT_ROOT);
+  // Use loadModulesWithDbSources so module_sources rows (e.g.
+  // /premium-gatewaze-modules) are picked up — without this the
+  // scheduler only sees modules from the static config and silently
+  // misses every module living under a DB-managed source.
+  let dbSources: Record<string, unknown>[] = [];
+  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (supabaseUrl && serviceRoleKey) {
+    try {
+      const supabase = createClient(supabaseUrl, serviceRoleKey);
+      const { data } = await supabase.from('module_sources').select('*');
+      dbSources = data ?? [];
+    } catch {
+      logger.warn('[modules] module_sources table not available — using config sources only');
+    }
+  }
+  const modules = await loadModulesWithDbSources(config as never, dbSources as never[], PROJECT_ROOT);
   const moduleCrons: LoadedCron[] = [];
   for (const mod of modules) {
     const cfg = mod.config as GatewazeModule & { crons?: CronDefinition[] };
@@ -93,6 +110,9 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  logger.error({ err: err instanceof Error ? err.message : String(err) }, 'scheduler bootstrap failed');
+  logger.error({
+    err: err instanceof Error ? err.message : String(err),
+    stack: err instanceof Error ? err.stack : undefined,
+  }, 'scheduler bootstrap failed');
   process.exit(1);
 });
