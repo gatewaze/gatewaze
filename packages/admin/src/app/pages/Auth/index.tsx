@@ -145,10 +145,6 @@ export default function SignIn() {
             {/* Extension point for third-party auth providers (e.g. LFID) */}
             <ModuleSlot name="sign-in:providers" />
           </Card>
-
-          <div className="mt-8 flex justify-center">
-            <img src="/theme/gatewaze/gatewaze-poweredby-black.svg" alt="Powered by Gatewaze" className="h-10 opacity-40" />
-          </div>
         </div>
       </main>
     </Page>
