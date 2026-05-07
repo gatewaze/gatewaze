@@ -9,6 +9,7 @@ import { EventTypesEditor } from "@/components/shared/branding/EventTypesEditor"
 import { type EventTypeOption, DEFAULT_EVENT_TYPES } from "@/hooks/useEventTypes";
 import { useAuthContext } from "@/app/contexts/auth/context";
 import { useModulesContext } from "@/app/contexts/modules/context";
+import { supabase } from "@/lib/supabase";
 import OnboardingWizardLayout from "./OnboardingWizardLayout";
 
 type PortalTheme = "gradient_wave" | "basic";
@@ -50,9 +51,14 @@ export default function ThemeSetupStep() {
       ];
 
       const apiUrl = import.meta.env.VITE_API_URL ?? "";
+      const { data: session } = await supabase.auth.getSession();
+      const token = session.session?.access_token;
       const res = await fetch(`${apiUrl}/api/modules/settings`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ settings }),
       });
 

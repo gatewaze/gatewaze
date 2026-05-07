@@ -529,8 +529,17 @@ services:
       # their existing Puppeteer paths.
       SCRAPLING_FETCHER_URL: http://scrapling-fetcher:8080
       SCRAPLING_INTERNAL_TOKEN: ${SCRAPLING_INTERNAL_TOKEN:-}
+      # Umami credentials for the analytics module's provisioning worker
+      # (gatewaze-modules/modules/analytics/scripts/provision-handler.js).
+      UMAMI_BASE_URL: ${UMAMI_BASE_URL:-http://umami:3000}
+      UMAMI_USERNAME: ${UMAMI_USERNAME:-admin}
+      UMAMI_PASSWORD: ${UMAMI_PASSWORD:-umami}
     volumes:
       - ${PREMIUM_MODULES_PATH:-../../premium-gatewaze-modules}:/premium-gatewaze-modules
+      # Open-source modules (where analytics now lives) — needed so the
+      # /var/lib/gatewaze/modules/<id> symlinks the api supervisor writes
+      # actually resolve inside the worker container.
+      - ${GATEWAZE_MODULES_PATH:-../../gatewaze-modules}:/gatewaze-modules
       - gatewaze-module-sources:/var/lib/gatewaze/sources:ro
       - gatewaze-module-live:/var/lib/gatewaze/modules:ro
     depends_on:

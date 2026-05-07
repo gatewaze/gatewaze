@@ -9,6 +9,7 @@ import {
   PencilSquareIcon,
   CheckIcon,
   XMarkIcon,
+  MagnifyingGlassIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 
@@ -117,6 +118,7 @@ export default function ModulesPage() {
   const [availableUpdates, setAvailableUpdates] = useState<ModuleUpdateInfo[]>([]);
   const [availableModules, setAvailableModules] = useState<{ id: string; name: string; description: string; version: string; type: string; group: string; features: string[]; sourceLabel?: string; guide?: string; lastModifiedAt?: string }[]>([]);
   const [activeSourceTab, setActiveSourceTab] = useState<string>(ALL_SOURCES_TAB);
+  const [searchQuery, setSearchQuery] = useState<string>("");
   const [infoModule, setInfoModule] = useState<ModuleCardData | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -233,11 +235,19 @@ export default function ModulesPage() {
     return Array.from(labels).sort();
   }, [moduleCards]);
 
-  // Filter cards by active source tab
+  // Filter cards by active source tab and name search.
   const filteredCards = useMemo(() => {
-    if (activeSourceTab === ALL_SOURCES_TAB) return moduleCards;
-    return moduleCards.filter((mod) => mod.sourceLabel === activeSourceTab);
-  }, [moduleCards, activeSourceTab]);
+    const q = searchQuery.trim().toLowerCase();
+    return moduleCards.filter((mod) => {
+      if (activeSourceTab !== ALL_SOURCES_TAB && mod.sourceLabel !== activeSourceTab) {
+        return false;
+      }
+      if (q && !mod.name.toLowerCase().includes(q) && !mod.id.toLowerCase().includes(q)) {
+        return false;
+      }
+      return true;
+    });
+  }, [moduleCards, activeSourceTab, searchQuery]);
 
   // Group by group field
   const grouped = useMemo(() => {
@@ -275,6 +285,15 @@ export default function ModulesPage() {
       toast.success(
         currentlyEnabled ? "Module disabled" : "Module enabled"
       );
+      const auto = !currentlyEnabled
+        ? (result as { autoEnabledDependencies?: string[] }).autoEnabledDependencies
+        : undefined;
+      if (auto && auto.length > 0) {
+        const names = auto
+          .map((id) => availableModules.find((m) => m.id === id)?.name ?? id)
+          .join(", ");
+        toast.info(`Also enabled required dependencies: ${names}`);
+      }
       await Promise.all([loadInstalledModules(), refreshModulesContext()]);
     } else {
       toast.error(result.error ?? "Failed to update module");
@@ -620,6 +639,21 @@ export default function ModulesPage() {
           </section>
         )}
 
+        {/* Name filter */}
+        {moduleCards.length > 0 && (
+          <div className="mb-4 relative max-w-md">
+            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[var(--gray-a9)] pointer-events-none" />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Filter modules by name…"
+              className="w-full pl-9 pr-3 py-2 rounded-md border border-[var(--gray-a5)] bg-[var(--gray-a2)] text-sm text-[var(--gray-12)] placeholder:text-[var(--gray-a9)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-9)] focus:border-transparent"
+              aria-label="Filter modules"
+            />
+          </div>
+        )}
+
         {/* Source Tabs — only shown when modules come from multiple sources */}
         {sourceTabs.length > 1 && (
           <div className="mb-6 flex gap-1 border-b border-[var(--gray-a5)]">
@@ -659,6 +693,10 @@ export default function ModulesPage() {
               No modules are configured. Add a module source above,
               upload a module zip, or install a custom module.
             </p>
+          </div>
+        ) : filteredCards.length === 0 ? (
+          <div className="text-center py-12 text-[var(--gray-11)] text-sm">
+            No modules match “{searchQuery}”.
           </div>
         ) : (
           <div className="space-y-8">

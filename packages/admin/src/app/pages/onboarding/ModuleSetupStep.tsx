@@ -4,7 +4,17 @@ import { CheckCircle2, Loader2, AlertCircle, Package } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { ModuleService } from "@/utils/moduleService";
 import { useModulesContext } from "@/app/contexts/modules/context";
+import { supabase } from "@/lib/supabase";
 import OnboardingWizardLayout from "./OnboardingWizardLayout";
+
+async function authedHeaders(): Promise<Record<string, string>> {
+  const { data: session } = await supabase.auth.getSession();
+  const token = session.session?.access_token;
+  return {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
 
 type SetupStatus = "running" | "done" | "error";
 
@@ -45,7 +55,7 @@ export default function ModuleSetupStep() {
         const apiUrl = import.meta.env.VITE_API_URL ?? "";
         await fetch(`${apiUrl}/api/modules/settings`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: await authedHeaders(),
           body: JSON.stringify({ settings: [{ key: "onboarding_step", value: "modules_setup" }] }),
         });
 
@@ -72,7 +82,7 @@ export default function ModuleSetupStep() {
     const apiUrl = import.meta.env.VITE_API_URL ?? "";
     await fetch(`${apiUrl}/api/modules/settings`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: await authedHeaders(),
       body: JSON.stringify({ settings: [{ key: "onboarding_step", value: "modules_setup" }] }),
     });
     navigate("/onboarding/theme", { replace: true });
