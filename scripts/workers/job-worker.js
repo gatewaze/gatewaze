@@ -585,6 +585,17 @@ const handlers = {
     console.log(`✅ Zip processed: ${processedCount}/${totalCount} files`);
     return { processed: processedCount, total: totalCount, errors: errors.length };
   },
+
+  // Bulk speaker extraction enqueued at the end of every scrape run.
+  // Delegates to the premium-gatewaze-modules handler, which carries the
+  // Anthropic call + per-brand-budget enforcement via callAnthropic.
+  // See spec-scrapling-fetcher-service.md §15.6.
+  [JobTypes.SCRAPER_SPEAKER_EXTRACT]: async (job) => {
+    const { default: speakerExtractHandler } = await import(
+      path.join(premiumModulesPath, 'workers', 'speaker-extract-handler.js')
+    );
+    return speakerExtractHandler(job);
+  },
 };
 
 // Create worker
