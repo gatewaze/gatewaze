@@ -1,5 +1,5 @@
 import type { Plugin } from 'vite';
-import { readFileSync, existsSync, mkdirSync, readdirSync } from 'fs';
+import { readFileSync, existsSync, mkdirSync, readdirSync, statSync } from 'fs';
 import { resolve, dirname, isAbsolute, relative } from 'path';
 import { execSync } from 'child_process';
 import { createRequire, isBuiltin } from 'module';
@@ -72,6 +72,11 @@ export function gatewazeModulesPlugin(): Plugin {
   // always hands Rollup a concrete path.
   let isBuild = false;
 
+  // Resolved module-source directories (gatewaze-modules + premium-gatewaze-
+  // modules + lf-gatewaze-modules). Populated in config(); read by resolveId
+  // for namespaced imports like `@premium-gatewaze-modules/sites-publisher-…`.
+  let cachedResolvedSources: string[] = [];
+
   return {
     name: 'gatewaze-modules',
     enforce: 'pre',
@@ -84,6 +89,7 @@ export function gatewazeModulesPlugin(): Plugin {
       const configPath = resolve(projectRoot, 'gatewaze.config.ts');
       const { sources } = parseConfig(configPath);
       const resolvedSources = resolveSources(sources, projectRoot);
+      cachedResolvedSources = resolvedSources;
 
       // Auto-discover admin/utils exports from all modules and register
       // them as @/utils/<name> aliases so cross-module imports resolve
@@ -106,6 +112,52 @@ export function gatewazeModulesPlugin(): Plugin {
     resolveId(id, importer) {
       if (id === VIRTUAL_MODULE_ID) {
         return RESOLVED_ID;
+      }
+
+      // Module-source-namespaced imports (`@gatewaze-modules/<slug>` or its
+      // sibling premium / lf namespaces). These are resolved by walking
+      // MODULE_SOURCES and matching the package.json `name` field.
+      // Without this, Vite's default resolver looks in node_modules, doesn't
+      // find them (premium isn't workspace-linked), falls through to the
+      // bare-import branch below which stubs them with `export default {}`
+      // — silently breaking dynamic imports of publishers, integrations, etc.
+      const namespaceMatch = /^(@(?:gatewaze-modules|premium-gatewaze-modules|lf-gatewaze-modules))\/([^/]+)(.*)$/.exec(id);
+      if (namespaceMatch && cachedResolvedSources.length > 0) {
+        const slug = namespaceMatch[2];
+        const subPath = namespaceMatch[3] ?? '';
+        for (const sourceDir of cachedResolvedSources) {
+          const candidateDir = resolve(sourceDir, slug);
+          const candidatePkgJson = resolve(candidateDir, 'package.json');
+          if (!existsSync(candidatePkgJson)) continue;
+          try {
+            const pkg = JSON.parse(readFileSync(candidatePkgJson, 'utf-8')) as { name?: string; main?: string; types?: string };
+            if (pkg.name !== `${namespaceMatch[1]}/${slug}`) continue;
+            // Bare entry: prefer index.ts, then pkg.main, then index.js.
+            if (subPath === '') {
+              for (const candidate of ['index.ts', pkg.main, pkg.types, 'index.tsx', 'index.js'].filter(Boolean) as string[]) {
+                const full = resolve(candidateDir, candidate);
+                if (existsSync(full)) return full;
+              }
+            } else {
+              // Sub-path import like `@.../sites-publisher-…/lib/api`.
+              const cleanSub = subPath.replace(/^\//, '');
+              for (const ext of ['', '.ts', '.tsx', '.js', '/index.ts', '/index.tsx', '/index.js']) {
+                const full = resolve(candidateDir, cleanSub + ext);
+                // existsSync returns true for directories — must be a
+                // FILE for Vite to serve it. Without the isFile() guard,
+                // bare directory paths like `…/admin` short-circuit to
+                // the dir itself instead of falling through to
+                // `…/admin/index.ts` and then 404 in the browser.
+                if (existsSync(full) && statSync(full).isFile()) return full;
+              }
+            }
+          } catch {
+            // package.json unparseable — skip to next source dir
+          }
+        }
+        // Not found in any source. Don't stub — let Vite continue the chain
+        // (node_modules / pnpm workspace) which may still succeed for OSS
+        // modules linked into the admin's workspace.
       }
 
       // Node builtins anywhere in the dependency graph — stub before

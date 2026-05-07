@@ -15,6 +15,9 @@
     "lint": "echo 'no lint configured for @gatewaze/shared'",
     "test": "vitest run"
   },
+  "dependencies": {
+    "isomorphic-dompurify": "^3.0.0-rc.2"
+  },
   "devDependencies": {
     "@supabase/supabase-js": "^2.49.0",
     "@types/node": "^22.0.0",
