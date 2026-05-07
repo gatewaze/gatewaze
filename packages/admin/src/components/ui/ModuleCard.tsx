@@ -9,7 +9,8 @@ export interface ModuleCardProps {
   id: string;
   name: string;
   description: string;
-  version?: string;
+  /** ISO timestamp of the most-recent change inside the module dir. */
+  lastModifiedAt?: string;
   enabled: boolean;
   /** Whether the toggle is disabled (e.g., not a super admin) */
   disabled?: boolean;
@@ -31,11 +32,33 @@ export interface ModuleCardProps {
   children?: ReactNode;
 }
 
+/** Format an ISO timestamp as "Updated <relative>" — coarse, no extra deps. */
+function formatRelative(iso: string): string {
+  const then = new Date(iso).getTime();
+  if (!Number.isFinite(then)) return '';
+  const diffMs = Date.now() - then;
+  if (diffMs < 0) return 'Updated just now';
+  const sec = Math.floor(diffMs / 1000);
+  if (sec < 60) return 'Updated just now';
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `Updated ${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `Updated ${hr}h ago`;
+  const day = Math.floor(hr / 24);
+  if (day < 7) return `Updated ${day}d ago`;
+  const wk = Math.floor(day / 7);
+  if (wk < 5) return `Updated ${wk}w ago`;
+  const mo = Math.floor(day / 30);
+  if (mo < 12) return `Updated ${mo}mo ago`;
+  const yr = Math.floor(day / 365);
+  return `Updated ${yr}y ago`;
+}
+
 export function ModuleCard({
   id,
   name,
   description,
-  version,
+  lastModifiedAt,
   enabled,
   disabled,
   toggling,
@@ -45,6 +68,7 @@ export function ModuleCard({
   update,
   children,
 }: ModuleCardProps) {
+  const updatedLabel = lastModifiedAt ? formatRelative(lastModifiedAt) : '';
   return (
     <Card
       className={`p-4 transition-all ${
@@ -65,9 +89,12 @@ export function ModuleCard({
             <h4 className="font-semibold text-[var(--gray-12)] text-sm truncate">
               {name}
             </h4>
-            {version && (
-              <span className="text-[10px] text-[var(--gray-a8)] shrink-0">
-                v{version}
+            {updatedLabel && (
+              <span
+                className="text-[10px] text-[var(--gray-a8)] shrink-0"
+                title={lastModifiedAt}
+              >
+                {updatedLabel}
               </span>
             )}
           </div>
