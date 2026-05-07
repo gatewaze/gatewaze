@@ -216,6 +216,83 @@ export interface GatewazeModule {
    * to AI assistants when this module is enabled.
    */
   mcpContributions?: McpContributions | ((ctx: ModuleRuntimeContext) => McpContributions);
+
+  // ── Host-media consumer registration ──────────────────────────────────
+
+  /**
+   * Opts this module in as a consumer of `@gatewaze-modules/host-media`.
+   * The shared host-media module owns the table, API routes, admin tab,
+   * upload pipeline (Sharp/YouTube/ZIP/chunked), and reference tracking;
+   * consumer modules just declare a `host_kind` and feature flags here.
+   *
+   * Per spec-host-media-module.md §3.2 + §4.4.
+   */
+  hostMediaConsumer?: HostMediaConsumer;
+}
+
+/**
+ * Module-side declaration that this module owns a `host_kind` value in
+ * the shared `host_media` table. The host-media module reads these
+ * registrations at runtime to wire conditional features in
+ * `<HostMediaTab>` and to drive the nightly used-in rebuild cron.
+ */
+export interface HostMediaConsumer {
+  /** Discriminator value written to host_media.host_kind for this consumer. */
+  hostKind: string;
+  /**
+   * Whether <HostMediaTab> shows the Albums section + the API routes
+   * accept album_id parameters. Default false.
+   */
+  enableAlbums?: boolean;
+  /**
+   * Whether <HostMediaTab> shows the Sponsor Tagging UI on each media
+   * item. Used by event-media. Default false.
+   */
+  enableSponsorTagging?: boolean;
+  /**
+   * Whether the upload pipeline delegates videos to YouTube. Requires
+   * YOUTUBE_* env vars to be set. Default false.
+   */
+  enableYouTube?: boolean;
+  /**
+   * Whether the upload pipeline accepts application/zip and unpacks
+   * archives into albums via the media-process-zip edge fn. Requires
+   * enableAlbums: true. Default false.
+   */
+  enableZipUnpack?: boolean;
+  /**
+   * Optional content tables this module owns whose rows reference
+   * host_media items. The nightly used-in rebuild cron walks these to
+   * keep host_media.used_in in sync.
+   */
+  contentTables?: HostMediaContentTable[];
+}
+
+/** Per-table entry for the used-in rebuild cron. */
+export interface HostMediaContentTable {
+  /** Schema-qualified table name, e.g. 'pages' or 'events.event_descriptions' */
+  table: string;
+  /**
+   * Column on the table that stores host_kind. If the table is
+   * single-kind, set staticHostKind instead.
+   */
+  hostKindColumn?: string;
+  /** Column on the table that stores host_id. */
+  hostIdColumn: string;
+  /** Column holding the jsonb content blob to walk. */
+  contentColumn: string;
+  /** String written to used_in.type, e.g. 'page'. */
+  consumerType: string;
+  /** Column holding the row's primary key (uuid). */
+  idColumn: string;
+  /** Column holding the row's display name (used in used_in.name). */
+  nameColumn: string;
+  /**
+   * If set, every row from this table contributes host_kind = staticHostKind
+   * regardless of any per-row column. Used when the table is owned by a
+   * single-kind consumer (e.g. event_descriptions → 'event').
+   */
+  staticHostKind?: string;
 }
 
 export interface AdminRouteDefinition {

@@ -112,11 +112,11 @@ export default function PeopleWarehouseSettings() {
     <Page title="People Warehouse Settings">
       <div className="p-6 max-w-3xl">
         <button
-          onClick={() => navigate("/admin/integrations")}
+          onClick={() => navigate("/admin/modules")}
           className="flex items-center gap-1.5 text-sm text-[var(--gray-a9)] hover:text-[var(--gray-12)] transition-colors mb-4"
         >
           <ArrowLeftIcon className="size-3.5" />
-          Back to Integrations
+          Back to Modules
         </button>
 
         <div className="flex items-center gap-3 mb-6">

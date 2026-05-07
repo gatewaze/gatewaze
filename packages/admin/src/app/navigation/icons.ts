@@ -47,6 +47,10 @@ const aliases: Record<string, ElementType> = {
   Tags: HeroOutline.TagIcon,
   Radar: HeroOutline.SignalIcon,
   Lightbulb: HeroOutline.LightBulbIcon,
+  BarChart3: HeroOutline.ChartBarIcon,
+  BarChart: HeroOutline.ChartBarIcon,
+  PieChart: HeroOutline.ChartPieIcon,
+  LineChart: HeroOutline.PresentationChartLineIcon,
 };
 
 export const navigationIcons: Record<string, ElementType> = {
@@ -85,7 +89,6 @@ export const navigationIcons: Record<string, ElementType> = {
   "admin.payments": HeroOutline.CreditCardIcon,
   "admin.topics": HeroOutline.TagIcon,
   "admin.compliance": HeroOutline.ShieldCheckIcon,
-  "admin.integrations": HeroOutline.ArrowsRightLeftIcon,
   "admin.scheduler": HeroOutline.QueueListIcon,
   "document-text": HeroOutline.DocumentTextIcon,
   "tag": HeroOutline.TagIcon,

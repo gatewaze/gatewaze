@@ -12,6 +12,7 @@ import { healthRouter } from './routes/health.js';
 import { peopleRouter } from './routes/people.js';
 import { csvRouter } from './routes/csv.js';
 import { calendarsRouter } from './routes/calendars.js';
+import { calendarBlastsRouter } from './routes/calendar-blasts.js';
 import { dbCopyRouter } from './routes/db-copy.js';
 import { jobsRouter } from './routes/jobs.js';
 import { screenshotsRouter } from './routes/screenshots.js';
@@ -124,6 +125,11 @@ mountLabeled(app, '/api', healthRouter);
 mountLabeled(app, '/api/people', peopleRouter);
 mountLabeled(app, '/api/csv', csvRouter);
 mountLabeled(app, '/api/calendars', calendarsRouter);
+// Per spec-calendars-microsites §8.1 — Messaging tab REST surface.
+// Same prefix as calendarsRouter; Express routes are matched in order
+// and the patterns don't overlap (`/:id/audience/preview`, `/:id/blasts`,
+// `/:id/blasts/:blastId`, `/:id/blasts/:blastId/cancel`).
+mountLabeled(app, '/api/calendars', calendarBlastsRouter);
 mountLabeled(app, '/api/db-copy', dbCopyRouter);
 
 // Routes - added for admin
