@@ -132,39 +132,11 @@ const protectedRoutes: RouteObject = {
             },
             {
               path: "modules",
-              lazy: async () => {
-                const module = await import("@/app/pages/admin/modules");
-                return {
-                  Component: () => (
-                    <FeatureGuard feature="settings">
-                      <module.default />
-                    </FeatureGuard>
-                  ),
-                };
-              },
-            },
-            {
-              path: "api-keys",
-              lazy: async () => {
-                const module = await import("@/app/pages/admin/api-keys");
-                return {
-                  Component: () => (
-                    <FeatureGuard feature="settings">
-                      <module.default />
-                    </FeatureGuard>
-                  ),
-                };
-              },
-            },
-            {
-              path: "integrations",
               children: [
                 {
                   index: true,
                   lazy: async () => {
-                    const module = await import(
-                      "@/app/pages/admin/integrations"
-                    );
+                    const module = await import("@/app/pages/admin/modules");
                     return {
                       Component: () => (
                         <FeatureGuard feature="settings">
@@ -178,7 +150,7 @@ const protectedRoutes: RouteObject = {
                   path: "people-enrichment",
                   lazy: async () => {
                     const module = await import(
-                      "@/app/pages/admin/integrations/PeopleEnrichmentSettings"
+                      "@/app/pages/admin/modules/settings/PeopleEnrichmentSettings"
                     );
                     return {
                       Component: () => (
@@ -193,7 +165,7 @@ const protectedRoutes: RouteObject = {
                   path: "people-warehouse",
                   lazy: async () => {
                     const module = await import(
-                      "@/app/pages/admin/integrations/PeopleWarehouseSettings"
+                      "@/app/pages/admin/modules/settings/PeopleWarehouseSettings"
                     );
                     return {
                       Component: () => (
@@ -205,6 +177,19 @@ const protectedRoutes: RouteObject = {
                   },
                 },
               ],
+            },
+            {
+              path: "api-keys",
+              lazy: async () => {
+                const module = await import("@/app/pages/admin/api-keys");
+                return {
+                  Component: () => (
+                    <FeatureGuard feature="settings">
+                      <module.default />
+                    </FeatureGuard>
+                  ),
+                };
+              },
             },
             // Module-provided admin routes (guard: 'admin')
             ...moduleAdminRoutes,

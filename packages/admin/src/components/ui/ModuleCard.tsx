@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
-import { ArrowPathIcon } from '@heroicons/react/24/outline';
+import { ArrowPathIcon, Cog6ToothIcon } from '@heroicons/react/24/outline';
+import { Link } from 'react-router';
 import { Card } from './Card';
 import { Switch } from './Form/Switch';
 import { Button } from './Button';
@@ -16,6 +17,8 @@ export interface ModuleCardProps {
   onToggle: (id: string) => void;
   /** Called when clicking the card body (opens guide/details) */
   onInfo?: () => void;
+  /** Route for the module's dedicated settings page (renders a gear icon) */
+  settingsHref?: string;
   /** Update banner */
   update?: {
     fromVersion: string;
@@ -38,6 +41,7 @@ export function ModuleCard({
   toggling,
   onToggle,
   onInfo,
+  settingsHref,
   update,
   children,
 }: ModuleCardProps) {
@@ -72,7 +76,16 @@ export function ModuleCard({
           </p>
         </div>
 
-        <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+        <div className="shrink-0 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+          {settingsHref && enabled && (
+            <Link
+              to={settingsHref}
+              aria-label={`${name} settings`}
+              className="text-[var(--gray-a10)] hover:text-[var(--gray-12)] transition-colors"
+            >
+              <Cog6ToothIcon className="size-4" />
+            </Link>
+          )}
           <Switch
             checked={enabled}
             onChange={() => { if (!disabled && !toggling) onToggle(id); }}

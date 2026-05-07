@@ -29,8 +29,14 @@ COPY gatewaze.config.ts ./
 # Fix: unwrap the double-default at the CJS layer.
 RUN printf 'const m = require("./gatewaze.config.ts");\nconst c = m.default || m;\nObject.defineProperty(c, "__esModule", { value: true });\nmodule.exports = c;\nmodule.exports.default = c;\n' > gatewaze.config.js
 
-# Copy shared source (referenced directly, no build step)
+# Copy shared source. The api imports `@gatewaze/shared/modules` whose
+# package.json `exports` map points at ./dist/*. The repo .dockerignore
+# excludes **/dist, so we build it in-image after the COPY. Without this,
+# Node ESM can't resolve named exports — older containers worked only
+# because they carried a stale dist from a layer predating .dockerignore,
+# which surfaced the day a forced rebuild dropped that legacy artifact.
 COPY packages/shared/ packages/shared/
+RUN pnpm --filter @gatewaze/shared build
 
 # Copy api source (will be overridden by volume mount)
 COPY packages/api/ packages/api/
