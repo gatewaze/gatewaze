@@ -4,6 +4,7 @@ import { Loader2, CheckCircle2, AlertTriangle, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { ModuleCard, Card } from "@/components/ui";
 import { ModuleService } from "@/utils/moduleService";
+import { supabase } from "@/lib/supabase";
 import OnboardingWizardLayout from "./OnboardingWizardLayout";
 
 const SECTION_LABELS: Record<string, string> = {
@@ -129,9 +130,14 @@ export default function ModuleSelectionStep() {
       const disabled = visibleModules.filter((m) => !selected.has(m.id)).map((m) => m.id);
 
       const apiUrl = import.meta.env.VITE_API_URL ?? "";
+      const { data: session } = await supabase.auth.getSession();
+      const token = session.session?.access_token;
       const response = await fetch(`${apiUrl}/api/modules/select-stream`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ enabled, disabled }),
       });
 

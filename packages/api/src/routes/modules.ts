@@ -668,10 +668,136 @@ modulesRouter.put('/:id/config', async (req, res) => {
 // ---------------------------------------------------------------------------
 
 /**
+ * Compute the transitive closure of a module's dependencies in dep-first
+ * topological order. Returns the dep modules that still need enabling
+ * (i.e., are not already in `enabledIds`). Does NOT include `target` itself.
+ */
+function computeDependencyClosure(
+  target: LoadedModule,
+  modules: LoadedModule[],
+  enabledIds: Set<string>,
+): LoadedModule[] {
+  const out: LoadedModule[] = [];
+  const visited = new Set<string>();
+
+  const visit = (mod: LoadedModule) => {
+    if (visited.has(mod.config.id)) return;
+    visited.add(mod.config.id);
+    for (const depId of mod.config.dependencies ?? []) {
+      const dep = modules.find((m) => m.config.id === depId);
+      if (dep) visit(dep);
+    }
+    if (mod.config.id !== target.config.id && !enabledIds.has(mod.config.id)) {
+      out.push(mod);
+    }
+  };
+
+  for (const depId of target.config.dependencies ?? []) {
+    const dep = modules.find((m) => m.config.id === depId);
+    if (dep) visit(dep);
+  }
+
+  return out;
+}
+
+/**
+ * Run the per-module enable steps for an auto-enabled dependency:
+ * upsert installed_modules row, install live snapshot, apply migrations,
+ * deploy edge functions, persist hash, run onEnable.
+ *
+ * Used during cascade enable when a target module's dependencies aren't
+ * yet enabled. Mirrors the inline steps in POST /:id/enable but skips
+ * theme-conflict handling and platform-version checks (deps are assumed
+ * compatible if the target is).
+ */
+async function enableModuleSteps(
+  mod: LoadedModule,
+  modules: LoadedModule[],
+  supabase: ReturnType<typeof getServiceClient>,
+): Promise<{ migrationsApplied: string[]; edgeFunctionsDeployed: string[] }> {
+  const moduleId = mod.config.id;
+
+  await supabase.from('installed_modules').upsert(
+    {
+      id: moduleId,
+      status: 'enabled',
+      portal_nav: mod.config.portalNav || null,
+      name: mod.config.name || moduleId,
+      description: mod.config.description || '',
+      version: mod.config.version || '1.0.0',
+      features: mod.config.features || [],
+      type: mod.config.type || 'feature',
+      visibility: mod.config.visibility || 'public',
+      admin_nav: mod.config.adminNavItems || null,
+    },
+    { onConflict: 'id' },
+  );
+
+  if (mod.resolvedDir) {
+    try {
+      const isSymlinkSource = isLocalPathSource(mod.resolvedDir, config.moduleSources ?? []);
+      const sourceId = await lookupSourceIdFor(mod.resolvedDir, supabase);
+      const snap = installLiveSnapshot({
+        moduleId,
+        sourceId,
+        sourceDir: mod.resolvedDir,
+        symlink: isSymlinkSource,
+      });
+      mod.resolvedDir = liveModuleDir(moduleId);
+      await supabase
+        .from('installed_modules')
+        .update({
+          source_id: sourceId ?? null,
+          source_snapshot_hash: snap.snapshotHash,
+          snapshot_taken_at: snap.installedAt,
+          last_rebuild_error: null,
+        })
+        .eq('id', moduleId);
+    } catch (snapErr) {
+      logger.error({ snapErr }, `[modules] Live snapshot install failed for dep "${moduleId}":`);
+      throw snapErr;
+    }
+  }
+
+  await applyModuleMigrations(mod, supabase as never);
+  const migrationsApplied = mod.config.migrations ?? [];
+
+  let edgeFunctionsDeployed: string[] = [];
+  if (mod.config.edgeFunctions?.length || mod.config.functionFiles?.length) {
+    const deployResult = await deployEdgeFunctions({
+      projectRoot: PROJECT_ROOT,
+      modules: [mod],
+      allModules: modules,
+    });
+    edgeFunctionsDeployed = [...deployResult.copied, ...deployResult.deployed].map((r) => r.functionName);
+    if (deployResult.errors.length > 0) {
+      logger.warn({ data: deployResult.errors }, `[modules] Edge function deploy warnings for dep "${moduleId}":`);
+    }
+  }
+
+  const hash = computeEdgeFunctionsHash(mod);
+  if (hash) {
+    await supabase
+      .from('installed_modules')
+      .update({ edge_functions_hash: hash })
+      .eq('id', moduleId);
+  }
+
+  if (mod.config.onEnable) {
+    try { await mod.config.onEnable(); } catch (hookErr) {
+      logger.warn({ hookErr }, `[modules] onEnable hook failed for dep "${moduleId}":`);
+    }
+  }
+
+  return { migrationsApplied, edgeFunctionsDeployed };
+}
+
+/**
  * POST /api/modules/:id/enable
  *
  * Enable a module: apply pending migrations, deploy edge functions,
- * update status, and run lifecycle hooks.
+ * update status, and run lifecycle hooks. Any unresolved dependencies
+ * are auto-enabled (in topological order) before the target.
  */
 modulesRouter.post('/:id/enable', async (req, res) => {
   try {
@@ -681,7 +807,10 @@ modulesRouter.post('/:id/enable', async (req, res) => {
     const modules = await loadAllModules();
     const mod = modules.find((m) => m.config.id === moduleId);
 
-    // Check dependencies: all required modules must be enabled first
+    // Auto-enable any transitive dependencies that aren't yet enabled.
+    // Replaces the previous behaviour of returning 409 MISSING_DEPENDENCIES
+    // and forcing the user to enable each dep manually.
+    const autoEnabledDependencies: string[] = [];
     if (mod?.config.dependencies?.length) {
       const { data: installed } = await supabase
         .from('installed_modules')
@@ -690,20 +819,37 @@ modulesRouter.post('/:id/enable', async (req, res) => {
       const enabledIds = new Set(
         (installed ?? [])
           .filter((r: Record<string, unknown>) => r.status === 'enabled')
-          .map((r: Record<string, unknown>) => r.id as string)
+          .map((r: Record<string, unknown>) => r.id as string),
       );
 
-      const missingDeps = mod.config.dependencies.filter((depId) => !enabledIds.has(depId));
-      if (missingDeps.length > 0) {
-        const depNames = missingDeps.map((depId) => {
-          const dep = modules.find((m) => m.config.id === depId);
-          return dep ? `"${dep.config.name}"` : `"${depId}"`;
-        });
+      // Surface unloadable deps (typo / missing source) up-front so we don't
+      // half-enable a chain.
+      const unresolvedDeps = mod.config.dependencies.filter(
+        (depId) => !enabledIds.has(depId) && !modules.find((m) => m.config.id === depId),
+      );
+      if (unresolvedDeps.length > 0) {
         return res.status(409).json({
-          error: `Module "${mod.config.name}" requires ${depNames.join(', ')} to be enabled first.`,
-          code: 'MISSING_DEPENDENCIES',
-          missingDependencies: missingDeps,
+          error: `Module "${mod.config.name}" depends on ${unresolvedDeps.map((d) => `"${d}"`).join(', ')}, which could not be resolved from any module source.`,
+          code: 'UNRESOLVED_DEPENDENCIES',
+          unresolvedDependencies: unresolvedDeps,
         });
+      }
+
+      const closure = computeDependencyClosure(mod, modules, enabledIds);
+      for (const dep of closure) {
+        try {
+          await enableModuleSteps(dep, modules, supabase);
+          autoEnabledDependencies.push(dep.config.id);
+          enabledIds.add(dep.config.id);
+        } catch (depErr) {
+          logger.error({ depErr }, `[modules] Failed to auto-enable dependency "${dep.config.id}" for "${moduleId}":`);
+          return res.status(500).json({
+            error: `Failed to auto-enable dependency "${dep.config.name}": ${depErr instanceof Error ? depErr.message : String(depErr)}`,
+            code: 'DEPENDENCY_ENABLE_FAILED',
+            failedDependency: dep.config.id,
+            autoEnabledDependencies,
+          });
+        }
       }
     }
 
@@ -901,6 +1047,7 @@ modulesRouter.post('/:id/enable', async (req, res) => {
       migrationsApplied,
       edgeFunctionsDeployed,
       rebuildCounter,
+      autoEnabledDependencies,
     });
   } catch (err) {
     logger.error({ err }, '[modules] Enable failed:');

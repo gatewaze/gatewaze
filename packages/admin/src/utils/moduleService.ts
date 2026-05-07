@@ -59,7 +59,7 @@ export class ModuleService {
 
   static async enableModule(
     moduleId: string
-  ): Promise<{ success: boolean; migrationsApplied?: string[]; edgeFunctionsDeployed?: string[]; error?: string }> {
+  ): Promise<{ success: boolean; migrationsApplied?: string[]; edgeFunctionsDeployed?: string[]; autoEnabledDependencies?: string[]; error?: string }> {
     try {
       const apiUrl = import.meta.env.VITE_API_URL ?? '';
       const res = await apiFetch(`${apiUrl}/api/modules/${moduleId}/enable`, {
@@ -76,6 +76,7 @@ export class ModuleService {
         success: true,
         migrationsApplied: body.migrationsApplied,
         edgeFunctionsDeployed: body.edgeFunctionsDeployed,
+        autoEnabledDependencies: body.autoEnabledDependencies,
       };
     } catch (error) {
       return {
