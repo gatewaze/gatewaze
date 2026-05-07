@@ -1,4 +1,4 @@
-export type ModuleType = 'feature' | 'integration' | 'theme';
+export type ModuleType = 'feature' | 'integration' | 'theme' | 'core';
 export type ModuleVisibility = 'public' | 'hidden' | 'premium';
 
 // ---------------------------------------------------------------------------
