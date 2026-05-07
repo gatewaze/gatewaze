@@ -16,6 +16,7 @@ import { supabase } from '../supabase-client.js';
 // Import scraper worker logic from premium-gatewaze-modules
 // The scraper code lives in the modules repo; we dynamically resolve the path
 import path from 'path';
+import fsSync from 'fs';
 import { fileURLToPath } from 'url';
 const __workerFilename = fileURLToPath(import.meta.url);
 const __workerDirname = path.dirname(__workerFilename);
@@ -38,14 +39,45 @@ initScraperHandler({
   JobTypes,
 });
 
-// Import Slack invitation queue processor from premium-modules
-const slackModulePath = path.resolve(__workerDirname, '..', '..', '..', 'premium-gatewaze-modules', 'modules', 'slack-integration', 'scripts');
+// Import Slack invitation queue processor from premium-modules.
+// Tolerate the legacy `slack-integration` directory name (renamed to
+// `slack` in 7b19bfc) so a half-rebuilt environment doesn't crash the
+// worker on startup.
+function resolveSlackModulePath() {
+  const newPath = path.resolve(__workerDirname, '..', '..', '..', 'premium-gatewaze-modules', 'modules', 'slack', 'scripts');
+  const legacyPath = path.resolve(__workerDirname, '..', '..', '..', 'premium-gatewaze-modules', 'modules', 'slack-integration', 'scripts');
+  return [newPath, legacyPath];
+}
+let slackModulePath = null;
+for (const candidate of resolveSlackModulePath()) {
+  try {
+    if (fsSync.existsSync(candidate)) { slackModulePath = candidate; break; }
+  } catch {}
+}
+if (!slackModulePath) slackModulePath = resolveSlackModulePath()[0];
 const { processQueue: processSlackQueue, initSlackWorker } = await import(
   path.join(slackModulePath, 'slack-invitation-worker.js')
 );
 
 // Initialize the slack worker with dependencies
 initSlackWorker({ supabase });
+
+// Import the analytics provisioning handler from gatewaze-modules.
+// The TS handler at modules/analytics/src/workers/provisioning.ts is the
+// canonical implementation; this JS shim mirrors its logic so the dev
+// worker (which can't run TS) can drain the analytics_provisioning_jobs
+// queue. The cron scheduler enqueues `analytics:provision-property` jobs
+// every 60s and the dispatch loop below routes them here.
+const analyticsHandlerPath = '/var/lib/gatewaze/modules/analytics/scripts/provision-handler.js';
+let analyticsProvisionHandler = null;
+try {
+  const mod = await import(analyticsHandlerPath);
+  mod.init({ supabase });
+  analyticsProvisionHandler = mod.default;
+  console.log(`✅ Analytics provisioning handler loaded`);
+} catch (err) {
+  console.warn(`⚠️  Analytics provisioning handler not loadable (${err.message}) — analytics_provisioning_jobs queue will not drain`);
+}
 
 const brand = process.env.BRAND || 'default';
 const queueName = `jobs-${brand}`;
@@ -595,6 +627,20 @@ const handlers = {
       path.join(premiumModulesPath, 'workers', 'speaker-extract-handler.js')
     );
     return speakerExtractHandler(job);
+  },
+
+  // Analytics module's provisioning queue drainer. Cron
+  // `analytics-provision-property` (queue: jobs, every 60s) enqueues a
+  // job with kind='analytics:provision-property'; we look it up by name
+  // and delegate to the handler loaded at startup. The handler walks
+  // analytics_provisioning_jobs WHERE status='queued' and creates the
+  // matching Umami `website` entries, persisting website_uuid back to
+  // analytics_properties.
+  'analytics:provision-property': async (job) => {
+    if (!analyticsProvisionHandler) {
+      throw new Error('analytics provisioning handler not loaded — see startup warning');
+    }
+    return analyticsProvisionHandler(job);
   },
 };
 
