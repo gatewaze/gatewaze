@@ -7,12 +7,40 @@ import { ModuleService } from "@/utils/moduleService";
 import OnboardingWizardLayout from "./OnboardingWizardLayout";
 
 const SECTION_LABELS: Record<string, string> = {
-  events: "Event Features",
-  feature: "Features",
-  integration: "Integrations",
+  events: "Events",
+  content: "Content",
+  sites: "Sites & Publishing",
+  people: "People & Audience",
+  marketing: "Marketing & Growth",
+  communications: "Communications",
+  commerce: "Commerce",
+  analytics: "Analytics",
+  integrations: "Integrations",
+  platform: "Platform",
+  feature: "Other",
 };
 
-const SECTION_ORDER = ["events", "feature", "integration"];
+const SECTION_ORDER = [
+  "events",
+  "content",
+  "sites",
+  "people",
+  "marketing",
+  "communications",
+  "commerce",
+  "analytics",
+  "integrations",
+  "platform",
+  "feature",
+];
+
+const GROUP_ALIASES: Record<string, string> = {
+  integration: "integrations",
+  theme: "sites",
+  core: "platform",
+};
+
+const normalizeGroup = (g: string): string => GROUP_ALIASES[g] ?? g;
 
 interface ProgressEvent {
   step: string;
@@ -61,7 +89,7 @@ export default function ModuleSelectionStep() {
   const grouped = useMemo(() => {
     const groups: Record<string, typeof visibleModules> = {};
     for (const mod of visibleModules) {
-      const section = mod.group ?? mod.type ?? "feature";
+      const section = normalizeGroup(mod.group ?? mod.type ?? "feature");
       if (!groups[section]) groups[section] = [];
       groups[section].push(mod);
     }

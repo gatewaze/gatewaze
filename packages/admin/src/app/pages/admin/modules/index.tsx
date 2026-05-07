@@ -32,9 +32,8 @@ const SECTION_LABELS: Record<string, string> = {
   analytics: "Analytics",
   integrations: "Integrations",
   platform: "Platform",
-  // Legacy fallbacks (modules that haven't been migrated yet)
+  // Catch-all for modules that haven't been migrated to the new groups yet.
   feature: "Other",
-  integration: "Integrations",
 };
 
 const SECTION_ORDER = [
@@ -47,10 +46,18 @@ const SECTION_ORDER = [
   "commerce",
   "analytics",
   "integrations",
-  "integration",
   "platform",
   "feature",
 ];
+
+/** Map legacy/aliased group values to the canonical group key. */
+const GROUP_ALIASES: Record<string, string> = {
+  integration: "integrations",
+  theme: "sites",
+  core: "platform",
+};
+
+const normalizeGroup = (g: string): string => GROUP_ALIASES[g] ?? g;
 
 /** Modules with dedicated settings pages mounted under /admin/modules/:id */
 const MODULE_SETTINGS_ROUTES = new Set(["people-enrichment", "people-warehouse"]);
@@ -81,6 +88,7 @@ interface ModuleCardData {
   platformCompatible: boolean;
   minPlatformVersion?: string;
   guide?: string;
+  lastModifiedAt?: string;
 }
 
 const ALL_SOURCES_TAB = "__all__";
@@ -107,7 +115,7 @@ export default function ModulesPage() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [isUpdatingAll, setIsUpdatingAll] = useState(false);
   const [availableUpdates, setAvailableUpdates] = useState<ModuleUpdateInfo[]>([]);
-  const [availableModules, setAvailableModules] = useState<{ id: string; name: string; description: string; version: string; type: string; group: string; features: string[]; sourceLabel?: string; guide?: string }[]>([]);
+  const [availableModules, setAvailableModules] = useState<{ id: string; name: string; description: string; version: string; type: string; group: string; features: string[]; sourceLabel?: string; guide?: string; lastModifiedAt?: string }[]>([]);
   const [activeSourceTab, setActiveSourceTab] = useState<string>(ALL_SOURCES_TAB);
   const [infoModule, setInfoModule] = useState<ModuleCardData | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -177,7 +185,7 @@ export default function ModulesPage() {
         installedVersion,
         features: mod.features,
         type: mod.type ?? "feature",
-        group: mod.group ?? mod.type ?? "feature",
+        group: normalizeGroup(mod.group ?? mod.type ?? "feature"),
         source: "source",
         sourceLabel: mod.sourceLabel ?? "Modules",
         status: installed?.status ?? "not_installed",
@@ -186,6 +194,7 @@ export default function ModulesPage() {
         platformCompatible: update?.platformCompatible ?? true,
         minPlatformVersion: update?.minPlatformVersion,
         guide: mod.guide,
+        lastModifiedAt: mod.lastModifiedAt,
       };
     });
 
@@ -201,7 +210,7 @@ export default function ModulesPage() {
           installedVersion: installed.version,
           features: installed.features,
           type: installed.type ?? "feature",
-          group: installed.type ?? "feature",
+          group: normalizeGroup(installed.type ?? "feature"),
           source: installed.source ?? "custom",
           sourceLabel: "Custom",
           status: installed.status,
@@ -388,7 +397,6 @@ export default function ModulesPage() {
 
   const renderModuleCard = (mod: ModuleCardData) => {
     const isEnabled = mod.status === "enabled";
-    const isInstalled = mod.status !== "not_installed";
 
     const settingsHref = MODULE_SETTINGS_ROUTES.has(mod.id)
       ? `/admin/modules/${mod.id}`
@@ -400,7 +408,7 @@ export default function ModulesPage() {
         id={mod.id}
         name={mod.name}
         description={mod.description}
-        version={mod.installedVersion}
+        lastModifiedAt={mod.lastModifiedAt}
         enabled={isEnabled}
         disabled={!isSuperAdmin}
         toggling={togglingId === mod.id}

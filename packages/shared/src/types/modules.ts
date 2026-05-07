@@ -543,6 +543,13 @@ export interface LoadedModule {
   resolvedDir?: string;
   /** Human-readable label for the source this module was loaded from. */
   sourceLabel?: string;
+  /**
+   * ISO timestamp of the most-recently-modified source file inside the
+   * module directory (index.ts, migrations, admin/, portal/, api/, …).
+   * Used by the admin UI to show "Updated <relative>" in place of the
+   * static manifest version. Computed at load time from filesystem mtimes.
+   */
+  lastModifiedAt?: string;
 }
 
 export interface ModuleSourceRow {
