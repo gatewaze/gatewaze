@@ -1,4 +1,5 @@
 import { Counter, Gauge, Histogram, Registry, collectDefaultMetrics } from 'prom-client';
+import * as http from 'http';
 
 export const registry = new Registry();
 collectDefaultMetrics({ register: registry });
@@ -62,8 +63,6 @@ export async function metricsHandler(_req: unknown, res: {
  * Express.
  */
 export function startMetricsServer(port: number): { close: () => Promise<void> } {
-  // Lazy-require http to keep the hot path (API) free of the server import.
-  const http = require('http') as typeof import('http');
   const server = http.createServer((req, res) => {
     if (req.url === '/metrics') {
       metricsHandler(req, {
