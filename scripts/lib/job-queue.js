@@ -62,6 +62,17 @@ export const JobTypes = {
 
   // Media processing jobs
   MEDIA_PROCESS_ZIP: 'media:process-zip',
+
+  // Bulk speaker extraction enqueued at the end of every scrape run.
+  // Handler implemented in
+  // premium-gatewaze-modules/modules/scrapers/scripts/workers/speaker-extract-handler.js
+  // and dispatched from this worker's handlers map below. Mirrors the
+  // canonical entry in packages/api/src/lib/queue/schemas.ts — both
+  // registries must stay in sync, otherwise enqueueing the new job type
+  // by name fails with the BullMQ Lua error
+  // "ERR Lua redis lib command arguments must be strings or integers"
+  // because queue.add(undefined, data) is what gets called.
+  SCRAPER_SPEAKER_EXTRACT: 'scraper:speaker-extract',
 };
 
 // Queue names per brand (using hyphen instead of colon - BullMQ doesn't allow colons)
