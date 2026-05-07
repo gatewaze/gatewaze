@@ -62,21 +62,37 @@ const { processQueue: processSlackQueue, initSlackWorker } = await import(
 // Initialize the slack worker with dependencies
 initSlackWorker({ supabase });
 
-// Import the analytics provisioning handler from gatewaze-modules.
-// The TS handler at modules/analytics/src/workers/provisioning.ts is the
-// canonical implementation; this JS shim mirrors its logic so the dev
-// worker (which can't run TS) can drain the analytics_provisioning_jobs
+// Import the analytics provisioning handler.
+//
+// The TS handler at gatewaze-modules/modules/analytics/src/workers/provisioning.ts
+// is the canonical implementation; this JS shim mirrors its logic so the
+// dev worker (which can't run TS) can drain the analytics_provisioning_jobs
 // queue. The cron scheduler enqueues `analytics:provision-property` jobs
 // every 60s and the dispatch loop below routes them here.
-const analyticsHandlerPath = '/var/lib/gatewaze/modules/analytics/scripts/provision-handler.js';
+//
+// Two candidate locations: the supervisor-managed live module tree
+// (/var/lib/gatewaze/modules — preferred, reflects the module lifecycle)
+// and the direct gatewaze-modules bind mount (fallback for when the
+// supervisor hasn't synced the latest changes yet).
+const analyticsHandlerCandidates = [
+  '/var/lib/gatewaze/modules/analytics/scripts/provision-handler.js',
+  '/gatewaze-modules/modules/analytics/scripts/provision-handler.js',
+];
 let analyticsProvisionHandler = null;
-try {
-  const mod = await import(analyticsHandlerPath);
-  mod.init({ supabase });
-  analyticsProvisionHandler = mod.default;
-  console.log(`✅ Analytics provisioning handler loaded`);
-} catch (err) {
-  console.warn(`⚠️  Analytics provisioning handler not loadable (${err.message}) — analytics_provisioning_jobs queue will not drain`);
+for (const candidate of analyticsHandlerCandidates) {
+  try {
+    if (!fsSync.existsSync(candidate)) continue;
+    const mod = await import(candidate);
+    mod.init({ supabase });
+    analyticsProvisionHandler = mod.default;
+    console.log(`✅ Analytics provisioning handler loaded from ${candidate}`);
+    break;
+  } catch (err) {
+    console.warn(`⚠️  Analytics provisioning handler at ${candidate} failed: ${err.message}`);
+  }
+}
+if (!analyticsProvisionHandler) {
+  console.warn(`⚠️  No Analytics provisioning handler loaded — analytics_provisioning_jobs queue will not drain. Tried: ${analyticsHandlerCandidates.join(', ')}`);
 }
 
 const brand = process.env.BRAND || 'default';
@@ -847,4 +863,30 @@ if (process.env.SLACK_WORKSPACE_URL && process.env.SLACK_ADMIN_EMAIL) {
   console.log(`🔄 Slack invitation queue processor scheduled every 30 seconds`);
 } else {
   console.log(`⚠️  Slack invitation queue processor disabled (missing environment variables)`);
+}
+
+// Analytics provisioning poll loop.
+//
+// The platform's BullMQ scheduler enqueues `analytics:provision-property`
+// onto queue `jobs` (prefix `default`), but this legacy worker listens
+// on queue `jobs-${brand}` with the default `bull` prefix. The two queue
+// namespaces don't intersect, so cron-fired jobs never reach this
+// worker's Worker instance. Side-step the mismatch by polling the
+// analytics_provisioning_jobs table directly on a setInterval — same
+// runQueueTick the BullMQ handler would have called.
+//
+// Same cadence as the cron (60s); the handler is idempotent so running
+// it from both sides would be safe if the queue mismatch ever resolves.
+if (analyticsProvisionHandler) {
+  const ANALYTICS_TICK_MS = 60 * 1000;
+  // Fire once at startup so the queue drains immediately on first boot.
+  analyticsProvisionHandler({}).catch(err =>
+    console.error('Analytics provision tick error:', err.message),
+  );
+  setInterval(() => {
+    analyticsProvisionHandler({}).catch(err =>
+      console.error('Analytics provision tick error:', err.message),
+    );
+  }, ANALYTICS_TICK_MS);
+  console.log(`🔄 Analytics provisioning tick scheduled every 60 seconds`);
 }
