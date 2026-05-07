@@ -22,12 +22,38 @@ import { ModuleService } from "@/utils/moduleService";
 import type { InstalledModuleRow, ModuleSourceRow } from "@gatewaze/shared/modules";
 
 const SECTION_LABELS: Record<string, string> = {
-  events: "Event Features",
-  feature: "Features",
+  events: "Events",
+  content: "Content",
+  sites: "Sites & Publishing",
+  people: "People & Audience",
+  marketing: "Marketing & Growth",
+  communications: "Communications",
+  commerce: "Commerce",
+  analytics: "Analytics",
+  integrations: "Integrations",
+  platform: "Platform",
+  // Legacy fallbacks (modules that haven't been migrated yet)
+  feature: "Other",
   integration: "Integrations",
 };
 
-const SECTION_ORDER = ["events", "feature", "integration"];
+const SECTION_ORDER = [
+  "events",
+  "content",
+  "sites",
+  "people",
+  "marketing",
+  "communications",
+  "commerce",
+  "analytics",
+  "integrations",
+  "integration",
+  "platform",
+  "feature",
+];
+
+/** Modules with dedicated settings pages mounted under /admin/modules/:id */
+const MODULE_SETTINGS_ROUTES = new Set(["people-enrichment", "people-warehouse"]);
 
 interface ModuleUpdateInfo {
   id: string;
@@ -133,15 +159,13 @@ export default function ModulesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadAvailableModules, loadInstalledModules, loadModuleSources, checkForUpdates]);
 
-  // Merge config modules with DB status — excludes integration-type modules
-  // (those are managed in the Integrations page instead)
+  // Merge config modules with DB status. Both feature and integration
+  // modules render here, grouped by their `group` field.
   const moduleCards: ModuleCardData[] = useMemo(() => {
     const updateMap = new Map(availableUpdates.map((u) => [u.id, u]));
     const availableSet = new Set(availableModules.map((m) => m.id));
 
-    const cards: ModuleCardData[] = availableModules
-      .filter((mod) => (mod.type ?? "feature") !== "integration")
-      .map((mod) => {
+    const cards: ModuleCardData[] = availableModules.map((mod) => {
       const installed = installedModules.find((m) => m.id === mod.id);
       const update = updateMap.get(mod.id);
       const installedVersion = installed?.version ?? mod.version;
@@ -169,7 +193,6 @@ export default function ModulesPage() {
     // (e.g. from a source that was removed but module still installed)
     for (const installed of installedModules) {
       if (!availableSet.has(installed.id)) {
-        if ((installed.type ?? "feature") === "integration") continue;
         cards.push({
           id: installed.id,
           name: installed.name,
@@ -367,6 +390,10 @@ export default function ModulesPage() {
     const isEnabled = mod.status === "enabled";
     const isInstalled = mod.status !== "not_installed";
 
+    const settingsHref = MODULE_SETTINGS_ROUTES.has(mod.id)
+      ? `/admin/modules/${mod.id}`
+      : undefined;
+
     return (
       <ModuleCard
         key={mod.id}
@@ -379,6 +406,7 @@ export default function ModulesPage() {
         toggling={togglingId === mod.id}
         onToggle={() => handleToggle(mod.id, isEnabled)}
         onInfo={mod.guide ? () => setInfoModule(mod) : undefined}
+        settingsHref={settingsHref}
         update={mod.updateAvailable ? {
           fromVersion: mod.installedVersion,
           toVersion: mod.version,
