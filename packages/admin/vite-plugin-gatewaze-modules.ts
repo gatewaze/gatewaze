@@ -196,16 +196,14 @@ export function gatewazeModulesPlugin(): Plugin {
         // "Failed to resolve module specifier".
         if (!id.startsWith('.') && !id.startsWith('/') && !id.startsWith('@/')) {
           // DEFER to Vite for packages it pre-bundles IN DEV ONLY.
-          // Resolving these ourselves in dev hands the browser the raw
-          // CJS file (served via /@fs/…) which loses named exports like
-          // `jsxDEV`, `parse`, etc.; Vite's default resolution rewrites
-          // to the optimized `/node_modules/.vite/deps/<pkg>.js` bundle.
-          //
-          // In build there's no pre-bundle cache. Deferring leaves
-          // Rollup to resolve from the importer's real path, which for
-          // symlinked module files walks up and never reaches
-          // admin/node_modules — result: raw `from "react-leaflet"` in
-          // the output. Fall through to adminRequire.resolve below.
+          // Cross-mount resolution (importer in /gatewaze-modules,
+          // dep in /app/packages/admin/node_modules) relies on Vite's
+          // `resolve.dedupe` + `optimizeDeps.include` lists in
+          // vite.config.ts. Returning the raw filesystem path from
+          // adminRequire.resolve serves CJS files raw — the browser
+          // then crashes with `module is not defined`. Add the dep
+          // to dedupe + optimizeDeps.include and let Vite redirect
+          // to the pre-bundled (ESM) version.
           if (!isBuild && isVitePreBundled(id, preBundledDeps)) {
             return;
           }
@@ -254,11 +252,36 @@ export function gatewazeModulesPlugin(): Plugin {
           }
         }
 
-        // Resolved absolute paths that don't exist (after alias resolution by other plugins)
+        // Resolved absolute paths that don't exist (after alias resolution by other plugins).
         if (id.startsWith('/') && !id.includes('node_modules')) {
-          const extensions = ['', '.ts', '.tsx', '.js', '.jsx'];
-          const fileExists = extensions.some(ext => existsSync(id + ext))
-            || extensions.some(ext => existsSync(resolve(id, 'index' + ext)));
+          // TypeScript source files import siblings with `.js` extension
+          // (standard ESM-future-proof TS pattern). Vite's default resolver
+          // normally substitutes `.js` → `.ts` automatically, but only when
+          // it can resolve the file by walking from the importer's path.
+          // For cross-mount imports (e.g. newsletters → sites under
+          // /gatewaze-modules), Vite gives up and the unresolved `.js`
+          // path lands here. We resolve it explicitly: try the literal
+          // path, then `.ts`/`.tsx` substitutions if it ends in `.js`/`.jsx`,
+          // then index-file variants.
+          const candidates: string[] = [];
+          // literal + each extension appended
+          for (const ext of ['', '.ts', '.tsx', '.js', '.jsx']) {
+            candidates.push(id + ext);
+          }
+          // .js/.jsx → .ts/.tsx substitution
+          if (id.endsWith('.js') || id.endsWith('.jsx')) {
+            const stripped = id.replace(/\.jsx?$/, '');
+            candidates.push(stripped + '.ts', stripped + '.tsx');
+          }
+          // index files in the directory
+          for (const ext of ['.ts', '.tsx', '.js', '.jsx']) {
+            candidates.push(resolve(id, 'index' + ext));
+          }
+          const resolvedAbs = candidates.find(
+            (p) => existsSync(p) && statSync(p).isFile(),
+          );
+          if (resolvedAbs) return resolvedAbs;
+          const fileExists = false;
           if (!fileExists) {
             // Check if this is a module util that was resolved via the @/ prefix
             // but the file was removed from admin src (e.g. scraperService).
@@ -387,8 +410,34 @@ export function gatewazeModulesPlugin(): Plugin {
         const [fullMatch, specifiers, importPath] = match;
         const candidate = resolve(fileDir, importPath);
         const extensions = ['', '.ts', '.tsx', '.js', '.jsx'];
-        const found = extensions.some(ext => existsSync(candidate + ext))
-          || extensions.some(ext => existsSync(resolve(candidate, 'index' + ext)));
+        // Standard ESM-future-proof TS pattern: source files import siblings
+        // with `.js` extensions even though the actual file is `.ts`. Try
+        // the literal path first, then `.js`/`.jsx` → `.ts`/`.tsx`
+        // substitutions, then index-file variants.
+        //
+        // EXCEPTION — server-only files: module index.ts files re-export
+        // server-side concerns (mcp tool defs, api routes, workers,
+        // functions) that import Node-only deps (zod, fs, express, …).
+        // The browser bundle MUST NOT load these. We treat them as
+        // intentionally-stubbed regardless of whether the .ts file is
+        // actually present on disk.
+        const SERVER_ONLY_PATTERNS = [
+          /(?:^|\/)mcp(?:\.[jt]sx?)?$/,                    // ./mcp.js / ./mcp.ts
+          /(?:^|\/)api(?:\/.*|\.[jt]sx?)?$/,               // ./api/... / ./api.ts
+          /(?:^|\/)workers(?:\/.*|\.[jt]sx?)?$/,           // ./workers/...
+          /(?:^|\/)functions(?:\/.*|\.[jt]sx?)?$/,         // ./functions/... (Supabase edge fns)
+          /(?:^|\/)register-routes(?:\.[jt]sx?)?$/,        // ./register-routes.ts (Express mounts)
+          /(?:^|\/)cli(?:\.[jt]sx?)?$/,                    // ./cli.ts
+        ];
+        const isServerOnly = SERVER_ONLY_PATTERNS.some((re) => re.test(importPath));
+
+        const tsCandidate = candidate.replace(/\.jsx?$/, '');
+        const hasJsExt = candidate.endsWith('.js') || candidate.endsWith('.jsx');
+        const found = !isServerOnly && (
+          extensions.some(ext => existsSync(candidate + ext))
+          || (hasJsExt && (existsSync(tsCandidate + '.ts') || existsSync(tsCandidate + '.tsx')))
+          || extensions.some(ext => existsSync(resolve(candidate, 'index' + ext)))
+        );
 
         if (!found) {
           // Parse the named imports and generate inline no-op stubs
