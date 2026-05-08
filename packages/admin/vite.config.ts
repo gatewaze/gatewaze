@@ -21,6 +21,15 @@ export default defineConfig({
       "@tanstack/react-table", "react-hook-form", "@hookform/resolvers",
       "@radix-ui/themes", "yup", "apexcharts", "react-apexcharts",
       "pdfjs-dist",
+      // Canvas / WYSIWYG editor deps imported from gatewaze-modules
+      // module files. dedupe forces Vite to resolve from admin/node_modules
+      // and routes through optimizeDeps so the pre-bundled (ESM) version
+      // is served — not the raw CJS file (which would crash the browser
+      // with `module is not defined`).
+      "@puckeditor/core", "isomorphic-dompurify",
+      // react-email used by the newsletter email-blocks registry —
+      // same dedupe rationale as @puckeditor/core.
+      "@react-email/components", "@react-email/render",
     ],
   },
   server: {
@@ -73,6 +82,24 @@ export default defineConfig({
       // module-file imports from outside the project root can land on the raw
       // CJS file and lose named exports.
       "react-router-dom", "react-router",
+      // @puckeditor/core ships dual-format with `require → ./dist/index.js`
+      // (CJS). Module files imported from /gatewaze-modules paths resolve
+      // through Node's require chain and land on the CJS file, which then
+      // crashes the browser with `module is not defined`. Pre-bundling
+      // forces esbuild's CJS→ESM interop with proper named-export
+      // re-exports for `Puck`, `Render`, `Frame`, etc.
+      "@puckeditor/core",
+      // isomorphic-dompurify is CJS-first; same fix applies for the Puck
+      // RichText sanitiser when imported from module files.
+      "isomorphic-dompurify",
+      // @react-email/components and @react-email/render — same CJS-main
+      // pattern. Newsletter email-blocks (gatewaze-modules/newsletters/
+      // admin/components/puck/email-blocks/) import these from outside
+      // the workspace root, so without explicit pre-bundling Vite serves
+      // the raw .cjs file and import-analysis fails to resolve the
+      // bare specifier. Per spec-builder-evaluation §3.6 (extended).
+      "@react-email/components",
+      "@react-email/render",
     ],
   },
   build: {
