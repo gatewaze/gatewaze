@@ -342,6 +342,8 @@ services:
         VITE_AUTH_PROVIDER: ${AUTH_PROVIDER:-supabase}
         VITE_DISABLE_BRANDING: ${DISABLE_BRANDING:-false}
         VITE_APP_NAME: ${GW_APP_NAME:-}
+        VITE_SITES_CANVAS_ENGINE_DEFAULT: ${VITE_SITES_CANVAS_ENGINE_DEFAULT:-legacy}
+        VITE_NEWSLETTERS_CANVAS_ENGINE_DEFAULT: ${VITE_NEWSLETTERS_CANVAS_ENGINE_DEFAULT:-legacy}
     container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-admin
     restart: unless-stopped
     ports:
@@ -359,6 +361,12 @@ services:
       VITE_PORTAL_DOMAIN: ${PORTAL_HOST:-app.gatewaze.localhost}
       VITE_APP_URL: http://${PORTAL_HOST:-app.gatewaze.localhost}
       VITE_APP_NAME: ${GW_APP_NAME:-}
+      # Canvas editor engine defaults (per spec-builder-evaluation §3.7).
+      # `puck` = the new @puckeditor/core-based editor; `legacy` = hand-
+      # rolled SiteCanvasEditor / EditionCanvas. The admin reads these
+      # via Vite at build/dev time.
+      VITE_SITES_CANVAS_ENGINE_DEFAULT: ${VITE_SITES_CANVAS_ENGINE_DEFAULT:-legacy}
+      VITE_NEWSLETTERS_CANVAS_ENGINE_DEFAULT: ${VITE_NEWSLETTERS_CANVAS_ENGINE_DEFAULT:-legacy}
       MODULE_SOURCES: ${MODULE_SOURCES:-}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       GATEWAZE_DATA_DIR: /var/lib/gatewaze
@@ -481,6 +489,20 @@ services:
       API_KEY_PEPPER: ${API_KEY_PEPPER:-}
       MODULE_SOURCES: ${MODULE_SOURCES:-}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      # Sites module — boilerplate / default-blocks auto-import on site
+      # creation. Public github.com/gatewaze/* repos clone anonymously
+      # (no PAT needed). Set to empty to skip.
+      SITES_BOILERPLATE_URL: ${SITES_BOILERPLATE_URL:-https://github.com/gatewaze/gatewaze-template-site.git}
+      NEWSLETTERS_BOILERPLATE_URL: ${NEWSLETTERS_BOILERPLATE_URL:-https://github.com/gatewaze/gatewaze-template-email.git}
+      NEWSLETTERS_BOILERPLATE_BRANCH: ${NEWSLETTERS_BOILERPLATE_BRANCH:-main}
+      SITES_BOILERPLATE_TAG: ${SITES_BOILERPLATE_TAG:-main}
+      SITES_DEFAULT_BLOCKS_URL: ${SITES_DEFAULT_BLOCKS_URL:-https://github.com/gatewaze/gatewaze-template-blocks.git}
+      SITES_DEFAULT_BLOCKS_BRANCH: ${SITES_DEFAULT_BLOCKS_BRANCH:-main}
+      SITES_INTERNAL_GIT_ROOT: ${SITES_INTERNAL_GIT_ROOT:-/var/gatewaze/git}
+      SITES_GIT_SIGNING_KEY: ${SITES_GIT_SIGNING_KEY:-}
+      # Per spec-builder-evaluation §3.7. Default canvas engine for sites
+      # that don't have an explicit `sites.settings.canvas.engine` value.
+      SITES_CANVAS_ENGINE_DEFAULT: ${SITES_CANVAS_ENGINE_DEFAULT:-legacy}
       # AI provider keys — used by lazy-loaded clients in scrapers and
       # content-pipeline (e.g. luma speaker extractor, embeddings).
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
