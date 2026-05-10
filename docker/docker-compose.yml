@@ -231,6 +231,13 @@ services:
       SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
       EMAIL_FROM: ${EMAIL_FROM:-noreply@localhost}
       EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-Gatewaze}
+      # HMAC secret for one-click unsubscribe links in newsletter sends.
+      # Used by newsletter-send (to mint per-recipient tokens) and
+      # newsletter-unsubscribe (to verify them). Must be stable across
+      # restarts — changing it invalidates every outstanding unsubscribe
+      # link. If unset, the Footer block's {{unsubscribe_url}} gets
+      # replaced with an empty string and the link is inert.
+      UNSUBSCRIBE_HMAC_SECRET: ${UNSUBSCRIBE_HMAC_SECRET:-}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}
