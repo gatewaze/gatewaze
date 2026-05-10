@@ -124,6 +124,14 @@ email:
   # -- SendGrid API key (when provider is "sendgrid")
   sendgridApiKey: ""
 
+  # -- HMAC secret for newsletter one-click unsubscribe tokens.
+  #    Used by the newsletter-send + newsletter-unsubscribe edge
+  #    functions (RFC 8058). Must be stable — rotating invalidates
+  #    every outstanding unsubscribe link in already-sent emails.
+  #    If empty, recipients see inert unsubscribe links.
+  #    Generate one with: openssl rand -base64 48
+  unsubscribeHmacSecret: ""
+
   # -- SMTP settings (when provider is "smtp")
   smtp:
     host: ""
