@@ -494,7 +494,7 @@ services:
       # (no PAT needed). Set to empty to skip.
       SITES_BOILERPLATE_URL: ${SITES_BOILERPLATE_URL:-https://github.com/gatewaze/gatewaze-template-site.git}
       NEWSLETTERS_BOILERPLATE_URL: ${NEWSLETTERS_BOILERPLATE_URL:-https://github.com/gatewaze/gatewaze-template-email.git}
-      NEWSLETTERS_BOILERPLATE_BRANCH: ${NEWSLETTERS_BOILERPLATE_BRANCH:-main}
+      NEWSLETTERS_BOILERPLATE_BRANCH: ${NEWSLETTERS_BOILERPLATE_BRANCH:-theme}
       SITES_BOILERPLATE_TAG: ${SITES_BOILERPLATE_TAG:-main}
       SITES_DEFAULT_BLOCKS_URL: ${SITES_DEFAULT_BLOCKS_URL:-https://github.com/gatewaze/gatewaze-template-blocks.git}
       SITES_DEFAULT_BLOCKS_BRANCH: ${SITES_DEFAULT_BLOCKS_BRANCH:-main}
