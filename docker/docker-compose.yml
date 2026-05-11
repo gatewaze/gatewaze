@@ -459,6 +459,11 @@ services:
     # SUPABASE_URL=http://supabase-kong:8000 unaffected.
     extra_hosts:
       - "${SUPABASE_HOST:-supabase.gatewaze.localhost}:host-gateway"
+      # editor-ai-copilot's fetch_url tool calls fetch.<brand>.localhost
+      # (the scrapling-fetcher traefik route). Resolving it from inside
+      # the api container needs the host-gateway mapping, same pattern
+      # as SUPABASE_HOST above.
+      - "${FETCH_HOST:-fetch.gatewaze.localhost}:host-gateway"
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik"
@@ -514,6 +519,34 @@ services:
       # content-pipeline (e.g. luma speaker extractor, embeddings).
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # ----- AI chatbot web tools (spec-ai-chatbot-web-search.md) -----
+      # Per-deployment toggles + budgets. Default OFF — opt in by setting
+      # the *_ENABLED flags in the brand env file. Internal fetch backend
+      # (scrapling-fetcher direct) takes priority over external (gatewaze-
+      # fetch publicApi) when both are configured.
+      AI_CHATBOT_TOOLS_KILL_SWITCH: ${AI_CHATBOT_TOOLS_KILL_SWITCH:-false}
+      SITES_CANVAS_AI_WEB_SEARCH_ENABLED: ${SITES_CANVAS_AI_WEB_SEARCH_ENABLED:-false}
+      SITES_CANVAS_AI_WEB_SEARCH_MAX_PER_TURN: ${SITES_CANVAS_AI_WEB_SEARCH_MAX_PER_TURN:-3}
+      SITES_CANVAS_AI_WEB_SEARCH_DAILY_MAX: ${SITES_CANVAS_AI_WEB_SEARCH_DAILY_MAX:-1000}
+      SITES_CANVAS_AI_FETCH_URL_ENABLED: ${SITES_CANVAS_AI_FETCH_URL_ENABLED:-false}
+      SITES_CANVAS_AI_FETCH_URL_MAX_PER_TURN: ${SITES_CANVAS_AI_FETCH_URL_MAX_PER_TURN:-3}
+      SITES_CANVAS_AI_FETCH_URL_DAILY_MAX: ${SITES_CANVAS_AI_FETCH_URL_DAILY_MAX:-5000}
+      SITES_CANVAS_AI_FETCH_URL_MAX_BYTES: ${SITES_CANVAS_AI_FETCH_URL_MAX_BYTES:-1048576}
+      SITES_CANVAS_AI_FETCH_URL_TIMEOUT_MS: ${SITES_CANVAS_AI_FETCH_URL_TIMEOUT_MS:-15000}
+      SITES_CANVAS_AI_SCRAPLING_MODE: ${SITES_CANVAS_AI_SCRAPLING_MODE:-fast}
+      # Wall-clock budget for the web-tools loop (search + fetch + compose).
+      # 30s providerTimeoutMs is too tight when web_search is involved.
+      SITES_CANVAS_AI_WEB_TOOLS_TIMEOUT_MS: ${SITES_CANVAS_AI_WEB_TOOLS_TIMEOUT_MS:-120000}
+      SITES_CANVAS_AI_WEB_SEARCH_COST_MICRO_USD: ${SITES_CANVAS_AI_WEB_SEARCH_COST_MICRO_USD:-10000}
+      SITES_CANVAS_AI_FETCH_URL_COST_MICRO_USD: ${SITES_CANVAS_AI_FETCH_URL_COST_MICRO_USD:-5000}
+      SITES_CANVAS_AI_DAILY_TOOL_COST_BUDGET_CENTS: ${SITES_CANVAS_AI_DAILY_TOOL_COST_BUDGET_CENTS:-}
+      # Internal backend (default — uses in-cluster scrapling-fetcher).
+      SCRAPLING_FETCHER_URL: ${SCRAPLING_FETCHER_URL:-http://scrapling-fetcher:8080}
+      SCRAPLING_INTERNAL_TOKEN: ${SCRAPLING_INTERNAL_TOKEN:-}
+      # External backend (fallback — gatewaze-fetch publicApi with API key).
+      GATEWAZE_FETCH_BASE_URL: ${GATEWAZE_FETCH_BASE_URL:-}
+      GATEWAZE_FETCH_API_KEY: ${GATEWAZE_FETCH_API_KEY:-}
+      GATEWAZE_FETCH_TENANT_ID: ${GATEWAZE_FETCH_TENANT_ID:-default}
     depends_on:
       redis:
         condition: service_healthy
@@ -590,8 +623,24 @@ services:
       context: ../../gatewaze-environments/services/scrapling-fetcher
     container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-scrapling-fetcher
     restart: unless-stopped
+    # Per-brand traefik route. Host-side debugging:
+    #   curl -H 'Authorization: Bearer <SCRAPLING_INTERNAL_TOKEN>' \
+    #     -H 'Content-Type: application/json' \
+    #     -d '{"url":"https://example.com/"}' \
+    #     http://fetch.<brand>.localhost/fetch
+    # In-cluster callers may continue to use http://scrapling-fetcher:8080
+    # for slightly lower latency (skips the traefik hop); the editor-ai-
+    # copilot uses fetch.<brand>.localhost so the address is consistent
+    # with admin.<brand>.localhost / api.<brand>.localhost.
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-fetch.rule=Host(`${FETCH_HOST:-fetch.gatewaze.localhost}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-fetch.entrypoints=web"
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME:-gatewaze}-fetch.loadbalancer.server.port=8080"
     networks:
       - gatewaze
+      - traefik
     environment:
       SCRAPLING_INTERNAL_TOKEN: ${SCRAPLING_INTERNAL_TOKEN:-}
       SCRAPLING_PROXY_PROVIDER: ${SCRAPLING_PROXY_PROVIDER:-none}
