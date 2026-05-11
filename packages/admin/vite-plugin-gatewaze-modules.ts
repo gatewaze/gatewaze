@@ -141,8 +141,21 @@ export function gatewazeModulesPlugin(): Plugin {
             } else {
               // Sub-path import like `@.../sites-publisher-…/lib/api`.
               const cleanSub = subPath.replace(/^\//, '');
-              for (const ext of ['', '.ts', '.tsx', '.js', '/index.ts', '/index.tsx', '/index.js']) {
-                const full = resolve(candidateDir, cleanSub + ext);
+              const candidates = ['', '.ts', '.tsx', '.js', '/index.ts', '/index.tsx', '/index.js']
+                .map((ext) => resolve(candidateDir, cleanSub + ext));
+              // ESM-future-proof TS pattern: source files import siblings
+              // with `.js` extensions even when the actual file is `.ts`
+              // or `.tsx`. Mirror the absolute-path branch's behaviour
+              // here so namespaced cross-module imports like
+              // `@gatewaze-modules/sites/.../Foo.js` resolve to `Foo.tsx`.
+              if (cleanSub.endsWith('.js') || cleanSub.endsWith('.jsx')) {
+                const stripped = cleanSub.replace(/\.jsx?$/, '');
+                candidates.push(
+                  resolve(candidateDir, stripped + '.ts'),
+                  resolve(candidateDir, stripped + '.tsx'),
+                );
+              }
+              for (const full of candidates) {
                 // existsSync returns true for directories — must be a
                 // FILE for Vite to serve it. Without the isFile() guard,
                 // bare directory paths like `…/admin` short-circuit to
