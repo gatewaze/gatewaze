@@ -4,11 +4,6 @@ FROM node:22-slim AS builder
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# pnpm 10+ refuses to run native build scripts (sharp, esbuild, @sentry/cli)
-# without explicit approval and exits non-zero on ERR_PNPM_IGNORED_BUILDS.
-# Trust the lockfile in CI image builds.
-RUN echo "dangerouslyAllowAllBuilds=true" > /root/.npmrc
-
 WORKDIR /app
 
 # Clone default open-source modules at build time so they're available
@@ -29,9 +24,12 @@ RUN printf 'packages:\n  - "packages/*"\n' > pnpm-workspace.yaml
 COPY packages/api/package.json packages/api/
 COPY packages/shared/package.json packages/shared/
 
-# Install all dependencies (cache pnpm store between builds)
+# Install all dependencies (cache pnpm store between builds).
+# `--config.dangerously-allow-all-builds=true` required on pnpm 10+ —
+# sharp / esbuild / @sentry/cli native build scripts otherwise abort
+# the install with ERR_PNPM_IGNORED_BUILDS.
 RUN --mount=type=cache,id=pnpm-api,target=/root/.local/share/pnpm/store \
-    pnpm install --no-frozen-lockfile
+    pnpm install --no-frozen-lockfile --config.dangerously-allow-all-builds=true
 
 # Copy source code
 COPY gatewaze.config.ts ./
@@ -52,11 +50,6 @@ FROM node:22-slim
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates openssh-client && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# pnpm 10+ refuses to run native build scripts (sharp, esbuild, @sentry/cli)
-# without explicit approval and exits non-zero on ERR_PNPM_IGNORED_BUILDS.
-# Trust the lockfile in CI image builds.
-RUN echo "dangerouslyAllowAllBuilds=true" > /root/.npmrc
-
 WORKDIR /app
 
 ENV NODE_ENV=production
@@ -71,9 +64,12 @@ RUN printf 'packages:\n  - "packages/*"\n' > pnpm-workspace.yaml
 COPY packages/api/package.json packages/api/
 COPY packages/shared/package.json packages/shared/
 
-# Install production dependencies only (cache pnpm store between builds)
+# Install production dependencies only (cache pnpm store between builds).
+# `--config.dangerously-allow-all-builds=true` required on pnpm 10+ —
+# sharp / @sentry/cli native build scripts otherwise abort with
+# ERR_PNPM_IGNORED_BUILDS.
 RUN --mount=type=cache,id=pnpm-api,target=/root/.local/share/pnpm/store \
-    pnpm install --no-frozen-lockfile --prod
+    pnpm install --no-frozen-lockfile --prod --config.dangerously-allow-all-builds=true
 
 # Copy built output
 COPY --from=builder /app/packages/api/dist/packages/api/src packages/api/dist
