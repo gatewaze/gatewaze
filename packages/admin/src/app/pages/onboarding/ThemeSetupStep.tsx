@@ -68,7 +68,12 @@ export default function ThemeSetupStep() {
         sessionStorage.setItem(`gatewaze-onboarding-step:${user.id}`, 'complete');
       }
 
-      navigate("/inbox", { replace: true });
+      // Root works on every brand; /inbox only renders when the
+      // content-platform module is enabled, which brands like AutoDB
+      // explicitly disable. Hardcoding /inbox here threw RootErrorBoundary
+      // ("No route matches URL '/inbox'") on those brands at the end of
+      // theme setup.
+      navigate("/", { replace: true });
     } catch {
       toast.error("Failed to save theme settings");
     } finally {
