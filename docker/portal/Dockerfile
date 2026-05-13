@@ -12,6 +12,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
+# pnpm 10+ refuses to run native build scripts (sharp, esbuild, @sentry/cli)
+# without explicit approval and exits non-zero on ERR_PNPM_IGNORED_BUILDS.
+# In a CI image build the lockfile is trusted, so allow all build scripts
+# to run. Drop this once we pin pnpm version + use `pnpm approve-builds`.
+RUN echo "dangerouslyAllowAllBuilds=true" > /root/.npmrc
+
 WORKDIR /app
 
 ENV NODE_ENV=production \
