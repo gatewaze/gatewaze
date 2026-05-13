@@ -96,7 +96,10 @@ writeFileSync('./packages/admin/package.json', JSON.stringify(pkg, null, 2) + '\
 console.log('[admin] Stripped @gatewaze-modules deps. Remaining deps:', Object.keys(pkg.dependencies || {}).length);
 "
 echo "[admin] Installing dependencies..."
-cd /app && pnpm install --no-frozen-lockfile 2>&1 | tail -5
+# `--config.dangerously-allow-all-builds=true` required on pnpm 10+ —
+# sharp / esbuild / @sentry/cli native build scripts otherwise abort
+# the install with ERR_PNPM_IGNORED_BUILDS.
+cd /app && pnpm install --no-frozen-lockfile --config.dangerously-allow-all-builds=true 2>&1 | tail -5
 
 # Build admin with Vite (modules are now available on disk). With all
 # premium modules in the graph the build reliably exceeds Node's default

@@ -12,12 +12,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# pnpm 10+ refuses to run native build scripts (sharp, esbuild, @sentry/cli)
-# without explicit approval and exits non-zero on ERR_PNPM_IGNORED_BUILDS.
-# In a CI image build the lockfile is trusted, so allow all build scripts
-# to run. Drop this once we pin pnpm version + use `pnpm approve-builds`.
-RUN echo "dangerouslyAllowAllBuilds=true" > /root/.npmrc
-
 WORKDIR /app
 
 ENV NODE_ENV=production \
@@ -33,9 +27,13 @@ RUN printf 'packages:\n  - "packages/*"\n' > pnpm-workspace.yaml
 COPY packages/portal/package.json packages/portal/
 COPY packages/shared/package.json packages/shared/
 
-# Install all deps — dev deps are needed for `next build` at runtime
+# Install all deps — dev deps are needed for `next build` at runtime.
+# `--config.dangerously-allow-all-builds=true` is required on pnpm 10+:
+# without it `pnpm install` exits non-zero on ERR_PNPM_IGNORED_BUILDS
+# for sharp / esbuild / @sentry/cli native build scripts. CI trusts the
+# lockfile, so allow build scripts to run.
 RUN --mount=type=cache,id=pnpm-portal,target=/root/.local/share/pnpm/store \
-    pnpm install --no-frozen-lockfile
+    pnpm install --no-frozen-lockfile --config.dangerously-allow-all-builds=true
 
 # Source
 COPY packages/shared/ packages/shared/
