@@ -4,12 +4,16 @@
 
 FROM node:22-slim
 
-# Install Chromium, git (entrypoint clones module repos), and dependencies
+# Install Chromium, git (entrypoint clones module repos), openssh-client
+# (publish-worker mirrors theme git repos to GitHub via ssh deploy keys —
+# without ssh present, `git push` to the deploy-keyed remote 127s with
+# "ssh: not found" and the mirror stays stale), plus dependencies.
 RUN apt-get update && apt-get install -y \
     chromium \
     fonts-liberation \
     fonts-noto-color-emoji \
     git \
+    openssh-client \
     ca-certificates \
     --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
