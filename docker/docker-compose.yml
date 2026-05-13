@@ -478,10 +478,19 @@ services:
       # Dual-tree: API is the sole writer of sources/ and modules/
       - gatewaze-module-sources:/var/lib/gatewaze/sources
       - gatewaze-module-live:/var/lib/gatewaze/modules
+      # Sites module's internal git server bare repos. Without this the
+      # /var/gatewaze/git tree lives in the container writable layer and
+      # vanishes on every rebuild — the graduate-to-external flow fails
+      # with "internal clone failed" because the source bare repo is gone.
+      - gatewaze-internal-git:/var/gatewaze/git
     environment:
       PORT: "3002"
       NODE_ENV: production
       SUPABASE_URL: http://supabase-kong:8000
+      # Browser-facing Supabase URL. Used by media adapters to build
+      # cdn_url responses — internal SUPABASE_URL is the docker DNS
+      # name (`supabase-kong:8000`) which browsers can't resolve.
+      SUPABASE_PUBLIC_URL: ${API_EXTERNAL_URL:-http://supabase.gatewaze.localhost}
       SUPABASE_ANON_KEY: ${ANON_KEY}
       SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
       REDIS_URL: redis://:${REDIS_PASSWORD:-gatewaze}@redis:6379
@@ -797,6 +806,10 @@ volumes:
   # Dual-tree module storage (spec-module-deployment-overhaul §6.1):
   # API writes; admin/portal/worker read. Mounted at /var/lib/gatewaze/*.
   gatewaze-module-sources:
+    driver: local
+  # Sites module internal git server — bare repos that back each site
+  # before graduation to an external host. Persists internal aaif.git etc.
+  gatewaze-internal-git:
     driver: local
   gatewaze-module-live:
     driver: local

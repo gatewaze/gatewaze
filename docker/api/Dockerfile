@@ -40,7 +40,11 @@ RUN pnpm --filter api build
 # ---- Stage 2: Run ----
 FROM node:22-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
+# openssh-client is required by the sites module's graduate-to-external
+# flow (Source tab → "Move to my own git repo"): it spawns `ssh-keygen`
+# to generate the ed25519 deploy keypair, and `ssh`/`git push` use the
+# generated key to push to the external repo.
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates openssh-client && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app

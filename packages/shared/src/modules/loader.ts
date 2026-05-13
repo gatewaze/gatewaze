@@ -397,13 +397,37 @@ export async function loadModulesWithDbSources(
     label: row.label ?? undefined,
   }));
 
-  // Deduplicate by url+path. DB rows take precedence over env, env over
-  // config — the admin UI lets super-admins override labels/branches
-  // stored in code/env, so the persisted row should win the merge.
+  // Deduplicate by url+path. Env-origin DB rows take precedence over
+  // config-origin so local-mount overrides win when labels collide —
+  // this is the dev-loop pattern (`MODULE_SOURCES=/gatewaze-modules/...`
+  // shadows the upstream git URL of the same name). Within each origin
+  // group, insertion order is preserved.
+  const dbEnvRows = effectiveDb
+    .filter((r) => r.origin === 'env')
+    .map((row): ModuleSource => ({
+      url: row.url,
+      path: row.path ?? undefined,
+      branch: row.branch ?? undefined,
+      token: row.token ?? undefined,
+      label: row.label ?? undefined,
+    }));
+  const dbNonEnvRows = effectiveDb
+    .filter((r) => r.origin !== 'env')
+    .map((row): ModuleSource => ({
+      url: row.url,
+      path: row.path ?? undefined,
+      branch: row.branch ?? undefined,
+      token: row.token ?? undefined,
+      label: row.label ?? undefined,
+    }));
+  void dbModuleSources; // superseded by the split above
+
   const seen = new Set<string>();
   const byPath: ModuleSource[] = [];
 
-  for (const source of [...dbModuleSources, ...envSources, ...configSources]) {
+  // Iteration order: env-DB > env-env-var > non-env-DB > config. So a
+  // local bind-mount label shadows a same-labelled git source.
+  for (const source of [...dbEnvRows, ...envSources, ...dbNonEnvRows, ...configSources]) {
     const normalized = typeof source === 'string'
       ? source
       : `${source.url}|${source.path ?? ''}`;
@@ -413,9 +437,11 @@ export async function loadModulesWithDbSources(
     }
   }
 
-  // Second pass: dedup by label. If a local source carries a label that
-  // a lower-precedence source also uses, keep only the first — honours
-  // DB > env > config iteration order established above.
+  // Second pass: dedup by label. First match wins — and after the
+  // re-ordering above, that's the env-origin source whenever labels
+  // collide. (Pre-fix this dropped env sources whose labels matched
+  // the upstream config-origin git URL, leaving the API loading the
+  // stale git clone instead of the developer's local bind mount.)
   const seenLabels = new Set<string>();
   const merged: ModuleSource[] = [];
   for (const source of byPath) {
