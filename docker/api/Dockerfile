@@ -4,6 +4,11 @@ FROM node:22-slim AS builder
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
+# pnpm 10+ refuses to run native build scripts (sharp, esbuild, @sentry/cli)
+# without explicit approval and exits non-zero on ERR_PNPM_IGNORED_BUILDS.
+# Trust the lockfile in CI image builds.
+RUN echo "dangerouslyAllowAllBuilds=true" > /root/.npmrc
+
 WORKDIR /app
 
 # Clone default open-source modules at build time so they're available
@@ -46,6 +51,11 @@ FROM node:22-slim
 # generated key to push to the external repo.
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates openssh-client && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@latest --activate
+
+# pnpm 10+ refuses to run native build scripts (sharp, esbuild, @sentry/cli)
+# without explicit approval and exits non-zero on ERR_PNPM_IGNORED_BUILDS.
+# Trust the lockfile in CI image builds.
+RUN echo "dangerouslyAllowAllBuilds=true" > /root/.npmrc
 
 WORKDIR /app
 

@@ -4,6 +4,11 @@ FROM node:22-slim
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates nginx curl && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
+# pnpm 10+ refuses to run native build scripts (sharp, esbuild, @sentry/cli)
+# without explicit approval and exits non-zero on ERR_PNPM_IGNORED_BUILDS.
+# Trust the lockfile in CI image builds.
+RUN echo "dangerouslyAllowAllBuilds=true" > /root/.npmrc
+
 WORKDIR /app
 
 # Copy workspace root files
