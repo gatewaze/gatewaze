@@ -13,18 +13,28 @@ import App from './App.tsx'
 
 // `process` polyfill — some libraries bundled into admin (event
 // invites WASM/PDF stack, isomorphic dompurify, etc.) reference
-// `process.env.NODE_ENV` or `process.platform` at module evaluation
-// time without a `typeof` guard. Vite's `define` config rewrites
-// most of these at build time but transitive deps with direct
-// `process.env.X` references against keys we don't define still
-// throw `ReferenceError: process is not defined` in the browser.
-// Stub a minimal Node-shaped object so the lookup resolves; libs
-// reading `process.env.NODE_ENV` get 'production' (matches the build
-// mode), everything else gets undefined (the standard fallback path).
+// `process.env.X` directly without a `typeof` guard.
+//
+// `process.env` is wrapped in a Proxy that returns '' (empty
+// string) for any missing key. The previous attempt (1.2.19) used a
+// plain object with only NODE_ENV set; libs that did
+// `process.env.SOMETHING.split('/')` then threw `Cannot read
+// properties of undefined (reading 'split')`. Empty string supports
+// every string method (`.split`, `.length`, `.indexOf`, etc.) and is
+// the closest semantically to "env var not set" — which is what
+// these libs are typically branching on anyway.
 if (typeof (globalThis as { process?: unknown }).process === 'undefined') {
    
+  const envBase: Record<string, string> = { NODE_ENV: 'production' };
+  const envProxy = new Proxy(envBase, {
+    get(target, key) {
+      if (typeof key !== 'string') return undefined;
+      return key in target ? target[key] : '';
+    },
+  });
+   
   (globalThis as any).process = {
-    env: { NODE_ENV: 'production' },
+    env: envProxy,
     platform: 'browser',
     version: '',
     versions: {},
