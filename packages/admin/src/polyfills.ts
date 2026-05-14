@@ -41,8 +41,17 @@ if (typeof (globalThis as { process?: unknown }).process === 'undefined') {
   (globalThis as any).process = {
     env: envProxy,
     platform: 'browser',
-    version: '',
-    versions: {},
+    // version + versions.node populated as parseable semver strings —
+    // undici (Node HTTP client, bundled into the admin via a transitive
+    // dep on one of the modules) reads them at module init with
+    // `process.versions.node.split('.', 2).map(Number)`. Empty
+    // `versions: {}` made `.node` undefined and the `.split` crashed
+    // the event-invites tab. A valid version string is enough to
+    // satisfy undici's version parser; the bundled path never actually
+    // performs network I/O from the browser anyway — it's pulled in
+    // via tree-shaking failure, not because anyone calls it.
+    version: 'v20.0.0',
+    versions: { node: '20.0.0' },
     browser: true,
     nextTick: (cb: () => void) => setTimeout(cb, 0),
   };
