@@ -11,6 +11,14 @@ export default defineConfig({
     alias: {
       "@": path.join(__dirname, "src"),
       "@gatewaze/shared": path.resolve(__dirname, "../shared/src"),
+      // Stub undici — a Node-only HTTP client that a transitive dep
+      // drags into the admin bundle (event-invites tab crash). Tried
+      // polyfilling `process.versions.node` (worked) but then undici
+      // calls `util.debuglog` and the polyfill chain keeps growing.
+      // Easier to alias the package to an empty stub since the admin
+      // never legitimately invokes undici at runtime (uses fetch()
+      // directly). See src/stubs/undici-empty.ts.
+      "undici": path.resolve(__dirname, "src/stubs/undici-empty.ts"),
     },
     // Ensure bare imports from external module sources (gatewaze-modules) resolve
     // from the admin app's node_modules, not from the module's filesystem location
