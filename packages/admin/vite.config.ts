@@ -19,6 +19,14 @@ export default defineConfig({
       // never legitimately invokes undici at runtime (uses fetch()
       // directly). See src/stubs/undici-empty.ts.
       "undici": path.resolve(__dirname, "src/stubs/undici-empty.ts"),
+      // Stub jsdom — Node-only DOM simulator pulled in via
+      // isomorphic-dompurify's Node branch (and possibly other libs
+      // doing SSR-on-server detection). Admin runs in a real browser
+      // with a native DOM; jsdom is dead weight. Without this stub,
+      // jsdom's VirtualConsole crashes at module init with
+      // `Class extends value undefined` because Vite stubs node:events
+      // and jsdom tries to `class VirtualConsole extends EventEmitter`.
+      "jsdom": path.resolve(__dirname, "src/stubs/jsdom-empty.ts"),
     },
     // Ensure bare imports from external module sources (gatewaze-modules) resolve
     // from the admin app's node_modules, not from the module's filesystem location
