@@ -11,6 +11,28 @@ import App from './App.tsx'
 // real shared-memory semantics. Solving it at the HTTP layer is the
 // correct fix.
 
+// `process` polyfill — some libraries bundled into admin (event
+// invites WASM/PDF stack, isomorphic dompurify, etc.) reference
+// `process.env.NODE_ENV` or `process.platform` at module evaluation
+// time without a `typeof` guard. Vite's `define` config rewrites
+// most of these at build time but transitive deps with direct
+// `process.env.X` references against keys we don't define still
+// throw `ReferenceError: process is not defined` in the browser.
+// Stub a minimal Node-shaped object so the lookup resolves; libs
+// reading `process.env.NODE_ENV` get 'production' (matches the build
+// mode), everything else gets undefined (the standard fallback path).
+if (typeof (globalThis as { process?: unknown }).process === 'undefined') {
+   
+  (globalThis as any).process = {
+    env: { NODE_ENV: 'production' },
+    platform: 'browser',
+    version: '',
+    versions: {},
+    browser: true,
+    nextTick: (cb: () => void) => setTimeout(cb, 0),
+  };
+}
+
 // Initialise Sentry as early as possible so component tree errors are
 // captured. No-op when VITE_SENTRY_DSN is unset.
 import { initSentry } from './lib/sentry'
