@@ -1,0 +1,90 @@
+# Cloudflare Worker config for the AAIF Portal (per spec-portal-on-cloudflare-workers §5.1).
+#
+# This file targets a single brand (AAIF). Other brands will copy this and
+# rename `name` / KV namespace IDs / R2 bucket / route. Per-brand wrangler
+# files keep secrets isolated and let each brand deploy independently.
+#
+# OpenNext writes its build output to `.open-next/`. The generated
+# `worker.js` is the Worker entrypoint; OpenNext also emits `assets/`
+# (uploaded to the R2 bucket bound below) and `cache/` (KV).
+#
+# KV namespace IDs and R2 bucket names below are placeholders — they get
+# created via `wrangler kv namespace create` and `wrangler r2 bucket
+# create` before first deploy. Replace the `id = "TODO_..."` lines with
+# the real namespace IDs returned by those commands. Do NOT commit real
+# IDs without verifying they belong to the AAIF Cloudflare account.
+
+name = "gatewaze-portal-aaif"
+main = ".open-next/worker.js"
+compatibility_date = "2026-05-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Static assets (Next.js public/, _next/static/, etc.) — uploaded by
+# OpenNext's deploy step. The Worker streams them straight from R2.
+[[r2_buckets]]
+binding = "ASSETS"
+bucket_name = "gatewaze-portal-aaif-assets"
+
+# ISR cache — Next.js `revalidate: N` pages and fetch cache entries land
+# here. OpenNext writes through this binding.
+[[kv_namespaces]]
+binding = "CACHE"
+id = "TODO_ISR_CACHE_NAMESPACE_ID"
+
+# Slug / custom-domain lookup cache — replaces the in-memory Maps in
+# middleware.ts. 5-minute TTL per spec §4.4. Populated lazily by the
+# middleware on first lookup.
+[[kv_namespaces]]
+binding = "SLUG_CACHE"
+id = "TODO_SLUG_CACHE_NAMESPACE_ID"
+
+# Public, non-secret config. Anything here is visible in the Worker
+# bundle and to anyone who runs `wrangler tail`.
+[vars]
+GATEWAZE_API_URL = "https://api.aaif.live"
+GATEWAZE_CDN_URL = "https://cdn.aaif.live"
+NEXT_PUBLIC_SUPABASE_URL = "https://data.aaif.live"
+NEXT_PUBLIC_BRAND = "aaif"
+
+# Routes — bind the Worker to the production hostname. The DNS swap (per
+# spec §13 step 4) flips `aaif.live` from the K8s ingress to this Worker.
+# Custom-domain brands with their own apex (e.g. white-label tenants)
+# add additional `[[routes]]` blocks or are handled via Cloudflare for
+# SaaS — see spec §8.
+[[routes]]
+pattern = "aaif.live/*"
+zone_name = "aaif.live"
+
+# Secrets are NOT declared here. They are set out-of-band:
+#   wrangler secret put SUPABASE_ANON_KEY
+#   wrangler secret put SUPABASE_JWT_SECRET   # only if the Worker verifies JWTs locally
+# Service-role keys are NEVER bound to this Worker — it is a public
+# surface. Per spec §8.
+
+# Staging environment — same code, separate KV / R2 / route. The
+# `staging.aaif.live` Worker hosts the migration soak test (spec §13
+# step 1). Deploy via `wrangler deploy --env staging`.
+[env.staging]
+name = "gatewaze-portal-aaif-staging"
+
+[[env.staging.r2_buckets]]
+binding = "ASSETS"
+bucket_name = "gatewaze-portal-aaif-staging-assets"
+
+[[env.staging.kv_namespaces]]
+binding = "CACHE"
+id = "TODO_STAGING_ISR_CACHE_NAMESPACE_ID"
+
+[[env.staging.kv_namespaces]]
+binding = "SLUG_CACHE"
+id = "TODO_STAGING_SLUG_CACHE_NAMESPACE_ID"
+
+[env.staging.vars]
+GATEWAZE_API_URL = "https://api.aaif.live"
+GATEWAZE_CDN_URL = "https://cdn.aaif.live"
+NEXT_PUBLIC_SUPABASE_URL = "https://data.aaif.live"
+NEXT_PUBLIC_BRAND = "aaif"
+
+[[env.staging.routes]]
+pattern = "staging.aaif.live/*"
+zone_name = "aaif.live"

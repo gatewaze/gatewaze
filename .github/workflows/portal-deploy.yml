@@ -1,0 +1,187 @@
+name: Portal Deploy (Cloudflare Workers)
+
+# Per spec-portal-on-cloudflare-workers §7.2.
+#
+# Builds the AAIF portal with OpenNext and deploys it to a Cloudflare
+# Worker. Module repos are cloned at the SHAs pinned in
+# packages/portal/modules.json — bumping a SHA there is the explicit
+# changelog entry for what changes in the next deploy.
+#
+# Triggers:
+#   - git tag portal-v* (production)
+#   - workflow_dispatch with environment selector (manual / staging)
+#
+# Secrets required (Repository Settings → Secrets):
+#   GH_PAT_MODULES        PAT with read access to the three module repos
+#                         (same secret already used by release.yml; the
+#                         auto-token cannot clone private repos).
+#   CF_API_TOKEN          Cloudflare API token with permissions:
+#                           Account → Workers Scripts → Edit
+#                           Account → Workers KV Storage → Edit
+#                           Account → Workers R2 Storage → Edit
+#                           Zone (aaif.live) → Workers Routes → Edit
+#   CF_ACCOUNT_ID         Cloudflare account ID
+#   PORTAL_SUPABASE_ANON_KEY        Supabase anon key for AAIF
+#   PORTAL_SUPABASE_JWT_SECRET      JWT secret (only if Worker verifies JWTs locally)
+
+on:
+  push:
+    tags:
+      - 'portal-v*'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Cloudflare Worker environment'
+        required: true
+        type: choice
+        default: 'staging'
+        options:
+          - staging
+          - production
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Build & Deploy Portal Worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      # Force the next.config.ts OpenNext branch (custom image loader,
+      # no `output: standalone`).
+      OPENNEXT_BUILD: '1'
+      # Pod-startup module discovery is disabled in the Workers build —
+      # the next.config webpack alias reads from the registry JSON
+      # written by `pnpm --filter portal generate-modules`. The clone
+      # step below populates the disk paths it expects.
+      MODULE_SOURCES: ''
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Determine target environment
+        id: target
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "env=production" >> "$GITHUB_OUTPUT"
+          else
+            echo "env=${{ inputs.environment }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Clone module repos at pinned SHAs
+        env:
+          GH_PAT: ${{ secrets.GH_PAT_MODULES }}
+        run: |
+          # Read packages/portal/modules.json and clone each repo at
+          # the pinned SHA into the sibling layout that the portal
+          # webpack alias expects (../../../<repo>/modules).
+          set -euo pipefail
+          node -e '
+            const fs = require("node:fs");
+            const cp = require("node:child_process");
+            const cfg = JSON.parse(fs.readFileSync("packages/portal/modules.json", "utf8"));
+            const token = process.env.GH_PAT || "";
+            for (const [name, { url, sha }] of Object.entries(cfg.modules)) {
+              const target = `${process.cwd()}/../${name}`;
+              // Inject PAT into the URL so private repos clone. Only
+              // works for HTTPS URLs — SSH URLs would need a deploy key.
+              const authedUrl = token && url.startsWith("https://github.com/")
+                ? url.replace("https://github.com/", `https://x-token:${token}@github.com/`)
+                : url;
+              console.log(`[modules] cloning ${name} @ ${sha.slice(0,7)}`);
+              cp.execSync(`git clone --filter=blob:none --no-checkout ${authedUrl} ${target}`, { stdio: "inherit" });
+              cp.execSync(`git -C ${target} fetch --depth 1 origin ${sha}`, { stdio: "inherit" });
+              cp.execSync(`git -C ${target} checkout ${sha}`, { stdio: "inherit" });
+            }
+          '
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --config.dangerously-allow-all-builds=true
+
+      - name: Build portal (Next.js)
+        working-directory: packages/portal
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+        run: pnpm run build
+
+      - name: Build OpenNext bundle
+        working-directory: packages/portal
+        run: pnpm run opennext:build
+
+      - name: Push Worker secrets (production)
+        if: steps.target.outputs.env == 'production'
+        working-directory: packages/portal
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+        run: |
+          # `wrangler secret put` is idempotent — pushes the latest
+          # value each run. Only push if the GitHub secret is set;
+          # SUPABASE_JWT_SECRET is optional (Worker only needs it if
+          # we move JWT verification off the API).
+          if [ -n "${{ secrets.PORTAL_SUPABASE_ANON_KEY }}" ]; then
+            printf '%s' "${{ secrets.PORTAL_SUPABASE_ANON_KEY }}" | npx wrangler secret put SUPABASE_ANON_KEY
+          fi
+          if [ -n "${{ secrets.PORTAL_SUPABASE_JWT_SECRET }}" ]; then
+            printf '%s' "${{ secrets.PORTAL_SUPABASE_JWT_SECRET }}" | npx wrangler secret put SUPABASE_JWT_SECRET
+          fi
+
+      - name: Push Worker secrets (staging)
+        if: steps.target.outputs.env == 'staging'
+        working-directory: packages/portal
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+        run: |
+          if [ -n "${{ secrets.PORTAL_SUPABASE_ANON_KEY }}" ]; then
+            printf '%s' "${{ secrets.PORTAL_SUPABASE_ANON_KEY }}" | npx wrangler secret put SUPABASE_ANON_KEY --env staging
+          fi
+          if [ -n "${{ secrets.PORTAL_SUPABASE_JWT_SECRET }}" ]; then
+            printf '%s' "${{ secrets.PORTAL_SUPABASE_JWT_SECRET }}" | npx wrangler secret put SUPABASE_JWT_SECRET --env staging
+          fi
+
+      - name: Deploy to Cloudflare Workers
+        working-directory: packages/portal
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+        run: |
+          if [ "${{ steps.target.outputs.env }}" = "production" ]; then
+            pnpm run opennext:deploy
+          else
+            pnpm exec opennextjs-cloudflare deploy --env staging
+          fi
+
+      - name: Smoke test
+        run: |
+          # The cutover plan (spec §13 step 3) keeps the K8s pod live
+          # during rollout. A failed smoke check here means the Worker
+          # responded but with a non-2xx — the workflow fails loud and
+          # the operator decides whether to roll back the Worker
+          # version (Cloudflare keeps the previous version one click
+          # away).
+          if [ "${{ steps.target.outputs.env }}" = "production" ]; then
+            host="aaif.live"
+          else
+            host="staging.aaif.live"
+          fi
+          echo "[smoke] hitting https://${host}/"
+          status=$(curl -s -o /dev/null -w '%{http_code}' "https://${host}/")
+          if [ "${status}" -ge 200 ] && [ "${status}" -lt 400 ]; then
+            echo "[smoke] OK (HTTP ${status})"
+          else
+            echo "[smoke] FAIL (HTTP ${status})" >&2
+            exit 1
+          fi
