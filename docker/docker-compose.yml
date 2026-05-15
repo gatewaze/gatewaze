@@ -417,6 +417,7 @@ services:
       SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       NEXT_PUBLIC_ENABLE_CHAT: ${NEXT_PUBLIC_ENABLE_CHAT:-false}
       INSTANCE_NAME: ${INSTANCE_NAME:-gatewaze}
       NODE_ENV: production
@@ -528,6 +529,7 @@ services:
       # content-pipeline (e.g. luma speaker extractor, embeddings).
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       # ----- AI chatbot web tools (spec-ai-chatbot-web-search.md) -----
       # Per-deployment toggles + budgets. Default OFF — opt in by setting
       # the *_ENABLED flags in the brand env file. Internal fetch backend
@@ -590,6 +592,7 @@ services:
       GOOGLE_CSE_ID: ${GOOGLE_CSE_ID:-}
       GOOGLE_CSE_DAILY_BUDGET: ${GOOGLE_CSE_DAILY_BUDGET:-100}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-1}
       MODULE_SOURCES: ${MODULE_SOURCES:-}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}

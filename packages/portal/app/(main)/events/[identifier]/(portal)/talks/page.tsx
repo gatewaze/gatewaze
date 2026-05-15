@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { getServerBrand, getBrandConfigById } from '@/config/brand'
-import { createServerSupabase } from '@/lib/supabase/server'
+import { getEvent, getEventTalks } from '@/lib/portal-data'
 import { TalksFormContent } from '@/components/event/TalksFormContent'
 import { stripEmojis } from '@/lib/text'
 import { resolveEventImages } from '@/lib/storage-resolve'
@@ -12,44 +12,18 @@ interface Props {
 }
 
 async function getEventForMetadata(identifier: string, brandId: string) {
-  const supabase = await createServerSupabase(brandId)
   const brandConfig = await getBrandConfigById(brandId)
-
-  let { data: event } = await supabase
-    .from('events')
-    .select('id, event_title, screenshot_url, event_logo')
-    .eq('event_slug', identifier)
-    .eq('is_live_in_production', true)
-    .maybeSingle()
-
-  if (!event) {
-    const result = await supabase
-      .from('events')
-      .select('id, event_title, screenshot_url, event_logo')
-      .eq('event_id', identifier)
-      .eq('is_live_in_production', true)
-      .maybeSingle()
-    event = result.data
-  }
-
+  const event = await getEvent(identifier)
   return resolveEventImages(event, brandConfig.storageBucketUrl)
 }
 
-async function getConfirmedDurationCounts(eventUuid: string, brandId: string): Promise<Record<number, number>> {
-  const supabase = await createServerSupabase(brandId)
-
-  const { data } = await supabase
-    .from('events_talks')
-    .select('duration_minutes')
-    .eq('event_uuid', eventUuid)
-    .eq('status', 'confirmed')
-    .not('duration_minutes', 'is', null)
-
+async function getConfirmedDurationCounts(identifier: string): Promise<Record<number, number>> {
+  const talks = await getEventTalks(identifier)
   const counts: Record<number, number> = {}
-  if (data) {
-    for (const talk of data) {
-      const duration = talk.duration_minutes as number
-      counts[duration] = (counts[duration] || 0) + 1
+  for (const t of talks) {
+    const talk = t as { status?: string | null; duration_minutes?: number | null }
+    if (talk.status === 'confirmed' && typeof talk.duration_minutes === 'number') {
+      counts[talk.duration_minutes] = (counts[talk.duration_minutes] || 0) + 1
     }
   }
   return counts
@@ -94,13 +68,9 @@ const VALID_INITIAL_STATUSES = ['pending', 'confirmed', 'approved', 'reserve']
 export default async function TalksPage({ params, searchParams }: Props) {
   const { identifier } = await params
   const { s: statusParam } = await searchParams
-  const brand = await getServerBrand()
-  const event = await getEventForMetadata(identifier, brand)
 
   // Get confirmed speaker counts by duration for capacity tracking
-  const confirmedDurationCounts = event?.id
-    ? await getConfirmedDurationCounts(event.id, brand)
-    : {}
+  const confirmedDurationCounts = await getConfirmedDurationCounts(identifier)
 
   // Validate and normalize the initial status parameter
   const initialStatus = statusParam && VALID_INITIAL_STATUSES.includes(statusParam.toLowerCase())

@@ -4,6 +4,9 @@ import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import { getServerBrand, getBrandConfigById } from '@/config/brand'
+// Stays on direct Supabase: this page authenticates the viewer
+// (auth.getUser + people lookup) for module pages like RSVP, so its
+// reads are per-viewer and don't benefit from the shared CDN cache.
 import { createServerSupabase } from '@/lib/supabase/server'
 import { AddedPageContent } from '@/components/event/AddedPageContent'
 import { stripEmojis } from '@/lib/text'
