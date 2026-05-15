@@ -51,13 +51,16 @@ function buildRuntimeConfigDefine(): Record<string, string> {
   const names = discoverViteEnvNames(__dirname);
   const defines: Record<string, string> = {};
   for (const n of names) {
-    // Quoted property access — `globalThis.__GATEWAZE_CONFIG__` is
-    // populated by /runtime-config.js (loaded synchronously before the
-    // main bundle). The optional chaining means an undeployed
-    // runtime-config.js (e.g. local preview) returns `undefined`,
-    // which is the same value Vite's default inlining would produce
-    // when the env var was unset.
-    defines[`import.meta.env.${n}`] = `((typeof globalThis!=="undefined"&&globalThis.__GATEWAZE_CONFIG__)?globalThis.__GATEWAZE_CONFIG__.${n}:undefined)`;
+    // esbuild's `define` accepts only JS literals or identifier paths
+    // (foo.bar.baz). A ternary like `((typeof globalThis...)?...)` is
+    // rejected with "Invalid define value (must be an entity name or
+    // JS literal)" — so we use a bare property-access path. The
+    // index.html inline-script bootstraps `window.__GATEWAZE_CONFIG__`
+    // to `{}` BEFORE /runtime-config.js loads, so this access is
+    // always safe even if /runtime-config.js is missing (local
+    // preview): the value is `undefined`, identical to Vite's default
+    // behaviour for unset env vars.
+    defines[`import.meta.env.${n}`] = `globalThis.__GATEWAZE_CONFIG__.${n}`;
   }
   console.log(`[vite-config] runtime-config define: rewrote ${names.length} VITE_* references`);
   return defines;
