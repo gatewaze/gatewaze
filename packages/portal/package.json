@@ -37,7 +37,7 @@
     "isomorphic-dompurify": "^3.0.0-rc.2",
     "@sentry/nextjs": "^10.51.0",
     "leaflet": "^1.9.4",
-    "next": "^15.5.15",
+    "next": "^15.5.18",
     "openai": "^6.18.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
@@ -65,6 +65,6 @@
     "tailwindcss": "^4.1.12",
     "tsx": "^4.19.0",
     "typescript": "5.9.3",
-    "wrangler": "^3.90.0"
+    "wrangler": "^4.86.0"
   }
 }
