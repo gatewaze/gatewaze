@@ -437,6 +437,17 @@ services:
     volumes:
       - gatewaze-module-sources:/var/lib/gatewaze/sources:ro
       - gatewaze-module-live:/var/lib/gatewaze/modules
+    # Server-side fetches (gatewazeFetch in next/server) call the API via
+    # NEXT_PUBLIC_API_URL — which is the public Traefik hostname like
+    # `api.aaif.localhost`. Inside the container that hostname doesn't
+    # resolve unless we route it back through the host (where Traefik
+    # is listening). host-gateway is docker's alias for the host's IP —
+    # same pattern the api container uses for SUPABASE_HOST / FETCH_HOST
+    # below. Without this, portal SSR returns a notFound() / 404 page on
+    # every event detail / calendar etc. view because gatewazeFetch's
+    # catch on `getaddrinfo ENOTFOUND` returns null → page-level notFound.
+    extra_hosts:
+      - "${API_HOST:-api.gatewaze.localhost}:host-gateway"
     depends_on:
       supabase-kong:
         condition: service_started
