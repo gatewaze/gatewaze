@@ -110,6 +110,14 @@ function shouldDisableImageOptimizer(): boolean {
   return false
 }
 
+// Detect the OpenNext / Cloudflare Workers build path. The CI workflow
+// portal-deploy.yml sets OPENNEXT_BUILD=1 before invoking next build so
+// we can swap incompatible features (sharp-based image optimizer,
+// `output: 'standalone'`) for their Workers-friendly equivalents
+// without touching the K8s build pipeline. See
+// spec-portal-on-cloudflare-workers §4.6 / §4.1.
+const isOpenNextBuild = process.env.OPENNEXT_BUILD === '1' || process.env.OPENNEXT_BUILD === 'true'
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
 
@@ -166,8 +174,10 @@ const nextConfig: NextConfig = {
     position: 'bottom-right',
   },
 
-  // Standalone output for containerized deployment
-  output: 'standalone',
+  // Standalone output for the K8s containerized build. OpenNext does
+  // its own bundling step (`opennextjs-cloudflare build`) and reads
+  // `.next/` directly, so we drop `standalone` on the Workers path.
+  output: isOpenNextBuild ? undefined : 'standalone',
 
   // Skip type checking in build (handled separately in CI)
   typescript: {
@@ -194,10 +204,22 @@ const nextConfig: NextConfig = {
   // trying to fetch the original to transform. Disable optimization for
   // these dev setups — the browser loads the URL directly. Production
   // (Supabase Cloud or any public TLD) keeps optimization on.
-  images: {
-    remotePatterns: buildRemotePatterns(),
-    unoptimized: shouldDisableImageOptimizer(),
-  },
+  images: isOpenNextBuild
+    ? {
+        // On Workers, the built-in optimizer (sharp) doesn't run. Use
+        // Cloudflare Image Resizing via the custom loader. See
+        // spec-portal-on-cloudflare-workers §4.6 + lib/imageLoader.ts.
+        // remotePatterns are still honoured for the next/image
+        // allow-list — Cloudflare's resizing worker will reject hosts
+        // not allowlisted in the zone's Image Resizing settings.
+        loader: 'custom',
+        loaderFile: './lib/imageLoader.ts',
+        remotePatterns: buildRemotePatterns(),
+      }
+    : {
+        remotePatterns: buildRemotePatterns(),
+        unoptimized: shouldDisableImageOptimizer(),
+      },
 
   // Headers for caching static assets
   async headers() {
