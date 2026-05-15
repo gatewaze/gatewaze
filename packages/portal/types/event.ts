@@ -27,6 +27,27 @@ export interface Event {
   enable_native_registration: boolean | null
   enable_call_for_speakers: boolean | null
   enable_agenda: boolean | null
+  /**
+   * Per-source structured data dropped by scrapers (e.g. wp_post_id,
+   * raw_date). The shape we care about in the portal is the optional
+   * `action_links` map populated by LinuxFoundationEventsScraper:
+   *   { register?, sponsor?, schedule?, videos?, speak? }
+   * Used by EventSidebar to override register/talks hrefs and
+   * conditionally surface external Schedule / Sponsor / Videos menu
+   * items. Other keys are read by features that need them; portal
+   * does not enumerate them.
+   */
+  source_details?: {
+    action_links?: {
+      register?: string
+      sponsor?: string
+      schedule?: string
+      videos?: string
+      speak?: string
+      [key: string]: string | undefined
+    }
+    [key: string]: unknown
+  } | null
   luma_event_id: string | null
   luma_processed_html: string | null
   meetup_processed_html: string | null
