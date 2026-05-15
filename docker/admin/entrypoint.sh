@@ -123,10 +123,23 @@ if [ -n "$MODULE_SOURCES" ]; then
     target="/tmp/module-repos/$reponame"
 
     echo "[admin] Cloning $url (branch: $branch) → $target"
-    git clone --depth 1 --branch "$branch" "$url" "$target" || {
+    if ! git clone --depth 1 --branch "$branch" "$url" "$target"; then
+      # In PREBUILD mode, a missing module repo means the baked bundle
+      # would silently lack those modules — every page that imports
+      # them goes blank in production. Abort hard so the Dockerfile's
+      # `|| { fallback }` wrapper kicks in and the image ships with NO
+      # prebuilt bundle, forcing the runtime to do a full slow-path
+      # build with whatever the pod can clone (which is the
+      # last-known-good behaviour). This is what was missed in v1.2.28
+      # — the auto-token couldn't clone premium-gatewaze-modules and
+      # the silent `continue` shipped a broken bundle to production.
+      if [ -n "$PREBUILD" ]; then
+        echo "[admin] FATAL (prebuild): failed to clone $url — aborting prebuild rather than baking a partial bundle" >&2
+        exit 1
+      fi
       echo "[admin] Warning: failed to clone $url"
       continue
-    }
+    fi
 
     # Symlink /<reponame> → cloned path so the plugin's pre-cloned lookup finds it.
     rm -rf "/$reponame" 2>/dev/null || true
