@@ -1,284 +1,64 @@
 import { notFound } from 'next/navigation'
 import { getServerBrand, getBrandConfigById } from '@/config/brand'
-import { createServerSupabase } from '@/lib/supabase/server'
+import {
+  getEvent,
+  getEventCounts,
+  getEventAdPixels,
+  getEventRecommended,
+  type EventWithUuid,
+  type RecommendedEvent,
+  type AdPixelConfig,
+} from '@/lib/portal-data'
 import { EventLayoutClient } from '@/components/event/EventLayoutClient'
 import { AdPixels } from '@/components/tracking/AdPixels'
-import { extractEventIdFromSlug } from '@/lib/slugify'
 import { EventJsonLd } from '@/components/structured-data'
 import { resolveEventImages } from '@/lib/storage-resolve'
-import type { Event } from '@/types/event'
+
+// Re-export for downstream consumers (page.tsx files referenced these
+// types directly from the layout).
+export type { EventWithUuid, RecommendedEvent } from '@/lib/portal-data'
 
 interface Props {
   children: React.ReactNode
   params: Promise<{ identifier: string }>
 }
 
-// Stable columns — present on every supported events schema. Always selected.
-const EVENT_SELECT_FIELDS_STABLE = `
-  id,
-  event_id,
-  event_slug,
-  event_title,
-  event_start,
-  event_end,
-  event_timezone,
-  event_city,
-  event_region,
-  event_country_code,
-  event_location,
-  venue_address,
-  event_description,
-  listing_intro,
-  luma_processed_html,
-  meetup_processed_html,
-  event_link,
-  event_logo,
-  screenshot_url,
-  enable_registration,
-  enable_native_registration,
-  enable_call_for_speakers,
-  enable_agenda,
-  luma_event_id,
-  is_live_in_production,
-  gradient_color_1,
-  gradient_color_2,
-  gradient_color_3,
-  portal_theme,
-  theme_colors,
-  talk_duration_options,
-  register_button_text,
-  page_content,
-  recommended_event_id,
-  gradual_eventslug,
-  venue_content,
-  venue_map_image,
-  event_latitude,
-  event_longitude,
-  addedpage_content,
-  addedpage_title
-`
-
-// Optional columns added by later migrations. Selected when present, gracefully
-// dropped if PostgREST 400s with "column events.X does not exist" (means the
-// brand hasn't applied that migration yet — page should still render, the
-// dependent feature just stays empty).
-const EVENT_SELECT_FIELDS = `${EVENT_SELECT_FIELDS_STABLE},nearby_hotels`
-
-export interface EventWithUuid extends Event {
-  id: string
-}
-
-/** True when the PostgREST error means a column in our SELECT doesn't exist
- *  in the live schema (brand hasn't applied a recent migration). Treated as
- *  a signal to retry with the stable SELECT only. */
-function isMissingColumnError(err: { message?: string; code?: string } | null | undefined): boolean {
-  if (!err) return false
-  // Postgres SQLSTATE 42703 = undefined_column. PostgREST surfaces this as
-  // a 400 with the SQLSTATE code preserved in `code`.
-  if (err.code === '42703') return true
-  return /column .* does not exist/i.test(err.message || '')
-}
-
-async function getEvent(identifier: string, brandId: string): Promise<EventWithUuid | null> {
-  const supabase = await createServerSupabase(brandId)
-  const brandConfig = await getBrandConfigById(brandId)
-
-  async function fetchByColumn(column: 'event_slug' | 'event_id', value: string) {
-    const tryFields = async (fields: string) =>
-      supabase
-        .from('events')
-        .select(fields)
-        .eq(column, value)
-        .eq('is_live_in_production', true)
-        .maybeSingle()
-    const first = await tryFields(EVENT_SELECT_FIELDS)
-    if (first.error && isMissingColumnError(first.error)) {
-      // Retry with only the stable columns — the dependent feature (e.g.
-      // nearby_hotels) will be missing from the row but the page renders.
-      const fallback = await tryFields(EVENT_SELECT_FIELDS_STABLE)
-      return fallback.data
-    }
-    return first.data
-  }
-
-  // Try slug first, then event_id
-  let event = await fetchByColumn('event_slug', identifier)
-  if (!event) event = await fetchByColumn('event_id', identifier)
-
-  // Fallback: extract event_id from end of slug (handles stale/modified slugs)
-  if (!event && identifier.includes('-')) {
-    const extractedId = extractEventIdFromSlug(identifier)
-    if (extractedId !== identifier) event = await fetchByColumn('event_id', extractedId)
-  }
-
-  return resolveEventImages(event as EventWithUuid | null, brandConfig.storageBucketUrl) ?? null
-}
-
-/**
- * Whether the virtual-events module has been configured for this event.
- * Returns true when a row exists in `live_event_config` for the event uuid.
- * Returns false if the table doesn't exist (module not installed) — table-
- * not-found is treated as "no virtual event" rather than a hard error so
- * the layout still renders cleanly on brands without the module.
- */
-async function getHasVirtualEvent(eventUuid: string, brandId: string): Promise<boolean> {
-  const supabase = await createServerSupabase(brandId)
-  const { count, error } = await supabase
-    .from('live_event_config')
-    .select('id', { count: 'exact', head: true })
-    .eq('event_id', eventUuid)
-  if (error) return false
-  return (count ?? 0) > 0
-}
-
-async function getSpeakerCount(eventUuid: string, brandId: string): Promise<number> {
-  const supabase = await createServerSupabase(brandId)
-  // Count confirmed speakers first
-  const { count: confirmedCount } = await supabase
-    .from('events_speakers_with_details')
-    .select('*', { count: 'exact', head: true })
-    .eq('event_uuid', eventUuid)
-    .eq('status', 'confirmed')
-
-  if (confirmedCount && confirmedCount > 0) return confirmedCount
-
-  // Fall back to placeholder speakers
-  const { count: placeholderCount } = await supabase
-    .from('events_speakers_with_details')
-    .select('*', { count: 'exact', head: true })
-    .eq('event_uuid', eventUuid)
-    .eq('status', 'placeholder')
-
-  return placeholderCount || 0
-}
-
-async function getSponsorCount(eventId: string, brandId: string): Promise<number> {
-  const supabase = await createServerSupabase(brandId)
-  const { count } = await supabase
-    .from('events_sponsors')
-    .select('*', { count: 'exact', head: true })
-    .eq('event_id', eventId)
-    .eq('is_active', true)
-
-  return count || 0
-}
-
-export interface RecommendedEvent {
-  id: string
-  event_id: string
-  event_title: string
-  event_start: string | null
-  event_end: string | null
-  event_city: string | null
-  event_country_code: string | null
-  screenshot_url: string | null
-  event_logo: string | null
-  event_link: string | null
-  register_button_text: string | null
-  enable_registration: boolean | null
-}
-
-async function getCompetitionCount(eventId: string, brandId: string): Promise<number> {
-  const supabase = await createServerSupabase(brandId)
-  const { count } = await supabase
-    .from('events_competitions')
-    .select('*', { count: 'exact', head: true })
-    .eq('event_id', eventId)
-    .eq('status', 'active')
-
-  return count || 0
-}
-
-async function getDiscountCount(eventId: string, brandId: string): Promise<number> {
-  const supabase = await createServerSupabase(brandId)
-  const { count } = await supabase
-    .from('events_discounts')
-    .select('*', { count: 'exact', head: true })
-    .eq('event_id', eventId)
-    .eq('status', 'active')
-
-  return count || 0
-}
-
-async function getMediaCount(eventId: string, brandId: string): Promise<number> {
-  const supabase = await createServerSupabase(brandId)
-  const { count } = await supabase
-    .from('events_media')
-    .select('*', { count: 'exact', head: true })
-    .eq('event_id', eventId)
-    .eq('file_type', 'photo')
-
-  return count || 0
-}
-
-async function getRecommendedEvent(recommendedEventId: string, brandId: string): Promise<RecommendedEvent | null> {
-  const supabase = await createServerSupabase(brandId)
-  const brandConfig = await getBrandConfigById(brandId)
-
-  const { data } = await supabase
-    .from('events')
-    .select('id, event_id, event_title, event_start, event_end, event_city, event_country_code, screenshot_url, event_logo, event_link, register_button_text, enable_registration')
-    .eq('id', recommendedEventId)
-    .eq('is_live_in_production', true)
-    .maybeSingle()
-
-  return resolveEventImages(data as RecommendedEvent | null, brandConfig.storageBucketUrl) ?? null
-}
-
-interface AdPixelConfig {
-  reddit?: { pixelId: string }
-  meta?: { pixelId: string }
-}
-
-async function getAdPixelConfig(eventId: string, brandId: string): Promise<AdPixelConfig> {
-  const supabase = await createServerSupabase(brandId)
-  const config: AdPixelConfig = {}
-
-  // Fetch Reddit and Meta configs in parallel
-  const [redditResult, metaResult] = await Promise.all([
-    supabase.rpc('integrations_get_ad_platform_config', { p_event_id: eventId, p_platform: 'reddit' }),
-    supabase.rpc('integrations_get_ad_platform_config', { p_event_id: eventId, p_platform: 'meta' }),
-  ])
-
-  // Extract pixel IDs from credentials, with env var fallback
-  if (redditResult.data?.credentials?.pixel_id) {
-    config.reddit = { pixelId: redditResult.data.credentials.pixel_id }
-  } else if (process.env.REDDIT_PIXEL_ID) {
-    config.reddit = { pixelId: process.env.REDDIT_PIXEL_ID }
-  }
-
-  if (metaResult.data?.credentials?.pixel_id) {
-    config.meta = { pixelId: metaResult.data.credentials.pixel_id }
-  } else if (process.env.META_PIXEL_ID) {
-    config.meta = { pixelId: process.env.META_PIXEL_ID }
-  }
-
-  return config
-}
+// All four event-detail reads now route through gatewazeFetch → CDN.
+// Per spec-portal-on-cloudflare-workers §4.2 — replaces ~9 direct
+// Supabase round-trips per page hit with 4 CDN-cacheable requests.
+// Authenticated per-viewer reads (RSVP status, talk-edit, etc.)
+// stay direct since they don't benefit from a shared cache.
+//
+// Cache tags live on the API side (packages/api/src/routes/portal-events.ts).
+// Mutations (admin edits) trigger revalidateTag(...) via the existing
+// webhook pipeline so the next portal read reaches a warm CDN within
+// seconds, not the 60s default revalidate window.
 
 export default async function EventDetailLayout({ children, params }: Props) {
   const { identifier } = await params
   const brand = await getServerBrand()
   const brandConfig = await getBrandConfigById(brand)
-  const event = await getEvent(identifier, brand)
+
+  const eventRaw = await getEvent(identifier)
+  const event = resolveEventImages(eventRaw, brandConfig.storageBucketUrl)
 
   if (!event) {
     notFound()
   }
 
-  const [speakerCount, sponsorCount, competitionCount, discountCount, mediaCount, adPixelConfig, hasVirtualEvent] = await Promise.all([
-    getSpeakerCount(event.id, brand),
-    getSponsorCount(event.event_id, brand),
-    getCompetitionCount(event.event_id, brand),
-    getDiscountCount(event.event_id, brand),
-    getMediaCount(event.id, brand),
-    getAdPixelConfig(event.event_id, brand),
-    getHasVirtualEvent(event.id, brand),
+  const [counts, adPixelConfig, recommendedRaw] = await Promise.all([
+    getEventCounts(identifier),
+    getEventAdPixels(identifier),
+    event.recommended_event_id ? getEventRecommended(identifier) : Promise.resolve(null),
   ])
 
-  const recommendedEvent = event.recommended_event_id
-    ? await getRecommendedEvent(event.recommended_event_id, brand)
-    : null
+  const speakerCount = counts?.speakerCount ?? 0
+  const sponsorCount = counts?.sponsorCount ?? 0
+  const competitionCount = counts?.competitionCount ?? 0
+  const discountCount = counts?.discountCount ?? 0
+  const mediaCount = counts?.mediaCount ?? 0
+  const hasVirtualEvent = counts?.hasVirtualEvent ?? false
+  const recommendedEvent = resolveEventImages(recommendedRaw, brandConfig.storageBucketUrl)
 
   return (
     <>
@@ -288,7 +68,7 @@ export default async function EventDetailLayout({ children, params }: Props) {
         siteUrl={`https://${brandConfig.domain}`}
       />
       {/* Ad tracking pixels (Reddit, Meta) - only load if configured */}
-      {(adPixelConfig.reddit || adPixelConfig.meta) && (
+      {adPixelConfig && (adPixelConfig.reddit || adPixelConfig.meta) && (
         <AdPixels config={adPixelConfig} />
       )}
       <EventLayoutClient
