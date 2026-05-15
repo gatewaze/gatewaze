@@ -419,6 +419,41 @@ export function gatewazeModulesPlugin(): Plugin {
       let modified = false;
       let result = code;
 
+      // -------- Dynamic imports of server-only paths --------
+      // `apiRoutes: async () => import('./api/register-routes.js')` and
+      // similar patterns get statically analysed by Vite and pulled into
+      // the admin bundle as a lazy chunk — even though the browser never
+      // calls them. Those chunks transitively drag jsdom / undici / ws /
+      // pdf-parse / mammoth into the bundle (event-invites tab crashes,
+      // process.versions.node polyfills, etc. all stem from this).
+      //
+      // Replace `import('./api/...')` and `import('./workers/...')` with a
+      // rejected Promise so Vite emits no chunk for them. The runtime
+      // call path (API server) imports them via its own `require()` /
+      // `await import()` and never touches the admin bundle's stub.
+      const SERVER_ONLY_DYNAMIC_PATTERNS = [
+        /(?:^|\/)api(?:\/.*|\.[jt]sx?)?$/,
+        /(?:^|\/)workers(?:\/.*|\.[jt]sx?)?$/,
+        /(?:^|\/)functions(?:\/.*|\.[jt]sx?)?$/,
+        /(?:^|\/)mcp(?:\.[jt]sx?)?$/,
+        /(?:^|\/)register-routes(?:\.[jt]sx?)?$/,
+        /(?:^|\/)cli(?:\.[jt]sx?)?$/,
+      ];
+      const dynamicImportRe = /import\(\s*['"](\.[^'"]+)['"]\s*\)/g;
+      for (const match of code.matchAll(dynamicImportRe)) {
+        const [fullMatch, importPath] = match;
+        if (!importPath) continue;
+        if (SERVER_ONLY_DYNAMIC_PATTERNS.some((re) => re.test(importPath))) {
+          // Resolve to a rejecting Promise so any accidental browser call
+          // surfaces loudly (rather than silently returning a stub that
+          // pretends to work).
+          const replacement = `Promise.reject(new Error('[gatewaze-modules] server-only path stubbed in admin bundle: ${importPath}'))`;
+          result = result.replace(fullMatch, replacement);
+          modified = true;
+          console.warn(`[gatewaze-modules] Stubbed dynamic server-only import "${importPath}" in ${relative(projectRoot, id)}`);
+        }
+      }
+
       for (const match of code.matchAll(importRe)) {
         const [fullMatch, specifiers, importPath] = match;
         const candidate = resolve(fileDir, importPath);
