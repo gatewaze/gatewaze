@@ -11,8 +11,11 @@
     "start": "next start -p 3100",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf .next",
-    "test": "vitest run"
+    "clean": "rm -rf .next .open-next",
+    "test": "vitest run",
+    "opennext:build": "OPENNEXT_BUILD=1 tsx scripts/generate-module-registry.ts && OPENNEXT_BUILD=1 opennextjs-cloudflare build",
+    "opennext:preview": "opennextjs-cloudflare preview",
+    "opennext:deploy": "opennextjs-cloudflare deploy"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.64",
@@ -45,6 +48,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@opennextjs/cloudflare": "^1.0.0",
     "@tailwindcss/postcss": "^4.1.12",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
@@ -60,6 +64,7 @@
     "jsdom": "^29.0.0",
     "tailwindcss": "^4.1.12",
     "tsx": "^4.19.0",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "wrangler": "^3.90.0"
   }
 }
