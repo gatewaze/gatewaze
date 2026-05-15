@@ -26,9 +26,11 @@ binding = "ASSETS"
 bucket_name = "gatewaze-portal-aaif-assets"
 
 # ISR cache — Next.js `revalidate: N` pages and fetch cache entries land
-# here. OpenNext writes through this binding.
+# here. OpenNext's kvIncrementalCache override (open-next.config.ts)
+# expects this binding name verbatim — `NEXT_INC_CACHE_KV` — and 404s
+# at deploy time if it's anything else.
 [[kv_namespaces]]
-binding = "CACHE"
+binding = "NEXT_INC_CACHE_KV"
 id = "79b6c1da1cbd41638c1ca2d11ad39471"
 
 # Slug / custom-domain lookup cache — replaces the in-memory Maps in
@@ -72,7 +74,7 @@ binding = "ASSETS"
 bucket_name = "gatewaze-portal-aaif-staging-assets"
 
 [[env.staging.kv_namespaces]]
-binding = "CACHE"
+binding = "NEXT_INC_CACHE_KV"
 id = "888ef82efa9346a5b962609e7e4f06ec"
 
 [[env.staging.kv_namespaces]]
