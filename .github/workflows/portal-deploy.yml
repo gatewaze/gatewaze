@@ -129,6 +129,25 @@ jobs:
         working-directory: packages/portal
         run: pnpm run opennext:build
 
+      - name: Deploy to Cloudflare Workers
+        working-directory: packages/portal
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+        run: |
+          if [ "${{ steps.target.outputs.env }}" = "production" ]; then
+            pnpm run opennext:deploy
+          else
+            pnpm exec opennextjs-cloudflare deploy --env staging
+          fi
+
+      # Secret push happens AFTER the first deploy because
+      # `wrangler secret put` 404s ("No route for that URI") if the
+      # Worker doesn't exist yet — and the first deploy is what
+      # creates it. From the second run onwards the order doesn't
+      # matter (secrets are picked up live without a redeploy), but
+      # the first cold deploy is briefly missing SUPABASE_ANON_KEY
+      # — every request returns 503 until this step finishes.
       - name: Push Worker secrets (production)
         if: steps.target.outputs.env == 'production'
         working-directory: packages/portal
@@ -159,18 +178,6 @@ jobs:
           fi
           if [ -n "${{ secrets.PORTAL_SUPABASE_JWT_SECRET }}" ]; then
             printf '%s' "${{ secrets.PORTAL_SUPABASE_JWT_SECRET }}" | npx wrangler secret put SUPABASE_JWT_SECRET --env staging
-          fi
-
-      - name: Deploy to Cloudflare Workers
-        working-directory: packages/portal
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
-        run: |
-          if [ "${{ steps.target.outputs.env }}" = "production" ]; then
-            pnpm run opennext:deploy
-          else
-            pnpm exec opennextjs-cloudflare deploy --env staging
           fi
 
       - name: Smoke test
