@@ -2,10 +2,72 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import svgr from "vite-plugin-svgr";
 import path from "path";
+import { execSync } from "node:child_process";
 import tailwindcss from "@tailwindcss/vite";
 import { gatewazeModulesPlugin } from "./vite-plugin-gatewaze-modules";
 
-export default defineConfig({
+// Runtime-config substitution for VITE_* env vars.
+// ----------------------------------------------------------------------
+// Vite's default behaviour inlines `import.meta.env.VITE_X` as a string
+// literal at build time. That breaks the prebuild pipeline (one image
+// shared across brands): VITE_SUPABASE_URL etc. are per-brand values
+// that only exist at pod startup, but the prebuild has already baked
+// in `undefined`. The pod then throws `Missing VITE_SUPABASE_URL` from
+// the supabase client constructor on first render.
+//
+// Fix: rewrite every `import.meta.env.VITE_X` reference at build time
+// to read `globalThis.__GATEWAZE_CONFIG__?.VITE_X` instead. The pod's
+// entrypoint generates `/usr/share/nginx/html/runtime-config.js` from
+// the runtime env vars, and `index.html` loads that script before the
+// main module bundle (ordinary `<script>` tags execute before any
+// `<script type="module">`). Per-brand values arrive at runtime.
+//
+// Only applied in build mode — dev / test continue to use Vite's
+// default `.env` file resolution since pods aren't involved there.
+//
+// We discover the VITE_* names by scanning the actual source rather
+// than maintaining a manifest. Modules' code (under .gatewaze-modules-
+// resolved + cloned module-repos) is also scanned so module-side
+// references get rewritten too.
+function discoverViteEnvNames(rootDir: string): string[] {
+  const grepCmd = `grep -rhoE 'import\\.meta\\.env\\.VITE_[A-Z0-9_]+' ${rootDir}/src ${rootDir}/../shared/src ${rootDir}/.gatewaze-modules ${rootDir}/../../../gatewaze-modules ${rootDir}/../../../premium-gatewaze-modules ${rootDir}/../../../lf-gatewaze-modules /tmp/module-repos 2>/dev/null | sort -u || true`;
+  let out = "";
+  try {
+    out = execSync(grepCmd, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+  } catch {
+    /* grep with `|| true` shouldn't throw, but be defensive */
+  }
+  const names = new Set<string>();
+  for (const line of out.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("import.meta.env.VITE_")) continue;
+    const name = trimmed.replace(/^import\.meta\.env\./, "");
+    if (/^VITE_[A-Z0-9_]+$/.test(name)) names.add(name);
+  }
+  return Array.from(names).sort();
+}
+
+function buildRuntimeConfigDefine(): Record<string, string> {
+  const names = discoverViteEnvNames(__dirname);
+  const defines: Record<string, string> = {};
+  for (const n of names) {
+    // Quoted property access — `globalThis.__GATEWAZE_CONFIG__` is
+    // populated by /runtime-config.js (loaded synchronously before the
+    // main bundle). The optional chaining means an undeployed
+    // runtime-config.js (e.g. local preview) returns `undefined`,
+    // which is the same value Vite's default inlining would produce
+    // when the env var was unset.
+    defines[`import.meta.env.${n}`] = `((typeof globalThis!=="undefined"&&globalThis.__GATEWAZE_CONFIG__)?globalThis.__GATEWAZE_CONFIG__.${n}:undefined)`;
+  }
+  console.log(`[vite-config] runtime-config define: rewrote ${names.length} VITE_* references`);
+  return defines;
+}
+
+export default defineConfig(({ command }) => ({
+  // Only swap to the runtime-config global on `vite build`. `vite dev`
+  // and vitest keep Vite's default .env resolution so local development
+  // is unaffected.
+  define: command === "build" ? buildRuntimeConfigDefine() : {},
   plugins: [react(), svgr(), tailwindcss(), gatewazeModulesPlugin()],
   resolve: {
     alias: {
@@ -144,4 +206,4 @@ export default defineConfig({
       // UNRESOLVED_IMPORT is a real problem worth surfacing.
     },
   },
-});
+}));
