@@ -174,10 +174,16 @@ const nextConfig: NextConfig = {
     position: 'bottom-right',
   },
 
-  // Standalone output for the K8s containerized build. OpenNext does
-  // its own bundling step (`opennextjs-cloudflare build`) and reads
-  // `.next/` directly, so we drop `standalone` on the Workers path.
-  output: isOpenNextBuild ? undefined : 'standalone',
+  // Standalone output. Required by both the K8s containerized build
+  // (Dockerfile copies .next/standalone/) AND by @opennextjs/cloudflare
+  // (the Workers adapter reads standalone output as its build input —
+  // see https://opennext.js.org/cloudflare/get-started). The first
+  // staging deploy attempt set this to `undefined` on the OpenNext
+  // path, which made `next build`'s "Collect page data" step fail
+  // when it couldn't resolve emitted browser assets — standalone
+  // forces Next to emit them in a stable layout that downstream
+  // tools (and OpenNext) rely on.
+  output: 'standalone',
 
   // Skip type checking in build (handled separately in CI)
   typescript: {
