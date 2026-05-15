@@ -1,0 +1,161 @@
+// CDN-first server-side fetch wrapper. Per spec-portal-on-cloudflare-workers §4.2.
+//
+// All public reads route through `cdn.aaif.live` so cache hits stay at
+// the edge and never touch the K8s API. Authenticated reads and writes
+// route directly to `api.aaif.live` (the CDN explicitly bypasses on the
+// Authorization header — see spec-api-cache-and-revalidation §5.3), so
+// per-viewer data is never co-mingled in a shared cache.
+//
+// CDN→origin auto-fallback for cacheable GETs only: if the CDN returns
+// 5xx (rare; the CDN Worker is itself fronted by Cloudflare's network)
+// the wrapper retries against the origin so a transient CDN problem
+// can't take down the public site. Mutations and authenticated reads
+// already go straight to origin so they don't need this dance.
+//
+// Local / K8s-colocated mode: if `GATEWAZE_CDN_URL` is unset (or set to
+// the same host as the API), the CDN hop is skipped entirely and
+// every call goes straight to the API. Use this when:
+//   - Running `next dev` against a local API (`GATEWAZE_API_URL=http://localhost:3002`)
+//   - Portal pod is deployed alongside the API in the same K8s cluster
+//     and uses the in-cluster service DNS (`http://aaif-api-svc:3002`).
+//     There's no point round-tripping to a public CDN for an in-cluster
+//     hop, and forcing it would silently leak cluster-internal traffic
+//     to the public internet.
+// Only `GATEWAZE_API_URL` is strictly required.
+//
+// Written to be runtime-agnostic. Uses the global `fetch` and the
+// Next-augmented `RequestInit['next']` field. Works in:
+//   - Node.js (current K8s runtime, `next dev`, vitest)
+//   - Cloudflare Workers via OpenNext (target runtime)
+
+// `GATEWAZE_API_URL` is the explicit override. If unset, fall back to
+// the existing portal env vars so K8s + docker-compose deployments
+// keep working without an extra value per brand: `NEXT_PUBLIC_API_URL`
+// is already set everywhere the portal runs (defaults to
+// `http://api.gatewaze.localhost` in docker-compose, the api k8s
+// service DNS in the cluster, etc.). The Cloudflare Worker target
+// still sets `GATEWAZE_API_URL` directly via wrangler.toml.
+const CDN_URL = process.env.GATEWAZE_CDN_URL ?? "";
+const API_URL =
+  process.env.GATEWAZE_API_URL ??
+  process.env.NEXT_PUBLIC_API_URL ??
+  process.env.API_URL ??
+  "";
+
+// True when there's no separate CDN layer — every call goes direct to
+// the API. Local dev, in-cluster K8s, and tests all hit this branch.
+const CDN_DISABLED = !CDN_URL || CDN_URL === API_URL;
+
+export interface GatewazeFetchOptions {
+  // Next.js cache tags for `revalidateTag()`-driven invalidation. The
+  // CDN Worker also reads these via the `Cache-Tag` response header so
+  // surrogate-key purges propagate end-to-end.
+  tags?: string[];
+  // Seconds. Defaults to 60.
+  revalidate?: number;
+  // Bearer JWT. Setting this routes the request to the origin (the CDN
+  // bypasses cache when Authorization is present).
+  auth?: string;
+  init?: RequestInit;
+}
+
+export async function gatewazeFetch<T>(
+  path: string,
+  opts: GatewazeFetchOptions = {},
+): Promise<T | null> {
+  if (!API_URL) {
+    // Misconfiguration — return null rather than throwing so SSR
+    // degrades to "no data" rather than a 500 page. Logged loudly so
+    // the operator notices.
+    console.error(
+      "[gatewazeFetch] GATEWAZE_API_URL not set; cannot fetch",
+      path,
+    );
+    return null;
+  }
+
+  // Route selection: authed requests, mutations, and CDN-disabled
+  // environments all go straight to the API. Only public GETs in a
+  // CDN-enabled environment touch the CDN.
+  const useCdn = !opts.auth && !CDN_DISABLED;
+  const base = useCdn ? CDN_URL : API_URL;
+  const headers = new Headers(opts.init?.headers);
+  if (opts.auth) headers.set("Authorization", `Bearer ${opts.auth}`);
+
+  const method = opts.init?.method ?? "GET";
+  const isCacheableGet = method === "GET" && !opts.auth;
+
+  // Next-specific cache hints. Only attach for cacheable GETs — Next
+  // ignores `next` on POST/PUT/etc. but it's clearer to omit it.
+  const nextOpts: RequestInit = { ...opts.init, headers };
+  if (isCacheableGet) {
+    (nextOpts as RequestInit & { next?: { revalidate?: number; tags?: string[] } }).next = {
+      revalidate: opts.revalidate ?? 60,
+      tags: opts.tags,
+    };
+  }
+
+  try {
+    const res = await fetch(`${base}${path}`, nextOpts);
+
+    if (!res.ok) {
+      // CDN→origin fallback for cacheable GETs only. The CDN may be
+      // transiently down or returning a stale-but-broken response; the
+      // origin is the durable answer for read-only paths.
+      if (useCdn && res.status >= 500 && isCacheableGet) {
+        const fallbackRes = await fetch(`${API_URL}${path}`, {
+          ...opts.init,
+          headers,
+        });
+        if (!fallbackRes.ok) return null;
+        return (await fallbackRes.json()) as T;
+      }
+      return null;
+    }
+    return (await res.json()) as T;
+  } catch (error) {
+    console.error(`[gatewazeFetch] ${method} ${path} failed`, error);
+    return null;
+  }
+}
+
+// Same shape as gatewazeFetch but returns the raw Response so callers
+// can stream / inspect headers (used by the calendar feed route which
+// needs to forward Content-Type from the upstream).
+export async function gatewazeFetchRaw(
+  path: string,
+  opts: GatewazeFetchOptions = {},
+): Promise<Response | null> {
+  if (!API_URL) {
+    console.error(
+      "[gatewazeFetchRaw] GATEWAZE_API_URL not set; cannot fetch",
+      path,
+    );
+    return null;
+  }
+  const useCdn = !opts.auth && !CDN_DISABLED;
+  const base = useCdn ? CDN_URL : API_URL;
+  const headers = new Headers(opts.init?.headers);
+  if (opts.auth) headers.set("Authorization", `Bearer ${opts.auth}`);
+
+  const method = opts.init?.method ?? "GET";
+  const isCacheableGet = method === "GET" && !opts.auth;
+  const nextOpts: RequestInit = { ...opts.init, headers };
+  if (isCacheableGet) {
+    (nextOpts as RequestInit & { next?: { revalidate?: number; tags?: string[] } }).next = {
+      revalidate: opts.revalidate ?? 60,
+      tags: opts.tags,
+    };
+  }
+
+  try {
+    const res = await fetch(`${base}${path}`, nextOpts);
+    if (!res.ok && useCdn && res.status >= 500 && isCacheableGet) {
+      return await fetch(`${API_URL}${path}`, { ...opts.init, headers });
+    }
+    return res;
+  } catch (error) {
+    console.error(`[gatewazeFetchRaw] ${method} ${path} failed`, error);
+    return null;
+  }
+}

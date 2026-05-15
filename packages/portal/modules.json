@@ -1,0 +1,17 @@
+{
+  "_comment": "Module repo SHAs pinned for the OpenNext build pipeline. Per spec-portal-on-cloudflare-workers §4.5 / §7.2: the Worker bundle is built at deploy time, not pod startup. The CI workflow (.github/workflows/portal-deploy.yml) clones each repo at the SHA below and feeds them to next build via the @gatewaze-modules/* webpack alias. Bumping a SHA here is the explicit, reviewable signal that a module's contribution to the portal is changing in the next deploy.",
+  "modules": {
+    "gatewaze-modules": {
+      "url": "https://github.com/gatewaze/gatewaze-modules.git",
+      "sha": "45e2ae26f5ce467e785313a7c60fe0140011df79"
+    },
+    "premium-gatewaze-modules": {
+      "url": "https://github.com/gatewaze/premium-gatewaze-modules.git",
+      "sha": "4f61c38458464b3b2404fe9f3095dca8208d45f4"
+    },
+    "lf-gatewaze-modules": {
+      "url": "https://github.com/gatewaze/lf-gatewaze-modules.git",
+      "sha": "58458fc7c2f2cd540d38452124e35e9c3b44c14b"
+    }
+  }
+}

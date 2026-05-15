@@ -130,3 +130,36 @@ export function getRequestSupabase(req: Request): SupabaseClient {
 
   return client;
 }
+
+let anonClient: SupabaseClient | null = null;
+
+/**
+ * Process-wide anon-key Supabase client for serving portal-public reads.
+ *
+ * Used by `routes/portal-events.ts` and other portal-public routers to
+ * proxy CDN-cached reads. The anon key engages PostgREST RLS so a
+ * public read only returns rows that the public RLS policies expose
+ * (e.g. `events` rows where `is_live_in_production = true`). Service-
+ * role escalation is intentionally NOT used here because:
+ *
+ *   - These responses are CDN-cached at `cdn.aaif.live` and served to
+ *     any unauthenticated viewer. Leaking a service-role-scoped row
+ *     into the cache would leak it globally.
+ *   - The portal's existing direct-Supabase reads use the anon key
+ *     today; this client preserves identical RLS visibility.
+ *
+ * Per spec-portal-on-cloudflare-workers §8 and
+ * spec-production-readiness-hardening §5.1.
+ */
+export function getAnonSupabase(): SupabaseClient {
+  if (anonClient) return anonClient;
+  const url = resolveSupabaseUrl();
+  const key = resolveAnonKey();
+  if (!url || !key) {
+    throw new Error('Missing SUPABASE_URL or SUPABASE_ANON_KEY (also accepts ANON_KEY) for anon client');
+  }
+  anonClient = createClient(url, key, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  return anonClient;
+}
