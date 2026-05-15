@@ -12,6 +12,17 @@
 // can't take down the public site. Mutations and authenticated reads
 // already go straight to origin so they don't need this dance.
 //
+// Local / K8s-colocated mode: if `GATEWAZE_CDN_URL` is unset (or set to
+// the same host as the API), the CDN hop is skipped entirely and
+// every call goes straight to the API. Use this when:
+//   - Running `next dev` against a local API (`GATEWAZE_API_URL=http://localhost:3002`)
+//   - Portal pod is deployed alongside the API in the same K8s cluster
+//     and uses the in-cluster service DNS (`http://aaif-api-svc:3002`).
+//     There's no point round-tripping to a public CDN for an in-cluster
+//     hop, and forcing it would silently leak cluster-internal traffic
+//     to the public internet.
+// Only `GATEWAZE_API_URL` is strictly required.
+//
 // Written to be runtime-agnostic. Uses the global `fetch` and the
 // Next-augmented `RequestInit['next']` field. Works in:
 //   - Node.js (current K8s runtime, `next dev`, vitest)
@@ -19,6 +30,10 @@
 
 const CDN_URL = process.env.GATEWAZE_CDN_URL ?? "";
 const API_URL = process.env.GATEWAZE_API_URL ?? "";
+
+// True when there's no separate CDN layer — every call goes direct to
+// the API. Local dev, in-cluster K8s, and tests all hit this branch.
+const CDN_DISABLED = !CDN_URL || CDN_URL === API_URL;
 
 export interface GatewazeFetchOptions {
   // Next.js cache tags for `revalidateTag()`-driven invalidation. The
@@ -37,18 +52,22 @@ export async function gatewazeFetch<T>(
   path: string,
   opts: GatewazeFetchOptions = {},
 ): Promise<T | null> {
-  if (!CDN_URL || !API_URL) {
+  if (!API_URL) {
     // Misconfiguration — return null rather than throwing so SSR
     // degrades to "no data" rather than a 500 page. Logged loudly so
     // the operator notices.
     console.error(
-      "[gatewazeFetch] GATEWAZE_CDN_URL / GATEWAZE_API_URL not set; cannot fetch",
+      "[gatewazeFetch] GATEWAZE_API_URL not set; cannot fetch",
       path,
     );
     return null;
   }
 
-  const base = opts.auth ? API_URL : CDN_URL;
+  // Route selection: authed requests, mutations, and CDN-disabled
+  // environments all go straight to the API. Only public GETs in a
+  // CDN-enabled environment touch the CDN.
+  const useCdn = !opts.auth && !CDN_DISABLED;
+  const base = useCdn ? CDN_URL : API_URL;
   const headers = new Headers(opts.init?.headers);
   if (opts.auth) headers.set("Authorization", `Bearer ${opts.auth}`);
 
@@ -72,7 +91,7 @@ export async function gatewazeFetch<T>(
       // CDN→origin fallback for cacheable GETs only. The CDN may be
       // transiently down or returning a stale-but-broken response; the
       // origin is the durable answer for read-only paths.
-      if (base === CDN_URL && res.status >= 500 && isCacheableGet) {
+      if (useCdn && res.status >= 500 && isCacheableGet) {
         const fallbackRes = await fetch(`${API_URL}${path}`, {
           ...opts.init,
           headers,
@@ -96,14 +115,15 @@ export async function gatewazeFetchRaw(
   path: string,
   opts: GatewazeFetchOptions = {},
 ): Promise<Response | null> {
-  if (!CDN_URL || !API_URL) {
+  if (!API_URL) {
     console.error(
-      "[gatewazeFetchRaw] GATEWAZE_CDN_URL / GATEWAZE_API_URL not set; cannot fetch",
+      "[gatewazeFetchRaw] GATEWAZE_API_URL not set; cannot fetch",
       path,
     );
     return null;
   }
-  const base = opts.auth ? API_URL : CDN_URL;
+  const useCdn = !opts.auth && !CDN_DISABLED;
+  const base = useCdn ? CDN_URL : API_URL;
   const headers = new Headers(opts.init?.headers);
   if (opts.auth) headers.set("Authorization", `Bearer ${opts.auth}`);
 
@@ -119,7 +139,7 @@ export async function gatewazeFetchRaw(
 
   try {
     const res = await fetch(`${base}${path}`, nextOpts);
-    if (!res.ok && base === CDN_URL && res.status >= 500 && isCacheableGet) {
+    if (!res.ok && useCdn && res.status >= 500 && isCacheableGet) {
       return await fetch(`${API_URL}${path}`, { ...opts.init, headers });
     }
     return res;
