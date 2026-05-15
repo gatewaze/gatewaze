@@ -29,14 +29,14 @@ bucket_name = "gatewaze-portal-aaif-assets"
 # here. OpenNext writes through this binding.
 [[kv_namespaces]]
 binding = "CACHE"
-id = "TODO_ISR_CACHE_NAMESPACE_ID"
+id = "79b6c1da1cbd41638c1ca2d11ad39471"
 
 # Slug / custom-domain lookup cache — replaces the in-memory Maps in
 # middleware.ts. 5-minute TTL per spec §4.4. Populated lazily by the
 # middleware on first lookup.
 [[kv_namespaces]]
 binding = "SLUG_CACHE"
-id = "TODO_SLUG_CACHE_NAMESPACE_ID"
+id = "979b2f4b6dde4248a4c3d5d0e8fd9c84"
 
 # Public, non-secret config. Anything here is visible in the Worker
 # bundle and to anyone who runs `wrangler tail`.
@@ -73,11 +73,11 @@ bucket_name = "gatewaze-portal-aaif-staging-assets"
 
 [[env.staging.kv_namespaces]]
 binding = "CACHE"
-id = "TODO_STAGING_ISR_CACHE_NAMESPACE_ID"
+id = "888ef82efa9346a5b962609e7e4f06ec"
 
 [[env.staging.kv_namespaces]]
 binding = "SLUG_CACHE"
-id = "TODO_STAGING_SLUG_CACHE_NAMESPACE_ID"
+id = "1ae01775f9d44012b0ef827e7b4efdac"
 
 [env.staging.vars]
 GATEWAZE_API_URL = "https://api.aaif.live"
