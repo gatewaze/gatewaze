@@ -43,16 +43,19 @@ jobs:
             ghcr.io/gatewaze/admin:latest
           no-cache: true
           # The Dockerfile pre-builds the admin Vite bundle at image
-          # build time using a superset of common module sources so
-          # pod cold-starts can skip the 3-5 min runtime rebuild. The
-          # prebuild step needs `git clone` access to the (private)
-          # premium-gatewaze-modules + lf-gatewaze-modules repos.
-          # Pass CI's GITHUB_TOKEN as a build-arg. If the build-arg is
-          # missing or clones fail, the Dockerfile's graceful wrapper
-          # falls the image back to pre-prebuild behaviour (runtime
-          # build) without breaking the image build itself.
+          # build time using a superset of module sources so pod
+          # cold-starts can skip the 3-5 min runtime rebuild.
+          #
+          # We MUST use a PAT (GH_PAT_MODULES), not the auto-token —
+          # `secrets.GITHUB_TOKEN` only grants access to the current
+          # repo, so it CANNOT clone the private
+          # premium-gatewaze-modules. v1.2.28 was built with the
+          # auto-token; the premium clone failed silently and the
+          # bundle shipped without any premium modules (every
+          # event-* module disappeared from the admin UI). The PAT
+          # has read access to all three module repos.
           build-args: |
-            BUILD_TIME_GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
+            BUILD_TIME_GITHUB_TOKEN=${{ secrets.GH_PAT_MODULES }}
 
       - name: Build and push portal image
         uses: docker/build-push-action@v6
