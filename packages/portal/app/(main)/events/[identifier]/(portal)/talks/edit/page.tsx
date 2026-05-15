@@ -1,5 +1,10 @@
 import type { Metadata } from 'next'
 import { getServerBrand, getBrandConfigById } from '@/config/brand'
+// Stays on direct Supabase: this page reads per-talk `events_speakers`
+// duration aggregates that aren't exposed by the portal API yet, and the
+// edit-token flow is per-viewer (no shared CDN cache benefit).
+// TODO: migrate when an /api/portal/events/:identifier/speaker-duration-counts
+// endpoint exists.
 import { createServerSupabase } from '@/lib/supabase/server'
 import { SpeakerEditContent } from '@/components/event/SpeakerEditContent'
 import { stripEmojis } from '@/lib/text'
