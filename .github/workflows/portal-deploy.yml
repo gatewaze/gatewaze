@@ -110,7 +110,14 @@ jobs:
           '
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile --config.dangerously-allow-all-builds=true
+        # `onlyBuiltDependencies` is pinned in the root package.json
+        # ([esbuild, msgpackr-extract, sharp]) — pnpm 10 rejects
+        # `--config.dangerously-allow-all-builds=true` when that's set
+        # ("Cannot have both neverBuiltDependencies and
+        # onlyBuiltDependencies"). The whitelist is the right answer
+        # for CI; the dangerously-allow flag exists for the admin's
+        # runtime entrypoint where the module set is unknown.
+        run: pnpm install --frozen-lockfile
 
       - name: Build portal (Next.js)
         working-directory: packages/portal
