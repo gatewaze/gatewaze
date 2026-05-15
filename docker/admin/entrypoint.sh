@@ -9,6 +9,44 @@ if [ -n "$GITHUB_TOKEN" ]; then
   echo "[admin] Git authentication configured"
 fi
 
+# Fast path: if a pre-built bundle was baked in at image build time AND
+# the runtime MODULE_SOURCES is a subset of the build-time MODULE_SOURCES,
+# we can skip pnpm install + clone + vite build entirely and start nginx
+# in ~5 seconds rather than 3-5 minutes.
+#
+# Subset check: every comma-separated entry in MODULE_SOURCES must appear
+# verbatim in BUILD_TIME_MODULE_SOURCES. If runtime adds a new repo or
+# changes the branch on an existing one, we fall through to the slow path.
+#
+# Disabled when PREBUILD=1 (we're inside the image-build step and there
+# is nothing pre-built yet to compare against).
+if [ -z "$PREBUILD" ] && [ -d /usr/share/nginx/html-prebuilt ] && [ -n "$BUILD_TIME_MODULE_SOURCES" ]; then
+  fast_path=1
+  if [ -z "$MODULE_SOURCES" ]; then
+    # No runtime override — the image's defaults are exactly right.
+    :
+  else
+    _OLD_IFS=$IFS
+    IFS=','
+    for entry in $MODULE_SOURCES; do
+      # Each entry must appear as a comma-bounded substring in the
+      # build-time sources. Cheap string check, no regex.
+      case ",$BUILD_TIME_MODULE_SOURCES," in
+        *",$entry,"*) ;;
+        *) fast_path=0; echo "[admin] Fast-path miss — runtime module source '$entry' not in baked bundle"; break ;;
+      esac
+    done
+    IFS=$_OLD_IFS
+  fi
+  if [ "$fast_path" = "1" ]; then
+    echo "[admin] Fast path: copying pre-built bundle to nginx html"
+    cp -r /usr/share/nginx/html-prebuilt/* /usr/share/nginx/html/
+    echo "[admin] Pre-built bundle served. Starting nginx..."
+    exec nginx -g "daemon off;"
+  fi
+  echo "[admin] Falling back to full rebuild (slow path)"
+fi
+
 # Clone module sources from MODULE_SOURCES env var. Comma-separated list
 # where each entry is one of:
 #   - git URL: https://github.com/org/repo.git[#branch=main&path=modules]
@@ -116,6 +154,11 @@ cd /app/packages/admin && NODE_OPTIONS="--max-old-space-size=${NODE_HEAP_MB}" np
 
 # Copy built assets to nginx html directory
 cp -r /app/packages/admin/dist/* /usr/share/nginx/html/
+
+if [ -n "$PREBUILD" ]; then
+  echo "[admin] PREBUILD=1 — build complete, exiting without starting nginx (Dockerfile will snapshot the dist)"
+  exit 0
+fi
 
 echo "[admin] Build complete. Starting nginx..."
 exec nginx -g "daemon off;"
