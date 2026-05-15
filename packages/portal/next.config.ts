@@ -139,6 +139,13 @@ const nextConfig: NextConfig = {
     config.resolve.alias = {
       ...(config.resolve.alias || {}),
       '@gatewaze-modules': moduleAliasPaths,
+      // Stub jsdom — pulled in by `isomorphic-dompurify`'s Node code
+      // path (used in /api/ai-search via @/lib/sanitize-html). jsdom
+      // ships a `default-stylesheet.css` that Next can't resolve under
+      // its bundle layout, breaking the "Collect page data" step.
+      // Same fix as packages/admin/vite.config.ts. See
+      // packages/portal/lib/stubs/jsdom-empty.ts.
+      jsdom: resolve(__dirname, 'lib/stubs/jsdom-empty.ts'),
     }
 
     if (moduleDirs.length > 0) {
