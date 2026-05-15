@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server'
 import { updateSupabaseSession } from './lib/supabase/middleware'
 import modulePrefixes from './lib/modules/generated-module-prefixes.json'
 import { parseHost, getBrandLocalDomain } from './lib/host-parser'
+import { edgeCacheGet, edgeCachePut } from './lib/edge-cache'
 
 // Resolved once at module load — re-evaluated only when the dev server
 // or container restarts. Throws if BRAND_ID/BRAND_LOCAL_DOMAIN are
@@ -76,15 +77,14 @@ const FILTER_VIEWS = new Set(['upcoming', 'past', 'calendar', 'map'])
 // Module prefixes with portal pages (generated at startup)
 const modulePortalPrefixes = new Set<string>(modulePrefixes as string[])
 
-// Cache for events module status
-let eventsModuleStatus: { enabled: boolean; timestamp: number } | null = null
-const MODULE_CACHE_TTL = 60 * 1000 // 60 seconds
+// Cache TTLs (seconds). edge-cache.ts already enforces a 60s minimum
+// for KV-backed entries so values below that are clamped automatically.
+const MODULE_CACHE_TTL_S = 60
+const CACHE_TTL_S = 5 * 60
 
 async function isEventsModuleEnabled(): Promise<boolean> {
-  // Check cache
-  if (eventsModuleStatus && Date.now() - eventsModuleStatus.timestamp < MODULE_CACHE_TTL) {
-    return eventsModuleStatus.enabled
-  }
+  const cached = await edgeCacheGet<{ enabled: boolean }>('SLUG_CACHE', 'events-module-status')
+  if (cached) return cached.enabled
 
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -103,25 +103,19 @@ async function isEventsModuleEnabled(): Promise<boolean> {
     })
 
     if (!res.ok) {
-      eventsModuleStatus = { enabled: true, timestamp: Date.now() }
+      await edgeCachePut('SLUG_CACHE', 'events-module-status', { enabled: true }, MODULE_CACHE_TTL_S)
       return true
     }
 
     const rows = await res.json()
     const enabled = rows?.[0]?.status === 'enabled'
-    eventsModuleStatus = { enabled, timestamp: Date.now() }
+    await edgeCachePut('SLUG_CACHE', 'events-module-status', { enabled }, MODULE_CACHE_TTL_S)
     return enabled
   } catch {
-    eventsModuleStatus = { enabled: true, timestamp: Date.now() }
+    await edgeCachePut('SLUG_CACHE', 'events-module-status', { enabled: true }, MODULE_CACHE_TTL_S)
     return true
   }
 }
-
-// In-memory cache for domain → event lookups (per-pod, resets on deploy)
-const domainCache = new Map<string, { eventIdentifier: string; timestamp: number } | null>()
-// In-memory cache for event identifier → canonical slug
-const slugCache = new Map<string, { canonicalSlug: string; timestamp: number } | null>()
-const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
 
 function isKnownHost(hostname: string): boolean {
   if (KNOWN_HOSTS.includes(hostname)) return true
@@ -170,15 +164,22 @@ interface CustomDomainLookup {
   faviconUrl?: string
 }
 
-// Cache for custom_domains table lookups
-const customDomainCache = new Map<string, { result: CustomDomainLookup | null, timestamp: number }>()
+// All four middleware lookups (custom_domain → tenant, host → event,
+// identifier → canonical slug, events module status) share the
+// SLUG_CACHE binding. On Cloudflare Workers this is a KV namespace
+// (declared in wrangler.toml); on Node it's an in-process Map. Per
+// spec-portal-on-cloudflare-workers §4.4. Negative results are cached
+// as JSON `null` so a not-found doesn't re-query Supabase on every
+// request.
 
 async function lookupCustomDomain(hostname: string): Promise<CustomDomainLookup | null> {
-  const cached = customDomainCache.get(hostname)
-  if (cached !== undefined) {
-    if (cached.result === null) return null
-    if (Date.now() - cached.timestamp < CACHE_TTL) return cached.result
-  }
+  const cacheKey = `custom-domain:${hostname}`
+  const cached = await edgeCacheGet<CustomDomainLookup | null>('SLUG_CACHE', cacheKey)
+  if (cached !== null) return cached
+  // Distinguish "missing key" (cached === null) from "negative cache hit"
+  // (key present, value `null`). edgeCacheGet returns null for both, so
+  // re-fetch on every miss; the negative-cache write below dedupes
+  // immediate repeats but cold callers always pay one Supabase round-trip.
 
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -195,7 +196,6 @@ async function lookupCustomDomain(hostname: string): Promise<CustomDomainLookup 
 
     if (!res.ok) {
       // Table might not exist (module not enabled) — that's fine
-      customDomainCache.set(hostname, { result: null, timestamp: Date.now() })
       return null
     }
 
@@ -203,7 +203,6 @@ async function lookupCustomDomain(hostname: string): Promise<CustomDomainLookup 
     const row = rows?.[0]
 
     if (!row || !row.content_type) {
-      customDomainCache.set(hostname, { result: null, timestamp: Date.now() })
       return null
     }
 
@@ -214,23 +213,18 @@ async function lookupCustomDomain(hostname: string): Promise<CustomDomainLookup 
       pageTitle: row.page_title || undefined,
       faviconUrl: row.favicon_url || undefined,
     }
-    customDomainCache.set(hostname, { result, timestamp: Date.now() })
+    await edgeCachePut('SLUG_CACHE', cacheKey, result, CACHE_TTL_S)
     return result
   } catch {
-    customDomainCache.set(hostname, { result: null, timestamp: Date.now() })
     return null
   }
 }
 
 async function lookupEventByDomain(hostname: string): Promise<string | null> {
-  // Check cache
-  const cached = domainCache.get(hostname)
-  if (cached !== undefined) {
-    if (cached === null) return null
-    if (Date.now() - cached.timestamp < CACHE_TTL) return cached.eventIdentifier
-  }
+  const cacheKey = `event-by-domain:${hostname}`
+  const cached = await edgeCacheGet<string>('SLUG_CACHE', cacheKey)
+  if (cached) return cached
 
-  // Use internal URL for Docker, fall back to public URL
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   if (!supabaseUrl || !supabaseAnonKey) return null
@@ -246,7 +240,6 @@ async function lookupEventByDomain(hostname: string): Promise<string | null> {
 
   if (!res.ok) {
     console.error(`Custom domain lookup failed for ${hostname}: ${res.status}`)
-    domainCache.set(hostname, null)
     return null
   }
 
@@ -254,22 +247,19 @@ async function lookupEventByDomain(hostname: string): Promise<string | null> {
   const event = events?.[0]
 
   if (!event) {
-    domainCache.set(hostname, null)
     return null
   }
 
   const identifier = event.event_slug || event.event_id
-  domainCache.set(hostname, { eventIdentifier: identifier, timestamp: Date.now() })
+  await edgeCachePut('SLUG_CACHE', cacheKey, identifier, CACHE_TTL_S)
   return identifier
 }
 
 async function lookupCanonicalSlug(identifier: string): Promise<string | null> {
-  const cached = slugCache.get(identifier)
-  if (cached !== undefined && cached !== null && Date.now() - cached.timestamp < CACHE_TTL) {
-    return cached.canonicalSlug
-  }
+  const cacheKey = `canonical-slug:${identifier}`
+  const cached = await edgeCacheGet<string>('SLUG_CACHE', cacheKey)
+  if (cached) return cached
 
-  // Use internal URL for Docker, fall back to public URL
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   if (!supabaseUrl || !supabaseAnonKey) return null
@@ -299,7 +289,7 @@ async function lookupCanonicalSlug(identifier: string): Promise<string | null> {
       return null
     }
 
-    slugCache.set(identifier, { canonicalSlug: slug, timestamp: Date.now() })
+    await edgeCachePut('SLUG_CACHE', cacheKey, slug, CACHE_TTL_S)
     return slug
   } catch (error) {
     console.error('[slug-redirect] fetch error:', error)
