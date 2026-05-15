@@ -9,6 +9,35 @@ if [ -n "$GITHUB_TOKEN" ]; then
   echo "[admin] Git authentication configured"
 fi
 
+# write_runtime_config writes a small JS file that sets
+# `window.__GATEWAZE_CONFIG__` to a JSON object containing every
+# `VITE_*` env var visible to the pod. The bundle's references to
+# `import.meta.env.VITE_X` are rewritten at build time (vite.config.ts
+# `define` block) to read from this global, so per-brand values
+# arrive at runtime without a per-brand build.
+#
+# Skipped when PREBUILD=1 — the prebuild image-build step has no
+# runtime VITE_* values, and writing an empty/wrong config there
+# would just overwrite the runtime-generated one when the pod starts.
+write_runtime_config() {
+  out_path="$1"
+  if [ -n "$PREBUILD" ]; then
+    return 0
+  fi
+  # Use Node for JSON encoding so quotes / newlines / unicode in env
+  # values are escaped correctly. node:22-slim is already in the
+  # image — sed/printf would be fragile against arbitrary values.
+  node -e '
+    const cfg = {};
+    for (const k of Object.keys(process.env)) {
+      if (k.startsWith("VITE_")) cfg[k] = process.env[k];
+    }
+    process.stdout.write("window.__GATEWAZE_CONFIG__ = " + JSON.stringify(cfg) + ";\n");
+  ' > "$out_path"
+  vite_count=$(grep -oE 'VITE_[A-Z0-9_]+' "$out_path" | sort -u | wc -l | tr -d ' ')
+  echo "[admin] Wrote runtime-config.js with ${vite_count} VITE_* values to ${out_path}"
+}
+
 # Fast path: if a pre-built bundle was baked in at image build time AND
 # the runtime MODULE_SOURCES is a subset of the build-time MODULE_SOURCES,
 # we can skip pnpm install + clone + vite build entirely and start nginx
@@ -41,6 +70,7 @@ if [ -z "$PREBUILD" ] && [ -d /usr/share/nginx/html-prebuilt ] && [ -n "$BUILD_T
   if [ "$fast_path" = "1" ]; then
     echo "[admin] Fast path: copying pre-built bundle to nginx html"
     cp -r /usr/share/nginx/html-prebuilt/* /usr/share/nginx/html/
+    write_runtime_config /usr/share/nginx/html/runtime-config.js
     echo "[admin] Pre-built bundle served. Starting nginx..."
     exec nginx -g "daemon off;"
   fi
@@ -154,6 +184,7 @@ cd /app/packages/admin && NODE_OPTIONS="--max-old-space-size=${NODE_HEAP_MB}" np
 
 # Copy built assets to nginx html directory
 cp -r /app/packages/admin/dist/* /usr/share/nginx/html/
+write_runtime_config /usr/share/nginx/html/runtime-config.js
 
 if [ -n "$PREBUILD" ]; then
   echo "[admin] PREBUILD=1 — build complete, exiting without starting nginx (Dockerfile will snapshot the dist)"
