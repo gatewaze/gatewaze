@@ -46,7 +46,7 @@ interface KVNamespace {
 // machines either.
 const OPENNEXT_PKG = '@opennextjs/cloudflare';
 
-async function getKVBinding(name: 'SLUG_CACHE' | 'CACHE'): Promise<KVNamespace | null> {
+async function getKVBinding(name: 'SLUG_CACHE'): Promise<KVNamespace | null> {
   try {
     const mod = (await import(/* @vite-ignore */ /* webpackIgnore: true */ OPENNEXT_PKG).catch(() => null)) as
       | { getCloudflareContext?: () => { env?: Record<string, unknown> } }
@@ -90,7 +90,7 @@ function memoryDelete(key: string): void {
 // JSON-encoded `null` if you want to negative-cache a miss.
 
 export async function edgeCacheGet<T>(
-  binding: 'SLUG_CACHE' | 'CACHE',
+  binding: 'SLUG_CACHE',
   key: string,
 ): Promise<T | null> {
   const kv = await getKVBinding(binding);
@@ -104,7 +104,7 @@ export async function edgeCacheGet<T>(
 }
 
 export async function edgeCachePut<T>(
-  binding: 'SLUG_CACHE' | 'CACHE',
+  binding: 'SLUG_CACHE',
   key: string,
   value: T,
   ttlSeconds: number,
@@ -122,7 +122,7 @@ export async function edgeCachePut<T>(
 }
 
 export async function edgeCacheDelete(
-  binding: 'SLUG_CACHE' | 'CACHE',
+  binding: 'SLUG_CACHE',
   key: string,
 ): Promise<void> {
   const kv = await getKVBinding(binding);
