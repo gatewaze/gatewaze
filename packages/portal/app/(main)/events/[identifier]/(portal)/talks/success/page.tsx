@@ -1,8 +1,11 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { getServerBrand, getBrandConfigById } from '@/config/brand'
+// Per-viewer speaker info (looked up by edit_token) stays on direct
+// Supabase — it's session-specific and would not benefit from CDN caching.
+// Event-shape reads route through the portal-data helper (CDN-cached).
 import { createServerSupabase } from '@/lib/supabase/server'
-import type { Event } from '@/types/event'
+import { getEvent as getPortalEvent } from '@/lib/portal-data'
 import { SpeakerSuccessContent } from '@/components/event/SpeakerSuccessContent'
 import { stripEmojis } from '@/lib/text'
 
@@ -12,48 +15,8 @@ interface Props {
   searchParams: Promise<{ token?: string; existing?: string; updated?: string; status_reset?: string }>
 }
 
-const EVENT_SELECT_FIELDS = `
-  event_id,
-  event_slug,
-  event_title,
-  event_start,
-  event_end,
-  event_timezone,
-  event_city,
-  event_region,
-  event_country_code,
-  event_location,
-  venue_address,
-  event_description,
-  listing_intro,
-  event_logo,
-  screenshot_url,
-  gradient_color_1,
-  gradient_color_2,
-  gradient_color_3
-`
-
-async function getEvent(identifier: string, brandId: string): Promise<Event | null> {
-  const supabase = await createServerSupabase(brandId)
-
-  let { data: event } = await supabase
-    .from('events')
-    .select(EVENT_SELECT_FIELDS)
-    .eq('event_slug', identifier)
-    .eq('is_live_in_production', true)
-    .maybeSingle()
-
-  if (!event) {
-    const result = await supabase
-      .from('events')
-      .select(EVENT_SELECT_FIELDS)
-      .eq('event_id', identifier)
-      .eq('is_live_in_production', true)
-      .maybeSingle()
-    event = result.data
-  }
-
-  return event as Event | null
+async function getEvent(identifier: string) {
+  return getPortalEvent(identifier)
 }
 
 interface SpeakerInfo {
@@ -149,7 +112,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { identifier } = await params
   const brand = await getServerBrand()
   const brandConfig = await getBrandConfigById(brand)
-  const event = await getEvent(identifier, brand)
+  const event = await getEvent(identifier)
 
   if (!event) {
     return {
@@ -182,7 +145,7 @@ export default async function SpeakerSuccessPage({ params, searchParams }: Props
   const { identifier } = await params
   const { token, existing, updated, status_reset } = await searchParams
   const brand = await getServerBrand()
-  const event = await getEvent(identifier, brand)
+  const event = await getEvent(identifier)
 
   if (!event) {
     notFound()
