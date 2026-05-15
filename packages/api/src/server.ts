@@ -24,6 +24,7 @@ import { calendarProxyRouter } from './routes/calendar-proxy.js';
 import { modulesRouter } from './routes/modules.js';
 import { apiKeysRouter } from './routes/api-keys.js';
 import { internalRouter } from './routes/internal.js';
+import { portalEventsRouter } from './routes/portal-events.js';
 import { hateoasMiddleware } from './lib/hateoas.js';
 import {
   mountLabeled,
@@ -143,6 +144,12 @@ mountLabeled(app, '/api/calendar', calendarProxyRouter);
 mountLabeled(app, '/api/modules', modulesRouter);
 mountLabeled(app, '/api/api-keys', apiKeysRouter);
 mountLabeled(app, '/api/internal', internalRouter);
+
+// Portal-public read endpoints. Mounted under /api/portal/* so the
+// portal's gatewazeFetch wrapper has a stable prefix to point at, and
+// the cdn.aaif.live Worker can apply portal-specific cache rules to
+// the whole prefix in one shot. Per spec-portal-on-cloudflare-workers §4.2.
+mountLabeled(app, '/api/portal/events', portalEventsRouter);
 
 // Deny-by-default self-check: every static route must be labeled
 // 'jwt' or 'public'. Throws on first miss → server fails to boot.
