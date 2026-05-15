@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { getServerBrand, getBrandConfigById } from '@/config/brand'
-import { createServerSupabase } from '@/lib/supabase/server'
+import { getEvent } from '@/lib/portal-data'
 import { AboutEventContent } from '@/components/event/AboutEventContent'
 import { stripEmojis } from '@/lib/text'
 import { resolveEventImages } from '@/lib/storage-resolve'
@@ -11,26 +11,8 @@ interface Props {
 }
 
 async function getEventForMetadata(identifier: string, brandId: string) {
-  const supabase = await createServerSupabase(brandId)
   const brandConfig = await getBrandConfigById(brandId)
-
-  let { data: event } = await supabase
-    .from('events')
-    .select('event_title, event_description, listing_intro, screenshot_url, event_logo, event_link')
-    .eq('event_slug', identifier)
-    .eq('is_live_in_production', true)
-    .maybeSingle()
-
-  if (!event) {
-    const result = await supabase
-      .from('events')
-      .select('event_title, event_description, listing_intro, screenshot_url, event_logo, event_link')
-      .eq('event_id', identifier)
-      .eq('is_live_in_production', true)
-      .maybeSingle()
-    event = result.data
-  }
-
+  const event = await getEvent(identifier)
   return resolveEventImages(event, brandConfig.storageBucketUrl)
 }
 
