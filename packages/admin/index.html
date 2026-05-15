@@ -26,12 +26,18 @@
       `import.meta.env.VITE_*` (substituted at build time by the
       `define` block in vite.config.ts).
 
+      The inline bootstrap below ensures `window.__GATEWAZE_CONFIG__`
+      is always defined as `{}` BEFORE /runtime-config.js loads, so
+      the bundle's `globalThis.__GATEWAZE_CONFIG__.VITE_X` access is
+      never a TypeError on missing config (esbuild's `define` only
+      accepts identifier paths — no optional chaining — so the
+      indirection has to live here, not in vite.config.ts).
+
       Plain `<script>` (no `type="module"`) executes synchronously
-      before any deferred `<script type="module">`, so the config
-      global is set before the bundle's top-level code runs. If
-      runtime-config.js is missing (e.g. local `vite preview`), the
-      bundle's optional-chained access falls back to undefined.
+      before any deferred `<script type="module">`, so both globals
+      are set before the bundle's top-level code runs.
     -->
+    <script>window.__GATEWAZE_CONFIG__ = {};</script>
     <script src="/runtime-config.js"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
