@@ -28,8 +28,19 @@
 //   - Node.js (current K8s runtime, `next dev`, vitest)
 //   - Cloudflare Workers via OpenNext (target runtime)
 
+// `GATEWAZE_API_URL` is the explicit override. If unset, fall back to
+// the existing portal env vars so K8s + docker-compose deployments
+// keep working without an extra value per brand: `NEXT_PUBLIC_API_URL`
+// is already set everywhere the portal runs (defaults to
+// `http://api.gatewaze.localhost` in docker-compose, the api k8s
+// service DNS in the cluster, etc.). The Cloudflare Worker target
+// still sets `GATEWAZE_API_URL` directly via wrangler.toml.
 const CDN_URL = process.env.GATEWAZE_CDN_URL ?? "";
-const API_URL = process.env.GATEWAZE_API_URL ?? "";
+const API_URL =
+  process.env.GATEWAZE_API_URL ??
+  process.env.NEXT_PUBLIC_API_URL ??
+  process.env.API_URL ??
+  "";
 
 // True when there's no separate CDN layer — every call goes direct to
 // the API. Local dev, in-cluster K8s, and tests all hit this branch.
