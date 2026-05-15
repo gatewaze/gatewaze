@@ -134,20 +134,17 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
-        # `--skipPopulateCache`: workaround for wrangler 4.92 / OpenNext
-        # 1.19 returning "No route for that URI" against
-        # `/storage/kv/namespaces/<id>/bulk`. The endpoint works when
-        # called directly via curl with the same token + namespace, so
-        # something in wrangler's request shape is off. ISR cache
-        # population is reproduced lazily on first hit; the only loss
-        # is the optimisation of pre-warming static page data into KV
-        # at deploy time. Tracked: spike to upgrade once Cloudflare
-        # ships a wrangler 4 patch.
+        # The kvIncrementalCache override in open-next.config.ts is
+        # currently disabled (wrangler 4 bulk-PUT routing bug — see
+        # comment in that file). Without the override, OpenNext does
+        # NOT run the populate-cache step, so the deploy is a single
+        # `wrangler deploy` of the bundle. ISR is degraded but the
+        # Worker comes up. Re-enable + re-deploy when fixed.
         run: |
           if [ "${{ steps.target.outputs.env }}" = "production" ]; then
-            pnpm exec opennextjs-cloudflare deploy --skipPopulateCache
+            pnpm run opennext:deploy
           else
-            pnpm exec opennextjs-cloudflare deploy --env staging --skipPopulateCache
+            pnpm exec opennextjs-cloudflare deploy --env staging
           fi
 
       # Secret push happens AFTER the first deploy because
