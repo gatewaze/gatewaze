@@ -29,15 +29,12 @@ on:
     tags:
       - 'portal-v*'
   workflow_dispatch:
-    inputs:
-      environment:
-        description: 'Cloudflare Worker environment'
-        required: true
-        type: choice
-        default: 'staging'
-        options:
-          - staging
-          - production
+    # Single Worker only (no [env.staging] block). Wrangler 4's
+    # `workers/services/<name>/environments` API trips a "No route"
+    # error on this account so multi-env deploys are off the table
+    # until we sort out the underlying plan / wrangler-version issue.
+    # Until then the Worker sits at `<name>.<account>.workers.dev` and
+    # the operator adds the `aaif.live` route by hand once smoke-tested.
 
 permissions:
   contents: read
@@ -72,15 +69,6 @@ jobs:
         with:
           node-version: '22'
           cache: 'pnpm'
-
-      - name: Determine target environment
-        id: target
-        run: |
-          if [ "${{ github.event_name }}" = "push" ]; then
-            echo "env=production" >> "$GITHUB_OUTPUT"
-          else
-            echo "env=${{ inputs.environment }}" >> "$GITHUB_OUTPUT"
-          fi
 
       - name: Clone module repos at pinned SHAs
         env:
@@ -134,18 +122,13 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
-        # The kvIncrementalCache override in open-next.config.ts is
-        # currently disabled (wrangler 4 bulk-PUT routing bug — see
-        # comment in that file). Without the override, OpenNext does
-        # NOT run the populate-cache step, so the deploy is a single
-        # `wrangler deploy` of the bundle. ISR is degraded but the
-        # Worker comes up. Re-enable + re-deploy when fixed.
-        run: |
-          if [ "${{ steps.target.outputs.env }}" = "production" ]; then
-            pnpm run opennext:deploy
-          else
-            pnpm exec opennextjs-cloudflare deploy --env staging
-          fi
+        # Single Worker, no environments. The kvIncrementalCache
+        # override in open-next.config.ts is disabled (wrangler 4
+        # bulk-PUT routing bug — see comment in that file), so OpenNext
+        # skips the populate-cache step and the deploy is a plain
+        # `wrangler deploy` of the bundle. ISR cache is degraded
+        # but the Worker comes up.
+        run: pnpm run opennext:deploy
 
       # Secret push happens AFTER the first deploy because
       # `wrangler secret put` 404s ("No route for that URI") if the
@@ -154,8 +137,7 @@ jobs:
       # matter (secrets are picked up live without a redeploy), but
       # the first cold deploy is briefly missing SUPABASE_ANON_KEY
       # — every request returns 503 until this step finishes.
-      - name: Push Worker secrets (production)
-        if: steps.target.outputs.env == 'production'
+      - name: Push Worker secrets
         working-directory: packages/portal
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
@@ -172,38 +154,24 @@ jobs:
             printf '%s' "${{ secrets.PORTAL_SUPABASE_JWT_SECRET }}" | npx wrangler secret put SUPABASE_JWT_SECRET
           fi
 
-      - name: Push Worker secrets (staging)
-        if: steps.target.outputs.env == 'staging'
-        working-directory: packages/portal
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
-        run: |
-          if [ -n "${{ secrets.PORTAL_SUPABASE_ANON_KEY }}" ]; then
-            printf '%s' "${{ secrets.PORTAL_SUPABASE_ANON_KEY }}" | npx wrangler secret put SUPABASE_ANON_KEY --env staging
-          fi
-          if [ -n "${{ secrets.PORTAL_SUPABASE_JWT_SECRET }}" ]; then
-            printf '%s' "${{ secrets.PORTAL_SUPABASE_JWT_SECRET }}" | npx wrangler secret put SUPABASE_JWT_SECRET --env staging
-          fi
-
       - name: Smoke test
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+        # No `[[routes]]` in wrangler.toml on the v0 deploy, so the
+        # Worker is reachable only at its workers.dev hostname
+        # (`<name>.<account-subdomain>.workers.dev`). The account
+        # subdomain isn't trivially derivable from the account ID via
+        # the API, so smoke is a soft check: confirms the Worker
+        # script exists via the Cloudflare API rather than hitting
+        # HTTP directly. Manual smoke via the dashboard URL is the
+        # follow-up before the operator adds the aaif.live route.
         run: |
-          # The cutover plan (spec §13 step 3) keeps the K8s pod live
-          # during rollout. A failed smoke check here means the Worker
-          # responded but with a non-2xx — the workflow fails loud and
-          # the operator decides whether to roll back the Worker
-          # version (Cloudflare keeps the previous version one click
-          # away).
-          if [ "${{ steps.target.outputs.env }}" = "production" ]; then
-            host="aaif.live"
+          status=$(curl -s -o /dev/null -w '%{http_code}' \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/gatewaze-portal-aaif" \
+            -H "Authorization: Bearer ${{ secrets.CF_API_TOKEN }}")
+          if [ "${status}" = "200" ]; then
+            echo "[smoke] Worker script gatewaze-portal-aaif registered"
           else
-            host="staging.aaif.live"
-          fi
-          echo "[smoke] hitting https://${host}/"
-          status=$(curl -s -o /dev/null -w '%{http_code}' "https://${host}/")
-          if [ "${status}" -ge 200 ] && [ "${status}" -lt 400 ]; then
-            echo "[smoke] OK (HTTP ${status})"
-          else
-            echo "[smoke] FAIL (HTTP ${status})" >&2
+            echo "[smoke] FAIL — Worker script API returned ${status}" >&2
             exit 1
           fi
