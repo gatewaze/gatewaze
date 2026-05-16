@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
-import OpenAI from 'openai'
+// OpenAI SDK is no longer used directly here — embeddings route through
+// @gatewaze-modules/ai's aiEmbed so cost lands in ai_usage_events tagged
+// use_case='portal-ai-search'. Per spec-ai-module §16 Phase E.
 import { calculateDistance, getCityCoordinates } from '@/lib/location'
 import { getBrandConfigById } from '@/config/brand'
 import { resolveEventImagesList } from '@/lib/storage-resolve'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-const openaiApiKey = process.env.OPENAI_API_KEY || ''
+// OPENAI_API_KEY is now resolved by @gatewaze-modules/ai's credential
+// router (env / use-case pin / user override). Keep the env var on the
+// portal container for backwards-compat during the bridge rollout.
 
 interface SearchRequest {
   query: string
@@ -91,10 +95,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Query and brandId are required' }, { status: 400 })
     }
 
-    if (!openaiApiKey) {
-      return NextResponse.json({ error: 'OPENAI_API_KEY not configured' }, { status: 500 })
-    }
-
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     })
@@ -112,13 +112,29 @@ export async function POST(req: NextRequest) {
     const wordRoot = queryLower.replace(/(s|ic|ing|ed|tion|ive)$/i, '')
     const stemPattern = `%${wordRoot}%`
 
-    // Generate embedding for semantic search
-    const openai = new OpenAI({ apiKey: openaiApiKey })
-    const embeddingResponse = await openai.embeddings.create({
-      model: 'text-embedding-3-small',
-      input: query,
-    })
-    const queryEmbedding = embeddingResponse.data[0].embedding
+    // Generate embedding for semantic search via @gatewaze-modules/ai's
+    // aiEmbed — writes an ai_usage_events row per call so the portal-
+    // ai-search use_case shows up on the cost dashboard.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { aiEmbed } = await import('@gatewaze-modules/ai/lib/runner.js' as any).catch(
+      // Resolve via the relative path when the workspace alias isn't on
+      // the runtime require path (portal runs out of /app/packages/portal).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      () => import('../../../../../../../gatewaze-modules/modules/ai/lib/runner.ts' as any),
+    )
+    const embedded = await aiEmbed(
+      { supabase },
+      {
+        useCase: 'portal-ai-search',
+        userId: null,                     // anonymous portal session
+        texts: [query],
+        systemRun: true,
+      },
+    )
+    const queryEmbedding = embedded.vectors[0]
+    if (!queryEmbedding) {
+      return NextResponse.json({ error: 'embedding failed' }, { status: 500 })
+    }
     const embeddingString = `[${queryEmbedding.join(',')}]`
 
     const allResults: UniversalSearchResult[] = []
