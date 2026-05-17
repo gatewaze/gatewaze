@@ -3,15 +3,15 @@
   "modules": {
     "gatewaze-modules": {
       "url": "https://github.com/gatewaze/gatewaze-modules.git",
-      "sha": "45e2ae26f5ce467e785313a7c60fe0140011df79"
+      "sha": "e2a5cafbcb0c31eb17d9eed18ae8b0213c03660b"
     },
     "premium-gatewaze-modules": {
       "url": "https://github.com/gatewaze/premium-gatewaze-modules.git",
-      "sha": "4f61c38458464b3b2404fe9f3095dca8208d45f4"
+      "sha": "28abe57ba07bfaede3869242af53f64ff7412a7f"
     },
     "lf-gatewaze-modules": {
       "url": "https://github.com/gatewaze/lf-gatewaze-modules.git",
-      "sha": "58458fc7c2f2cd540d38452124e35e9c3b44c14b"
+      "sha": "48d5571cd1a1f8b076561041f805be1aa97412d6"
     }
   }
 }
