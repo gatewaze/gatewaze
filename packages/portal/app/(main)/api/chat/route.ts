@@ -1,11 +1,40 @@
 import { streamText, tool, stepCountIs } from 'ai'
-import { anthropic } from '@ai-sdk/anthropic'
+import { createAnthropic } from '@ai-sdk/anthropic'
 import { createClient } from '@supabase/supabase-js'
 import { z } from 'zod'
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerBrandConfig } from '@/config/brand'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { resolveEventImages, resolveEventImagesList } from '@/lib/storage-resolve'
+
+const USE_CASE = 'portal-chat'
+const DEFAULT_MODEL = 'claude-sonnet-4-20250514'
+
+/**
+ * Lazy-resolve the ai module's credential router + cost ledger. Same
+ * pattern as portal/ai-search — the module isn't on the portal's
+ * static require-path but lives next door in the workspace.
+ */
+async function loadAiHelpers() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mod = await import('@gatewaze-modules/ai/lib/runner.js' as any).catch(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    () => import('../../../../../../../gatewaze-modules/modules/ai/lib/runner.ts' as any),
+  )
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const creds = await import('@gatewaze-modules/ai/lib/credentials.js' as any).catch(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    () => import('../../../../../../../gatewaze-modules/modules/ai/lib/credentials.ts' as any),
+  )
+  return {
+    resolveCredential: creds.resolveCredential as (
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase: any,
+      opts: { provider: 'anthropic' | 'openai' | 'gemini'; userId: string | null; useCase: string; systemRunOnly?: boolean },
+    ) => Promise<{ apiKey: string; source: string; last4: string; credentialId: string | null }>,
+    recordUsage: mod.recordUsage ?? null,
+  }
+}
 
 function parseCookies(cookieHeader: string): Map<string, string> {
   const cookies = new Map<string, string>()
@@ -17,12 +46,10 @@ function parseCookies(cookieHeader: string): Map<string, string> {
 }
 
 export async function POST(req: NextRequest) {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return NextResponse.json(
-      { error: 'AI chat is not available' },
-      { status: 503 },
-    )
-  }
+  // Credential resolution is now the ai module's job. We just need
+  // SOMETHING resolvable for the portal-chat use-case (per-use-case
+  // pin, system user override, or env). The ai module surfaces
+  // NoCredentialsError if nothing's configured.
 
   // Extract JWT from Authorization header or Supabase session cookie
   const authHeader = req.headers.get('authorization')
@@ -56,8 +83,37 @@ export async function POST(req: NextRequest) {
   const brandConfig = await getServerBrandConfig()
   const { messages } = await req.json()
 
+  // Resolve the API key for the portal-chat use-case through the ai
+  // module's credential router (user pin → use-case pin → env).
+  const serviceRoleSupabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } },
+  )
+  const ai = await loadAiHelpers().catch((err) => {
+    console.warn('[portal-chat] ai module unavailable, falling back to env', err)
+    return null
+  })
+  let anthropicApiKey = process.env.ANTHROPIC_API_KEY ?? ''
+  if (ai) {
+    try {
+      const resolved = await ai.resolveCredential(serviceRoleSupabase, {
+        provider: 'anthropic',
+        userId: null,                          // portal sessions are anonymous; system user
+        useCase: USE_CASE,
+      })
+      anthropicApiKey = resolved.apiKey
+    } catch (err) {
+      console.warn('[portal-chat] ai credential resolution failed, falling back to env', err)
+    }
+  }
+  if (!anthropicApiKey) {
+    return NextResponse.json({ error: 'AI chat is not available' }, { status: 503 })
+  }
+  const anthropic = createAnthropic({ apiKey: anthropicApiKey })
+
   const result = streamText({
-    model: anthropic('claude-sonnet-4-20250514'),
+    model: anthropic(DEFAULT_MODEL),
     system: `You are the ${brandConfig.name} assistant, powered by Gatewaze.
 Help users discover events, register, find networking opportunities, and navigate the platform.
 Be concise, friendly, and helpful. Use markdown formatting where appropriate.
@@ -280,6 +336,30 @@ Organization website: https://${brandConfig.domain}`,
       }),
     },
     stopWhen: stepCountIs(5),
+    onFinish: async ({ usage }) => {
+      // Record one ai_usage_events row per completed conversation so
+      // portal-chat spend lands on the cost dashboard. Per
+      // spec-ai-module §16 Phase D.
+      if (!ai?.recordUsage) return
+      try {
+        await ai.recordUsage(serviceRoleSupabase, {
+          userId: null,                     // anonymous session
+          useCase: USE_CASE,
+          threadId: null,
+          messageId: null,
+          kind: 'llm',
+          provider: 'anthropic',
+          model: DEFAULT_MODEL,
+          inputTokens: usage?.inputTokens ?? 0,
+          outputTokens: usage?.outputTokens ?? 0,
+          cachedTokens: 0,
+          latencyMs: 0,                     // streaming SDK doesn't expose it cleanly
+          status: 'ok',
+        })
+      } catch (err) {
+        console.warn('[portal-chat] recordUsage failed', err)
+      }
+    },
   })
 
   return result.toUIMessageStreamResponse()
