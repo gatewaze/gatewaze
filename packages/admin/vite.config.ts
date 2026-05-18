@@ -111,6 +111,12 @@ export default defineConfig(({ command }) => ({
       // react-email used by the newsletter email-blocks registry —
       // same dedupe rationale as @puckeditor/core.
       "@react-email/components", "@react-email/render",
+      // assistant-ui primitives imported by AiChatWidget (in the
+      // @gatewaze-modules/ai module, outside admin's tree). Without
+      // dedupe + pre-bundle, the gatewaze-modules vite plugin can't
+      // find the package under admin/node_modules and stubs it with
+      // `export default {}`, breaking `AssistantRuntimeProvider`.
+      "@assistant-ui/react",
     ],
   },
   server: {
@@ -181,6 +187,7 @@ export default defineConfig(({ command }) => ({
       // bare specifier. Per spec-builder-evaluation §3.6 (extended).
       "@react-email/components",
       "@react-email/render",
+      "@assistant-ui/react",
     ],
   },
   build: {
