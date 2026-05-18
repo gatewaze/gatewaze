@@ -148,6 +148,20 @@ const nextConfig: NextConfig = {
       jsdom: resolve(__dirname, 'lib/stubs/jsdom-empty.ts'),
     }
 
+    // TypeScript ESM convention: source files use `.js` in import
+    // paths even though they're `.ts` on disk (so the same imports
+    // work pre- and post-compile). The AI module (gatewaze-modules/
+    // modules/ai/lib/) follows this pattern — `runner.ts` does
+    // `import './providers/router.js'`. Webpack's default resolver
+    // doesn't try `.ts` when `.js` is requested, so the build fails
+    // with "Module not found: ./providers/router.js" against the
+    // ts file. extensionAlias is the standard fix.
+    config.resolve.extensionAlias = {
+      ...(config.resolve.extensionAlias || {}),
+      '.js': ['.ts', '.tsx', '.js', '.jsx'],
+      '.mjs': ['.mts', '.mjs'],
+    }
+
     if (moduleDirs.length > 0) {
       // Ensure module files can import packages from the portal's node_modules
       config.resolve.modules = [
