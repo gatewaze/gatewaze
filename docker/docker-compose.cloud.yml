@@ -108,6 +108,7 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD:-gatewaze}@redis:6379
       DATABASE_URL: ${DATABASE_URL}
       JWT_SECRET: ${JWT_SECRET}
+      GATEWAZE_SECRETS_KEY: ${GATEWAZE_SECRETS_KEY:-}
       SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
@@ -135,6 +136,7 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD:-gatewaze}@redis:6379
       DATABASE_URL: ${DATABASE_URL}
       JWT_SECRET: ${JWT_SECRET}
+      GATEWAZE_SECRETS_KEY: ${GATEWAZE_SECRETS_KEY:-}
       SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
@@ -162,6 +164,7 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD:-gatewaze}@redis:6379
       DATABASE_URL: ${DATABASE_URL}
       JWT_SECRET: ${JWT_SECRET}
+      GATEWAZE_SECRETS_KEY: ${GATEWAZE_SECRETS_KEY:-}
     depends_on:
       redis:
         condition: service_healthy
