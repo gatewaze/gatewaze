@@ -217,6 +217,29 @@ async function registerModuleRoutes() {
           supabase: null,
           config: config as never,
           moduleConfig: (mod as { moduleConfig?: Record<string, unknown> }).moduleConfig ?? {},
+          // Bridge to the platform's BullMQ queue registry. Modules
+          // declared a job-enqueue dep in their handler signatures all
+          // along (see ai/api/skill-sources.ts), but historically no
+          // ctx implementation provided it — manual Sync from those
+          // routes silently no-op'd. Wiring the real call here unblocks
+          // module-side job dispatch (skill-source sync, etc.) without
+          // requiring modules to take a direct dep on @gatewaze/api.
+          enqueueJob: async (queueName, jobName, data) => {
+            // Lazy require so this file doesn't take a top-level cycle
+            // on lib/queue (which itself imports server-bootstrap-y
+            // helpers in some places).
+            const { getQueue } = await import('./lib/queue/index.js');
+            const queue = getQueue(queueName);
+            if (!queue) {
+              moduleLogger.warn(
+                { queueName },
+                `[modules] enqueueJob: queue not registered — job '${jobName}' will not run`,
+              );
+              return { id: undefined };
+            }
+            const job = await queue.add(jobName, data);
+            return { id: job.id };
+          },
         };
         await mod.config.apiRoutes(app, runtimeCtx);
         appLogger.info({ module: mod.config.id }, '[modules] registered API routes');

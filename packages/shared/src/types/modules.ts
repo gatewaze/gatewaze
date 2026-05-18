@@ -82,6 +82,27 @@ export interface ModuleRuntimeContext {
   requestId?: string;
   /** Present when invoked from an authenticated admin action */
   actor?: { userId: string; role: 'admin' | 'super_admin' };
+  /**
+   * Enqueue a BullMQ job onto a platform-registered queue. The
+   * platform wires this to its queue registry at server bootstrap;
+   * modules use it to dispatch background work without taking a
+   * direct dep on @gatewaze/api.
+   *
+   * `queueName` is the registered queue (e.g. 'jobs' — the core
+   * default), `jobName` becomes the BullMQ job name (typically
+   * `<module-id>.<job-kind>`), `data` is the payload the worker
+   * handler receives.
+   *
+   * Returns `{ id }` matching BullMQ's Job.id. Missing queue or
+   * enqueue failure resolves with `{ id: undefined }` and a logged
+   * warning rather than throwing — callers should treat that as
+   * "job not dispatched".
+   */
+  enqueueJob?: (
+    queueName: string,
+    jobName: string,
+    data: Record<string, unknown>,
+  ) => Promise<{ id: string | undefined }>;
 }
 
 export interface GatewazeModule {
