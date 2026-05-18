@@ -461,6 +461,27 @@ services:
       dockerfile: docker/api/Dockerfile
     container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-api
     restart: unless-stopped
+    # Healthcheck targets /api/v1/health (public, no auth, returns 200
+    # when the express handler chain is reachable). The wedge mode we
+    # see in dev — tsx watch goes silent but the container stays Up —
+    # surfaces here as `unhealthy` within ~45s. The autoheal sidecar
+    # (see `autoheal` service below) watches for that label and runs
+    # `docker restart example-api` automatically, so a wedge clears
+    # itself in under a minute without operator action.
+    healthcheck:
+      # node-based probe — the api image is the official node slim
+      # variant and doesn't ship wget/curl. Hits /api/v1/health (the
+      # public 200-on-OK endpoint registered by the public-api router)
+      # via localhost, with a 4s socket timeout.
+      test:
+        - CMD
+        - node
+        - -e
+        - "require('http').get('http://localhost:3002/api/v1/health',{timeout:4000},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1)).on('timeout',function(){this.destroy();process.exit(1)})"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
     ports:
       - "${API_PORT:-3002}:3002"
     # Resolve the brand's `*.localhost` Supabase hostname (the one the
@@ -477,6 +498,10 @@ services:
       # as SUPABASE_HOST above.
       - "${FETCH_HOST:-fetch.gatewaze.localhost}:host-gateway"
     labels:
+      # Autoheal sidecar watches this label and restarts the container
+      # when its healthcheck reports unhealthy (see the autoheal service
+      # below + the healthcheck block above).
+      - "autoheal=true"
       - "traefik.enable=true"
       - "traefik.docker.network=traefik"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-api.rule=Host(`${API_HOST:-api.gatewaze.localhost}`)"
@@ -508,6 +533,10 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD:-gatewaze}@redis:6379
       DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@supabase-db:5432/${POSTGRES_DB:-postgres}
       JWT_SECRET: ${JWT_SECRET}
+      # Platform-wide AES-256-GCM key used by @gatewaze/shared/modules/secrets
+      # to encrypt user-supplied secrets at rest (e.g. AI skill source auth
+      # tokens for private git repos). 32 bytes base64-encoded.
+      GATEWAZE_SECRETS_KEY: ${GATEWAZE_SECRETS_KEY:-}
       SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
@@ -597,6 +626,9 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD:-gatewaze}@redis:6379
       DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@supabase-db:5432/${POSTGRES_DB:-postgres}
       JWT_SECRET: ${JWT_SECRET}
+      # Mirror of the api service's key so worker-run skill syncs can
+      # decrypt auth tokens stored on ai_skill_sources rows.
+      GATEWAZE_SECRETS_KEY: ${GATEWAZE_SECRETS_KEY:-}
       SCRAPER_MODULE_PATH: /premium-gatewaze-modules/modules/scrapers/scripts
       BRAVE_SEARCH_API_KEY: ${BRAVE_SEARCH_API_KEY:-}
       GOOGLE_CSE_API_KEY: ${GOOGLE_CSE_API_KEY:-}
@@ -798,6 +830,25 @@ services:
     networks:
       - gatewaze
       - traefik
+
+  # ---------------------------------------------------------------------------
+  # autoheal — watchdog that restarts containers labelled `autoheal=true`
+  # when their healthcheck reports `unhealthy`. Mounts the docker socket
+  # read-write so it can issue `docker restart`. Covers the dev-mode tsx
+  # watch wedge on the api service (alive but unresponsive — restart:
+  # unless-stopped doesn't catch this because the process didn't exit).
+  # ---------------------------------------------------------------------------
+  autoheal:
+    image: willfarrell/autoheal:1.2.0
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-autoheal
+    restart: unless-stopped
+    environment:
+      AUTOHEAL_CONTAINER_LABEL: autoheal
+      AUTOHEAL_INTERVAL: "10"
+      AUTOHEAL_START_PERIOD: "60"
+      CURL_TIMEOUT: "30"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
 
 # ---------------------------------------------------------------------------
 # Volumes
