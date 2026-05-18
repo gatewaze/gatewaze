@@ -90,6 +90,7 @@ const EVENT_SELECT_FIELDS_STABLE = `
   enable_call_for_speakers,
   enable_agenda,
   luma_event_id,
+  source_details,
   is_live_in_production,
   gradient_color_1,
   gradient_color_2,
