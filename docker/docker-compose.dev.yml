@@ -104,7 +104,20 @@ services:
       context: ..
       dockerfile: docker/worker/Dockerfile.dev
     volumes:
+      # Worker now runs packages/api/src/workers/job-worker.ts via tsx,
+      # so it needs the same source mounts as the api service for
+      # hot-reload (and loadModuleQueues to walk module sources). Keep
+      # the legacy scripts/ mount too — some scraper paths still use it.
       - ../scripts:/app/scripts
+      - ../packages/api/src:/app/packages/api/src
+      - ../packages/api/tsconfig.json:/app/packages/api/tsconfig.json
+      - ../packages/shared/src:/app/packages/shared/src
+      - ../gatewaze.config.ts:/app/gatewaze.config.ts
+      - ../../gatewaze-modules:/gatewaze-modules
+      - ../../premium-gatewaze-modules:/premium-gatewaze-modules
+      - ../../lf-gatewaze-modules:/lf-gatewaze-modules
+      - ../.gatewaze-modules:/app/.gatewaze-modules
+      - ../data:/app/data
     environment:
       NODE_ENV: development
 
