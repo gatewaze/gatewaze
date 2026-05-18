@@ -120,11 +120,20 @@ jobs:
       - name: Deploy to Cloudflare Workers
         working-directory: packages/portal
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          # Global API Key auth (CLOUDFLARE_EMAIL + CLOUDFLARE_API_KEY)
+          # — required because the scoped API token can't PUT new
+          # Workers via /workers/services/<name> (Cloudflare returns 405
+          # "Method not allowed for this authentication scheme" on
+          # token auth; the services endpoint only accepts the legacy
+          # global-key auth scheme). Existing Workers can be updated
+          # with token auth via the older /workers/scripts/<name> path,
+          # but wrangler 3/4 uses /services/ exclusively.
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
         # Single Worker, no environments. The kvIncrementalCache
-        # override in open-next.config.ts is disabled (wrangler 4
-        # bulk-PUT routing bug — see comment in that file), so OpenNext
+        # override in open-next.config.ts is disabled (wrangler bulk-
+        # PUT routing bug — see comment in that file), so OpenNext
         # skips the populate-cache step and the deploy is a plain
         # `wrangler deploy` of the bundle. ISR cache is degraded
         # but the Worker comes up.
@@ -140,7 +149,8 @@ jobs:
       - name: Push Worker secrets
         working-directory: packages/portal
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
         run: |
           # `wrangler secret put` is idempotent — pushes the latest
