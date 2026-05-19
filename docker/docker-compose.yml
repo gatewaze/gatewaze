@@ -598,6 +598,12 @@ services:
       GATEWAZE_FETCH_BASE_URL: ${GATEWAZE_FETCH_BASE_URL:-}
       GATEWAZE_FETCH_API_KEY: ${GATEWAZE_FETCH_API_KEY:-}
       GATEWAZE_FETCH_TENANT_ID: ${GATEWAZE_FETCH_TENANT_ID:-default}
+      # gatewaze_search — model-agnostic web discovery exposed to every
+      # AI provider. Serper.dev when SERPER_API_KEY is set, else DDG
+      # HTML scrape via scrapling-fetcher. GATEWAZE_SEARCH_BACKEND lets
+      # an operator force one backend (values: auto|serper|ddg).
+      SERPER_API_KEY: ${SERPER_API_KEY:-}
+      GATEWAZE_SEARCH_BACKEND: ${GATEWAZE_SEARCH_BACKEND:-auto}
     depends_on:
       redis:
         condition: service_healthy
@@ -646,6 +652,9 @@ services:
       # their existing Puppeteer paths.
       SCRAPLING_FETCHER_URL: http://scrapling-fetcher:8080
       SCRAPLING_INTERNAL_TOKEN: ${SCRAPLING_INTERNAL_TOKEN:-}
+      # gatewaze_search backend (see api service for documentation).
+      SERPER_API_KEY: ${SERPER_API_KEY:-}
+      GATEWAZE_SEARCH_BACKEND: ${GATEWAZE_SEARCH_BACKEND:-auto}
       # Umami credentials for the analytics module's provisioning worker
       # (gatewaze-modules/modules/analytics/scripts/provision-handler.js).
       UMAMI_BASE_URL: ${UMAMI_BASE_URL:-http://umami:3000}
