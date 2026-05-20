@@ -67,18 +67,28 @@ fi
 # at api startup, then registerModuleRoutes() evaluates each enabled
 # module's source — at which point Node resolves require('openai'),
 # require('ws'), etc. relative to the cloned module dir. Module-specific
-# npm deps are NOT in the api image's /app/node_modules, so without a
-# per-module install Node throws MODULE_NOT_FOUND and the outer catch in
-# registerModuleRoutes() swallows it, taking ALL module routes down
-# (not just the offending module's).
+# npm deps are NOT in the api image's /app/node_modules out of the
+# box, so without making them available Node throws MODULE_NOT_FOUND
+# and the outer catch in registerModuleRoutes() swallows it, taking
+# ALL module routes down (not just the offending module's).
 #
-# Pre-clone to the same path the loader uses (slug = url minus scheme
-# + .git, [^a-zA-Z0-9-] -> '-'), then `pnpm install --prod` per-module.
-# Loader sees the existing .git and does `git pull --ff-only` instead
-# of re-cloning, so the populated node_modules survives across the
-# clone/pull cycle.
+# Approach: pre-clone each MODULE_SOURCES repo to the same path the
+# loader uses, then aggregate every module's `dependencies` from its
+# package.json into a flat list, merge into packages/api/package.json,
+# and run a single `pnpm install` against the api workspace. The deps
+# end up in /app/node_modules where Node's resolver finds them when
+# walking up from cloned module code.
+#
+# Why this instead of per-module `pnpm install`: per-module install
+# inherits the cloned repo's pnpm-workspace.yaml (gatewaze-modules
+# and premium-gatewaze-modules both have one with sibling-repo paths
+# that don't exist in the container), causing pnpm to fall back to
+# private-registry lookups it isn't authed for ("No authorization
+# header was set for the request"). The aggregated approach runs
+# install from /app's known-good workspace, sidestepping that whole
+# class of problem.
 if [ -n "$MODULE_SOURCES" ]; then
-  echo "[api] Pre-populating /app/.gatewaze-modules + installing per-module npm deps..."
+  echo "[api] Pre-populating /app/.gatewaze-modules..."
   mkdir -p /app/.gatewaze-modules
   IFS=','
   for source in $MODULE_SOURCES; do
@@ -115,42 +125,66 @@ if [ -n "$MODULE_SOURCES" ]; then
     if [ ! -d "$target/.git" ]; then
       echo "[api] Cloning $url -> $target (branch: $branch)"
       if ! git clone --depth 1 --branch "$branch" "$url" "$target" >/dev/null 2>&1; then
-        echo "[api] Warning: failed to pre-clone $url (loader will retry; module deps may be missing)"
+        echo "[api] Warning: failed to pre-clone $url (loader will retry at runtime)"
         continue
       fi
     fi
-
-    if [ -d "$target/modules" ]; then
-      for mod in "$target/modules"/*; do
-        [ -d "$mod" ] || continue
-        [ -f "$mod/package.json" ] || continue
-        # Skip modules with no `dependencies` block to avoid pointless installs.
-        grep -q '"dependencies"' "$mod/package.json" || continue
-        modname=$(basename "$mod")
-        # Fast path: deps already baked into the image at PREBUILD time
-        # (see Dockerfile). Skipping the install lets the api pod start
-        # in seconds rather than minutes — the chart's liveness probe
-        # gives only ~55s before it kills the pod.
-        if [ -d "$mod/node_modules" ] && [ -z "$PREBUILD_FORCE" ]; then
-          continue
-        fi
-        echo "[api] $modname: pnpm install --prod"
-        # --ignore-workspace is critical: gatewaze-modules and
-        # premium-gatewaze-modules both ship pnpm-workspace.yaml files
-        # at their repo roots. Without --ignore-workspace, pnpm walks
-        # up from the module dir, switches to workspace mode, and tries
-        # to resolve sibling deps like `@gatewaze/shared` from
-        # `../gatewaze/packages/*` — a path that exists in dev but not
-        # in the container — then falls back to npm and fails with
-        # "No authorization header was set for the request." Module
-        # node_modules is left empty and the api crashes at runtime.
-        (cd "$mod" && pnpm install --prod --ignore-workspace --no-frozen-lockfile --config.dangerously-allow-all-builds=true 2>&1 | tail -3) \
-          || echo "[api] Warning: pnpm install failed for $modname (module will fail to load at runtime)"
-      done
-    fi
   done
   unset IFS
-  echo "[api] Module npm dep install complete."
+
+  # PREBUILD only: aggregate deps + reinstall the api workspace. At
+  # runtime, the api package.json already has these merged in (baked
+  # into the image), so we don't redo install — the chart's liveness
+  # probe gives only ~55s before it kills the pod, and a full pnpm
+  # install is way over that.
+  if [ -n "$PREBUILD" ]; then
+    echo "[api] Aggregating module deps into api package.json..."
+    node --input-type=module -e '
+      import { readFileSync, writeFileSync, readdirSync, existsSync } from "fs";
+      import { join } from "path";
+
+      const moduleRoot = "/app/.gatewaze-modules";
+      if (!existsSync(moduleRoot)) process.exit(0);
+
+      // Walk every cloned module package.json, dedupe by name (first wins).
+      const deps = new Map();
+      for (const slug of readdirSync(moduleRoot)) {
+        const modulesPath = join(moduleRoot, slug, "modules");
+        if (!existsSync(modulesPath)) continue;
+        for (const modName of readdirSync(modulesPath)) {
+          const pkgPath = join(modulesPath, modName, "package.json");
+          if (!existsSync(pkgPath)) continue;
+          let pkg;
+          try { pkg = JSON.parse(readFileSync(pkgPath, "utf8")); }
+          catch (e) { console.error("[api] skip " + pkgPath + ": " + e.message); continue; }
+          if (!pkg.dependencies) continue;
+          for (const [name, ver] of Object.entries(pkg.dependencies)) {
+            // Platform-internal scopes resolve via the workspace or
+            // sibling-module imports — never from npm. Skip so pnpm
+            // does not try to fetch them.
+            if (name.startsWith("@gatewaze/") || name.startsWith("@gatewaze-modules/")) continue;
+            if (!deps.has(name)) deps.set(name, ver);
+          }
+        }
+      }
+
+      const apiPkgPath = "/app/packages/api/package.json";
+      const apiPkg = JSON.parse(readFileSync(apiPkgPath, "utf8"));
+      apiPkg.dependencies = apiPkg.dependencies ?? {};
+      let added = 0;
+      for (const [name, ver] of deps) {
+        if (apiPkg.dependencies[name]) continue;
+        apiPkg.dependencies[name] = ver;
+        added++;
+      }
+      writeFileSync(apiPkgPath, JSON.stringify(apiPkg, null, 2) + "\n");
+      console.log("[api] Merged " + added + " module deps into api package.json (total deps: " + Object.keys(apiPkg.dependencies).length + ")");
+    '
+    echo "[api] Reinstalling api workspace with aggregated module deps..."
+    (cd /app && pnpm install --no-frozen-lockfile --prod --config.dangerously-allow-all-builds=true 2>&1 | tail -3) \
+      || echo "[api] Warning: pnpm install for aggregated module deps failed"
+    echo "[api] Module deps aggregation complete."
+  fi
 fi
 
 # PREBUILD=1 runs this script during `docker build` to populate
