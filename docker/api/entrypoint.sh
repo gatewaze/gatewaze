@@ -181,7 +181,14 @@ if [ -n "$MODULE_SOURCES" ]; then
       console.log("[api] Merged " + added + " module deps into api package.json (total deps: " + Object.keys(apiPkg.dependencies).length + ")");
     '
     echo "[api] Reinstalling api workspace with aggregated module deps..."
-    (cd /app && pnpm install --no-frozen-lockfile --prod --config.dangerously-allow-all-builds=true 2>&1 | tail -3) \
+    # --shamefully-hoist creates top-level symlinks at /app/node_modules
+    # for every transitive dep. Required because Node's resolver walks
+    # up from /app/.gatewaze-modules/<slug>/modules/<id>/... — it never
+    # reaches /app/packages/api/node_modules where the strict pnpm
+    # layout would put the symlinks. Without this, openai, ws, etc.
+    # are in the pnpm store but MODULE_NOT_FOUND from cloned module
+    # code.
+    (cd /app && pnpm install --no-frozen-lockfile --prod --shamefully-hoist --config.dangerously-allow-all-builds=true 2>&1 | tail -3) \
       || echo "[api] Warning: pnpm install for aggregated module deps failed"
     echo "[api] Module deps aggregation complete."
   fi
