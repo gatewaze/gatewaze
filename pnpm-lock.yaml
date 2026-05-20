@@ -229,6 +229,8 @@ importers:
         specifier: ^4.0.0
         version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.15)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@7.3.2(@types/node@22.19.15)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.2)(tsx@4.21.0)(yaml@2.8.3))
 
+  ../gatewaze-modules/modules/tasks: {}
+
   ../gatewaze-modules/modules/templates:
     dependencies:
       '@gatewaze/shared':
@@ -266,6 +268,9 @@ importers:
 
   packages/admin:
     dependencies:
+      '@assistant-ui/react':
+        specifier: ^0.10.0
+        version: 0.10.50(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(immer@10.2.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(use-sync-external-store@1.6.0(react@19.2.4))
       '@atlaskit/pragmatic-drag-and-drop':
         specifier: ^1.7.4
         version: 1.7.9
@@ -666,6 +671,12 @@ importers:
       adm-zip:
         specifier: ^0.5.16
         version: 0.5.16
+      ajv:
+        specifier: ^8.17.1
+        version: 8.18.0
+      ajv-formats:
+        specifier: ^3.0.1
+        version: 3.0.1(ajv@8.18.0)
       bullmq:
         specifier: ^5.25.0
         version: 5.70.4
@@ -10576,6 +10587,35 @@ snapshots:
 
   '@asamuzakjp/nwsapi@2.3.9': {}
 
+  '@assistant-ui/react@0.10.50(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(immer@10.2.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(use-sync-external-store@1.6.0(react@19.2.4))':
+    dependencies:
+      '@radix-ui/primitive': 1.1.3
+      '@radix-ui/react-compose-refs': 1.1.2(@types/react@19.2.14)(react@19.2.4)
+      '@radix-ui/react-context': 1.1.2(@types/react@19.2.14)(react@19.2.4)
+      '@radix-ui/react-popover': 1.1.15(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@radix-ui/react-primitive': 2.1.3(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@radix-ui/react-slot': 1.2.3(@types/react@19.2.14)(react@19.2.4)
+      '@radix-ui/react-use-callback-ref': 1.1.1(@types/react@19.2.14)(react@19.2.4)
+      '@radix-ui/react-use-escape-keydown': 1.1.1(@types/react@19.2.14)(react@19.2.4)
+      '@standard-schema/spec': 1.1.0
+      assistant-cloud: 0.1.27
+      assistant-stream: 0.2.47
+      json-schema: 0.4.0
+      nanoid: 5.1.5
+      react: 19.2.4
+      react-dom: 19.2.4(react@19.2.4)
+      react-textarea-autosize: 8.5.9(@types/react@19.2.14)(react@19.2.4)
+      zod: 4.3.6
+      zustand: 5.0.11(@types/react@19.2.14)(immer@10.2.0)(react@19.2.4)(use-sync-external-store@1.6.0(react@19.2.4))
+    optionalDependencies:
+      '@types/react': 19.2.14
+      '@types/react-dom': 19.2.3(@types/react@19.2.14)
+    transitivePeerDependencies:
+      - immer
+      - ioredis
+      - redis
+      - use-sync-external-store
+
   '@assistant-ui/react@0.10.50(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(immer@10.2.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(use-sync-external-store@1.6.0(react@19.2.6))':
     dependencies:
       '@radix-ui/primitive': 1.1.3
@@ -17588,7 +17628,7 @@ snapshots:
   assistant-stream@0.2.47:
     dependencies:
       '@standard-schema/spec': 1.1.0
-      nanoid: 5.1.9
+      nanoid: 5.1.11
       secure-json-parse: 4.1.0
 
   assistant-stream@0.3.14:
