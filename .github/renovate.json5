@@ -19,7 +19,15 @@
       // to discover available tags; the (?<currentValue>) capture is
       // what gets rewritten in the Dockerfile.
       customType: 'regex',
-      managerFilePatterns: ['docker/worker/Dockerfile'],
+      // All four Dockerfiles (api + worker, prod + dev) bake the same
+      // Goose binary version. Renovate edits all four in lockstep so
+      // dev rebuilds never drift from prod images.
+      managerFilePatterns: [
+        'docker/api/Dockerfile',
+        'docker/api/Dockerfile.dev',
+        'docker/worker/Dockerfile',
+        'docker/worker/Dockerfile.dev',
+      ],
       matchStrings: ['ARG GOOSE_VERSION=(?<currentValue>v[\\d\\.]+)'],
       datasourceTemplate: 'github-releases',
       depNameTemplate: 'block/goose',

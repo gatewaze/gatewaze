@@ -13,6 +13,14 @@ FROM node:20-slim
 # scrapling-fetcher which doesn't need Chromium, but scrapers/sites
 # image-gen paths do. Keeping the install identical to the prior dev
 # image keeps existing scraper jobs working through the cutover.
+#
+# curl + bzip2 + libgomp1 / libxcb1 are runtime + install deps for the
+# Goose CLI binary (added below). The AI module's recipe handler
+# (registered in this dev worker via the platform's TS job-worker)
+# spawns `goose run` for every ai:run-recipe job — without these the
+# binary won't load. python3 + pipx provide `uv`/`uvx` so Goose
+# recipes can launch stdio MCP extensions (`uvx beads-mcp` etc.)
+# without an additional install at run time.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     ca-certificates \
@@ -34,10 +42,41 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxkbcommon0 \
     libxrandr2 \
     xdg-utils \
+    curl \
+    bzip2 \
+    libgomp1 \
+    libxcb1 \
+    python3 \
+    python3-pip \
+    pipx \
     && rm -rf /var/lib/apt/lists/*
 
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+
+# Install uv (for `uvx`) + Goose CLI. Version pin tracked via Renovate
+# (see .github/renovate.json5) — bumps the prod + dev worker
+# Dockerfiles together so both runtimes run the same binary on the
+# same recipes. arch detection via `uname -m` keeps the same Dockerfile
+# usable for ARM64 dev Macs and AMD64 prod nodes.
+ARG GOOSE_VERSION=v1.34.1
+RUN PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin pipx install uv
+RUN set -eux; \
+    arch="$(uname -m)"; \
+    case "$arch" in \
+      x86_64|amd64) goose_target=x86_64-unknown-linux-gnu ;; \
+      aarch64|arm64) goose_target=aarch64-unknown-linux-gnu ;; \
+      *) echo "unsupported uname -m=$arch"; exit 1 ;; \
+    esac; \
+    cd /tmp; \
+    curl -fSL --retry 3 \
+      "https://github.com/block/goose/releases/download/${GOOSE_VERSION}/goose-${goose_target}.tar.bz2" \
+      -o goose.tar.bz2; \
+    tar -xjf goose.tar.bz2; \
+    mv goose /usr/local/bin/goose; \
+    chmod +x /usr/local/bin/goose; \
+    rm -f goose.tar.bz2; \
+    /usr/local/bin/goose --version
 
 # Pin to pnpm 10.x — `pnpm@latest` (currently 11.1.3) crashes on
 # node 20 with ERR_UNKNOWN_BUILTIN_MODULE. The api/Dockerfile.dev has
