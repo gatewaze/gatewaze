@@ -60,4 +60,81 @@ if [ -n "$MODULE_SOURCES" ]; then
   unset IFS
 fi
 
+# Module npm deps.
+#
+# The Node-side loader (packages/shared/src/modules/loader.ts
+# cloneOrUpdateRepo) clones MODULE_SOURCES into /app/.gatewaze-modules/<slug>
+# at api startup, then registerModuleRoutes() evaluates each enabled
+# module's source — at which point Node resolves require('openai'),
+# require('ws'), etc. relative to the cloned module dir. Module-specific
+# npm deps are NOT in the api image's /app/node_modules, so without a
+# per-module install Node throws MODULE_NOT_FOUND and the outer catch in
+# registerModuleRoutes() swallows it, taking ALL module routes down
+# (not just the offending module's).
+#
+# Pre-clone to the same path the loader uses (slug = url minus scheme
+# + .git, [^a-zA-Z0-9-] -> '-'), then `pnpm install --prod` per-module.
+# Loader sees the existing .git and does `git pull --ff-only` instead
+# of re-cloning, so the populated node_modules survives across the
+# clone/pull cycle.
+if [ -n "$MODULE_SOURCES" ]; then
+  echo "[api] Pre-populating /app/.gatewaze-modules + installing per-module npm deps..."
+  mkdir -p /app/.gatewaze-modules
+  IFS=','
+  for source in $MODULE_SOURCES; do
+    url="${source%%#*}"
+    fragment=""
+    case "$source" in *\#*) fragment="${source#*#}" ;; esac
+
+    case "$url" in
+      http://*|https://*|git://*|git@*|*.git) ;;
+      *) continue ;;
+    esac
+
+    branch="main"
+    if [ -n "$fragment" ]; then
+      _OLD_IFS=$IFS
+      IFS=' '
+      for kv in $(echo "$fragment" | tr '&' ' '); do
+        case "$kv" in
+          branch=*) branch="${kv#branch=}" ;;
+        esac
+      done
+      IFS=$_OLD_IFS
+    fi
+
+    # Slug rule MUST match loader.ts cloneOrUpdateRepo, otherwise the
+    # runtime clone goes to a different path and our installed deps
+    # are wasted.
+    slug=$(printf '%s' "$url" \
+      | sed -E 's|^https?://||; s|^git://||; s|^git@||' \
+      | sed -E 's|\.git$||' \
+      | sed -E 's|[^a-zA-Z0-9-]|-|g')
+    target="/app/.gatewaze-modules/$slug"
+
+    if [ ! -d "$target/.git" ]; then
+      echo "[api] Cloning $url -> $target (branch: $branch)"
+      if ! git clone --depth 1 --branch "$branch" "$url" "$target" >/dev/null 2>&1; then
+        echo "[api] Warning: failed to pre-clone $url (loader will retry; module deps may be missing)"
+        continue
+      fi
+    fi
+
+    if [ -d "$target/modules" ]; then
+      for mod in "$target/modules"/*; do
+        [ -d "$mod" ] || continue
+        [ -f "$mod/package.json" ] || continue
+        # Skip modules with no `dependencies` block to avoid pointless installs.
+        grep -q '"dependencies"' "$mod/package.json" || continue
+        modname=$(basename "$mod")
+        echo "[api] $modname: pnpm install --prod"
+        (cd "$mod" && pnpm install --prod --no-frozen-lockfile --config.dangerously-allow-all-builds=true 2>&1 | tail -2) \
+          || echo "[api] Warning: pnpm install failed for $modname (module will fail to load at runtime)"
+      done
+    fi
+  done
+  unset IFS
+  echo "[api] Module npm dep install complete."
+fi
+
 exec "$@"
