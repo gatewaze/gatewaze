@@ -1,13 +1,21 @@
 # Worker Dockerfile
 # Processes background jobs from the BullMQ queue
-# Includes Puppeteer for scraper jobs
+# Includes Puppeteer for scraper jobs and Goose CLI for recipe execution
 
 FROM node:22-slim
+
+# Goose CLI version. Pinned for build reproducibility — Renovate watches
+# block/goose releases and opens a PR when a new tag lands. Bump
+# deliberately (review the release notes; Goose ships breaking
+# extension-API changes inside minor versions occasionally).
+ARG GOOSE_VERSION=v1.34.1
 
 # Install Chromium, git (entrypoint clones module repos), openssh-client
 # (publish-worker mirrors theme git repos to GitHub via ssh deploy keys —
 # without ssh present, `git push` to the deploy-keyed remote 127s with
-# "ssh: not found" and the mirror stays stale), plus dependencies.
+# "ssh: not found" and the mirror stays stale), curl + bzip2 (for the
+# Goose tarball below), Python + uv (for stdio MCP extensions that
+# Goose recipes load via `uvx <pkg>`), plus dependencies.
 RUN apt-get update && apt-get install -y \
     chromium \
     fonts-liberation \
@@ -15,6 +23,11 @@ RUN apt-get update && apt-get install -y \
     git \
     openssh-client \
     ca-certificates \
+    curl \
+    bzip2 \
+    python3 \
+    python3-pip \
+    pipx \
     --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     # Replace crashpad handler with a wrapper that provides the required --database flag
@@ -22,6 +35,33 @@ RUN apt-get update && apt-get install -y \
     && printf '#!/bin/sh\nexec /usr/lib/chromium/chrome_crashpad_handler.real --database=/tmp/crashpad "$@"\n' > /usr/lib/chromium/chrome_crashpad_handler \
     && chmod +x /usr/lib/chromium/chrome_crashpad_handler \
     && mkdir -p /tmp/crashpad
+
+# Install uv (provides `uvx` — Goose recipes load stdio MCP extensions
+# like `uvx beads-mcp`). pipx places it at /root/.local/bin which we
+# add to PATH below.
+RUN PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin pipx install uv
+
+# Install Goose CLI. Use TARGETARCH (set automatically by docker
+# buildx) to pick the right tarball — Linux/aarch64 for ARM builds,
+# Linux/x86_64 otherwise. Verify the binary launches after install
+# so an upstream change to the tarball layout fails the build loudly
+# instead of silently shipping a broken worker.
+ARG TARGETARCH=amd64
+RUN set -eux; \
+    case "$TARGETARCH" in \
+      amd64) goose_target=x86_64-unknown-linux-gnu ;; \
+      arm64) goose_target=aarch64-unknown-linux-gnu ;; \
+      *) echo "unsupported TARGETARCH=$TARGETARCH"; exit 1 ;; \
+    esac; \
+    cd /tmp; \
+    curl -fSL --retry 3 \
+      "https://github.com/block/goose/releases/download/${GOOSE_VERSION}/goose-${goose_target}.tar.bz2" \
+      -o goose.tar.bz2; \
+    tar -xjf goose.tar.bz2; \
+    mv goose /usr/local/bin/goose; \
+    chmod +x /usr/local/bin/goose; \
+    rm -f goose.tar.bz2; \
+    /usr/local/bin/goose --version
 
 # Tell Puppeteer to use the system Chromium
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
