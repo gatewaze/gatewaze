@@ -47,8 +47,51 @@ FROM node:22-slim
 # flow (Source tab → "Move to my own git repo"): it spawns `ssh-keygen`
 # to generate the ed25519 deploy keypair, and `ssh`/`git push` use the
 # generated key to push to the external repo.
-RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates openssh-client && rm -rf /var/lib/apt/lists/*
+#
+# curl + bzip2 + libgomp1/libxcb1/libdbus-1-3 + python3 + pipx are the
+# install + runtime deps for the Goose CLI binary (added below). The
+# AI module's recipe handler (registered in this api container via
+# the platform's module-host bridge) spawns `goose run` for every
+# ai:run-recipe job — without these the binary won't load.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      git \
+      ca-certificates \
+      openssh-client \
+      curl \
+      bzip2 \
+      python3 \
+      python3-pip \
+      pipx \
+      libgomp1 \
+      libxcb1 \
+      libdbus-1-3 \
+    && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@latest --activate
+
+# Install Goose CLI. Version pin tracked via Renovate (.github/
+# renovate.json5 watches block/goose releases and bumps both this
+# Dockerfile AND docker/worker/Dockerfile together — both images
+# spawn the same binary on the same recipes so they must stay in
+# sync). Detect arch from `uname -m` so the same Dockerfile builds
+# clean on both ARM64 (dev Mac) and AMD64 (Linux K8s).
+ARG GOOSE_VERSION=v1.34.1
+RUN PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin pipx install uv
+RUN set -eux; \
+    arch="$(uname -m)"; \
+    case "$arch" in \
+      x86_64|amd64) goose_target=x86_64-unknown-linux-gnu ;; \
+      aarch64|arm64) goose_target=aarch64-unknown-linux-gnu ;; \
+      *) echo "unsupported uname -m=$arch"; exit 1 ;; \
+    esac; \
+    cd /tmp; \
+    curl -fSL --retry 3 \
+      "https://github.com/block/goose/releases/download/${GOOSE_VERSION}/goose-${goose_target}.tar.bz2" \
+      -o goose.tar.bz2; \
+    tar -xjf goose.tar.bz2; \
+    mv goose /usr/local/bin/goose; \
+    chmod +x /usr/local/bin/goose; \
+    rm -f goose.tar.bz2; \
+    /usr/local/bin/goose --version
 
 WORKDIR /app
 
@@ -100,6 +143,7 @@ RUN mkdir -p /app/.gatewaze-modules /app/data /tmp/module-repos /var/lib/gatewaz
 
 # Copy entrypoint script (clones additional module repos at startup)
 COPY docker/api/entrypoint.sh /docker-entrypoint.sh
+COPY docker/shared/aggregate-module-deps.mjs /docker/shared/aggregate-module-deps.mjs
 RUN chmod +x /docker-entrypoint.sh
 
 # Bake module npm deps at image-build time.

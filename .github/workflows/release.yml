@@ -102,6 +102,13 @@ jobs:
             ghcr.io/gatewaze/worker:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # Worker bakes module npm deps at build time (same reason
+          # as the api image) — it dispatches BullMQ jobs to module-
+          # side handlers that require() module-declared deps like
+          # `openai`. Needs the PAT, not the auto-token, to clone the
+          # private premium-gatewaze-modules + lf-gatewaze-modules.
+          build-args: |
+            BUILD_TIME_GITHUB_TOKEN=${{ secrets.GH_PAT_MODULES }}
 
       - name: Build and push scheduler image
         uses: docker/build-push-action@v6
@@ -115,6 +122,11 @@ jobs:
             ghcr.io/gatewaze/scheduler:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # Scheduler dynamic-imports each module's scheduler handler
+          # via loadModules() at startup; same dep-resolution issue
+          # as the api + worker.
+          build-args: |
+            BUILD_TIME_GITHUB_TOKEN=${{ secrets.GH_PAT_MODULES }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
