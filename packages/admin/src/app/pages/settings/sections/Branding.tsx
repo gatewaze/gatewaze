@@ -31,6 +31,7 @@ import { RichTextEditor } from "@/components/ui/RichTextEditor";
 import { Page } from "@/components/shared/Page";
 import { supabase } from "@/lib/supabase";
 import { updateFavicon } from "@/utils/favicon";
+import { refreshBrandingLogos } from "@/hooks/useBrandingLogos";
 import { useThemeContext } from "@/app/contexts/theme/context";
 import { colors as colorPalettes } from "@/constants/colors";
 import type { PrimaryColor } from "@/configs/@types/theme";
@@ -67,7 +68,8 @@ interface BrandingSettings {
   font_body: string;
   font_body_weight: string;
   body_text_size: string;
-  logo_url: string;
+  logo_url_light: string;
+  logo_url_dark: string;
   logo_icon_url: string;
   favicon_url: string;
   storage_bucket_url: string;
@@ -86,7 +88,8 @@ const BRANDING_DEFAULTS: BrandingSettings = {
   font_body: "Inter",
   font_body_weight: "400",
   body_text_size: "16",
-  logo_url: "",
+  logo_url_light: "",
+  logo_url_dark: "",
   logo_icon_url: "",
   favicon_url: "",
   storage_bucket_url: "",
@@ -420,6 +423,7 @@ function BrandingCard({ section }: { section: "system" | "admin" | "portal" }) {
       setOriginalPeopleAttributes(peopleAttributes);
       setOriginalGradientWaveConfig(gradientWaveConfig);
       setOriginalPortalNavOverrides(portalNavOverrides);
+      refreshBrandingLogos();
       setSaved(true);
       setTimeout(() => setSaved(false), 5000);
     } catch (err) {
@@ -530,11 +534,18 @@ function BrandingCard({ section }: { section: "system" | "admin" | "portal" }) {
               </Heading>
               <div className="space-y-4">
                 <LogoUploadField
-                  label="Full Logo"
-                  description="Shown in the portal header on the homepage. Recommended: SVG or PNG, max height 40px."
-                  value={settings.logo_url}
-                  settingKey="logo"
-                  onChange={(v) => updateSetting("logo_url", v)}
+                  label="Light Logo"
+                  description="Used on dark backgrounds, e.g. the admin left menu. Falls back to the bundled Gatewaze logo if empty."
+                  value={settings.logo_url_light}
+                  settingKey="logo_light"
+                  onChange={(v) => updateSetting("logo_url_light", v)}
+                />
+                <LogoUploadField
+                  label="Dark Logo"
+                  description="Used on light backgrounds, e.g. the loading splash screen. Falls back to the bundled Gatewaze logo if empty."
+                  value={settings.logo_url_dark}
+                  settingKey="logo_dark"
+                  onChange={(v) => updateSetting("logo_url_dark", v)}
                 />
                 <LogoUploadField
                   label="Logo Icon"
