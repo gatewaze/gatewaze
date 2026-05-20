@@ -4,6 +4,8 @@ import { resolve, isAbsolute } from 'path';
 import { execFileSync, type ExecFileSyncOptions } from 'child_process';
 import { mkdirSync } from 'fs';
 import { liveModuleDir } from './module-paths';
+import { readLiveSnapshotHash } from './live-tree';
+import { computeModuleHashFromPath } from './module-hash';
 
 /** Subdirectories within a module that contribute to its "last modified" time. */
 const MTIME_DIRS = ['migrations', 'admin', 'portal', 'api', 'lib', 'workers', 'helm'];
@@ -188,19 +190,32 @@ export async function loadModules(
         }
       }
 
-      // Warn if module exists in later sources (shadowed)
+      // Warn if module exists in later sources (shadowed). In the
+      // common production case the resolved path is the live snapshot
+      // and the shadow is the source clone the snapshot was taken
+      // from — same content, just noise. Suppress when the shadow's
+      // content hash matches the snapshot's recorded source hash;
+      // only warn when they actually diverge (operator manually
+      // edited one side, or the source moved ahead of the live tree).
       if (resolvedDir) {
+        const snapshotHash = resolvedDir === liveModuleDir(slug)
+          ? readLiveSnapshotHash(slug)
+          : null;
         const currentSourceIdx = resolvedSources.indexOf(
           resolvedDir.substring(0, resolvedDir.lastIndexOf('/'))
         );
         for (let si = currentSourceIdx + 1; si < resolvedSources.length; si++) {
           const laterDir = resolve(resolvedSources[si], slug);
           const laterIndex = resolve(laterDir, 'index.ts');
-          if (existsSync(laterIndex)) {
-            console.warn(
-              `[modules] MODULE_SHADOWED: "${packageName}" resolved from "${resolvedDir}" but also exists at "${laterDir}". First match wins.`,
-            );
+          if (!existsSync(laterIndex)) continue;
+          if (snapshotHash) {
+            let shadowHash: string | null = null;
+            try { shadowHash = computeModuleHashFromPath(laterDir); } catch { /* fall through to warn */ }
+            if (shadowHash && shadowHash === snapshotHash) continue;
           }
+          console.warn(
+            `[modules] MODULE_SHADOWED: "${packageName}" resolved from "${resolvedDir}" but also exists at "${laterDir}". First match wins.`,
+          );
         }
       }
 
