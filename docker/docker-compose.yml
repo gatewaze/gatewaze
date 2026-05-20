@@ -570,6 +570,12 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      # spec-ai-mcp-extensions.md §6 — route chat through `goose session`
+      # so MCP allowlists, runtime overrides + the Gatewaze-owned memory
+      # backing store all apply the same way they do for recipe runs.
+      # Calls with structuredTool / extraTools / null threadId stay on the
+      # inline ProviderRouter path (see runner.ts shouldRouteThroughGoose).
+      AI_CHAT_EXECUTOR: ${AI_CHAT_EXECUTOR:-goose}
       # ----- AI chatbot web tools (spec-ai-chatbot-web-search.md) -----
       # Per-deployment toggles + budgets. Default OFF — opt in by setting
       # the *_ENABLED flags in the brand env file. Internal fetch backend
@@ -642,6 +648,12 @@ services:
       GOOGLE_CSE_DAILY_BUDGET: ${GOOGLE_CSE_DAILY_BUDGET:-100}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      # spec-ai-mcp-extensions.md §6 — route chat through `goose session`
+      # so MCP allowlists, runtime overrides + the Gatewaze-owned memory
+      # backing store all apply the same way they do for recipe runs.
+      # Default 'goose' (the unified path); set AI_CHAT_EXECUTOR=runChat
+      # to fall back to the in-house Anthropic loop if needed.
+      AI_CHAT_EXECUTOR: ${AI_CHAT_EXECUTOR:-goose}
       WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-1}
       MODULE_SOURCES: ${MODULE_SOURCES:-}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
