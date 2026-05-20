@@ -188,7 +188,14 @@ if [ -n "$MODULE_SOURCES" ]; then
     # layout would put the symlinks. Without this, openai, ws, etc.
     # are in the pnpm store but MODULE_NOT_FOUND from cloned module
     # code.
-    (cd /app && pnpm install --no-frozen-lockfile --prod --shamefully-hoist --config.dangerously-allow-all-builds=true 2>&1 | tail -3) \
+    #
+    # CI=true: switching layouts (strict → hoisted) makes pnpm want to
+    # purge node_modules first, and it asks for TTY confirmation. In
+    # docker build there is no TTY, so without this env var pnpm
+    # aborts with ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY and the
+    # whole install becomes a silent no-op. Show output in full
+    # (no tail) so future failures surface clearly.
+    (cd /app && CI=true pnpm install --no-frozen-lockfile --prod --shamefully-hoist --config.dangerously-allow-all-builds=true 2>&1 | tail -10) \
       || echo "[api] Warning: pnpm install for aggregated module deps failed"
     echo "[api] Module deps aggregation complete."
   fi
