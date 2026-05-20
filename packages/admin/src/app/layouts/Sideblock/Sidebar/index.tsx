@@ -1,13 +1,18 @@
 // Import Dependencies
-import { Portal } from "@headlessui/react";
-import { ArrowLeftStartOnRectangleIcon } from "@heroicons/react/24/outline";
+import {
+  ArrowLeftStartOnRectangleIcon,
+  Cog6ToothIcon,
+} from "@heroicons/react/24/outline";
 import { Theme } from "@radix-ui/themes";
+import { NavLink, useLocation } from "react-router";
+import clsx from "clsx";
 
 // Local Imports
 import { useBreakpointsContext } from "@/app/contexts/breakpoint/context";
 import { useSidebarContext } from "@/app/contexts/sidebar/context";
 import { useAuthContext } from "@/app/contexts/auth/context";
 import { useDidUpdate } from "@/hooks";
+import { isRouteActive } from "@/utils/isRouteActive";
 import { Header } from "./Header";
 import { Menu } from "./Menu";
 
@@ -16,6 +21,7 @@ import { Menu } from "./Menu";
 export function Sidebar() {
   const { logout } = useAuthContext();
   const { name, lgAndDown } = useBreakpointsContext();
+  const { pathname } = useLocation();
 
   const { isExpanded: isSidebarExpanded, close: closeSidebar } =
     useSidebarContext();
@@ -28,9 +34,11 @@ export function Sidebar() {
     logout();
   };
 
+  const isSettingsActive = isRouteActive("/admin", pathname);
+
   return (
     <div
-      className="sidebar-panel"
+      className="sidebar-panel bg-[var(--accent-2)]"
     >
       <Theme
         appearance="dark"
@@ -40,8 +48,21 @@ export function Sidebar() {
         <Header />
         <Menu />
 
-        {/* Sign Out Button */}
-        <div className="mt-auto p-4 border-t border-[var(--accent-a4)]">
+        {/* Settings + Sign Out (pinned to bottom) */}
+        <div className="mt-auto border-t border-[var(--accent-a4)] p-4 space-y-1">
+          <NavLink
+            to="/admin"
+            onClick={() => lgAndDown && closeSidebar()}
+            className={clsx(
+              "flex w-full items-center gap-3 px-3 py-2.5 text-xs-plus tracking-wide font-medium rounded-lg transition-colors",
+              isSettingsActive
+                ? "bg-[var(--accent-a3)] text-[var(--accent-12)]"
+                : "text-[var(--accent-11)] hover:text-[var(--accent-12)] hover:bg-[var(--accent-a3)]",
+            )}
+          >
+            <Cog6ToothIcon className="size-5" />
+            <span>Settings</span>
+          </NavLink>
           <button
             onClick={handleLogout}
             className="flex w-full items-center gap-3 px-3 py-2.5 text-xs-plus tracking-wide font-medium text-[var(--accent-11)] hover:text-[var(--accent-12)] hover:bg-[var(--accent-a3)] rounded-lg transition-colors"
@@ -51,15 +72,6 @@ export function Sidebar() {
           </button>
         </div>
       </Theme>
-
-      {lgAndDown && isSidebarExpanded && (
-        <Portal>
-          <div
-            onClick={closeSidebar}
-            className="fixed inset-0 z-20 bg-gray-900/50 backdrop-blur-sm transition-opacity dark:bg-black/40"
-          />
-        </Portal>
-      )}
     </div>
   );
 }
