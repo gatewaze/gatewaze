@@ -122,6 +122,15 @@ COPY --from=builder /app/packages/api/dist/gatewaze.config.js ./
 # Link shared package to root node_modules so Node ESM resolver can find it
 RUN mkdir -p node_modules/@gatewaze && ln -s ../../packages/shared node_modules/@gatewaze/shared
 
+# Mirror the worker's `/node_modules -> /app/node_modules` symlink so
+# modules loaded from /tmp/module-repos/<repo>/modules/<id>/...  can
+# resolve their npm deps via Node's standard walk-up lookup. Without
+# this the AI module's register-routes.ts (and every other module
+# that requires `express` / `bullmq` / `ws` from a /tmp clone) fails
+# with MODULE_NOT_FOUND on first import, taking down the module's
+# entire route surface. Same pattern as docker/worker/Dockerfile.
+RUN ln -sfn /app/node_modules /node_modules
+
 # Copy default modules (cloned at build time) and config
 COPY --from=builder /gatewaze-modules/modules /gatewaze-modules/modules
 COPY --from=builder /app/gatewaze.config.ts ./gatewaze.config.ts
