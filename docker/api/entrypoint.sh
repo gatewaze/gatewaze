@@ -127,6 +127,13 @@ if [ -n "$MODULE_SOURCES" ]; then
         # Skip modules with no `dependencies` block to avoid pointless installs.
         grep -q '"dependencies"' "$mod/package.json" || continue
         modname=$(basename "$mod")
+        # Fast path: deps already baked into the image at PREBUILD time
+        # (see Dockerfile). Skipping the install lets the api pod start
+        # in seconds rather than minutes — the chart's liveness probe
+        # gives only ~55s before it kills the pod.
+        if [ -d "$mod/node_modules" ] && [ -z "$PREBUILD_FORCE" ]; then
+          continue
+        fi
         echo "[api] $modname: pnpm install --prod"
         (cd "$mod" && pnpm install --prod --no-frozen-lockfile --config.dangerously-allow-all-builds=true 2>&1 | tail -2) \
           || echo "[api] Warning: pnpm install failed for $modname (module will fail to load at runtime)"
@@ -135,6 +142,15 @@ if [ -n "$MODULE_SOURCES" ]; then
   done
   unset IFS
   echo "[api] Module npm dep install complete."
+fi
+
+# PREBUILD=1 runs this script during `docker build` to populate
+# /app/.gatewaze-modules + per-module node_modules into the image.
+# In that mode we MUST NOT exec the server — there's no server arg,
+# and the build step just needs the filesystem changes captured.
+if [ -n "$PREBUILD" ]; then
+  echo "[api] PREBUILD=1 — module deps populated, exiting without exec."
+  exit 0
 fi
 
 exec "$@"

@@ -82,6 +82,13 @@ jobs:
             ghcr.io/gatewaze/api:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # The Dockerfile bakes module npm deps (openai for the AI
+          # module, ws for editor-ai-copilot, etc.) at build time so
+          # pod startup doesn't have to do per-module pnpm installs.
+          # Mirrors the admin build — PAT, not auto-token, because
+          # premium-gatewaze-modules + lf-gatewaze-modules are private.
+          build-args: |
+            BUILD_TIME_GITHUB_TOKEN=${{ secrets.GH_PAT_MODULES }}
 
       - name: Build and push worker image
         uses: docker/build-push-action@v6
