@@ -102,6 +102,43 @@ RUN mkdir -p /app/.gatewaze-modules /app/data /tmp/module-repos /var/lib/gatewaz
 COPY docker/api/entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
+# Bake module npm deps at image-build time.
+#
+# Modules can declare server-side npm deps (e.g. `openai` in
+# @gatewaze-modules/ai, `ws` in editor-ai-copilot) that are NOT in
+# the api's own package.json. Without these on disk, the api's
+# registerModuleRoutes() throws MODULE_NOT_FOUND on the first
+# unresolvable require() and the outer catch takes down ALL module
+# routes — not just the offending one.
+#
+# Doing a runtime `pnpm install` per-module from the entrypoint is
+# too slow: the chart's liveness probe (delay 10s, period 15s,
+# failureThreshold 3 → ~55s) kills the pod long before the install
+# finishes, restart-looping the api (v1.2.31 incident, 2026-05-20).
+#
+# Instead, run the entrypoint with PREBUILD=1 here so it clones each
+# MODULE_SOURCES repo into /app/.gatewaze-modules/<slug> (the path
+# loader.ts uses at runtime) and pnpm-installs per module. The
+# resulting node_modules trees get baked into the image; runtime
+# entrypoint sees them and skips the install (fast path).
+#
+# Brands using a MODULE_SOURCES superset of the bake-time set get a
+# no-op runtime install. Brands that override with a module repo we
+# didn't bake fall back to a runtime install for that repo only
+# (slow path — but at least localised, and we have a clear log line
+# pointing at the cause).
+#
+# Wrap in `|| (...)` so a private-repo clone failure during build
+# doesn't abort the image — same defence as docker/admin/Dockerfile.
+ARG BUILD_TIME_MODULE_SOURCES="https://github.com/gatewaze/gatewaze-modules.git#branch=main&path=modules,https://github.com/gatewaze/premium-gatewaze-modules.git#branch=main&path=modules,https://github.com/gatewaze/lf-gatewaze-modules.git#branch=main&path=modules"
+ARG BUILD_TIME_GITHUB_TOKEN=""
+ENV BUILD_TIME_MODULE_SOURCES=$BUILD_TIME_MODULE_SOURCES
+RUN MODULE_SOURCES="$BUILD_TIME_MODULE_SOURCES" \
+    GITHUB_TOKEN="$BUILD_TIME_GITHUB_TOKEN" \
+    PREBUILD=1 \
+    /docker-entrypoint.sh \
+  || echo "[api] PREBUILD failed — runtime entrypoint will fall through to slow install path"
+
 # Runs as root: the entrypoint creates symlinks under / for cloned module
 # repos and writes .gitconfig. Restrict via the chart's api.securityContext
 # if your threat model requires it (will need companion app changes).
