@@ -135,7 +135,16 @@ if [ -n "$MODULE_SOURCES" ]; then
           continue
         fi
         echo "[api] $modname: pnpm install --prod"
-        (cd "$mod" && pnpm install --prod --no-frozen-lockfile --config.dangerously-allow-all-builds=true 2>&1 | tail -2) \
+        # --ignore-workspace is critical: gatewaze-modules and
+        # premium-gatewaze-modules both ship pnpm-workspace.yaml files
+        # at their repo roots. Without --ignore-workspace, pnpm walks
+        # up from the module dir, switches to workspace mode, and tries
+        # to resolve sibling deps like `@gatewaze/shared` from
+        # `../gatewaze/packages/*` — a path that exists in dev but not
+        # in the container — then falls back to npm and fails with
+        # "No authorization header was set for the request." Module
+        # node_modules is left empty and the api crashes at runtime.
+        (cd "$mod" && pnpm install --prod --ignore-workspace --no-frozen-lockfile --config.dangerously-allow-all-builds=true 2>&1 | tail -3) \
           || echo "[api] Warning: pnpm install failed for $modname (module will fail to load at runtime)"
       done
     fi
