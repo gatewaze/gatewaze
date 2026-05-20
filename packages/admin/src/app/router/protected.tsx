@@ -92,6 +92,15 @@ const protectedRoutes: RouteObject = {
           Component: AdminGuard,
           children: [
             {
+              index: true,
+              lazy: async () => {
+                const module = await import("@/app/pages/admin");
+                return {
+                  Component: module.default,
+                };
+              },
+            },
+            {
               path: "users",
               lazy: async () => {
                 const module = await import("@/app/pages/admin/users");
