@@ -1,0 +1,44 @@
+{
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: ['config:recommended'],
+  // Stay quiet by default — the platform's primary dep graph is
+  // pinned in pnpm.overrides and updates land via direct human PRs.
+  // This config exists specifically to track external tooling that we
+  // bake into our Docker images so a silent upstream change can't ship
+  // a broken worker.
+  enabledManagers: ['custom.regex'],
+  customManagers: [
+    {
+      // Goose CLI binary — pinned in docker/worker/Dockerfile via
+      // ARG GOOSE_VERSION=vX.Y.Z. When block/goose tags a new release,
+      // Renovate opens a PR bumping that pin. The PR carries the
+      // upstream release notes so the reviewer can scan for breaking
+      // changes (extension API, recipe schema) before merging.
+      //
+      // Renovate uses datasource=github-releases + depName='block/goose'
+      // to discover available tags; the (?<currentValue>) capture is
+      // what gets rewritten in the Dockerfile.
+      customType: 'regex',
+      managerFilePatterns: ['docker/worker/Dockerfile'],
+      matchStrings: ['ARG GOOSE_VERSION=(?<currentValue>v[\\d\\.]+)'],
+      datasourceTemplate: 'github-releases',
+      depNameTemplate: 'block/goose',
+      // Goose tags are vN.M.K — semver versioning so Renovate can
+      // ordering-sort major/minor/patch and let us pin scope via the
+      // packageRules below.
+      versioningTemplate: 'semver',
+    },
+  ],
+  packageRules: [
+    {
+      // Group all Goose bumps into a single PR per release. Don't
+      // auto-merge — Goose is fast-moving and breaking changes ride
+      // inside minor versions occasionally; we want a human to scan
+      // the release notes.
+      matchDepNames: ['block/goose'],
+      groupName: 'goose-cli',
+      labels: ['dependencies', 'goose'],
+      automerge: false,
+    },
+  ],
+}
