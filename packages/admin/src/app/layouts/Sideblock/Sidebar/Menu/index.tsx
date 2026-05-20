@@ -30,8 +30,11 @@ export function Menu() {
       return [];
     }
 
-    // Filter navigation tree based on permissions and module state
-    return filterNavigationByPermissions(navigation, permissions, isSuperAdmin, isFeatureEnabled, allModuleFeatures);
+    // Filter navigation tree based on permissions and module state.
+    // The admin section is intentionally excluded here — it's surfaced via
+    // the fixed "Settings" button at the bottom of the sidebar instead.
+    const filtered = filterNavigationByPermissions(navigation, permissions, isSuperAdmin, isFeatureEnabled, allModuleFeatures);
+    return filtered.filter((item) => item.id !== "admin");
   }, [navigation, permissions, isSuperAdmin, isLoading, modulesReady, isFeatureEnabled, allModuleFeatures]);
 
   const activeGroup = filteredNavigation.find((item) => {
