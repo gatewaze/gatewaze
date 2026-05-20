@@ -28,6 +28,9 @@ RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
     pipx \
+    libgomp1 \
+    libxcb1 \
+    libdbus-1-3 \
     --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     # Replace crashpad handler with a wrapper that provides the required --database flag
@@ -41,17 +44,21 @@ RUN apt-get update && apt-get install -y \
 # add to PATH below.
 RUN PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin pipx install uv
 
-# Install Goose CLI. Use TARGETARCH (set automatically by docker
-# buildx) to pick the right tarball — Linux/aarch64 for ARM builds,
-# Linux/x86_64 otherwise. Verify the binary launches after install
-# so an upstream change to the tarball layout fails the build loudly
-# instead of silently shipping a broken worker.
-ARG TARGETARCH=amd64
+# Install Goose CLI. Detect the architecture from `uname -m` rather
+# than relying on the docker-buildx TARGETARCH build arg — on Apple
+# Silicon hosts building an amd64 image without an explicit
+# --platform, the build runs under Rosetta translation but the
+# upstream Goose x86_64-gnu tarball can't load /lib64/ld-linux-x86-64.so.2
+# through Rosetta on slim base images. Reading the *actual* container
+# arch sidesteps that: an ARM64-native worker pulls the aarch64 tarball
+# and runs natively; an x86_64-native worker (CI, prod x86 nodes)
+# pulls the x86_64 tarball as before.
 RUN set -eux; \
-    case "$TARGETARCH" in \
-      amd64) goose_target=x86_64-unknown-linux-gnu ;; \
-      arm64) goose_target=aarch64-unknown-linux-gnu ;; \
-      *) echo "unsupported TARGETARCH=$TARGETARCH"; exit 1 ;; \
+    arch="$(uname -m)"; \
+    case "$arch" in \
+      x86_64|amd64) goose_target=x86_64-unknown-linux-gnu ;; \
+      aarch64|arm64) goose_target=aarch64-unknown-linux-gnu ;; \
+      *) echo "unsupported uname -m=$arch"; exit 1 ;; \
     esac; \
     cd /tmp; \
     curl -fSL --retry 3 \
@@ -92,7 +99,56 @@ RUN ln -sfn /app/node_modules /node_modules && \
 # /tmp/module-repos and symlinks them under / before handing off to CMD.
 # Without this the worker crashes on `import '/premium-gatewaze-modules/...'`.
 COPY docker/api/entrypoint.sh /docker-entrypoint.sh
+COPY docker/shared/aggregate-module-deps.mjs /docker/shared/aggregate-module-deps.mjs
 RUN chmod +x /docker-entrypoint.sh && mkdir -p /tmp/module-repos
+
+# Bake module npm deps at image-build time.
+#
+# Worker dispatches BullMQ jobs to handlers in modules (AI research,
+# scraper runs, content jobs, etc.). Those handlers `require()` their
+# declared dependencies (e.g. `openai` for the AI module). scripts/
+# package.json only contains the core worker deps — module-side deps
+# must also live in /app/node_modules so Node's resolver finds them
+# when walking up from `/<reponame>/modules/<id>/...` (the symlinks
+# the entrypoint creates point here via the /node_modules symlink
+# set above).
+#
+# At runtime the same entrypoint just clones modules and exec's CMD;
+# no install runs (the deps are baked in). If a brand pulls a module
+# repo we didn't bake, its handlers will crash on first dispatch —
+# matches the api behaviour and is loud rather than silent.
+ARG BUILD_TIME_MODULE_SOURCES="https://github.com/gatewaze/gatewaze-modules.git#branch=main&path=modules,https://github.com/gatewaze/premium-gatewaze-modules.git#branch=main&path=modules,https://github.com/gatewaze/lf-gatewaze-modules.git#branch=main&path=modules"
+ARG BUILD_TIME_GITHUB_TOKEN=""
+ENV BUILD_TIME_MODULE_SOURCES=$BUILD_TIME_MODULE_SOURCES
+RUN if [ -n "$BUILD_TIME_GITHUB_TOKEN" ]; then \
+      git config --global url."https://x-token:${BUILD_TIME_GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"; \
+    fi; \
+    mkdir -p /app/.gatewaze-modules; \
+    IFS=','; \
+    for source in $BUILD_TIME_MODULE_SOURCES; do \
+      url="${source%%#*}"; \
+      fragment=""; \
+      case "$source" in *\#*) fragment="${source#*#}" ;; esac; \
+      case "$url" in http://*|https://*|git://*|git@*|*.git) ;; *) continue ;; esac; \
+      branch="main"; \
+      if [ -n "$fragment" ]; then \
+        _OLD_IFS=$IFS; IFS=' '; \
+        for kv in $(echo "$fragment" | tr '&' ' '); do \
+          case "$kv" in branch=*) branch="${kv#branch=}" ;; esac; \
+        done; \
+        IFS=$_OLD_IFS; \
+      fi; \
+      slug=$(printf '%s' "$url" | sed -E 's|^https?://||; s|^git://||; s|^git@||' | sed -E 's|\.git$||' | sed -E 's|[^a-zA-Z0-9-]|-|g'); \
+      target="/app/.gatewaze-modules/$slug"; \
+      [ -d "$target/.git" ] && continue; \
+      echo "[worker-prebuild] Cloning $url -> $target (branch: $branch)"; \
+      git clone --depth 1 --branch "$branch" "$url" "$target" >/dev/null 2>&1 \
+        || echo "[worker-prebuild] Warning: failed to clone $url"; \
+    done; \
+    unset IFS; \
+    node /docker/shared/aggregate-module-deps.mjs /app/package.json; \
+    cd /app && npm install --omit=dev 2>&1 | tail -5 \
+      || echo "[worker-prebuild] Warning: npm install for aggregated module deps failed"
 
 # Runs as root: the entrypoint writes symlinks under / and .gitconfig under
 # the user's home. Override via the chart's worker.securityContext if needed.

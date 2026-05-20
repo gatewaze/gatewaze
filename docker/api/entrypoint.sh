@@ -138,48 +138,7 @@ if [ -n "$MODULE_SOURCES" ]; then
   # probe gives only ~55s before it kills the pod, and a full pnpm
   # install is way over that.
   if [ -n "$PREBUILD" ]; then
-    echo "[api] Aggregating module deps into api package.json..."
-    node --input-type=module -e '
-      import { readFileSync, writeFileSync, readdirSync, existsSync } from "fs";
-      import { join } from "path";
-
-      const moduleRoot = "/app/.gatewaze-modules";
-      if (!existsSync(moduleRoot)) process.exit(0);
-
-      // Walk every cloned module package.json, dedupe by name (first wins).
-      const deps = new Map();
-      for (const slug of readdirSync(moduleRoot)) {
-        const modulesPath = join(moduleRoot, slug, "modules");
-        if (!existsSync(modulesPath)) continue;
-        for (const modName of readdirSync(modulesPath)) {
-          const pkgPath = join(modulesPath, modName, "package.json");
-          if (!existsSync(pkgPath)) continue;
-          let pkg;
-          try { pkg = JSON.parse(readFileSync(pkgPath, "utf8")); }
-          catch (e) { console.error("[api] skip " + pkgPath + ": " + e.message); continue; }
-          if (!pkg.dependencies) continue;
-          for (const [name, ver] of Object.entries(pkg.dependencies)) {
-            // Platform-internal scopes resolve via the workspace or
-            // sibling-module imports — never from npm. Skip so pnpm
-            // does not try to fetch them.
-            if (name.startsWith("@gatewaze/") || name.startsWith("@gatewaze-modules/")) continue;
-            if (!deps.has(name)) deps.set(name, ver);
-          }
-        }
-      }
-
-      const apiPkgPath = "/app/packages/api/package.json";
-      const apiPkg = JSON.parse(readFileSync(apiPkgPath, "utf8"));
-      apiPkg.dependencies = apiPkg.dependencies ?? {};
-      let added = 0;
-      for (const [name, ver] of deps) {
-        if (apiPkg.dependencies[name]) continue;
-        apiPkg.dependencies[name] = ver;
-        added++;
-      }
-      writeFileSync(apiPkgPath, JSON.stringify(apiPkg, null, 2) + "\n");
-      console.log("[api] Merged " + added + " module deps into api package.json (total deps: " + Object.keys(apiPkg.dependencies).length + ")");
-    '
+    node /docker/shared/aggregate-module-deps.mjs /app/packages/api/package.json
     echo "[api] Reinstalling api workspace with aggregated module deps..."
     # --shamefully-hoist creates top-level symlinks at /app/node_modules
     # for every transitive dep. Required because Node's resolver walks
