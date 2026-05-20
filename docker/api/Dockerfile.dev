@@ -65,6 +65,15 @@ COPY packages/shared/package.json packages/shared/
 RUN --mount=type=cache,id=pnpm-api-dev,target=/root/.local/share/pnpm/store \
     pnpm install --no-frozen-lockfile
 
+# Mirror the prod api Dockerfile's /node_modules -> /app/node_modules
+# symlink so modules loaded from /tmp/module-repos/* / /gatewaze-modules/*
+# / /lf-gatewaze-modules/* can resolve their npm deps via Node's standard
+# walk-up. Without this, every module that requires anything beyond
+# what's in its own package.json fails with MODULE_NOT_FOUND on first
+# import — taking down its entire route surface. See commit 7564182 for
+# the prod fix; this aligns the dev image.
+RUN ln -sfn /app/node_modules /node_modules
+
 # Copy root config file (referenced by API at runtime via tsx)
 COPY gatewaze.config.ts ./
 # tsx doesn't resolve .js→.ts for non-project files; create a .js re-export shim
