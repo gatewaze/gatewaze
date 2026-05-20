@@ -57,6 +57,41 @@ export class ModuleService {
     }
   }
 
+  /**
+   * Preflight before enabling. Returns warnings (npm deps missing,
+   * required Postgres extensions referenced in migrations, etc.) so
+   * the UI can surface them and let the operator confirm or cancel.
+   * Server-side this is a pure read — no side effects.
+   */
+  static async preflightEnable(
+    moduleId: string,
+  ): Promise<{
+    ok: boolean;
+    warnings: Array<{
+      code: string;
+      severity: 'warning' | 'blocker';
+      message: string;
+      details?: Record<string, unknown>;
+    }>;
+    error?: string;
+  }> {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL ?? '';
+      const res = await apiFetch(`${apiUrl}/api/modules/${moduleId}/preflight`);
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return { ok: false, warnings: [], error: body.error ?? `Preflight failed (${res.status})` };
+      }
+      return { ok: body.ok ?? false, warnings: body.warnings ?? [] };
+    } catch (error) {
+      return {
+        ok: false,
+        warnings: [],
+        error: error instanceof Error ? error.message : 'Failed to preflight enable',
+      };
+    }
+  }
+
   static async enableModule(
     moduleId: string
   ): Promise<{ success: boolean; migrationsApplied?: string[]; edgeFunctionsDeployed?: string[]; autoEnabledDependencies?: string[]; error?: string }> {
