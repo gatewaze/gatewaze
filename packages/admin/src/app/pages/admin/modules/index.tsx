@@ -120,6 +120,12 @@ export default function ModulesPage() {
   const [activeSourceTab, setActiveSourceTab] = useState<string>(ALL_SOURCES_TAB);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [infoModule, setInfoModule] = useState<ModuleCardData | null>(null);
+  const [preflightPrompt, setPreflightPrompt] = useState<{
+    moduleId: string;
+    moduleName: string;
+    warnings: Array<{ code: string; severity: 'warning' | 'blocker'; message: string }>;
+    hasBlocker: boolean;
+  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadAvailableModules = useCallback(async () => {
@@ -269,25 +275,12 @@ export default function ModulesPage() {
     });
   }, [grouped]);
 
-  const handleToggle = async (moduleId: string, currentlyEnabled: boolean) => {
-    if (!isSuperAdmin) {
-      toast.error("Only super admins can manage modules");
-      return;
-    }
-
+  const performEnable = useCallback(async (moduleId: string) => {
     setTogglingId(moduleId);
-
-    const result = currentlyEnabled
-      ? await ModuleService.disableModule(moduleId)
-      : await ModuleService.enableModule(moduleId);
-
+    const result = await ModuleService.enableModule(moduleId);
     if (result.success) {
-      toast.success(
-        currentlyEnabled ? "Module disabled" : "Module enabled"
-      );
-      const auto = !currentlyEnabled
-        ? (result as { autoEnabledDependencies?: string[] }).autoEnabledDependencies
-        : undefined;
+      toast.success("Module enabled");
+      const auto = (result as { autoEnabledDependencies?: string[] }).autoEnabledDependencies;
       if (auto && auto.length > 0) {
         const names = auto
           .map((id) => availableModules.find((m) => m.id === id)?.name ?? id)
@@ -298,8 +291,58 @@ export default function ModulesPage() {
     } else {
       toast.error(result.error ?? "Failed to update module");
     }
-
     setTogglingId(null);
+  }, [availableModules, loadInstalledModules, refreshModulesContext]);
+
+  const handleToggle = async (moduleId: string, currentlyEnabled: boolean) => {
+    if (!isSuperAdmin) {
+      toast.error("Only super admins can manage modules");
+      return;
+    }
+
+    if (currentlyEnabled) {
+      setTogglingId(moduleId);
+      const result = await ModuleService.disableModule(moduleId);
+      if (result.success) {
+        toast.success("Module disabled");
+        await Promise.all([loadInstalledModules(), refreshModulesContext()]);
+      } else {
+        toast.error(result.error ?? "Failed to update module");
+      }
+      setTogglingId(null);
+      return;
+    }
+
+    // Enabling. Preflight first — surface missing npm deps + required
+    // Postgres extensions so the operator isn't surprised by a half-
+    // failed enable like the v1.2.30 AI-module / pgsodium incident.
+    setTogglingId(moduleId);
+    const pre = await ModuleService.preflightEnable(moduleId);
+    setTogglingId(null);
+
+    if (pre.error) {
+      // Preflight itself failed (network, endpoint not deployed yet,
+      // etc.). Don't block the operator — fall through to enable.
+      console.warn("[modules] preflight failed, proceeding anyway:", pre.error);
+      await performEnable(moduleId);
+      return;
+    }
+
+    if (pre.warnings.length === 0) {
+      await performEnable(moduleId);
+      return;
+    }
+
+    const moduleName =
+      installedModules.find((m) => m.id === moduleId)?.name
+      ?? availableModules.find((m) => m.id === moduleId)?.name
+      ?? moduleId;
+    setPreflightPrompt({
+      moduleId,
+      moduleName,
+      warnings: pre.warnings,
+      hasBlocker: pre.warnings.some((w) => w.severity === 'blocker'),
+    });
   };
 
   const handleUpdate = async (moduleId: string) => {
@@ -721,6 +764,62 @@ export default function ModulesPage() {
               await Promise.all([loadInstalledModules(), refreshModulesContext()]);
             }}
           />
+        )}
+
+        {preflightPrompt && (
+          <Modal
+            isOpen
+            onClose={() => setPreflightPrompt(null)}
+            title={`Enable ${preflightPrompt.moduleName}?`}
+            size="md"
+            footer={
+              <div className="flex justify-end gap-2">
+                <Button variant="outlined" onClick={() => setPreflightPrompt(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  color={preflightPrompt.hasBlocker ? "warning" : "primary"}
+                  onClick={() => {
+                    const id = preflightPrompt.moduleId;
+                    setPreflightPrompt(null);
+                    void performEnable(id);
+                  }}
+                >
+                  {preflightPrompt.hasBlocker ? "Enable anyway" : "Enable"}
+                </Button>
+              </div>
+            }
+          >
+            <div className="space-y-3 p-4">
+              <p className="text-sm text-[var(--gray-11)]">
+                Preflight surfaced {preflightPrompt.warnings.length}{" "}
+                {preflightPrompt.warnings.length === 1 ? "issue" : "issues"} that may cause
+                this module to fail at runtime or during migration:
+              </p>
+              <ul className="space-y-2">
+                {preflightPrompt.warnings.map((w, i) => (
+                  <li
+                    key={i}
+                    className={`rounded border px-3 py-2 text-sm ${
+                      w.severity === "blocker"
+                        ? "border-rose-500/40 bg-rose-500/10 text-rose-500 dark:text-rose-300"
+                        : "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-300"
+                    }`}
+                  >
+                    <span className="font-mono text-xs opacity-70">{w.code}</span>
+                    <div className="mt-1">{w.message}</div>
+                  </li>
+                ))}
+              </ul>
+              {preflightPrompt.hasBlocker && (
+                <p className="text-xs text-[var(--gray-11)]">
+                  At least one item is flagged as a blocker. Enabling now will likely fail —
+                  resolve the issue first (e.g. publish a new image including the missing
+                  dependency, or enable the required Postgres extension) and retry.
+                </p>
+              )}
+            </div>
+          </Modal>
         )}
 
         {infoModule?.guide && (

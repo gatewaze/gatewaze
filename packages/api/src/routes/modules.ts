@@ -793,6 +793,136 @@ async function enableModuleSteps(
 }
 
 /**
+ * Preflight checks for module enable.
+ *
+ * Returns the list of warnings/blockers the admin UI should surface
+ * before letting an operator click Enable. Two checks today:
+ *
+ *   1. NPM deps available: every name in the module's package.json
+ *      `dependencies` resolves from /app/node_modules. A miss means
+ *      registerModuleRoutes() will throw MODULE_NOT_FOUND when the
+ *      api restart re-evaluates the module — like the v1.2.30
+ *      incident with `openai`/`ws`. Module-internal scopes
+ *      (@gatewaze/*, @gatewaze-modules/*) are skipped because they
+ *      resolve via the workspace, not npm.
+ *
+ *   2. Required Postgres extensions installed: scan the module's
+ *      migration files for `CREATE EXTENSION ...` statements. If
+ *      pg_available_extensions doesn't list it, applyModuleMigrations
+ *      will fail on first run — like the v1.2.30 EXAMPLE pgsodium
+ *      incident where the AI module's migrations halted at 003
+ *      and the model price book never seeded.
+ */
+interface PreflightWarning {
+  code: 'MISSING_NPM_DEP' | 'MISSING_PG_EXTENSION';
+  severity: 'warning' | 'blocker';
+  message: string;
+  details?: Record<string, unknown>;
+}
+
+const CREATE_EXTENSION_RE = /\bCREATE\s+EXTENSION(?:\s+IF\s+NOT\s+EXISTS)?\s+"?([a-zA-Z0-9_-]+)"?/gi;
+
+function checkNpmDeps(mod: LoadedModule): PreflightWarning[] {
+  if (!mod.resolvedDir) return [];
+  const pkgPath = resolve(mod.resolvedDir, 'package.json');
+  if (!existsSync(pkgPath)) return [];
+
+  let pkg: { dependencies?: Record<string, string> };
+  try {
+    pkg = JSON.parse(readFileSync(pkgPath, 'utf-8')) as { dependencies?: Record<string, string> };
+  } catch {
+    return [];
+  }
+  if (!pkg.dependencies) return [];
+
+  const warnings: PreflightWarning[] = [];
+  for (const [name, version] of Object.entries(pkg.dependencies)) {
+    if (name.startsWith('@gatewaze/') || name.startsWith('@gatewaze-modules/')) continue;
+    const candidate = resolve(PROJECT_ROOT, 'node_modules', name);
+    if (existsSync(candidate)) continue;
+    warnings.push({
+      code: 'MISSING_NPM_DEP',
+      severity: 'blocker',
+      message: `Dependency "${name}" is declared in ${mod.config.id}'s package.json but is not installed in the api container. Enabling will succeed but the module's routes will fail to load on next api restart.`,
+      details: { name, version },
+    });
+  }
+  return warnings;
+}
+
+function collectRequiredExtensions(mod: LoadedModule): Map<string, string[]> {
+  // ext name -> migration filenames that reference it
+  const refs = new Map<string, string[]>();
+  if (!mod.resolvedDir) return refs;
+  const migrationPaths = mod.config.migrations ?? [];
+  for (const rel of migrationPaths) {
+    const full = resolve(mod.resolvedDir, rel);
+    if (!existsSync(full)) continue;
+    let sql: string;
+    try { sql = readFileSync(full, 'utf-8'); } catch { continue; }
+    for (const match of sql.matchAll(CREATE_EXTENSION_RE)) {
+      const name = match[1];
+      const list = refs.get(name) ?? [];
+      list.push(rel);
+      refs.set(name, list);
+    }
+  }
+  return refs;
+}
+
+function checkRequiredExtensions(mod: LoadedModule): PreflightWarning[] {
+  // We can't reliably read pg_available_extensions / pg_extension via
+  // PostgREST + exec_sql from here (system views aren't exposed and
+  // exec_sql returns no rows for SELECTs). So instead of asserting
+  // installed-or-not, surface every `CREATE EXTENSION` reference as
+  // a heads-up. Operators can verify in the Supabase dashboard. When
+  // a system-views RPC lands we can upgrade this to a real check.
+  const required = collectRequiredExtensions(mod);
+  if (required.size === 0) return [];
+  const warnings: PreflightWarning[] = [];
+  for (const [ext, migrations] of required) {
+    warnings.push({
+      code: 'MISSING_PG_EXTENSION',
+      severity: 'warning',
+      message: `Migration ${migrations.join(', ')} requires Postgres extension "${ext}". On Supabase Cloud the service role can install only a subset; verify in the dashboard before enabling. (pgsodium specifically must be enabled by the project owner — has bitten the AI module on EXAMPLE.)`,
+      details: { extension: ext, migrations },
+    });
+  }
+  return warnings;
+}
+
+/**
+ * GET /api/modules/:id/preflight
+ *
+ * Returns the warnings/blockers the admin UI should surface before
+ * the operator clicks Enable. Pure read — no side effects.
+ */
+modulesRouter.get('/:id/preflight', async (req, res) => {
+  try {
+    const moduleId = req.params.id;
+    const modules = await loadAllModules();
+    const mod = modules.find((m) => m.config.id === moduleId);
+    if (!mod) {
+      return res.status(404).json({ error: `Module "${moduleId}" not found`, code: 'NOT_FOUND' });
+    }
+    const npmWarnings = checkNpmDeps(mod);
+    const extWarnings = checkRequiredExtensions(mod);
+    const warnings = [...npmWarnings, ...extWarnings];
+    return res.json({
+      moduleId,
+      ok: warnings.every((w) => w.severity !== 'blocker'),
+      warnings,
+    });
+  } catch (err) {
+    logger.error({ err }, `[modules] preflight failed for "${req.params.id}":`);
+    return res.status(500).json({
+      error: err instanceof Error ? err.message : 'preflight failed',
+      code: 'PREFLIGHT_FAILED',
+    });
+  }
+});
+
+/**
  * POST /api/modules/:id/enable
  *
  * Enable a module: apply pending migrations, deploy edge functions,
