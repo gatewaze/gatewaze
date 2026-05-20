@@ -12,9 +12,16 @@ import { useSidebarContext } from "@/app/contexts/sidebar/context";
 export function Header() {
   const { close } = useSidebarContext();
   return (
-    <header className="relative flex h-[61px] shrink-0 items-center justify-center px-3">
-      <Link to="/" className="pt-3">
-        <BrandLogo type="logotype" className="h-6 w-auto text-[var(--brand-accent)]" />
+    <header className="relative flex h-[72px] shrink-0 items-center justify-center px-3">
+      <Link
+        to="/"
+        className="flex h-14 w-36 items-center justify-center"
+      >
+        <BrandLogo
+          type="logotype"
+          variant="light"
+          className="max-h-full max-w-full text-[var(--brand-accent)]"
+        />
       </Link>
       <div className="absolute right-3 pt-5 xl:hidden">
         <Button
