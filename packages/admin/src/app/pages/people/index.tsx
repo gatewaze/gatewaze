@@ -36,9 +36,9 @@ import {
   Input,
   ConfirmModal,
   Avatar,
-  Tabs,
   Select,
   Textarea,
+  WorkspaceLayout,
 } from '@/components/ui';
 import { Spinner } from '@/components/ui/Spinner';
 import { DataTable } from '@/components/shared/table/DataTable';
@@ -1081,93 +1081,81 @@ export default function MembersPage() {
     }
   };
 
+  const headerActions = (
+    <>
+      <Button
+        onClick={() => setAddPersonModalOpen(true)}
+        color="cyan"
+        className="gap-2"
+      >
+        <PlusIcon className="size-4" />
+        Add Person
+      </Button>
+
+      {/* CSV Import button for super admins */}
+      {isSystemAdmin && (
+        <>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv"
+            onChange={handleCsvImport}
+            className="hidden"
+            disabled={isImporting}
+          />
+          <Button
+            onClick={() => fileInputRef.current?.click()}
+            variant="outline"
+            disabled={isImporting}
+            className="gap-2 text-[var(--green-11)] border-[var(--green-a6)] hover:bg-[var(--green-a3)]"
+          >
+            <ArrowUpTrayIcon className="size-4" />
+            {isImporting ? 'Importing...' : 'Import CSV'}
+          </Button>
+        </>
+      )}
+
+      {selectedPersonIds.size > 0 && (
+        <>
+          <Button
+            onClick={handleExportCSV}
+            variant="outline"
+            className="gap-2 text-[var(--accent-11)] border-[var(--accent-a6)] hover:bg-[var(--accent-a3)]"
+          >
+            <ArrowDownTrayIcon className="size-4" />
+            Export CSV ({selectedPersonIds.size.toLocaleString()})
+          </Button>
+          <Button
+            onClick={handleBulkDelete}
+            variant="outline"
+            className="gap-2 text-[var(--red-11)] border-[var(--red-a6)] hover:bg-[var(--red-a3)]"
+          >
+            <TrashIcon className="size-4" />
+            Delete Selected ({selectedPersonIds.size})
+          </Button>
+        </>
+      )}
+    </>
+  );
+
   return (
     <Page title="People">
-      <div className="p-6 space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-semibold text-[var(--gray-12)]">
-              People Dashboard
-            </h1>
-            <p className="text-[var(--gray-11)] mt-1">
-              Viewing people with Supabase Auth accounts
-              {isAccountUser && !isSystemAdmin && (
-                <span className="ml-2 text-sm text-[var(--amber-11)] font-medium">
-                  (Showing all platform people - filtering by account competitions coming soon)
-                </span>
-              )}
-            </p>
-          </div>
-          <div className="flex gap-3 items-center">
-            {/* Add Person button */}
-            <Button
-              onClick={() => setAddPersonModalOpen(true)}
-              color="cyan"
-              className="gap-2"
-            >
-              <PlusIcon className="size-4" />
-              Add Person
-            </Button>
-
-            {/* CSV Import button for super admins */}
-            {isSystemAdmin && (
-              <>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".csv"
-                  onChange={handleCsvImport}
-                  className="hidden"
-                  disabled={isImporting}
-                />
-                <Button
-                  onClick={() => fileInputRef.current?.click()}
-                  variant="outline"
-                  disabled={isImporting}
-                  className="gap-2 text-[var(--green-11)] border-[var(--green-a6)] hover:bg-[var(--green-a3)]"
-                >
-                  <ArrowUpTrayIcon className="size-4" />
-                  {isImporting ? 'Importing...' : 'Import CSV'}
-                </Button>
-              </>
-            )}
-
-            {selectedPersonIds.size > 0 && (
-              <>
-                <Button
-                  onClick={handleExportCSV}
-                  variant="outline"
-                  className="gap-2 text-[var(--accent-11)] border-[var(--accent-a6)] hover:bg-[var(--accent-a3)]"
-                >
-                  <ArrowDownTrayIcon className="size-4" />
-                  Export CSV ({selectedPersonIds.size.toLocaleString()})
-                </Button>
-                <Button
-                  onClick={handleBulkDelete}
-                  variant="outline"
-                  className="gap-2 text-[var(--red-11)] border-[var(--red-a6)] hover:bg-[var(--red-a3)]"
-                >
-                  <TrashIcon className="size-4" />
-                  Delete Selected ({selectedPersonIds.size})
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <Tabs
-          value={activeTab}
-          onChange={(tab) => handleTabChange(tab as 'data' | 'gallery' | 'map')}
-          tabs={[
-            { id: 'data', label: 'Data' },
-            { id: 'gallery', label: 'Gallery', count: peopleWithGravatar.length },
-            { id: 'map', label: 'Map', icon: <MapPinIcon className="size-4" />, count: peopleLocations.length > 0 ? peopleLocations.reduce((sum, l) => sum + l.count, 0) : undefined },
-          ]}
-          className="mb-6"
-        />
-
+      <WorkspaceLayout
+        title="People"
+        tagline={
+          isAccountUser && !isSystemAdmin
+            ? 'Showing all platform people — filtering by account competitions coming soon'
+            : undefined
+        }
+        actions={headerActions}
+        tabs={[
+          { id: 'data', label: 'Data' },
+          { id: 'gallery', label: 'Gallery', count: peopleWithGravatar.length },
+          { id: 'map', label: 'Map', icon: <MapPinIcon className="size-4" />, count: peopleLocations.length > 0 ? peopleLocations.reduce((sum, l) => sum + l.count, 0) : undefined },
+        ]}
+        activeTabId={activeTab}
+        onTabChange={(tab) => handleTabChange(tab as 'data' | 'gallery' | 'map')}
+      >
         {/* Tab Content */}
         {activeTab === 'map' ? (
           /* People Location Map */
@@ -1650,7 +1638,7 @@ export default function MembersPage() {
             })()}
           </div>
         </Modal>
-      </div>
+      </WorkspaceLayout>
     </Page>
   );
 }
