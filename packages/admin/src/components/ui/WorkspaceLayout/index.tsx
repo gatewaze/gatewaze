@@ -123,16 +123,13 @@ export function WorkspaceLayout({
           the two hierarchies read as visually distinct.
 
           Two arbitrary-selector overrides on the underline variant:
-            1. The tablist itself gets paddingLeft of
-               calc(var(--margin-x) + 1rem) so the first button
-               sits under the primary tab text + content cards.
+            1. Tablist padding-left = calc(var(--margin-x) + 1.5rem)
+               so the first sub-tab button sits flush under the
+               primary tab text + content cards.
             2. Each button's px-4 (1rem) default is overridden to
-               px-2 (0.5rem) so the active underline isn't excessively
-               wide and the items aren't spaced too far apart.
-
-          Combined, the first button's TEXT lands at
-          calc(var(--margin-x) + 1.5rem) — flush with the primary
-          tab text above and content cards below. */}
+               px-3 (0.75rem) — tighter than the original but a
+               touch more breathing room than px-2 so adjacent items
+               don't crowd each other. */}
       {hasSubTabs && (
         <div
           className="-mx-(--margin-x) border-b border-[var(--gray-a4)]"
@@ -143,8 +140,8 @@ export function WorkspaceLayout({
             value={activeSubTabId!}
             onChange={onSubTabChange!}
             tabs={subTabs!}
-            className="!pl-[calc(var(--margin-x)+1rem)] !pr-[calc(var(--margin-x)+1rem)]
-                       [&_button]:!px-2"
+            className="!pl-[calc(var(--margin-x)+1.5rem)] !pr-[calc(var(--margin-x)+1.5rem)]
+                       [&_button]:!px-3"
           />
         </div>
       )}
