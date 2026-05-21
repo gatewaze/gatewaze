@@ -514,78 +514,85 @@ function BrandingCard({
         {/* ── Branding Tab ── */}
         <RadixTabs.Content value="branding">
           <div className="space-y-6">
-            {/* App Name */}
-            <div>
-              <Text as="label" size="2" weight="medium">
-                App Name
-              </Text>
-              <Text as="p" size="1" color="gray" className="pb-2">
-                Displayed in the portal header, page titles, and emails.
-              </Text>
-              <input
-                value={settings.app_name}
-                onChange={(e) => updateSetting("app_name", e.target.value)}
-                placeholder="My Events Platform"
-                className="w-full rounded border border-[var(--gray-6)] bg-[var(--color-surface)] px-3 py-2 text-sm"
-              />
-            </div>
+            {/* Two-column layout: text settings on the left,
+                logos & icons on the right. Collapses to a single
+                column below md (so mobile / narrow viewports keep
+                everything stacked). */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+              {/* Left column — text settings */}
+              <div className="space-y-6">
+                {/* App Name */}
+                <div>
+                  <Text as="label" size="2" weight="medium">
+                    App Name
+                  </Text>
+                  <Text as="p" size="1" color="gray" className="pb-2">
+                    Displayed in the portal header, page titles, and emails.
+                  </Text>
+                  <input
+                    value={settings.app_name}
+                    onChange={(e) => updateSetting("app_name", e.target.value)}
+                    placeholder="My Events Platform"
+                    className="w-full rounded border border-[var(--gray-6)] bg-[var(--color-surface)] px-3 py-2 text-sm"
+                  />
+                </div>
 
-            {/* Contact Email */}
-            <div>
-              <Text as="label" size="2" weight="medium">
-                Contact Email
-              </Text>
-              <Text as="p" size="1" color="gray" className="pb-2">
-                Shown on privacy, terms, and legal pages. If empty, defaults to
-                the first admin user's email.
-              </Text>
-              <input
-                type="email"
-                value={settings.contact_email}
-                onChange={(e) => updateSetting("contact_email", e.target.value)}
-                placeholder="privacy@example.com"
-                className="w-full rounded border border-[var(--gray-6)] bg-[var(--color-surface)] px-3 py-2 text-sm"
-              />
-            </div>
+                {/* Contact Email */}
+                <div>
+                  <Text as="label" size="2" weight="medium">
+                    Contact Email
+                  </Text>
+                  <Text as="p" size="1" color="gray" className="pb-2">
+                    Shown on privacy, terms, and legal pages. If empty, defaults to
+                    the first admin user's email.
+                  </Text>
+                  <input
+                    type="email"
+                    value={settings.contact_email}
+                    onChange={(e) => updateSetting("contact_email", e.target.value)}
+                    placeholder="privacy@example.com"
+                    className="w-full rounded border border-[var(--gray-6)] bg-[var(--color-surface)] px-3 py-2 text-sm"
+                  />
+                </div>
+              </div>
 
-            <hr className="border-[var(--gray-5)]" />
-
-            {/* Logos */}
-            <div>
-              <Heading size="3" className="pb-1">
-                Logos & Icons
-              </Heading>
-              <div className="space-y-4">
-                <LogoUploadField
-                  label="Light Logo"
-                  description="Used on dark backgrounds, e.g. the admin left menu. Falls back to the bundled Gatewaze logo if empty."
-                  value={settings.logo_url_light}
-                  settingKey="logo_light"
-                  onChange={(v) => updateSetting("logo_url_light", v)}
-                />
-                <LogoUploadField
-                  label="Dark Logo"
-                  description="Used on light backgrounds, e.g. the loading splash screen. Falls back to the bundled Gatewaze logo if empty."
-                  value={settings.logo_url_dark}
-                  settingKey="logo_dark"
-                  onChange={(v) => updateSetting("logo_url_dark", v)}
-                />
-                <LogoUploadField
-                  label="Logo Icon"
-                  description="Compact icon shown on event pages. Recommended: square SVG or PNG, 32x32px."
-                  value={settings.logo_icon_url}
-                  settingKey="logo_icon"
-                  onChange={(v) => updateSetting("logo_icon_url", v)}
-                />
-                <LogoUploadField
-                  label="Favicon / Brand Icon"
-                  description="Square icon used as the browser tab favicon and default event image. Minimum 512×512px PNG."
-                  value={settings.favicon_url}
-                  settingKey="favicon"
-                  onChange={(v) => { updateSetting("favicon_url", v); updateFavicon(v); }}
-                  minWidth={512}
-                  minHeight={512}
-                />
+              {/* Right column — logos + icons */}
+              <div>
+                <Heading size="3" className="pb-1">
+                  Logos & Icons
+                </Heading>
+                <div className="space-y-4">
+                  <LogoUploadField
+                    label="Light Logo"
+                    description="Used on dark backgrounds, e.g. the admin left menu. Falls back to the bundled Gatewaze logo if empty."
+                    value={settings.logo_url_light}
+                    settingKey="logo_light"
+                    onChange={(v) => updateSetting("logo_url_light", v)}
+                  />
+                  <LogoUploadField
+                    label="Dark Logo"
+                    description="Used on light backgrounds, e.g. the loading splash screen. Falls back to the bundled Gatewaze logo if empty."
+                    value={settings.logo_url_dark}
+                    settingKey="logo_dark"
+                    onChange={(v) => updateSetting("logo_url_dark", v)}
+                  />
+                  <LogoUploadField
+                    label="Logo Icon"
+                    description="Compact icon shown on event pages. Recommended: square SVG or PNG, 32x32px."
+                    value={settings.logo_icon_url}
+                    settingKey="logo_icon"
+                    onChange={(v) => updateSetting("logo_icon_url", v)}
+                  />
+                  <LogoUploadField
+                    label="Favicon / Brand Icon"
+                    description="Square icon used as the browser tab favicon and default event image. Minimum 512×512px PNG."
+                    value={settings.favicon_url}
+                    settingKey="favicon"
+                    onChange={(v) => { updateSetting("favicon_url", v); updateFavicon(v); }}
+                    minWidth={512}
+                    minHeight={512}
+                  />
+                </div>
               </div>
             </div>
 
