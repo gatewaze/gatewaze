@@ -122,14 +122,17 @@ export function WorkspaceLayout({
       {/* Optional sub-tab strip — slimmer underline-variant tabs so
           the two hierarchies read as visually distinct.
 
-          Alignment: each underline-variant button has px-4 (1rem)
-          internal padding before its text. To put the first sub-tab
-          text under the primary tab text + content cards
-          (~calc(var(--margin-x) + 1.5rem) from chrome), the button's
-          left edge needs to sit at calc(var(--margin-x) + 0.5rem)
-          — wrapper padding-left + Tabs' own underline-variant
-          padding (already px-(--margin-x) when fullWidth) puts the
-          first text column flush under the primary strip above. */}
+          Two arbitrary-selector overrides on the underline variant:
+            1. The tablist itself gets paddingLeft of
+               calc(var(--margin-x) + 1rem) so the first button
+               sits under the primary tab text + content cards.
+            2. Each button's px-4 (1rem) default is overridden to
+               px-2 (0.5rem) so the active underline isn't excessively
+               wide and the items aren't spaced too far apart.
+
+          Combined, the first button's TEXT lands at
+          calc(var(--margin-x) + 1.5rem) — flush with the primary
+          tab text above and content cards below. */}
       {hasSubTabs && (
         <div
           className="-mx-(--margin-x) border-b border-[var(--gray-a4)]"
@@ -140,7 +143,8 @@ export function WorkspaceLayout({
             value={activeSubTabId!}
             onChange={onSubTabChange!}
             tabs={subTabs!}
-            className="!pl-[calc(var(--margin-x)+0.5rem)] !pr-[calc(var(--margin-x)+0.5rem)]"
+            className="!pl-[calc(var(--margin-x)+1rem)] !pr-[calc(var(--margin-x)+1rem)]
+                       [&_button]:!px-2"
           />
         </div>
       )}
