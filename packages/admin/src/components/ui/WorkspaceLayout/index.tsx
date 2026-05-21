@@ -51,10 +51,15 @@ export interface WorkspaceLayoutProps {
   /** Right-aligned actions in the hero (CTAs, dropdowns, etc.). */
   actions?: ReactNode;
 
-  /** Primary tab strip directly under the hero. */
-  tabs: Tab[];
-  activeTabId: string;
-  onTabChange: (tabId: string) => void;
+  /**
+   * Primary tab strip directly under the hero. Omit (or pass an empty
+   * array) for top-level pages that don't have a tabbed view —
+   * e.g. /calendars, /events list, etc. The hero still renders; the
+   * tab strip is skipped entirely.
+   */
+  tabs?: Tab[];
+  activeTabId?: string;
+  onTabChange?: (tabId: string) => void;
 
   /** Optional secondary (sub) tab strip below the primary one. */
   subTabs?: Tab[];
@@ -78,6 +83,7 @@ export function WorkspaceLayout({
   onSubTabChange,
   children,
 }: WorkspaceLayoutProps) {
+  const hasTabs = Boolean(tabs && tabs.length > 0 && activeTabId !== undefined && onTabChange);
   const hasSubTabs = Boolean(subTabs && subTabs.length > 0 && activeSubTabId !== undefined && onSubTabChange);
 
   return (
@@ -124,25 +130,28 @@ export function WorkspaceLayout({
         </div>
       </div>
 
-      {/* Primary tab strip — full-bleed bg via -mx-(--margin-x).
-          Tabs.List inline padding is overridden to
+      {/* Primary tab strip — only rendered if tabs were supplied.
+          Top-level pages without tabbed views (e.g. /calendars) get
+          just the hero. Tabs.List inline padding is overridden to
           calc(var(--margin-x) + 1rem); the Radix trigger's own
           ~0.5rem internal padding then lands the active underline at
           calc(var(--margin-x) + 1.5rem), aligned with the hero title
           and the content gutter below. */}
-      <div
-        className="-mx-(--margin-x)
-                   [&_.rt-BaseTabList]:!pl-[calc(var(--margin-x)+1rem)]
-                   [&_.rt-BaseTabList]:!pr-[calc(var(--margin-x)+1rem)]
-                   [&_.rt-BaseTabList]:!bg-[var(--accent-3)]"
-      >
-        <Tabs
-          fullWidth
-          value={activeTabId}
-          onChange={onTabChange}
-          tabs={tabs}
-        />
-      </div>
+      {hasTabs && (
+        <div
+          className="-mx-(--margin-x)
+                     [&_.rt-BaseTabList]:!pl-[calc(var(--margin-x)+1rem)]
+                     [&_.rt-BaseTabList]:!pr-[calc(var(--margin-x)+1rem)]
+                     [&_.rt-BaseTabList]:!bg-[var(--accent-3)]"
+        >
+          <Tabs
+            fullWidth
+            value={activeTabId!}
+            onChange={onTabChange!}
+            tabs={tabs!}
+          />
+        </div>
+      )}
 
       {/* Optional sub-tab strip — slimmer underline-variant tabs so
           the two hierarchies read as visually distinct.
