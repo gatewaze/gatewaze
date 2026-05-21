@@ -120,21 +120,28 @@ export function WorkspaceLayout({
       </div>
 
       {/* Optional sub-tab strip — slimmer underline-variant tabs so
-          the two hierarchies read as visually distinct. Renders only
-          when subTabs is supplied. Same left-alignment as the
-          primary tabs. */}
+          the two hierarchies read as visually distinct.
+
+          Alignment: each underline-variant button has px-4 (1rem)
+          internal padding before its text. To put the first sub-tab
+          text under the primary tab text + content cards
+          (~calc(var(--margin-x) + 1.5rem) from chrome), the button's
+          left edge needs to sit at calc(var(--margin-x) + 0.5rem)
+          — wrapper padding-left + Tabs' own underline-variant
+          padding (already px-(--margin-x) when fullWidth) puts the
+          first text column flush under the primary strip above. */}
       {hasSubTabs && (
         <div
           className="-mx-(--margin-x) border-b border-[var(--gray-a4)]"
         >
-          <div style={{ paddingLeft: "calc(var(--margin-x) + 1rem)", paddingRight: "calc(var(--margin-x) + 1rem)" }}>
-            <Tabs
-              variant="underline"
-              value={activeSubTabId!}
-              onChange={onSubTabChange!}
-              tabs={subTabs!}
-            />
-          </div>
+          <Tabs
+            fullWidth
+            variant="underline"
+            value={activeSubTabId!}
+            onChange={onSubTabChange!}
+            tabs={subTabs!}
+            className="!pl-[calc(var(--margin-x)+0.5rem)] !pr-[calc(var(--margin-x)+0.5rem)]"
+          />
         </div>
       )}
 
