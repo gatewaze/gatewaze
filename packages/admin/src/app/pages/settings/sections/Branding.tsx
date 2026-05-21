@@ -136,7 +136,16 @@ const RADIX_ACCENTS: { name: PrimaryColor; hex: string }[] = [
   { name: "rose", hex: "#f43f5e" },
 ];
 
-function BrandingCard({ section }: { section: "system" | "admin" | "portal" }) {
+function BrandingCard({
+  section,
+  activeSubTab,
+}: {
+  section: "system" | "admin" | "portal";
+  /** Driven by the parent's WorkspaceLayout subTabs. Falls back to the
+   *  default sub-tab when undefined (e.g. on first render before the
+   *  parent has initialised state). */
+  activeSubTab: string;
+}) {
   const activeTheme = useActiveThemeModule();
   const lockedSettings = activeTheme?.themeOverrides.lockedSettings ?? [];
   const { isFeatureEnabled } = useModulesContext();
@@ -185,7 +194,11 @@ function BrandingCard({ section }: { section: "system" | "admin" | "portal" }) {
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const savingRef = useRef(false);
-  const [settingsTab, setSettingsTab] = useState("branding");
+  // Sub-tab state is now owned by the parent <Branding> component and
+  // passed in as `activeSubTab` so it can render in the workspace
+  // shell's subTabs slot. Kept the variable name `settingsTab` below
+  // for minimum churn; treat it as read-only.
+  const settingsTab = activeSubTab;
 
   const loadSettings = useCallback(async () => {
     const { data } = await supabase
@@ -482,10 +495,14 @@ function BrandingCard({ section }: { section: "system" | "admin" | "portal" }) {
         </Callout.Root>
       )}
 
-      {/* ══════════════ SYSTEM SECTION ══════════════ */}
+      {/* ══════════════ SYSTEM SECTION ══════════════
+          Sub-tab nav lifted to the WorkspaceLayout subTabs slot in
+          the parent <Branding>. We keep RadixTabs.Content blocks as
+          the gating mechanism — Radix handles hidden tab-panels
+          accessibly — but the inline RadixTabs.List is gone. */}
       {section === "system" && (
-      <RadixTabs.Root value={settingsTab} onValueChange={setSettingsTab}>
-        <RadixTabs.List className="mb-6">
+      <RadixTabs.Root value={settingsTab} onValueChange={() => {/* parent-managed */}}>
+        <RadixTabs.List style={{ display: 'none' }}>
           <RadixTabs.Trigger value="branding">Branding</RadixTabs.Trigger>
           <RadixTabs.Trigger value="people-attributes">People</RadixTabs.Trigger>
           {hasEvents && <RadixTabs.Trigger value="event-types">Event Types</RadixTabs.Trigger>}
@@ -954,10 +971,13 @@ function BrandingCard({ section }: { section: "system" | "admin" | "portal" }) {
         </div>
       )}
 
-      {/* ══════════════ PORTAL SECTION ══════════════ */}
+      {/* ══════════════ PORTAL SECTION ══════════════
+          Sub-tab nav lifted to the WorkspaceLayout subTabs slot in
+          the parent <Branding>. RadixTabs.List hidden visually but
+          kept so RadixTabs.Content stays accessible. */}
       {section === "portal" && (
-      <RadixTabs.Root value={settingsTab === "branding" ? "theme" : settingsTab} onValueChange={setSettingsTab}>
-        <RadixTabs.List className="mb-6">
+      <RadixTabs.Root value={settingsTab} onValueChange={() => {/* parent-managed */}}>
+        <RadixTabs.List style={{ display: 'none' }}>
           <RadixTabs.Trigger value="theme">Theme</RadixTabs.Trigger>
           <RadixTabs.Trigger value="navigation">Navigation</RadixTabs.Trigger>
           <RadixTabs.Trigger value="fonts">Fonts</RadixTabs.Trigger>
@@ -1411,8 +1431,48 @@ const SETTINGS_TABS = [
   { id: "portal", label: "Portal", icon: <GlobeAltIcon        className="w-4 h-4" /> },
 ];
 
+/** Sub-tabs per primary section. Admin has no sub-tabs (it's a flat
+ *  accent-colour picker), so the WorkspaceLayout subTabs slot is
+ *  omitted entirely while that primary tab is active. */
+const SYSTEM_SUB_TABS = [
+  { id: "branding",          label: "Branding" },
+  { id: "people-attributes", label: "People" },
+  { id: "event-types",       label: "Event Types" },
+  { id: "categories",        label: "Categories" },
+  { id: "tracking",          label: "Tracking" },
+  { id: "storage",           label: "Storage" },
+];
+
+const PORTAL_SUB_TABS = [
+  { id: "theme",      label: "Theme" },
+  { id: "navigation", label: "Navigation" },
+  { id: "fonts",      label: "Fonts" },
+  { id: "pages",      label: "Pages" },
+];
+
 export default function Branding() {
   const [topTab, setTopTab] = useState("system");
+  const { isFeatureEnabled } = useModulesContext();
+  const hasEvents = isFeatureEnabled('events');
+
+  // Each section remembers its own active sub-tab so switching primary
+  // tabs and back doesn't lose context. Admin has no sub-tabs so its
+  // entry is unused.
+  const [subTabBySection, setSubTabBySection] = useState<Record<string, string>>({
+    system: "branding",
+    admin: "",
+    portal: "theme",
+  });
+
+  const activeSubTab = subTabBySection[topTab];
+  const systemSubTabs = hasEvents
+    ? SYSTEM_SUB_TABS
+    : SYSTEM_SUB_TABS.filter((t) => t.id !== "event-types");
+  const subTabs = topTab === "system" ? systemSubTabs
+                : topTab === "portal" ? PORTAL_SUB_TABS
+                : undefined;
+  const handleSubTabChange = (id: string) =>
+    setSubTabBySection((s) => ({ ...s, [topTab]: id }));
 
   return (
     <Page title="Settings">
@@ -1422,10 +1482,13 @@ export default function Branding() {
         tabs={SETTINGS_TABS}
         activeTabId={topTab}
         onTabChange={setTopTab}
+        subTabs={subTabs}
+        activeSubTabId={subTabs ? activeSubTab : undefined}
+        onSubTabChange={subTabs ? handleSubTabChange : undefined}
       >
-        {topTab === "system" && <BrandingCard section="system" />}
-        {topTab === "admin"  && <BrandingCard section="admin" />}
-        {topTab === "portal" && <BrandingCard section="portal" />}
+        {topTab === "system" && <BrandingCard section="system" activeSubTab={activeSubTab} />}
+        {topTab === "admin"  && <BrandingCard section="admin"  activeSubTab={activeSubTab} />}
+        {topTab === "portal" && <BrandingCard section="portal" activeSubTab={activeSubTab} />}
       </WorkspaceLayout>
     </Page>
   );
