@@ -98,35 +98,23 @@ export function WorkspaceLayout({
         className="relative overflow-hidden -mx-(--margin-x) -mt-(--margin-x) border-b border-[var(--gray-a4)]"
         style={{ backgroundColor: "var(--accent-9)", color: "var(--accent-contrast)" }}
       >
+        {/* Animated pastel streaks that slide across the hero. The
+            streaks fade into var(--accent-9) at both ends so the
+            effect works against any brand primary. See
+            workspaceHero.css for the full breakdown. */}
+        <div className="workspace-hero-rainbow" aria-hidden="true">
+          {Array.from({ length: 6 }, (_, i) => (
+            <div key={i} className="workspace-hero-rainbow__band" />
+          ))}
+          <div className="workspace-hero-rainbow__h" />
+          <div className="workspace-hero-rainbow__v" />
+        </div>
+
         <div
-          className="relative flex items-center justify-between gap-4 flex-wrap py-7"
+          className="relative flex items-center gap-4 flex-wrap py-7"
           style={{ paddingLeft: "calc(var(--margin-x) + 1.5rem)", paddingRight: "calc(var(--margin-x) + 1.5rem)" }}
         >
           <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-          {actions ? (
-            <div
-              className={
-                // Buttons rendered inside the hero sit on var(--accent-9);
-                // restyle to a transparent / outline look using
-                // var(--accent-contrast) for text + border + icon. Radix
-                // computes accent-contrast as a readable foreground for
-                // whatever accent-9 resolves to (white for dark accents,
-                // near-black for bright ones), so a single rule covers
-                // both the "primary is dark → white outline" and
-                // "primary is light → dark outline" cases the user asked
-                // for. Hover keeps the same colors but adds a faint tint.
-                "flex items-center gap-2 " +
-                "[&_button]:!bg-transparent " +
-                "[&_button]:!text-[var(--accent-contrast)] " +
-                "[&_button]:!border " +
-                "[&_button]:!border-[var(--accent-contrast)] " +
-                "[&_button_svg]:!text-[var(--accent-contrast)] " +
-                "[&_button:hover]:!bg-[color-mix(in_srgb,var(--accent-contrast)_12%,transparent)]"
-              }
-            >
-              {actions}
-            </div>
-          ) : null}
         </div>
       </div>
 
@@ -180,10 +168,23 @@ export function WorkspaceLayout({
         </div>
       )}
 
-      {/* Tab content — pt-8 for breathing room under the tab strip;
-          px-6 + pb-6 to match the hero title's horizontal inset so
-          cards line up with the title and tab underline above. */}
-      <div className="pt-8 px-6 pb-6">{children}</div>
+      {/* Page-level actions sub-bar — sits between the tab strip and
+          the tab content. The actions are CTAs that apply to whatever
+          tab is currently active (e.g. "New cohort" while on the
+          Cohorts tab, "Add ambassador" while on the Roster tab) so
+          they sit closer to the content they affect rather than in
+          the hero. Skipped entirely when the page passes no actions. */}
+      {actions ? (
+        <div className="px-6 pt-6 flex items-center justify-end gap-2 flex-wrap">
+          {actions}
+        </div>
+      ) : null}
+
+      {/* Tab content — px-6 to match the hero title's horizontal
+          inset so cards line up with the title and tab underline
+          above. pt-8 below the tabs (or pt-4 when an actions bar
+          already supplied breathing room). */}
+      <div className={(actions ? "pt-4 " : "pt-8 ") + "px-6 pb-6"}>{children}</div>
     </div>
   );
 }
