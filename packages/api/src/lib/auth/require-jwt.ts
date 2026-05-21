@@ -80,6 +80,22 @@ function extractToken(req: Request): string | null {
       }
     }
   }
+  // EventSource / WebSocket fallback: the browser's EventSource API
+  // can't set custom headers, so SPA callers that don't have a
+  // Supabase auth cookie pass the access token as a query param. The
+  // token is still subject to the same verification path; this only
+  // changes how we extract it. Logs (nginx access logs, browser
+  // history) will see this URL — that's the standard SSE tradeoff.
+  // We accept both `access_token` (Supabase-idiomatic) and `token`
+  // (more generic) for forward compatibility.
+  const query = req.query as Record<string, unknown>;
+  const qsToken =
+    typeof query.access_token === 'string'
+      ? query.access_token
+      : typeof query.token === 'string'
+      ? query.token
+      : null;
+  if (qsToken && qsToken.length > 0) return qsToken;
   return null;
 }
 
