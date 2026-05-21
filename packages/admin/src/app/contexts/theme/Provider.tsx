@@ -75,7 +75,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         const { data } = await supabase
           .from("platform_settings")
           .select("key, value")
-          .in("key", ["admin_accent_color", "font_heading", "font_heading_weight", "font_body", "font_body_weight"]);
+          .in("key", ["admin_accent_color"]);
 
         const map: Record<string, string> = {};
         for (const row of data ?? []) map[row.key] = row.value as string;
@@ -90,74 +90,14 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
           }));
         }
 
-        // Brand fonts
-        const fontHeading = map.font_heading;
-        const fontBody = map.font_body;
-        if (fontHeading || fontBody) {
-          // Build Google Fonts URL
-          const baseWeights = [400, 500, 600, 700];
-          const fonts: { name: string; weights: string }[] = [];
-          if (fontHeading) {
-            const w = new Set(baseWeights);
-            if (map.font_heading_weight) w.add(Number(map.font_heading_weight));
-            fonts.push({ name: fontHeading, weights: [...w].sort((a, b) => a - b).join(";") });
-          }
-          if (fontBody && fontBody !== fontHeading) {
-            const w = new Set(baseWeights);
-            if (map.font_body_weight) w.add(Number(map.font_body_weight));
-            fonts.push({ name: fontBody, weights: [...w].sort((a, b) => a - b).join(";") });
-          }
-          if (fonts.length > 0) {
-            const params = fonts
-              .map((f) => `family=${encodeURIComponent(f.name)}:wght@${f.weights}`)
-              .join("&");
-            const href = `https://fonts.googleapis.com/css2?${params}&display=swap`;
-            // Inject stylesheet if not already present
-            if (!document.querySelector(`link[href="${href}"]`)) {
-              const link = document.createElement("link");
-              link.rel = "stylesheet";
-              link.href = href;
-              document.head.appendChild(link);
-            }
-          }
-          // Build font stack and apply to the Radix .radix-themes element
-          // directly, since Radix sets --default-font-family on that element.
-          const stack: string[] = [];
-          if (fontHeading) stack.push(`'${fontHeading}'`);
-          if (fontBody && fontBody !== fontHeading) stack.push(`'${fontBody}'`);
-          stack.push("ui-sans-serif", "system-ui", "sans-serif");
-          const fontStack = stack.join(", ");
-
-          const headingStack = fontHeading
-            ? `'${fontHeading}', ${fontStack}`
-            : fontStack;
-
-          function applyFontToRadix(el: HTMLElement) {
-            el.style.setProperty("--default-font-family", fontStack);
-            el.style.setProperty("--heading-font-family", headingStack);
-            if (map.font_heading_weight) {
-              el.style.setProperty("--font-weight-heading", map.font_heading_weight);
-            }
-            if (map.font_body_weight) {
-              el.style.setProperty("--font-weight-body", map.font_body_weight);
-            }
-          }
-
-          const radixEl = document.querySelector(".radix-themes") as HTMLElement | null;
-          if (radixEl) {
-            applyFontToRadix(radixEl);
-          } else {
-            // Radix element not yet mounted — wait for it
-            const observer = new MutationObserver((_mutations, obs) => {
-              const el = document.querySelector(".radix-themes") as HTMLElement | null;
-              if (el) {
-                applyFontToRadix(el);
-                obs.disconnect();
-              }
-            });
-            observer.observe(document.body, { childList: true, subtree: true });
-          }
-        }
+        // NOTE: font_heading / font_body settings are deliberately
+        // NOT applied to the admin UI. Those values configure the
+        // PORTAL only (see packages/portal/config/brand.ts). The
+        // admin pins itself to Poppins (headings) + Inter (body) via
+        // src/styles/app/components/radixOverrides.css's
+        // `.radix-themes { --default-font-family / --heading-font-family }`
+        // declarations so platform_settings changes can't change the
+        // admin chrome's typography.
       } catch {
         // If fetch fails, keep current settings
       }

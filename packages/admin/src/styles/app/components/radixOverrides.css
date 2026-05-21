@@ -9,6 +9,19 @@
   --cursor-slider-thumb: grab;
   --cursor-slider-thumb-active: grabbing;
   --cursor-switch: pointer;
+  /* Pin the admin UI fonts to Poppins (headings) / Inter (body)
+     regardless of the platform_settings font_heading / font_body
+     values — those are portal-only and shouldn't influence the
+     admin chrome. The admin's index.css already lists Poppins, Inter
+     first in --font-sans; mirroring that here so Radix Themes
+     components (which set --default-font-family / --heading-font-family
+     internally) pick up the same stack. */
+  --default-font-family:
+    "Inter", "Poppins", ui-sans-serif, system-ui, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --heading-font-family:
+    "Poppins", "Inter", ui-sans-serif, system-ui, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 }
 
 /* Translucent card backgrounds — lets pixel trail show through */
