@@ -41,7 +41,12 @@ import { Tabs, type Tab } from "../Tabs";
 export interface WorkspaceLayoutProps {
   /** Hero title — typically the module name (e.g. "Ambassadors"). */
   title: string;
-  /** Short subtitle under the title. Optional. */
+  /**
+   * Short subtitle under the title.
+   * @deprecated Kept on the type for back-compat with already-migrated
+   * pages; the layout no longer renders it. New pages should omit it.
+   * Will be removed once all consumers drop the prop.
+   */
   tagline?: string;
   /** Right-aligned actions in the hero (CTAs, dropdowns, etc.). */
   actions?: ReactNode;
@@ -62,7 +67,8 @@ export interface WorkspaceLayoutProps {
 
 export function WorkspaceLayout({
   title,
-  tagline,
+  // tagline intentionally unused — see prop deprecation note above.
+  tagline: _tagline,
   actions,
   tabs,
   activeTabId,
@@ -90,12 +96,7 @@ export function WorkspaceLayout({
           className="relative flex items-center justify-between gap-4 flex-wrap py-7"
           style={{ paddingLeft: "calc(var(--margin-x) + 1.5rem)", paddingRight: "calc(var(--margin-x) + 1.5rem)" }}
         >
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-            {tagline && (
-              <p className="text-sm mt-0.5 opacity-80">{tagline}</p>
-            )}
-          </div>
+          <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
           {actions ? (
             <div
               className={
