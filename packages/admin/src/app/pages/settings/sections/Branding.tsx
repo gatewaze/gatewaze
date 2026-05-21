@@ -27,6 +27,12 @@ import {
 } from "@/hooks/usePeopleAttributes";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { WorkspaceLayout } from "@/components/ui/WorkspaceLayout";
+import {
+  ComputerDesktopIcon,
+  ShieldCheckIcon,
+  GlobeAltIcon,
+} from "@heroicons/react/24/outline";
 import { RichTextEditor } from "@/components/ui/RichTextEditor";
 import { Page } from "@/components/shared/Page";
 import { supabase } from "@/lib/supabase";
@@ -1399,41 +1405,28 @@ function PeopleAttributesCard() {
 
 // ── Main Page Component ────────────────────────────────────────────
 
+const SETTINGS_TABS = [
+  { id: "system", label: "System", icon: <ComputerDesktopIcon className="w-4 h-4" /> },
+  { id: "admin",  label: "Admin",  icon: <ShieldCheckIcon     className="w-4 h-4" /> },
+  { id: "portal", label: "Portal", icon: <GlobeAltIcon        className="w-4 h-4" /> },
+];
+
 export default function Branding() {
   const [topTab, setTopTab] = useState("system");
 
   return (
     <Page title="Settings">
-      <div className="p-6">
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold text-[var(--gray-12)]">
-            Settings
-          </h1>
-          <p className="text-[var(--gray-11)] mt-1">
-            Configure your platform settings
-          </p>
-        </div>
-
-        <RadixTabs.Root value={topTab} onValueChange={setTopTab}>
-          <RadixTabs.List className="mb-6">
-            <RadixTabs.Trigger value="system">System</RadixTabs.Trigger>
-            <RadixTabs.Trigger value="admin">Admin</RadixTabs.Trigger>
-            <RadixTabs.Trigger value="portal">Portal</RadixTabs.Trigger>
-          </RadixTabs.List>
-
-          <RadixTabs.Content value="system">
-            <BrandingCard section="system" />
-          </RadixTabs.Content>
-
-          <RadixTabs.Content value="admin">
-            <BrandingCard section="admin" />
-          </RadixTabs.Content>
-
-          <RadixTabs.Content value="portal">
-            <BrandingCard section="portal" />
-          </RadixTabs.Content>
-        </RadixTabs.Root>
-      </div>
+      <WorkspaceLayout
+        title="Settings"
+        tagline="Configure your platform settings"
+        tabs={SETTINGS_TABS}
+        activeTabId={topTab}
+        onTabChange={setTopTab}
+      >
+        {topTab === "system" && <BrandingCard section="system" />}
+        {topTab === "admin"  && <BrandingCard section="admin" />}
+        {topTab === "portal" && <BrandingCard section="portal" />}
+      </WorkspaceLayout>
     </Page>
   );
 }
