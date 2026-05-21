@@ -109,7 +109,8 @@ export function WorkspaceLayout({
       <div
         className="-mx-(--margin-x)
                    [&_.rt-BaseTabList]:!pl-[calc(var(--margin-x)+1rem)]
-                   [&_.rt-BaseTabList]:!pr-[calc(var(--margin-x)+1rem)]"
+                   [&_.rt-BaseTabList]:!pr-[calc(var(--margin-x)+1rem)]
+                   [&_.rt-BaseTabList]:!bg-[var(--accent-3)]"
       >
         <Tabs
           fullWidth
@@ -132,7 +133,7 @@ export function WorkspaceLayout({
                don't crowd each other. */}
       {hasSubTabs && (
         <div
-          className="-mx-(--margin-x) border-b border-[var(--gray-a4)]"
+          className="-mx-(--margin-x) border-b border-[var(--gray-a4)] bg-[var(--accent-2)]"
         >
           <Tabs
             fullWidth

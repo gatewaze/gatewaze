@@ -129,14 +129,11 @@ export function LogoUploadField({
           {uploadError}
         </Text>
       )}
-      {value && (
-        <input
-          value={normalizedInput}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="branding/logo.png"
-          className="w-full rounded border border-[var(--gray-6)] bg-[var(--color-surface)] px-2 py-1.5 font-mono text-xs"
-        />
-      )}
+      {/* The raw storage-path input was here; now hidden because the
+          preview thumbnail above conveys the upload state and the
+          path itself is implementation detail. Kept the normalized
+          value piped through onChange so the URL still saves
+          correctly on upload — just not visible to the user. */}
     </div>
   );
 }
