@@ -96,7 +96,30 @@ export function WorkspaceLayout({
               <p className="text-sm mt-0.5 opacity-80">{tagline}</p>
             )}
           </div>
-          {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
+          {actions ? (
+            <div
+              className={
+                // Buttons rendered inside the hero sit on var(--accent-9);
+                // restyle to a transparent / outline look using
+                // var(--accent-contrast) for text + border + icon. Radix
+                // computes accent-contrast as a readable foreground for
+                // whatever accent-9 resolves to (white for dark accents,
+                // near-black for bright ones), so a single rule covers
+                // both the "primary is dark → white outline" and
+                // "primary is light → dark outline" cases the user asked
+                // for. Hover keeps the same colors but adds a faint tint.
+                "flex items-center gap-2 " +
+                "[&_button]:!bg-transparent " +
+                "[&_button]:!text-[var(--accent-contrast)] " +
+                "[&_button]:!border " +
+                "[&_button]:!border-[var(--accent-contrast)] " +
+                "[&_button_svg]:!text-[var(--accent-contrast)] " +
+                "[&_button:hover]:!bg-[color-mix(in_srgb,var(--accent-contrast)_12%,transparent)]"
+              }
+            >
+              {actions}
+            </div>
+          ) : null}
         </div>
       </div>
 
