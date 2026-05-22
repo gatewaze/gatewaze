@@ -1,0 +1,149 @@
+/* Animated rainbow streaks for the WorkspaceLayout hero.
+ *
+ * Inspired by Sylvain Garnot's "Pure CSS - Rainbow Background"
+ * codepen (https://codepen.io/sylvaingarnot/pen/OJqoXaR) but heavily
+ * reworked so the streaks don't feel patterned:
+ *   - 6 wide, soft bands instead of the codepen's 25 thin ones
+ *   - each band has a distinct rotation, sizing, color order, and
+ *     animation timing so no two streaks read as siblings
+ *   - white "fade caps" replaced with var(--accent-9) so streaks
+ *     bleed into the brand's primary color rather than into white,
+ *     making the effect brand-agnostic
+ *
+ * Mechanics: each .workspace-hero-rainbow__band is a 0×100% rotated
+ * div whose visible mass comes entirely from its box-shadow. Three
+ * coloured shadows (teal #5eead4, blue #60a5fa, fuchsia #e879f9) form
+ * the prism; two outer var(--accent-9) shadows feather the ends.
+ *
+ * Wrapper opacity is .45 — present but not loud. Pointer-events
+ * disabled so the streaks can't intercept hero-action clicks.
+ */
+
+.workspace-hero-rainbow {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0.45;
+}
+
+.workspace-hero-rainbow__band {
+  height: 100%;
+  width: 0;
+  top: 0;
+  position: absolute;
+  transform-origin: top right;
+}
+
+/* Band 1 — widest, slowest, gentle 6° tilt. Teal-led prism. */
+.workspace-hero-rainbow__band:nth-child(1) {
+  transform: rotate(6deg);
+  box-shadow:
+    -240px 0 150px 75px var(--accent-9),
+    -90px 0 110px 55px #5eead4,
+    0 0 110px 55px #60a5fa,
+    90px 0 110px 55px #e879f9,
+    240px 0 150px 75px var(--accent-9);
+  animation: workspace-hero-rainbow-slide 92s linear infinite;
+  animation-delay: -3.6s;
+}
+
+/* Band 2 — steeper 18° tilt, fuchsia-led, mid-tempo. */
+.workspace-hero-rainbow__band:nth-child(2) {
+  transform: rotate(18deg);
+  box-shadow:
+    -210px 0 140px 70px var(--accent-9),
+    -80px 0 95px 48px #e879f9,
+    0 0 130px 65px #60a5fa,
+    80px 0 95px 48px #5eead4,
+    210px 0 140px 70px var(--accent-9);
+  animation: workspace-hero-rainbow-slide 71s linear infinite;
+  animation-delay: -18s;
+}
+
+/* Band 3 — narrow 11° tilt, blue-anchored, slow drift. */
+.workspace-hero-rainbow__band:nth-child(3) {
+  transform: rotate(11deg);
+  box-shadow:
+    -260px 0 160px 80px var(--accent-9),
+    -110px 0 100px 50px #60a5fa,
+    0 0 120px 60px #5eead4,
+    100px 0 100px 50px #e879f9,
+    250px 0 160px 80px var(--accent-9);
+  animation: workspace-hero-rainbow-slide 83s linear infinite;
+  animation-delay: -33s;
+}
+
+/* Band 4 — sharpest 24° tilt, asymmetric — teal pushed wide, fuchsia
+   pulled close, all over a broader blue belly. Fastest pass. */
+.workspace-hero-rainbow__band:nth-child(4) {
+  transform: rotate(24deg);
+  box-shadow:
+    -200px 0 130px 65px var(--accent-9),
+    -120px 0 90px 45px #5eead4,
+    -10px 0 140px 70px #60a5fa,
+    70px 0 90px 45px #e879f9,
+    200px 0 130px 65px var(--accent-9);
+  animation: workspace-hero-rainbow-slide 53s linear infinite;
+  animation-delay: -47s;
+}
+
+/* Band 5 — 14° tilt, fuchsia-led reverse order, slowest. */
+.workspace-hero-rainbow__band:nth-child(5) {
+  transform: rotate(14deg);
+  box-shadow:
+    -230px 0 150px 75px var(--accent-9),
+    -90px 0 105px 52px #e879f9,
+    10px 0 115px 58px #5eead4,
+    110px 0 105px 52px #60a5fa,
+    240px 0 150px 75px var(--accent-9);
+  animation: workspace-hero-rainbow-slide 76s linear infinite;
+  animation-delay: -62s;
+}
+
+/* Band 6 — 8° tilt, narrower, blue-led, brisk. */
+.workspace-hero-rainbow__band:nth-child(6) {
+  transform: rotate(8deg);
+  box-shadow:
+    -220px 0 140px 70px var(--accent-9),
+    -85px 0 95px 48px #60a5fa,
+    5px 0 100px 50px #e879f9,
+    95px 0 95px 48px #5eead4,
+    220px 0 140px 70px var(--accent-9);
+  animation: workspace-hero-rainbow-slide 61s linear infinite;
+  animation-delay: -77s;
+}
+
+@keyframes workspace-hero-rainbow-slide {
+  from {
+    right: -25vw;
+  }
+  to {
+    right: 125vw;
+  }
+}
+
+/* Bottom + left feathered vignettes — bleed the streak ends into the
+ * primary background so they don't terminate on a sharp edge. */
+.workspace-hero-rainbow__h {
+  box-shadow: 0 0 50% 40% var(--accent-9);
+  width: 100%;
+  height: 0;
+  bottom: 0;
+  left: 0;
+  position: absolute;
+}
+.workspace-hero-rainbow__v {
+  box-shadow: 0 0 35% 25% var(--accent-9);
+  width: 0;
+  height: 100%;
+  bottom: 0;
+  left: 0;
+  position: absolute;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-hero-rainbow__band {
+    animation: none !important;
+  }
+}
