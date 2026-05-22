@@ -678,6 +678,11 @@ services:
       # `RUST_LOG=goose=debug` in .env to diagnose subagent turn-limit
       # behaviour (see spec-ai-job-runner.md §sub-recipe turn budgets).
       RUST_LOG: ${RUST_LOG:-}
+      # When set to "1", run-recipe-goose.ts skips the per-spawn
+      # XDG_STATE_HOME cleanup so an operator can inspect Goose's
+      # per-LLM-request log files after a run. Used to debug missing
+      # cost/usage attribution; leave unset in normal operation.
+      GATEWAZE_GOOSE_KEEP_STATE: ${GATEWAZE_GOOSE_KEEP_STATE:-}
     volumes:
       - ${PREMIUM_MODULES_PATH:-../../premium-gatewaze-modules}:/premium-gatewaze-modules
       # Open-source modules (where analytics now lives) — needed so the
