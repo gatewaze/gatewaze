@@ -84,3 +84,4 @@ supabase/functions/platform-main/index.ts
 
 # Generated portal module registries (output of generate-module-registry.ts)
 packages/portal/lib/modules/generated-*
+.adversarial-spec-checkpoints/
