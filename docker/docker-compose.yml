@@ -703,11 +703,11 @@ services:
   # scrapling-fetcher — Python sidecar exposing Scrapling's Fetcher /
   # StealthyFetcher / DynamicFetcher behind one HTTP endpoint. Used by
   # the *Fast Luma scraper variants for the per-event-page fetches that
-  # don't need a browser. See gatewaze-environments/specs/spec-scrapling-fetcher-service.md
+  # don't need a browser. See docs/spec-scrapling-fetcher-service.md
   # ---------------------------------------------------------------------------
   scrapling-fetcher:
     build:
-      context: ../../gatewaze-environments/services/scrapling-fetcher
+      context: ../services/scrapling-fetcher
     container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-scrapling-fetcher
     restart: unless-stopped
     # Per-brand traefik route. Host-side debugging:
