@@ -1,42 +1,23 @@
 # ============================================================================
-# Gatewaze Makefile
+# Gatewaze Makefile — local Docker development
 #
 # Usage:
-#   make up                  — start the default environment
-#   make down                — stop all services
+#   make init                — copy example config and prepare for first run
+#   make up                  — start services (dev mode with hot reload)
+#   make down                — stop services
 #   make reset               — stop, remove volumes, and restart fresh
 #   make logs                — tail service logs
 #   make ps                  — show running services
+#   make migrate             — push migrations to linked Supabase project (cloud mode)
+#   make deploy-functions    — deploy edge functions to Supabase Cloud (cloud mode)
 #
-# Multi-brand (requires gatewaze-environments repo alongside this repo):
-#   make brand1 up           — start the "brand1" brand
-#   make brand1 down         — stop the "brand1" brand
-#   make brand1 reset        — reset the "brand1" brand
-#   make brand1 logs         — tail logs for the "brand1" brand
+# All commands read configuration from docker/.env.
 # ============================================================================
 
-ENVIRONMENTS_DIR := ../gatewaze-environments
-TRAEFIK_FILE     := -f docker/docker-compose.traefik.yml
+ENV_FILE      := docker/.env
+TRAEFIK_FILE  := -f docker/docker-compose.traefik.yml
 
-# ---------------------------------------------------------------------------
-# Brand detection: supports `make <brand> <action>` syntax
-# ---------------------------------------------------------------------------
-KNOWN_TARGETS := up down reset logs ps help init migrate deploy-functions \
-	_check-env _activate-brand _link-cloud _cloud-reset _sync-secrets _ensure-traefik _generate-mcp
-
-CMD_ARGS := $(filter-out $(KNOWN_TARGETS), $(MAKECMDGOALS))
-ifneq ($(CMD_ARGS),)
-  BRAND := $(firstword $(CMD_ARGS))
-endif
-
-# Resolve the env file
-ifdef BRAND
-  ENV_FILE := $(ENVIRONMENTS_DIR)/$(BRAND).local.env
-else
-  ENV_FILE := docker/.env
-endif
-
-# Detect Supabase mode from the resolved env file
+# Detect Supabase mode from the env file
 SUPABASE_MODE := $(shell grep -E '^SUPABASE_MODE=' "$(ENV_FILE)" 2>/dev/null | head -1 | cut -d= -f2-)
 
 # Select base compose stack based on Supabase mode
@@ -49,7 +30,7 @@ endif
 # ---------------------------------------------------------------------------
 # Targets
 # ---------------------------------------------------------------------------
-.PHONY: $(KNOWN_TARGETS)
+.PHONY: help init up down reset logs ps migrate deploy-functions
 
 help: ## Show this help
 	@echo "Gatewaze Development Commands"
@@ -64,25 +45,19 @@ help: ## Show this help
 	@echo "Cloud deployment:"
 	@echo "  make migrate              Push migrations to linked Supabase project"
 	@echo "  make deploy-functions     Deploy all edge functions to Supabase Cloud"
-	@echo "  make <brand> migrate      Link to brand's project and push migrations"
-	@echo "  make <brand> deploy-functions  Deploy edge functions for a brand"
 	@echo ""
-	@echo "Multi-brand (requires gatewaze-environments):"
-	@echo "  make <brand> up        Start a specific brand"
-	@echo "  make <brand> down      Stop a specific brand"
-	@echo "  make <brand> reset     Reset a specific brand"
-	@echo "  make <brand> logs      Tail logs for a specific brand"
+	@echo "Configuration is read from docker/.env."
 
 init: ## Copy example env file and prepare for first run
-	@if [ -f docker/.env ]; then \
-		echo "docker/.env already exists — skipping copy."; \
+	@if [ -f $(ENV_FILE) ]; then \
+		echo "$(ENV_FILE) already exists — skipping copy."; \
 	else \
-		cp docker/.env.example docker/.env; \
-		echo "Created docker/.env from docker/.env.example"; \
-		echo "Edit docker/.env to customize your settings, then run: make up"; \
+		cp docker/.env.example $(ENV_FILE); \
+		echo "Created $(ENV_FILE) from docker/.env.example"; \
+		echo "Edit $(ENV_FILE) to customize your settings, then run: make up"; \
 	fi
 
-up: _check-env _activate-brand _ensure-traefik _generate-mcp ## Start services
+up: _check-env _ensure-traefik _generate-mcp ## Start services
 	docker compose $(COMPOSE_FILES) up -d --build
 	@echo ""
 	@echo "Services starting (dev mode with hot reload). Visit:"
@@ -91,27 +66,27 @@ up: _check-env _activate-brand _ensure-traefik _generate-mcp ## Start services
 	@grep -E '^API_HOST=' "$(ENV_FILE)" 2>/dev/null | sed 's/API_HOST=/  API:      http:\/\//'
 	@grep -E '^STUDIO_HOST=' "$(ENV_FILE)" 2>/dev/null | sed 's/STUDIO_HOST=/  Studio:   http:\/\//'
 
-down: _check-env _activate-brand ## Stop services
+down: _check-env ## Stop services
 	docker compose $(COMPOSE_FILES) down
 
-reset: _check-env _activate-brand ## Stop services, remove volumes, and restart fresh
+reset: _check-env ## Stop services, remove volumes, and restart fresh
 	docker compose $(COMPOSE_FILES) down -v
 	@echo "Removing cached modules and module-installed edge functions..."
 	@rm -rf .gatewaze-modules data/uploaded-modules data/.tmp-uploads
 	@git checkout -- supabase/functions/ 2>/dev/null || true
 	@git clean -fdx -- supabase/functions/
 ifeq ($(SUPABASE_MODE),cloud)
-	@$(MAKE) _cloud-reset $(if $(BRAND),$(BRAND),)
+	@$(MAKE) _cloud-reset
 endif
-	@$(MAKE) up $(if $(BRAND),$(BRAND),)
+	@$(MAKE) up
 
-logs: _check-env _activate-brand ## Tail service logs
+logs: _check-env ## Tail service logs
 	docker compose $(COMPOSE_FILES) logs -f
 
-ps: _check-env _activate-brand ## Show running containers
+ps: _check-env ## Show running containers
 	docker compose $(COMPOSE_FILES) ps
 
-deploy-functions: _check-env _activate-brand _link-cloud _sync-secrets ## Deploy all edge functions to Supabase Cloud
+deploy-functions: _check-env _link-cloud _sync-secrets ## Deploy all edge functions to Supabase Cloud
 ifeq ($(SUPABASE_MODE),cloud)
 	@echo "Deploying edge functions..."
 	npx supabase functions deploy
@@ -121,7 +96,7 @@ else
 	@exit 1
 endif
 
-migrate: _check-env _activate-brand _link-cloud ## Push migrations to the linked Supabase project
+migrate: _check-env _link-cloud ## Push migrations to the linked Supabase project
 ifeq ($(SUPABASE_MODE),cloud)
 	@echo "Pushing migrations..."
 	npx supabase db push
@@ -134,7 +109,7 @@ endif
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
-.PHONY: _check-env _activate-brand _link-cloud _cloud-reset _sync-secrets _ensure-traefik _generate-mcp
+.PHONY: _check-env _link-cloud _cloud-reset _sync-secrets _ensure-traefik _generate-mcp
 
 # Env vars that edge functions read (beyond the auto-provided SUPABASE_* vars).
 # Only non-empty values from the env file are synced.
@@ -147,39 +122,14 @@ EDGE_FUNCTION_SECRETS := \
 	CUSTOMERIO_SITE_ID CUSTOMERIO_API_KEY CUSTOMERIO_APP_API_KEY
 
 _check-env:
-ifdef BRAND
 	@if [ ! -f "$(ENV_FILE)" ]; then \
 		echo "Error: $(ENV_FILE) not found"; \
-		echo ""; \
-		if [ ! -d "$(ENVIRONMENTS_DIR)" ]; then \
-			echo "The gatewaze-environments repo is not present at $(ENVIRONMENTS_DIR)/"; \
-			echo "Clone it alongside this repo:"; \
-			echo "  cd .. && git clone <your-environments-repo-url> gatewaze-environments"; \
-		else \
-			echo "Available brands:"; \
-			for f in $(ENVIRONMENTS_DIR)/*.local.env; do \
-				[ -f "$$f" ] || continue; \
-				basename "$$f" .local.env; \
-			done; \
-		fi; \
-		exit 1; \
-	fi
-else
-	@if [ ! -f "docker/.env" ]; then \
-		echo "Error: docker/.env not found"; \
 		echo ""; \
 		echo "Quick start:"; \
 		echo "  make init"; \
 		echo "  make up"; \
 		exit 1; \
 	fi
-endif
-
-_activate-brand:
-ifdef BRAND
-	@cp "$(ENV_FILE)" docker/.env
-	@echo "Activated brand: $(BRAND)"
-endif
 
 _link-cloud:
 ifeq ($(SUPABASE_MODE),cloud)
@@ -321,11 +271,3 @@ _generate-mcp:
 			"$${API_HOST:-localhost:3002}" "$$MCP_KEY" > .mcp.json; \
 		echo "Generated .mcp.json for Claude Code (Gatewaze MCP)"; \
 	fi
-
-# ---------------------------------------------------------------------------
-# Catch-all: silently ignore brand names passed as targets
-# ---------------------------------------------------------------------------
-ifdef BRAND
-$(BRAND):
-	@:
-endif
