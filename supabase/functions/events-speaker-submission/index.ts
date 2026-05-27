@@ -470,7 +470,7 @@ async function findOrCreatePerson(
     try {
       const { data: newAuthUser, error: createError } = await supabase.auth.admin.createUser({
         email: email,
-        email_confirm: false,
+        email_confirm: true,
       })
 
       if (createError) {

@@ -248,9 +248,14 @@ async function handler(req: Request) {
     if (!authUserId) {
       console.log('No auth user found, creating new auth user...')
       try {
+        // Auto-confirm so GoTrue never sends its own "Confirm your email"
+        // template. Subsequent signInWithOtp() calls hit the magic_link
+        // template (the desired flow); when email_confirm was false,
+        // GoTrue treated the first OTP request as a signup confirmation
+        // and emailed the 6-digit code instead of a magic link.
         const { data: newAuthUser, error: createError } = await supabase.auth.admin.createUser({
           email: email,
-          email_confirm: false, // They'll need to verify via magic link
+          email_confirm: true,
           user_metadata: user_metadata
         })
 
