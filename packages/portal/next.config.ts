@@ -136,6 +136,17 @@ const nextConfig: NextConfig = {
           resolve(__dirname, '../../../premium-gatewaze-modules/modules'),
           resolve(__dirname, '../../../lf-gatewaze-modules/modules'),
         ]
+    // Don't resolve symlinks. Local module sources live under
+    // .gatewaze-modules/local-*  as symlinks pointing to the original
+    // repo dirs (see generate-module-registry.ts → linkLocalSource).
+    // Webpack's default resolveSymlinks:true would rewrite the resolved
+    // path to the symlink target — which lives outside the project root
+    // and so doesn't match the TS/TSX transpile rules below (whose
+    // `include` list is the .gatewaze-modules dirs). Keeping the
+    // symlinked path lets the include-rules match and webpack
+    // transpiles the file correctly.
+    config.resolve.symlinks = false
+
     config.resolve.alias = {
       ...(config.resolve.alias || {}),
       '@gatewaze-modules': moduleAliasPaths,
