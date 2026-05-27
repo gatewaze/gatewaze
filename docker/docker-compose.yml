@@ -648,6 +648,15 @@ services:
       GOOGLE_CSE_DAILY_BUDGET: ${GOOGLE_CSE_DAILY_BUDGET:-100}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # Disable GPT-5 reasoning by default. Goose auto-enables reasoning
+      # on gpt-5 / o-series, which adds 10–50× output-token volume
+      # (reasoning tokens count as output, billed at output rates) AND
+      # multi-second latency per call before any visible streaming. For
+      # most recipe work — fetch a page, extract structured candidates
+      # — the reasoning trace is pure overhead. Override per-use-case
+      # via goose_runtime_overrides ({"OPENAI_REASONING_EFFORT": "low"})
+      # when a recipe genuinely needs deeper thinking.
+      OPENAI_REASONING_EFFORT: ${OPENAI_REASONING_EFFORT:-minimal}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       # spec-ai-mcp-extensions.md §6 — route chat through `goose session`
       # so MCP allowlists, runtime overrides + the Gatewaze-owned memory
