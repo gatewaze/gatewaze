@@ -79,6 +79,88 @@ export const templateVariableScopes: TemplateVariableScope[] = [
       { field: 'end_date', label: 'End Date', description: 'Event end date', example: 'January 17, 2025' },
     ],
   },
+  // ── Ambassadors-module scopes ─────────────────────────────────────────────
+  // Consumed by the Comms tab in the ambassadors admin
+  // (lf-gatewaze-modules/modules/ambassadors). Other modules don't see
+  // these unless they explicitly opt in via the RichTextEditor's
+  // `availableScopes` prop, so the events-side comms editors are
+  // unaffected.
+  {
+    name: 'applicant',
+    label: 'Applicant',
+    description: 'Variables for an ambassador-programme applicant (pre-acceptance state)',
+    variables: [
+      { field: 'first_name', label: 'First Name', description: 'Applicant first name', example: 'Alex' },
+      { field: 'last_name',  label: 'Last Name',  description: 'Applicant last name',  example: 'Doe' },
+      { field: 'full_name',  label: 'Full Name',  description: 'Applicant full name',  example: 'Alex Doe' },
+      { field: 'email',      label: 'Email',      description: 'Applicant email address', example: 'alex@example.com' },
+      { field: 'location',   label: 'Location',   description: 'Freeform location text', example: 'London, UK' },
+    ],
+  },
+  {
+    name: 'ambassador',
+    label: 'Ambassador',
+    description: 'Variables for an accepted ambassador (post-acceptance state)',
+    variables: [
+      { field: 'first_name',  label: 'First Name',     description: 'Ambassador first name', example: 'Alex' },
+      { field: 'last_name',   label: 'Last Name',      description: 'Ambassador last name',  example: 'Doe' },
+      { field: 'full_name',   label: 'Full Name',      description: 'Ambassador full name',  example: 'Alex Doe' },
+      { field: 'display_name',label: 'Display Name',   description: 'Public-profile display name', example: 'Alex Doe' },
+      { field: 'tier_title',  label: 'Tier Title',     description: 'Current tier title',    example: 'Voyager' },
+      { field: 'total_points',label: 'Total Points',   description: 'Lifetime points total', example: '120' },
+    ],
+  },
+  {
+    name: 'program',
+    label: 'Programme',
+    description: 'Variables for the ambassador programme',
+    variables: [
+      { field: 'name',    label: 'Programme Name', description: 'Programme name',        example: 'EXAMPLE Ambassador Program' },
+      { field: 'slug',    label: 'Programme Slug', description: 'URL-safe identifier',   example: 'example' },
+      { field: 'tagline', label: 'Tagline',        description: 'Short programme strapline', example: 'Curated community advocates for agentic open source' },
+    ],
+  },
+  {
+    name: 'cohort',
+    label: 'Cohort',
+    description: 'Variables for the cohort an applicant / ambassador is in',
+    variables: [
+      { field: 'name',                 label: 'Cohort Name',          description: 'Cohort name',                        example: 'Spring 2026' },
+      { field: 'intake_open_at',       label: 'Intake Open At',       description: 'Cohort intake window opens',         example: 'March 1, 2026' },
+      { field: 'decision_target_date', label: 'Decision Target Date', description: 'Decisions sent by this date',        example: 'April 15, 2026' },
+    ],
+  },
+  {
+    name: 'contribution',
+    label: 'Contribution',
+    description: 'Variables for an ambassador contribution (talk / post / video / etc.)',
+    variables: [
+      { field: 'title',          label: 'Title',          description: 'Contribution title',                     example: 'Intro to AGENTS.md' },
+      { field: 'category_name',  label: 'Category',       description: 'Category label',                         example: 'Blog post' },
+      { field: 'awarded_points', label: 'Awarded Points', description: 'Points awarded by the reviewer',          example: '10' },
+      { field: 'occurred_on',    label: 'Occurred On',    description: 'Date the activity took place',           example: 'February 12, 2026' },
+      { field: 'proof_url',      label: 'Proof URL',      description: 'Link the ambassador submitted as proof', example: 'https://example.com/post' },
+      { field: 'edit_url',       label: 'Edit URL',       description: 'Direct link to edit this contribution',  example: '/ambassadors/contributions/abc-123/edit' },
+    ],
+  },
+  {
+    name: 'decision',
+    label: 'Decision',
+    description: 'Variables for an admin decision (accept / decline / approve / needs-changes)',
+    variables: [
+      { field: 'reviewer_note',    label: 'Reviewer Note',    description: 'Free-text note from the reviewer',    example: 'Great writeup, nicely sourced.' },
+      { field: 'rejection_reason', label: 'Rejection Reason', description: 'Free-text reason for a rejection',     example: 'Needs at least one external link.' },
+    ],
+  },
+  {
+    name: 'sign_in',
+    label: 'Sign-in',
+    description: 'Variables for sign-in URLs and magic links',
+    variables: [
+      { field: 'manage_url', label: 'Manage URL', description: 'Link to /ambassadors dashboard for the recipient', example: 'https://app.example.org/ambassadors' },
+      { field: 'magic_link', label: 'Magic Link', description: 'One-time sign-in link (when LFID is disabled)',    example: 'https://app.example.org/auth/v1/verify?token=…' },
+    ],
+  },
 ];
 
 // Get all available variables as a flat list
