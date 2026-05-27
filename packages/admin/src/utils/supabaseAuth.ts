@@ -875,7 +875,7 @@ export class SupabaseAuthService {
       // Create auth user (they'll need to verify email and set password)
       const { data: authData, error: authError } = await supabase.auth.admin.createUser({
         email,
-        email_confirm: false // They need to verify their email
+        email_confirm: true // They need to verify their email
       })
 
       if (authError || !authData.user) {
