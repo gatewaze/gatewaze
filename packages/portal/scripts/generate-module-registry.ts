@@ -17,7 +17,7 @@
  * Run: npx tsx scripts/generate-module-registry.ts
  */
 
-import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync, statSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync, statSync, symlinkSync, readlinkSync, unlinkSync, lstatSync } from 'fs'
 import { resolve, relative, dirname, isAbsolute } from 'path'
 import { fileURLToPath } from 'url'
 import { execFileSync } from 'child_process'
@@ -213,11 +213,56 @@ function resolveSources(sources: SourceEntry[]): string[] {
       }
     } else {
       const absPath = isAbsolute(source.url) ? source.url : resolve(PROJECT_ROOT, source.url)
-      resolved.push(source.path ? resolve(absPath, source.path) : absPath)
+      // Mirror the git-source flow: every module — whether cloned or
+      // mounted from a local path — ends up under .gatewaze-modules/.
+      // For local sources we symlink rather than copy so dev iteration
+      // still sees live edits, but webpack + the codegen consistently
+      // reference paths via the cache dir. Without this, absolute paths
+      // outside the project root sometimes confuse webpack's module
+      // resolver (notably with bare filenames like `new.tsx`).
+      const linked = linkLocalSource(absPath)
+      resolved.push(source.path ? resolve(linked, source.path) : linked)
     }
   }
 
   return resolved
+}
+
+/**
+ * Symlink a local module-source root into `.gatewaze-modules/<slug>` so
+ * the codegen can reference it through the same cache dir used for git
+ * clones. Returns the symlink path (which webpack will follow at build
+ * time). Idempotent: an existing correct symlink is left alone.
+ */
+function linkLocalSource(absPath: string): string {
+  const cacheDir = resolve(PROJECT_ROOT, '.gatewaze-modules')
+  // Slug = path-encoded basename of the parent dir + the source dir,
+  // so /Users/dan/Git/gatewaze/lf-gatewaze-modules/modules becomes
+  // lf-gatewaze-modules-modules. Distinct from git-clone slugs (which
+  // include a host prefix like github-com-...).
+  const segments = absPath.split('/').filter(Boolean)
+  const slug = 'local-' + segments.slice(-2).join('-').replace(/[^a-zA-Z0-9-]/g, '-')
+  const linkPath = resolve(cacheDir, slug)
+
+  try {
+    mkdirSync(cacheDir, { recursive: true })
+    if (existsSync(linkPath) || lstatSync(linkPath, { throwIfNoEntry: false } as any)) {
+      // If already a symlink to the right target, reuse it; else replace.
+      try {
+        const existing = readlinkSync(linkPath)
+        if (existing === absPath) return linkPath
+        unlinkSync(linkPath)
+      } catch {
+        // Not a symlink — leave it alone and fall back to the raw path.
+        return absPath
+      }
+    }
+    symlinkSync(absPath, linkPath, 'dir')
+    return linkPath
+  } catch (err) {
+    console.warn(`[generate-module-registry] Could not symlink local source ${absPath}: ${err}. Falling back to raw path.`)
+    return absPath
+  }
 }
 
 /**
