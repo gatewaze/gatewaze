@@ -385,8 +385,15 @@ function walkPortalPagesDir(
 
     const routePath = '/' + [moduleId, ...routeSegments].filter(Boolean).join('/')
 
-    // Component import path: drop the .tsx extension
-    const componentPath = fullPath.replace(/\.tsx?$/, '')
+    // Component import path: drop the .tsx extension AND any trailing
+    // /index segment. Webpack does folder→index resolution on its own,
+    // and explicit /index suffixes have proven flaky for nested folders
+    // (the webpack resolver intermittently fails to find
+    // `<dir>/index.tsx` when asked for `<dir>/index` directly, while
+    // happily resolving the same file when asked for `<dir>`).
+    const componentPath = fullPath
+      .replace(/\.tsx?$/, '')
+      .replace(/\/index$/, '')
 
     pages.push({
       path: routePath,
