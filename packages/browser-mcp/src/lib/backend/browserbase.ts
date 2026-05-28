@@ -14,7 +14,9 @@ export const BROWSERBASE_REGIONS: readonly BrowserbaseRegion[] = [
 
 export interface BrowserbaseConfig {
   apiKey: string;
-  projectId: string;
+  /** Optional — the SDK treats projectId as optional (the API key scopes to a
+   * default project). Passed through to create/release only when set. */
+  projectId?: string;
   /** Persistent Browserbase Context id — carries the login across sessions. */
   contextId?: string;
   /** Data-residency region (e.g. eu-central-1 for governance-sensitive brands). */
@@ -93,9 +95,7 @@ export class BrowserbaseBackend implements BrowserBackend {
 
   private async create(): Promise<{ id: string; connectUrl: string }> {
     const session = await this.bb.sessions.create({
-      projectId: this.cfg.projectId,
-      // Context + region option shapes are spec §10 open questions; passed
-      // through only when configured. Reconcile against the SDK's real types.
+      ...(this.cfg.projectId ? { projectId: this.cfg.projectId } : {}),
       ...(this.cfg.region ? { region: this.cfg.region } : {}),
       ...(this.cfg.contextId
         ? { browserSettings: { context: { id: this.cfg.contextId, persist: true } } }
@@ -121,7 +121,7 @@ export class BrowserbaseBackend implements BrowserBackend {
       this.sessionId = null;
       try {
         await this.bb.sessions.update(id, {
-          projectId: this.cfg.projectId,
+          ...(this.cfg.projectId ? { projectId: this.cfg.projectId } : {}),
           status: 'REQUEST_RELEASE',
         });
         logEvent({ backend: 'browserbase', event: 'closed', session_id: id });

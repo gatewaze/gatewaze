@@ -17,11 +17,8 @@ export function resolveBackend(env: NodeJS.ProcessEnv): BrowserBackend {
 
   if (backend === 'browserbase') {
     const apiKey = env.BROWSERBASE_API_KEY;
-    const projectId = env.BROWSERBASE_PROJECT_ID;
-    if (!apiKey || !projectId) {
-      throw new Error(
-        'BROWSER_MCP_BACKEND=browserbase requires BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID',
-      );
+    if (!apiKey) {
+      throw new Error('BROWSER_MCP_BACKEND=browserbase requires BROWSERBASE_API_KEY');
     }
     const rawRegion = env.BROWSERBASE_REGION;
     if (rawRegion && !BROWSERBASE_REGIONS.includes(rawRegion as BrowserbaseRegion)) {
@@ -31,7 +28,7 @@ export function resolveBackend(env: NodeJS.ProcessEnv): BrowserBackend {
     }
     return new BrowserbaseBackend({
       apiKey,
-      projectId,
+      projectId: env.BROWSERBASE_PROJECT_ID || undefined,
       contextId: env.BROWSERBASE_CONTEXT_ID || undefined,
       region: (rawRegion as BrowserbaseRegion) || undefined,
     });
