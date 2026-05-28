@@ -3,49 +3,14 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import puppeteer, { type Browser, type Page } from 'puppeteer-core';
+import { type Page } from 'puppeteer-core';
 import { assertNavigable } from './lib/url-guard.js';
+import { type BrowserBackend } from './lib/backend/index.js';
+import { BrowserbaseWeb } from './lib/browserbase-web.js';
+import { DEFAULT_MAX_CHARS, DEFAULT_TIMEOUT_MS } from './lib/config.js';
 
-// ── Config (env) ───────────────────────────────────────────────────────────
-
-const CHROMIUM_PATH = process.env.PUPPETEER_EXECUTABLE_PATH ?? '/usr/bin/chromium';
-// Persisting a Chromium profile dir lets a login survive across runs, so the
-// model doesn't have to re-authenticate every invocation.
-const USER_DATA_DIR = process.env.BROWSER_MCP_USER_DATA_DIR || undefined;
-const DEFAULT_MAX_CHARS = Number(process.env.BROWSER_MCP_MAX_CHARS ?? 20000);
-const DEFAULT_TIMEOUT_MS = Number(process.env.BROWSER_MCP_TIMEOUT_MS ?? 30000);
-
-// ── Browser session (one per process) ────────────────────────────────────────
-
-class BrowserSession {
-  private browser: Browser | null = null;
-  private page: Page | null = null;
-
-  async getPage(): Promise<Page> {
-    if (!this.browser) {
-      this.browser = await puppeteer.launch({
-        executablePath: CHROMIUM_PATH,
-        headless: true,
-        userDataDir: USER_DATA_DIR,
-        args: ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
-      });
-    }
-    if (!this.page) {
-      const pages = await this.browser.pages();
-      this.page = pages[0] ?? (await this.browser.newPage());
-      this.page.setDefaultTimeout(DEFAULT_TIMEOUT_MS);
-    }
-    return this.page;
-  }
-
-  async close(): Promise<void> {
-    if (this.browser) {
-      await this.browser.close();
-      this.browser = null;
-      this.page = null;
-    }
-  }
-}
+// The browser comes from a pluggable BrowserBackend (local Chromium or a
+// Browserbase cloud session); the tool handlers below are backend-agnostic.
 
 // ── Tool definitions ─────────────────────────────────────────────────────────
 
@@ -151,6 +116,33 @@ const TOOLS = [
     description: 'Close the browser session and free resources.',
     inputSchema: { type: 'object' as const, properties: {} },
   },
+  {
+    name: 'browserbase_fetch',
+    description:
+      'Fetch a URL via the Browserbase Fetch API (proxy network) and return its content as markdown or raw. Read-only, no browser session. Requires BROWSERBASE_API_KEY. Useful for A/B-ing against gatewaze_search/scrapling.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        url: { type: 'string', description: 'Absolute http(s) URL to fetch' },
+        format: { type: 'string', description: "'markdown' (default) or 'raw'" },
+        max_chars: { type: 'number', description: `Truncate content to this many chars (default ${DEFAULT_MAX_CHARS})` },
+      },
+      required: ['url'],
+    },
+  },
+  {
+    name: 'browserbase_search',
+    description:
+      'Web search via the Browserbase Search API; returns title/url/published-date per result. Requires BROWSERBASE_API_KEY.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        query: { type: 'string', description: 'Search query' },
+        num_results: { type: 'number', description: 'Number of results, 1-25' },
+      },
+      required: ['query'],
+    },
+  },
 ];
 
 // ── Handlers ─────────────────────────────────────────────────────────────────
@@ -243,12 +235,13 @@ async function handleGetUrl(page: Page) {
 
 // ── Server factory ─────────────────────────────────────────────────────────
 
-export function createBrowserMcpServer(): Server {
+export function createBrowserMcpServer(backend: BrowserBackend): Server {
   const server = new Server(
     { name: 'gatewaze-browser-mcp', version: '0.1.0' },
     { capabilities: { tools: {} } },
   );
-  const session = new BrowserSession();
+  // Stateless Fetch/Search web-data API (separate from the page backend).
+  const web = new BrowserbaseWeb(process.env.BROWSERBASE_API_KEY);
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
 
@@ -258,11 +251,44 @@ export function createBrowserMcpServer(): Server {
 
     try {
       if (name === 'browser_close') {
-        await session.close();
+        await backend.close();
         return { content: [{ type: 'text', text: JSON.stringify({ ok: true, closed: true }) }] };
       }
 
-      const page = await session.getPage();
+      // ── Browserbase Fetch/Search (no browser session needed) ──────────────
+      if (name === 'browserbase_fetch') {
+        const url = await assertNavigable(String(p.url)); // SSRF guard applies here too
+        const format = p.format === 'raw' ? 'raw' : 'markdown';
+        const res = await web.fetch(url, format);
+        const max = Number(p.max_chars ?? DEFAULT_MAX_CHARS);
+        const truncated = res.content.length > max;
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(
+                {
+                  status: res.statusCode,
+                  contentType: res.contentType,
+                  truncated,
+                  content: truncated ? res.content.slice(0, max) : res.content,
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      }
+      if (name === 'browserbase_search') {
+        const res = await web.search(
+          String(p.query),
+          p.num_results !== undefined ? Number(p.num_results) : undefined,
+        );
+        return { content: [{ type: 'text', text: JSON.stringify(res, null, 2) }] };
+      }
+
+      const page = await backend.getPage();
       let result: unknown;
 
       switch (name) {
