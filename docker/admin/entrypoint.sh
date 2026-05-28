@@ -80,7 +80,7 @@ fi
 # Clone module sources from MODULE_SOURCES env var. Comma-separated list
 # where each entry is one of:
 #   - git URL: https://github.com/org/repo.git[#branch=main&path=modules]
-#   - local absolute path: /premium-gatewaze-modules/modules
+#   - local absolute path: /gatewaze-modules/modules
 # Local paths are volume-mounted by docker-compose.local-modules.yml and
 # don't need to be cloned — the plugin will scan them in place.
 if [ -n "$MODULE_SOURCES" ]; then
@@ -131,7 +131,7 @@ if [ -n "$MODULE_SOURCES" ]; then
       # prebuilt bundle, forcing the runtime to do a full slow-path
       # build with whatever the pod can clone (which is the
       # last-known-good behaviour). This is what was missed in v1.2.28
-      # — the auto-token couldn't clone premium-gatewaze-modules and
+      # — the auto-token couldn't clone gatewaze-modules and
       # the silent `continue` shipped a broken bundle to production.
       if [ -n "$PREBUILD" ]; then
         echo "[admin] FATAL (prebuild): failed to clone $url — aborting prebuild rather than baking a partial bundle" >&2

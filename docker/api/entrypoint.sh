@@ -81,7 +81,7 @@ fi
 #
 # Why this instead of per-module `pnpm install`: per-module install
 # inherits the cloned repo's pnpm-workspace.yaml (gatewaze-modules
-# and premium-gatewaze-modules both have one with sibling-repo paths
+# and gatewaze-modules both have one with sibling-repo paths
 # that don't exist in the container), causing pnpm to fall back to
 # private-registry lookups it isn't authed for ("No authorization
 # header was set for the request"). The aggregated approach runs

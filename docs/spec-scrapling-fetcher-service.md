@@ -121,12 +121,12 @@ secret in `X-Internal-Token` header.
 | Service Dockerfile | `gatewaze/services/scrapling-fetcher/Dockerfile` |
 | Service compose entry | `gatewaze/docker/docker-compose.yml` |
 | Service Helm template | `gatewaze/helm/gatewaze/templates/scrapling-fetcher.yaml` (chart lives in the gatewaze repo; gatewaze-environments only carries per-brand values) |
-| Node adapter | `premium-gatewaze-modules/modules/scrapers/scripts/lib/scrapling-fetcher.js` |
-| Fast scraper classes | `premium-gatewaze-modules/modules/scrapers/scripts/scrapers/LumaICalScraperFast.js` (and Search, Category equivalents) |
-| Dispatch update | `premium-gatewaze-modules/modules/scrapers/scripts/scraper-job-handler.js` |
-| Editor UI | `premium-gatewaze-modules/modules/scrapers/admin/pages/ScraperEditorModal.tsx` |
-| Comparison view | `premium-gatewaze-modules/modules/scrapers/admin/pages/ScraperComparisonPage.tsx` |
-| Comparison RPC | `premium-gatewaze-modules/modules/scrapers/migrations/018_fast_vs_slow_comparison.sql` |
+| Node adapter | `gatewaze-modules/modules/scrapers/scripts/lib/scrapling-fetcher.js` |
+| Fast scraper classes | `gatewaze-modules/modules/scrapers/scripts/scrapers/LumaICalScraperFast.js` (and Search, Category equivalents) |
+| Dispatch update | `gatewaze-modules/modules/scrapers/scripts/scraper-job-handler.js` |
+| Editor UI | `gatewaze-modules/modules/scrapers/admin/pages/ScraperEditorModal.tsx` |
+| Comparison view | `gatewaze-modules/modules/scrapers/admin/pages/ScraperComparisonPage.tsx` |
+| Comparison RPC | `gatewaze-modules/modules/scrapers/migrations/018_fast_vs_slow_comparison.sql` |
 
 ## 4. Component Design
 
@@ -1213,7 +1213,7 @@ Coverage target: ≥ 90% of `app/` modules.
 
 ### 12.2 Node adapter (vitest)
 
-`premium-gatewaze-modules/modules/scrapers/scripts/lib/__tests__/scrapling-fetcher.test.js`:
+`gatewaze-modules/modules/scrapers/scripts/lib/__tests__/scrapling-fetcher.test.js`:
 
 - Service returns 200 → adapter returns parsed shape.
 - Service returns 500 → adapter throws (caller decides fallback).
@@ -1737,17 +1737,17 @@ migration order driven by which features generate the most spend.
 - [ ] `gatewaze-environments/k8s/templates/scrapling-fetcher.yaml`
 - [ ] `gatewaze-environments/example.local.env` — new env vars
 - [ ] `gatewaze-environments/example.production.env` — new env vars (and same for demo, acme)
-- [ ] `premium-gatewaze-modules/modules/scrapers/scripts/lib/scrapling-fetcher.js`
-- [ ] `premium-gatewaze-modules/modules/scrapers/scripts/lib/__tests__/scrapling-fetcher.test.js`
-- [ ] `premium-gatewaze-modules/modules/scrapers/scripts/scrapers/LumaICalScraperFast.js`
-- [ ] `premium-gatewaze-modules/modules/scrapers/scripts/scrapers/LumaSearchScraperFast.js`
-- [ ] `premium-gatewaze-modules/modules/scrapers/scripts/scrapers/LumaCategoryScraperFast.js`
-- [ ] `premium-gatewaze-modules/modules/scrapers/scripts/scrapers/__tests__/*.test.js`
-- [ ] `premium-gatewaze-modules/modules/scrapers/scripts/scraper-job-handler.js` — register the three new classes
-- [ ] `premium-gatewaze-modules/modules/scrapers/migrations/018_fast_vs_slow_comparison.sql`
-- [ ] `premium-gatewaze-modules/modules/scrapers/admin/pages/ScraperEditorModal.tsx` — three new SPECS entries + shared `LUMA_*_CONFIG_FIELDS` constants
-- [ ] `premium-gatewaze-modules/modules/scrapers/admin/pages/ScraperComparisonPage.tsx` — new page
-- [ ] `premium-gatewaze-modules/modules/scrapers/index.ts` — `adminRoutes` entry for the comparison page
+- [ ] `gatewaze-modules/modules/scrapers/scripts/lib/scrapling-fetcher.js`
+- [ ] `gatewaze-modules/modules/scrapers/scripts/lib/__tests__/scrapling-fetcher.test.js`
+- [ ] `gatewaze-modules/modules/scrapers/scripts/scrapers/LumaICalScraperFast.js`
+- [ ] `gatewaze-modules/modules/scrapers/scripts/scrapers/LumaSearchScraperFast.js`
+- [ ] `gatewaze-modules/modules/scrapers/scripts/scrapers/LumaCategoryScraperFast.js`
+- [ ] `gatewaze-modules/modules/scrapers/scripts/scrapers/__tests__/*.test.js`
+- [ ] `gatewaze-modules/modules/scrapers/scripts/scraper-job-handler.js` — register the three new classes
+- [ ] `gatewaze-modules/modules/scrapers/migrations/018_fast_vs_slow_comparison.sql`
+- [ ] `gatewaze-modules/modules/scrapers/admin/pages/ScraperEditorModal.tsx` — three new SPECS entries + shared `LUMA_*_CONFIG_FIELDS` constants
+- [ ] `gatewaze-modules/modules/scrapers/admin/pages/ScraperComparisonPage.tsx` — new page
+- [ ] `gatewaze-modules/modules/scrapers/index.ts` — `adminRoutes` entry for the comparison page
 - [ ] Per-package: `pnpm --filter @gatewaze/<pkg> exec tsc --noEmit` clean
 - [ ] Per-package: lint clean
 - [ ] CI workflows updated if Python service needs its own job (yes — `pytest` job for `services/scrapling-fetcher`)
@@ -1755,7 +1755,7 @@ migration order driven by which features generate the most spend.
 - [ ] `gatewaze-environments/services/scrapling-fetcher/app/proxy/{none,rayobyte,brightdata,oxylabs,decodo,iproyal}.py` — built-in providers
 - [ ] `gatewaze-environments/services/scrapling-fetcher/app/cost_ledger.py` — psycopg client, `record_external_api_usage` RPC caller
 - [ ] `packages/shared/src/cost/record.ts`, `packages/shared/src/cost/pricing.ts`, `packages/shared/src/cost/errors.ts` — TS helper SDK
-- [ ] `premium-gatewaze-modules/modules/scrapers/scripts/lib/luma-extractor.js` — wrap `anthropic.messages.create` with `callAnthropic`
+- [ ] `gatewaze-modules/modules/scrapers/scripts/lib/luma-extractor.js` — wrap `anthropic.messages.create` with `callAnthropic`
 - [ ] `gatewaze-modules/modules/cost-governance/migrations/001_external_api_usage.sql` — ledger table + RPC + budget table + `cost_summary` RPC (lives in a new module so any deployment that wants cost tracking enables one module rather than scattering migrations)
 - [ ] `gatewaze-modules/modules/cost-governance/admin/pages/CostPage.tsx` — `/admin/cost` page
 
