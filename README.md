@@ -29,7 +29,9 @@ Gatewaze is a modular platform for managing people and communities. Out of the b
 
 Gatewaze's module system lets you pick the capabilities you need. Modules are selected during onboarding and can be enabled or disabled at any time.
 
-The official open-source module collection lives in the [gatewaze-modules](https://github.com/gatewaze/gatewaze-modules) repository. You can also create your own modules and load them from local paths, git repos, or uploaded packages. See the [Module System Guide](./docs/modules.md) for full documentation on creating and managing modules.
+The official open-source module collection lives in the [gatewaze-modules](https://github.com/gatewaze/gatewaze-modules) repository — **76 modules** (all Apache-2.0) spanning events, content, people & community, sites & web, marketing, communications, integrations, and platform infrastructure. Examples include event registrations, calendars, speakers, newsletters, blog, multi-site web builder, forms, surveys, Stripe payments, Slack/SMS/WhatsApp messaging, analytics, AI, and compliance.
+
+You can also create your own modules and load them from local paths, git repos, or uploaded packages. See the [Module System Guide](./docs/modules.md) for full documentation on creating and managing modules.
 
 ## Tech Stack
 
