@@ -24,7 +24,6 @@ services:
       # Module system: config + external module sources
       - ../gatewaze.config.ts:/app/gatewaze.config.ts
       - ../../gatewaze-modules:/gatewaze-modules
-      - ../../premium-gatewaze-modules:/premium-gatewaze-modules
       - ../../lf-gatewaze-modules:/lf-gatewaze-modules
     environment:
       NODE_ENV: development
@@ -57,7 +56,6 @@ services:
       # Module system: config + external module sources
       - ../gatewaze.config.ts:/app/gatewaze.config.ts
       - ../../gatewaze-modules:/gatewaze-modules
-      - ../../premium-gatewaze-modules:/premium-gatewaze-modules
       - ../../lf-gatewaze-modules:/lf-gatewaze-modules
     environment:
       NODE_ENV: development
@@ -81,7 +79,6 @@ services:
       # Module system: config + external module sources
       - ../gatewaze.config.ts:/app/gatewaze.config.ts
       - ../../gatewaze-modules:/gatewaze-modules
-      - ../../premium-gatewaze-modules:/premium-gatewaze-modules
       - ../../lf-gatewaze-modules:/lf-gatewaze-modules
       # Git module source cache + uploaded modules (persist across restarts)
       - ../.gatewaze-modules:/app/.gatewaze-modules
@@ -114,7 +111,6 @@ services:
       - ../packages/shared/src:/app/packages/shared/src
       - ../gatewaze.config.ts:/app/gatewaze.config.ts
       - ../../gatewaze-modules:/gatewaze-modules
-      - ../../premium-gatewaze-modules:/premium-gatewaze-modules
       - ../../lf-gatewaze-modules:/lf-gatewaze-modules
       - ../.gatewaze-modules:/app/.gatewaze-modules
       - ../data:/app/data
@@ -132,7 +128,6 @@ services:
       - ../packages/shared/src:/app/packages/shared/src
       - ../gatewaze.config.ts:/app/gatewaze.config.ts
       - ../../gatewaze-modules:/gatewaze-modules
-      - ../../premium-gatewaze-modules:/premium-gatewaze-modules
       - ../../lf-gatewaze-modules:/lf-gatewaze-modules
     environment:
       NODE_ENV: development

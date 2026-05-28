@@ -641,7 +641,7 @@ services:
       # Mirror of the api service's key so worker-run skill syncs can
       # decrypt auth tokens stored on ai_skill_sources rows.
       GATEWAZE_SECRETS_KEY: ${GATEWAZE_SECRETS_KEY:-}
-      SCRAPER_MODULE_PATH: /premium-gatewaze-modules/modules/scrapers/scripts
+      SCRAPER_MODULE_PATH: /gatewaze-modules/modules/scrapers/scripts
       BRAVE_SEARCH_API_KEY: ${BRAVE_SEARCH_API_KEY:-}
       GOOGLE_CSE_API_KEY: ${GOOGLE_CSE_API_KEY:-}
       GOOGLE_CSE_ID: ${GOOGLE_CSE_ID:-}
@@ -693,7 +693,6 @@ services:
       # cost/usage attribution; leave unset in normal operation.
       GATEWAZE_GOOSE_KEEP_STATE: ${GATEWAZE_GOOSE_KEEP_STATE:-}
     volumes:
-      - ${PREMIUM_MODULES_PATH:-../../premium-gatewaze-modules}:/premium-gatewaze-modules
       # Open-source modules (where analytics now lives) — needed so the
       # /var/lib/gatewaze/modules/<id> symlinks the api supervisor writes
       # actually resolve inside the worker container.
@@ -820,7 +819,7 @@ services:
       - |
         # Idempotent CREATE DATABASE / CREATE ROLE — local-dev parity for
         # the Helm pre-install Job in
-        # premium-gatewaze-modules/modules/analytics/helm/templates/job-bootstrap-db.yaml.
+        # gatewaze-modules/modules/analytics/helm/templates/job-bootstrap-db.yaml.
         #
         # The GRANT to PGUSER is required because CREATE DATABASE ... OWNER
         # demands the connecting user be a member of the target owner role.

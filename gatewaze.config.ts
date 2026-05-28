@@ -32,7 +32,7 @@ const config: GatewazeConfig = {
     // Additional sources come from either:
     //  - production Helm values (`values-<brand>.yaml` → `moduleSources:`)
     //  - MODULE_SOURCES env var (comma-separated git URLs or mounted
-    //    local paths like `/premium-gatewaze-modules/modules#label=Premium`)
+    //    local paths like `/gatewaze-modules/modules#label=Premium`)
     //  - the admin UI's "Add Source" action (persisted in DB).
   ],
 

@@ -1,6 +1,6 @@
 # Module Implementations Analysis
 
-This specification defines the quality standards, conformance requirements, and identified issues across all 45 Gatewaze module implementations spanning three repositories: `gatewaze-modules` (26 modules), `premium-gatewaze-modules` (14 modules), and `lf-gatewaze-modules` (5 modules).
+This specification defines the quality standards, conformance requirements, and identified issues across all 45 Gatewaze module implementations spanning three repositories: `gatewaze-modules` (26 modules), `gatewaze-modules` (14 modules), and `lf-gatewaze-modules` (5 modules).
 
 ---
 
@@ -12,7 +12,7 @@ Every module MUST fully conform to the `GatewazeModule` contract defined in `pac
 
 **Fully conformant modules (41):**
 - gatewaze-modules: event-interest, calendars, event-agenda, badge-scanning, forms, event-speakers, environments, event-topics, compliance, blog, event-invites, event-sponsors, event-media, google-sheets, scrapers, bulk-emailing, luma-integration, slack-integration, people-enrichment, scheduler, people-warehouse
-- premium-gatewaze-modules: accounts, cohorts, competitions, discounts, event-budget, event-reports, event-tracking, gradual-integration, newsletters, offers, redirects, segments, surveys, customerio
+- gatewaze-modules: accounts, cohorts, competitions, discounts, event-budget, event-reports, event-tracking, gradual-integration, newsletters, offers, redirects, segments, surveys, customerio
 - lf-gatewaze-modules: content-discovery, content-pipeline, lf-theme, lfid-auth, podcasts
 
 **Non-conformant modules (4):**
@@ -124,7 +124,7 @@ Module `dependencies` MUST reference valid module IDs that exist in the module e
 
 | Module | Declared Dependency | Issue |
 |--------|-------------------|-------|
-| people-warehouse | `customerio` | References `customerio` module which exists in premium-gatewaze-modules, NOT in gatewaze-modules. Cross-repo dependency. |
+| people-warehouse | `customerio` | References `customerio` module which exists in gatewaze-modules, NOT in gatewaze-modules. Cross-repo dependency. |
 
 **Valid dependency chains:**
 - calendars → scrapers ✓
@@ -268,7 +268,7 @@ Module implementations MUST NOT contain hardcoded URLs, API keys, or credentials
 | Repo | Modules | Feature | Integration | Theme |
 |------|---------|---------|-------------|-------|
 | gatewaze-modules | 26 | 16 | 10 | 0 |
-| premium-gatewaze-modules | 14 | 11 | 3 | 0 |
+| gatewaze-modules | 14 | 11 | 3 | 0 |
 | lf-gatewaze-modules | 5 | 2 | 1 | 1 (+1 auth) |
 | **Total** | **45** | **29** | **14** | **1** |
 
