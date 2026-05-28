@@ -1,0 +1,166 @@
+{{- if .Values.browserMcp.enabled }}
+###############################################################################
+# browser-mcp — Node service exposing the browser_* tools + browserbase_fetch/
+# search over streamable HTTP (MCP). Registered in ai_mcp_servers as
+# type=streamable_http and reached by the worker/api at
+# http://<release>-browser-mcp:8080/mcp. Backend (local Chromium | Browserbase
+# cloud) is chosen service-side via BROWSER_MCP_BACKEND.
+# See gatewaze-environments/specs/spec-browserbase-browser-backend.md
+#
+# NOTE: the worker/api must run with AI_MCP_HTTP_ALLOW_PRIVATE=true to connect
+# to this internal http:// service past the streamable_http SSRF guard, and the
+# ai_mcp_servers uri_https constraint must permit internal single-label hosts
+# (ai migration 037).
+#
+# Toggle: set `browserMcp.enabled: true` in values-{brand}.yaml.
+###############################################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "gatewaze.fullname" . }}-browser-mcp
+  labels:
+    {{- include "gatewaze.labels" . | nindent 4 }}
+    app.kubernetes.io/component: browser-mcp
+spec:
+  replicas: {{ .Values.browserMcp.replicaCount | default 1 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "gatewaze.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: browser-mcp
+  template:
+    metadata:
+      labels:
+        {{- include "gatewaze.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: browser-mcp
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: browser-mcp
+          image: "{{ .Values.browserMcp.image.repository }}:{{ .Values.browserMcp.image.tag }}"
+          imagePullPolicy: {{ .Values.browserMcp.image.pullPolicy | default "IfNotPresent" }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: MCP_TRANSPORT
+              value: "http"
+            - name: PORT
+              value: "8080"
+            - name: PUPPETEER_EXECUTABLE_PATH
+              value: "/usr/bin/chromium"
+            - name: BROWSER_MCP_BACKEND
+              value: {{ .Values.browserMcp.backend | default "browserbase" | quote }}
+            - name: BROWSERBASE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "gatewaze.fullname" . }}-browser-mcp-secrets
+                  key: browserbaseApiKey
+                  optional: true
+            {{- if .Values.browserMcp.browserbaseProjectId }}
+            - name: BROWSERBASE_PROJECT_ID
+              value: {{ .Values.browserMcp.browserbaseProjectId | quote }}
+            {{- end }}
+            {{- if .Values.browserMcp.browserbaseRegion }}
+            - name: BROWSERBASE_REGION
+              value: {{ .Values.browserMcp.browserbaseRegion | quote }}
+            {{- end }}
+            {{- if .Values.browserMcp.browserbaseContextId }}
+            - name: BROWSERBASE_CONTEXT_ID
+              value: {{ .Values.browserMcp.browserbaseContextId | quote }}
+            {{- end }}
+          resources:
+            requests:
+              cpu: {{ .Values.browserMcp.resources.requests.cpu | default "100m" }}
+              memory: {{ .Values.browserMcp.resources.requests.memory | default "512Mi" }}
+            limits:
+              cpu: {{ .Values.browserMcp.resources.limits.cpu | default "1" }}
+              memory: {{ .Values.browserMcp.resources.limits.memory | default "2Gi" }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+            initialDelaySeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "gatewaze.fullname" . }}-browser-mcp
+  labels:
+    {{- include "gatewaze.labels" . | nindent 4 }}
+    app.kubernetes.io/component: browser-mcp
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+  selector:
+    {{- include "gatewaze.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: browser-mcp
+---
+###############################################################################
+# Secret — Browserbase API key. Set browserMcp.browserbaseApiKey in
+# values-{brand}.yaml (or omit for a local-Chromium-only backend).
+###############################################################################
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "gatewaze.fullname" . }}-browser-mcp-secrets
+  labels:
+    {{- include "gatewaze.labels" . | nindent 4 }}
+    app.kubernetes.io/component: browser-mcp
+type: Opaque
+stringData:
+  browserbaseApiKey: {{ .Values.browserMcp.browserbaseApiKey | default "" | quote }}
+---
+###############################################################################
+# NetworkPolicy — only the worker + api can reach browser-mcp (the recipe
+# executor runs in the worker; chat runs in the api).
+###############################################################################
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "gatewaze.fullname" . }}-browser-mcp
+  labels:
+    {{- include "gatewaze.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "gatewaze.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: browser-mcp
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "gatewaze.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: worker
+        - podSelector:
+            matchLabels:
+              {{- include "gatewaze.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: api
+      ports:
+        - port: 8080
+          protocol: TCP
+{{- end }}
