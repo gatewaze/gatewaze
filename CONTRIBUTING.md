@@ -281,4 +281,4 @@ For feature requests, describe the problem you are trying to solve and your prop
 
 ---
 
-Thank you for contributing to Gatewaze! Your work helps build a better event management platform for everyone.
+Thank you for contributing to Gatewaze! Your work helps make Gatewaze — the modular open-source platform for communities — better for everyone.

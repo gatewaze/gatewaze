@@ -1,6 +1,6 @@
 # Architecture
 
-This document describes the architecture of Gatewaze, an open-source event management platform built as a pnpm monorepo with a Supabase backend.
+This document describes the architecture of Gatewaze, the modular open-source platform for communities, built as a pnpm monorepo with a Supabase backend.
 
 ---
 
