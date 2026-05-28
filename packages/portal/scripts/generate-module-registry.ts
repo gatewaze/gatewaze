@@ -537,7 +537,7 @@ async function generate() {
   // url[#branch=X&path=Y] format the config file uses). Each entry can
   // be a git URL or a local absolute path. In production it's git URLs
   // only; locally it may also include mounted paths like
-  // /premium-gatewaze-modules/modules.
+  // /gatewaze-modules/modules.
   const extraSources: SourceEntry[] = (process.env.MODULE_SOURCES || '')
     .split(',')
     .map(s => s.trim())

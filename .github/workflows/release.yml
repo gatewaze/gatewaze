@@ -49,7 +49,7 @@ jobs:
           # We MUST use a PAT (GH_PAT_MODULES), not the auto-token —
           # `secrets.GITHUB_TOKEN` only grants access to the current
           # repo, so it CANNOT clone the private
-          # premium-gatewaze-modules. v1.2.28 was built with the
+          # gatewaze-modules. v1.2.28 was built with the
           # auto-token; the premium clone failed silently and the
           # bundle shipped without any premium modules (every
           # event-* module disappeared from the admin UI). The PAT
@@ -86,7 +86,7 @@ jobs:
           # module, ws for editor-ai-copilot, etc.) at build time so
           # pod startup doesn't have to do per-module pnpm installs.
           # Mirrors the admin build — PAT, not auto-token, because
-          # premium-gatewaze-modules + lf-gatewaze-modules are private.
+          # gatewaze-modules + lf-gatewaze-modules are private.
           build-args: |
             BUILD_TIME_GITHUB_TOKEN=${{ secrets.GH_PAT_MODULES }}
 
@@ -106,7 +106,7 @@ jobs:
           # as the api image) — it dispatches BullMQ jobs to module-
           # side handlers that require() module-declared deps like
           # `openai`. Needs the PAT, not the auto-token, to clone the
-          # private premium-gatewaze-modules + lf-gatewaze-modules.
+          # private gatewaze-modules + lf-gatewaze-modules.
           build-args: |
             BUILD_TIME_GITHUB_TOKEN=${{ secrets.GH_PAT_MODULES }}
 

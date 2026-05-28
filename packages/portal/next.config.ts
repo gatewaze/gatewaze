@@ -133,7 +133,7 @@ const nextConfig: NextConfig = {
       ? moduleDirs
       : [
           resolve(__dirname, '../../../gatewaze-modules/modules'),
-          resolve(__dirname, '../../../premium-gatewaze-modules/modules'),
+          resolve(__dirname, '../../../gatewaze-modules/modules'),
           resolve(__dirname, '../../../lf-gatewaze-modules/modules'),
         ]
     // Don't resolve symlinks. Local module sources live under

@@ -9,8 +9,9 @@
  *   - `variant="dark"`   → for use on light backgrounds (e.g. the splash screen)
  *
  * `type` selects between the wordmark (`logotype`) and the square icon
- * (`logo`). Custom uploads only apply to `logotype`; the icon mark still uses
- * the bundled default.
+ * (`logo`). Both honour `variant`: `light` resolves the mark intended for dark
+ * backgrounds, `dark` the one for light backgrounds. Icons fall back to the
+ * favicon, then the bundled Gatewaze mark.
  */
 
 import { useBrandingLogos } from "@/hooks/useBrandingLogos";
@@ -23,14 +24,15 @@ interface BrandLogoProps {
 
 const DEFAULT_LOGOTYPE_LIGHT = "/theme/gatewaze/logo_white.svg";
 const DEFAULT_LOGOTYPE_DARK = "/theme/gatewaze/logo_black.svg";
-const DEFAULT_ICON = "/theme/gatewaze/logo_black.svg";
+const DEFAULT_ICON = "/theme/gatewaze/favicon-192x192.png";
 
 export function BrandLogo({
   type = "logo",
   variant,
   className = "",
 }: BrandLogoProps) {
-  const { lightUrl, darkUrl, ready } = useBrandingLogos();
+  const { lightUrl, darkUrl, iconLightUrl, iconDarkUrl, ready } =
+    useBrandingLogos();
 
   // Back-compat for callers that still rely on the legacy `text-black`
   // heuristic to pick a variant — treat absence of an explicit variant as a
@@ -61,9 +63,15 @@ export function BrandLogo({
     );
   }
 
+  // Wait for the branding fetch so the bundled fallback doesn't flash before a
+  // configured icon loads.
+  if (!ready) return null;
+
+  const icon = resolvedVariant === "light" ? iconLightUrl : iconDarkUrl;
+
   return (
     <img
-      src={DEFAULT_ICON}
+      src={icon ?? DEFAULT_ICON}
       alt="Logo"
       className={className}
       style={{ objectFit: "contain" }}

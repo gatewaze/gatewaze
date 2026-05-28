@@ -30,7 +30,7 @@ import { gatewazeModulesPlugin } from "./vite-plugin-gatewaze-modules";
 // resolved + cloned module-repos) is also scanned so module-side
 // references get rewritten too.
 function discoverViteEnvNames(rootDir: string): string[] {
-  const grepCmd = `grep -rhoE 'import\\.meta\\.env\\.VITE_[A-Z0-9_]+' ${rootDir}/src ${rootDir}/../shared/src ${rootDir}/.gatewaze-modules ${rootDir}/../../../gatewaze-modules ${rootDir}/../../../premium-gatewaze-modules ${rootDir}/../../../lf-gatewaze-modules /tmp/module-repos 2>/dev/null | sort -u || true`;
+  const grepCmd = `grep -rhoE 'import\\.meta\\.env\\.VITE_[A-Z0-9_]+' ${rootDir}/src ${rootDir}/../shared/src ${rootDir}/.gatewaze-modules ${rootDir}/../../../gatewaze-modules ${rootDir}/../../../gatewaze-modules ${rootDir}/../../../lf-gatewaze-modules /tmp/module-repos 2>/dev/null | sort -u || true`;
   let out = "";
   try {
     out = execSync(grepCmd, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
@@ -126,7 +126,7 @@ export default defineConfig(({ command }) => ({
       allow: [
         // Allow serving files from module sibling repos
         path.resolve(__dirname, "../../../gatewaze-modules"),
-        path.resolve(__dirname, "../../../premium-gatewaze-modules"),
+        path.resolve(__dirname, "../../../gatewaze-modules"),
         path.resolve(__dirname, "../../../lf-gatewaze-modules"),
         // Default: project root and workspace
         path.resolve(__dirname, "../.."),

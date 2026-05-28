@@ -416,7 +416,7 @@ export async function seedModuleSources(
     .select('id,url,path,label');
 
   // Normalize keys to avoid duplicates from different path representations
-  // e.g., "../premium-gatewaze-modules/modules" and "/premium-gatewaze-modules/modules"
+  // e.g., "../gatewaze-modules/modules" and "/gatewaze-modules/modules"
   function normalizeKey(url: string, path?: string | null): string {
     // Strip leading ../ and / to get a canonical directory name
     const cleanUrl = url.replace(/^(?:\.\.\/)+/, '').replace(/^\/+/, '');

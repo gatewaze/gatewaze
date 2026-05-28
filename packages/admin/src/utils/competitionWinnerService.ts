@@ -8,4 +8,4 @@ export {
   CompetitionWinnerService,
   type CompetitionWinner,
   type WinnerStatus,
-} from '../../../../../premium-gatewaze-modules/modules/competitions/admin/utils/competitionWinnerService';
+} from '../../../../../gatewaze-modules/modules/competitions/admin/utils/competitionWinnerService';

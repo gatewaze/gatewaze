@@ -14,7 +14,7 @@ import {
 const describeIfIntegration = integrationEnabled ? describe : describe.skip;
 
 /**
- * Event-invites tenant scoping smoke test (premium-gatewaze-modules
+ * Event-invites tenant scoping smoke test (gatewaze-modules
  * /event-invites/014_tenancy_v2.sql). Two-account scenario; each
  * account has one event and one invite. Under flag-on, the wrong
  * tenant must not see the other's invites.

@@ -36,6 +36,7 @@ const initialState: ThemeContextValue = {
   setLightColorScheme: () => {},
   setDarkColorScheme: () => {},
   setPrimaryColorScheme: () => {},
+  setSecondaryColor: () => {},
   setNotificationPosition: () => {},
   setNotificationExpand: () => {},
   setNotificationMaxCount: () => {},
@@ -75,12 +76,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         const { data } = await supabase
           .from("platform_settings")
           .select("key, value")
-          .in("key", ["admin_accent_color"]);
+          .in("key", ["admin_accent_color", "admin_secondary_color"]);
 
         const map: Record<string, string> = {};
         for (const row of data ?? []) map[row.key] = row.value as string;
 
-        // Admin accent color — stored as a Radix color name directly
+        // Admin primary color — stored as a Radix color name directly
         const accentName = map.admin_accent_color as PrimaryColor | undefined;
         const accent: PrimaryColor = accentName && VALID_ACCENTS.includes(accentName) ? accentName : "cyan";
         if (settings.primaryColorScheme?.name !== accent) {
@@ -88,6 +89,14 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
             ...prev,
             primaryColorScheme: { name: accent, ...colors[accent] },
           }));
+        }
+
+        // Admin secondary/accent color — also a Radix color name. Left unset
+        // when not configured so consumers fall back to the primary.
+        const secondaryName = map.admin_secondary_color as PrimaryColor | undefined;
+        const secondary = secondaryName && VALID_ACCENTS.includes(secondaryName) ? secondaryName : undefined;
+        if (secondary && settings.secondaryColor !== secondary) {
+          setSettings((prev) => ({ ...prev, secondaryColor: secondary }));
         }
 
         // NOTE: font_heading / font_body settings are deliberately
@@ -190,6 +199,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }));
   };
 
+  const setSecondaryColor = (val: PrimaryColor) => {
+    setSettings((prevSettings) => ({
+      ...prevSettings,
+      secondaryColor: val,
+    }));
+  };
+
   const setNotificationPosition = (val: Notification["position"]) => {
     setSettings((prevSettings) => ({
       ...prevSettings,
@@ -268,6 +284,25 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
   }, [settings.primaryColorScheme]);
 
+  // Alias --secondary-9 to the chosen secondary colour's Radix scale (which
+  // adapts to light/dark on its own). Falls back to the primary when no
+  // secondary is configured so the breadcrumb flag looks unchanged by default.
+  // Radix has no "rose" scale — it maps to "pink".
+  useLayoutEffect(() => {
+    const name = settings.secondaryColor ?? settings.primaryColorScheme?.name;
+    if (name && _html) {
+      const scale = name === "rose" ? "pink" : name;
+      // -1 = the faintest tint (app-background level); -2 = a subtle tint;
+      // -9 = the saturated colour (flag fill, underlines); -11 = the readable
+      // text shade. Mirrors how the primary uses --accent-1/-2/-9/-11.
+      _html.style.setProperty("--secondary-1", `var(--${scale}-1)`);
+      _html.style.setProperty("--secondary-2", `var(--${scale}-2)`);
+      _html.style.setProperty("--secondary-9", `var(--${scale}-9)`);
+      _html.style.setProperty("--secondary-11", `var(--${scale}-11)`);
+      _html.dataset.themeSecondary = name;
+    }
+  }, [settings.secondaryColor, settings.primaryColorScheme]);
+
   useLayoutEffect(() => {
     _html!.dataset.cardSkin = settings.cardSkin;
   }, [settings.cardSkin]);
@@ -289,6 +324,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     setLightColorScheme,
     setDarkColorScheme,
     setPrimaryColorScheme,
+    setSecondaryColor,
     setNotificationPosition,
     setNotificationExpand,
     setNotificationMaxCount,
