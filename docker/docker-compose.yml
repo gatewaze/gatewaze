@@ -600,6 +600,9 @@ services:
       # Internal backend (default — uses in-cluster scrapling-fetcher).
       SCRAPLING_FETCHER_URL: ${SCRAPLING_FETCHER_URL:-http://scrapling-fetcher:8080}
       SCRAPLING_INTERNAL_TOKEN: ${SCRAPLING_INTERNAL_TOKEN:-}
+      # Let the chat/recipe MCP resolver reach the internal browser-mcp HTTP
+      # service (http://browser-mcp:8080) past the streamable_http SSRF guard.
+      AI_MCP_HTTP_ALLOW_PRIVATE: ${AI_MCP_HTTP_ALLOW_PRIVATE:-}
       # External backend (fallback — gatewaze-fetch publicApi with API key).
       GATEWAZE_FETCH_BASE_URL: ${GATEWAZE_FETCH_BASE_URL:-}
       GATEWAZE_FETCH_API_KEY: ${GATEWAZE_FETCH_API_KEY:-}
@@ -674,6 +677,9 @@ services:
       # their existing Puppeteer paths.
       SCRAPLING_FETCHER_URL: http://scrapling-fetcher:8080
       SCRAPLING_INTERNAL_TOKEN: ${SCRAPLING_INTERNAL_TOKEN:-}
+      # Let the recipe executor reach the internal browser-mcp HTTP service
+      # (http://browser-mcp:8080) past the streamable_http SSRF guard.
+      AI_MCP_HTTP_ALLOW_PRIVATE: ${AI_MCP_HTTP_ALLOW_PRIVATE:-}
       # gatewaze_search backend (see api service for documentation).
       SERPER_API_KEY: ${SERPER_API_KEY:-}
       GATEWAZE_SEARCH_BACKEND: ${GATEWAZE_SEARCH_BACKEND:-auto}
@@ -761,6 +767,39 @@ services:
           memory: 3G
         reservations:
           memory: 1G
+
+  browser-mcp:
+    build:
+      context: ../packages/browser-mcp
+      dockerfile: Dockerfile
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-browser-mcp
+    restart: unless-stopped
+    # Internal-only MCP service: serves browser_* + browserbase_fetch/search over
+    # streamable HTTP. Reached by the worker/api at http://browser-mcp:8080/mcp
+    # (registered in ai_mcp_servers as type=streamable_http). No traefik route —
+    # it must not be publicly reachable. The worker/api need
+    # AI_MCP_HTTP_ALLOW_PRIVATE=true to connect over the private network.
+    networks:
+      - gatewaze
+    environment:
+      MCP_TRANSPORT: http
+      PORT: 8080
+      BROWSER_MCP_BACKEND: ${BROWSER_MCP_BACKEND:-browserbase}
+      BROWSERBASE_API_KEY: ${BROWSERBASE_API_KEY:-}
+      BROWSERBASE_PROJECT_ID: ${BROWSERBASE_PROJECT_ID:-}
+      BROWSERBASE_REGION: ${BROWSERBASE_REGION:-}
+      BROWSERBASE_CONTEXT_ID: ${BROWSERBASE_CONTEXT_ID:-}
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8080/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
 
   scheduler:
     build:
