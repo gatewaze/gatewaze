@@ -49,10 +49,9 @@ describe('resolveBackend', () => {
     ).toThrow(/BROWSERBASE_API_KEY/);
   });
 
-  it('throws when browserbase is selected without a project id', () => {
-    expect(() =>
-      resolveBackend({ BROWSER_MCP_BACKEND: 'browserbase', BROWSERBASE_API_KEY: 'k' }),
-    ).toThrow(/BROWSERBASE_PROJECT_ID/);
+  it('returns browserbase with only an API key (projectId optional, per SDK)', () => {
+    const b = resolveBackend({ BROWSER_MCP_BACKEND: 'browserbase', BROWSERBASE_API_KEY: 'k' });
+    expect(b.name).toBe('browserbase');
   });
 
   it('returns browserbase when fully configured', () => {
@@ -62,6 +61,16 @@ describe('resolveBackend', () => {
       BROWSERBASE_PROJECT_ID: 'p1',
     });
     expect(b.name).toBe('browserbase');
+  });
+
+  it('rejects an invalid BROWSERBASE_REGION', () => {
+    expect(() =>
+      resolveBackend({
+        BROWSER_MCP_BACKEND: 'browserbase',
+        BROWSERBASE_API_KEY: 'k',
+        BROWSERBASE_REGION: 'mars-1',
+      }),
+    ).toThrow(/invalid/);
   });
 
   it('rejects an unknown backend', () => {
