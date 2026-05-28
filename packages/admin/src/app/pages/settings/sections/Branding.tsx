@@ -76,6 +76,9 @@ interface BrandingSettings {
   body_text_size: string;
   logo_url_light: string;
   logo_url_dark: string;
+  logo_icon_url_light: string;
+  logo_icon_url_dark: string;
+  // Pre-split single icon — kept so the portal sign-in fallback keeps working.
   logo_icon_url: string;
   favicon_url: string;
   storage_bucket_url: string;
@@ -96,6 +99,8 @@ const BRANDING_DEFAULTS: BrandingSettings = {
   body_text_size: "16",
   logo_url_light: "",
   logo_url_dark: "",
+  logo_icon_url_light: "",
+  logo_icon_url_dark: "",
   logo_icon_url: "",
   favicon_url: "",
   storage_bucket_url: "",
@@ -151,7 +156,7 @@ function BrandingCard({
   const { isFeatureEnabled } = useModulesContext();
   const hasEvents = isFeatureEnabled('events');
   const isLocked = (key: string) => lockedSettings.includes(key);
-  const { setPrimaryColorScheme } = useThemeContext();
+  const { setPrimaryColorScheme, setSecondaryColor } = useThemeContext();
 
   const [settings, setSettings] =
     useState<BrandingSettings>(BRANDING_DEFAULTS);
@@ -166,6 +171,8 @@ function BrandingCard({
     useState<ThemeColorsMap>(DEFAULT_THEME_COLORS);
   const [adminAccentColor, setAdminAccentColor] = useState<PrimaryColor>("cyan");
   const [originalAdminAccentColor, setOriginalAdminAccentColor] = useState<PrimaryColor>("cyan");
+  const [adminSecondaryColor, setAdminSecondaryColor] = useState<PrimaryColor>("cyan");
+  const [originalAdminSecondaryColor, setOriginalAdminSecondaryColor] = useState<PrimaryColor>("cyan");
   const [portalUiMode, setPortalUiMode] = useState<"frost" | "smoke" | "obsidian" | "paper">("smoke");
   const [originalPortalUiMode, setOriginalPortalUiMode] = useState<"frost" | "smoke" | "obsidian" | "paper">("smoke");
   const [cornerStyle, setCornerStyle] = useState<CornerStyle>("rounded");
@@ -215,6 +222,7 @@ function BrandingCard({
         "gradient_wave_config",
         "portal_ui_mode",
         "admin_accent_color",
+        "admin_secondary_color",
         "portal_nav_overrides",
       ]);
 
@@ -223,6 +231,7 @@ function BrandingCard({
       let loadedTheme: PortalTheme = "gradient_wave";
       const loadedColors: ThemeColorsMap = { ...DEFAULT_THEME_COLORS };
       let loadedAdminAccentColor: PrimaryColor = "cyan";
+      let loadedAdminSecondaryColor: PrimaryColor | null = null;
       let loadedPortalNavOverrides: PortalNavOverrides = { items: [] };
       let loadedPortalUiMode: "frost" | "smoke" | "obsidian" | "paper" = "smoke";
       let loadedCornerStyle: CornerStyle = "rounded";
@@ -246,6 +255,9 @@ function BrandingCard({
         } else if (row.key === "admin_accent_color") {
           const val = row.value as PrimaryColor;
           if (RADIX_ACCENTS.some((a) => a.name === val)) loadedAdminAccentColor = val;
+        } else if (row.key === "admin_secondary_color") {
+          const val = row.value as PrimaryColor;
+          if (RADIX_ACCENTS.some((a) => a.name === val)) loadedAdminSecondaryColor = val;
         } else if (row.key === "portal_ui_mode") {
           if (row.value === "frost" || row.value === "smoke" || row.value === "obsidian" || row.value === "paper")
             loadedPortalUiMode = row.value;
@@ -334,6 +346,11 @@ function BrandingCard({
           (loaded as Record<string, string>)[row.key] = row.value;
         }
       }
+      // Migrate the pre-split single icon into the new Light Icon slot so
+      // existing configs don't lose their icon after the split.
+      if (!loaded.logo_icon_url_light && loaded.logo_icon_url) {
+        loaded.logo_icon_url_light = loaded.logo_icon_url;
+      }
       setSettings(loaded);
       setOriginalSettings(loaded);
       setPortalTheme(loadedTheme);
@@ -342,6 +359,11 @@ function BrandingCard({
       setOriginalThemeColors(loadedColors);
       setAdminAccentColor(loadedAdminAccentColor);
       setOriginalAdminAccentColor(loadedAdminAccentColor);
+      // No stored secondary → mirror the primary so the picker shows a sane
+      // selection and the breadcrumb flag is unchanged until explicitly set.
+      const resolvedSecondary = loadedAdminSecondaryColor ?? loadedAdminAccentColor;
+      setAdminSecondaryColor(resolvedSecondary);
+      setOriginalAdminSecondaryColor(resolvedSecondary);
       setPortalUiMode(loadedPortalUiMode);
       setOriginalPortalUiMode(loadedPortalUiMode);
       setCornerStyle(loadedCornerStyle);
@@ -369,6 +391,7 @@ function BrandingCard({
     portalTheme !== originalPortalTheme ||
     JSON.stringify(themeColors) !== JSON.stringify(originalThemeColors) ||
     adminAccentColor !== originalAdminAccentColor ||
+    adminSecondaryColor !== originalAdminSecondaryColor ||
     portalUiMode !== originalPortalUiMode ||
     cornerStyle !== originalCornerStyle ||
     JSON.stringify(eventTypes) !== JSON.stringify(originalEventTypes) ||
@@ -394,8 +417,13 @@ function BrandingCard({
         }
       }
       const allSettings: Record<string, string> = { ...settings };
+      // Keep the pre-split single icon in sync (portal sign-in still reads it,
+      // inverting to white) — prefer the light variant, then dark.
+      allSettings.logo_icon_url =
+        settings.logo_icon_url_light || settings.logo_icon_url_dark || "";
       allSettings.portal_theme = portalTheme;
       allSettings.admin_accent_color = adminAccentColor;
+      allSettings.admin_secondary_color = adminSecondaryColor;
       allSettings.portal_ui_mode = portalUiMode;
       allSettings.corner_style = cornerStyle;
       allSettings.theme_colors = JSON.stringify(themeColors);
@@ -435,6 +463,7 @@ function BrandingCard({
       setOriginalPortalTheme(portalTheme);
       setOriginalThemeColors(themeColors);
       setOriginalAdminAccentColor(adminAccentColor);
+      setOriginalAdminSecondaryColor(adminSecondaryColor);
       setOriginalPortalUiMode(portalUiMode);
       setOriginalCornerStyle(cornerStyle);
       setOriginalEventTypes(eventTypes);
@@ -577,11 +606,18 @@ function BrandingCard({
                     onChange={(v) => updateSetting("logo_url_dark", v)}
                   />
                   <LogoUploadField
-                    label="Logo Icon"
-                    description="Compact icon shown on event pages. Recommended: square SVG or PNG, 32x32px."
-                    value={settings.logo_icon_url}
-                    settingKey="logo_icon"
-                    onChange={(v) => updateSetting("logo_icon_url", v)}
+                    label="Light Icon"
+                    description="Square icon for dark backgrounds, e.g. the collapsed admin menu. Recommended: square SVG or PNG, 64x64px."
+                    value={settings.logo_icon_url_light}
+                    settingKey="logo_icon_light"
+                    onChange={(v) => updateSetting("logo_icon_url_light", v)}
+                  />
+                  <LogoUploadField
+                    label="Dark Icon"
+                    description="Square icon for light backgrounds. Recommended: square SVG or PNG, 64x64px."
+                    value={settings.logo_icon_url_dark}
+                    settingKey="logo_icon_dark"
+                    onChange={(v) => updateSetting("logo_icon_url_dark", v)}
                   />
                   <LogoUploadField
                     label="Favicon / Brand Icon"
@@ -934,36 +970,72 @@ function BrandingCard({
       {/* ══════════════ ADMIN SECTION ══════════════ */}
       {section === "admin" && (
         <div className="space-y-6">
-          <Heading size="3" className="pb-1">
-            Admin Accent Color
-          </Heading>
-          <Text as="p" size="1" color="gray" className="pb-4">
-            Accent color used throughout the admin dashboard for buttons, links, and interactive elements.
-          </Text>
-          <div className="grid grid-cols-7 gap-3">
-            {RADIX_ACCENTS.map((accent) => (
-              <button
-                key={accent.name}
-                type="button"
-                onClick={() => {
-                  setAdminAccentColor(accent.name);
-                  setPrimaryColorScheme(accent.name);
-                }}
-                className={`flex flex-col items-center gap-1.5 rounded-lg p-2 transition-all ${
-                  adminAccentColor === accent.name
-                    ? "ring-2 ring-offset-2 ring-[var(--accent-9)] bg-[var(--accent-2)]"
-                    : "hover:bg-[var(--gray-3)]"
-                }`}
-              >
-                <div
-                  className="w-8 h-8 rounded-full border border-black/10"
-                  style={{ backgroundColor: accent.hex }}
-                />
-                <span className="text-[10px] font-medium text-[var(--gray-11)] capitalize">
-                  {accent.name}
-                </span>
-              </button>
-            ))}
+          <div>
+            <Heading size="3" className="pb-1">
+              Primary Color
+            </Heading>
+            <Text as="p" size="1" color="gray" className="pb-4">
+              The main accent used throughout the admin dashboard for buttons, links, and interactive elements.
+            </Text>
+            <div className="grid grid-cols-7 gap-3">
+              {RADIX_ACCENTS.map((accent) => (
+                <button
+                  key={accent.name}
+                  type="button"
+                  onClick={() => {
+                    setAdminAccentColor(accent.name);
+                    setPrimaryColorScheme(accent.name);
+                  }}
+                  className={`flex flex-col items-center gap-1.5 rounded-lg p-2 transition-all ${
+                    adminAccentColor === accent.name
+                      ? "ring-2 ring-offset-2 ring-[var(--accent-9)] bg-[var(--accent-2)]"
+                      : "hover:bg-[var(--gray-3)]"
+                  }`}
+                >
+                  <div
+                    className="w-8 h-8 rounded-full border border-black/10"
+                    style={{ backgroundColor: accent.hex }}
+                  />
+                  <span className="text-[10px] font-medium text-[var(--gray-11)] capitalize">
+                    {accent.name}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <Heading size="3" className="pb-1">
+              Accent Color
+            </Heading>
+            <Text as="p" size="1" color="gray" className="pb-4">
+              A secondary colour for accents that should stand apart from the primary — e.g. the breadcrumb bar. Defaults to the primary when left matching it.
+            </Text>
+            <div className="grid grid-cols-7 gap-3">
+              {RADIX_ACCENTS.map((accent) => (
+                <button
+                  key={accent.name}
+                  type="button"
+                  onClick={() => {
+                    setAdminSecondaryColor(accent.name);
+                    setSecondaryColor(accent.name);
+                  }}
+                  className={`flex flex-col items-center gap-1.5 rounded-lg p-2 transition-all ${
+                    adminSecondaryColor === accent.name
+                      ? "ring-2 ring-offset-2 ring-[var(--accent-9)] bg-[var(--accent-2)]"
+                      : "hover:bg-[var(--gray-3)]"
+                  }`}
+                >
+                  <div
+                    className="w-8 h-8 rounded-full border border-black/10"
+                    style={{ backgroundColor: accent.hex }}
+                  />
+                  <span className="text-[10px] font-medium text-[var(--gray-11)] capitalize">
+                    {accent.name}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
 
           <hr className="border-[var(--gray-5)]" />

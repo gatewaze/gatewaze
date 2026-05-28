@@ -44,7 +44,7 @@ function generateToken(): string {
  *
  * Format: `{short_event_id}+{first}-{last}@{from_domain}` — matches the
  * shape used by the event-invites CSV importer
- * (premium-gatewaze-modules/modules/event-invites/templates/import-list1.ts)
+ * (gatewaze-modules/modules/event-invites/templates/import-list1.ts)
  * so guests imported by CSV and guests who self-serve through an open
  * link dedupe to the same person record when their names match.
  */

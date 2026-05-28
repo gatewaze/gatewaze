@@ -53,5 +53,11 @@ export interface ThemeConfig {
   darkColorScheme: DarkColorScheme;
   lightColorScheme: LightColorScheme;
   primaryColorScheme: PrimaryColorScheme;
+  /**
+   * Optional secondary/accent colour (a Radix colour name). Used for accents
+   * that should read as distinct from the primary — e.g. the breadcrumb flag.
+   * When unset, consumers fall back to the primary.
+   */
+  secondaryColor?: PrimaryColor;
   notification: Notification;
 }

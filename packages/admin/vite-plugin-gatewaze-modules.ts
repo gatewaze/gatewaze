@@ -74,7 +74,7 @@ export function gatewazeModulesPlugin(): Plugin {
 
   // Resolved module-source directories (gatewaze-modules + premium-gatewaze-
   // modules + lf-gatewaze-modules). Populated in config(); read by resolveId
-  // for namespaced imports like `@premium-gatewaze-modules/sites-publisher-…`.
+  // for namespaced imports like `@gatewaze-modules/sites-publisher-…`.
   let cachedResolvedSources: string[] = [];
 
   return {
@@ -121,7 +121,7 @@ export function gatewazeModulesPlugin(): Plugin {
       // find them (premium isn't workspace-linked), falls through to the
       // bare-import branch below which stubs them with `export default {}`
       // — silently breaking dynamic imports of publishers, integrations, etc.
-      const namespaceMatch = /^(@(?:gatewaze-modules|premium-gatewaze-modules|lf-gatewaze-modules))\/([^/]+)(.*)$/.exec(id);
+      const namespaceMatch = /^(@(?:gatewaze-modules|gatewaze-modules|lf-gatewaze-modules))\/([^/]+)(.*)$/.exec(id);
       if (namespaceMatch && cachedResolvedSources.length > 0) {
         const slug = namespaceMatch[2];
         const subPath = namespaceMatch[3] ?? '';
@@ -582,13 +582,13 @@ function resolveSources(sources: SourceEntry[], projectRoot: string): string[] {
         resolved.push(subPath ? resolve(localPath, subPath) : localPath);
       }
     } else {
-      // Local path — could be a Docker container absolute path (e.g. /premium-gatewaze-modules/modules)
+      // Local path — could be a Docker container absolute path (e.g. /gatewaze-modules/modules)
       // or a relative path. If the absolute path doesn't exist, try resolving as a sibling directory.
       const absPath = isAbsolute(url) ? url : resolve(projectRoot, url);
       if (existsSync(absPath)) {
         resolved.push(subPath ? resolve(absPath, subPath) : absPath);
       } else {
-        // Try sibling directory: /premium-gatewaze-modules/modules → ../premium-gatewaze-modules/modules
+        // Try sibling directory: /gatewaze-modules/modules → ../gatewaze-modules/modules
         const segments = url.replace(/^\//, '').split('/');
         const siblingPath = resolve(projectRoot, '..', ...segments);
         if (existsSync(siblingPath)) {
@@ -836,7 +836,7 @@ function parseConfig(configPath: string): {
     // be a git URL (optionally with `#branch=X&path=Y` fragment) or a
     // local absolute path — resolveSources() branches on isGitUrl(). In
     // production this is git URLs only; locally it may include mounted
-    // paths like /premium-gatewaze-modules/modules.
+    // paths like /gatewaze-modules/modules.
     const extraSources = process.env.MODULE_SOURCES;
     if (extraSources) {
       for (const s of extraSources.split(',').map(p => p.trim()).filter(Boolean)) {

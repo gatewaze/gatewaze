@@ -1,5 +1,27 @@
 import type { ReactNode } from "react";
+import { ChevronRightIcon } from "@heroicons/react/20/solid";
 import { Tabs, type Tab } from "../Tabs";
+import { isRtl } from "@/utils/localeUtils";
+
+/**
+ * Trailing edge of the primary-coloured breadcrumb "flag" in the combined
+ * sub-nav row: a forward-slash diagonal cut on the side facing the sub-tabs.
+ * Mirrored for RTL so the slant always points toward the tabs.
+ */
+const BREADCRUMB_FLAG_CLIP = isRtl
+  ? "polygon(0 0, 100% 0, 100% 100%, 1.25rem 100%)"
+  : "polygon(0 0, 100% 0, calc(100% - 1.25rem) 100%, 0 100%)";
+
+/**
+ * A single crumb in the drill-in breadcrumb trail. The last crumb is the
+ * current entity (static text); earlier crumbs carry a `to` and render as
+ * clickable links back up the hierarchy.
+ */
+export interface WorkspaceBreadcrumb {
+  label: string;
+  /** Navigation target; omit on the current (last) crumb to render static text. */
+  to?: string;
+}
 
 /**
  * WorkspaceLayout — shared shell for top-level module workspace pages.
@@ -61,6 +83,17 @@ export interface WorkspaceLayoutProps {
   activeTabId?: string;
   onTabChange?: (tabId: string) => void;
 
+  /**
+   * Optional breadcrumb trail for drill-in pages (e.g. a single series
+   * under the Series tab). Rendered as a slim bar directly above the
+   * sub-tab strip so the current entity's name and its path back up the
+   * hierarchy stay visible while you move between its sub-tabs. Omit on
+   * collection/list pages. Navigation is delegated to the consumer via
+   * `onBreadcrumbNavigate` so this shell stays router-agnostic.
+   */
+  breadcrumbs?: WorkspaceBreadcrumb[];
+  onBreadcrumbNavigate?: (to: string) => void;
+
   /** Optional secondary (sub) tab strip below the primary one. */
   subTabs?: Tab[];
   activeSubTabId?: string;
@@ -78,6 +111,8 @@ export function WorkspaceLayout({
   tabs,
   activeTabId,
   onTabChange,
+  breadcrumbs,
+  onBreadcrumbNavigate,
   subTabs,
   activeSubTabId,
   onSubTabChange,
@@ -85,6 +120,7 @@ export function WorkspaceLayout({
 }: WorkspaceLayoutProps) {
   const hasTabs = Boolean(tabs && tabs.length > 0 && activeTabId !== undefined && onTabChange);
   const hasSubTabs = Boolean(subTabs && subTabs.length > 0 && activeSubTabId !== undefined && onSubTabChange);
+  const hasBreadcrumbs = Boolean(breadcrumbs && breadcrumbs.length > 0);
 
   return (
     <div className="workspace-layout">
@@ -111,7 +147,7 @@ export function WorkspaceLayout({
         </div>
 
         <div
-          className="relative flex items-center gap-4 flex-wrap py-7"
+          className="relative flex items-center gap-4 flex-wrap py-5"
           style={{ paddingLeft: "calc(var(--margin-x) + 1.5rem)", paddingRight: "calc(var(--margin-x) + 1.5rem)" }}
         >
           <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
@@ -141,6 +177,102 @@ export function WorkspaceLayout({
         </div>
       )}
 
+      {/* Drill-in pages that carry BOTH a breadcrumb and sub-tabs render
+          them on one line: the crumb trail first, a full-height divider,
+          then the sub-tab strip. The bottom border runs the full width so
+          the underline tabs read as part of the same strip — the trade-off
+          is that the first sub-tab no longer aligns to the content gutter. */}
+      {hasBreadcrumbs && hasSubTabs && (
+        <div className="-mx-(--margin-x) border-b border-[var(--gray-a4)] bg-[var(--secondary-1)]">
+          <div
+            className="flex items-stretch"
+            style={{ paddingRight: "calc(var(--margin-x) + 1.5rem)" }}
+          >
+            <nav
+              aria-label="Breadcrumb"
+              className="flex shrink-0 flex-wrap items-center gap-1.5 py-2.5 text-sm font-medium text-white bg-[var(--secondary-9)] ltr:mr-3 ltr:pl-[calc(var(--margin-x)+1.5rem)] ltr:pr-7 rtl:ml-3 rtl:pr-[calc(var(--margin-x)+1.5rem)] rtl:pl-7"
+              style={{ clipPath: BREADCRUMB_FLAG_CLIP }}
+            >
+              {breadcrumbs!.map((crumb, i) => {
+                const isLast = i === breadcrumbs!.length - 1;
+                return (
+                  <span key={i} className="inline-flex items-center gap-1.5">
+                    {crumb.to && !isLast ? (
+                      <button
+                        type="button"
+                        onClick={() => onBreadcrumbNavigate?.(crumb.to!)}
+                        className="font-medium text-white hover:underline"
+                      >
+                        {crumb.label}
+                      </button>
+                    ) : (
+                      <span className={isLast ? "font-semibold text-white" : "text-white"}>
+                        {crumb.label}
+                      </span>
+                    )}
+                    {!isLast && (
+                      <ChevronRightIcon className="w-3.5 h-3.5 shrink-0 text-white" aria-hidden="true" />
+                    )}
+                  </span>
+                );
+              })}
+            </nav>
+            <Tabs
+              variant="underline"
+              value={activeSubTabId!}
+              onChange={onSubTabChange!}
+              tabs={subTabs!}
+              // Active sub-tab text + underline track the secondary colour so
+              // these tabs coordinate with the secondary-coloured breadcrumb
+              // flag. Scoped here (not in the shared Tabs component) so plain
+              // sub-tab strips elsewhere keep the primary accent.
+              // `!border-b-0` drops the tablist's own divider so it doesn't
+              // stack on top of the wrapper's full-width border (which would
+              // read as a thicker/darker line than the section above).
+              className="!border-b-0 [&_button]:!px-3 [&_[aria-selected=true]]:!border-[var(--secondary-9)] [&_[aria-selected=true]]:!text-[var(--secondary-11)]"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Breadcrumb-only bar (drill-in pages with no sub-tabs). */}
+      {hasBreadcrumbs && !hasSubTabs && (
+        <div className="-mx-(--margin-x) bg-[var(--accent-2)] border-b border-[var(--gray-a4)]">
+          <nav
+            aria-label="Breadcrumb"
+            className="flex items-center gap-1.5 flex-wrap py-2.5 text-sm"
+            style={{
+              paddingLeft: "calc(var(--margin-x) + 1.5rem)",
+              paddingRight: "calc(var(--margin-x) + 1.5rem)",
+            }}
+          >
+            {breadcrumbs!.map((crumb, i) => {
+              const isLast = i === breadcrumbs!.length - 1;
+              return (
+                <span key={i} className="inline-flex items-center gap-1.5">
+                  {crumb.to && !isLast ? (
+                    <button
+                      type="button"
+                      onClick={() => onBreadcrumbNavigate?.(crumb.to!)}
+                      className="font-medium text-[var(--accent-11)] hover:underline"
+                    >
+                      {crumb.label}
+                    </button>
+                  ) : (
+                    <span className={isLast ? "font-medium text-[var(--gray-12)]" : "text-[var(--gray-11)]"}>
+                      {crumb.label}
+                    </span>
+                  )}
+                  {!isLast && (
+                    <ChevronRightIcon className="w-3.5 h-3.5 shrink-0 text-[var(--gray-a8)]" aria-hidden="true" />
+                  )}
+                </span>
+              );
+            })}
+          </nav>
+        </div>
+      )}
+
       {/* Optional sub-tab strip — slimmer underline-variant tabs so
           the two hierarchies read as visually distinct.
 
@@ -152,7 +284,7 @@ export function WorkspaceLayout({
                px-3 (0.75rem) — tighter than the original but a
                touch more breathing room than px-2 so adjacent items
                don't crowd each other. */}
-      {hasSubTabs && (
+      {hasSubTabs && !hasBreadcrumbs && (
         <div
           className="-mx-(--margin-x) border-b border-[var(--gray-a4)] bg-[var(--accent-2)]"
         >

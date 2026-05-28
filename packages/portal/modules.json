@@ -5,8 +5,8 @@
       "url": "https://github.com/gatewaze/gatewaze-modules.git",
       "sha": "e2a5cafbcb0c31eb17d9eed18ae8b0213c03660b"
     },
-    "premium-gatewaze-modules": {
-      "url": "https://github.com/gatewaze/premium-gatewaze-modules.git",
+    "gatewaze-modules": {
+      "url": "https://github.com/gatewaze/gatewaze-modules.git",
       "sha": "28abe57ba07bfaede3869242af53f64ff7412a7f"
     },
     "lf-gatewaze-modules": {

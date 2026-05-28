@@ -63,6 +63,22 @@ body.is-monochrome::before {
   @apply rotate-45 rtl:-rotate-45;
 }
 
+/* Collapsed sidebar rail hover tooltip — slides out from the icon. */
+.rail-tooltip {
+  animation: rail-tooltip-in 160ms ease-out both;
+}
+
+@keyframes rail-tooltip-in {
+  from {
+    opacity: 0;
+    transform: translate(-6px, -50%);
+  }
+  to {
+    opacity: 1;
+    transform: translate(0, -50%);
+  }
+}
+
 .min-h-100vh {
   min-height: 100vh;
 }

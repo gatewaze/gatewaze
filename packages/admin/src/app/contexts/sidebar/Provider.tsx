@@ -1,21 +1,21 @@
-import { ReactNode, useLayoutEffect } from "react";
+import { ReactNode, useCallback, useLayoutEffect } from "react";
 
-import { useDisclosure, useDidUpdate } from "@/hooks";
+import { useDisclosure, useDidUpdate, useLocalStorage } from "@/hooks";
 import { useBreakpointsContext } from "../breakpoint/context";
-import { SidebarContext, SidebarContextValue } from "./context";
-
-const initialState: SidebarContextValue = {
-  isExpanded: true,
-  toggle: () => {},
-  open: () => {},
-  close: () => {},
-};
+import { SidebarContext } from "./context";
 
 export function SidebarProvider({ children }: { children: ReactNode }) {
   const { xlAndUp, lgAndDown, name } = useBreakpointsContext();
 
-  const [isExpanded, { open, close, toggle }] = useDisclosure(
-    initialState.isExpanded && xlAndUp,
+  const [isExpanded, { open, close, toggle }] = useDisclosure(xlAndUp);
+
+  const [isCollapsed, setIsCollapsed] = useLocalStorage<boolean>(
+    "sidebar-collapsed",
+    false,
+  );
+  const toggleCollapsed = useCallback(
+    () => setIsCollapsed((value) => !value),
+    [setIsCollapsed],
   );
 
   useDidUpdate(() => {
@@ -35,6 +35,17 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
     }
   }, [isExpanded]);
 
+  useLayoutEffect(() => {
+    const documentBody = document?.body;
+    if (documentBody) {
+      if (isCollapsed) {
+        documentBody.classList.add("is-sidebar-collapsed");
+      } else {
+        documentBody.classList.remove("is-sidebar-collapsed");
+      }
+    }
+  }, [isCollapsed]);
+
   if (!children) {
     return null;
   }
@@ -46,6 +57,8 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
         toggle,
         open,
         close,
+        isCollapsed,
+        toggleCollapsed,
       }}
     >
       {children}

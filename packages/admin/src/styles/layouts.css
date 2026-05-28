@@ -64,3 +64,10 @@
 [data-layout="sideblock"].is-sidebar-open .sidebar-panel {
   @apply visible translate-x-0 ease-out;
 }
+
+/* Collapsed icon-rail: narrow the panel (and, via the shared variable, the
+   main content margin) on desktop. On smaller screens the panel is a full-width
+   overlay, so the rail width only applies from xl up. */
+[data-layout="sideblock"].is-sidebar-collapsed {
+  @apply xl:[--sidebar-panel-width:4.5rem];
+}

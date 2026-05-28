@@ -262,7 +262,7 @@ async function main(): Promise<void> {
 
   // Module handlers + module queues (and their LISTEN channels).
   // Use loadModulesWithDbSources so module_sources rows (e.g.
-  // /premium-gatewaze-modules) are picked up — without this the worker
+  // /gatewaze-modules) are picked up — without this the worker
   // only sees modules from the static config and silently misses every
   // job kind defined in a DB-managed module source.
   let dbSources: Record<string, unknown>[] = [];

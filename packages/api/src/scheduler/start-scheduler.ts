@@ -62,7 +62,7 @@ async function main(): Promise<void> {
 
   // Module crons (and legacy `schedulers[]` kept for backward-compat).
   // Use loadModulesWithDbSources so module_sources rows (e.g.
-  // /premium-gatewaze-modules) are picked up — without this the
+  // /gatewaze-modules) are picked up — without this the
   // scheduler only sees modules from the static config and silently
   // misses every module living under a DB-managed source.
   let dbSources: Record<string, unknown>[] = [];

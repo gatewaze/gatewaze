@@ -20,6 +20,7 @@ export interface ThemeContextValue extends ThemeConfig {
   setLightColorScheme: (val: LightColor) => void;
   setDarkColorScheme: (val: DarkColor) => void;
   setPrimaryColorScheme: (val: PrimaryColor) => void;
+  setSecondaryColor: (val: PrimaryColor) => void;
   setNotificationPosition: (val: Notification["position"]) => void;
   setNotificationExpand: (val: boolean) => void;
   setNotificationMaxCount: (val: number) => void;

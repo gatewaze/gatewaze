@@ -1,6 +1,6 @@
 // Per spec-calendars-microsites §8.1 — admin REST surface for the
 // Messaging tab. Until now the admin UI talked direct browser→Supabase
-// via the calendarBlastService in premium-gatewaze-modules. That works
+// via the calendarBlastService in gatewaze-modules. That works
 // (RLS gates everything) but it doesn't give us a REST contract an
 // external integrator can hit, and per-route metrics / rate limits
 // have to live inside the SDK rather than at the edge.

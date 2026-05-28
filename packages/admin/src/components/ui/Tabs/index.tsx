@@ -81,7 +81,20 @@ export function Tabs({
     <RadixTabs.Root value={value} onValueChange={onChange} className={className} {...(fullWidth ? { "data-full-width": "" } : {})}>
       <RadixTabs.List>
         {tabs.map((tab) => (
-          <RadixTabs.Trigger key={tab.id} value={tab.id}>
+          <RadixTabs.Trigger
+            key={tab.id}
+            value={tab.id}
+            // Radix fires onValueChange only when the value actually changes,
+            // so clicking the already-active tab is a no-op. For URL-driven
+            // strips that strands a drill-in page (e.g. /series/:id, where the
+            // Series tab is lit) with no way to use its own tab to get back to
+            // the list. Re-fire onChange when the active tab is clicked so the
+            // consumer can navigate to that tab's base route. Inactive clicks
+            // are left to onValueChange to avoid a double call.
+            onClick={() => {
+              if (tab.id === value) onChange(tab.id);
+            }}
+          >
             {tab.icon && <span className="inline-flex shrink-0">{tab.icon}</span>}
             {tab.label}
             {tab.count !== undefined && ` (${tab.count})`}

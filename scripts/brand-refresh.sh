@@ -3,7 +3,7 @@
 # "it suddenly stopped working" symptoms for a brand. Useful after:
 #   - adding/removing a module
 #   - updating a dependency
-#   - switching branches on gatewaze-modules / premium-gatewaze-modules
+#   - switching branches on gatewaze-modules / gatewaze-modules
 #   - seeing Vite errors like "does not provide an export named X" (CJS interop)
 #   - the admin hanging on startup
 #   - portal showing stale module routes
