@@ -10,20 +10,24 @@
   <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="License"></a>
 </p>
 
-**Open-source people management platform.**
+**The AI-native open-source platform for communities.**
 
-Gatewaze is a modular platform for managing people and communities. Out of the box it gives you people management, a public portal, and an admin dashboard — then you extend it with modules to add the capabilities you need. Whether you're running a developer community, a professional association, or any organization, Gatewaze adapts to how you work.
+Gatewaze is a modular platform for managing communities and the people in them — members, events, content, newsletters, sites, and communications. Out of the box it gives you member management, a public portal, and an admin dashboard, then you extend it with modules for everything else. What sets it apart is that AI is built in: you can ship AI features to production on your own infrastructure, without standing up a separate AI platform. Whether you're running a developer community, a professional association, or any organization, Gatewaze adapts to how you work.
 
 ---
 
 ## Features
 
 - **People & Member Management** -- Manage profiles, organizations, membership tiers, and track engagement across your community.
-- **Admin Dashboard** -- Full-featured admin interface for managing your organization and members.
-- **Public Portal** -- A fast, SEO-friendly public site powered by Next.js.
+- **Admin Dashboard & Public Portal** -- A full-featured React admin interface and a fast, SEO-friendly Next.js public portal.
+- **Run AI in Production** -- A built-in AI runtime with one provider router for OpenAI, Anthropic, and Google Gemini; an embeddable, streamed chat widget; per-user and per-use-case credentials; model allow-lists; a per-call cost ledger; and hard budget caps. Ship AI features on your own infrastructure — no separate AI platform required.
+- **Bring Your Own Agent** -- Author a [Goose](https://github.com/block/goose) recipe locally and run it *unchanged* in production. Gatewaze runs the Goose CLI server-side, so there's no rewrite, no serverless wrapper, and no local-to-cloud translation.
+- **MCP Server Library** -- Expose your platform to AI agents through bundled MCP servers: platform data (events, speakers, sponsors, health), a whitelisted API proxy, and a headless browser (local Chromium or Browserbase).
+- **Automation** -- A headless browser for agents, a governed web-fetch API (quotas, domain rules, robots.txt, audit + billing ledger), and a scraper system backed by a fetch service with eight swappable residential-proxy providers.
 - **Configurable Authentication** -- Supports Supabase Auth and OIDC providers for flexible identity management.
-- **Email** -- Transactional and bulk email via SendGrid or any SMTP provider, with template management.
-- **Module System** -- Extend the platform through self-contained modules that add UI, API routes, background jobs, and database migrations. Add event management, calendars, registrations, speakers, payments, and more.
+- **Email & Messaging** -- Transactional and bulk email via SendGrid or any SMTP provider, plus Slack, SMS, and WhatsApp through modules.
+- **Module System** -- Extend the platform through self-contained modules that add UI, API routes, background jobs, and database migrations. Add events, calendars, registrations, speakers, payments, and more.
+- **Self-Host Anywhere** -- Start in minutes with Docker Compose, then run in production on Kubernetes with the bundled Helm chart. No SaaS lock-in; nothing leaves your cluster.
 
 ## Modules
 
@@ -45,7 +49,10 @@ You can also create your own modules and load them from local paths, git repos, 
 | Storage        | Supabase Storage                    |
 | Edge Functions | Supabase Edge Functions (Deno)      |
 | Job Queue      | Redis + BullMQ                      |
+| AI             | OpenAI · Anthropic · Gemini (unified router) |
+| Agents         | Goose (server-side CLI) + MCP       |
 | UI Components  | Radix Themes + Tailwind CSS         |
+| Deployment     | Docker Compose / Kubernetes + Helm  |
 | Package Manager| pnpm (monorepo workspaces)          |
 
 ## Architecture
