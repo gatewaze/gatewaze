@@ -795,7 +795,7 @@ export default function MemberDetailPage() {
 
   // Check if we have valid location coordinates for the map background
   const hasMapLocation = (() => {
-    const location = person.attributes?.location;
+    const location = person.attributes?.coordinates || person.attributes?.location;
     if (location) {
       const [lat, lng] = location.split(',').map((coord: string) => parseFloat(coord.trim()));
       return !isNaN(lat) && !isNaN(lng);
@@ -812,7 +812,7 @@ export default function MemberDetailPage() {
           <iframe
             className="absolute inset-0 w-full h-full scale-110 pointer-events-none"
             src={(() => {
-              const location = person.attributes?.location;
+              const location = person.attributes?.coordinates || person.attributes?.location;
               if (location) {
                 const [lat, lng] = location.split(',').map((coord: string) => parseFloat(coord.trim()));
                 // Use a wider bounding box for the hero background view, with marker
@@ -1176,7 +1176,7 @@ export default function MemberDetailPage() {
                   </div>
                 ) : (
                   (() => {
-                    const location = person.attributes?.location;
+                    const location = person.attributes?.coordinates || person.attributes?.location;
                     const city = person.attributes?.city;
                     const country = person.attributes?.country;
 

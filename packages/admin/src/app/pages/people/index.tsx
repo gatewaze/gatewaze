@@ -328,12 +328,14 @@ export default function MembersPage() {
           break;
         }
 
-        // Filter people with valid location data
+        // Filter people with valid location data.
+        // Coordinates live in attributes.coordinates ("lat,lng"); fall back to
+        // attributes.location for any records that store coords there directly.
         for (const person of peopleData) {
           const attrs = person.attributes as Record<string, any> | null;
-          if (attrs?.location && attrs?.city && attrs?.country) {
-            const locationStr = attrs.location as string;
-            const [latStr, lngStr] = locationStr.split(',').map((s: string) => s.trim());
+          const coordStr = (attrs?.coordinates || attrs?.location) as string | undefined;
+          if (coordStr && attrs?.city && attrs?.country) {
+            const [latStr, lngStr] = coordStr.split(',').map((s: string) => s.trim());
             const lat = parseFloat(latStr);
             const lng = parseFloat(lngStr);
 
@@ -1085,7 +1087,6 @@ export default function MembersPage() {
     <>
       <Button
         onClick={() => setAddPersonModalOpen(true)}
-        color="cyan"
         className="gap-2"
       >
         <PlusIcon className="size-4" />
@@ -1149,7 +1150,7 @@ export default function MembersPage() {
         }
         actions={headerActions}
         tabs={[
-          { id: 'data', label: 'Data' },
+          { id: 'data', label: 'People' },
           { id: 'gallery', label: 'Gallery', count: peopleWithGravatar.length },
           { id: 'map', label: 'Map', icon: <MapPinIcon className="size-4" />, count: peopleLocations.length > 0 ? peopleLocations.reduce((sum, l) => sum + l.count, 0) : undefined },
         ]}
@@ -1197,7 +1198,7 @@ export default function MembersPage() {
             </Card>
           )
         ) : (
-          <>
+          <div className="space-y-6">
             {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Card variant="surface" className="p-6">
@@ -1224,32 +1225,32 @@ export default function MembersPage() {
           </Card>
         </div>
 
-        {/* Search */}
-        <Card variant="surface" className="p-4">
-          <div className="space-y-2">
-            <div className="relative">
-              <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-5 text-[var(--gray-a8)]" />
-              <input
-                type="text"
-                placeholder="Search people... (e.g., company:microsoft or john)"
-                value={globalFilter ?? ''}
-                onChange={(e) => setGlobalFilter(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-[var(--color-background)] border border-[var(--gray-a6)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent-9)] text-[var(--gray-12)]"
-              />
-            </div>
-            <div className="text-xs text-[var(--gray-11)] flex items-center gap-2">
-              <span className="font-medium">💡 Tip:</span>
-              <span>
-                Use <code className="px-1 py-0.5 bg-[var(--gray-a3)] rounded">field:value</code> for specific fields
-                (e.g., <code className="px-1 py-0.5 bg-[var(--gray-a3)] rounded">company:microsoft</code>,
-                <code className="px-1 py-0.5 bg-[var(--gray-a3)] rounded ml-1">first_name:john</code>)
-              </span>
-            </div>
-          </div>
-        </Card>
-
         {/* Members Table */}
         <Card className="overflow-hidden">
+          {/* Search / filter */}
+          <div className="p-4 border-b border-[var(--gray-a5)]">
+            <div className="space-y-2">
+              <div className="relative">
+                <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-5 text-[var(--gray-a8)]" />
+                <input
+                  type="text"
+                  placeholder="Search people... (e.g., company:microsoft or john)"
+                  value={globalFilter ?? ''}
+                  onChange={(e) => setGlobalFilter(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 bg-[var(--color-background)] border border-[var(--gray-a6)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent-9)] text-[var(--gray-12)]"
+                />
+              </div>
+              <div className="text-xs text-[var(--gray-11)] flex items-center gap-2">
+                <span className="font-medium">💡 Tip:</span>
+                <span>
+                  Use <code className="px-1 py-0.5 bg-[var(--gray-a3)] rounded">field:value</code> for specific fields
+                  (e.g., <code className="px-1 py-0.5 bg-[var(--gray-a3)] rounded">company:microsoft</code>,
+                  <code className="px-1 py-0.5 bg-[var(--gray-a3)] rounded ml-1">first_name:john</code>)
+                </span>
+              </div>
+            </div>
+          </div>
+
           {/* Select All Banner */}
           {selectAllMode && (
             <div className="bg-[var(--accent-a3)] border-b border-[var(--accent-a6)] px-6 py-3">
@@ -1318,7 +1319,7 @@ export default function MembersPage() {
             </div>
           )}
         </Card>
-          </>
+          </div>
         )}
 
         {/* View Customer Modal */}
