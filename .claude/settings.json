@@ -1,0 +1,13 @@
+{
+  "extraKnownMarketplaces": {
+    "gatewaze-skills": {
+      "source": {
+        "source": "github",
+        "repo": "gatewaze/gatewaze-skills"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "gatewaze-skills@gatewaze-skills": true
+  }
+}
