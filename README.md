@@ -24,9 +24,10 @@ Gatewaze is a modular, open-source platform for managing communities and the peo
 - **People & Member Management** -- Manage profiles, organizations, membership tiers, and track engagement across your community.
 - **Admin Dashboard & Public Portal** -- A full-featured React admin interface and a fast, SEO-friendly Next.js public portal.
 - **Run AI in Production** -- A built-in AI runtime with one provider router for OpenAI, Anthropic, and Google Gemini; an embeddable, streamed chat widget; per-user and per-use-case credentials; model allow-lists; a per-call cost ledger; and hard budget caps. Ship AI features on your own infrastructure, with no separate AI platform required.
-- **Bring Your Own Agent** -- Author a [Goose](https://github.com/aaif-goose/goose) recipe locally and run it *unchanged* in production. Gatewaze runs the Goose CLI server-side, so there's no rewrite, no serverless wrapper, and no local-to-cloud translation.
-- **MCP Server Library** -- Expose your platform to AI agents through bundled MCP servers: platform data (events, speakers, sponsors, health), a whitelisted API proxy, and a headless browser (local Chromium or Browserbase).
-- **Automation** -- A headless browser for agents, a governed web-fetch API (quotas, domain rules, robots.txt, audit and billing ledger), and a scraper system backed by a fetch service with eight swappable residential-proxy providers.
+- **Bring Your Own Agent** -- Author a [Goose](https://github.com/aaif-goose/goose) recipe locally and run it *unchanged* in production. Gatewaze runs Goose, Block's open-source agent runtime, as a server-side CLI, so there's no rewrite, no serverless wrapper, and no local-to-cloud translation.
+- **MCP Server Library** -- Expose your platform to AI agents through bundled [Model Context Protocol](https://modelcontextprotocol.io) (MCP) servers: platform data (events, speakers, sponsors, health), a whitelisted API proxy, and a headless browser (local Chromium or [Browserbase](https://www.browserbase.com)).
+- **Agent Memory** -- A durable, git-synced knowledge base for agents based on [Andrej Karpathy's LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) design: immutable raw sources distilled into LLM-authored, cross-linked wiki pages with full-text and vector search.
+- **Automation** -- A headless browser for agents, a governed web-fetch API (quotas, domain rules, robots.txt, audit and billing ledger), and a scraper system backed by a fetch service built on [Scrapling](https://github.com/D4Vinci/Scrapling), with eight swappable residential-proxy providers.
 - **Configurable Authentication** -- Supports Supabase Auth and OIDC providers for flexible identity management.
 - **Email & Messaging** -- Transactional and bulk email via SendGrid or any SMTP provider, plus Slack, SMS, and WhatsApp through modules.
 - **Self-Host Anywhere** -- Start in minutes with Docker Compose, then run in production on Kubernetes with the bundled Helm chart. No SaaS lock-in; nothing leaves your cluster.
@@ -46,13 +47,15 @@ You can also create your own modules and load them from local paths, git repos, 
 | Admin App      | React + Vite                        |
 | Public Portal  | Next.js                             |
 | API Server     | Express                             |
-| Database       | PostgreSQL (via Supabase)           |
-| Auth           | Supabase Auth / OIDC                |
+| Database       | PostgreSQL via [Supabase](https://supabase.com) |
+| Auth           | [Supabase](https://supabase.com) Auth / OIDC |
 | Storage        | Supabase Storage                    |
 | Edge Functions | Supabase Edge Functions (Deno)      |
-| Job Queue      | Redis + BullMQ                      |
+| Job Queue      | [Redis](https://redis.io) + [BullMQ](https://bullmq.io) |
 | AI             | OpenAI · Anthropic · Gemini (unified router) |
-| Agents         | Goose (server-side CLI) + MCP       |
+| Agents         | [Goose](https://github.com/aaif-goose/goose) (server-side CLI) + [MCP](https://modelcontextprotocol.io) |
+| Scraping       | [Scrapling](https://github.com/D4Vinci/Scrapling) fetch service + residential proxies |
+| Analytics      | [Umami](https://umami.is) (self-hosted)     |
 | UI Components  | Radix Themes + Tailwind CSS         |
 | Deployment     | Docker Compose / Kubernetes + Helm  |
 | Package Manager| pnpm (monorepo workspaces)          |
