@@ -21,7 +21,7 @@ Gatewaze is a modular platform for managing communities and the people in them â
 - **People & Member Management** -- Manage profiles, organizations, membership tiers, and track engagement across your community.
 - **Admin Dashboard & Public Portal** -- A full-featured React admin interface and a fast, SEO-friendly Next.js public portal.
 - **Run AI in Production** -- A built-in AI runtime with one provider router for OpenAI, Anthropic, and Google Gemini; an embeddable, streamed chat widget; per-user and per-use-case credentials; model allow-lists; a per-call cost ledger; and hard budget caps. Ship AI features on your own infrastructure â€” no separate AI platform required.
-- **Bring Your Own Agent** -- Author a [Goose](https://github.com/block/goose) recipe locally and run it *unchanged* in production. Gatewaze runs the Goose CLI server-side, so there's no rewrite, no serverless wrapper, and no local-to-cloud translation.
+- **Bring Your Own Agent** -- Author a [Goose](https://github.com/aaif-goose/goose) recipe locally and run it *unchanged* in production. Gatewaze runs the Goose CLI server-side, so there's no rewrite, no serverless wrapper, and no local-to-cloud translation.
 - **MCP Server Library** -- Expose your platform to AI agents through bundled MCP servers: platform data (events, speakers, sponsors, health), a whitelisted API proxy, and a headless browser (local Chromium or Browserbase).
 - **Automation** -- A headless browser for agents, a governed web-fetch API (quotas, domain rules, robots.txt, audit + billing ledger), and a scraper system backed by a fetch service with eight swappable residential-proxy providers.
 - **Configurable Authentication** -- Supports Supabase Auth and OIDC providers for flexible identity management.
