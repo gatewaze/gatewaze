@@ -1,0 +1,139 @@
+{{- if .Values.eventsMcp.enabled }}
+###############################################################################
+# events-mcp — Node service exposing the events_* tools (luma-syncable read +
+# luma_sync_* writeback) over streamable HTTP (MCP). Uses a service-role
+# Supabase client (RLS-bypassing) scoped to the sync candidate set and the
+# luma_sync_* columns — NOT a general events API. Registered in ai_mcp_servers
+# as type=streamable_http and reached by the worker/api at
+# http://<release>-events-mcp:8080/mcp.
+#
+# NOTE: the worker/api must run with AI_MCP_HTTP_ALLOW_PRIVATE=true to connect
+# to this internal http:// service past the streamable_http SSRF guard, and the
+# ai_mcp_servers uri_https constraint must permit internal single-label hosts
+# (ai migration 037).
+#
+# Toggle: set `eventsMcp.enabled: true` in values-{brand}.yaml.
+###############################################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "gatewaze.fullname" . }}-events-mcp
+  labels:
+    {{- include "gatewaze.labels" . | nindent 4 }}
+    app.kubernetes.io/component: events-mcp
+spec:
+  replicas: {{ .Values.eventsMcp.replicaCount | default 1 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "gatewaze.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: events-mcp
+  template:
+    metadata:
+      labels:
+        {{- include "gatewaze.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: events-mcp
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: events-mcp
+          image: "{{ .Values.eventsMcp.image.repository }}:{{ .Values.eventsMcp.image.tag }}"
+          imagePullPolicy: {{ .Values.eventsMcp.image.pullPolicy | default "IfNotPresent" }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: MCP_TRANSPORT
+              value: "http"
+            - name: PORT
+              value: "8080"
+            - name: SUPABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "gatewaze.fullname" . }}-secret
+                  key: SUPABASE_URL
+            - name: SUPABASE_SERVICE_ROLE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "gatewaze.fullname" . }}-secret
+                  key: SUPABASE_SERVICE_ROLE_KEY
+          resources:
+            requests:
+              cpu: {{ .Values.eventsMcp.resources.requests.cpu | default "50m" }}
+              memory: {{ .Values.eventsMcp.resources.requests.memory | default "128Mi" }}
+            limits:
+              cpu: {{ .Values.eventsMcp.resources.limits.cpu | default "500m" }}
+              memory: {{ .Values.eventsMcp.resources.limits.memory | default "512Mi" }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+            initialDelaySeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "gatewaze.fullname" . }}-events-mcp
+  labels:
+    {{- include "gatewaze.labels" . | nindent 4 }}
+    app.kubernetes.io/component: events-mcp
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+  selector:
+    {{- include "gatewaze.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: events-mcp
+---
+###############################################################################
+# NetworkPolicy — only the worker + api can reach events-mcp (the recipe
+# executor runs in the worker; chat runs in the api).
+###############################################################################
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "gatewaze.fullname" . }}-events-mcp
+  labels:
+    {{- include "gatewaze.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "gatewaze.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: events-mcp
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "gatewaze.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: worker
+        - podSelector:
+            matchLabels:
+              {{- include "gatewaze.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: api
+      ports:
+        - port: 8080
+          protocol: TCP
+{{- end }}

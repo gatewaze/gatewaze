@@ -801,6 +801,37 @@ services:
         reservations:
           memory: 512M
 
+  events-mcp:
+    build:
+      context: ../packages/events-mcp
+      dockerfile: Dockerfile
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-events-mcp
+    restart: unless-stopped
+    # Internal-only MCP service: serves events_* (luma-syncable read +
+    # luma_sync_* writeback) over streamable HTTP using a service-role Supabase
+    # client. Reached by the worker/api at http://events-mcp:8080/mcp
+    # (registered in ai_mcp_servers as type=streamable_http). No traefik route —
+    # it must not be publicly reachable. The worker/api need
+    # AI_MCP_HTTP_ALLOW_PRIVATE=true to connect over the private network.
+    networks:
+      - gatewaze
+    environment:
+      MCP_TRANSPORT: http
+      PORT: 8080
+      SUPABASE_URL: http://supabase-kong:8000
+      SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8080/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+
   scheduler:
     build:
       context: ..

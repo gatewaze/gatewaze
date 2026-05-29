@@ -550,3 +550,22 @@ scraplingFetcher:
     limits:
       cpu: "2"
       memory: "3Gi"
+
+eventsMcp:
+  # -- Enable the events-mcp Deployment + Service + NetworkPolicy. Serves the
+  # events_* MCP tools (luma-syncable read + luma_sync_* writeback) over
+  # streamable HTTP using a service-role Supabase client. Register the service
+  # in ai_mcp_servers (type=streamable_http, uri=http://<release>-events-mcp:8080/mcp).
+  enabled: false
+  replicaCount: 1
+  image:
+    repository: ghcr.io/gatewaze/events-mcp
+    tag: latest
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
