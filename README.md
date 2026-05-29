@@ -12,28 +12,30 @@
 
 **The AI-native open-source platform for communities.**
 
-Gatewaze is a modular platform for managing communities and the people in them — members, events, content, newsletters, sites, and communications. Out of the box it gives you member management, a public portal, and an admin dashboard, then you extend it with modules for everything else. What sets it apart is that AI is built in: you can ship AI features to production on your own infrastructure, without standing up a separate AI platform. Whether you're running a developer community, a professional association, or any organization, Gatewaze adapts to how you work.
+Gatewaze is a modular, open-source platform for managing communities and the people in them: members, events, content, newsletters, sites, and communications. You assemble it from modules, and each module is a self-contained mini-application that can ship its own admin UI, API routes, background jobs, database migrations, and public-facing portal pages out of the box. Turn on the pre-built modules you need, and build your own for anything else. AI is built in too, so you can ship AI features to production on your own infrastructure without a separate AI platform.
+
+**Proven in production.** Gatewaze runs a developer community of 155k+ members, with 58k+ newsletter subscribers and 76k+ meetup attendees.
 
 ---
 
 ## Features
 
+- **Modular by Design** -- Every capability is a self-contained module: admin UI, API routes, background jobs, database migrations, and public-facing portal pages, all auto-discovered and individually toggleable. Use the pre-built modules, or build your own for anything your community needs.
 - **People & Member Management** -- Manage profiles, organizations, membership tiers, and track engagement across your community.
 - **Admin Dashboard & Public Portal** -- A full-featured React admin interface and a fast, SEO-friendly Next.js public portal.
-- **Run AI in Production** -- A built-in AI runtime with one provider router for OpenAI, Anthropic, and Google Gemini; an embeddable, streamed chat widget; per-user and per-use-case credentials; model allow-lists; a per-call cost ledger; and hard budget caps. Ship AI features on your own infrastructure — no separate AI platform required.
+- **Run AI in Production** -- A built-in AI runtime with one provider router for OpenAI, Anthropic, and Google Gemini; an embeddable, streamed chat widget; per-user and per-use-case credentials; model allow-lists; a per-call cost ledger; and hard budget caps. Ship AI features on your own infrastructure, with no separate AI platform required.
 - **Bring Your Own Agent** -- Author a [Goose](https://github.com/aaif-goose/goose) recipe locally and run it *unchanged* in production. Gatewaze runs the Goose CLI server-side, so there's no rewrite, no serverless wrapper, and no local-to-cloud translation.
 - **MCP Server Library** -- Expose your platform to AI agents through bundled MCP servers: platform data (events, speakers, sponsors, health), a whitelisted API proxy, and a headless browser (local Chromium or Browserbase).
-- **Automation** -- A headless browser for agents, a governed web-fetch API (quotas, domain rules, robots.txt, audit + billing ledger), and a scraper system backed by a fetch service with eight swappable residential-proxy providers.
+- **Automation** -- A headless browser for agents, a governed web-fetch API (quotas, domain rules, robots.txt, audit and billing ledger), and a scraper system backed by a fetch service with eight swappable residential-proxy providers.
 - **Configurable Authentication** -- Supports Supabase Auth and OIDC providers for flexible identity management.
 - **Email & Messaging** -- Transactional and bulk email via SendGrid or any SMTP provider, plus Slack, SMS, and WhatsApp through modules.
-- **Module System** -- Extend the platform through self-contained modules that add UI, API routes, background jobs, and database migrations. Add events, calendars, registrations, speakers, payments, and more.
 - **Self-Host Anywhere** -- Start in minutes with Docker Compose, then run in production on Kubernetes with the bundled Helm chart. No SaaS lock-in; nothing leaves your cluster.
 
 ## Modules
 
 Gatewaze's module system lets you pick the capabilities you need. Modules are selected during onboarding and can be enabled or disabled at any time.
 
-The official open-source module collection lives in the [gatewaze-modules](https://github.com/gatewaze/gatewaze-modules) repository — **76 modules** (all Apache-2.0) spanning events, content, people & community, sites & web, marketing, communications, integrations, and platform infrastructure. Examples include event registrations, calendars, speakers, newsletters, blog, multi-site web builder, forms, surveys, Stripe payments, Slack/SMS/WhatsApp messaging, analytics, AI, and compliance.
+The official open-source module collection lives in the [gatewaze-modules](https://github.com/gatewaze/gatewaze-modules) repository: **76 modules** (all Apache-2.0) spanning events, content, people & community, sites & web, marketing, communications, integrations, and platform infrastructure. Examples include event registrations, calendars, speakers, newsletters, blog, multi-site web builder, forms, surveys, Stripe payments, Slack/SMS/WhatsApp messaging, analytics, AI, and compliance.
 
 You can also create your own modules and load them from local paths, git repos, or uploaded packages. See the [Module System Guide](./docs/modules.md) for full documentation on creating and managing modules.
 
@@ -178,7 +180,7 @@ To use [Supabase Cloud](https://supabase.com) instead of self-hosted:
 
 ```bash
 make init
-# Edit docker/.env — set SUPABASE_URL, ANON_KEY, SERVICE_ROLE_KEY to your cloud project values
+# Edit docker/.env to set SUPABASE_URL, ANON_KEY, SERVICE_ROLE_KEY to your cloud project values
 
 cd docker
 docker compose -f docker-compose.cloud.yml up -d
