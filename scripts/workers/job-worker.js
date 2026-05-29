@@ -39,28 +39,39 @@ initScraperHandler({
   JobTypes,
 });
 
-// Import Slack invitation queue processor from premium-modules.
-// Tolerate the legacy `slack-integration` directory name (renamed to
-// `slack` in 7b19bfc) so a half-rebuilt environment doesn't crash the
-// worker on startup.
+// Import Slack invitation queue processor. The slack module was open-sourced
+// into gatewaze-modules, so resolve the live module tree / gatewaze-modules
+// mount first and keep the archived premium paths (incl. the legacy
+// `slack-integration` name) only as a last resort. Loading is best-effort:
+// a missing slack module must not crash the whole worker on startup.
 function resolveSlackModulePath() {
-  const newPath = path.resolve(__workerDirname, '..', '..', '..', 'premium-gatewaze-modules', 'modules', 'slack', 'scripts');
-  const legacyPath = path.resolve(__workerDirname, '..', '..', '..', 'premium-gatewaze-modules', 'modules', 'slack-integration', 'scripts');
-  return [newPath, legacyPath];
+  return [
+    '/var/lib/gatewaze/modules/slack/scripts',
+    '/gatewaze-modules/modules/slack/scripts',
+    path.resolve(__workerDirname, '..', '..', '..', 'gatewaze-modules', 'modules', 'slack', 'scripts'),
+    path.resolve(__workerDirname, '..', '..', '..', 'premium-gatewaze-modules', 'modules', 'slack', 'scripts'),
+    path.resolve(__workerDirname, '..', '..', '..', 'premium-gatewaze-modules', 'modules', 'slack-integration', 'scripts'),
+  ];
 }
+let processSlackQueue = async () => {};
 let slackModulePath = null;
 for (const candidate of resolveSlackModulePath()) {
   try {
-    if (fsSync.existsSync(candidate)) { slackModulePath = candidate; break; }
+    if (fsSync.existsSync(path.join(candidate, 'slack-invitation-worker.js'))) { slackModulePath = candidate; break; }
   } catch {}
 }
-if (!slackModulePath) slackModulePath = resolveSlackModulePath()[0];
-const { processQueue: processSlackQueue, initSlackWorker } = await import(
-  path.join(slackModulePath, 'slack-invitation-worker.js')
-);
-
-// Initialize the slack worker with dependencies
-initSlackWorker({ supabase });
+if (slackModulePath) {
+  try {
+    const slackMod = await import(path.join(slackModulePath, 'slack-invitation-worker.js'));
+    processSlackQueue = slackMod.processQueue;
+    slackMod.initSlackWorker({ supabase });
+    console.log(`✅ Slack worker loaded from ${slackModulePath}`);
+  } catch (err) {
+    console.warn(`⚠️ Slack worker failed to load (${err.message}); slack invitation jobs will be skipped`);
+  }
+} else {
+  console.warn('⚠️ Slack module not found in any known location; slack invitation jobs will be skipped');
+}
 
 // Import the analytics provisioning handler.
 //
