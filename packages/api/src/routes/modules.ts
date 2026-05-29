@@ -822,6 +822,63 @@ interface PreflightWarning {
 
 const CREATE_EXTENSION_RE = /\bCREATE\s+EXTENSION(?:\s+IF\s+NOT\s+EXISTS)?\s+"?([a-zA-Z0-9_-]+)"?/gi;
 
+// Directories the API never evaluates when it registers a module: the
+// browser admin bundle, the portal SSR bundle, build/test scaffolding.
+// A dependency imported ONLY from these is not needed by the api
+// container — so a "missing" one there can't break route loading.
+const NON_SERVER_DIRS = new Set(['admin', 'portal', 'node_modules', 'dist', '__tests__', '__mocks__', 'coverage']);
+
+const IMPORT_SPECIFIER_RE =
+  /\bfrom\s*['"]([^'"]+)['"]|\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)|\brequire\(\s*['"]([^'"]+)['"]\s*\)/g;
+
+/**
+ * Collect every module-import specifier used by a module's SERVER-side
+ * source — i.e. everything under resolvedDir except the admin/portal
+ * bundles and build/test dirs. Used to decide whether a "missing"
+ * dependency would actually break `registerModuleRoutes()` (blocker) or
+ * is merely admin/build-only (advisory warning).
+ */
+function collectServerImportSpecifiers(rootDir: string): Set<string> {
+  const specifiers = new Set<string>();
+  const walk = (dir: string): void => {
+    let entries: import('fs').Dirent[];
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        if (NON_SERVER_DIRS.has(entry.name)) continue;
+        walk(resolve(dir, entry.name));
+      } else if (/\.(ts|tsx|js|mjs|cjs)$/.test(entry.name)) {
+        let src: string;
+        try {
+          src = readFileSync(resolve(dir, entry.name), 'utf-8');
+        } catch {
+          continue;
+        }
+        IMPORT_SPECIFIER_RE.lastIndex = 0;
+        let m: RegExpExecArray | null;
+        while ((m = IMPORT_SPECIFIER_RE.exec(src)) !== null) {
+          const spec = m[1] ?? m[2] ?? m[3];
+          if (spec) specifiers.add(spec);
+        }
+      }
+    }
+  };
+  walk(rootDir);
+  return specifiers;
+}
+
+/** True if `depName` is imported (incl. subpath imports) by any specifier. */
+function isImportedBy(depName: string, specifiers: Set<string>): boolean {
+  for (const spec of specifiers) {
+    if (spec === depName || spec.startsWith(`${depName}/`)) return true;
+  }
+  return false;
+}
+
 function checkNpmDeps(mod: LoadedModule): PreflightWarning[] {
   if (!mod.resolvedDir) return [];
   const pkgPath = resolve(mod.resolvedDir, 'package.json');
@@ -835,16 +892,28 @@ function checkNpmDeps(mod: LoadedModule): PreflightWarning[] {
   }
   if (!pkg.dependencies) return [];
 
+  // Which declared deps does the module's SERVER code actually import?
+  // A missing dep that the api never imports can't break route loading,
+  // so it's an advisory warning, not a blocker. This stops admin-only
+  // deps (Puck / react-email / babel build tooling) from hard-blocking
+  // enable on a fresh install where they were intentionally left out of
+  // the api image. (peerDependencies / devDependencies aren't scanned
+  // here at all — only `dependencies`.)
+  const serverSpecifiers = collectServerImportSpecifiers(mod.resolvedDir);
+
   const warnings: PreflightWarning[] = [];
   for (const [name, version] of Object.entries(pkg.dependencies)) {
     if (name.startsWith('@gatewaze/') || name.startsWith('@gatewaze-modules/')) continue;
     const candidate = resolve(PROJECT_ROOT, 'node_modules', name);
     if (existsSync(candidate)) continue;
+    const serverRequired = isImportedBy(name, serverSpecifiers);
     warnings.push({
       code: 'MISSING_NPM_DEP',
-      severity: 'blocker',
-      message: `Dependency "${name}" is declared in ${mod.config.id}'s package.json but is not installed in the api container. Enabling will succeed but the module's routes will fail to load on next api restart.`,
-      details: { name, version },
+      severity: serverRequired ? 'blocker' : 'warning',
+      message: serverRequired
+        ? `Dependency "${name}" is imported by ${mod.config.id}'s server code but is not installed in the api container. The module's routes will fail to load on the next api restart.`
+        : `Dependency "${name}" is declared in ${mod.config.id}'s package.json but is only used by admin/build code — the api never imports it, so enabling is safe. To silence this, move it to peerDependencies or devDependencies.`,
+      details: { name, version, serverRequired },
     });
   }
   return warnings;
