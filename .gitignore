@@ -24,6 +24,7 @@ docker/.env.*
 *.swo
 .DS_Store
 
+
 # Logs
 *.log
 npm-debug.log*
@@ -85,3 +86,8 @@ supabase/functions/platform-main/index.ts
 # Generated portal module registries (output of generate-module-registry.ts)
 packages/portal/lib/modules/generated-*
 .adversarial-spec-checkpoints/
+
+# Machine-local Claude memory (not shared)
+CLAUDE.local.md
+
+.agents/
