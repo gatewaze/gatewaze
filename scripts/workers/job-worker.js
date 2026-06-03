@@ -13,23 +13,59 @@ import Redis from 'ioredis';
 import { JobTypes, getQueue } from '../lib/job-queue.js';
 import { supabase } from '../supabase-client.js';
 
-// Import scraper worker logic from premium-gatewaze-modules
-// The scraper code lives in the modules repo; we dynamically resolve the path
+// Import scraper worker logic from the scrapers module. The scrapers code
+// was open-sourced from premium-gatewaze-modules into gatewaze-modules, so
+// we look there first. Premium paths are kept as a last-resort fallback so
+// brands that pin an old config (or hold an in-flight rollout) still boot.
 import path from 'path';
 import fsSync from 'fs';
 import { fileURLToPath } from 'url';
 const __workerFilename = fileURLToPath(import.meta.url);
 const __workerDirname = path.dirname(__workerFilename);
 
-// Resolve premium-gatewaze-modules path (sibling repo in the workspace)
-const premiumModulesPath = process.env.SCRAPER_MODULE_PATH ||
-  path.resolve(__workerDirname, '..', '..', '..', 'premium-gatewaze-modules', 'modules', 'scrapers', 'scripts');
+function resolveScraperModulePath() {
+  // SCRAPER_MODULE_PATH wins if explicitly set (used by some dev setups).
+  if (process.env.SCRAPER_MODULE_PATH) return [process.env.SCRAPER_MODULE_PATH];
+  return [
+    // Live snapshot installed by the api after enable
+    '/var/lib/gatewaze/modules/scrapers/scripts',
+    // Runtime clone (admin/portal/worker entrypoint creates this)
+    '/gatewaze-modules/modules/scrapers/scripts',
+    // Dev workspace layout
+    path.resolve(__workerDirname, '..', '..', '..', 'gatewaze-modules', 'modules', 'scrapers', 'scripts'),
+    // Last-resort legacy premium path
+    path.resolve(__workerDirname, '..', '..', '..', 'premium-gatewaze-modules', 'modules', 'scrapers', 'scripts'),
+  ];
+}
+
+let scraperModulePath = null;
+for (const candidate of resolveScraperModulePath()) {
+  try {
+    if (fsSync.existsSync(path.join(candidate, 'scraper-job-handler.js'))) {
+      scraperModulePath = candidate;
+      break;
+    }
+  } catch { /* keep trying */ }
+}
+if (!scraperModulePath) {
+  // Hard fail. The legacy worker's whole reason to exist is scraper
+  // dispatch — booting without it would silently strand every scraper
+  // job in the queue, which is worse than crash-looping until the
+  // operator notices.
+  throw new Error(
+    'scraper module not found in any known location ' +
+    '(checked /var/lib/gatewaze/modules/scrapers, /gatewaze-modules, dev workspace, legacy premium path). ' +
+    'Ensure gatewaze-modules is in MODULE_SOURCES.'
+  );
+}
+console.log(`✅ Scraper module loaded from ${scraperModulePath}`);
+const premiumModulesPath = scraperModulePath; // keep the old name for in-file refs below
 
 const { runScraperJob, initScraperHandler } = await import(
-  path.join(premiumModulesPath, 'scraper-job-handler.js')
+  path.join(scraperModulePath, 'scraper-job-handler.js')
 );
 const { sendScraperAlert } = await import(
-  path.join(premiumModulesPath, 'lib', 'scraper-alerts.js')
+  path.join(scraperModulePath, 'lib', 'scraper-alerts.js')
 );
 
 // Initialize the scraper handler with dependencies from this repo
@@ -49,8 +85,9 @@ function resolveSlackModulePath() {
     '/var/lib/gatewaze/modules/slack/scripts',
     '/gatewaze-modules/modules/slack/scripts',
     path.resolve(__workerDirname, '..', '..', '..', 'gatewaze-modules', 'modules', 'slack', 'scripts'),
+    // Legacy premium location, only useful for brands holding old configs.
+    // slack-integration was consolidated into slack — entry dropped.
     path.resolve(__workerDirname, '..', '..', '..', 'premium-gatewaze-modules', 'modules', 'slack', 'scripts'),
-    path.resolve(__workerDirname, '..', '..', '..', 'premium-gatewaze-modules', 'modules', 'slack-integration', 'scripts'),
   ];
 }
 let processSlackQueue = async () => {};
@@ -646,7 +683,7 @@ const handlers = {
   },
 
   // Bulk speaker extraction enqueued at the end of every scrape run.
-  // Delegates to the premium-gatewaze-modules handler, which carries the
+  // Delegates to the scrapers module handler, which carries the
   // Anthropic call + per-brand-budget enforcement via callAnthropic.
   // See spec-scrapling-fetcher-service.md §15.6.
   [JobTypes.SCRAPER_SPEAKER_EXTRACT]: async (job) => {
