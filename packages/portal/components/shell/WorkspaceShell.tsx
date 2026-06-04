@@ -118,7 +118,9 @@ export function WorkspaceShell({
 
   return (
     <ShellProvider access={access} activeModuleId={activeModuleId} featureKeys={featureKeys} isSuperAdmin={isSuperAdmin}>
-      <div className={`gw-ws-root gw-app${sideCollapsed ? ' side-collapsed' : ''}${mobileNavOpen ? ' mobile-nav-open' : ''}`}>
+      {/* Prototype structure: rail | (app: sidebar + main(top + content)) — the full-width
+          header lives inside .gw-main but spans .gw-app via absolute positioning. */}
+      <div className={`gw-ws-root${sideCollapsed ? ' side-collapsed' : ''}${mobileNavOpen ? ' mobile-nav-open' : ''}`}>
         <ModuleRail
           items={railItems}
           access={access}
@@ -129,17 +131,21 @@ export function WorkspaceShell({
           onToggleSidebar={toggleSidebar}
           showCollapse={showSidebar}
         />
-        {showSidebar && <ContextualSidebar nav={nav} featureKeys={featureKeys} />}
-        <div className="gw-main">
-          <ShellHeader
-            activeItem={activeItem}
-            activeIsAdmin={activeIsAdmin}
-            navLabel={navLabel}
-            onToggleMobileNav={() => setMobileNavOpen((v) => !v)}
-          />
-          <main className="gw-content">
-            <ShellErrorBoundary resetKey={pathname}>{content}</ShellErrorBoundary>
-          </main>
+        <div className="gw-ws-body">
+          <div className="gw-app">
+            {showSidebar && <ContextualSidebar nav={nav} featureKeys={featureKeys} />}
+            <div className="gw-main">
+              <ShellHeader
+                activeItem={activeItem}
+                activeIsAdmin={activeIsAdmin}
+                navLabel={navLabel}
+                onToggleMobileNav={() => setMobileNavOpen((v) => !v)}
+              />
+              <main className="gw-content">
+                <ShellErrorBoundary resetKey={pathname}>{content}</ShellErrorBoundary>
+              </main>
+            </div>
+          </div>
         </div>
       </div>
     </ShellProvider>
