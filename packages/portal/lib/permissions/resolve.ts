@@ -1,15 +1,19 @@
 /**
  * Portal access resolver — resolves the signed-in user's portal RBAC into a serializable
- * `PortalAccess` the shell uses to gate the rail + public-vs-admin rendering.
+ * `PortalAccess` the shell uses to gate the rail + public-vs-admin rendering. Spec §9.2 / §9.2a.
  *
- * PHASE 2 STATUS: this returns member-level (zero-grant) access for everyone. The real
- * implementation (Phase 3, spec §9.2/§9.2a) resolves the `admin_profiles` row + calls
- * `admin_get_features` / `admin_get_my_newsletters` / `admin_get_my_assigned_events`, with the
- * anonymous fast-path and request-scoped memoization. Kept here so the shell + access mapper are
- * built against the final shape now and Phase 3 is a drop-in.
+ * Reuses the existing admin-permission RPCs (no parallel system):
+ *   - admin_get_features(p_admin_id)        → explicit feature grants (incl. active portal_managers, §13.2a)
+ *   - is_super_admin()                       → all-access short-circuit
+ *   - admin_get_my_newsletters()             → newsletter row-scope (may not exist yet → [])
+ *   - admin_get_my_assigned_events()         → event/calendar row-scope (events module)
  *
- * INVARIANT (spec §9.1): `role` is descriptive only — never an authorization primitive.
+ * Must be called with an AUTHENTICATED server client (carries the user's session so auth.uid()
+ * resolves inside the SECURITY DEFINER RPCs). Fails CLOSED to member-level access on error.
+ *
+ * INVARIANT (§9.1): `role` is descriptive only — never an authorization primitive.
  */
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 export type PortalRole = 'super_admin' | 'admin' | 'editor' | 'portal_manager'
 
@@ -49,12 +53,79 @@ export const ZERO_ACCESS: PortalAccess = {
   eventScope: [],
 }
 
+type Row = Record<string, unknown>
+const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined)
+const level = (v: unknown): 'view' | 'edit' | 'manage' =>
+  v === 'view' || v === 'manage' ? v : 'edit' // normalize (§9.1): boolean-only checks → 'edit'
+
 /**
- * Resolve portal access for the given auth user id (null ⇒ anonymous).
- * Phase 2: always member-level. Phase 3 will add the `admin_profiles` lookup + RPC calls.
+ * Resolve portal access for the given auth user id (null ⇒ anonymous → member-level).
+ * `supabase` MUST be an authenticated (session-carrying) server client.
  */
-export async function resolvePortalAccess(authUserId: string | null): Promise<PortalAccess> {
+export async function resolvePortalAccess(
+  supabase: SupabaseClient,
+  authUserId: string | null,
+): Promise<PortalAccess> {
   if (!authUserId) return ZERO_ACCESS
-  // Phase 3: load admin_profiles row; if present + active, call the feature/row-scope RPCs.
-  return ZERO_ACCESS
+
+  try {
+    const [featuresRes, superRes, nlRes, evRes] = await Promise.all([
+      supabase.rpc('admin_get_features', { p_admin_id: authUserId }),
+      supabase.rpc('is_super_admin'),
+      supabase.rpc('admin_get_my_newsletters'),
+      supabase.rpc('admin_get_my_assigned_events'),
+    ])
+
+    // A hard failure of the core feature RPC ⇒ fail closed (degraded), not open.
+    if (featuresRes.error) {
+      console.warn('[portal-access] admin_get_features failed:', featuresRes.error.message)
+      return { ...ZERO_ACCESS, degraded: true }
+    }
+
+    const featureKeys = Array.isArray(featuresRes.data)
+      ? (featuresRes.data as Row[]).map((r) => str(r.feature)).filter((f): f is string => !!f)
+      : []
+
+    const isSuperAdmin = superRes.data === true
+
+    // Row-scope RPCs are best-effort: the newsletters one may not exist yet (PGRST202 → error).
+    const newsletterScope: NewsletterScopeEntry[] =
+      !nlRes.error && Array.isArray(nlRes.data)
+        ? (nlRes.data as Row[])
+            .map((r) => ({
+              collectionId: str(r.collection_id) ?? '',
+              name: str(r.name) ?? '',
+              permissionLevel: level(r.permission_level),
+              permissionSource: (str(r.permission_source) as NewsletterScopeEntry['permissionSource']) ?? 'direct',
+            }))
+            .filter((n) => n.collectionId)
+        : []
+
+    const eventScope: EventScopeEntry[] =
+      !evRes.error && Array.isArray(evRes.data)
+        ? (evRes.data as Row[]).map((r) => ({
+            eventId: str(r.event_id) ?? str(r.id),
+            calendarId: str(r.calendar_id),
+            name: str(r.name) ?? str(r.title) ?? '',
+            permissionLevel: level(r.permission_level),
+            permissionSource: str(r.permission_source) ?? 'direct',
+          }))
+        : []
+
+    const isManager =
+      isSuperAdmin || featureKeys.length > 0 || newsletterScope.length > 0 || eventScope.length > 0
+
+    return {
+      isManager,
+      isSuperAdmin,
+      // descriptive only; we don't fetch the literal role (not load-bearing — §9.1)
+      role: isSuperAdmin ? 'super_admin' : isManager ? 'portal_manager' : null,
+      featureKeys,
+      newsletterScope,
+      eventScope,
+    }
+  } catch (err) {
+    console.warn('[portal-access] resolver error, failing closed:', err)
+    return { ...ZERO_ACCESS, degraded: true }
+  }
 }

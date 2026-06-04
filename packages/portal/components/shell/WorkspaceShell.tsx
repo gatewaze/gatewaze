@@ -26,6 +26,7 @@ interface WorkspaceShellProps {
   railItems: RailItem[]
   access: ModuleAccessMap
   featureKeys: string[]
+  isSuperAdmin: boolean
   brandName: string
   logoIconUrl?: string
   children: React.ReactNode
@@ -58,6 +59,7 @@ export function WorkspaceShell({
   railItems,
   access,
   featureKeys,
+  isSuperAdmin,
   brandName,
   logoIconUrl,
   children,
@@ -115,7 +117,7 @@ export function WorkspaceShell({
   const content = activeEntry?.access === 'gated' ? <SignInGate label={activeItem?.full} /> : children
 
   return (
-    <ShellProvider access={access} activeModuleId={activeModuleId}>
+    <ShellProvider access={access} activeModuleId={activeModuleId} featureKeys={featureKeys} isSuperAdmin={isSuperAdmin}>
       <div className={`gw-ws-root gw-app${sideCollapsed ? ' side-collapsed' : ''}${mobileNavOpen ? ' mobile-nav-open' : ''}`}>
         <ModuleRail
           items={railItems}

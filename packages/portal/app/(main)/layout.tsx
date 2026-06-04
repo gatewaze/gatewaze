@@ -15,13 +15,13 @@ import { WhiteLabelHeader } from '@/components/WhiteLabelHeader'
 import { WhiteLabelFooter } from '@/components/ui/WhiteLabelFooter'
 import { PersistentBackground } from '@/components/ui/PersistentBackground'
 import { WorkspaceShell } from '@/components/shell/WorkspaceShell'
-import { resolvePortalAccess } from '@/lib/permissions/resolve'
+import { resolvePortalAccess, ZERO_ACCESS } from '@/lib/permissions/resolve'
 import { getModuleAccess } from '@/lib/modules/access'
 import { ProfileCompletionWrapper } from '@/components/wizard'
 import { AnalyticsProvider } from '@/components/AnalyticsProvider'
 import { getServerBrandConfig, buildGoogleFontsUrl, buildFontStack, isLightColor, getThemeBackgroundColor, resolveEventTheme, deriveAccentTints, type ThemeColors } from '@/config/brand'
 import { OrganizationJsonLd } from '@/components/structured-data'
-import { createServerSupabase } from '@/lib/supabase/server'
+import { createServerSupabase, createAuthenticatedServerSupabase } from '@/lib/supabase/server'
 // ChatWidgetLoader currently disabled — see comment near the JSX use site.
 // import { ChatWidgetLoader } from '@/components/chat/ChatWidgetLoader'
 import '@/styles/globals.css'
@@ -162,20 +162,19 @@ export default async function MainLayout({
 
   // Workspace-shell access map (skipped on custom-domain microsites, which stay flat).
   // §9.2a anonymous fast-path: only validate the session when a Supabase auth cookie is present,
-  // so anonymous public traffic incurs no auth round-trip.
-  let portalAccess = await resolvePortalAccess(null)
+  // so anonymous public traffic incurs no auth round-trip or RBAC RPCs.
+  let portalAccess = ZERO_ACCESS
   let accessMap = getModuleAccess(modules.railItems, portalAccess, false)
   if (!isCustomDomain) {
     const cookieStore = await cookies()
     const hasAuthCookie = cookieStore.getAll().some((c) => /^sb-.*-auth-token(\.\d+)?$/.test(c.name))
-    let userId: string | null = null
     if (hasAuthCookie) {
-      const supabase = await createServerSupabase(brand)
+      const supabase = await createAuthenticatedServerSupabase(brand)
       const { data } = await supabase.auth.getUser()
-      userId = data.user?.id ?? null
+      const userId = data.user?.id ?? null
+      portalAccess = await resolvePortalAccess(supabase, userId)
+      accessMap = getModuleAccess(modules.railItems, portalAccess, Boolean(userId))
     }
-    portalAccess = await resolvePortalAccess(userId)
-    accessMap = getModuleAccess(modules.railItems, portalAccess, Boolean(userId))
   }
 
   return (
@@ -237,6 +236,7 @@ export default async function MainLayout({
                     railItems={modules.railItems}
                     access={accessMap}
                     featureKeys={portalAccess.featureKeys}
+                    isSuperAdmin={portalAccess.isSuperAdmin}
                     brandName={brandConfig.name}
                     logoIconUrl={brandConfig.logoIconUrl || undefined}
                   >
