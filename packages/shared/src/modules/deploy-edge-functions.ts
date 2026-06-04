@@ -7,7 +7,7 @@
 
 import type { LoadedModule } from '../types/modules';
 import { resolve, join } from 'path';
-import { cpSync, existsSync, mkdirSync, writeFileSync, rmSync } from 'fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'fs';
 import {
   detectDeploymentEnvironment,
   createDeploymentStrategy,
@@ -215,6 +215,30 @@ export async function deployEdgeFunctions(
             error: `No source files found for ${fnName}`,
           });
           return;
+        }
+
+        // Inject functionFiles from every enabled module as
+        // _shared/providers/<dest>. These are the sub-module files
+        // (e.g. email-provider-sendgrid/provider.ts) consumed by
+        // edge functions via dynamic template-literal imports
+        // (`import(\`./providers/${name}.ts\`)`) — the static
+        // resolveImports regex above only matches literal paths, so
+        // dynamic-imported provider files would otherwise never
+        // make it into the deploy bundle and the function would 503
+        // with "Module not found: …/providers/sendgrid.ts" at first
+        // call (hit on AAIF 2026-06-05 for newsletter-send +
+        // bulk-emailing).
+        for (const providerMod of opts.modules) {
+          if (!providerMod.config.functionFiles?.length) continue;
+          if (!providerMod.resolvedDir) continue;
+          for (const entry of providerMod.config.functionFiles) {
+            const [src, dest] = entry.includes(':') ? entry.split(':') : [entry, entry];
+            const srcFile = join(providerMod.resolvedDir, src);
+            if (!existsSync(srcFile)) continue;
+            const key = `_shared/providers/${dest}`;
+            if (sourceFiles.has(key)) continue;
+            sourceFiles.set(key, readFileSync(srcFile, 'utf-8'));
+          }
         }
 
         const deployResult = await strategy.deploy({
