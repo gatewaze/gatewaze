@@ -19,7 +19,7 @@ import { supabase } from '../supabase-client.js';
 // brands that pin an old config (or hold an in-flight rollout) still boot.
 import path from 'path';
 import fsSync from 'fs';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 const __workerFilename = fileURLToPath(import.meta.url);
 const __workerDirname = path.dirname(__workerFilename);
 
@@ -758,6 +758,124 @@ const worker = new Worker(
     },
   }
 );
+
+// ──────────────────────────────────────────────────────────────────────
+// Second BullMQ Worker — dispatches module-declared workers
+// ──────────────────────────────────────────────────────────────────────
+//
+// The legacy `worker` above pulls from `jobs-${brand}` with the default
+// `bull` prefix → Redis key `bull:jobs-default:*`. The api server, the
+// AI module's manual-sync route, and module crons enqueue via
+// ModuleRuntimeContext.enqueueJob → `getQueue('jobs')` → registry.ts,
+// which uses prefix `bull:${BRAND ?? 'default'}` and queue name `jobs`
+// → Redis key `bull:default:jobs:*`. The two keyspaces never intersect,
+// so every module-side enqueue rotted in `bull:default:jobs:wait`
+// (caught with 118 stuck jobs on AAIF for ai:sync-one-agent-source +
+// ai:sync-agent-sources + editor-ai-copilot:sweep-expired-documents).
+//
+// Fix without porting AAIF to the new packages/api/dist/workers worker:
+// scan every cloned module's `workers/` dir, build a name→file map by
+// the `<moduleId>:<file-stem>` convention the modules use, and start a
+// second BullMQ Worker on (queue=jobs, prefix=bull:default) that
+// dispatches by job.name via dynamic import. tsx is already on the
+// CMD path so .ts handlers load directly.
+const MODULE_ROOTS = [
+  '/var/lib/gatewaze/modules',         // live snapshot installed by api
+  '/gatewaze-modules/modules',         // baked-in / runtime symlink
+  '/app/.gatewaze-modules',            // loader.ts cache dir (clones nested per repo slug)
+];
+
+function discoverModuleWorkers() {
+  const map = new Map(); // job-name -> handler file path
+  const seenModule = new Set();
+  const visit = (modDir, moduleId) => {
+    if (seenModule.has(moduleId)) return;
+    const workersDir = path.join(modDir, 'workers');
+    if (!fsSync.existsSync(workersDir)) return;
+    seenModule.add(moduleId);
+    for (const entry of fsSync.readdirSync(workersDir)) {
+      if (!entry.endsWith('.ts') && !entry.endsWith('.js')) continue;
+      if (entry.startsWith('_') || entry.endsWith('.d.ts')) continue;
+      const stem = entry.replace(/\.(ts|js)$/, '');
+      const name = `${moduleId}:${stem}`;
+      if (map.has(name)) continue;
+      map.set(name, path.join(workersDir, entry));
+    }
+  };
+  for (const root of MODULE_ROOTS) {
+    if (!fsSync.existsSync(root)) continue;
+    for (const entry of fsSync.readdirSync(root, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const dir = path.join(root, entry.name);
+      // /app/.gatewaze-modules/<repo-slug>/modules/<module> nesting
+      const nested = path.join(dir, 'modules');
+      if (fsSync.existsSync(nested)) {
+        for (const sub of fsSync.readdirSync(nested, { withFileTypes: true })) {
+          if (sub.isDirectory()) visit(path.join(nested, sub.name), sub.name);
+        }
+      } else {
+        visit(dir, entry.name);
+      }
+    }
+  }
+  return map;
+}
+
+const moduleHandlerFiles = discoverModuleWorkers();
+console.log(`🧩 Discovered ${moduleHandlerFiles.size} module job handlers`);
+if (moduleHandlerFiles.size > 0) {
+  const sample = Array.from(moduleHandlerFiles.keys()).slice(0, 8).join(', ');
+  console.log(`   sample: ${sample}${moduleHandlerFiles.size > 8 ? ', …' : ''}`);
+}
+
+const cachedModuleHandlers = new Map();
+async function dispatchModuleJob(job) {
+  const file = moduleHandlerFiles.get(job.name);
+  if (!file) {
+    throw new Error(`No module handler registered for job '${job.name}' (scanned ${MODULE_ROOTS.join(', ')})`);
+  }
+  let fn = cachedModuleHandlers.get(file);
+  if (!fn) {
+    const mod = await import(pathToFileURL(file).href);
+    fn = mod.default ?? mod.handler ?? mod;
+    if (typeof fn !== 'function') {
+      throw new Error(`Module handler at ${file} did not export a callable (default export missing)`);
+    }
+    cachedModuleHandlers.set(file, fn);
+  }
+  return fn(job);
+}
+
+const moduleQueueBrand = process.env.BRAND ?? 'default';
+const moduleQueueName = 'jobs';
+const moduleQueuePrefix = `bull:${moduleQueueBrand}`;
+const moduleWorker = new Worker(
+  moduleQueueName,
+  async (job) => {
+    console.log(`📥 [modules] ${job.name} (${job.id})`);
+    const startTime = Date.now();
+    try {
+      const result = await dispatchModuleJob(job);
+      console.log(`✅ [modules] ${job.name} (${job.id}) ${Date.now() - startTime}ms`);
+      return result;
+    } catch (err) {
+      console.error(`❌ [modules] ${job.name} (${job.id}) failed after ${Date.now() - startTime}ms: ${err.message}`);
+      throw err;
+    }
+  },
+  {
+    connection: getConnection(),
+    prefix: moduleQueuePrefix,
+    concurrency: parseInt(process.env.MODULE_WORKER_CONCURRENCY || '2', 10),
+    lockDuration: 300000,
+    stalledInterval: 30000,
+    maxStalledCount: 2,
+  },
+);
+moduleWorker.on('error', (err) => {
+  console.error(`⚠️  [modules] worker error: ${err.message}`);
+});
+console.log(`📋 Module dispatcher listening: queue=${moduleQueueName} prefix=${moduleQueuePrefix}`);
 
 // Event handlers
 worker.on('completed', (job, result) => {
