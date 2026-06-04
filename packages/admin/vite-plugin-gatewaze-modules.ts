@@ -1,5 +1,5 @@
 import type { Plugin } from 'vite';
-import { readFileSync, existsSync, mkdirSync, readdirSync, statSync } from 'fs';
+import { readFileSync, existsSync, mkdirSync, readdirSync, statSync, realpathSync } from 'fs';
 import { resolve, dirname, isAbsolute, relative } from 'path';
 import { execSync } from 'child_process';
 import { createRequire, isBuiltin } from 'module';
@@ -133,10 +133,16 @@ export function gatewazeModulesPlugin(): Plugin {
             const pkg = JSON.parse(readFileSync(candidatePkgJson, 'utf-8')) as { name?: string; main?: string; types?: string };
             if (pkg.name !== `${namespaceMatch[1]}/${slug}`) continue;
             // Bare entry: prefer index.ts, then pkg.main, then index.js.
+            // realpath the result so module manifests share an id with
+            // any other resolution route that may go via the real
+            // /tmp/module-repos path (see the sub-path branch below
+            // for the React Context duplication story).
             if (subPath === '') {
               for (const candidate of ['index.ts', pkg.main, pkg.types, 'index.tsx', 'index.js'].filter(Boolean) as string[]) {
                 const full = resolve(candidateDir, candidate);
-                if (existsSync(full)) return full;
+                if (existsSync(full)) {
+                  try { return realpathSync(full); } catch { return full; }
+                }
               }
             } else {
               // Sub-path import like `@.../sites-publisher-…/lib/api`.
@@ -162,6 +168,25 @@ export function gatewazeModulesPlugin(): Plugin {
                 // the dir itself instead of falling through to
                 // `…/admin/index.ts` and then 404 in the browser.
                 if (existsSync(full) && statSync(full).isFile()) {
+                  // realpath to dedupe with Vite's default relative-
+                  // import resolution. cachedResolvedSources can hold
+                  // symlinked paths (`/gatewaze-modules/modules`) while
+                  // Vite's default resolver canonicalizes relative
+                  // imports through readlink to the real path
+                  // (`/tmp/module-repos/gatewaze-modules/modules`). If
+                  // a module is reachable via BOTH (e.g. sites'
+                  // canvas-plugin-host-context.tsx is imported relatively
+                  // by CanvasShell.tsx AND namespace-imported by
+                  // editor-ai-copilot's aiPlugin.tsx), Rollup sees two
+                  // module instances and creates two separate React
+                  // Contexts. The Provider sets context A, the AI tab
+                  // consumer reads context B — `useContext` returns
+                  // null, and the AI body falls through to the
+                  // "AI copilot is not enabled for this editor"
+                  // placeholder forever, regardless of aiEnabled.
+                  // realpathSync collapses both paths to the same id.
+                  let canonical = full;
+                  try { canonical = realpathSync(full); } catch { /* keep `full` */ }
                   // For module `admin/index.{ts,tsx,js}` entries — the
                   // contract is: importing the file runs registry
                   // contributions as top-level expressions (e.g.
@@ -170,11 +195,11 @@ export function gatewazeModulesPlugin(): Plugin {
                   // when the consumer only reads the namespace's named
                   // exports. Mark these modules as `no-treeshake` so
                   // every top-level statement is preserved.
-                  const isAdminEntry = /\badmin\/index\.(ts|tsx|js)$/.test(full);
+                  const isAdminEntry = /\badmin\/index\.(ts|tsx|js)$/.test(canonical);
                   if (isAdminEntry) {
-                    return { id: full, moduleSideEffects: 'no-treeshake' };
+                    return { id: canonical, moduleSideEffects: 'no-treeshake' };
                   }
-                  return full;
+                  return canonical;
                 }
               }
             }
