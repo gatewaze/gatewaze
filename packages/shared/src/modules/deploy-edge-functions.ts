@@ -239,7 +239,7 @@ export async function deployEdgeFunctions(
         // satisfies. Hit on AAIF 2026-06-04 after a single-module
         // redeploy of newsletters knocked sendgrid.ts out of the
         // bundle for newsletter-send.
-        for (const providerMod of opts.allModules) {
+        for (const providerMod of (opts.allModules ?? opts.modules)) {
           if (!providerMod.config.functionFiles?.length) continue;
           if (!providerMod.resolvedDir) continue;
           for (const entry of providerMod.config.functionFiles) {
