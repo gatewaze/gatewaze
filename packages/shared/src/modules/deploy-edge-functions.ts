@@ -228,7 +228,18 @@ export async function deployEdgeFunctions(
         // with "Module not found: …/providers/sendgrid.ts" at first
         // call (hit on AAIF 2026-06-05 for newsletter-send +
         // bulk-emailing).
-        for (const providerMod of opts.modules) {
+        //
+        // Iterate `allModules`, NOT `opts.modules`. A partial redeploy
+        // (e.g. only `newsletters`) excludes the provider module from
+        // `opts.modules`, the loop runs zero useful iterations, the
+        // function ships without _shared/providers/sendgrid.ts, and
+        // the next invocation 503s with the missing-module error.
+        // The provider-injection contract is "every provider that any
+        // deployed function COULD reach", which only `allModules`
+        // satisfies. Hit on AAIF 2026-06-04 after a single-module
+        // redeploy of newsletters knocked sendgrid.ts out of the
+        // bundle for newsletter-send.
+        for (const providerMod of opts.allModules) {
           if (!providerMod.config.functionFiles?.length) continue;
           if (!providerMod.resolvedDir) continue;
           for (const entry of providerMod.config.functionFiles) {
