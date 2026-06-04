@@ -198,10 +198,26 @@
   .gw-ws-root:not(.mobile-nav-open) .gw-side { transform: translateX(-100%); }
   .gw-ws-root.mobile-nav-open .gw-side { transform: translateX(0); }
   .gw-content { padding: 16px; padding-bottom: 76px; }
+  .gw-burger { display: grid; }
   .pub-evd-hero { flex-direction: column; }
   .pub-evd-poster { width: 100%; }
   .pub-evd-grid { grid-template-columns: 1fr; }
   .gw-drawer { width: 100% !important; }
+}
+
+/* ---- Hamburger (mobile only) -------------------------------------------- */
+.gw-burger { display: none; }
+
+/* ---- Sign-in gate + per-view error fallback ------------------------------ */
+.gw-gate, .gw-view-error { display: grid; place-items: center; min-height: 60vh; text-align: center; }
+.gw-gate-card { max-width: 420px; padding: 40px 28px; border-radius: var(--radius-card, 0.75rem); background: var(--gw-panel); border: 1px solid var(--gw-line); }
+.gw-gate-ico, .gw-view-error-ico { display: grid; place-items: center; width: 52px; height: 52px; margin: 0 auto 16px; border-radius: 14px; background: rgba(var(--ui-text), 0.06); border: 1px solid var(--gw-line); color: var(--gw-ink); }
+.gw-gate-title, .gw-view-error-title { font: 600 18px var(--font-heading, inherit); color: var(--gw-ink); }
+.gw-gate-text, .gw-view-error-text { margin: 8px auto 18px; max-width: 360px; font-size: 13.5px; line-height: 1.55; color: var(--gw-ink-2); }
+.gw-view-error { max-width: 520px; margin: 60px auto; }
+.gw-gate-btn {
+  display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px; text-decoration: none;
+  border-radius: var(--radius-control, 0.5rem); background: var(--primary-color, #fff); color: var(--primary-text, #000); font-weight: 600; font-size: 14px;
 }
 
 /* ---- Reduced motion ------------------------------------------------------ */

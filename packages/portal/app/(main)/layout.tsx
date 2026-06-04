@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { headers } from 'next/headers'
+import { headers, cookies } from 'next/headers'
 import { CookieConsentLoader } from '@/components/CookieConsentLoader'
 import { TrackingProvider } from '@/components/TrackingProvider'
 
@@ -11,11 +11,12 @@ export const viewport: Viewport = {
 }
 import { getEnabledModules, isModuleEnabled } from '@/lib/modules/enabledModules'
 import { GlowProvider } from '@/components/ui/GlowContext'
-import { Header } from '@/components/Header'
-import { Footer } from '@/components/ui/Footer'
 import { WhiteLabelHeader } from '@/components/WhiteLabelHeader'
 import { WhiteLabelFooter } from '@/components/ui/WhiteLabelFooter'
 import { PersistentBackground } from '@/components/ui/PersistentBackground'
+import { WorkspaceShell } from '@/components/shell/WorkspaceShell'
+import { resolvePortalAccess } from '@/lib/permissions/resolve'
+import { getModuleAccess } from '@/lib/modules/access'
 import { ProfileCompletionWrapper } from '@/components/wizard'
 import { AnalyticsProvider } from '@/components/AnalyticsProvider'
 import { getServerBrandConfig, buildGoogleFontsUrl, buildFontStack, isLightColor, getThemeBackgroundColor, resolveEventTheme, deriveAccentTints, type ThemeColors } from '@/config/brand'
@@ -159,6 +160,24 @@ export default async function MainLayout({
     ? await resolveCustomDomainEvent(headersList, brand)
     : null
 
+  // Workspace-shell access map (skipped on custom-domain microsites, which stay flat).
+  // §9.2a anonymous fast-path: only validate the session when a Supabase auth cookie is present,
+  // so anonymous public traffic incurs no auth round-trip.
+  let portalAccess = await resolvePortalAccess(null)
+  let accessMap = getModuleAccess(modules.railItems, portalAccess, false)
+  if (!isCustomDomain) {
+    const cookieStore = await cookies()
+    const hasAuthCookie = cookieStore.getAll().some((c) => /^sb-.*-auth-token(\.\d+)?$/.test(c.name))
+    let userId: string | null = null
+    if (hasAuthCookie) {
+      const supabase = await createServerSupabase(brand)
+      const { data } = await supabase.auth.getUser()
+      userId = data.user?.id ?? null
+    }
+    portalAccess = await resolvePortalAccess(userId)
+    accessMap = getModuleAccess(modules.railItems, portalAccess, Boolean(userId))
+  }
+
   return (
     <html lang="en" data-brand={brandConfig.id} data-custom-domain={isCustomDomain ? 'true' : undefined} data-corners={brandConfig.cornerStyle} data-glow={brandConfig.gradientWaveConfig.glowEffects ? 'true' : 'false'} data-ui-mode={uiMode} className={lightBg ? 'light-brand' : ''} style={{ fontFamily: fontStack, fontSize: `${brandConfig.bodyTextSize || '16'}px`, '--font-weight-heading': brandConfig.fontHeadingWeight || '600', '--font-weight-body': brandConfig.fontBodyWeight || '400', '--primary-text': isLightColor(brandConfig.primaryColor) ? '#000000' : '#ffffff', '--primary-color': brandConfig.primaryColor, '--glass-opacity': String(brandConfig.gradientWaveConfig.glassOpacity ?? 0.05), '--glass-blur': `${brandConfig.gradientWaveConfig.glassBlur ?? 4}px`, '--glass-border-opacity': String(brandConfig.gradientWaveConfig.glassBorderOpacity ?? 0.1), '--font-mono': fontMonoStack, '--success-color': brandConfig.successColor, '--warning-color': brandConfig.warningColor, '--danger-color': brandConfig.dangerColor, '--info-color': brandConfig.infoColor, '--primary-color-light': primaryColorLight, '--primary-color-soft': primaryColorSoft } as React.CSSProperties} suppressHydrationWarning>
       <head>
@@ -205,17 +224,25 @@ export default async function MainLayout({
           <TrackingProvider>
             <GlowProvider>
               {isCustomDomain ? (
-                <WhiteLabelHeader event={customDomainEvent} brandConfig={brandConfig} />
+                <>
+                  <WhiteLabelHeader event={customDomainEvent} brandConfig={brandConfig} />
+                  <div className="relative z-10 flex-1">
+                    {children}
+                  </div>
+                  <WhiteLabelFooter />
+                </>
               ) : (
-                <Header brandConfig={brandConfig} navItems={modules.portalNavItems} />
-              )}
-              <div className="relative z-10 flex-1">
-                {children}
-              </div>
-              {isCustomDomain ? (
-                <WhiteLabelFooter />
-              ) : (
-                <Footer />
+                <div className="relative z-10 flex-1 flex">
+                  <WorkspaceShell
+                    railItems={modules.railItems}
+                    access={accessMap}
+                    featureKeys={portalAccess.featureKeys}
+                    brandName={brandConfig.name}
+                    logoIconUrl={brandConfig.logoIconUrl || undefined}
+                  >
+                    {children}
+                  </WorkspaceShell>
+                </div>
               )}
               {!isCustomDomain && (
                 <ProfileCompletionWrapper brandConfig={brandConfig} />

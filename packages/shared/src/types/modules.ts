@@ -134,6 +134,12 @@ export interface GatewazeModule {
     icon: string;
     order: number;
   };
+  /**
+   * Workspace-shell config for the redesigned portal — a rail item + the module's contextual
+   * sidebar nav. Persisted in installed_modules.portal_shell on enable and projected into
+   * `railItems` by the portal's enabledModules loader. See spec-portal-workspace-shell.md §8.
+   */
+  portalShell?: PortalShell;
   /** Slot registrations for the public portal Next.js app */
   portalSlots?: SlotRegistration[];
   apiRoutes?: ((app: unknown, context?: ModuleContext) => void | Promise<void>) |
@@ -336,6 +342,41 @@ export interface NavigationItem {
 export interface PortalRouteDefinition {
   path: string;
   component: () => Promise<{ default: unknown }>;
+}
+
+/** A single contextual-sidebar entry, or a section heading. See spec §8.1. */
+export interface PortalShellNavItem {
+  id: string;
+  label: string;
+  icon: string;
+  /** A real route, e.g. '/blog' (public) or '/admin/blog' (admin). */
+  href: string;
+  /** Hide this nav item unless the user holds this feature. */
+  requiredFeature?: string;
+  /** Optional badge text, e.g. '12.5k'. */
+  count?: string;
+}
+export type PortalShellNavEntry = { section: string } | PortalShellNavItem;
+
+export interface PortalShellRail {
+  /** Short rail label, e.g. 'News'. */
+  label: string;
+  /** Full/tooltip name, e.g. 'Newsletters'. */
+  full?: string;
+  icon: string;
+  order: number;
+  /** Drives the default public / gated / hidden access when the user has no admin grant. */
+  visibility: 'public' | 'members' | 'admin';
+  /** Suppress the contextual sidebar — module renders edge-to-edge (e.g. EventOps). */
+  fullBleed?: boolean;
+}
+
+export interface PortalShell {
+  rail: PortalShellRail;
+  /** Contextual sidebar for the module's admin context. */
+  nav: PortalShellNavEntry[];
+  /** Optional contextual nav for the module's public view. */
+  publicNav?: PortalShellNavEntry[];
 }
 
 /**
