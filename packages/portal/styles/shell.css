@@ -159,6 +159,11 @@
 .pub-sec { margin-top: 40px; }
 .pub-sec:first-child { margin-top: 0; }
 .pub-sechead { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
+.pub-nl-head { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+.pub-nl-head .grow { flex: 1; min-width: 0; }
+.pub-nl-bar { width: 4px; height: 34px; border-radius: 999px; flex: none; }
+.pub-nl-name { font: 600 22px var(--font-display); color: var(--ink); margin: 0; letter-spacing: -0.01em; }
+.pub-nl-desc { color: var(--ink-3); font-size: 14px; margin: 2px 0 0; }
 .pub-ev-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 24px; }
 .pub-ev { display: flex; overflow: hidden; min-height: 150px; background: var(--paper); border: 1px solid rgba(var(--ui-text), 0.10);
   border-radius: 12px; transition: border-color .2s ease, filter .2s ease; text-decoration: none; }
