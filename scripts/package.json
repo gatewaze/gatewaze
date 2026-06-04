@@ -19,6 +19,7 @@
     "puppeteer": "^23.10.4",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
-    "sharp": "^0.33.5"
+    "sharp": "^0.33.5",
+    "tsx": "^4.19.0"
   }
 }

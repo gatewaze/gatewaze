@@ -81,4 +81,4 @@ RUN groupadd -r gatewaze && useradd -r -g gatewaze gatewaze \
 
 USER gatewaze
 
-CMD ["node", "scripts/scheduler/start-scheduler.js"]
+CMD ["npx", "tsx", "scripts/scheduler/start-scheduler.js"]
