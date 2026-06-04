@@ -141,6 +141,21 @@ if [ -n "$MODULE_SOURCES" ]; then
       continue
     fi
 
+    # GitHub's git protocol can serve a stale ref tip to a shallow clone
+    # for several minutes after a push (different CDN edge from the one
+    # that handles ls-remote / web UI). On 2026-06-04 a pod rolled 15
+    # minutes after a push received a clone fixed at the pre-push tip,
+    # and the slow-path bundle silently shipped without the latest
+    # module code. Re-fetch + reset to origin/$branch so we always
+    # build off the actual tip, regardless of which edge the initial
+    # clone hit. Cheap on a shallow clone (one extra request), and the
+    # reset is a no-op when the clone was already current.
+    if ! ( cd "$target" && git fetch --depth 1 origin "$branch" 2>&1 && git reset --hard FETCH_HEAD ); then
+      echo "[admin] Warning: fetch/reset failed in $target — using whatever the clone returned" >&2
+    fi
+    cloned_tip=$(cd "$target" && git rev-parse --short HEAD 2>/dev/null || echo "?")
+    echo "[admin] $reponame@$branch → $cloned_tip"
+
     # Symlink /<reponame> → cloned path so the plugin's pre-cloned lookup finds it.
     rm -rf "/$reponame" 2>/dev/null || true
     ln -sf "$target" "/$reponame"

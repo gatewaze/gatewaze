@@ -54,6 +54,14 @@ if [ -n "$MODULE_SOURCES" ]; then
       continue
     }
 
+    # GitHub git protocol can serve a stale tip to a shallow clone for
+    # several minutes after a push. Re-fetch + reset so we always run
+    # against the actual current tip of origin/$branch — see admin
+    # entrypoint for the incident report.
+    ( cd "$target" && git fetch --depth 1 origin "$branch" >/dev/null 2>&1 && git reset --hard FETCH_HEAD >/dev/null 2>&1 ) || \
+      echo "[api] Warning: post-clone fetch/reset failed in $target — using initial clone tip"
+    echo "[api] $reponame@$branch → $(cd "$target" && git rev-parse --short HEAD 2>/dev/null || echo '?')"
+
     rm -rf "/$reponame" 2>/dev/null || true
     ln -sf "$target" "/$reponame"
   done
@@ -128,6 +136,8 @@ if [ -n "$MODULE_SOURCES" ]; then
         echo "[api] Warning: failed to pre-clone $url (loader will retry at runtime)"
         continue
       fi
+      # Guard against stale-tip shallow clones (see admin entrypoint).
+      ( cd "$target" && git fetch --depth 1 origin "$branch" >/dev/null 2>&1 && git reset --hard FETCH_HEAD >/dev/null 2>&1 ) || true
     fi
   done
   unset IFS

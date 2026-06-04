@@ -57,11 +57,13 @@ if [ -n "$MODULE_SOURCES" ]; then
         echo "[portal] WARN: clone $url failed"
         continue
       fi
+      # Guard against stale-tip shallow clones (see admin entrypoint).
+      ( cd "$target" && git fetch --depth 1 origin "$branch" >/dev/null 2>&1 && git reset --hard FETCH_HEAD >/dev/null 2>&1 ) || true
     fi
 
     rm -rf "/$reponame" 2>/dev/null || true
     ln -sfn "$target" "/$reponame"
-    echo "[portal] Symlinked /$reponame -> $target"
+    echo "[portal] Symlinked /$reponame -> $target ($(cd "$target" && git rev-parse --short HEAD 2>/dev/null || echo '?'))"
   done
   unset IFS
   echo "[portal] Module source processing complete"
