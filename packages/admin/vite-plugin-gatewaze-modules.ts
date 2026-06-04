@@ -366,7 +366,15 @@ export function gatewazeModulesPlugin(): Plugin {
             const hasAdminEntry = ['admin/index.ts', 'admin/index.tsx', 'admin/index.js']
               .some((rel) => existsSync(resolve(moduleDir, rel)));
             if (hasAdminEntry) {
-              imports.push(`import '${moduleId}/admin/index.js';`);
+              // Use the bare subpath form (`@.../admin`) — no extension.
+              // The resolveId hook's empty-ext branch tries `admin`, then
+              // `admin.ts`, then `admin/index.ts` (and friends). The
+              // last is what wins; `<moduleId>/admin/index.js` failed
+              // silently because Vite externalised the scoped-package
+              // shape before our resolveId fired.
+              imports.push(`import '${moduleId}/admin';`);
+              // eslint-disable-next-line no-console
+              console.log(`[gatewaze-modules] +admin side-effect import for ${moduleId}`);
             }
             const moduleCssPath = resolveThemeCustomCss(importPath, resolvedSources, moduleId);
             if (moduleCssPath) {
