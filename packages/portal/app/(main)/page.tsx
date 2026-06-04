@@ -4,6 +4,7 @@ import { getServerBrandConfig, type BrandConfig } from '@/config/brand'
 import { getEvents } from '@/lib/events'
 import { getBlogPosts } from '@/lib/blog'
 import { HomepageContent } from '@/components/homepage/HomepageContent'
+import { PubHome } from '@/components/public/PubHome'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,15 +39,12 @@ export default async function HomePage() {
     isModuleEnabled(modules, 'blog') ? getBlogPosts(3) : Promise.resolve([]),
   ])
 
-  // Serialize brand config for client (strip server-only fields)
-  const { trackingHead: _, trackingBody: __, ...clientBrandConfig } = brandConfig
-
+  // Public Home in the workspace-shell design: upcoming events + latest posts (spec §8.1).
   return (
-    <HomepageContent
-      brandConfig={clientBrandConfig as any}
-      navItems={portalNavItems}
-      upcomingEvents={eventData.upcoming.slice(0, 4)}
+    <PubHome
+      upcomingEvents={(eventData.upcoming ?? []).slice(0, 4) as never[]}
       blogPosts={blogPosts}
+      storageBucketUrl={brandConfig.storageBucketUrl}
     />
   )
 }
