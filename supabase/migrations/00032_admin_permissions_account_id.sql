@@ -81,6 +81,38 @@ BEGIN
   END IF;
 END $$;
 
--- Tell PostgREST the schema changed so the new column is visible without
+-- admin_permission_audit ----------------------------------------------------
+-- service.ts.createAuditLog() inserts (admin_id, action, feature,
+-- permission_id, group_id, account_id, metadata). The deployed table had:
+--   id, admin_id, feature, action, performed_by, performed_at, details
+-- and a CHECK (action IN ('grant', 'revoke')) — present-tense, no 'expired'.
+-- Every audit insert PGRST204'd or 23514'd silently inside the try/catch
+-- in createAuditLog, so grants happened but no audit row was ever written
+-- (hit on AAIF 2026-06-04).
+--
+-- Add the missing columns + repoint the CHECK to the past-tense values
+-- the code actually uses.
+
+DO $$
+BEGIN
+  IF to_regclass('public.admin_permission_audit') IS NOT NULL THEN
+    EXECUTE 'ALTER TABLE public.admin_permission_audit
+             ADD COLUMN IF NOT EXISTS account_id uuid REFERENCES public.accounts(id) ON DELETE SET NULL';
+    EXECUTE 'ALTER TABLE public.admin_permission_audit
+             ADD COLUMN IF NOT EXISTS permission_id uuid REFERENCES public.admin_permissions(id) ON DELETE SET NULL';
+    EXECUTE 'ALTER TABLE public.admin_permission_audit
+             ADD COLUMN IF NOT EXISTS group_id uuid REFERENCES public.admin_permission_groups(id) ON DELETE SET NULL';
+    EXECUTE 'ALTER TABLE public.admin_permission_audit
+             ADD COLUMN IF NOT EXISTS metadata jsonb';
+    -- Repoint the action CHECK to match what the SPA actually sends.
+    EXECUTE 'ALTER TABLE public.admin_permission_audit
+             DROP CONSTRAINT IF EXISTS admin_permission_audit_action_check';
+    EXECUTE $c$ALTER TABLE public.admin_permission_audit
+             ADD CONSTRAINT admin_permission_audit_action_check
+             CHECK (action IN ('granted','revoked','expired'))$c$;
+  END IF;
+END $$;
+
+-- Tell PostgREST the schema changed so the new columns are visible without
 -- waiting for the next reload cycle.
 NOTIFY pgrst, 'reload schema';
