@@ -12,12 +12,17 @@
 -- on AAIF, 2026-06-04).
 --
 -- Add the column nullable so existing rows (single-account installs) keep
--- working with NULL = "all accounts". Same pattern for admin_permission_groups.
--- Re-shape the unique constraints so NULL account_id rows don't double-up
--- — Postgres treats NULLs as distinct in a regular UNIQUE, so we use two
--- partial unique indexes: one over (admin_id, feature) WHERE account_id IS
--- NULL (covers the "global" row) and one over (admin_id, feature, account_id)
--- WHERE account_id IS NOT NULL (covers per-account rows).
+-- working with NULL = "all accounts".
+--
+-- Unique shape: a single UNIQUE INDEX over (admin_id, feature, account_id)
+-- with `NULLS NOT DISTINCT` (PG 15+). The supabase client uses
+-- `INSERT … ON CONFLICT (admin_id, feature, account_id)`; ON CONFLICT
+-- requires a non-partial unique constraint/index whose columns match
+-- exactly. Partial indexes split by `WHERE account_id IS NULL/NOT NULL`
+-- don't satisfy that — Postgres returns 42P10 "no unique or exclusion
+-- constraint matching the ON CONFLICT specification". NULLS NOT DISTINCT
+-- makes (admin_id, feature, NULL) compare equal to another (admin_id,
+-- feature, NULL) so the legacy "global" row still de-dupes correctly.
 -- ============================================================================
 
 -- admin_permissions ----------------------------------------------------------
@@ -31,13 +36,14 @@ ALTER TABLE public.admin_permissions
 ALTER TABLE public.admin_permissions
   DROP CONSTRAINT IF EXISTS admin_permissions_admin_id_feature_key;
 
-CREATE UNIQUE INDEX IF NOT EXISTS admin_permissions_admin_feature_global_idx
-  ON public.admin_permissions (admin_id, feature)
-  WHERE account_id IS NULL;
+-- Drop any earlier-attempted partial indexes so re-running this migration
+-- on a half-patched DB lands cleanly.
+DROP INDEX IF EXISTS public.admin_permissions_admin_feature_global_idx;
+DROP INDEX IF EXISTS public.admin_permissions_admin_feature_account_idx;
 
-CREATE UNIQUE INDEX IF NOT EXISTS admin_permissions_admin_feature_account_idx
+CREATE UNIQUE INDEX IF NOT EXISTS admin_permissions_admin_feature_account_uidx
   ON public.admin_permissions (admin_id, feature, account_id)
-  WHERE account_id IS NOT NULL;
+  NULLS NOT DISTINCT;
 
 COMMENT ON COLUMN public.admin_permissions.account_id IS
   'Per-account scope. NULL = the permission applies to every account this admin can see (legacy single-account installs).';
@@ -63,12 +69,13 @@ BEGIN
              ADD COLUMN IF NOT EXISTS is_active boolean NOT NULL DEFAULT true';
     EXECUTE 'ALTER TABLE public.admin_permission_group_assignments
              DROP CONSTRAINT IF EXISTS admin_permission_group_assignments_admin_id_group_id_key';
-    EXECUTE 'CREATE UNIQUE INDEX IF NOT EXISTS admin_perm_group_assign_admin_group_global_idx
-               ON public.admin_permission_group_assignments (admin_id, group_id)
-               WHERE account_id IS NULL';
-    EXECUTE 'CREATE UNIQUE INDEX IF NOT EXISTS admin_perm_group_assign_admin_group_account_idx
+    -- Drop the partial indexes from the first (broken) shape of this
+    -- migration so re-applies converge.
+    EXECUTE 'DROP INDEX IF EXISTS public.admin_perm_group_assign_admin_group_global_idx';
+    EXECUTE 'DROP INDEX IF EXISTS public.admin_perm_group_assign_admin_group_account_idx';
+    EXECUTE 'CREATE UNIQUE INDEX IF NOT EXISTS admin_perm_group_assign_admin_group_account_uidx
                ON public.admin_permission_group_assignments (admin_id, group_id, account_id)
-               WHERE account_id IS NOT NULL';
+               NULLS NOT DISTINCT';
     EXECUTE $c$COMMENT ON COLUMN public.admin_permission_group_assignments.account_id IS
              'Per-account scope. NULL = assignment applies to every account.'$c$;
   END IF;
