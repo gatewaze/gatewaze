@@ -354,13 +354,19 @@ export function gatewazeModulesPlugin(): Plugin {
             // dance that TypeScript casts defeated for editor-ai-
             // copilot, and any future module that needs admin-boot
             // registration gets it for free.
+            //
+            // Use the namespaced form (`@gatewaze-modules/<slug>/admin`)
+            // rather than an absolute filesystem path so the import goes
+            // through this same plugin's resolveId hook — which knows how
+            // to map to the right source dir + handles the .js→.ts
+            // extension swap. Bare absolute `.ts` imports get treated as
+            // external by Vite's default resolver and silently dropped
+            // from the bundle.
             const moduleDir = dirname(importPath);
-            for (const adminEntry of ['admin/index.ts', 'admin/index.tsx', 'admin/index.js']) {
-              const adminEntryPath = resolve(moduleDir, adminEntry);
-              if (existsSync(adminEntryPath)) {
-                imports.push(`import '${adminEntryPath}';`);
-                break;
-              }
+            const hasAdminEntry = ['admin/index.ts', 'admin/index.tsx', 'admin/index.js']
+              .some((rel) => existsSync(resolve(moduleDir, rel)));
+            if (hasAdminEntry) {
+              imports.push(`import '${moduleId}/admin/index.js';`);
             }
             const moduleCssPath = resolveThemeCustomCss(importPath, resolvedSources, moduleId);
             if (moduleCssPath) {
