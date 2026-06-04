@@ -12,6 +12,9 @@ import type { PortalShellNavEntry } from '@gatewaze/shared'
 interface ShellContextValue {
   access: ModuleAccessMap
   activeModuleId: string | null
+  /** Server-computed explicit feature grants (no client RPC needed). */
+  featureKeys: string[]
+  isSuperAdmin: boolean
   breadcrumbLeaf: string | null
   setBreadcrumbLeaf: (leaf: string | null) => void
   navOverride: PortalShellNavEntry[] | null
@@ -23,10 +26,14 @@ const ShellContext = createContext<ShellContextValue | null>(null)
 export function ShellProvider({
   access,
   activeModuleId,
+  featureKeys,
+  isSuperAdmin,
   children,
 }: {
   access: ModuleAccessMap
   activeModuleId: string | null
+  featureKeys: string[]
+  isSuperAdmin: boolean
   children: React.ReactNode
 }) {
   const [breadcrumbLeaf, setBreadcrumbLeaf] = useState<string | null>(null)
@@ -39,8 +46,8 @@ export function ShellProvider({
   }, [activeModuleId])
 
   const value = useMemo<ShellContextValue>(
-    () => ({ access, activeModuleId, breadcrumbLeaf, setBreadcrumbLeaf, navOverride, setNavOverride }),
-    [access, activeModuleId, breadcrumbLeaf, navOverride],
+    () => ({ access, activeModuleId, featureKeys, isSuperAdmin, breadcrumbLeaf, setBreadcrumbLeaf, navOverride, setNavOverride }),
+    [access, activeModuleId, featureKeys, isSuperAdmin, breadcrumbLeaf, navOverride],
   )
   return <ShellContext.Provider value={value}>{children}</ShellContext.Provider>
 }

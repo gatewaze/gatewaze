@@ -7,7 +7,12 @@ export type AdminFeature =
   | 'calendars'
   | 'emails'
   | 'settings'
-  | 'scheduler';
+  | 'scheduler'
+  // Portal-manageable module features (workspace shell RBAC, spec §5.2). Shared so the portal
+  // and admin app use the same feature vocabulary. `events` (above) is reused for EventOps.
+  | 'blog'
+  | 'newsletters'
+  | 'ambassadors';
 
 export const CORE_FEATURES: readonly string[] = [
   'dashboard_home',
@@ -58,4 +63,7 @@ export const FEATURE_METADATA: FeatureMetadata[] = [
   { key: 'users', label: 'Users', description: 'Admin user management', category: 'admin', route: '/admin/users' },
   { key: 'accounts', label: 'Accounts', description: 'Account management', category: 'admin', route: '/admin/accounts' },
   { key: 'scheduler', label: 'Scheduler', description: 'Job scheduling', category: 'system', route: '/admin/scheduler' },
+  { key: 'blog', label: 'Blog', description: 'Blog post management (portal)', category: 'content', route: '/admin/blog' },
+  { key: 'newsletters', label: 'Newsletters', description: 'Newsletter management (portal)', category: 'content', route: '/admin/newsletters' },
+  { key: 'ambassadors', label: 'Ambassadors', description: 'Ambassador program admin (portal)', category: 'content', route: '/admin/ambassadors' },
 ];
