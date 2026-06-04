@@ -161,7 +161,21 @@ export function gatewazeModulesPlugin(): Plugin {
                 // bare directory paths like `…/admin` short-circuit to
                 // the dir itself instead of falling through to
                 // `…/admin/index.ts` and then 404 in the browser.
-                if (existsSync(full) && statSync(full).isFile()) return full;
+                if (existsSync(full) && statSync(full).isFile()) {
+                  // For module `admin/index.{ts,tsx,js}` entries — the
+                  // contract is: importing the file runs registry
+                  // contributions as top-level expressions (e.g.
+                  // `registerCanvasPuckPlugin(aiPlugin)`). Rollup's
+                  // side-effect analyzer treats such calls as droppable
+                  // when the consumer only reads the namespace's named
+                  // exports. Mark these modules as `no-treeshake` so
+                  // every top-level statement is preserved.
+                  const isAdminEntry = /\badmin\/index\.(ts|tsx|js)$/.test(full);
+                  if (isAdminEntry) {
+                    return { id: full, moduleSideEffects: 'no-treeshake' };
+                  }
+                  return full;
+                }
               }
             }
           } catch {
