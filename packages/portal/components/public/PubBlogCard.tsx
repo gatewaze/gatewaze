@@ -1,0 +1,42 @@
+import Link from 'next/link'
+import type { BlogPostPreview } from '@/lib/blog'
+
+function fmtDate(d: string | null): string {
+  if (!d) return ''
+  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+/** Public blog post card — the prototype's `.pub-card`. Matches the blog module's index cards. */
+export function PubBlogCard({ post }: { post: BlogPostPreview }) {
+  return (
+    <Link href={`/blog/${post.slug}`} className="pub-card">
+      <div className="pub-cover">
+        {post.featured_image ? (
+          <img src={post.featured_image} alt={post.featured_image_alt || post.title} />
+        ) : (
+          <span className="pub-cover-ph">cover</span>
+        )}
+      </div>
+      <div className="pub-card-body">
+        {post.category && (
+          <span className="pub-cat" style={post.category.color ? { color: post.category.color } : undefined}>
+            {post.category.name}
+          </span>
+        )}
+        <h3>{post.title}</h3>
+        {post.excerpt && <p>{post.excerpt}</p>}
+        <div className="pub-meta">
+          {fmtDate(post.published_at)}
+          {post.reading_time ? (
+            <>
+              <span className="dotsep" />
+              {post.reading_time} min read
+            </>
+          ) : null}
+        </div>
+      </div>
+    </Link>
+  )
+}
+
+export default PubBlogCard
