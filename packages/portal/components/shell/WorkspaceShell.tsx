@@ -34,6 +34,7 @@ interface WorkspaceShellProps {
 
 /** Derive the active module id from the pathname (admin segment, /m/<id>, or rail-href prefix). */
 function deriveActiveModuleId(pathname: string, items: RailItem[]): string | null {
+  if (pathname === '/') return 'home'
   if (pathname.startsWith('/admin/')) {
     return pathname.split('/')[2] || null
   }

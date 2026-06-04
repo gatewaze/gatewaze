@@ -158,25 +158,61 @@ export async function getEnabledModules(): Promise<ModuleState> {
     });
     visibleNavItems.sort((a, b) => a.order - b.order);
 
-    // Project rail items: one per visible module, enriched by `portal_shell` when present.
-    // href = the module's public landing (existing nav path); adminHref = `/admin/<module>`.
-    const railItems: RailItem[] = visibleNavItems.map((item) => {
-      const shell = shellByModule.get(item.moduleId);
-      const rail = shell?.rail;
-      return {
+    // Project rail items. Synthetic "Home" always leads. When any module declares `portal_shell`,
+    // the rail is the CURATED set of those modules (matching the design's top-level rail); otherwise
+    // it falls back to deriving one item per `portal_nav` module. href = public landing,
+    // adminHref = `/admin/<module>`.
+    const navByModule = new Map(visibleNavItems.map((n) => [n.moduleId, n]));
+    const home: RailItem = {
+      moduleId: 'home', label: 'Home', full: 'Home', icon: 'home', order: 0,
+      visibility: 'public', href: '/', adminHref: '/', fullBleed: false, nav: [], publicNav: [],
+    };
+
+    let moduleRail: RailItem[];
+    if (shellByModule.size > 0) {
+      moduleRail = [...shellByModule.entries()]
+        .filter(([id]) => enabledIds.has(id))
+        .map(([id, shell]) => {
+          const nav = navByModule.get(id);
+          return {
+            moduleId: id,
+            label: shell.rail.label,
+            full: shell.rail.full || shell.rail.label,
+            icon: shell.rail.icon,
+            order: shell.rail.order,
+            visibility: shell.rail.visibility,
+            href: nav?.path || `/${id}`,
+            adminHref: `/admin/${id}`,
+            fullBleed: shell.rail.fullBleed ?? false,
+            nav: shell.nav ?? [],
+            publicNav: shell.publicNav ?? [],
+          };
+        });
+    } else {
+      moduleRail = visibleNavItems.map((item) => ({
         moduleId: item.moduleId,
-        label: rail?.label || item.label,
-        full: rail?.full || item.label,
-        icon: rail?.icon || item.icon,
-        order: rail?.order ?? item.order,
-        visibility: rail?.visibility || 'public',
+        label: item.label,
+        full: item.label,
+        icon: item.icon,
+        order: item.order,
+        visibility: 'public' as const,
         href: item.path,
         adminHref: `/admin/${item.moduleId}`,
-        fullBleed: rail?.fullBleed ?? false,
-        nav: shell?.nav ?? [],
-        publicNav: shell?.publicNav ?? [],
-      };
-    });
+        fullBleed: false,
+        nav: [],
+        publicNav: [],
+      }));
+    }
+
+    // Apply portal_nav_overrides ordering/hide to the module rail items too.
+    for (const r of moduleRail) {
+      const o = overrideMap.get(r.moduleId);
+      if (o) {
+        if (o.label) r.label = o.label;
+        if (o.order !== undefined) r.order = o.order;
+      }
+    }
+    const railItems: RailItem[] = [home, ...moduleRail.filter((r) => !overrideMap.get(r.moduleId)?.hidden)];
     railItems.sort((a, b) => a.order - b.order);
 
     cache = { enabledIds, enabledFeatures, portalNavItems: visibleNavItems, railItems };
