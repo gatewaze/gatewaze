@@ -335,6 +335,7 @@ export function gatewazeModulesPlugin(): Plugin {
 
         const imports: string[] = [];
         const refs: string[] = [];
+        const adminBootRefs: string[] = [];
         const cssImports: string[] = [];
 
         for (let i = 0; i < moduleIds.length; i++) {
@@ -366,13 +367,24 @@ export function gatewazeModulesPlugin(): Plugin {
             const hasAdminEntry = ['admin/index.ts', 'admin/index.tsx', 'admin/index.js']
               .some((rel) => existsSync(resolve(moduleDir, rel)));
             if (hasAdminEntry) {
-              // Use the bare subpath form (`@.../admin`) — no extension.
-              // The resolveId hook's empty-ext branch tries `admin`, then
-              // `admin.ts`, then `admin/index.ts` (and friends). The
-              // last is what wins; `<moduleId>/admin/index.js` failed
-              // silently because Vite externalised the scoped-package
-              // shape before our resolveId fired.
-              imports.push(`import '${moduleId}/admin';`);
+              // Bare side-effect imports (`import '<mod>/admin';`) get
+              // tree-shaken even with package.json sideEffects whitelisting
+              // — confirmed empirically on v1.2.47 + v1.2.48 where the
+              // emitted line ran through the plugin but the imported
+              // file's top-level (`registerCanvasPuckPlugin(aiPlugin)`)
+              // never reached the bundle.
+              //
+              // Switch to namespace-import-with-global-pin: import the
+              // admin entry as a namespace object AND assign it to a
+              // globalThis slot. The assignment is an unconditional use
+              // of the binding, so Rollup cannot drop the import — and
+              // running the import forces the file's top-level side-
+              // effects (the registry registration). The global slot
+              // itself isn't read anywhere; it just serves as a
+              // tree-shake-proof anchor.
+              const slotName = `admBoot_${i}`;
+              imports.push(`import * as ${slotName} from '${moduleId}/admin';`);
+              adminBootRefs.push(slotName);
               // eslint-disable-next-line no-console
               console.log(`[gatewaze-modules] +admin side-effect import for ${moduleId}`);
             }
@@ -401,10 +413,19 @@ export function gatewazeModulesPlugin(): Plugin {
           }
         }
 
+        // Tree-shake-proof use of the namespace imports. Vite/Rollup
+        // can't drop an import whose binding is observably consumed
+        // at module init — the globalThis assignment serves no other
+        // purpose; it just anchors the boot side effects.
+        const adminBootPin = adminBootRefs.length > 0
+          ? [`(globalThis).__GW_ADMIN_BOOT__ = { ${adminBootRefs.map((r) => `${r}`).join(', ')} };`]
+          : [];
+
         return [
           ...imports,
           ...cssImports,
           ...guideAssignments,
+          ...adminBootPin,
           `export default [${refs.join(', ')}];`,
           // Accept HMR updates silently. Without this, any filesystem event
           // under MODULE_SOURCES paths (including the live-tree symlink the
