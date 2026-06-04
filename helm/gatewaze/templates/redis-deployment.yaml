@@ -49,10 +49,16 @@ spec:
                 - -a
                 - {{ .Values.redis.password | quote }}
                 - ping
-            initialDelaySeconds: 10
-            periodSeconds: 15
-            timeoutSeconds: 5
-            failureThreshold: 3
+            # Probe timings are overridable via redis.livenessProbe.* /
+            # redis.readinessProbe.* in values. Defaults match the pre-1.2.42
+            # chart (delay 10s, period 15s, timeout 5s, threshold 3). Brands
+            # with a chronically slow `redis-cli ping` (memory pressure, slow
+            # block storage) can bump timeoutSeconds / failureThreshold to
+            # stop liveness-probe-driven crash loops.
+            initialDelaySeconds: {{ .Values.redis.livenessProbe.initialDelaySeconds | default 10 }}
+            periodSeconds: {{ .Values.redis.livenessProbe.periodSeconds | default 15 }}
+            timeoutSeconds: {{ .Values.redis.livenessProbe.timeoutSeconds | default 5 }}
+            failureThreshold: {{ .Values.redis.livenessProbe.failureThreshold | default 3 }}
           readinessProbe:
             exec:
               command:
@@ -60,10 +66,10 @@ spec:
                 - -a
                 - {{ .Values.redis.password | quote }}
                 - ping
-            initialDelaySeconds: 5
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 3
+            initialDelaySeconds: {{ .Values.redis.readinessProbe.initialDelaySeconds | default 5 }}
+            periodSeconds: {{ .Values.redis.readinessProbe.periodSeconds | default 10 }}
+            timeoutSeconds: {{ .Values.redis.readinessProbe.timeoutSeconds | default 5 }}
+            failureThreshold: {{ .Values.redis.readinessProbe.failureThreshold | default 3 }}
           resources:
             {{- toYaml .Values.redis.resources | nindent 12 }}
           volumeMounts:

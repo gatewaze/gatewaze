@@ -96,6 +96,20 @@ redis:
       cpu: 500m
       memory: 512Mi
 
+  # -- Liveness probe (redis-cli ping). Brands with chronically slow ping
+  # responses (memory pressure, slow block storage) can bump these to stop
+  # liveness-driven crash loops. Defaults are the pre-1.2.43 chart values.
+  livenessProbe:
+    initialDelaySeconds: 10
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readinessProbe:
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
 # =============================================================================
 # Authentication
 # =============================================================================
