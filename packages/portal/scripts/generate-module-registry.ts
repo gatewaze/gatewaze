@@ -29,6 +29,7 @@ const __dirname = dirname(__filename)
 
 const PROJECT_ROOT = resolve(__dirname, '../../..')
 const OUTPUT_PATH = resolve(__dirname, '../lib/modules/generated-portal-modules.ts')
+const ADMIN_OUTPUT_PATH = resolve(__dirname, '../lib/modules/generated-admin-modules.ts')
 const REWRITES_PATH = resolve(__dirname, '../lib/modules/generated-portal-rewrites.json')
 const DIRS_PATH = resolve(__dirname, '../lib/modules/generated-modules-dirs.json')
 const PREFIXES_PATH = resolve(__dirname, '../lib/modules/generated-module-prefixes.json')
@@ -615,6 +616,26 @@ export function extractParams(routePath: string, pathname: string): Record<strin
 `
 
   writeFileSync(OUTPUT_PATH, output, 'utf-8')
+
+  // Admin-page registry (spec §8.4). Consumed by app/(main)/admin/[module]/[[...path]].
+  // TODO: discover each module's admin/pages/** once modules expose Next-compatible admin pages
+  // (today's admin/pages were built for the admin SPA and need adaptation before mounting). For
+  // now we always emit a valid (empty) registry so the import resolves and the build succeeds; the
+  // /admin/[module] route renders a graceful placeholder for modules with no admin pages.
+  const adminOutput = `// AUTO-GENERATED — do not edit manually
+// Run: npx tsx scripts/generate-module-registry.ts
+
+import type { ComponentType } from 'react'
+
+export interface AdminModulePage {
+  path: string
+  moduleId: string
+  component: () => Promise<{ default: ComponentType<unknown> }>
+}
+
+export const adminModulePages: AdminModulePage[] = []
+`
+  writeFileSync(ADMIN_OUTPUT_PATH, adminOutput, 'utf-8')
 
   // Generate Next.js rewrites
   const modulePrefixes = [...new Set(pages.map(p => p.moduleId))]
