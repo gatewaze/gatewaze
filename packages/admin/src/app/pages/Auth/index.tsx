@@ -40,8 +40,21 @@ export default function SignIn() {
           .select("value")
           .eq("key", "logo_url")
           .single();
-        if (data?.value && data.value.trim() !== '') {
-          setLogoUrl(data.value);
+        const raw = data?.value?.trim();
+        if (raw) {
+          // LogoUploadField stores a relative path (e.g. "branding/logo.svg")
+          // in platform_settings.logo_url and resolves to a public URL via
+          // supabase.storage.from('media').getPublicUrl(...) at display time.
+          // The login page was rendering the raw value as an <img src>, which
+          // the browser resolved against /login/branding/logo.svg → SPA
+          // fallback HTML → broken image. Resolve the same way the
+          // admin-side reader does.
+          if (/^https?:\/\//.test(raw)) {
+            setLogoUrl(raw);
+          } else {
+            const { data: pub } = supabase.storage.from("media").getPublicUrl(raw);
+            if (pub?.publicUrl) setLogoUrl(pub.publicUrl);
+          }
         }
       } catch {
         // fall back to default logo
