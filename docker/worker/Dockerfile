@@ -158,4 +158,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
     CMD node scripts/workers/health-check.js || exit 1
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
-CMD ["node", "scripts/workers/job-worker.js"]
+CMD ["npx", "tsx", "scripts/workers/job-worker.js"]
