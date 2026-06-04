@@ -104,6 +104,13 @@ export async function loadModuleQueues(modules: LoadedModule[]): Promise<LoadedW
   for (const mod of modules) {
     const modCfg = mod.config as ModuleWithQueues;
     for (const q of modCfg.queues ?? []) allQueueNames.add(q.name);
+    // Legacy `workers[]` register their handlers on the shared `jobs`
+    // queue (see registerHandler call above). Without adding `jobs`
+    // to the worker startup set, those handlers stay registered but
+    // unreachable — every cron/admin enqueue lands in `bull:<brand>:jobs:wait`
+    // and never gets picked up. Caught when `ai:sync-agent-sources`
+    // backlog hit 17 on AAIF prod with the worker container idle.
+    if ((modCfg.workers ?? []).length > 0) allQueueNames.add('jobs');
   }
   for (const name of allQueueNames) {
     startWorker(name);
