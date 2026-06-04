@@ -343,6 +343,25 @@ export function gatewazeModulesPlugin(): Plugin {
           if (importPath) {
             imports.push(`import mod${i} from '${importPath}';`);
             refs.push(`mod${i}`);
+            // If the module also ships `admin/index.ts` (or .tsx/.js),
+            // side-effect-import it. Modules use this to register
+            // contributions into shared admin-side registries (e.g.
+            // editor-ai-copilot's `registerCanvasPuckPlugin(aiPlugin)`,
+            // which can't ride on the default-exported config object
+            // because the host editor reads from a runtime registry,
+            // not the module manifest). Doing the side-effect import
+            // here means modules don't need the `import.meta.glob`
+            // dance that TypeScript casts defeated for editor-ai-
+            // copilot, and any future module that needs admin-boot
+            // registration gets it for free.
+            const moduleDir = dirname(importPath);
+            for (const adminEntry of ['admin/index.ts', 'admin/index.tsx', 'admin/index.js']) {
+              const adminEntryPath = resolve(moduleDir, adminEntry);
+              if (existsSync(adminEntryPath)) {
+                imports.push(`import '${adminEntryPath}';`);
+                break;
+              }
+            }
             const moduleCssPath = resolveThemeCustomCss(importPath, resolvedSources, moduleId);
             if (moduleCssPath) {
               cssImports.push(`import '${moduleCssPath}';`);
