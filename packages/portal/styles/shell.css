@@ -248,6 +248,9 @@
 .pub-pn-card.next { text-align: right; }
 .pub-pn-lbl { font-size: 12px; color: var(--gw-ink-3); margin-bottom: 6px; }
 .pub-pn-title { font: 600 15px var(--font-heading, inherit); color: var(--gw-ink); }
+.pub-cover > img { width: 100%; height: 100%; object-fit: cover; }
+.pub-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.pub-tag { font-size: 12px; color: var(--gw-ink-2); background: rgba(var(--ui-text), 0.06); border: 1px solid var(--gw-line); padding: 2px 8px; border-radius: 9999px; }
 
 @media (max-width: 900px) {
   .pub-grid { grid-template-columns: 1fr; }
