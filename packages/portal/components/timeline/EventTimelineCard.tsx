@@ -100,10 +100,11 @@ export function EventTimelineCard({ event, brandConfig, userLocation, showDate }
               {categoryLabel}
             </span>
           )}
-          {/* Title */}
+          {/* Title — heading font (matches the home-page event cards / .pub-ev h3) */}
           <h3
             className="text-white font-semibold text-sm sm:text-base
                        group-hover:text-white/90 transition-colors line-clamp-2"
+            style={{ fontFamily: 'var(--font-display)' }}
           >
             {stripEmojis(event.event_title)}
           </h3>
