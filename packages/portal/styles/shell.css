@@ -286,6 +286,8 @@
 .pub-nav { display: flex; gap: 30px; }
 .pub-link { background: none; border: 0; cursor: pointer; color: var(--ink-3); font: 500 15px var(--font-sans); position: relative; padding: 4px 0; text-decoration: none; }
 .pub-link:hover, .pub-link.on { color: var(--ink); }
+/* Belt-and-suspenders: every interactive element in the public top bar + footer shows a pointer. */
+.pub-topbar a, .pub-topbar button, .pub-foot a, .pub-flink { cursor: pointer; }
 .pub-link.on::after { content: ''; position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: var(--accent); }
 .btn-sm { height: 30px; padding: 0 11px; font-size: 12.5px; }
 .pub-foot { display: flex; gap: 16px; justify-content: center; padding: 30px; color: var(--ink-4); font-size: 14px; flex-shrink: 0; }
