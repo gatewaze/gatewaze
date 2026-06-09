@@ -28,9 +28,10 @@
   --fg-2: var(--ink-2);
   --fg-3: var(--ink-3);
   --fg-muted: var(--ink-4);
-  --font-display: var(--font-display, 'Space Grotesk', ui-sans-serif, system-ui, sans-serif);
-  --font-sans: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
-  --font-mono: var(--font-mono, ui-monospace, monospace);
+  /* NOTE: --font-display/--font-sans/--font-mono are set on <html> by the layout and inherit here.
+     Do NOT redefine them as `--font-sans: var(--font-sans, …)` — that's a self-reference cycle that
+     makes the var invalid, so `font-family: var(--font-sans)` falls back to inheriting the html
+     heading-first stack and ALL body text renders in the heading font. */
   --shadow-2: 0 6px 18px -8px rgba(0,0,0,0.5);
   --shadow-3: 0 12px 34px -12px rgba(0,0,0,0.6);
   /* Base text uses the BODY font; headings/labels opt into --font-display explicitly.
