@@ -217,8 +217,11 @@ async function stageSendLog(src, dst, args, scope, emailToId) {
       values: scope ? (last == null ? [scope] : [scope, last]) : (last == null ? [] : [last]),
     }),
     async (rows) => {
+      // recipient_customer_id is INTEGER in the target (the legacy customer
+      // id), not a uuid FK to people — the per-person link is via
+      // recipient_email. Carry the source integer verbatim.
       const payload = rows.map((r) => [
-        r.id, r.recipient_email, emailToId.get(lc(r.recipient_email)) ?? null,
+        r.id, r.recipient_email, r.recipient_customer_id ?? null,
         r.from_address, r.reply_to, r.subject, r.content_html, r.sendgrid_message_id,
         'sendgrid', r.status, r.delivered_at, r.opened_at, r.first_clicked_at,
         r.bounced_at, r.bounce_reason, r.spam_reported_at, r.unsubscribed_at, r.created_at,
