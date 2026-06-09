@@ -11,8 +11,11 @@
  * Spec: spec-portal-workspace-shell.md §11.
  * ========================================================================== */
 
-/* ---- Token bridge: prototype names ← brand/portal vars -------------------- */
-.gw-ws-root {
+/* ---- Token bridge: prototype names ← brand/portal vars --------------------
+ * Applied to BOTH shell roots: .gw-ws-root (signed-in workspace) and .pub-area
+ * (logged-out website). Without .pub-area here, the logged-out site has no --paper/
+ * --ink/--accent and body text falls back to the html heading-first stack. */
+.gw-ws-root, .pub-area {
   --ink:    rgb(var(--ui-text));
   --ink-2:  rgba(var(--ui-text), 0.86);
   --ink-3:  rgba(var(--ui-text), 0.62);
@@ -30,6 +33,10 @@
   --font-mono: var(--font-mono, ui-monospace, monospace);
   --shadow-2: 0 6px 18px -8px rgba(0,0,0,0.5);
   --shadow-3: 0 12px 34px -12px rgba(0,0,0,0.6);
+  /* Base text uses the BODY font; headings/labels opt into --font-display explicitly.
+     (The html element's font-family is heading-first, so without this body text inherits
+     the heading font — the cause of "body uses heading font".) */
+  font-family: var(--font-sans);
 }
 
 /* ============================================================================
