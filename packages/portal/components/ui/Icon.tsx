@@ -16,6 +16,7 @@ export type IconName =
   | 'panelOpen' | 'panelClose' | 'menu'
   | 'layers' | 'shield' | 'signal' | 'trend' | 'badge' | 'sparkle' | 'route'
   | 'filter' | 'download' | 'mappin' | 'clock' | 'mic' | 'link' | 'signin'
+  | 'newspaper' | 'pencil'
   | 'default'
 
 /** Each value is the inner markup of a 24x24 stroke icon. */
@@ -55,6 +56,8 @@ const PATHS: Record<IconName, string> = {
   mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
   link: '<path d="M10 14a4 4 0 0 0 6 .5l3-3a4 4 0 0 0-5.5-5.5l-1.5 1.4"/><path d="M14 10a4 4 0 0 0-6-.5l-3 3A4 4 0 0 0 10.5 18l1.5-1.4"/>',
   signin: '<path d="M14 3h5v18h-5"/><path d="M10 12h9m0 0-4-4m4 4-4 4"/>',
+  newspaper: '<path d="M4 5h13v14a1.5 1.5 0 0 0 1.5 1.5h0A1.5 1.5 0 0 0 20 19V8h-3"/><path d="M5.5 20.5h11A1.5 1.5 0 0 0 18 19V5H4v14a1.5 1.5 0 0 0 1.5 1.5z"/><path d="M7 8.5h7M7 12h7M7 15.5h4"/>',
+  pencil: '<path d="M4 20h4l10-10a2 2 0 0 0-3-3L5 17z"/><path d="M14 6l3 3"/>',
   default: '<circle cx="12" cy="12" r="8"/>',
 }
 

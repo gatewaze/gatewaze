@@ -165,6 +165,7 @@ export default async function MainLayout({
   // so anonymous public traffic incurs no auth round-trip or RBAC RPCs.
   let portalAccess = ZERO_ACCESS
   let accessMap = getModuleAccess(modules.railItems, portalAccess, false)
+  let isSignedIn = false
   if (!isCustomDomain) {
     const cookieStore = await cookies()
     const hasAuthCookie = cookieStore.getAll().some((c) => /^sb-.*-auth-token(\.\d+)?$/.test(c.name))
@@ -172,6 +173,7 @@ export default async function MainLayout({
       const supabase = await createAuthenticatedServerSupabase(brand)
       const { data } = await supabase.auth.getUser()
       const userId = data.user?.id ?? null
+      isSignedIn = Boolean(userId)
       portalAccess = await resolvePortalAccess(supabase, userId)
       accessMap = getModuleAccess(modules.railItems, portalAccess, Boolean(userId))
     }
@@ -237,7 +239,9 @@ export default async function MainLayout({
                     access={accessMap}
                     featureKeys={portalAccess.featureKeys}
                     isSuperAdmin={portalAccess.isSuperAdmin}
+                    isSignedIn={isSignedIn}
                     brandName={brandConfig.name}
+                    logoUrl={brandConfig.logoUrl || undefined}
                     logoIconUrl={brandConfig.logoIconUrl || undefined}
                   >
                     {children}
