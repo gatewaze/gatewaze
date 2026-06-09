@@ -18,6 +18,7 @@ import { ContextualSidebar } from './ContextualSidebar'
 import { ShellHeader } from './ShellHeader'
 import { ShellErrorBoundary } from './ShellErrorBoundary'
 import { SignInGate } from './SignInGate'
+import { PublicTopbar } from '@/components/public/PublicTopbar'
 
 /** Paths that render without shell chrome (full-bleed auth screens). */
 const CHROMELESS_PATHS = ['/sign-in', '/auth/callback']
@@ -27,7 +28,10 @@ interface WorkspaceShellProps {
   access: ModuleAccessMap
   featureKeys: string[]
   isSuperAdmin: boolean
+  /** Validated session present → render the rail workspace; else render the flat public website. */
+  isSignedIn: boolean
   brandName: string
+  logoUrl?: string
   logoIconUrl?: string
   children: React.ReactNode
 }
@@ -61,13 +65,16 @@ export function WorkspaceShell({
   access,
   featureKeys,
   isSuperAdmin,
+  isSignedIn,
   brandName,
+  logoUrl,
   logoIconUrl,
   children,
 }: WorkspaceShellProps) {
   const pathname = usePathname() || '/'
   const [sideCollapsed, setSideCollapsed] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
 
   // Restore the collapse preference after mount (avoids SSR/CSR mismatch).
   useEffect(() => {
@@ -112,6 +119,40 @@ export function WorkspaceShell({
 
   if (chromeless) {
     return <>{children}</>
+  }
+
+  // Logged out → flat public website (prototype PublicArea): a slim top bar over the content,
+  // no rail / no sidebar. The blurred top-bar background fades in on scroll.
+  if (!isSignedIn) {
+    return (
+      <ShellProvider access={access} activeModuleId={activeModuleId} featureKeys={featureKeys} isSuperAdmin={isSuperAdmin}>
+        <div
+          className="pub-area gw-scroll"
+          onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 8)}
+        >
+          <PublicTopbar
+            items={railItems}
+            activeModuleId={activeModuleId}
+            brandName={brandName}
+            logoUrl={logoUrl}
+            logoIconUrl={logoIconUrl}
+            scrolled={scrolled}
+          />
+          <main>
+            <div key={activeModuleId ?? pathname} className="pub-fade">
+              <ShellErrorBoundary resetKey={pathname}>{children}</ShellErrorBoundary>
+            </div>
+          </main>
+          <footer className="pub-foot">
+            <a className="pub-flink" href="/privacy">Privacy Policy</a>
+            <span className="sep">|</span>
+            <a className="pub-flink" href="/terms">Terms of Service</a>
+            <span className="sep">|</span>
+            <a className="pub-flink" href="/do-not-sell">Do Not Sell My Info</a>
+          </footer>
+        </div>
+      </ShellProvider>
+    )
   }
 
   const showSidebar = !activeItem?.fullBleed && nav.length > 0
