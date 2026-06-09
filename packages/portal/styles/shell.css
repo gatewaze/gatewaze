@@ -225,6 +225,22 @@
 .pub-tl-date .w { font-weight: 500; color: var(--ink-4); }
 .pub-tl-items { display: flex; flex-direction: column; gap: 12px; }
 
+/* events filter row + segmented control (Upcoming/Past/Calendar/Map) — sliding white indicator */
+.pub-ev-filters { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 28px; }
+.pub-seg { position: relative; display: inline-flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--paper); border: 1px solid var(--paper); }
+.pub-seg-ind { position: absolute; top: 4px; bottom: 4px; left: 0; border-radius: 8px; background: var(--accent);
+  transition: transform .3s cubic-bezier(.4,0,.2,1), width .3s cubic-bezier(.4,0,.2,1); pointer-events: none; }
+.pub-seg-btn { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 8px; padding: 8px 15px; border: 0;
+  background: transparent; cursor: pointer; border-radius: 8px; font: 500 14px var(--font-sans); color: var(--ink-3);
+  transition: color .25s ease; text-decoration: none; white-space: nowrap; }
+.pub-seg-btn:hover { color: var(--ink); }
+.pub-seg-btn.on { color: var(--on-accent); }
+.pub-seg-btn .ic { width: 16px; height: 16px; }
+.pub-seg-btn .cnt { font-size: 12px; font-weight: 600; padding: 0 7px; border-radius: 99px; background: rgba(var(--ui-text), 0.14); color: var(--ink-2);
+  transition: background .25s ease, color .25s ease; }
+.pub-seg-btn.on .cnt { background: rgba(0,0,0,0.14); color: var(--on-accent); }
+@media (prefers-reduced-motion: reduce) { .pub-seg-ind { transition: none; } }
+
 /* scroll top-bar (public) */
 .pub-topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between;
   padding: 24px 28px 36px; background: transparent; }
