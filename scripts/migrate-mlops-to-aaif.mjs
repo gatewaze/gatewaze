@@ -95,7 +95,8 @@ async function insertBatch(client, table, columns, rows, conflict) {
     tuples.push('(' + columns.map(() => `$${++p}`).join(', ') + ')');
     params.push(...r);
   }
-  const sql = `INSERT INTO public.${table} (${colSql}) VALUES ${tuples.join(', ')} ${conflict}`;
+  const tbl = table.includes('.') ? table : `public.${table}`;
+  const sql = `INSERT INTO ${tbl} (${colSql}) VALUES ${tuples.join(', ')} ${conflict}`;
   const res = await client.query(sql, params);
   return res.rowCount;
 }
@@ -120,8 +121,90 @@ async function paginate(src, keyCol, batch, maxRows, build, onBatch) {
   return seen;
 }
 
+// --------------------------------------------------------------- auth.users
+// Login-essential columns only. Excludes the generated confirmed_at and all
+// *_token columns (which carry partial-unique indexes that would collide).
+// Copying encrypted_password preserves the user's existing credentials so
+// they can sign in to aaif unchanged. Direct INSERTs never trigger GoTrue
+// email (confirmation/magic-link), so the migration stays silent.
+const AUTH_USER_COLS = [
+  'id', 'instance_id', 'aud', 'role', 'email', 'encrypted_password',
+  'email_confirmed_at', 'last_sign_in_at', 'raw_app_meta_data',
+  'raw_user_meta_data', 'created_at', 'updated_at', 'is_sso_user', 'is_anonymous',
+];
+const AUTH_IDENTITY_COLS = [
+  'id', 'provider_id', 'user_id', 'identity_data', 'provider',
+  'last_sign_in_at', 'created_at', 'updated_at',
+];
+
+async function stageAuthUsers(src, dst, args, scope) {
+  console.log('\n── Stage 0: auth users (auth.users + auth.identities) ──');
+  const params = [];
+  let sc = '';
+  if (scope) { params.push(scope); sc = 'AND lower(c.email) = ANY($1)'; }
+  const total = (await src.query(
+    `SELECT count(*)::int n FROM public.customers c
+       JOIN auth.users u ON u.id = c.auth_user_id
+      WHERE u.deleted_at IS NULL AND u.email IS NOT NULL ${sc}`, params)).rows[0].n;
+  console.log(`   source auth users linked to migrated customers: ${total}`);
+
+  if (!args.commit) {
+    const existing = (await dst.query(`SELECT count(*)::int n FROM auth.users`)).rows[0].n;
+    console.log(`   target auth.users currently: ${existing}`);
+    console.log('   DRY-RUN: would insert auth.users + auth.identities (ON CONFLICT(id) DO NOTHING).');
+    return { scanned: total, written: 0 };
+  }
+
+  // Pre-fetch existing target emails to respect the partial unique index on
+  // auth.users(email) WHERE is_sso_user=false (don't collide with the admin).
+  const existingEmails = new Set(
+    (await dst.query(`SELECT lower(email) le FROM auth.users WHERE email IS NOT NULL`)).rows.map((r) => r.le));
+
+  let written = 0, identities = 0, skipped = 0;
+  await paginate(src, 'id', args.batch, null,
+    (last, lim) => {
+      const v = [];
+      let s = '';
+      if (scope) { v.push(scope); s = 'AND lower(c.email) = ANY($1)'; }
+      let key = '';
+      if (last != null) { v.push(last); key = `AND u.id > $${v.length}`; }
+      return {
+        text: `SELECT ${AUTH_USER_COLS.map((c) => 'u."' + c + '"').join(', ')}
+                 FROM public.customers c JOIN auth.users u ON u.id = c.auth_user_id
+                WHERE u.deleted_at IS NULL AND u.email IS NOT NULL ${s} ${key}
+                ORDER BY u.id LIMIT ${lim}`,
+        values: v,
+      };
+    },
+    async (rows) => {
+      const fresh = rows.filter((r) => !existingEmails.has(lc(r.email)));
+      skipped += rows.length - fresh.length;
+      if (!fresh.length) return;
+      for (const r of fresh) existingEmails.add(lc(r.email));
+      const jsonbCols = new Set(['raw_app_meta_data', 'raw_user_meta_data']);
+      const payload = fresh.map((r) => AUTH_USER_COLS.map((c) =>
+        jsonbCols.has(c) && r[c] != null ? JSON.stringify(r[c]) : r[c]));
+      written += await insertBatch(dst, 'auth.users', AUTH_USER_COLS, payload, 'ON CONFLICT (id) DO NOTHING');
+      const ids = fresh.map((r) => r.id);
+      const idRows = (await src.query(
+        `SELECT ${AUTH_IDENTITY_COLS.map((c) => '"' + c + '"').join(', ')}
+           FROM auth.identities WHERE user_id = ANY($1)`, [ids])).rows;
+      if (idRows.length) {
+        const ip = idRows.map((r) => AUTH_IDENTITY_COLS.map((c) =>
+          c === 'identity_data' && r[c] != null ? JSON.stringify(r[c]) : r[c]));
+        identities += await insertBatch(dst, 'auth.identities', AUTH_IDENTITY_COLS, ip, 'ON CONFLICT (id) DO NOTHING');
+      }
+      if (written % 20000 < args.batch) console.log(`   …${written} users, ${identities} identities`);
+    });
+  console.log(`   inserted ${written} auth.users, ${identities} identities (skipped ${skipped} email-collision)`);
+  return { scanned: total, written };
+}
+
 // ------------------------------------------------------------------- people
-const PEOPLE_EXCLUDE = new Set(['id', 'auth_user_id', 'avatar_url', 'account_id']);
+// auth_user_id IS carried: stageAuthUsers copies the matching auth.users
+// rows (preserving their uuid) first, so the link is valid. account_id stays
+// null (single-brand DB); id/avatar_url are target-only.
+const PEOPLE_EXCLUDE = new Set(['id', 'avatar_url', 'account_id']);
 
 async function stagePeople(src, dst, args, scope, targetCols, emailToId) {
   console.log('\n── Stage 1: people (customers → people) ──');
@@ -133,7 +216,7 @@ async function stagePeople(src, dst, args, scope, targetCols, emailToId) {
   const srcCols = new Set(srcColsRes.rows.map((r) => r.column_name));
   const carry = [...targetCols].filter((c) => srcCols.has(c) && !PEOPLE_EXCLUDE.has(c));
   if (!carry.includes('email')) throw new Error('email column missing from intersection');
-  console.log(`   carrying ${carry.length} columns (email upsert, auth_user_id dropped)`);
+  console.log(`   carrying ${carry.length} columns (email upsert; auth_user_id linked to migrated auth.users)`);
 
   const where = scope ? `WHERE email IS NOT NULL AND email <> '' AND lower(email) = ANY($1)` : `WHERE email IS NOT NULL AND email <> ''`;
   const totalRes = await src.query(
@@ -161,9 +244,13 @@ async function stagePeople(src, dst, args, scope, targetCols, emailToId) {
     }),
     async (rows) => {
       const payload = rows.map((r) => cols.map((c) => r[c]));
-      // per-batch upsert; fall back to per-row on cio_id unique collisions
-      const setSql = cols.filter((c) => c !== 'email')
-        .map((c) => `"${c}" = EXCLUDED."${c}"`).join(', ');
+      // per-batch upsert; fall back to per-row on cio_id unique collisions.
+      // auth_user_id only fills when currently null — never clobber an
+      // existing aaif user's auth link (e.g. the admin).
+      const setClause = (c) => c === 'auth_user_id'
+        ? `"auth_user_id" = COALESCE(public.people.auth_user_id, EXCLUDED."auth_user_id")`
+        : `"${c}" = EXCLUDED."${c}"`;
+      const setSql = cols.filter((c) => c !== 'email').map(setClause).join(', ');
       try {
         await insertBatch(dst, 'people', cols, payload,
           `ON CONFLICT (email) DO UPDATE SET ${setSql}`);
@@ -176,7 +263,7 @@ async function stagePeople(src, dst, args, scope, targetCols, emailToId) {
           } catch (e2) {
             // likely cio_id collision with a different email → retry without cio_id
             const cols2 = cols.filter((c) => c !== 'cio_id');
-            const set2 = cols2.filter((c) => c !== 'email').map((c) => `"${c}" = EXCLUDED."${c}"`).join(', ');
+            const set2 = cols2.filter((c) => c !== 'email').map(setClause).join(', ');
             await insertBatch(dst, 'people', cols2, [cols2.map((c) => r[c])],
               `ON CONFLICT (email) DO UPDATE SET ${set2}`);
             console.warn(`   ! ${r.email}: imported without cio_id (${e2.code})`);
@@ -369,6 +456,8 @@ async function main() {
   // subscriptions) FIRST so they complete quickly, then run the large,
   // resumable email_events load LAST.
   const report = {};
+  // Auth users first so people.auth_user_id links to real, migrated accounts.
+  report.authUsers = await stageAuthUsers(src, dst, args, scope);
   report.people = await stagePeople(src, dst, args, scope, tCols, emailToId);
   report.sendLog = await stageSendLog(src, dst, args, scope, emailToId);
   report.subscriptions = await stageSubscriptions(src, dst, args, scope, emailToId, listId);
