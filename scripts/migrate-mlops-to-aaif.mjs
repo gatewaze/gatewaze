@@ -201,12 +201,14 @@ async function stageAuthUsers(src, dst, args, scope) {
 }
 
 // ------------------------------------------------------------------- people
-// auth_user_id IS carried: stageAuthUsers copies the matching auth.users
-// rows (preserving their uuid) first, so the link is valid. account_id stays
+// auth_user_id is resolved per-email from the TARGET auth.users (built after
+// stageAuthUsers): for migrated users that's the preserved mlops uuid; for an
+// email that already existed on the target (e.g. a prod signup) it's that
+// user's uuid — so we never point at an un-imported uuid. account_id stays
 // null (single-brand DB); id/avatar_url are target-only.
 const PEOPLE_EXCLUDE = new Set(['id', 'avatar_url', 'account_id']);
 
-async function stagePeople(src, dst, args, scope, targetCols, emailToId) {
+async function stagePeople(src, dst, args, scope, targetCols, emailToId, authEmailToId) {
   console.log('\n── Stage 1: people (customers → people) ──');
   // Columns to carry = intersection of source customers and target people,
   // minus identity/tenant columns we deliberately drop.
@@ -243,7 +245,12 @@ async function stagePeople(src, dst, args, scope, targetCols, emailToId) {
       values: scope ? (last == null ? [scope] : [scope, last]) : (last == null ? [] : [last]),
     }),
     async (rows) => {
-      const payload = rows.map((r) => cols.map((c) => r[c]));
+      // Resolve auth_user_id from the TARGET auth.users by email (never the
+      // raw source uuid), so a collision with an existing target user links
+      // to that user, not an un-imported mlops uuid.
+      const rowVals = (r, columns) => columns.map((c) =>
+        c === 'auth_user_id' ? (authEmailToId.get(lc(r.email)) ?? null) : r[c]);
+      const payload = rows.map((r) => rowVals(r, cols));
       // per-batch upsert; fall back to per-row on cio_id unique collisions.
       // auth_user_id only fills when currently null — never clobber an
       // existing aaif user's auth link (e.g. the admin).
@@ -256,7 +263,7 @@ async function stagePeople(src, dst, args, scope, targetCols, emailToId) {
           `ON CONFLICT (email) DO UPDATE SET ${setSql}`);
       } catch (e) {
         for (const r of rows) {
-          const vals = cols.map((c) => r[c]);
+          const vals = rowVals(r, cols);
           try {
             await insertBatch(dst, 'people', cols, [vals],
               `ON CONFLICT (email) DO UPDATE SET ${setSql}`);
@@ -264,7 +271,7 @@ async function stagePeople(src, dst, args, scope, targetCols, emailToId) {
             // likely cio_id collision with a different email → retry without cio_id
             const cols2 = cols.filter((c) => c !== 'cio_id');
             const set2 = cols2.filter((c) => c !== 'email').map(setClause).join(', ');
-            await insertBatch(dst, 'people', cols2, [cols2.map((c) => r[c])],
+            await insertBatch(dst, 'people', cols2, [rowVals(r, cols2)],
               `ON CONFLICT (email) DO UPDATE SET ${set2}`);
             console.warn(`   ! ${r.email}: imported without cio_id (${e2.code})`);
           }
@@ -458,7 +465,15 @@ async function main() {
   const report = {};
   // Auth users first so people.auth_user_id links to real, migrated accounts.
   report.authUsers = await stageAuthUsers(src, dst, args, scope);
-  report.people = await stagePeople(src, dst, args, scope, tCols, emailToId);
+  // Build email → target auth.users.id map AFTER the auth stage: this holds
+  // both the imported mlops users (preserved uuid) and any pre-existing target
+  // users (their uuid), so people link correctly even on email collisions.
+  const authEmailToId = new Map();
+  for (const r of (await dst.query(`SELECT id, lower(email) le FROM auth.users WHERE email IS NOT NULL`)).rows) {
+    authEmailToId.set(r.le, r.id);
+  }
+  console.log(`auth email→id map: ${authEmailToId.size} entries`);
+  report.people = await stagePeople(src, dst, args, scope, tCols, emailToId, authEmailToId);
   report.sendLog = await stageSendLog(src, dst, args, scope, emailToId);
   report.subscriptions = await stageSubscriptions(src, dst, args, scope, emailToId, listId);
   report.events = await stageEvents(src, dst, args, scope);
