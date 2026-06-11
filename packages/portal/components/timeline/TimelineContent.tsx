@@ -11,7 +11,6 @@ import { EventTimelineGroup } from './EventTimelineGroup'
 import { EventCalendar } from './EventCalendar'
 import { EventMap } from './EventMap'
 import { EventFilters } from './EventFilters'
-import { FeaturedContent } from './FeaturedContent'
 import { SearchResults } from './SearchResults'
 import { groupEventsByDate } from './utils'
 import { useEventSearch } from '@/hooks/useEventSearch'
@@ -296,12 +295,11 @@ function TimelineContentInner({
 
   return (
     <div className="w-full">
-      {!isShowingSearchResults && !isInitialSearchPending && view === 'upcoming' && (
-        <FeaturedContent
-          events={isPaginatedView && initialPage ? paginatedRows : (upcomingEvents ?? [])}
-          brandConfig={brandConfig}
-          userLocation={userLocation}
-        />
+      {!isShowingSearchResults && !isInitialSearchPending && (!basePath || basePath === '/events') && (
+        <div className="pub-h" style={{ marginBottom: 18 }}>
+          <h1>Events</h1>
+          <p>Browse upcoming and past events, and register to attend.</p>
+        </div>
       )}
 
       {!isShowingSearchResults && !isInitialSearchPending && (
@@ -356,7 +354,7 @@ function TimelineContentInner({
       ) : groupedEvents.length === 0 && !isPaginatedLoading ? (
         <EmptyState viewMode={view} hasActiveFilters={hasActiveFilters || nearMe} onClearFilters={clearFilters} />
       ) : (
-        <div className="max-w-7xl mx-auto">
+        <div key={view} className="max-w-7xl mx-auto pub-fade">
           <VirtualisedGroups
             groups={groupedEvents}
             brandConfig={brandConfig}

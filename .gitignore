@@ -60,12 +60,14 @@ supabase/functions/_shared/*
 !supabase/functions/email-sendgrid-webhook/
 !supabase/functions/events-speaker-submission/
 !supabase/functions/health-check/
+!supabase/functions/people-attributes-get/
 !supabase/functions/people-classify-job-titles/
 !supabase/functions/people-enrichment/
 !supabase/functions/people-normalize-location/
 !supabase/functions/people-profile-update/
 !supabase/functions/people-signup/
 !supabase/functions/people-track-attribute/
+!supabase/functions/people-track-event/
 !supabase/functions/people-track-subscription/
 !supabase/functions/people-validate-linkedin/
 !supabase/functions/platform-generate-download-token/

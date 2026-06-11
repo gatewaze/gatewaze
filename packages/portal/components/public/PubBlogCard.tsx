@@ -9,7 +9,7 @@ function fmtDate(d: string | null): string {
 /** Public blog post card — the prototype's `.pub-card`. Matches the blog module's index cards. */
 export function PubBlogCard({ post }: { post: BlogPostPreview }) {
   return (
-    <Link href={`/blog/${post.slug}`} className="pub-card">
+    <Link href={`/blog/${post.slug}`} className="pub-card gw-card-glow">
       <div className="pub-cover">
         {post.featured_image ? (
           <img src={post.featured_image} alt={post.featured_image_alt || post.title} />
