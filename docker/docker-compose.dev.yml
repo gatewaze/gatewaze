@@ -30,6 +30,12 @@ services:
       API_PROXY_TARGET: http://api:3002
       VITE_PORTAL_DOMAIN: ${PORTAL_HOST:-app.gatewaze.localhost}
       VITE_API_URL: ${API_URL:-http://api.gatewaze.localhost}
+      # Docker Desktop on macOS doesn't propagate fsevents through bind
+      # mounts, so Vite never sees host edits to /gatewaze-modules and serves
+      # a stale bundle. Force chokidar polling inside the container so module
+      # edits hot-reload. Native (non-container) dev leaves this unset and
+      # keeps fast native fsevents.
+      VITE_USE_POLLING: "true"
 
   portal:
     build:

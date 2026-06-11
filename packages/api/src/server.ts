@@ -241,8 +241,22 @@ async function registerModuleRoutes() {
             return { id: job.id };
           },
         };
-        await mod.config.apiRoutes(app, runtimeCtx);
-        appLogger.info({ module: mod.config.id }, '[modules] registered API routes');
+        try {
+          await mod.config.apiRoutes(app, runtimeCtx);
+          appLogger.info({ module: mod.config.id }, '[modules] registered API routes');
+        } catch (err) {
+          // Isolate per-module failures. Previously a single module whose
+          // route file couldn't load (e.g. a missing npm dep like the ai
+          // module's `openai`) threw out of the shared try/catch below and
+          // aborted the ENTIRE loop — so every enabled module after it in
+          // the iteration order silently failed to mount (host-media,
+          // newsletters, sites, …). Catch per-module, log, and keep going so
+          // one broken module can't take down the rest of the API surface.
+          appLogger.error(
+            { err, module: mod.config.id },
+            '[modules] failed to register module API routes — continuing with other modules',
+          );
+        }
       }
     }
     if (modules.length > 0) {

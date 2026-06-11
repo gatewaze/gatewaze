@@ -470,14 +470,19 @@ services:
     # itself in under a minute without operator action.
     healthcheck:
       # node-based probe — the api image is the official node slim
-      # variant and doesn't ship wget/curl. Hits /api/v1/health (the
-      # public 200-on-OK endpoint registered by the public-api router)
-      # via localhost, with a 4s socket timeout.
+      # variant and doesn't ship wget/curl. Hits the CORE /api/health
+      # endpoint (always mounted by the base server) via localhost with a
+      # 4s socket timeout. Deliberately NOT /api/v1/health: that route is
+      # registered by an optional module, so a module whose deps fail to
+      # load would otherwise wedge container liveness — which makes Traefik
+      # drop the whole API host (no router for an unhealthy container) and
+      # surfaces as CORS failures on every api.<brand> call. Liveness must
+      # track the core server, not optional module routes.
       test:
         - CMD
         - node
         - -e
-        - "require('http').get('http://localhost:3002/api/v1/health',{timeout:4000},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1)).on('timeout',function(){this.destroy();process.exit(1)})"
+        - "require('http').get('http://localhost:3002/api/health',{timeout:4000},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1)).on('timeout',function(){this.destroy();process.exit(1)})"
       interval: 30s
       timeout: 5s
       retries: 3

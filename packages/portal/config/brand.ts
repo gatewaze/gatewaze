@@ -139,7 +139,23 @@ export interface BrandConfig {
   fontHeadingWeight: string
   fontBody: string
   fontBodyWeight: string
+  /** Monospace font family (code/captions). Themeable; loaded via Google Fonts when set. */
+  fontMono: string
   bodyTextSize: string
+  /**
+   * Semantic status colors. Default to neutral hues; overridable per instance so status pills
+   * etc. stay on-brand. Exposed as CSS vars `--success-color` / `--warning-color` / etc.
+   */
+  successColor: string
+  warningColor: string
+  dangerColor: string
+  infoColor: string
+  /**
+   * Accent tints derived from `primaryColor` when left empty: a lighter hover variant and a
+   * low-alpha "soft" fill. Exposed as `--primary-color-light` / `--primary-color-soft`.
+   */
+  primaryColorLight: string
+  primaryColorSoft: string
   logoUrl: string
   logoIconUrl: string
   faviconUrl: string
@@ -227,7 +243,15 @@ const defaults: BrandConfig = {
   fontHeadingWeight: '600',
   fontBody: 'Inter',
   fontBodyWeight: '400',
+  fontMono: 'JetBrains Mono',
   bodyTextSize: '16',
+  successColor: '#3ddc84',
+  warningColor: '#f2b23e',
+  dangerColor: '#ff6b6b',
+  infoColor: '#6b8fff',
+  // Empty → derived from primaryColor at render time (see deriveAccentTints).
+  primaryColorLight: '',
+  primaryColorSoft: '',
   logoUrl: '',
   logoIconUrl: '',
   faviconUrl: '',
@@ -254,7 +278,14 @@ const settingsMap: Record<string, { field: keyof BrandConfig; defaultValue: stri
   font_heading_weight: { field: 'fontHeadingWeight', defaultValue: defaults.fontHeadingWeight },
   font_body: { field: 'fontBody', defaultValue: defaults.fontBody },
   font_body_weight: { field: 'fontBodyWeight', defaultValue: defaults.fontBodyWeight },
+  font_mono: { field: 'fontMono', defaultValue: defaults.fontMono },
   body_text_size: { field: 'bodyTextSize', defaultValue: defaults.bodyTextSize },
+  success_color: { field: 'successColor', defaultValue: defaults.successColor },
+  warning_color: { field: 'warningColor', defaultValue: defaults.warningColor },
+  danger_color: { field: 'dangerColor', defaultValue: defaults.dangerColor },
+  info_color: { field: 'infoColor', defaultValue: defaults.infoColor },
+  primary_color_light: { field: 'primaryColorLight', defaultValue: defaults.primaryColorLight },
+  primary_color_soft: { field: 'primaryColorSoft', defaultValue: defaults.primaryColorSoft },
   logo_url: { field: 'logoUrl', defaultValue: defaults.logoUrl },
   logo_icon_url: { field: 'logoIconUrl', defaultValue: defaults.logoIconUrl },
   favicon_url: { field: 'faviconUrl', defaultValue: defaults.faviconUrl },
@@ -603,6 +634,10 @@ export function buildGoogleFontsUrl(config: BrandConfig): string {
     if (config.fontBodyWeight) w.add(Number(config.fontBodyWeight))
     fonts.push({ name: config.fontBody, weights: [...w].sort((a, b) => a - b).join(';') })
   }
+  // Load the monospace font too (used for code/captions/mono UI), if it's a distinct family.
+  if (config.fontMono && config.fontMono !== config.fontHeading && config.fontMono !== config.fontBody) {
+    fonts.push({ name: config.fontMono, weights: '400;500' })
+  }
   if (fonts.length === 0) return ''
   const params = fonts
     .map((f) => `family=${encodeURIComponent(f.name)}:wght@${f.weights}`)
@@ -638,6 +673,30 @@ export function isLightColor(hex: string): boolean {
   // sRGB relative luminance (ITU-R BT.709)
   const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
   return luminance > 0.5
+}
+
+/** Parse a #rgb / #rrggbb hex into [r,g,b] 0-255, or null if unparseable. */
+function parseHex(hex: string): [number, number, number] | null {
+  let h = hex.trim().replace('#', '')
+  if (h.length === 3) h = h.split('').map((c) => c + c).join('')
+  if (h.length !== 6 || /[^0-9a-fA-F]/.test(h)) return null
+  return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]
+}
+
+/**
+ * Derive the lighter-hover and low-alpha "soft" accent tints from `primaryColor`.
+ * Used when the per-instance `primaryColorLight` / `primaryColorSoft` settings are blank, so the
+ * shell always has sensible accent variants without forcing operators to configure them.
+ */
+export function deriveAccentTints(primaryColor: string): { light: string; soft: string } {
+  const rgb = parseHex(primaryColor)
+  if (!rgb) return { light: primaryColor, soft: primaryColor }
+  const [r, g, b] = rgb
+  // light = mix 28% toward white; soft = same hue at low alpha for fills/rings
+  const mix = (c: number) => Math.round(c + (255 - c) * 0.28)
+  const light = `rgb(${mix(r)}, ${mix(g)}, ${mix(b)})`
+  const soft = `rgba(${r}, ${g}, ${b}, 0.16)`
+  return { light, soft }
 }
 
 // ---------------------------------------------------------------------------

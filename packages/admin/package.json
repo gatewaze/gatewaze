@@ -26,7 +26,7 @@
     "@formkit/auto-animate": "^0.8.2",
     "@gatewaze/shared": "workspace:*",
     "@headlessui/react": "^2.2.7",
-    "@puckeditor/core": "~0.21.2",
+    "@puckeditor/core": "~0.21.3",
     "@react-email/components": "^1.0.12",
     "@react-email/render": "^2.0.8",
     "isomorphic-dompurify": "^3.1.0",

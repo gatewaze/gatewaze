@@ -10,7 +10,10 @@
 
 services:
   traefik:
-    image: traefik:v3.5
+    # v3.7+ required: Traefik v3.5's bundled Docker client is rejected with a
+    # 400 by Docker Engine 29 (API 1.52), so its docker provider can't discover
+    # containers and every route 404s. v3.7.4 negotiates Engine 29 correctly.
+    image: traefik:v3.7.4
     container_name: gatewaze-traefik
     restart: unless-stopped
     command:

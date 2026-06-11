@@ -30,12 +30,15 @@ export function EventTimelineGroup({ group, brandConfig, isLast, userLocation }:
             }}
           />
         )}
-        {/* Double circle — primaryColor border ring + small white dot */}
-        <div
-          className="absolute left-1/2 -translate-x-1/2 top-[4px] w-5 h-5 rounded-full border-[3px] bg-transparent"
-          style={{ borderColor: brandConfig.primaryColor }}
-        >
-          <div className="absolute inset-0 m-auto w-2 h-2 rounded-full bg-white" />
+        {/* Timeline node — smaller white dot inside a bigger white ring (bullseye). Centered inside
+            a box the height of the date line so it lines up with the date text. */}
+        <div className="flex h-6 sm:h-7 items-center justify-center">
+          <div
+            className="w-[18px] h-[18px] rounded-full flex items-center justify-center"
+            style={{ border: '2px solid #fff' }}
+          >
+            <div className="rounded-full" style={{ width: 6, height: 6, backgroundColor: '#fff' }} />
+          </div>
         </div>
       </div>
 

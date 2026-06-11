@@ -1,6 +1,10 @@
 FROM node:20-slim
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# Pin pnpm to 10.31.0. `pnpm@latest` (now 11.x) requires Node v22.13+,
+# and this image is on node:20-slim — corepack succeeds at fetch but the
+# resulting pnpm crashes with ERR_UNKNOWN_BUILTIN_MODULE (node:sqlite) on
+# the first install. Same pin lives in docker/api and docker/worker.
+RUN corepack enable && corepack prepare pnpm@10.31.0 --activate
 
 WORKDIR /app
 
