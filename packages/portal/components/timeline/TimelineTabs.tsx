@@ -23,18 +23,6 @@ interface Props {
  */
 let lastIndicator: { left: number; width: number } | null = null
 
-const CALENDAR_ICON = (
-  <svg className="ic" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-    <rect x="3" y="4.5" width="18" height="16" rx="2" />
-    <path d="M3 9h18M8 3v3M16 3v3" />
-  </svg>
-)
-const MAP_ICON = (
-  <svg className="ic" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-    <path d="m9 20-5.4-2.7a1 1 0 0 1-.6-.9V5.6a1 1 0 0 1 1.4-.9L9 7m0 13 6-3m-6 3V7m6 10 4.6 2.3a1 1 0 0 0 1.4-.9V5.6a1 1 0 0 0-.6-.9L15 4m0 13V4m0 0L9 7" />
-  </svg>
-)
-
 export function TimelineTabs({ upcomingCount, pastCount, basePath = '/events', filterSuffix = '' }: Props) {
   const pathname = usePathname()
 
@@ -59,11 +47,10 @@ export function TimelineTabs({ upcomingCount, pastCount, basePath = '/events', f
     lastIndicator = next
   }, [activeView])
 
+  // Calendar/Map views are hidden for now (routes still resolve if linked directly).
   const tabs: Array<{ view: ViewMode; href: string; label: string; short?: string; count?: number; icon?: React.ReactNode }> = [
-    { view: 'upcoming', href: `${basePath}/upcoming${filterSuffix}`, label: 'Upcoming', short: 'Up', count: upcomingCount },
+    { view: 'upcoming', href: `${basePath}/upcoming${filterSuffix}`, label: 'Upcoming', count: upcomingCount },
     { view: 'past', href: `${basePath}/past${filterSuffix}`, label: 'Past', count: pastCount },
-    { view: 'calendar', href: `${basePath}/calendar${filterSuffix}`, label: 'Calendar', icon: CALENDAR_ICON },
-    { view: 'map', href: `${basePath}/map${filterSuffix}`, label: 'Map', icon: MAP_ICON },
   ]
 
   return (
@@ -75,6 +62,7 @@ export function TimelineTabs({ upcomingCount, pastCount, basePath = '/events', f
           <Link
             key={t.view}
             href={t.href}
+            scroll={false}
             role="tab"
             aria-selected={active}
             className={`pub-seg-btn${active ? ' on' : ''}`}

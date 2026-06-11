@@ -80,7 +80,7 @@ export function EventFilters({
         {showNearMe && (
           <button
             onClick={onToggleNearMe}
-            className={`cursor-pointer flex items-center gap-1.5 px-3 py-1.5 text-base font-medium
+            className={`cursor-pointer flex items-center gap-1.5 px-3 h-9 text-base font-medium
                        transition-all duration-200
                        ${nearMe ? 'shadow-lg' : 'text-white/70 hover:text-white'}`}
             style={{
@@ -148,7 +148,7 @@ function RegionDropdown({
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(!open)}
-        className={`cursor-pointer flex items-center gap-1.5 px-3 py-1.5 text-base font-medium transition-all duration-200
+        className={`cursor-pointer flex items-center gap-1.5 px-3 h-9 text-base font-medium transition-all duration-200
           ${selectedRegion ? 'shadow-lg' : 'text-white/70 hover:text-white'}`}
         style={{
           borderRadius: 'var(--radius-control)',
@@ -157,6 +157,10 @@ function RegionDropdown({
             : { backgroundColor: `rgba(var(--panel-tint,0,0,0),var(--glass-opacity,0.05))`, backdropFilter: `blur(var(--glass-blur,4px))`, WebkitBackdropFilter: `blur(var(--glass-blur,4px))`, border: `1px solid rgba(var(--panel-tint,0,0,0),var(--glass-border-opacity,0.1))` }),
         }}
       >
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M3 12h18M12 3c2.5 2.5 2.5 15 0 18M12 3c-2.5 2.5-2.5 15 0 18" />
+        </svg>
         {label}
         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -304,7 +308,7 @@ function TopicDropdown({
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(!open)}
-        className={`cursor-pointer flex items-center gap-1.5 px-3 py-1.5 text-base font-medium transition-all duration-200
+        className={`cursor-pointer flex items-center gap-1.5 px-3 h-9 text-base font-medium transition-all duration-200
           ${hasTopics ? 'shadow-lg' : 'text-white/70 hover:text-white'}`}
         style={{
           borderRadius: 'var(--radius-control)',

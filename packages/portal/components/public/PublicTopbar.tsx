@@ -48,7 +48,7 @@ export function PublicTopbar({ items, activeModuleId, brandName, logoUrl, logoIc
             <Link
               key={it.moduleId}
               href={it.href}
-              className={`pub-link${activeModuleId === it.moduleId ? ' on' : ''}`}
+              className={`pub-link${activeModuleId === it.moduleId ? ' on' : ''}${it.moduleId === 'home' ? ' pub-link-home' : ''}`}
             >
               {label}
             </Link>

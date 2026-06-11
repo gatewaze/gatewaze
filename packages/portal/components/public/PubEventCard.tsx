@@ -34,7 +34,7 @@ export function PubEventCard({
   const city = [event.event_city, event.event_country_code].filter(Boolean).join(', ')
 
   return (
-    <Link href={url} className="pub-ev">
+    <Link href={url} className="pub-ev gw-card-glow">
       <div className="info">
         {event.content_category && <span className="pub-ev-cat">{event.content_category}</span>}
         <h3>{event.event_title}</h3>

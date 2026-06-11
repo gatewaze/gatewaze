@@ -17,6 +17,14 @@ class GatewazeCookieConsent {
     // Detect brand and set colors/fonts
     this.brand = document.documentElement.dataset.brand || 'gatewaze';
     this.colors = this.getBrandColors();
+    // The banner is a light glass surface. If the brand primary is light/near-white it would be
+    // invisible here (white-on-white), so derive readable button/border/link colours for that case.
+    const _p = this.colors.primary;
+    const _light = this.isLightColor(_p);
+    this.colors.acceptBg = _light ? '#1f2937' : _p;
+    this.colors.acceptBgHover = _light ? '#374151' : this.colors.primaryHover;
+    this.colors.accent = _light ? '#374151' : _p;
+    this.colors.accentHover = _light ? '#1f2937' : this.colors.primaryHover;
     this.fontStack = this.getFontStack();
 
     this.storageKey = 'gatewaze-consent';
@@ -77,6 +85,18 @@ class GatewazeCookieConsent {
       // Fall through to default
     }
     return fallback;
+  }
+
+  isLightColor(hex) {
+    if (!hex || typeof hex !== 'string') return false;
+    hex = hex.replace('#', '');
+    if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+    if (hex.length < 6) return false;
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    // Perceived luminance (0–255); above ~186 reads as "light".
+    return (0.299 * r + 0.587 * g + 0.114 * b) > 186;
   }
 
   darkenColor(hex, percent) {
@@ -191,13 +211,13 @@ class GatewazeCookieConsent {
         <div style="margin-bottom: 15px;">
           <p style="margin: 0; color: #1f2937; font-weight: 500;">
             We use cookies to enhance your user experience and provide personalized content.
-            <a href="#" id="view-cookie-policy" style="color: ${this.colors.primary}; text-decoration: underline;">Cookie Policy.</a>
+            <a href="#" id="view-cookie-policy" style="color: ${this.colors.accent}; text-decoration: underline;">Cookie Policy.</a>
           </p>
         </div>
 
         <div style="display: flex; gap: 8px; flex-direction: row;">
           <button id="accept-all-cookies" style="
-            background: ${this.colors.primary};
+            background: ${this.colors.acceptBg};
             color: white;
             border: none;
             padding: 10px 8px;
@@ -214,8 +234,8 @@ class GatewazeCookieConsent {
 
           <button id="reject-all-cookies" style="
             background: white;
-            color: ${this.colors.primary};
-            border: 2px solid ${this.colors.primary};
+            color: ${this.colors.accent};
+            border: 2px solid ${this.colors.accent};
             padding: 10px 8px;
             border-radius: 8px;
             cursor: pointer;
@@ -347,11 +367,11 @@ class GatewazeCookieConsent {
     // Add hover effects for Accept All button (brand primary)
     if (acceptAllBtn) {
       acceptAllBtn.addEventListener('mouseenter', () => {
-        acceptAllBtn.style.background = this.colors.primaryHover;
+        acceptAllBtn.style.background = this.colors.acceptBgHover;
         acceptAllBtn.style.transform = 'translateY(-1px)';
       });
       acceptAllBtn.addEventListener('mouseleave', () => {
-        acceptAllBtn.style.background = this.colors.primary;
+        acceptAllBtn.style.background = this.colors.acceptBg;
         acceptAllBtn.style.transform = 'translateY(0)';
       });
     }
@@ -360,13 +380,13 @@ class GatewazeCookieConsent {
     if (rejectAllBtn) {
       rejectAllBtn.addEventListener('mouseenter', () => {
         rejectAllBtn.style.background = '#f9fafb';
-        rejectAllBtn.style.borderColor = this.colors.primaryHover;
+        rejectAllBtn.style.borderColor = this.colors.accentHover;
         rejectAllBtn.style.transform = 'translateY(-1px)';
         rejectAllBtn.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
       });
       rejectAllBtn.addEventListener('mouseleave', () => {
         rejectAllBtn.style.background = 'white';
-        rejectAllBtn.style.borderColor = this.colors.primary;
+        rejectAllBtn.style.borderColor = this.colors.accent;
         rejectAllBtn.style.transform = 'translateY(0)';
         rejectAllBtn.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.1)';
       });
@@ -375,10 +395,10 @@ class GatewazeCookieConsent {
     // Add hover effect for Cookie Policy link
     if (viewPolicyBtn) {
       viewPolicyBtn.addEventListener('mouseenter', () => {
-        viewPolicyBtn.style.color = this.colors.primaryHover;
+        viewPolicyBtn.style.color = this.colors.accentHover;
       });
       viewPolicyBtn.addEventListener('mouseleave', () => {
-        viewPolicyBtn.style.color = this.colors.primary;
+        viewPolicyBtn.style.color = this.colors.accent;
       });
     }
   }
@@ -772,15 +792,15 @@ class GatewazeCookieConsent {
       const mobileStyles = document.createElement('style');
       mobileStyles.id = 'cookie-icon-mobile-styles';
       mobileStyles.textContent = `
-        @media (max-width: 768px) {
+        @media (max-width: 820px) {
           #cookie-preferences-icon {
             left: 0px !important;
             border-radius: 0 8px 8px 0 !important;
-            bottom: 100px !important;
+            bottom: calc(96px + env(safe-area-inset-bottom)) !important;
           }
         }
-        
-        @media (min-width: 769px) {
+
+        @media (min-width: 821px) {
           #cookie-preferences-icon {
             left: 15px !important;
             border-radius: 8px !important;

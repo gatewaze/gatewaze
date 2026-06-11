@@ -45,12 +45,19 @@ function deriveActiveModuleId(pathname: string, items: RailItem[]): string | nul
   if (pathname.startsWith('/m/')) {
     return pathname.split('/')[2] || null
   }
-  // Longest public-href prefix wins (so '/events/...' maps to the events rail item).
+  // Match on the first path segment so every sub-route of a module resolves to the same rail item
+  // regardless of the rail href's deeper landing path. e.g. the events rail links to
+  // '/events/upcoming', but '/events/past', '/events/<id>' etc. must all map to 'events' — otherwise
+  // activeModuleId flips to null on those routes, dropping the nav highlight and (because the content
+  // wrapper is keyed on activeModuleId) forcing a full remount + page-fade on every Upcoming↔Past switch.
+  const seg = '/' + (pathname.split('/')[1] || '')
+  if (seg === '/') return null
   let best: { id: string; len: number } | null = null
   for (const it of items) {
     const base = it.href.split('?')[0]
-    if (base && base !== '/' && (pathname === base || pathname.startsWith(base + '/') || pathname.startsWith(base))) {
-      if (!best || base.length > best.len) best = { id: it.moduleId, len: base.length }
+    const itemSeg = '/' + (base.split('/')[1] || '')
+    if (itemSeg !== '/' && itemSeg === seg) {
+      if (!best || itemSeg.length > best.len) best = { id: it.moduleId, len: itemSeg.length }
     }
   }
   return best?.id ?? null

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { headers, cookies } from 'next/headers'
 import { CookieConsentLoader } from '@/components/CookieConsentLoader'
+import { DevIndicatorNudge } from '@/components/DevIndicatorNudge'
 import { TrackingProvider } from '@/components/TrackingProvider'
 
 export const viewport: Viewport = {
@@ -255,6 +256,7 @@ export default async function MainLayout({
           </TrackingProvider>
         </AnalyticsProvider>
         {complianceEnabled && <CookieConsentLoader />}
+        <DevIndicatorNudge />
         {/*
           ChatWidgetLoader is currently disabled across all brands — the
           underlying agent isn't wired up. Re-enable by uncommenting the

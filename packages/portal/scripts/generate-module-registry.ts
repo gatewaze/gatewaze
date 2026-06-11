@@ -35,6 +35,23 @@ const DIRS_PATH = resolve(__dirname, '../lib/modules/generated-modules-dirs.json
 const PREFIXES_PATH = resolve(__dirname, '../lib/modules/generated-module-prefixes.json')
 const CONFIG_PATH = resolve(PROJECT_ROOT, 'gatewaze.config.ts')
 
+/**
+ * Write a generated file ONLY when its content changed. Re-running the generator (on every
+ * `pnpm dev` start, in parallel verification runs, or from another process) must not bump the
+ * mtime of an unchanged file — doing so makes the live dev server's webpack recompile and
+ * re-resolve the bracketed `[slug]` dynamic imports in generated-portal-modules.ts, which can
+ * transiently fail with "Module not found" and force a restart. Idempotent writes keep a healthy
+ * server healthy.
+ */
+function writeIfChanged(filePath: string, content: string): void {
+  try {
+    if (existsSync(filePath) && readFileSync(filePath, 'utf-8') === content) return
+  } catch {
+    /* fall through to write */
+  }
+  writeFileSync(filePath, content, 'utf-8')
+}
+
 // ---------------------------------------------------------------------------
 // Config parsing (mirrors shared/modules/loader.ts)
 // ---------------------------------------------------------------------------
@@ -615,7 +632,7 @@ export function extractParams(routePath: string, pathname: string): Record<strin
 }
 `
 
-  writeFileSync(OUTPUT_PATH, output, 'utf-8')
+  writeIfChanged(OUTPUT_PATH, output)
 
   // Admin-page registry (spec §8.4). Consumed by app/(main)/admin/[module]/[[...path]].
   // TODO: discover each module's admin/pages/** once modules expose Next-compatible admin pages
@@ -635,7 +652,7 @@ export interface AdminModulePage {
 
 export const adminModulePages: AdminModulePage[] = []
 `
-  writeFileSync(ADMIN_OUTPUT_PATH, adminOutput, 'utf-8')
+  writeIfChanged(ADMIN_OUTPUT_PATH, adminOutput)
 
   // Generate Next.js rewrites
   const modulePrefixes = [...new Set(pages.map(p => p.moduleId))]
@@ -643,13 +660,13 @@ export const adminModulePages: AdminModulePage[] = []
     { source: `/${prefix}/:path*`, destination: `/m/${prefix}/:path*` },
     { source: `/${prefix}`, destination: `/m/${prefix}` },
   ])
-  writeFileSync(REWRITES_PATH, JSON.stringify(rewrites, null, 2), 'utf-8')
+  writeIfChanged(REWRITES_PATH, JSON.stringify(rewrites, null, 2))
 
   // Export resolved source directories for next.config.ts webpack alias
-  writeFileSync(DIRS_PATH, JSON.stringify(sourceDirs, null, 2), 'utf-8')
+  writeIfChanged(DIRS_PATH, JSON.stringify(sourceDirs, null, 2))
 
   // Export module prefixes for middleware URL rewriting
-  writeFileSync(PREFIXES_PATH, JSON.stringify(modulePrefixes, null, 2), 'utf-8')
+  writeIfChanged(PREFIXES_PATH, JSON.stringify(modulePrefixes, null, 2))
 
   // Generate event pages registry
   const EVENT_PAGES_PATH = resolve(__dirname, '../lib/modules/generated-event-pages.ts')
@@ -685,7 +702,7 @@ export function findEventModulePage(slug: string): EventModulePage | undefined {
 }
 `
 
-  writeFileSync(EVENT_PAGES_PATH, eventPagesOutput, 'utf-8')
+  writeIfChanged(EVENT_PAGES_PATH, eventPagesOutput)
 
   console.log(`[generate-module-registry] Wrote ${pages.length} portal pages to ${relative(PROJECT_ROOT, OUTPUT_PATH)}`)
   for (const page of pages) {
