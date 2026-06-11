@@ -1,4 +1,5 @@
 import { resolve } from 'path';
+import { createRequire } from 'node:module';
 import type { Job } from 'bullmq';
 import { loadModulesWithDbSources } from '@gatewaze/shared/modules';
 import { createClient } from '@supabase/supabase-js';
@@ -35,6 +36,20 @@ import {
 import { getSupabase } from '../lib/supabase.js';
 import { initSentry, installCrashHandlers } from '../lib/sentry.js';
 import { initTracing, shutdownTracing } from '../lib/tracing.js';
+
+// Node <22 exposes no global WebSocket, but @supabase/realtime-js >=2.106
+// (resolved by some module workers) requires one at client construction —
+// without it every supabase-using background handler throws. The API
+// process never needs realtime, so install a global from 'ws' before any
+// handler runs. Best-effort: prod bundles ws; if absent we leave it unset.
+if (typeof (globalThis as { WebSocket?: unknown }).WebSocket === 'undefined') {
+  try {
+    const ws = createRequire(import.meta.url)('ws') as { WebSocket?: unknown };
+    (globalThis as { WebSocket?: unknown }).WebSocket = ws.WebSocket ?? ws;
+  } catch {
+    logger.warn({}, 'ws_polyfill_unavailable: supabase realtime clients may fail on Node <22');
+  }
+}
 
 void initTracing();
 initSentry({ service: 'worker' });

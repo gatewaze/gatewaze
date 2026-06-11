@@ -1,13 +1,11 @@
 'use client'
 
-import { useRef, useCallback } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
 import type { Event } from '@/types/event'
 import type { BrandConfig, ContentCategoryOption } from '@/config/brand'
 import { useViewportBlur } from '@/hooks/useViewportBlur'
-import { formatEventTime, formatEventDate } from './utils'
-import { type UserLocation, getDistanceToEventByCity, formatUserDistance, usesImperialUnits } from '@/lib/location'
+import { useNearestCenterGlow } from './useNearestCenterGlow'
+import { type UserLocation, getDistanceToEventByCity, usesImperialUnits } from '@/lib/location'
 import { stripEmojis } from '@/lib/text'
 
 interface Props {
@@ -17,11 +15,14 @@ interface Props {
   showDate?: boolean
 }
 
-export function EventTimelineCard({ event, brandConfig, userLocation, showDate }: Props) {
+export function EventTimelineCard({ event, brandConfig, userLocation }: Props) {
   const eventUrl = `/events/${event.event_slug || event.event_id}`
   const imageUrl = event.event_logo || event.screenshot_url
-  const glowRef = useRef<HTMLDivElement>(null)
   const { ref: blurRef, inView } = useViewportBlur()
+
+  // On mobile (no hover), the card nearest the viewport's vertical centre lights its glow border,
+  // moving from card to card as the page scrolls. Inert on desktop, where hover drives the glow.
+  const { ref: linkRef, active: isCenter } = useNearestCenterGlow<HTMLAnchorElement>()
 
   const location = [event.venue_address, event.event_city]
     .filter(Boolean)
@@ -31,37 +32,24 @@ export function EventTimelineCard({ event, brandConfig, userLocation, showDate }
   // Calculate distance if user location is available
   const distanceKm = getDistanceToEventByCity(userLocation || null, event.event_city)
   const useMiles = usesImperialUnits(userLocation?.country || '')
-  const formattedDistance = distanceKm !== null ? formatUserDistance(distanceKm, useMiles) : null
-
-  const timeStr = formatEventTime(event.event_start)
-  const dateStr = showDate ? formatEventDate(event.event_start) : null
-
-  // Resolve category label from brand config
-  const categoryLabel = event.content_category && brandConfig.contentCategories.length > 0
-    ? brandConfig.contentCategories.find((c: ContentCategoryOption) => c.value === event.content_category)?.label ?? null
+  const distanceLabel = distanceKm !== null
+    ? useMiles
+      ? `${Math.round(distanceKm * 0.621371).toLocaleString()} miles from you`
+      : `${Math.round(distanceKm).toLocaleString()} km from you`
     : null
 
-  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!glowRef.current) return
-    const rect = e.currentTarget.getBoundingClientRect()
-    const x = ((e.clientX - rect.left) / rect.width) * 100
-    const y = ((e.clientY - rect.top) / rect.height) * 100
-    glowRef.current.style.opacity = '1'
-    const isLight = document.documentElement.classList.contains('light-brand')
-    const glowColor = isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.15)'
-    glowRef.current.style.background = `radial-gradient(250px circle at ${x}% ${y}%, ${glowColor}, transparent 70%)`
-  }, [])
-
-  const handleMouseLeave = useCallback(() => {
-    if (!glowRef.current) return
-    glowRef.current.style.opacity = '0'
-  }, [])
+  // Resolve category label from brand config; fall back to a humanized raw value so every event
+  // that carries a content_category shows a badge (e.g. "foundation" → "Foundation").
+  const categoryLabel = event.content_category
+    ? brandConfig.contentCategories.find((c: ContentCategoryOption) => c.value === event.content_category)?.label
+        ?? event.content_category.replace(/[-_]+/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase())
+    : null
 
   return (
-    <Link href={eventUrl} className="block group">
+    <Link ref={linkRef} href={eventUrl} className="block group">
       <div
         ref={blurRef}
-        className="relative rounded-xl overflow-hidden hover:brightness-110 transition-all duration-200 flex"
+        className={`relative rounded-xl overflow-hidden hover:brightness-110 transition-all duration-200 flex flex-col sm:flex-row sm:h-44 gw-card-glow${isCenter ? ' gw-glow-active' : ''}`}
         style={{
           backgroundColor: `rgba(var(--panel-tint, 0,0,0), var(--glass-opacity, 0.05))`,
           backdropFilter: inView ? `blur(var(--glass-blur, 4px))` : undefined,
@@ -70,83 +58,57 @@ export function EventTimelineCard({ event, brandConfig, userLocation, showDate }
           borderStyle: 'solid',
           borderColor: `rgba(var(--panel-tint, 0,0,0), var(--glass-border-opacity, 0.1))`,
         }}
-        onMouseMove={handleMouseMove}
-        onMouseLeave={handleMouseLeave}
       >
-        {/* Mouse-tracking border glow */}
-        <div
-          ref={glowRef}
-          className="absolute inset-0 pointer-events-none opacity-0 transition-opacity duration-300 rounded-xl"
-          style={{
-            padding: '1px',
-            WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
-            WebkitMaskComposite: 'xor',
-            mask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
-            maskComposite: 'exclude',
-          }}
-        />
-
-        {/* Event Details */}
-        <div className="flex-1 min-w-0 p-3 flex flex-col justify-center">
-          {/* Category badge */}
-          {categoryLabel && (
-            <span
-              className="inline-flex self-start px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded-sm mb-1"
-              style={{
-                backgroundColor: `${brandConfig.primaryColor}20`,
-                color: brandConfig.primaryColor,
-              }}
+        {/* Event Details (below the banner on mobile, left column on desktop) */}
+        <div className="order-2 sm:order-1 flex-1 min-w-0 pl-4 pr-3 py-4 flex flex-col justify-between">
+          {/* Top-left: category, then title directly underneath. The category row reserves its
+              height even when empty so the title sits at the same position on every card. */}
+          <div>
+            <div className="h-5 mb-3">
+              {categoryLabel && (
+                <span
+                  className="inline-flex self-start px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded-sm"
+                  style={{
+                    backgroundColor: `${brandConfig.primaryColor}20`,
+                    color: brandConfig.primaryColor,
+                  }}
+                >
+                  {categoryLabel}
+                </span>
+              )}
+            </div>
+            <h3
+              className="text-white font-semibold text-base sm:text-lg
+                         group-hover:text-white/90 transition-colors line-clamp-2"
+              style={{ fontFamily: 'var(--font-display)' }}
             >
-              {categoryLabel}
-            </span>
+              {stripEmojis(event.event_title)}
+            </h3>
+          </div>
+
+          {/* Bottom-left: location, with the distance pin directly beneath it. */}
+          {(location || distanceLabel) && (
+            <div className="flex flex-col items-start gap-1 text-left mt-2">
+              {location && (
+                <div className="text-white/80 text-xs truncate max-w-full">{location}</div>
+              )}
+              {distanceLabel && <DistanceBadge distance={distanceLabel} />}
+            </div>
           )}
-          {/* Title */}
-          <h3
-            className="text-white font-semibold text-sm sm:text-base
-                       group-hover:text-white/90 transition-colors line-clamp-2"
-          >
-            {stripEmojis(event.event_title)}
-          </h3>
-
-          {/* Mobile: date · time · location, then distance on next line */}
-          <div className="sm:hidden mt-1 space-y-1">
-            <div className="text-white/80 text-xs truncate" suppressHydrationWarning>
-              {[dateStr, timeStr, location].filter(Boolean).join(' · ')}
-            </div>
-            {formattedDistance && (
-              <div className="mt-0.5 -ml-1">
-                <DistanceBadge distance={formattedDistance} />
-              </div>
-            )}
-          </div>
-
-          {/* Desktop: date + time, location, then distance each on own line */}
-          <div className="hidden sm:block mt-1 space-y-0.5">
-            <div className="text-white/90 text-sm" suppressHydrationWarning>
-              {[dateStr, timeStr].filter(Boolean).join(' · ')}
-            </div>
-            {location && (
-              <div className="text-white/80 text-sm truncate">{location}</div>
-            )}
-            {formattedDistance && (
-              <div className="mt-1.5 -ml-1">
-                <DistanceBadge distance={formattedDistance} />
-              </div>
-            )}
-          </div>
         </div>
 
-        {/* Event Screenshot — flush to top, right & bottom edges */}
+        {/* Event Screenshot.
+            Mobile: full-width banner on top at the image's full native aspect ratio (no cropping —
+            square posters just make the card taller), with the details below at full width.
+            Desktop: right column at native aspect ratio, fixed to the card height and width-capped so
+            it can't crowd out the details (object-cover trims only when a very wide image hits the cap). */}
         {imageUrl && (
-          <div className="relative flex-shrink-0 w-28 sm:w-36 aspect-square overflow-hidden">
-            <Image
-              src={imageUrl}
-              alt=""
-              fill
-              sizes="(min-width: 640px) 144px, 112px"
-              className="object-cover"
-            />
-          </div>
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={imageUrl}
+            alt=""
+            className="order-1 sm:order-2 w-full h-auto sm:w-auto sm:h-full sm:max-w-[55%] object-cover flex-shrink-0"
+          />
         )}
       </div>
     </Link>
@@ -154,26 +116,26 @@ export function EventTimelineCard({ event, brandConfig, userLocation, showDate }
 }
 
 function DistanceBadge({ distance }: { distance: string }) {
-  // Fixed black-on-card chip with a white pin and white label so it
-  // reads consistently regardless of the brand's primary colour. The
-  // pin's inner cutout is black so it punches through to the pill,
-  // giving the classic map-pin "hole" look.
+  // Fixed black-on-card chip with a solid white map-pin and white label so it reads
+  // consistently regardless of the brand's primary colour. The pin's hole is a real
+  // even-odd cutout (transparent), so whatever sits behind shows through — giving a clean
+  // map-pin look against both the dark pill and the card.
   return (
     <span className="inline-flex items-center flex-shrink-0 relative text-[11px] leading-none">
       {/* Pin icon — sits on top of the pill */}
       <span className="relative z-10 w-5 h-5 flex-shrink-0">
-        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="#ffffff">
-          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
+        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="#ffffff" aria-hidden>
+          <path
+            fillRule="evenodd"
+            clipRule="evenodd"
+            d="M11.54 22.351l.07.04.028.016a.76.76 0 00.723 0l.028-.015.071-.041a16.975 16.975 0 001.144-.742 19.58 19.58 0 002.683-2.282c1.944-1.99 3.963-4.98 3.963-8.827a8.25 8.25 0 00-16.5 0c0 3.846 2.02 6.837 3.963 8.827a19.58 19.58 0 002.683 2.282 16.975 16.975 0 001.145.742zM12 13.5a3 3 0 100-6 3 3 0 000 6z"
+          />
         </svg>
-        <span
-          className="absolute w-1.5 h-1.5 rounded-full top-[5px] left-1/2 -translate-x-1/2"
-          style={{ backgroundColor: '#000000' }}
-        />
       </span>
       {/* Pill — starts at icon center, square left corners, rounded right */}
       <span
         className="rounded-r-full pl-2.5 pr-3 py-[3px] -ml-2.5"
-        style={{ backgroundColor: '#000000', color: '#ffffff' }}
+        style={{ backgroundColor: '#000000', color: '#ffffff', border: '1px solid rgba(255,255,255,0.28)', borderLeft: 'none' }}
       >
         {distance}
       </span>

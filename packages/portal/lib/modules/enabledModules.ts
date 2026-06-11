@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import type { PortalShell, PortalShellNavEntry } from '@gatewaze/shared';
 
 /**
  * Server-side helper to fetch enabled module IDs and features from the DB.
@@ -13,10 +14,32 @@ export interface PortalNavItem {
   order: number;
 }
 
+/**
+ * One workspace-shell rail item (per top-level module) + its contextual nav. Plain serializable
+ * objects so they pass cleanly from the server layout to the client shell. Projected from each
+ * module's `portal_shell` (when present) and the existing `portal_nav`. See spec §8.2.
+ */
+export interface RailItem {
+  moduleId: string;
+  label: string;
+  full?: string;
+  icon: string;
+  order: number;
+  visibility: 'public' | 'members' | 'admin';
+  /** Public landing route for this module (the rail links here when access !== 'admin'). */
+  href: string;
+  /** Admin landing route (`/admin/<module>`); the rail links here when access === 'admin'. */
+  adminHref: string;
+  fullBleed: boolean;
+  nav: PortalShellNavEntry[];
+  publicNav: PortalShellNavEntry[];
+}
+
 interface ModuleState {
   enabledIds: Set<string>;
   enabledFeatures: Set<string>;
   portalNavItems: PortalNavItem[];
+  railItems: RailItem[];
 }
 
 let cache: ModuleState | null = null;
@@ -34,24 +57,34 @@ export async function getEnabledModules(): Promise<ModuleState> {
 
   if (!url || !key) {
     console.warn('[modules] Missing Supabase env vars, returning empty module state');
-    return { enabledIds: new Set(), enabledFeatures: new Set(), portalNavItems: [] };
+    return { enabledIds: new Set(), enabledFeatures: new Set(), portalNavItems: [], railItems: [] };
   }
 
   try {
     const supabase = createClient(url, key, {
       global: { fetch: (url, options = {}) => fetch(url, { ...options, cache: 'no-store' }) },
     });
-    const [modulesResult, navOverridesResult] = await Promise.all([
-      supabase
+
+    // Try selecting the richer set including `portal_shell`; if that column doesn't exist yet
+    // (migration 00035 not applied), gracefully fall back to the legacy columns so module loading
+    // never breaks. railItems then derive from `portal_nav` alone until the column lands.
+    let modulesResult = await supabase
+      .from('installed_modules')
+      .select('id, status, features, portal_nav, portal_shell')
+      .eq('status', 'enabled');
+    if (modulesResult.error) {
+      // Legacy shape (no portal_shell column yet). Cast to the richer result type — rows simply
+      // lack portal_shell at runtime, which we read via an optional cast below.
+      modulesResult = (await supabase
         .from('installed_modules')
         .select('id, status, features, portal_nav')
-        .eq('status', 'enabled'),
-      supabase
-        .from('platform_settings')
-        .select('value')
-        .eq('key', 'portal_nav_overrides')
-        .maybeSingle(),
-    ]);
+        .eq('status', 'enabled')) as typeof modulesResult;
+    }
+    const navOverridesResult = await supabase
+      .from('platform_settings')
+      .select('value')
+      .eq('key', 'portal_nav_overrides')
+      .maybeSingle();
 
     const { data, error } = modulesResult;
 
@@ -66,17 +99,22 @@ export async function getEnabledModules(): Promise<ModuleState> {
 
     if (error) {
       console.error('[modules] Failed to fetch installed_modules:', error);
-      return cache ?? { enabledIds: new Set(), enabledFeatures: new Set(), portalNavItems: [] };
+      return cache ?? { enabledIds: new Set(), enabledFeatures: new Set(), portalNavItems: [], railItems: [] };
     }
 
     const enabledIds = new Set<string>();
     const enabledFeatures = new Set<string>();
     const portalNavItems: PortalNavItem[] = [];
+    const shellByModule = new Map<string, PortalShell>();
 
     for (const row of data ?? []) {
       enabledIds.add(row.id);
       if (Array.isArray(row.features)) {
         for (const f of row.features) enabledFeatures.add(f);
+      }
+      const shellRaw = (row as { portal_shell?: unknown }).portal_shell;
+      if (shellRaw && typeof shellRaw === 'object' && (shellRaw as PortalShell).rail) {
+        shellByModule.set(row.id, shellRaw as PortalShell);
       }
       if (row.portal_nav && typeof row.portal_nav === 'object') {
         const nav = row.portal_nav as { label?: string; path?: string; icon?: string; order?: number };
@@ -120,12 +158,69 @@ export async function getEnabledModules(): Promise<ModuleState> {
     });
     visibleNavItems.sort((a, b) => a.order - b.order);
 
-    cache = { enabledIds, enabledFeatures, portalNavItems: visibleNavItems };
+    // Project rail items. Synthetic "Home" always leads. When any module declares `portal_shell`,
+    // the rail is the CURATED set of those modules (matching the design's top-level rail); otherwise
+    // it falls back to deriving one item per `portal_nav` module. href = public landing,
+    // adminHref = `/admin/<module>`.
+    const navByModule = new Map(visibleNavItems.map((n) => [n.moduleId, n]));
+    const home: RailItem = {
+      moduleId: 'home', label: 'Home', full: 'Home', icon: 'home', order: 0,
+      visibility: 'public', href: '/', adminHref: '/', fullBleed: false, nav: [], publicNav: [],
+    };
+
+    let moduleRail: RailItem[];
+    if (shellByModule.size > 0) {
+      moduleRail = [...shellByModule.entries()]
+        .filter(([id]) => enabledIds.has(id))
+        .map(([id, shell]) => {
+          const nav = navByModule.get(id);
+          return {
+            moduleId: id,
+            label: shell.rail.label,
+            full: shell.rail.full || shell.rail.label,
+            icon: shell.rail.icon,
+            order: shell.rail.order,
+            visibility: shell.rail.visibility,
+            href: nav?.path || `/${id}`,
+            adminHref: `/admin/${id}`,
+            fullBleed: shell.rail.fullBleed ?? false,
+            nav: shell.nav ?? [],
+            publicNav: shell.publicNav ?? [],
+          };
+        });
+    } else {
+      moduleRail = visibleNavItems.map((item) => ({
+        moduleId: item.moduleId,
+        label: item.label,
+        full: item.label,
+        icon: item.icon,
+        order: item.order,
+        visibility: 'public' as const,
+        href: item.path,
+        adminHref: `/admin/${item.moduleId}`,
+        fullBleed: false,
+        nav: [],
+        publicNav: [],
+      }));
+    }
+
+    // Apply portal_nav_overrides ordering/hide to the module rail items too.
+    for (const r of moduleRail) {
+      const o = overrideMap.get(r.moduleId);
+      if (o) {
+        if (o.label) r.label = o.label;
+        if (o.order !== undefined) r.order = o.order;
+      }
+    }
+    const railItems: RailItem[] = [home, ...moduleRail.filter((r) => !overrideMap.get(r.moduleId)?.hidden)];
+    railItems.sort((a, b) => a.order - b.order);
+
+    cache = { enabledIds, enabledFeatures, portalNavItems: visibleNavItems, railItems };
     cacheTimestamp = now;
     return cache;
   } catch (err) {
     console.error('[modules] Error fetching modules:', err);
-    return cache ?? { enabledIds: new Set(), enabledFeatures: new Set(), portalNavItems: [] };
+    return cache ?? { enabledIds: new Set(), enabledFeatures: new Set(), portalNavItems: [], railItems: [] };
   }
 }
 

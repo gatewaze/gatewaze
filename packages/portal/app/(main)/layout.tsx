@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
-import { headers } from 'next/headers'
+import { headers, cookies } from 'next/headers'
 import { CookieConsentLoader } from '@/components/CookieConsentLoader'
+import { DevIndicatorNudge } from '@/components/DevIndicatorNudge'
 import { TrackingProvider } from '@/components/TrackingProvider'
 
 export const viewport: Viewport = {
@@ -11,19 +12,21 @@ export const viewport: Viewport = {
 }
 import { getEnabledModules, isModuleEnabled } from '@/lib/modules/enabledModules'
 import { GlowProvider } from '@/components/ui/GlowContext'
-import { Header } from '@/components/Header'
-import { Footer } from '@/components/ui/Footer'
 import { WhiteLabelHeader } from '@/components/WhiteLabelHeader'
 import { WhiteLabelFooter } from '@/components/ui/WhiteLabelFooter'
 import { PersistentBackground } from '@/components/ui/PersistentBackground'
+import { WorkspaceShell } from '@/components/shell/WorkspaceShell'
+import { resolvePortalAccess, ZERO_ACCESS } from '@/lib/permissions/resolve'
+import { getModuleAccess } from '@/lib/modules/access'
 import { ProfileCompletionWrapper } from '@/components/wizard'
 import { AnalyticsProvider } from '@/components/AnalyticsProvider'
-import { getServerBrandConfig, buildGoogleFontsUrl, buildFontStack, isLightColor, getThemeBackgroundColor, resolveEventTheme, type ThemeColors } from '@/config/brand'
+import { getServerBrandConfig, buildGoogleFontsUrl, buildFontStack, isLightColor, getThemeBackgroundColor, resolveEventTheme, deriveAccentTints, type ThemeColors } from '@/config/brand'
 import { OrganizationJsonLd } from '@/components/structured-data'
-import { createServerSupabase } from '@/lib/supabase/server'
+import { createServerSupabase, createAuthenticatedServerSupabase } from '@/lib/supabase/server'
 // ChatWidgetLoader currently disabled — see comment near the JSX use site.
 // import { ChatWidgetLoader } from '@/components/chat/ChatWidgetLoader'
 import '@/styles/globals.css'
+import '@/styles/shell.css'
 
 const EVENT_META_FIELDS =
   'event_title, event_logo, gradient_color_1, gradient_color_2, gradient_color_3, portal_theme, theme_colors'
@@ -141,6 +144,14 @@ export default async function MainLayout({
   const uiMode = brandConfig.portalUiMode
   const lightBg = uiMode === 'obsidian' || uiMode === 'paper'
 
+  // Accent tints: use the per-instance settings when present, else derive from the primary color
+  // so the workspace shell always has sensible hover/soft accent variants (white-label, no AAIF
+  // hard-coding). Mono font stack falls back through common monospace families.
+  const derivedTints = deriveAccentTints(brandConfig.primaryColor)
+  const primaryColorLight = brandConfig.primaryColorLight || derivedTints.light
+  const primaryColorSoft = brandConfig.primaryColorSoft || derivedTints.soft
+  const fontMonoStack = `${brandConfig.fontMono || 'JetBrains Mono'}, ui-monospace, SFMono-Regular, Menlo, monospace`
+
   // Detect custom domain via middleware headers (legacy + new paths)
   const headersList = await headers()
   const isCustomDomain = headersList.get('x-custom-domain') === 'true'
@@ -150,8 +161,27 @@ export default async function MainLayout({
     ? await resolveCustomDomainEvent(headersList, brand)
     : null
 
+  // Workspace-shell access map (skipped on custom-domain microsites, which stay flat).
+  // §9.2a anonymous fast-path: only validate the session when a Supabase auth cookie is present,
+  // so anonymous public traffic incurs no auth round-trip or RBAC RPCs.
+  let portalAccess = ZERO_ACCESS
+  let accessMap = getModuleAccess(modules.railItems, portalAccess, false)
+  let isSignedIn = false
+  if (!isCustomDomain) {
+    const cookieStore = await cookies()
+    const hasAuthCookie = cookieStore.getAll().some((c) => /^sb-.*-auth-token(\.\d+)?$/.test(c.name))
+    if (hasAuthCookie) {
+      const supabase = await createAuthenticatedServerSupabase(brand)
+      const { data } = await supabase.auth.getUser()
+      const userId = data.user?.id ?? null
+      isSignedIn = Boolean(userId)
+      portalAccess = await resolvePortalAccess(supabase, userId)
+      accessMap = getModuleAccess(modules.railItems, portalAccess, Boolean(userId))
+    }
+  }
+
   return (
-    <html lang="en" data-brand={brandConfig.id} data-custom-domain={isCustomDomain ? 'true' : undefined} data-corners={brandConfig.cornerStyle} data-glow={brandConfig.gradientWaveConfig.glowEffects ? 'true' : 'false'} data-ui-mode={uiMode} className={lightBg ? 'light-brand' : ''} style={{ fontFamily: fontStack, fontSize: `${brandConfig.bodyTextSize || '16'}px`, '--font-weight-heading': brandConfig.fontHeadingWeight || '600', '--font-weight-body': brandConfig.fontBodyWeight || '400', '--primary-text': isLightColor(brandConfig.primaryColor) ? '#000000' : '#ffffff', '--glass-opacity': String(brandConfig.gradientWaveConfig.glassOpacity ?? 0.05), '--glass-blur': `${brandConfig.gradientWaveConfig.glassBlur ?? 4}px`, '--glass-border-opacity': String(brandConfig.gradientWaveConfig.glassBorderOpacity ?? 0.1) } as React.CSSProperties} suppressHydrationWarning>
+    <html lang="en" data-brand={brandConfig.id} data-custom-domain={isCustomDomain ? 'true' : undefined} data-corners={brandConfig.cornerStyle} data-glow={brandConfig.gradientWaveConfig.glowEffects ? 'true' : 'false'} data-ui-mode={uiMode} className={lightBg ? 'light-brand' : ''} style={{ fontFamily: fontStack, fontSize: `${brandConfig.bodyTextSize || '16'}px`, '--font-weight-heading': brandConfig.fontHeadingWeight || '600', '--font-weight-body': brandConfig.fontBodyWeight || '400', '--primary-text': isLightColor(brandConfig.primaryColor) ? '#000000' : '#ffffff', '--primary-color': brandConfig.primaryColor, '--glass-opacity': String(brandConfig.gradientWaveConfig.glassOpacity ?? 0.05), '--glass-blur': `${brandConfig.gradientWaveConfig.glassBlur ?? 4}px`, '--glass-border-opacity': String(brandConfig.gradientWaveConfig.glassBorderOpacity ?? 0.1), '--font-mono': fontMonoStack, '--font-display': `${brandConfig.fontHeading}, ui-sans-serif, system-ui, sans-serif`, '--font-sans': `${brandConfig.fontBody}, ui-sans-serif, system-ui, sans-serif`, '--success-color': brandConfig.successColor, '--warning-color': brandConfig.warningColor, '--danger-color': brandConfig.dangerColor, '--info-color': brandConfig.infoColor, '--primary-color-light': primaryColorLight, '--primary-color-soft': primaryColorSoft } as React.CSSProperties} suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
@@ -196,17 +226,28 @@ export default async function MainLayout({
           <TrackingProvider>
             <GlowProvider>
               {isCustomDomain ? (
-                <WhiteLabelHeader event={customDomainEvent} brandConfig={brandConfig} />
+                <>
+                  <WhiteLabelHeader event={customDomainEvent} brandConfig={brandConfig} />
+                  <div className="relative z-10 flex-1">
+                    {children}
+                  </div>
+                  <WhiteLabelFooter />
+                </>
               ) : (
-                <Header brandConfig={brandConfig} navItems={modules.portalNavItems} />
-              )}
-              <div className="relative z-10 flex-1">
-                {children}
-              </div>
-              {isCustomDomain ? (
-                <WhiteLabelFooter />
-              ) : (
-                <Footer />
+                <div className="relative z-10 flex-1 flex">
+                  <WorkspaceShell
+                    railItems={modules.railItems}
+                    access={accessMap}
+                    featureKeys={portalAccess.featureKeys}
+                    isSuperAdmin={portalAccess.isSuperAdmin}
+                    isSignedIn={isSignedIn}
+                    brandName={brandConfig.name}
+                    logoUrl={brandConfig.logoUrl || undefined}
+                    logoIconUrl={brandConfig.logoIconUrl || undefined}
+                  >
+                    {children}
+                  </WorkspaceShell>
+                </div>
               )}
               {!isCustomDomain && (
                 <ProfileCompletionWrapper brandConfig={brandConfig} />
@@ -215,6 +256,7 @@ export default async function MainLayout({
           </TrackingProvider>
         </AnalyticsProvider>
         {complianceEnabled && <CookieConsentLoader />}
+        <DevIndicatorNudge />
         {/*
           ChatWidgetLoader is currently disabled across all brands — the
           underlying agent isn't wired up. Re-enable by uncommenting the
