@@ -145,6 +145,13 @@ export default defineConfig(({ command }) => ({
         '**/.rebuild-status-*',
         '**/.gatewaze-modules/**',
       ],
+      // In the macOS Docker dev container, bind-mount fsevents don't reach
+      // chokidar, so host edits to /gatewaze-modules never trigger HMR.
+      // VITE_USE_POLLING (set on the admin service in docker-compose.dev.yml)
+      // switches to polling there. Native dev leaves it unset → fast fsevents.
+      ...(process.env.VITE_USE_POLLING === "true"
+        ? { usePolling: true, interval: 300 }
+        : {}),
     },
     proxy: {
       '/api': {
