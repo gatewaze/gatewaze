@@ -2,6 +2,7 @@
 import { useLocation } from "react-router";
 import { useLayoutEffect, useRef, useState, useMemo } from "react";
 import SimpleBar from "simplebar-react";
+import clsx from "clsx";
 
 // Local Imports
 import { useDidUpdate } from "@/hooks";
@@ -12,6 +13,8 @@ import { MenuItem } from "./Group/MenuItem";
 import { useFeaturePermissions } from "@/hooks/useFeaturePermissions";
 import { filterNavigationByPermissions } from "@/utils/navigationPermissions";
 import { useModulesContext } from "@/app/contexts/modules/context";
+import { useSidebarContext } from "@/app/contexts/sidebar/context";
+import { useBreakpointsContext } from "@/app/contexts/breakpoint/context";
 import { useNavigation } from "@/hooks/useNavigation";
 
 // ----------------------------------------------------------------------
@@ -21,6 +24,9 @@ export function Menu() {
   const ref = useRef<HTMLDivElement | null>(null);
   const { permissions, isSuperAdmin, isLoading } = useFeaturePermissions();
   const { isFeatureEnabled, allModuleFeatures, ready: modulesReady } = useModulesContext();
+  const { isCollapsed } = useSidebarContext();
+  const { xlAndUp } = useBreakpointsContext();
+  const collapsed = isCollapsed && xlAndUp;
   const navigation = useNavigation();
 
   // Filter navigation based on user permissions and enabled modules
@@ -62,7 +68,12 @@ export function Menu() {
   return (
     <SimpleBar
       scrollableNodeProps={{ ref }}
-      className="h-full overflow-x-hidden pb-6 pt-4"
+      className={clsx(
+        "h-full overflow-x-hidden pb-6",
+        // Extra top padding in the rail clears the absolutely-positioned
+        // collapse toggle that sits below the logo when collapsed.
+        collapsed ? "pt-14" : "pt-4",
+      )}
     >
       <Accordion value={expanded} onChange={setExpanded} className="space-y-1">
         {filteredNavigation.map((nav) => {

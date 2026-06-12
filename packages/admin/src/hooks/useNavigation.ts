@@ -4,16 +4,18 @@ import { dashboardItems } from '@/app/navigation/segments/dashboards';
 import { admin as staticAdmin } from '@/app/navigation/segments/admin';
 import { moduleNavItems as staticModuleNavItems } from '@/app/navigation/segments/modules';
 import { getModuleNavItemsFromRows, getModuleAdminNavItemsFromRows } from '@/app/navigation/segments/modules';
+import { applyNavLayout, seedLayoutFromTree } from '@/app/navigation/resolveNavLayout';
+import { useNavLayout } from '@/hooks/useNavLayout';
 import type { NavigationTree } from '@/@types/navigation';
 
 /**
- * Returns the full navigation tree with module items derived from the DB
- * (`installed_modules` rows) instead of the build-time module list.
- *
- * Falls back to the static build-time items when DB rows are not yet
- * available (e.g. during initial render before the modules context loads).
+ * The module-default navigation tree, BEFORE any user/org layout overlay.
+ * Module items derive from `installed_modules` DB rows (falling back to the
+ * static build-time list before the context loads). This is the full item
+ * pool the Navigation editor draws from — it must show every item regardless
+ * of whether the active layout hides or relocates it.
  */
-export function useNavigation(): NavigationTree[] {
+export function useBaseNavigation(): NavigationTree[] {
   const { rows, ready } = useModulesContext();
 
   return useMemo(() => {
@@ -44,10 +46,26 @@ export function useNavigation(): NavigationTree[] {
       }
     }
 
-    return [
-      ...dashboardItems,
-      ...moduleItems,
-      admin,
-    ];
+    return [...dashboardItems, ...moduleItems, admin];
   }, [rows, ready]);
+}
+
+/**
+ * Returns the navigation tree with the active org/user layout overlaid. Until
+ * the layout has loaded (and when none is configured) this is identical to
+ * {@link useBaseNavigation}, so the sidebar renders exactly as the module
+ * defaults dictate.
+ */
+export function useNavigation(): NavigationTree[] {
+  const baseTree = useBaseNavigation();
+  const { layout, ready: layoutReady } = useNavLayout();
+
+  return useMemo(() => {
+    if (!layoutReady) return baseTree;
+    // No saved layout → render the categorized default built from each item's
+    // module/core-declared placement (defaultSection/order), rather than the
+    // flat base tree.
+    const effective = layout ?? seedLayoutFromTree(baseTree);
+    return applyNavLayout(baseTree, effective);
+  }, [baseTree, layout, layoutReady]);
 }

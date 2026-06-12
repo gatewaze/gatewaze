@@ -2,23 +2,31 @@
 import { Navigate } from "react-router";
 import { useFeaturePermissions } from "@/hooks/useFeaturePermissions";
 import { useNavigation } from "@/hooks/useNavigation";
-import { getFirstAvailableRoute } from "@/utils/navigationPermissions";
+import { useNavLayout } from "@/hooks/useNavLayout";
+import { resolveDefaultRoute } from "@/utils/navigationPermissions";
 
 /**
- * Smart redirect component that redirects users to their first available route
- * based on their permissions
+ * Smart redirect component that sends the user to the configured default
+ * landing page, falling back to their first accessible route when they lack
+ * access to the configured default (or none is configured).
  */
 export function RoleBasedRedirect() {
   const { permissions, isSuperAdmin, isLoading } = useFeaturePermissions();
   const navigation = useNavigation();
+  const { layout, ready: layoutReady } = useNavLayout();
 
-  // Wait for permissions to load before redirecting
-  if (isLoading) {
+  // Wait for permissions and the nav layout to load before redirecting.
+  if (isLoading || !layoutReady) {
     return null;
   }
 
-  // Get the first available route based on user's permissions
-  const firstRoute = getFirstAvailableRoute(navigation, permissions, isSuperAdmin);
+  // Honour the configured default page when accessible, else first available.
+  const firstRoute = resolveDefaultRoute(
+    navigation,
+    permissions,
+    isSuperAdmin,
+    layout?.defaultRoute,
+  );
 
   // Debug logging
   console.log('[RoleBasedRedirect] Permissions:', permissions);

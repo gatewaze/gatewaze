@@ -10,6 +10,7 @@ export const dashboardItems: NavigationTree[] = [
     title: "Inbox",
     icon: "admin.inbox",
     requiredFeature: "content-platform.inbox",
+    order: 5,
   },
   {
     id: "people",
@@ -18,5 +19,7 @@ export const dashboardItems: NavigationTree[] = [
     title: "People",
     icon: "dashboards.members",
     requiredFeature: "dashboard_people",
+    defaultSection: "Community",
+    order: 200,
   },
 ];

@@ -32,6 +32,7 @@ export function createMockSupabase() {
       'select',
       'insert',
       'update',
+      'upsert',
       'delete',
       'eq',
       'neq',

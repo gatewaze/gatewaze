@@ -23,6 +23,8 @@ interface ModuleNavItem {
   requiredFeature?: string;
   parentGroup?: string;
   order?: number;
+  defaultSection?: string;
+  defaultLocation?: "sidebar" | "settings";
 }
 
 function buildNavItem(modId: string, navItem: ModuleNavItem): NavigationTree {
@@ -33,6 +35,8 @@ function buildNavItem(modId: string, navItem: ModuleNavItem): NavigationTree {
     title: navItem.label,
     icon: navItem.icon,
     requiredFeature: navItem.requiredFeature,
+    defaultSection: navItem.defaultSection,
+    order: navItem.order,
   };
 }
 

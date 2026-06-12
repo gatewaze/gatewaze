@@ -260,3 +260,68 @@ export function getFirstAvailableRoute(
 
   return null;
 }
+
+/** Returns the item's path if it's a leaf the user may access, else null. */
+function accessibleLeafPath(
+  item: NavigationTree,
+  permissionsMap: AdminPermissionsMap,
+  isSuperAdmin: boolean,
+): string | null {
+  if (!item.path || item.type !== 'item') {
+    return null;
+  }
+  if ('requiredFeature' in item && item.requiredFeature) {
+    return isSuperAdmin || permissionsMap[item.requiredFeature as AdminFeature] === true
+      ? item.path
+      : null;
+  }
+  return hasNavigationPermission(item.path, permissionsMap, isSuperAdmin) ? item.path : null;
+}
+
+/**
+ * Resolve the post-login landing route. Honours a configured default
+ * (a nav item's stable `id` or its `path`) when the user can access it;
+ * otherwise falls back to the first accessible route in menu order.
+ *
+ * This is the runtime fallback behind the configurable default-page setting:
+ * if the chosen default is the inbox but the user lacks inbox access, they
+ * land on the first module they *can* reach instead of a dead end.
+ */
+export function resolveDefaultRoute(
+  navigation: NavigationTree[],
+  permissionsMap: AdminPermissionsMap,
+  isSuperAdmin: boolean = false,
+  preferred?: string | null,
+): string | null {
+  if (preferred) {
+    const match = findAccessibleRoute(navigation, preferred, permissionsMap, isSuperAdmin);
+    if (match) {
+      return match;
+    }
+  }
+  return getFirstAvailableRoute(navigation, permissionsMap, isSuperAdmin);
+}
+
+/** Depth-first search for an accessible leaf matching `preferred` (by id or path). */
+function findAccessibleRoute(
+  navigation: NavigationTree[],
+  preferred: string,
+  permissionsMap: AdminPermissionsMap,
+  isSuperAdmin: boolean,
+): string | null {
+  for (const item of navigation) {
+    if (item.id === preferred || item.path === preferred) {
+      const path = accessibleLeafPath(item, permissionsMap, isSuperAdmin);
+      if (path) {
+        return path;
+      }
+    }
+    if (item.childs && item.childs.length > 0) {
+      const childMatch = findAccessibleRoute(item.childs, preferred, permissionsMap, isSuperAdmin);
+      if (childMatch) {
+        return childMatch;
+      }
+    }
+  }
+  return null;
+}

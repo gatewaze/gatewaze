@@ -127,6 +127,26 @@ const protectedRoutes: RouteObject = {
               },
             },
             {
+              path: "navigation",
+              lazy: async () => {
+                const module = await import("@/app/pages/settings/sections/Navigation");
+                return {
+                  Component: () => (
+                    <FeatureGuard feature="settings">
+                      <module.default />
+                    </FeatureGuard>
+                  ),
+                };
+              },
+            },
+            {
+              path: "profile",
+              lazy: async () => {
+                const module = await import("@/app/pages/profile");
+                return { Component: module.default };
+              },
+            },
+            {
               path: "emails",
               lazy: async () => {
                 const module = await import("@/app/pages/admin/emails");
