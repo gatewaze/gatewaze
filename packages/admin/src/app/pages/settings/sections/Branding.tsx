@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useModulesContext } from "@/app/contexts/modules/context";
-import { Tabs as RadixTabs, Text, Heading, Callout } from "@radix-ui/themes";
+import { Tabs as RadixTabs, Text, Heading, Callout, Switch } from "@radix-ui/themes";
 import {
   Palette,
   Loader2,
@@ -39,6 +39,10 @@ import { supabase } from "@/lib/supabase";
 import { updateFavicon } from "@/utils/favicon";
 import { refreshBrandingLogos } from "@/hooks/useBrandingLogos";
 import { useThemeContext } from "@/app/contexts/theme/context";
+import {
+  useContentTransitions,
+  CONTENT_TRANSITIONS_KEY,
+} from "@/app/contexts/contentTransitions";
 import { colors as colorPalettes } from "@/constants/colors";
 import type { PrimaryColor } from "@/configs/@types/theme";
 
@@ -157,6 +161,22 @@ function BrandingCard({
   const hasEvents = isFeatureEnabled('events');
   const isLocked = (key: string) => lockedSettings.includes(key);
   const { setPrimaryColorScheme, setSecondaryColor } = useThemeContext();
+  const { enabled: fadeEnabled, setEnabled: setFadeEnabled } = useContentTransitions();
+  const [fadeSaving, setFadeSaving] = useState(false);
+
+  // Self-contained: saves immediately and updates the live setting, decoupled
+  // from this section's colour Save button.
+  const handleFadeToggle = async (value: boolean) => {
+    setFadeEnabled(value);
+    setFadeSaving(true);
+    try {
+      await supabase
+        .from("platform_settings")
+        .upsert({ key: CONTENT_TRANSITIONS_KEY, value: value ? "on" : "off" }, { onConflict: "key" });
+    } finally {
+      setFadeSaving(false);
+    }
+  };
 
   const [settings, setSettings] =
     useState<BrandingSettings>(BRANDING_DEFAULTS);
@@ -1036,6 +1056,27 @@ function BrandingCard({
                 </button>
               ))}
             </div>
+          </div>
+
+          <hr className="border-[var(--gray-5)]" />
+
+          <div>
+            <Heading size="3" className="pb-1">
+              Content Transitions
+            </Heading>
+            <Text as="p" size="1" color="gray" className="pb-4">
+              Fade content in when navigating between dashboards and switching tabs.
+            </Text>
+            <label className="flex cursor-pointer items-center gap-3">
+              <Switch
+                checked={fadeEnabled}
+                onCheckedChange={handleFadeToggle}
+                disabled={fadeSaving}
+              />
+              <Text size="2" color="gray">
+                {fadeEnabled ? "Enabled" : "Disabled"}
+              </Text>
+            </label>
           </div>
 
           <hr className="border-[var(--gray-5)]" />

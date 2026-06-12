@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { ChevronRightIcon } from "@heroicons/react/20/solid";
 import { Tabs, type Tab } from "../Tabs";
 import { isRtl } from "@/utils/localeUtils";
+import { useContentTransitions } from "@/app/contexts/contentTransitions";
 
 /**
  * Trailing edge of the primary-coloured breadcrumb "flag" in the combined
@@ -121,6 +122,13 @@ export function WorkspaceLayout({
   const hasTabs = Boolean(tabs && tabs.length > 0 && activeTabId !== undefined && onTabChange);
   const hasSubTabs = Boolean(subTabs && subTabs.length > 0 && activeSubTabId !== undefined && onSubTabChange);
   const hasBreadcrumbs = Boolean(breadcrumbs && breadcrumbs.length > 0);
+
+  // Tab-level fade: when switching tabs/sub-tabs within the same dashboard the
+  // route doesn't change, so the route-level ContentFade won't fire — fade just
+  // the tab content here instead. Keyed on the active tab/sub-tab so it replays
+  // on each switch. Gated by the same setting as the route-level fade.
+  const { enabled: transitionsEnabled } = useContentTransitions();
+  const contentKey = `${activeTabId ?? ""}|${activeSubTabId ?? ""}`;
 
   return (
     <div className="workspace-layout">
@@ -316,7 +324,15 @@ export function WorkspaceLayout({
           inset so cards line up with the title and tab underline
           above. pt-8 below the tabs (or pt-4 when an actions bar
           already supplied breathing room). */}
-      <div className={(actions ? "pt-4 " : "pt-8 ") + "px-6 pb-6"}>{children}</div>
+      <div className={(actions ? "pt-4 " : "pt-8 ") + "px-6 pb-6"}>
+        {transitionsEnabled ? (
+          <div key={contentKey} className="content-fade-enter">
+            {children}
+          </div>
+        ) : (
+          children
+        )}
+      </div>
     </div>
   );
 }

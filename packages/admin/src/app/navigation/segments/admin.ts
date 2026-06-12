@@ -37,6 +37,14 @@ export const admin: NavigationTree = {
       requiredFeature: "settings",
     },
     {
+      id: "admin.navigation",
+      path: "/admin/navigation",
+      type: "item",
+      title: "Navigation",
+      icon: "Bars3",
+      requiredFeature: "settings",
+    },
+    {
       id: "admin.modules",
       path: "/admin/modules",
       type: "item",

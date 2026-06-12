@@ -23,6 +23,7 @@ import { slackRouter } from './routes/slack.js';
 import { calendarProxyRouter } from './routes/calendar-proxy.js';
 import { modulesRouter } from './routes/modules.js';
 import { apiKeysRouter } from './routes/api-keys.js';
+import { adminNavLayoutRouter } from './routes/admin-nav-layout.js';
 import { internalRouter } from './routes/internal.js';
 import { portalEventsRouter } from './routes/portal-events.js';
 import { hateoasMiddleware } from './lib/hateoas.js';
@@ -143,6 +144,7 @@ mountLabeled(app, '/api/slack', slackRouter);
 mountLabeled(app, '/api/calendar', calendarProxyRouter);
 mountLabeled(app, '/api/modules', modulesRouter);
 mountLabeled(app, '/api/api-keys', apiKeysRouter);
+mountLabeled(app, '/api/admin/nav-layout', adminNavLayoutRouter);
 mountLabeled(app, '/api/internal', internalRouter);
 
 // Portal-public read endpoints. Mounted under /api/portal/* so the

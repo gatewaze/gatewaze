@@ -20,6 +20,7 @@ const CORE_DESCRIPTIONS: Record<string, string> = {
   "admin.users": "Manage team members and their roles.",
   "admin.emails": "Email templates, topic labels, and delivery logs.",
   "admin.settings": "Branding, appearance, storage, and general settings.",
+  "admin.navigation": "Group, reorder, and place sidebar and settings menu items.",
   "admin.modules": "Install, enable, and configure platform modules.",
   "admin.api_keys": "Create and revoke API keys for integrations.",
 };
@@ -45,8 +46,19 @@ const TITLE_DESCRIPTIONS: Record<string, string> = {
   Webhooks: "Outgoing webhooks and delivery history.",
 };
 
-function getDescription(item: NavigationTree, label?: string): string | undefined {
-  return CORE_DESCRIPTIONS[item.id] ?? (label ? TITLE_DESCRIPTIONS[label] : undefined);
+function getDescription(
+  item: NavigationTree,
+  label: string | undefined,
+  moduleDescriptions: Map<string, string>,
+): string | undefined {
+  // Module cards reuse the module's own manifest description (the same text
+  // the Modules page shows) so nothing is blank; core items use the static map.
+  const moduleId = item.id.startsWith("module.") ? item.id.split(".")[1] : undefined;
+  return (
+    CORE_DESCRIPTIONS[item.id] ??
+    (moduleId ? moduleDescriptions.get(moduleId) : undefined) ??
+    (label ? TITLE_DESCRIPTIONS[label] : undefined)
+  );
 }
 
 // Per-card color theming so each settings tile is instantly recognizable.
@@ -117,9 +129,15 @@ function getColor(item: NavigationTree, label?: string): IconColor {
 export default function AdminIndex() {
   const { t } = useTranslation();
   const { permissions, isSuperAdmin, isLoading } = useFeaturePermissions();
-  const { isFeatureEnabled, allModuleFeatures, ready: modulesReady } =
+  const { isFeatureEnabled, allModuleFeatures, ready: modulesReady, rows } =
     useModulesContext();
   const navigation = useNavigation();
+
+  const moduleDescriptions = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const row of rows) if (row.description) map.set(row.id, row.description);
+    return map;
+  }, [rows]);
 
   const adminChildren = useMemo<NavigationTree[]>(() => {
     if (isLoading || !modulesReady) return [];
@@ -159,7 +177,7 @@ export default function AdminIndex() {
             if (!item.path) return null;
             const Icon = item.icon ? navigationIcons[item.icon] : undefined;
             const label = item.transKey ? t(item.transKey) : item.title;
-            const description = getDescription(item, label);
+            const description = getDescription(item, label, moduleDescriptions);
             const color = getColor(item, label);
 
             return (

@@ -337,6 +337,73 @@ export interface NavigationItem {
   requiredFeature: string;
   parentGroup?: string;
   order?: number;
+  /**
+   * Module-declared default surface for this item. The platform seeds the
+   * initial nav layout from this; an org/user layout may relocate it.
+   * Defaults to 'sidebar' when omitted.
+   */
+  defaultLocation?: NavLocation;
+  /**
+   * Module-declared default sidebar section title, e.g. 'Content' or 'AI'.
+   * Generalises the legacy `parentGroup`. Used only to seed the initial
+   * layout; an org/user layout may move the item to any section.
+   */
+  defaultSection?: string;
+}
+
+/** Where a nav item lives: the left sidebar, or the Settings page. */
+export type NavLocation = 'sidebar' | 'settings';
+
+/**
+ * A user-configurable admin navigation layout. It overlays the placement a
+ * module declares for its own items (see {@link NavigationItem.defaultLocation}
+ * / {@link NavigationItem.defaultSection}), so the resolution order is:
+ *
+ *   module defaults → org layout → per-user override → permission filter
+ *
+ * The same shape is stored in two places (see migration 00040):
+ *   - org-wide:  platform_settings key 'admin_nav_layout' (JSON string,
+ *                super_admin-writable)
+ *   - per-user:  admin_ui_preferences.nav_layout (jsonb, owner-writable)
+ *
+ * Items are referenced by their stable key (the rendered NavigationTree.id,
+ * e.g. 'inbox' or 'module.newsletter.admin.newsletter'). A key declared by a
+ * module but absent from the layout is reconciled into a hidden "Unsorted"
+ * bucket for a super_admin to file; a key in the layout whose module is no
+ * longer installed is dropped.
+ */
+export interface NavLayout {
+  /** Schema version, for forward-compatible migration of stored documents. */
+  version: 1;
+  /** Ordered sidebar sections (a section with no title renders ungrouped). */
+  sidebar: NavLayoutSection[];
+  /** Items relocated onto the Settings page, in order. */
+  settings: NavLayoutItem[];
+  /** Stable keys hidden from every surface. */
+  hidden: string[];
+  /** Stable key (or route path) of the default landing page after login. */
+  defaultRoute?: string;
+}
+
+export interface NavLayoutSection {
+  /** Stable slug for this section, unique within the layout. */
+  id: string;
+  /** Display title; omit/empty to render the items ungrouped at top level. */
+  title?: string;
+  /** Optional section heading icon name. */
+  icon?: string;
+  /** Ordered items belonging to this section. */
+  items: NavLayoutItem[];
+}
+
+/** A reference to a nav item by stable key, with optional per-item overrides. */
+export interface NavLayoutItem {
+  /** Stable key of the underlying item (matches the rendered NavigationTree.id). */
+  key: string;
+  /** Override the module-declared icon when rendered. */
+  icon?: string;
+  /** Override the module-declared label when rendered. */
+  label?: string;
 }
 
 export interface PortalRouteDefinition {
@@ -649,6 +716,8 @@ export interface InstalledModuleRow {
     requiredFeature?: string;
     parentGroup?: string;
     order?: number;
+    defaultLocation?: NavLocation;
+    defaultSection?: string;
   }> | null;
   edge_functions_hash?: string | null;
   source_id?: string | null;
