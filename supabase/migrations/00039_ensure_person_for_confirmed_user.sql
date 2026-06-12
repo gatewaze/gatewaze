@@ -1,5 +1,5 @@
 --------------------------------------------------------------------------------
--- Ensure every CONFIRMED auth user has a linked public.people row.
+-- Ensure every auth user has a linked public.people row.
 --
 -- Why: the portal sign-in flow (people-signup edge function) creates a person
 -- alongside the auth user, but other auth paths do not — notably the sites
@@ -8,26 +8,23 @@
 -- from the admin People list (RPC people_get_authenticated_sorted filters
 -- auth_user_id IS NOT NULL) and every people-keyed feature.
 --
--- This trigger closes that gap at the database level, for ALL signup paths.
+-- Policy (per product decision): create a person for EVERY auth user as soon
+-- as it's created — confirmed or not. We'd rather capture a real signup as a
+-- person than lose it waiting on an email confirmation that may never complete.
 --
--- Gated on email_confirmed_at: a person is created only once the user is
--- CONFIRMED (proves a real human), so unconfirmed / abandoned / bot signups
--- never pollute public.people. (An audit of aaif prod found 51 orphan auth
--- users — all unconfirmed, never-logged-in bot signups.)
---
--- Defensive: the body is wrapped so a failure can NEVER roll back the auth
--- write. Worst case it logs a warning and the person row is simply not created
--- (same as before this migration).
+-- This is a pure database insert: it NEVER sends an email (no GoTrue signup /
+-- confirmation / magic-link is invoked). It is also exception-wrapped so a
+-- person-creation hiccup can never roll back the auth write.
 --------------------------------------------------------------------------------
 
-CREATE OR REPLACE FUNCTION public.ensure_person_for_confirmed_user()
+CREATE OR REPLACE FUNCTION public.ensure_person_for_auth_user()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  IF NEW.email IS NULL OR NEW.email_confirmed_at IS NULL THEN
+  IF NEW.email IS NULL THEN
     RETURN NEW;
   END IF;
 
@@ -44,29 +41,30 @@ BEGIN
           updated_at   = now();
   EXCEPTION WHEN OTHERS THEN
     -- Never break auth on a person-creation hiccup.
-    RAISE WARNING '[ensure_person_for_confirmed_user] %: %', NEW.email, SQLERRM;
+    RAISE WARNING '[ensure_person_for_auth_user] %: %', NEW.email, SQLERRM;
   END;
 
   RETURN NEW;
 END;
 $$;
 
-COMMENT ON FUNCTION public.ensure_person_for_confirmed_user()
-  IS 'Creates/links a public.people row when an auth user becomes confirmed. Closes the website-signup gap; unconfirmed signups are ignored.';
+COMMENT ON FUNCTION public.ensure_person_for_auth_user()
+  IS 'Creates/links a public.people row for every auth user on creation. Pure DB insert — sends no email. Closes the website-signup gap.';
 
--- Fires on insert-with-confirmed and on the unconfirmed→confirmed transition.
--- On Supabase Cloud, creating triggers on auth.users requires elevated
--- privileges; wrap so the migration doesn't fail where it can't be created.
+-- Fire on every new auth user. On Supabase Cloud, creating triggers on
+-- auth.users requires elevated privileges; wrap so the migration doesn't fail
+-- where it can't be created.
 DO $$
 BEGIN
+  -- Replace the earlier confirmation-gated trigger if present.
   DROP TRIGGER IF EXISTS ensure_person_on_confirm ON auth.users;
-  CREATE TRIGGER ensure_person_on_confirm
-    AFTER INSERT OR UPDATE OF email_confirmed_at ON auth.users
+  DROP TRIGGER IF EXISTS ensure_person_on_signup ON auth.users;
+  CREATE TRIGGER ensure_person_on_signup
+    AFTER INSERT ON auth.users
     FOR EACH ROW
-    WHEN (NEW.email_confirmed_at IS NOT NULL)
-    EXECUTE FUNCTION public.ensure_person_for_confirmed_user();
+    EXECUTE FUNCTION public.ensure_person_for_auth_user();
 EXCEPTION
   WHEN insufficient_privilege THEN
-    RAISE NOTICE 'Skipping auth.users trigger ensure_person_on_confirm — needs elevated privileges (on Cloud, wire a database webhook instead)';
+    RAISE NOTICE 'Skipping auth.users trigger ensure_person_on_signup — needs elevated privileges (on Cloud, wire a database webhook instead)';
 END;
 $$;
