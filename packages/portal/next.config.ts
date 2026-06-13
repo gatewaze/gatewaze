@@ -1,5 +1,5 @@
 import type { NextConfig } from 'next'
-import { existsSync, readFileSync } from 'fs'
+import { existsSync, readFileSync, realpathSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 
@@ -157,6 +157,22 @@ const nextConfig: NextConfig = {
       // Same fix as packages/admin/vite.config.ts. See
       // packages/portal/lib/stubs/jsdom-empty.ts.
       jsdom: resolve(__dirname, 'lib/stubs/jsdom-empty.ts'),
+    }
+
+    // `@react-email/components` is a meta-package whose sub-packages
+    // (`@react-email/body`, `/button`, …) live in its pnpm store-entry
+    // node_modules. With `resolve.symlinks = false` above (kept for the module
+    // source symlinks), webpack resolves those sub-packages from the symlink
+    // dir — where only `components`/`render` exist — and the build fails with
+    // "Can't resolve '@react-email/body'". Alias the package to its REAL
+    // (realpath'd) location so its sub-packages resolve as siblings. Lets the
+    // newsletters portal pages render editions with the declarative renderer.
+    for (const base of moduleAliasPaths) {
+      const linked = resolve(base, 'newsletters/node_modules/@react-email/components')
+      if (existsSync(linked)) {
+        config.resolve.alias['@react-email/components$'] = realpathSync(linked)
+        break
+      }
     }
 
     // TypeScript ESM convention: source files use `.js` in import
