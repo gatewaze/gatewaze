@@ -75,13 +75,40 @@ async function handler(req: Request) {
 
     console.log(`   Person ID: ${personId || 'not found'}`)
 
+    // Resolve the list. Callers may pass either a list UUID (e.g. from the
+    // portal) or a human-friendly list slug (e.g. 'user-community' from the
+    // onboarding frontend). When it isn't a UUID, look the list up by slug and
+    // store its canonical id so all subscription rows for a list share one
+    // list_id. Unknown slugs fall through to the raw value (logged), so a typo
+    // never silently drops the subscription.
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(list_id)
+    let resolvedListId = list_id
+    if (!isUuid) {
+      const { data: list, error: listLookupError } = await supabaseClient
+        .from('lists')
+        .select('id')
+        .eq('slug', list_id)
+        .maybeSingle()
+
+      if (listLookupError) {
+        console.warn(`⚠️ List lookup error for slug '${list_id}':`, listLookupError.message)
+      }
+
+      if (list?.id) {
+        resolvedListId = list.id
+        console.log(`   Resolved list slug '${list_id}' -> ${resolvedListId}`)
+      } else {
+        console.warn(`⚠️ No list found for slug '${list_id}' — storing raw value`)
+      }
+    }
+
     // Write to Supabase (source of truth)
     const { data, error } = await supabaseClient
       .from('list_subscriptions')
       .upsert({
         person_id: personId || null,
         email: normalizedEmail,
-        list_id,
+        list_id: resolvedListId,
         subscribed,
         subscribed_at: subscribed ? now : null,
         unsubscribed_at: subscribed ? null : now,
@@ -107,7 +134,7 @@ async function handler(req: Request) {
     // Notify integration modules (e.g. Customer.io) about the subscription change
     emitIntegrationEvent(supabaseClient, 'person.subscribed', {
       email: normalizedEmail,
-      list_id,
+      list_id: resolvedListId,
       subscribed,
     })
 
