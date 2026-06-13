@@ -2,6 +2,27 @@
 # Processes background jobs from the BullMQ queue
 # Includes Puppeteer for scraper jobs and Goose CLI for recipe execution
 
+# ---- Stage 1: Build @gatewaze/shared ----
+# Module job handlers transitively import from `@gatewaze/shared/modules`
+# (e.g. the AI module's secret-shim.ts). Without shared compiled into the
+# worker image the handler chain throws MODULE_NOT_FOUND on first require
+# and the dispatcher logs a silent no-op. Mirror the api image's pattern:
+# build packages/shared/dist in a builder stage, copy + symlink into the
+# runtime image so Node's resolver finds it from cloned module code.
+FROM node:22-slim AS builder
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN corepack enable && corepack prepare pnpm@latest --activate
+WORKDIR /app
+COPY package.json ./
+COPY tsconfig.json ./
+RUN printf 'packages:\n  - "packages/*"\n' > pnpm-workspace.yaml
+COPY packages/shared/package.json packages/shared/
+RUN --mount=type=cache,id=pnpm-worker,target=/root/.local/share/pnpm/store \
+    pnpm install --no-frozen-lockfile --config.dangerously-allow-all-builds=true --filter @gatewaze/shared...
+COPY packages/shared/ packages/shared/
+RUN pnpm --filter @gatewaze/shared build
+
+# ---- Stage 2: Runtime ----
 FROM node:22-slim
 
 # Goose CLI version. Pinned for build reproducibility — Renovate watches
@@ -149,6 +170,19 @@ RUN if [ -n "$BUILD_TIME_GITHUB_TOKEN" ]; then \
     node /docker/shared/aggregate-module-deps.mjs /app/package.json; \
     cd /app && npm install --omit=dev 2>&1 | tail -5 \
       || echo "[worker-prebuild] Warning: npm install for aggregated module deps failed"
+
+# Copy compiled @gatewaze/shared from the builder stage and expose it as a
+# package in the runtime node_modules. Module job handlers transitively
+# import from `@gatewaze/shared/modules` (AI sync, etc.); without this they
+# throw MODULE_NOT_FOUND at handler load time and the dispatcher silently
+# no-ops. Placed AFTER the module-deps `npm install` so its prune step
+# can't remove the symlink as extraneous. Build-time require.resolve
+# fails the image build loudly if the package layout is wrong.
+COPY --from=builder /app/packages/shared/package.json packages/shared/package.json
+COPY --from=builder /app/packages/shared/dist packages/shared/dist
+RUN mkdir -p node_modules/@gatewaze && \
+    ln -sfn /app/packages/shared node_modules/@gatewaze/shared && \
+    node -e 'console.log("shared resolves:", require.resolve("@gatewaze/shared/modules"))'
 
 # Runs as root: the entrypoint writes symlinks under / and .gitconfig under
 # the user's home. Override via the chart's worker.securityContext if needed.
