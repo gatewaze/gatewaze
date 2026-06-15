@@ -69,6 +69,15 @@ jobs:
             ghcr.io/gatewaze/portal:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # Portal now bakes module npm deps at build time (mirrors
+          # the api + worker + admin pattern). The Dockerfile clones
+          # BUILD_TIME_MODULE_SOURCES and aggregates their declared
+          # deps into the workspace install so `next build` at pod
+          # startup can resolve module-side packages without a
+          # per-pod aggregate-and-install. PAT, not auto-token,
+          # because premium-gatewaze-modules is private.
+          build-args: |
+            BUILD_TIME_GITHUB_TOKEN=${{ secrets.GH_PAT_MODULES }}
 
       - name: Build and push api image
         uses: docker/build-push-action@v6
