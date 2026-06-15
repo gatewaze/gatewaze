@@ -16,7 +16,7 @@ import { getSupabaseClient } from '@/lib/supabase/client'
 import { isOnCustomDomain } from '@/lib/customDomain'
 import { isLightColor } from '@/config/brand'
 
-interface NavItem {
+export interface NavItem {
   label: string
   href: string
   icon: React.ReactNode
@@ -114,7 +114,7 @@ function useModuleNavItems(basePath: string, hasVirtualEvent: boolean) {
   return items
 }
 
-function useNavItems(event: Event, basePath: string, speakerCount: number, sponsorCount: number, competitionCount: number, discountCount: number, mediaCount: number, hasVirtualEvent: boolean, userState?: EventUserState) {
+export function useNavItems(event: Event, basePath: string, speakerCount: number, sponsorCount: number, competitionCount: number, discountCount: number, mediaCount: number, hasVirtualEvent: boolean, userState?: EventUserState) {
   const moduleNavItems = useModuleNavItems(basePath, hasVirtualEvent)
 
   const navItems: NavItem[] = [
@@ -276,7 +276,7 @@ function useNavItems(event: Event, basePath: string, speakerCount: number, spons
   return navItems.filter(item => item.show)
 }
 
-function useRegisterLink(event: Event, basePath: string) {
+export function useRegisterLink(event: Event, basePath: string) {
   const now = new Date()
   const eventEndDate = event.event_end ? new Date(event.event_end) : new Date(event.event_start)
   const isPastEvent = eventEndDate < now
@@ -302,7 +302,7 @@ function useRegisterLink(event: Event, basePath: string) {
  * Build a tracked external URL from stored sessionStorage tracking params.
  * Creates a tracking session and encodes the session ID into UTM params.
  */
-function useExternalRegisterHandler(event: Event) {
+export function useExternalRegisterHandler(event: Event) {
   return useCallback(async () => {
     if (!event.event_link) return
 

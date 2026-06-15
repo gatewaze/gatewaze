@@ -184,8 +184,45 @@ function AboutEventContentInner() {
     showJoinPanelOverride
   )
 
+  // Overview key facts — shown as 2×2 tiles at the top of the page.
+  const facts = useMemo(() => {
+    const fmtDate = (iso: string) => { try { return new Date(iso).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) } catch { return '' } }
+    const fmtTime = (iso: string) => { try { return new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) } catch { return '' } }
+    const dateStr = fmtDate(event.event_start)
+    const timeStr = event.event_end ? `${fmtTime(event.event_start)} – ${fmtTime(event.event_end)}` : fmtTime(event.event_start)
+    const locStr = [event.venue_address, event.event_city].filter((s): s is string => !!s && s.toLowerCase() !== 'na').join(', ') || event.event_location || ''
+    const typeStr = event.event_type ? event.event_type.replace(/[-_]+/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase()) : ''
+    const cal = <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v3M16 3v3"/></svg>
+    const clock = <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+    const pin = <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+    const tag = <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round"><path d="M3 11l8-8 10 10-8 8z"/><circle cx="8" cy="8" r="1.5"/></svg>
+    const out: { key: string; icon: React.ReactNode; value: string }[] = []
+    if (dateStr) out.push({ key: 'date', icon: cal, value: dateStr })
+    if (timeStr) out.push({ key: 'time', icon: clock, value: timeStr })
+    if (locStr) out.push({ key: 'loc', icon: pin, value: locStr })
+    if (typeStr) out.push({ key: 'type', icon: tag, value: typeStr })
+    return out
+  }, [event])
+
   return (
     <div>
+      {/* Overview lede + key facts */}
+      {event.listing_intro && (
+        <p className={`mb-6 text-base sm:text-lg leading-relaxed ${panelTheme.textColor}`} style={{ opacity: 0.92 }}>
+          {event.listing_intro}
+        </p>
+      )}
+      {facts.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
+          {facts.map((f) => (
+            <div key={f.key} className={`flex items-center gap-3 px-4 py-3.5 rounded-xl ${panelTheme.panelBg} ${panelTheme.panelBorder} ${panelTheme.textColor}`}>
+              <span className={`flex-shrink-0 [&_svg]:w-4 [&_svg]:h-4 ${panelTheme.textMuted}`} aria-hidden>{f.icon}</span>
+              <span className="text-sm" suppressHydrationWarning>{f.value}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Join Event Panel */}
       {showJoinPanel && (
         <div className={`mb-6 transition-opacity duration-500 ease-out ${mounted ? 'opacity-100' : 'opacity-0'}`}>

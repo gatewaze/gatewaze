@@ -5,83 +5,14 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import type { Event } from '@/types/event'
-import type { BrandConfig } from '@/config/brand'
+import type { BrandConfig, ContentCategoryOption } from '@/config/brand'
 import { GlowBorder } from '@/components/ui/GlowBorder'
+import { PortalButton } from '@/components/ui/PortalButton'
 import { stripEmojis } from '@/lib/text'
 import { isOnCustomDomain } from '@/lib/customDomain'
-
-interface DateParts {
-  month: string
-  day: string
-  weekday: string
-  fullDate: string
-  /** Ordinal suffix (st, nd, rd, th) for day-first locales, empty for month-first */
-  ordinalSuffix: string
-  /** Whether the locale uses day-first format (e.g., "3 March" vs "March 3") */
-  isDayFirst: boolean
-}
-
-/**
- * Get ordinal suffix for a day number (1st, 2nd, 3rd, 4th, etc.)
- */
-function getOrdinalSuffix(day: number): string {
-  if (day >= 11 && day <= 13) {
-    return 'th'
-  }
-  switch (day % 10) {
-    case 1: return 'st'
-    case 2: return 'nd'
-    case 3: return 'rd'
-    default: return 'th'
-  }
-}
-
-/**
- * Check if a date string uses day-first format (e.g., "3 March" vs "March 3")
- */
-function isDayFirstFormat(dateStr: string, day: number): boolean {
-  return dateStr.match(new RegExp(`^${day}\\s`)) !== null
-}
-
-// Format date using en-US locale for consistent SSR (fallback)
-function formatDatePartsSSR(dateStr: string): DateParts {
-  try {
-    const date = new Date(dateStr)
-    const dayNum = date.getDate()
-    const fullDateRaw = date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
-    const isDayFirst = isDayFirstFormat(fullDateRaw, dayNum)
-    return {
-      month: date.toLocaleDateString('en-US', { month: 'short' }).toUpperCase(),
-      day: date.toLocaleDateString('en-US', { day: 'numeric' }),
-      weekday: date.toLocaleDateString('en-US', { weekday: 'long' }),
-      fullDate: fullDateRaw,
-      ordinalSuffix: isDayFirst ? getOrdinalSuffix(dayNum) : '',
-      isDayFirst,
-    }
-  } catch {
-    return { month: '', day: '', weekday: '', fullDate: dateStr, ordinalSuffix: '', isDayFirst: false }
-  }
-}
-
-// Format date using viewer's locale (client-side only)
-function formatDatePartsClient(dateStr: string): DateParts {
-  try {
-    const date = new Date(dateStr)
-    const dayNum = date.getDate()
-    const fullDateRaw = date.toLocaleDateString(undefined, { month: 'long', day: 'numeric' })
-    const isDayFirst = isDayFirstFormat(fullDateRaw, dayNum)
-    return {
-      month: date.toLocaleDateString(undefined, { month: 'short' }).toUpperCase(),
-      day: date.toLocaleDateString(undefined, { day: 'numeric' }),
-      weekday: date.toLocaleDateString(undefined, { weekday: 'long' }),
-      fullDate: fullDateRaw,
-      ordinalSuffix: isDayFirst ? getOrdinalSuffix(dayNum) : '',
-      isDayFirst,
-    }
-  } catch {
-    return { month: '', day: '', weekday: '', fullDate: dateStr, ordinalSuffix: '', isDayFirst: false }
-  }
-}
+import { useRegisterLink, useExternalRegisterHandler } from './EventSidebar'
+import { useRegistrationStatus } from '@/hooks/useRegistrationStatus'
+import { AddToCalendarButton } from './AddToCalendarButton'
 
 function formatTimeSSR(dateStr: string): string {
   try {
@@ -107,6 +38,24 @@ function formatTimeClient(dateStr: string): string {
   } catch {
     return ''
   }
+}
+
+// Compact meta-line date ("Jun 11, 2026"). SSR uses en-US; client re-formats to the viewer locale.
+function formatMetaDateSSR(dateStr: string): string {
+  try { return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) } catch { return '' }
+}
+function formatMetaDateClient(dateStr: string): string {
+  try { return new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) } catch { return '' }
+}
+function countryFlag(code: string | null | undefined): string {
+  if (!code) return ''
+  const cc = code.toUpperCase()
+  if (!/^[A-Z]{2}$/.test(cc)) return ''
+  return String.fromCodePoint(...[...cc].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65))
+}
+function countryName(code: string | null | undefined): string {
+  if (!code || code.length !== 2) return ''
+  try { return new Intl.DisplayNames(undefined, { type: 'region' }).of(code.toUpperCase()) ?? '' } catch { return '' }
 }
 
 /**
@@ -215,9 +164,9 @@ export function EventHero({ event, brandConfig, useDarkText, heroRef }: Props) {
   }, [searchParams, event.event_start, event.event_end])
 
   // Use SSR-safe date formatting initially, then update to client locale after hydration
-  const [dateParts, setDateParts] = useState<DateParts>(() => formatDatePartsSSR(event.event_start))
   const [startTime, setStartTime] = useState(() => formatTimeSSR(event.event_start))
   const [endTime, setEndTime] = useState(() => event.event_end ? formatTimeSSR(event.event_end) : '')
+  const [metaDate, setMetaDate] = useState(() => formatMetaDateSSR(event.event_start))
 
   // Track image aspect ratio for natural sizing. Default to 1 (square)
   // until the image's natural dimensions resolve via next/image's
@@ -237,9 +186,9 @@ export function EventHero({ event, brandConfig, useDarkText, heroRef }: Props) {
   useEffect(() => {
     // Reformat whenever the effective start / end changes (initial render,
     // hydration, or invite-driven sub-event override).
-    setDateParts(formatDatePartsClient(effectiveStart))
     setStartTime(formatTimeClient(effectiveStart))
     setEndTime(effectiveEnd ? formatTimeClient(effectiveEnd) : '')
+    setMetaDate(formatMetaDateClient(effectiveStart))
   }, [effectiveStart, effectiveEnd])
 
   // Helper to detect if a string looks like coordinates (e.g., "37.3893889,-122.0832101")
@@ -260,12 +209,28 @@ export function EventHero({ event, brandConfig, useDarkText, heroRef }: Props) {
     .filter(s => s && s.toLowerCase() !== 'na' && s.toLowerCase() !== 'on') // Filter out placeholder values
     .join(', ')
 
-  // Determine if we have any location info to show
-  const hasLocation = venueName || cityRegion
 
   // Event identifier for linking — use basePath for custom domain compat
   const eventIdentifier = event.event_slug || event.event_id
   const eventBasePath = isOnCustomDomain() ? '' : `/events/${eventIdentifier}`
+
+  // Register CTA — reuses the sidebar's link/tracking/registration-status logic.
+  const { showRegisterButton, useExternalLink, registerHref } = useRegisterLink(event, eventBasePath)
+  const handleExternalRegister = useExternalRegisterHandler(event)
+  const { isRegistered } = useRegistrationStatus(event)
+  const showRegister = showRegisterButton && !isRegistered
+
+  // Category badge — humanize the raw content_category when it's not in the brand config.
+  const categoryLabel = event.content_category
+    ? brandConfig.contentCategories.find((c: ContentCategoryOption) => c.value === event.content_category)?.label
+        ?? event.content_category.replace(/[-_]+/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase())
+    : null
+
+  // Meta line bits: date · time · 📍 city, country
+  const flag = countryFlag(event.event_country_code)
+  const regionName = countryName(event.event_country_code)
+  const metaPlace = cityRegion || venueName || ''
+  const metaLocation = [metaPlace, regionName && regionName !== metaPlace ? regionName : null].filter(Boolean).join(', ')
 
   // Fixed width for the image column (used for alignment with sidebar below)
   const IMAGE_COLUMN_WIDTH = 'w-full lg:w-[320px]'
@@ -340,118 +305,55 @@ export function EventHero({ event, brandConfig, useDarkText, heroRef }: Props) {
 
         {/* Right Column - Event Details (takes remaining width) */}
         <div className="order-2 lg:order-2 flex-1 min-w-0 flex flex-col items-center lg:items-start">
+          {/* Category badge */}
+          {categoryLabel && (
+            <span
+              className="inline-flex self-center lg:self-start px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider rounded mb-3"
+              style={{
+                backgroundColor: useDarkText ? 'rgba(17,24,39,0.08)' : 'rgba(255,255,255,0.14)',
+                color: useDarkText ? '#111827' : '#ffffff',
+              }}
+            >
+              {categoryLabel}
+            </span>
+          )}
+
           {/* Title */}
           <h1
-            className={`text-3xl sm:text-4xl lg:text-5xl font-bold mb-6 leading-none text-center lg:text-left ${useDarkText ? '' : 'drop-shadow-lg'}`}
-            style={theme.textStyle}
+            className={`text-3xl sm:text-4xl lg:text-5xl font-bold mb-3 leading-[1.05] text-center lg:text-left ${useDarkText ? '' : 'drop-shadow-lg'}`}
+            style={{ ...theme.textStyle, fontFamily: 'var(--font-display)' }}
           >
             {stripEmojis(event.event_title)}
           </h1>
 
-          {/* Date & Location Panel */}
-          {/* Use horizontal layout when image is landscape (creates gap below image) */}
-          {/* items-start (vs items-center) keeps the calendar and pin icon
-              boxes vertically aligned at the same x within the panel — the
-              panel itself is still horizontally centered by the parent's
-              items-center on mobile. */}
-          <div className={`flex items-start ${
-            imageAspectRatio && imageAspectRatio > 1.3 && hasLocation
-              ? 'flex-col lg:flex-row gap-0 lg:gap-12'
-              : 'flex-col'
-          }`}>
-            {/* Date & Time - Calendar style */}
-            <div className={`flex items-center gap-3 lg:gap-4 ${
-              imageAspectRatio && imageAspectRatio > 1.3 && hasLocation ? 'mb-4 lg:mb-0' : 'mb-4'
-            }`}>
-              {/* Calendar icon box */}
-              <div
-                className={`flex-shrink-0 w-12 h-12 lg:w-14 lg:h-14 rounded-lg flex flex-col items-center justify-center ${
-                  useDarkText ? 'bg-gray-900/5' : 'bg-white/5'
-                }`}
-                style={{ backdropFilter: 'blur(var(--glass-blur, 4px))', WebkitBackdropFilter: 'blur(var(--glass-blur, 4px))' }}
-              >
-                <span
-                  className="text-[10px] lg:text-xs font-semibold leading-none"
-                  style={theme.textMutedStyle}
-                  suppressHydrationWarning
-                >
-                  {dateParts.month}
-                </span>
-                <span
-                  className="text-xl lg:text-2xl font-bold leading-none mt-0.5"
-                  style={theme.textStyle}
-                  suppressHydrationWarning
-                >
-                  {dateParts.day}
-                </span>
-              </div>
-              {/* Date details */}
-              <div>
-                <div className="font-semibold text-base lg:text-lg" style={theme.textStyle} suppressHydrationWarning>
-                  {dateParts.weekday},{' '}
-                  {dateParts.isDayFirst ? (
-                    <>
-                      {dateParts.day}
-                      <sup className="text-[0.6em] font-bold ml-[0.05em]">{dateParts.ordinalSuffix}</sup>
-                      {dateParts.fullDate.replace(/^\d+\s*/, ' ')}
-                    </>
-                  ) : (
-                    dateParts.fullDate
-                  )}
-                </div>
-                <div className="text-sm lg:text-base" style={theme.textMutedStyle} suppressHydrationWarning>
-                  {startTime}
-                  {endTime && ` - ${endTime}`}
-                </div>
-              </div>
-            </div>
+          {/* Meta line: date · time · location */}
+          <div
+            className="text-sm sm:text-base text-center lg:text-left mb-5"
+            style={theme.textMutedStyle}
+            suppressHydrationWarning
+          >
+            {[
+              metaDate,
+              startTime && (endTime ? `${startTime} – ${endTime}` : startTime),
+              metaLocation ? `${flag ? flag + ' ' : ''}${metaLocation}` : null,
+            ].filter(Boolean).join('  ·  ')}
+          </div>
 
-            {/* Location */}
-            {hasLocation && (
-              <div className={`flex items-center gap-3 lg:gap-4 ${
-                imageAspectRatio && imageAspectRatio > 1.3 ? 'mb-6 lg:mb-0' : 'mb-6'
-              }`}>
-                {/* Location icon box */}
-                <div
-                  className={`flex-shrink-0 w-12 h-12 lg:w-14 lg:h-14 rounded-lg flex items-center justify-center ${
-                    useDarkText ? 'bg-gray-900/5' : 'bg-white/5'
-                  }`}
-                  style={{ backdropFilter: 'blur(var(--glass-blur, 4px))', WebkitBackdropFilter: 'blur(var(--glass-blur, 4px))' }}
-                >
-                  <svg
-                    className="w-5 h-5 lg:w-6 lg:h-6"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    style={theme.textStyle}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                    />
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                    />
-                  </svg>
-                </div>
-                {/* Location details */}
-                <div>
-                  <div className="font-semibold text-base lg:text-lg" style={theme.textStyle}>
-                    {venueName || cityRegion}
-                  </div>
-                  {venueName && cityRegion && (
-                    <div className="text-sm lg:text-base" style={theme.textMutedStyle}>
-                      {cityRegion}
-                    </div>
-                  )}
-                </div>
-              </div>
+          {/* Actions: Register + Add to calendar */}
+          <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3">
+            {showRegister && (
+              <PortalButton
+                variant="primary"
+                primaryColor={primaryColor}
+                href={useExternalLink ? undefined : registerHref!}
+                onClick={useExternalLink ? handleExternalRegister : undefined}
+                glow
+                className="h-11 px-5 justify-center"
+              >
+                {event.register_button_text || 'Register'}
+              </PortalButton>
             )}
+            <AddToCalendarButton event={event} useDarkText={useDarkText} />
           </div>
 
         </div>
