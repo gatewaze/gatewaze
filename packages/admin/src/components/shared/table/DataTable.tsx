@@ -1,5 +1,5 @@
-import { ReactNode } from "react";
-import { flexRender, type Table as TanstackTable } from "@tanstack/react-table";
+import { Fragment, ReactNode } from "react";
+import { flexRender, type Table as TanstackTable, type Row } from "@tanstack/react-table";
 import { Table, THead, TBody, Tr, Th, Td } from "@/components/ui";
 import { ScrollableTable } from "./ScrollableTable";
 
@@ -9,6 +9,9 @@ interface DataTableProps<T> {
   emptyState?: ReactNode;
   colSpan?: number;
   onRowDoubleClick?: (row: T) => void;
+  // When provided, expanded rows (row.getIsExpanded()) render this below the
+  // row, spanning all columns. The table must enable getExpandedRowModel().
+  renderSubComponent?: (row: Row<T>) => ReactNode;
 }
 
 // Checkbox column width — used to offset the second column when select is first
@@ -20,6 +23,7 @@ export function DataTable<T>({
   emptyState,
   colSpan,
   onRowDoubleClick,
+  renderSubComponent,
 }: DataTableProps<T>) {
   const columnCount = colSpan ?? table.getAllColumns().length;
   const firstColIsSelect = table.getAllColumns()[0]?.id === "select";
@@ -141,8 +145,8 @@ export function DataTable<T>({
               const cells = row.getVisibleCells();
               const total = cells.length;
               return (
+                <Fragment key={row.id}>
                 <Tr
-                  key={row.id}
                   onDoubleClick={
                     onRowDoubleClick
                       ? () => onRowDoubleClick(row.original)
@@ -173,6 +177,33 @@ export function DataTable<T>({
                     </Td>
                   ))}
                 </Tr>
+                {renderSubComponent && row.getIsExpanded() && (
+                  <Tr>
+                    {total >= 3 ? (
+                      <>
+                        {/* Frozen left/right spacer cells (opaque, sticky) so the
+                            expanded content scrolls UNDER the pinned first/last
+                            columns instead of over them. */}
+                        <Td
+                          {...getStickyDataAttrs(0, total)}
+                          style={{ padding: 0, ...getStickyStyle(0, total, false) }}
+                        />
+                        <Td colSpan={total - 2} style={{ padding: 0 }}>
+                          {renderSubComponent(row)}
+                        </Td>
+                        <Td
+                          {...getStickyDataAttrs(total - 1, total)}
+                          style={{ padding: 0, ...getStickyStyle(total - 1, total, false) }}
+                        />
+                      </>
+                    ) : (
+                      <Td colSpan={total} style={{ padding: 0 }}>
+                        {renderSubComponent(row)}
+                      </Td>
+                    )}
+                  </Tr>
+                )}
+                </Fragment>
               );
             })
           )}
