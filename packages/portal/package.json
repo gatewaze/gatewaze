@@ -24,6 +24,8 @@
     "@ai-sdk/react": "^3.0.143",
     "@anthropic-ai/sdk": "^0.39.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@react-email/components": "^1.0.12",
+    "@react-email/render": "^2.0.8",
     "@react-three/fiber": "^9.5.0",
     "@shadergradient/react": "^2.4.20",
     "@supabase/ssr": "^0.7.0",
