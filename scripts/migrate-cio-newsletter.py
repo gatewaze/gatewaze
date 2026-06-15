@@ -222,8 +222,42 @@ def first_link(links, rx=r'.'):
         if re.search(rx,l['text'],re.I): return l
     return links[0] if links else None
 
+# Section names that the BLOCK TEMPLATE already renders as an eyebrow. The
+# source repeats them in the content, so strip a leading occurrence to avoid
+# the "MLOPS COMMUNITY / MLOps Community" double-heading.
+_EB=r'(?:hot take|mlops community|ml confessions|hidden gems|job of the week|last week\W*s take|meme of the week|how we(?: can)? help|agent infrastructure|reading group|podcast|blogs?|curated finds[^<.]*)'
+# strip a leading eyebrow that may sit inside any nesting of opening tags
+# (<p>, <strong>, <span>, <h3>...): re-emit the opening tags, drop the phrase,
+# then clean up the now-empty inline/paragraph tags it leaves behind.
+EYEBROW_HTML=re.compile(r'^((?:\s*<[^/][^>]*>)*)\s*(?:💡\s*)?'+_EB+r'[:.\-—\s]*', re.I)
+EYEBROW_FULL=re.compile(r'^\W*(?:💡\s*)?'+_EB+r'\W*$', re.I)
+def strip_eyebrow_html(s):
+    if not s: return s
+    s=EYEBROW_HTML.sub(lambda mm: mm.group(1) or '', s, count=1)
+    s=re.sub(r'<(strong|b|em|span|h3)>\s*</\1>','',s)   # emptied inline tags
+    s=re.sub(r'<p>\s*</p>','',s)                        # emptied paragraph
+    return s.strip()
+
+# When a title field is empty but the body opens with a standalone heading
+# (a whole-paragraph <strong>…</strong> or a leading <h3>), lift it into the
+# title field so the block's title isn't blank with the heading stuck in body.
+_LEAD_HEADING=re.compile(r'^\s*<p>\s*<strong>(.*?)</strong>\s*</p>\s*|^\s*<h3>(.*?)</h3>\s*', re.S)
+def promote_body_title(title, body):
+    if title: return title, body
+    m=_LEAD_HEADING.match(body or '')
+    if m:
+        t=re.sub(r'<[^>]+>','',m.group(1) or m.group(2) or '').strip()
+        if t: return t, body[m.end():].strip()
+    return title, body
+def clean_title(t): return '' if (t and EYEBROW_FULL.match(t)) else t  # title that's ONLY an eyebrow → drop
+
 def assemble(block, brick, sec):
-    desc=strip_lead_title(sec['body'], sec['title']); L=lambda r='.':first_link(sec['links'],r) or {}
+    sec=dict(sec)
+    sec['title']=clean_title(sec['title'])                      # drop eyebrow-only titles
+    sec['label']='' if EYEBROW_FULL.match(sec['label'] or '') else sec['label']
+    desc=strip_eyebrow_html(strip_lead_title(sec['body'], sec['title']))   # de-dup leading eyebrow
+    sec['title'], desc = promote_body_title(sec['title'], desc)            # lift leading heading → title
+    L=lambda r='.':first_link(sec['links'],r) or {}
     if brick=='podcast':
         return {'title':sec['title'] or sec['label'],'description':desc,
                 'video_link':L(r'video|watch|youtube').get('href',''),'spotify_link':L(r'spotify').get('href',''),
@@ -251,9 +285,22 @@ def assemble(block, brick, sec):
              or [{'link_text':l['text'],'link_url':l['href'],'description':''} for l in sec['links']]
         return {'title':sec['label'] or 'Hidden Gems','gems':gems}
     if block=='job_of_week':
-        items=parse_li_items(sec['body'])
-        jobs=[{'job_title':it['link_text'] or it['text'][:60],'company':'','location':'','apply_link':it['link_url'],'description':it['text']} for it in items]
-        return {'header_title':sec['label'] or 'Job of the Week','jobs':jobs,'jobs_board_url':(first_link(sec['links'],r'job') or L()).get('href','')}
+        board=(first_link(sec['links'],r'jobs?\s*board') or {}).get('href','')
+        apply=(first_link([l for l in sec['links'] if 'board' not in l['text'].lower()]) or {}).get('href','')
+        txt=re.sub(r'<[^>]+>',' ',desc); txt=re.sub(r'\s+',' ',txt)
+        txt=re.sub(r'\s*(?:find|there are|\+)?\s*\d+\s+more roles.*$','',txt,flags=re.I).strip()  # drop "5 more roles..."
+        jobs=[]
+        mm=re.match(r'(.+?)\s*//\s*([^()/]+?)(?:\s*\((.*?)\))?(?:\s+(.*))?$', txt, re.S)
+        if mm and '//' in txt:   # single "Title // Company (Location) description" job (bullets stay in description)
+            jobs.append({'job_title':mm.group(1).strip()[:120],'company':mm.group(2).strip(),
+                         'location':(mm.group(3) or '').strip(),'apply_link':apply,
+                         'description':(mm.group(4) or '').strip()[:600]})
+        else:
+            for it in parse_li_items(sec['body']):   # genuine list of multiple jobs
+                jobs.append({'job_title':it['link_text'] or it['text'][:60],'company':'','location':'',
+                             'apply_link':it['link_url'] or apply,'description':''})
+            if not jobs and txt: jobs.append({'job_title':txt[:80],'company':'','location':'','apply_link':apply,'description':''})
+        return {'header_title':sec['label'] or 'Job of the Week','jobs':jobs,'jobs_board_url':board}
     if block=='hot_take':
         # poll options are labeled links (often duplicated desktop/mobile);
         # dedupe by label, take the first two distinct as option 1 & 2.
@@ -267,28 +314,43 @@ def assemble(block, brick, sec):
                 'poll_option_2_label':o[1][0],'poll_option_2_link':o[1][1]}
     if block=='last_weeks_take': return {'title':sec['title'] or sec['label'],'body':desc}
     if block=='ml_confessions':   # schema: title / story / confess_link (not generic)
-        return {'title':sec['title'],'story':desc,
+        # the confess CTA is its own field; strip the inline copy from the story
+        story=re.sub(r'<p>(?:(?!</p>).)*?(?:share your confession|confess(?:ion)?s?(?:(?!</p>).){0,40}here)(?:(?!</p>).)*?</p>','',desc,flags=re.I)
+        story=re.sub(r'<a [^>]*>[^<]*(?:confession|confess)[^<]*</a>','',story,flags=re.I)
+        story=re.sub(r'<p>\s*</p>','',story).strip()
+        return {'title':sec['title'],'story':story,
                 'confess_link':(first_link(sec['links'],r'confess|submit|share|here') or L()).get('href','')}
-    # generic: images stay INLINE in the body richtext (no dedicated image_url field)
-    return {'heading':sec['label'],'title':sec['title'],
-            'body':desc,'useful_links':[{'title':l['text'],'url':l['href'],'description':''} for l in sec['links'] if l['text']]}
+    # generic: images stay INLINE in the body richtext. useful_links removed per
+    # request — the source's trailing links often go nowhere / are chrome.
+    return {'heading':sec['label'],'title':sec['title'],'body':desc}
 
 def parse_edition(doc):
-    blocks=[]; cur=None; intro=False
+    blocks=[]; cur=None; intro=False; seen=set()
     for idx,row in enumerate(split_rows(doc)):
         sec=extract(row)
         if is_chrome(sec, idx): continue
         target,brick=classify(sec)
         if target=='sponsored_ad':         # drop sponsor blocks (not relevant for AAIF)
             cur=None; continue
+        # first prose panel (no label/image) is the intro, regardless of length
         if (not intro and target=='generic' and not brick and not sec['label']
-                and not sec['images'] and len(re.sub(r'<[^>]+>','',sec['body']))>60):
+                and not sec['images'] and len(re.sub(r'<[^>]+>','',sec['body']).strip())>15):
             target='intro_paragraph'; intro=True
         if brick:
             if cur is None: cur={'block':'mlops_community','content':{},'bricks':[]}; blocks.append(cur)
             cur['bricks'].append({'brick':brick,'content':assemble('mlops_community',brick,sec)})
         else:
-            cur=None; blocks.append({'block':target,'content':assemble(target,None,sec)})
+            content=assemble(target,None,sec)
+            # drop near-empty generic panels + de-dup identical consecutive panels
+            # (e.g. desktop/mobile "PROGRESS LOOP" ad variants)
+            if target=='generic':
+                txt=re.sub(r'<[^>]+>','',content.get('body','')).strip()
+                short_caps=bool(re.fullmatch(r'[A-Z0-9][A-Z0-9 &/\-]{1,28}', txt))  # ad-banner label e.g. "PROGRESS LOOP"
+                if (len(txt)<15 and not sec['images']) or short_caps: continue
+            sig=(target, json.dumps(content,sort_keys=True))
+            if sig in seen: continue
+            seen.add(sig)
+            cur=None; blocks.append({'block':target,'content':content})
     return blocks
 
 # ───────────────────────── image re-host ─────────────────────────
@@ -317,20 +379,21 @@ def rehost_image(url, date, commit):
     except Exception as e:
         print(f"      ! image rehost failed ({e}) -> keeping original url"); return url
 
+IMG_KEYS={'image_url'}   # ONLY these bare fields are images; link URLs are left alone
 def rewrite_images(content, date, commit):
-    def fix(s):
+    def fix(s,key):
         if not isinstance(s,str) or 'http' not in s: return s
-        # bare image_url value
-        if s.startswith('http') and '<' not in s: return rehost_image(s,date,commit)
-        # inline <img src="URL"> inside richtext
+        if key in IMG_KEYS and s.startswith('http') and '<' not in s:
+            return rehost_image(s,date,commit)         # dedicated image field
+        # inside richtext: rewrite ONLY inline <img src="...">; never bare links
         return re.sub(r'src="(https?://[^"]+)"', lambda m:'src="'+rehost_image(m.group(1),date,commit)+'"', s)
     for k,v in list(content.items()):
-        if isinstance(v,str): content[k]=fix(v)
+        if isinstance(v,str): content[k]=fix(v,k)
         elif isinstance(v,list):
             for it in v:
                 if isinstance(it,dict):
                     for kk,vv in it.items():
-                        if isinstance(vv,str): it[kk]=fix(vv)
+                        if isinstance(vv,str): it[kk]=fix(vv,kk)
     return content
 
 # ───────────────────────── main ─────────────────────────
