@@ -300,7 +300,7 @@ export function createEmptyAttributeCondition(): AttributeCondition {
 export function createEmptyEventCondition(): EventCondition {
   return {
     type: 'event',
-    event_type: 'offer_accepted',
+    event_type: '',
     operator: 'performed',
   };
 }

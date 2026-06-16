@@ -178,6 +178,15 @@ export class SegmentService {
   }
 
   /**
+   * Distinct event names recorded in people_events (for the Person Event picker)
+   */
+  async listEventNames(): Promise<string[]> {
+    const { data, error } = await this.supabase.rpc('segments_event_names');
+    if (error) throw error;
+    return (data as string[] | null) || [];
+  }
+
+  /**
    * Get segment member count (with optional caching)
    */
   async getSegmentCount(id: string, useCache: boolean = true): Promise<number> {
