@@ -9,18 +9,17 @@
   --cursor-slider-thumb: grab;
   --cursor-slider-thumb-active: grabbing;
   --cursor-switch: pointer;
-  /* Pin the admin UI fonts to Poppins (headings) / Inter (body)
-     regardless of the platform_settings font_heading / font_body
-     values — those are portal-only and shouldn't influence the
-     admin chrome. The admin's index.css already lists Poppins, Inter
-     first in --font-sans; mirroring that here so Radix Themes
-     components (which set --default-font-family / --heading-font-family
-     internally) pick up the same stack. */
+  /* Pin the admin UI to Inter — body AND headings — regardless of the
+     platform_settings font_heading / font_body values, which are portal-
+     only and shouldn't influence the admin chrome. The admin's index.css
+     lists Inter first in --font-sans; mirroring that here for both
+     --default-font-family and --heading-font-family so Radix Themes
+     components (which read those vars internally) stay on Inter too. */
   --default-font-family:
-    "Inter", "Poppins", ui-sans-serif, system-ui, sans-serif,
+    "Inter", ui-sans-serif, system-ui, sans-serif,
     "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
   --heading-font-family:
-    "Poppins", "Inter", ui-sans-serif, system-ui, sans-serif,
+    "Inter", ui-sans-serif, system-ui, sans-serif,
     "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 }
 
