@@ -22,6 +22,25 @@ import "./i18n/config";
 import "./utils/pdfjsSetup";
 import { setupFavicon } from './utils/favicon';
 
+// Self-hosted Inter + Poppins (replaces the prior <link> to Google Fonts in
+// index.html). Required because the admin nginx sends
+// Cross-Origin-Embedder-Policy: credentialless (intentional — unlocks
+// SharedArrayBuffer for the PDF generator's brotli decoder), and under that
+// policy the woff2 files served by fonts.gstatic.com don't always pass the
+// cross-origin-isolation requirement, so the browser silently falls back to
+// system fonts on production. Loading the same fonts from same-origin
+// node_modules sidesteps COEP entirely and keeps prod + localhost identical.
+// Weight set mirrors the previous Google Fonts request: Poppins 200/400/600/
+// 700, Inter 400/500/600/700.
+import "@fontsource/poppins/200.css";
+import "@fontsource/poppins/400.css";
+import "@fontsource/poppins/600.css";
+import "@fontsource/poppins/700.css";
+import "@fontsource/inter/400.css";
+import "@fontsource/inter/500.css";
+import "@fontsource/inter/600.css";
+import "@fontsource/inter/700.css";
+
 import "simplebar-react/dist/simplebar.min.css";
 // Loaded once globally so any module using react-leaflet (e.g. the scrapers
 // module's host map) gets working marker styles without needing leaflet as

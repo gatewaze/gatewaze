@@ -6,12 +6,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Admin</title>
 
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Poppins:wght@200;400;600;700&family=Inter:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
+    <!-- Inter + Poppins are now self-hosted via @fontsource (imported in
+         main.tsx) so they load same-origin and aren't affected by the
+         admin nginx's Cross-Origin-Embedder-Policy: credentialless. The
+         previous <link> to Google Fonts caused production to silently fall
+         back to system fonts because the woff2 files served by
+         fonts.gstatic.com didn't always pass the cross-origin-isolation
+         requirement under COEP. localhost dev server doesn't set COEP, so
+         it loaded fine there — which is why prod + localhost looked
+         "slightly different". -->
 
     <style>
       @layer theme, base, vendor, components, utilities;
