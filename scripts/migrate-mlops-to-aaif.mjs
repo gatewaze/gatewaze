@@ -43,7 +43,7 @@ const pg = require('pg');
 
 // ---------------------------------------------------------------- args + env
 function parseArgs(argv) {
-  const a = { commit: false, limit: null, eventsLimit: null, events: true, batch: 1000, weeklyTopic: 'topic_1' };
+  const a = { commit: false, limit: null, eventsLimit: null, events: true, batch: 1000, eventsBatch: null, weeklyTopic: 'topic_1' };
   for (let i = 0; i < argv.length; i++) {
     const t = argv[i];
     if (t === '--commit') a.commit = true;
@@ -52,6 +52,11 @@ function parseArgs(argv) {
     else if (t.startsWith('--limit=')) a.limit = Number(t.slice(8));
     else if (t === '--events-limit') a.eventsLimit = Number(argv[++i]);
     else if (t.startsWith('--events-limit=')) a.eventsLimit = Number(t.slice(15));
+    // Separate batch for the narrow email_events stage (16 cols → up to ~4095
+    // rows stays under Postgres' 65535-param cap). The global --batch is held
+    // down by the 42-column people stage, so this lets events go much larger.
+    else if (t === '--events-batch') a.eventsBatch = Number(argv[++i]);
+    else if (t.startsWith('--events-batch=')) a.eventsBatch = Number(t.slice(15));
     else if (t === '--batch') a.batch = Number(argv[++i]);
     else if (t.startsWith('--batch=')) a.batch = Number(t.slice(8));
     else if (t === '--weekly-topic') a.weeklyTopic = argv[++i];
@@ -348,7 +353,7 @@ async function stageEvents(src, dst, args, scope) {
     'action_id', 'subject', 'recipient', 'link_url', 'link_id', 'bounce_type',
     'failure_reason', 'raw_payload', 'event_timestamp', 'created_at'];
   let written = 0;
-  const scanned = await paginate(src, 'id', args.batch, args.eventsLimit,
+  const scanned = await paginate(src, 'id', (args.eventsBatch ?? args.batch), args.eventsLimit,
     (last, lim) => ({
       text: `SELECT * FROM public.email_events
              ${scope ? 'WHERE lower(email) = ANY($1)' : 'WHERE TRUE'}
