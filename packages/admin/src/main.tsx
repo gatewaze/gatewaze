@@ -22,20 +22,20 @@ import "./i18n/config";
 import "./utils/pdfjsSetup";
 import { setupFavicon } from './utils/favicon';
 
-// Self-hosted Inter + Poppins (replaces the prior <link> to Google Fonts in
-// index.html). Required because the admin nginx sends
+// Self-hosted Inter. Required because the admin nginx sends
 // Cross-Origin-Embedder-Policy: credentialless (intentional — unlocks
 // SharedArrayBuffer for the PDF generator's brotli decoder), and under that
 // policy the woff2 files served by fonts.gstatic.com don't always pass the
 // cross-origin-isolation requirement, so the browser silently falls back to
 // system fonts on production. Loading the same fonts from same-origin
 // node_modules sidesteps COEP entirely and keeps prod + localhost identical.
-// Weight set mirrors the previous Google Fonts request: Poppins 200/400/600/
-// 700, Inter 400/500/600/700.
-import "@fontsource/poppins/200.css";
-import "@fontsource/poppins/400.css";
-import "@fontsource/poppins/600.css";
-import "@fontsource/poppins/700.css";
+//
+// Single-family policy: the admin chrome uses Inter everywhere — body and
+// headings — instead of the previous Inter/Poppins split. Poppins was only
+// ever applied to a handful of Radix <Heading>-based pages (Settings), and
+// the visible weight differences against the surrounding Inter UI weren't
+// worth carrying a second font family for. The radixOverrides.css var
+// declarations have been collapsed to match.
 import "@fontsource/inter/400.css";
 import "@fontsource/inter/500.css";
 import "@fontsource/inter/600.css";
