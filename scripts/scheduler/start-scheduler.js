@@ -135,24 +135,47 @@ async function registerModuleSchedulers() {
 
     // Modern crons[]: cron tick enqueues a BullMQ job; a worker
     // consumes. Each entry shape:
-    //   { name, queue, schedule: { pattern }, data }
+    //   { name, queue, schedule: { pattern }, data }            (cron-style)
+    //   { name, queue, schedule: { every: <ms> }, data }        (interval-style)
+    // The packages/api/src/lib/queue/crons.ts path that BullMQ workers feed
+    // already supports both shapes via the same ternary; node-cron itself
+    // only accepts cron patterns, so we fall back to setInterval for the
+    // `every` variant. Without this every interval-style cron was silently
+    // skipped here, which is exactly what kept newsletter-dispatch-scheduled
+    // from ever firing (scheduled sends sat in 'scheduled' state forever).
     for (const c of cfg?.crons ?? []) {
-      if (!c?.name || !c?.schedule?.pattern || !c?.queue) {
-        console.warn(`[modules] ${moduleName} cron skipped (missing name/queue/schedule.pattern)`);
+      if (!c?.name || !c?.queue || !c?.schedule || (!c.schedule.pattern && typeof c.schedule.every !== 'number')) {
+        console.warn(`[modules] ${moduleName} cron skipped (missing name/queue/schedule.pattern|schedule.every)`);
         continue;
       }
       try {
         const queue = getQueue(c.queue);
-        const job = cron.schedule(c.schedule.pattern, async () => {
+        const tick = async () => {
           try {
             await queue.add(c.name, c.data ?? {});
           } catch (e) {
             console.error(`[modules] enqueue failed for ${c.name}:`, e.message ?? e);
           }
-        });
-        moduleCronJobs.push(job);
+        };
+        if (c.schedule.pattern) {
+          const job = cron.schedule(c.schedule.pattern, tick);
+          moduleCronJobs.push(job);
+          console.log(`[modules] cron "${c.name}" (${c.schedule.pattern}) → bull:${process.env.BRAND ?? 'default'}:${c.queue} from ${moduleName}`);
+        } else {
+          // setInterval doesn't fire immediately — call once first so the
+          // first tick lands within the configured interval of process boot
+          // rather than `every` ms later. Matches BullMQ repeatable semantics.
+          const handle = setInterval(tick, c.schedule.every);
+          // Wrap in a node-cron-shaped object so the array's stop() path
+          // (graceful shutdown below) works uniformly.
+          moduleCronJobs.push({ stop: () => clearInterval(handle) });
+          console.log(`[modules] cron "${c.name}" (every ${c.schedule.every}ms) → bull:${process.env.BRAND ?? 'default'}:${c.queue} from ${moduleName}`);
+          // Fire-once on boot so a process that just started picks up any
+          // already-due rows (e.g. scheduled sends past their target time
+          // accumulated while the scheduler was being upgraded).
+          tick();
+        }
         cronCount++;
-        console.log(`[modules] cron "${c.name}" (${c.schedule.pattern}) → bull:${process.env.BRAND ?? 'default'}:${c.queue} from ${moduleName}`);
       } catch (e) {
         console.error(`[modules] failed to schedule cron ${c.name}:`, e.message ?? e);
       }
