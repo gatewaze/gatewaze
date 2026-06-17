@@ -423,6 +423,11 @@ async function main() {
   await dst.connect();
   // Harden: source is prod — forbid any accidental write.
   await src.query('SET default_transaction_read_only = on');
+  // The pooler ignores the client statement_timeout option (defaults to 2min),
+  // which a large --events-batch insert can exceed. Raise it explicitly on the
+  // long-lived target session so big batches finish. (session-mode pooler keeps
+  // this for the connection's lifetime.)
+  await dst.query("SET statement_timeout = '600s'");
 
   console.log('============================================================');
   console.log(` mlops → aaif migration   [${args.commit ? 'COMMIT' : 'DRY-RUN'}]`);
