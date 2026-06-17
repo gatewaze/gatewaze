@@ -1,104 +1,138 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import type { BrandConfig } from '@/config/brand'
 import { useAuth } from '@/hooks/useAuth'
 import { GlassPanel } from '@/components/ui/GlassPanel'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { getSupabaseClient } from '@/lib/supabase/client'
 
-interface TopicLabel {
-  id: string
+interface ListItem {
   list_id: string
   label: string
   description: string | null
-  default_subscribed: boolean
+  subscribed: boolean
+}
+
+// Shape returned by the newsletter-unsubscribe `preferences` action.
+interface ItemSource {
+  id: string
+  name: string
+  description: string | null
+  subscribed: boolean
 }
 
 interface SubscriptionContentProps {
   brandConfig: BrandConfig
 }
 
+/**
+ * Subscription Centre. Two entry modes:
+ *  - **Token mode** (`?token=` from an email footer link): no login required.
+ *    The HMAC-signed token identifies the recipient; we read + write their
+ *    subscriptions through the `newsletter-unsubscribe` edge function (which
+ *    verifies the token server-side and uses the service role).
+ *  - **Auth mode** (signed-in portal user, no token): read + write directly as
+ *    that user.
+ * Both render the same per-list toggle UI.
+ */
 export function SubscriptionContent({ brandConfig: _brandConfig }: SubscriptionContentProps) {
   const { user } = useAuth()
   const supabase = getSupabaseClient()
 
-  const [topics, setTopics] = useState<TopicLabel[]>([])
-  const [subscriptions, setSubscriptions] = useState<Map<string, boolean>>(new Map())
+  // undefined = not yet read from the URL; null = no token (auth mode);
+  // string = token mode.
+  const [token, setToken] = useState<string | null | undefined>(undefined)
+  const [unsubOnLoad, setUnsubOnLoad] = useState(false)
+  const [tokenEmail, setTokenEmail] = useState<string | null>(null)
+  const [tokenError, setTokenError] = useState<string | null>(null)
+  const [unsubscribedName, setUnsubscribedName] = useState<string | null>(null)
+
+  const [items, setItems] = useState<ListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
 
   useEffect(() => {
-    if (user?.email) {
-      loadData()
-    }
-  }, [user?.email])
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    setUnsubOnLoad(params.get('unsub') === '1')
+    setToken(params.get('token'))
+  }, [])
 
-  async function loadData() {
+  const loadViaToken = useCallback(async (t: string, unsubscribe: boolean) => {
+    setLoading(true)
+    setTokenError(null)
     try {
-      interface ListRow {
-        id: string
-        slug: string
-        name: string
-        description: string | null
-        is_public: boolean
-        default_subscribed: boolean | null
+      const { data, error } = await supabase.functions.invoke('newsletter-unsubscribe', {
+        body: { token: t, action: 'preferences', unsubscribe },
+      })
+      if (error || !data?.success) {
+        setTokenError('This link is invalid or has expired. Please use the link in a more recent email, or sign in to manage your preferences.')
+        return
       }
-      interface SubscriptionRow {
-        list_id: string
-        subscribed: boolean
+      setTokenEmail(data.email)
+      const lists: ItemSource[] = data.lists ?? []
+      setItems(
+        lists.map((l) => ({ list_id: l.id, label: l.name, description: l.description, subscribed: l.subscribed })),
+      )
+      if (data.unsubscribedListId) {
+        const unsubbed = lists.find((l) => l.id === data.unsubscribedListId)
+        setUnsubscribedName(unsubbed?.name ?? 'that list')
       }
-
-      // Load all active lists and user's subscriptions in parallel
-      const [listsRes, subsRes] = await Promise.all([
-        supabase.from('lists').select('id, slug, name, description, is_public, default_subscribed').eq('is_active', true).order('name'),
-        user?.email
-          ? supabase.from('list_subscriptions').select('list_id, subscribed').eq('email', user.email)
-          : Promise.resolve({ data: [] as SubscriptionRow[] }),
-      ])
-
-      const allLists = (listsRes.data ?? []) as ListRow[]
-      const subData = (subsRes.data ?? []) as SubscriptionRow[]
-      const subscribedListIds = new Set(subData.map((s) => s.list_id))
-
-      // Show public lists + any non-public lists the user is already subscribed to
-      const visibleLists = allLists.filter((l) => l.is_public || subscribedListIds.has(l.id))
-
-      const mappedTopics = visibleLists.map((l) => ({
-        id: l.id,
-        list_id: l.id,
-        label: l.name,
-        description: l.description,
-        default_subscribed: l.default_subscribed ?? false,
-      }))
-      setTopics(mappedTopics)
-
-      const subMap = new Map<string, boolean>()
-      for (const sub of subData) {
-        subMap.set(sub.list_id, sub.subscribed)
-      }
-      for (const topic of mappedTopics) {
-        if (!subMap.has(topic.list_id)) {
-          subMap.set(topic.list_id, topic.default_subscribed)
-        }
-      }
-      setSubscriptions(subMap)
-    } catch (error) {
-      console.error('Error loading subscriptions:', error)
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase])
+
+  const loadViaAuth = useCallback(async () => {
+    setLoading(true)
+    try {
+      interface ListRow { id: string; name: string; description: string | null; is_public: boolean; default_subscribed: boolean | null }
+      interface SubRow { list_id: string; subscribed: boolean }
+      const [listsRes, subsRes] = await Promise.all([
+        supabase.from('lists').select('id, name, description, is_public, default_subscribed').eq('is_active', true).order('name'),
+        user?.email
+          ? supabase.from('list_subscriptions').select('list_id, subscribed').eq('email', user.email)
+          : Promise.resolve({ data: [] as SubRow[] }),
+      ])
+      const allLists = (listsRes.data ?? []) as ListRow[]
+      const subData = (subsRes.data ?? []) as SubRow[]
+      const subMap = new Map(subData.map((s) => [s.list_id, s.subscribed]))
+      setItems(
+        allLists
+          .filter((l) => l.is_public || subMap.has(l.id))
+          .map((l) => ({
+            list_id: l.id,
+            label: l.name,
+            description: l.description,
+            subscribed: subMap.has(l.id) ? !!subMap.get(l.id) : !!l.default_subscribed,
+          })),
+      )
+    } catch (err) {
+      console.error('Error loading subscriptions:', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [supabase, user?.email])
+
+  useEffect(() => {
+    if (token === undefined) return // wait until URL is read
+    if (token) { loadViaToken(token, unsubOnLoad); return }
+    if (user?.email) loadViaAuth()
+    else setLoading(false)
+  }, [token, unsubOnLoad, user?.email, loadViaToken, loadViaAuth])
 
   async function handleToggle(listId: string, subscribed: boolean) {
-    if (!user?.email) return
-
     setSaving(listId)
     try {
-      const now = new Date().toISOString()
-      const { error } = await supabase
-        .from('list_subscriptions')
-        .upsert({
+      if (token) {
+        const { data, error } = await supabase.functions.invoke('newsletter-unsubscribe', {
+          body: { token, action: 'set', list_id: listId, subscribed },
+        })
+        if (error || !data?.success) return
+      } else if (user?.email) {
+        const now = new Date().toISOString()
+        const { error } = await supabase.from('list_subscriptions').upsert({
           list_id: listId,
           email: user.email,
           subscribed,
@@ -107,38 +141,55 @@ export function SubscriptionContent({ brandConfig: _brandConfig }: SubscriptionC
           source: 'portal',
           updated_at: now,
         }, { onConflict: 'list_id,email' })
-
-      if (error) throw error
-
-      setSubscriptions(prev => {
-        const next = new Map(prev)
-        next.set(listId, subscribed)
-        return next
-      })
-    } catch (error) {
-      console.error('Error updating subscription:', error)
+        if (error) throw error
+      } else {
+        return
+      }
+      setItems((prev) => prev.map((i) => (i.list_id === listId ? { ...i, subscribed } : i)))
+    } catch (err) {
+      console.error('Error updating subscription:', err)
     } finally {
       setSaving(null)
     }
   }
 
-  if (!user) {
+  // Token link that failed validation.
+  if (token && tokenError) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-12">
-        <PageHeader
-          title="Email Preferences"
-          subtitle="Sign in to manage your email subscriptions"
-        />
+        <PageHeader title="Email Preferences" subtitle="" />
+        <GlassPanel padding="p-8">
+          <p className="text-center text-white/70">{tokenError}</p>
+        </GlassPanel>
       </div>
     )
   }
 
+  // Auth mode with no signed-in user and no token.
+  if (token === null && !user) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-12">
+        <PageHeader title="Email Preferences" subtitle="Sign in to manage your email subscriptions" />
+      </div>
+    )
+  }
+
+  const subtitle = token
+    ? (tokenEmail ? `Managing subscriptions for ${tokenEmail}` : 'Manage your email subscriptions')
+    : "Choose which emails you'd like to receive"
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
-      <PageHeader
-        title="Email Preferences"
-        subtitle="Choose which emails you'd like to receive"
-      />
+      <PageHeader title="Email Preferences" subtitle={subtitle} />
+
+      {unsubscribedName && (
+        <GlassPanel padding="p-4" className="mt-6 border border-green-500/30">
+          <p className="text-sm text-white/80 text-center">
+            You&apos;ve been unsubscribed from <span className="font-medium text-white">{unsubscribedName}</span>.
+            You can re-subscribe or adjust any of your other subscriptions below.
+          </p>
+        </GlassPanel>
+      )}
 
       <div className="mt-8 space-y-4">
         {loading ? (
@@ -148,38 +199,32 @@ export function SubscriptionContent({ brandConfig: _brandConfig }: SubscriptionC
               <span className="ml-3 text-white/60">Loading preferences...</span>
             </div>
           </GlassPanel>
-        ) : topics.length === 0 ? (
+        ) : items.length === 0 ? (
           <GlassPanel padding="p-8">
-            <p className="text-center text-white/60">
-              No email topics are available at this time.
-            </p>
+            <p className="text-center text-white/60">No email topics are available at this time.</p>
           </GlassPanel>
         ) : (
-          topics.map((topic) => {
-            const isSubscribed = subscriptions.get(topic.list_id) ?? topic.default_subscribed
+          items.map((topic) => {
             const isSaving = saving === topic.list_id
-
             return (
-              <GlassPanel key={topic.id} padding="p-5">
+              <GlassPanel key={topic.list_id} padding="p-5">
                 <div className="flex items-center justify-between">
                   <div className="flex-1 mr-4">
                     <h3 className="text-white font-medium">{topic.label}</h3>
-                    {topic.description && (
-                      <p className="text-sm text-white/60 mt-1">{topic.description}</p>
-                    )}
+                    {topic.description && <p className="text-sm text-white/60 mt-1">{topic.description}</p>}
                   </div>
                   <button
-                    onClick={() => handleToggle(topic.list_id, !isSubscribed)}
+                    onClick={() => handleToggle(topic.list_id, !topic.subscribed)}
                     disabled={isSaving}
                     className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-white/20 focus:ring-offset-2 focus:ring-offset-transparent ${
-                      isSubscribed ? 'bg-green-500' : 'bg-white/20'
+                      topic.subscribed ? 'bg-green-500' : 'bg-white/20'
                     } ${isSaving ? 'opacity-50' : ''}`}
                     role="switch"
-                    aria-checked={isSubscribed}
+                    aria-checked={topic.subscribed}
                   >
                     <span
                       className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                        isSubscribed ? 'translate-x-5' : 'translate-x-0'
+                        topic.subscribed ? 'translate-x-5' : 'translate-x-0'
                       }`}
                     />
                   </button>
@@ -191,8 +236,11 @@ export function SubscriptionContent({ brandConfig: _brandConfig }: SubscriptionC
 
         <GlassPanel padding="p-5">
           <p className="text-xs text-white/40 text-center">
-            Subscribed as {user.email}.{' '}
-            You can also unsubscribe via the link at the bottom of any email.
+            {token
+              ? (tokenEmail ? `These are the subscriptions for ${tokenEmail}.` : 'Manage your subscriptions below.')
+              : user
+                ? `Subscribed as ${user.email}. You can also unsubscribe via the link at the bottom of any email.`
+                : ''}
           </p>
         </GlassPanel>
       </div>
