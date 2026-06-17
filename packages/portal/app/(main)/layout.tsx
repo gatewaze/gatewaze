@@ -21,6 +21,7 @@ import { resolvePortalAccess, ZERO_ACCESS } from '@/lib/permissions/resolve'
 import { getModuleAccess } from '@/lib/modules/access'
 import { ProfileCompletionWrapper } from '@/components/wizard'
 import { AnalyticsProvider } from '@/components/AnalyticsProvider'
+import { TrackingMarkup } from '@/components/TrackingMarkup'
 import { getServerBrandConfig, buildGoogleFontsUrl, buildFontStack, isLightColor, getThemeBackgroundColor, resolveEventTheme, deriveAccentTints, type ThemeColors } from '@/config/brand'
 import { OrganizationJsonLd } from '@/components/structured-data'
 import { createServerSupabase, createAuthenticatedServerSupabase } from '@/lib/supabase/server'
@@ -199,9 +200,7 @@ export default async function MainLayout({
             })()),
           }}
         />
-        {brandConfig.trackingHead && (
-          <script suppressHydrationWarning dangerouslySetInnerHTML={{ __html: brandConfig.trackingHead }} />
-        )}
+        <TrackingMarkup html={brandConfig.trackingHead} />
         <OrganizationJsonLd
           name={brandConfig.name}
           url={`https://${brandConfig.domain}`}
@@ -272,9 +271,7 @@ export default async function MainLayout({
           than `process.env.NEXT_PUBLIC_*` directly.
         */}
         {/* {process.env.NEXT_PUBLIC_ENABLE_CHAT === 'true' && <ChatWidgetLoader />} */}
-        {brandConfig.trackingBody && (
-          <script dangerouslySetInnerHTML={{ __html: brandConfig.trackingBody }} />
-        )}
+        <TrackingMarkup html={brandConfig.trackingBody} />
       </body>
     </html>
   )
