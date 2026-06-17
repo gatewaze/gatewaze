@@ -1,5 +1,6 @@
 import type { Viewport } from 'next'
 import { getServerBrandConfig, buildGoogleFontsUrl, buildFontStack, isLightColor } from '@/config/brand'
+import { TrackingMarkup } from '@/components/TrackingMarkup'
 import '@/styles/globals.css'
 
 export const viewport: Viewport = {
@@ -38,15 +39,11 @@ export default async function BareLayout({
             })()),
           }}
         />
-        {brandConfig.trackingHead && (
-          <script dangerouslySetInnerHTML={{ __html: brandConfig.trackingHead }} />
-        )}
+        <TrackingMarkup html={brandConfig.trackingHead} />
       </head>
       <body suppressHydrationWarning>
         {children}
-        {brandConfig.trackingBody && (
-          <script dangerouslySetInnerHTML={{ __html: brandConfig.trackingBody }} />
-        )}
+        <TrackingMarkup html={brandConfig.trackingBody} />
       </body>
     </html>
   )
