@@ -16,7 +16,6 @@ export type IntegrationEventType =
   | 'person.enriched'
   | 'person.subscribed'
   | 'event.registered'
-  | 'event.tracked'
 
 /**
  * Emit an integration event (fire-and-forget).
