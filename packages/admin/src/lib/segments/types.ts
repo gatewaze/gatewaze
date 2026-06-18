@@ -54,6 +54,13 @@ export interface EventCondition {
   operator: EventOperator;
   value?: number;
   time_window?: TimeWindow;
+  /**
+   * Filters on the event's own properties (people_events.event_data JSONB),
+   * e.g. { property: 'event_city', operator: 'equals', value: 'San Francisco' }.
+   * Wired into the SQL engine by segments migration 003.
+   */
+  event_filters?: PropertyFilter[];
+  /** @deprecated legacy alias for event_filters; still honoured by the engine. */
   property_filters?: PropertyFilter[];
 }
 
