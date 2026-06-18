@@ -150,9 +150,18 @@ async function registerModuleSchedulers() {
       }
       try {
         const queue = getQueue(c.queue);
+        // BullMQ workers dispatch by the job's `.name`. Module workers
+        // register handlers keyed by their cron's `data.kind` (e.g.
+        // 'newsletter:dispatch-scheduled'), NOT by the kebab-case cron
+        // identifier (e.g. 'newsletter-dispatch-scheduled') — that's a
+        // human-readable label for the scheduler. The api-side path
+        // (packages/api/src/lib/queue/crons.ts) already enqueues with
+        // `{ name: def.data.kind, data: def.data }`; mirror that here so
+        // worker handler lookup actually matches.
+        const jobName = (c.data && typeof c.data.kind === 'string' && c.data.kind) ? c.data.kind : c.name;
         const tick = async () => {
           try {
-            await queue.add(c.name, c.data ?? {});
+            await queue.add(jobName, c.data ?? {});
           } catch (e) {
             console.error(`[modules] enqueue failed for ${c.name}:`, e.message ?? e);
           }
