@@ -1234,6 +1234,7 @@ const LEGAL_KEYS = [
   "privacy_policy_html",
   "terms_of_service_html",
   "do_not_sell_html",
+  "footer_legal_html",
 ] as const;
 type LegalKey = (typeof LEGAL_KEYS)[number];
 
@@ -1241,6 +1242,7 @@ const TAB_LABELS: Record<LegalKey, string> = {
   privacy_policy_html: "Privacy Policy",
   terms_of_service_html: "Terms of Service",
   do_not_sell_html: "Do Not Sell",
+  footer_legal_html: "Footer Text",
 };
 
 function LegalPagesContent() {
@@ -1248,11 +1250,13 @@ function LegalPagesContent() {
     privacy_policy_html: "",
     terms_of_service_html: "",
     do_not_sell_html: "",
+    footer_legal_html: "",
   });
   const [original, setOriginal] = useState<Record<LegalKey, string>>({
     privacy_policy_html: "",
     terms_of_service_html: "",
     do_not_sell_html: "",
+    footer_legal_html: "",
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

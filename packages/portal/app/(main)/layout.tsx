@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from 'next'
 import { headers, cookies } from 'next/headers'
 import { CookieConsentLoader } from '@/components/CookieConsentLoader'
 import { DevIndicatorNudge } from '@/components/DevIndicatorNudge'
+import { getAppSetting } from '@/lib/appSettings'
+import { sanitizeHtml } from '@/lib/sanitize-html'
 import { CardGlowClock } from '@/components/CardGlowClock'
 import { TrackingProvider } from '@/components/TrackingProvider'
 
@@ -140,6 +142,10 @@ export default async function MainLayout({
   const brand = brandConfig.id
   const modules = await getEnabledModules()
   const complianceEnabled = isModuleEnabled(modules, 'compliance')
+  // When compliance is disabled, the footer shows a single configurable line (set in admin →
+  // Settings → Branding → Legal). Sanitised server-side so the shell can render it directly.
+  const rawFooterLegal = complianceEnabled ? null : await getAppSetting('footer_legal_html')
+  const footerLegalHtml = rawFooterLegal ? sanitizeHtml(rawFooterLegal, 'marketing-page') : null
   const fontsUrl = buildGoogleFontsUrl(brandConfig)
   const fontStack = buildFontStack(brandConfig)
   const themeBgColor = getThemeBackgroundColor(brandConfig.portalTheme, brandConfig.themeColors, brandConfig.secondaryColor)
@@ -244,6 +250,8 @@ export default async function MainLayout({
                     brandName={brandConfig.name}
                     logoUrl={brandConfig.logoUrl || undefined}
                     logoIconUrl={brandConfig.logoIconUrl || undefined}
+                    complianceEnabled={complianceEnabled}
+                    footerLegalHtml={footerLegalHtml}
                   >
                     {children}
                   </WorkspaceShell>
