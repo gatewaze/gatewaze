@@ -33,6 +33,11 @@ interface WorkspaceShellProps {
   brandName: string
   logoUrl?: string
   logoIconUrl?: string
+  /** When the compliance module is enabled, the footer shows the Privacy/Terms/Do-Not-Sell links.
+   *  When disabled, it shows `footerLegalHtml` (a single configurable line) instead. */
+  complianceEnabled?: boolean
+  /** Pre-sanitized HTML shown in the footer when compliance is disabled (configured in admin). */
+  footerLegalHtml?: string | null
   children: React.ReactNode
 }
 
@@ -76,6 +81,8 @@ export function WorkspaceShell({
   brandName,
   logoUrl,
   logoIconUrl,
+  complianceEnabled = false,
+  footerLegalHtml = null,
   children,
 }: WorkspaceShellProps) {
   const pathname = usePathname() || '/'
@@ -151,11 +158,17 @@ export function WorkspaceShell({
             </div>
           </main>
           <footer className="pub-foot">
-            <a className="pub-flink" href="/privacy">Privacy Policy</a>
-            <span className="sep">|</span>
-            <a className="pub-flink" href="/terms">Terms of Service</a>
-            <span className="sep">|</span>
-            <a className="pub-flink" href="/do-not-sell">Do Not Sell My Info</a>
+            {complianceEnabled ? (
+              <>
+                <a className="pub-flink" href="/privacy">Privacy Policy</a>
+                <span className="sep">|</span>
+                <a className="pub-flink" href="/terms">Terms of Service</a>
+                <span className="sep">|</span>
+                <a className="pub-flink" href="/do-not-sell">Do Not Sell My Info</a>
+              </>
+            ) : footerLegalHtml ? (
+              <div className="pub-foot-text" dangerouslySetInnerHTML={{ __html: footerLegalHtml }} />
+            ) : null}
           </footer>
         </div>
       </ShellProvider>
