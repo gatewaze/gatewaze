@@ -6,7 +6,7 @@
  */
 
 import type { LoadedModule } from '../types/modules';
-import { resolve, join } from 'path';
+import { resolve, join, dirname } from 'path';
 import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'fs';
 import {
   detectDeploymentEnvironment,
@@ -140,18 +140,31 @@ export async function deployEdgeFunctions(
       continue;
     }
 
-    // Copy functionFiles (e.g., provider.ts) into _shared/providers/ so they're
-    // accessible to the edge runtime's compiled scope (platform-main only sees
-    // its own directory + _shared/, not sibling function directories).
-    // Format: "source.ts" copies as-is, "source.ts:destname.ts" renames.
+    // Copy functionFiles into _shared/ so they're accessible to the edge
+    // runtime's compiled scope (platform-main only sees its own directory +
+    // _shared/, not sibling function directories).
+    //
+    // Dest format:
+    //   "source.ts"                        → _shared/providers/source.ts
+    //   "source.ts:name.ts"                → _shared/providers/name.ts        (back-compat)
+    //   "source.ts:subdir/name.ts"         → _shared/subdir/name.ts           (any "_shared/" subdir)
+    //
+    // The bare-name default of `_shared/providers/<name>` preserves existing
+    // email-provider-* modules (sendgrid etc.) unchanged. A '/' in the dest
+    // path opts in to a different subdirectory — used by
+    // email-bot-detector-signals to land its detector at `_shared/detectors/`
+    // where the bot-detector-registry imports from (`./detectors/<name>.ts`).
     if (!isCloudDeploy && hasFunctionFiles) {
-      const providersDir = join(targetFunctionsDir, '_shared', 'providers');
-      mkdirSync(providersDir, { recursive: true });
+      const sharedDir = join(targetFunctionsDir, '_shared');
       for (const entry of functionFiles) {
         const [src, dest] = entry.includes(':') ? entry.split(':') : [entry, entry];
         const srcFile = join(moduleDir, src);
         if (existsSync(srcFile)) {
-          cpSync(srcFile, join(providersDir, dest));
+          const destPath = dest.includes('/')
+            ? join(sharedDir, dest)
+            : join(sharedDir, 'providers', dest);
+          mkdirSync(dirname(destPath), { recursive: true });
+          cpSync(srcFile, destPath);
         }
       }
     }
@@ -246,7 +259,11 @@ export async function deployEdgeFunctions(
             const [src, dest] = entry.includes(':') ? entry.split(':') : [entry, entry];
             const srcFile = join(providerMod.resolvedDir, src);
             if (!existsSync(srcFile)) continue;
-            const key = `_shared/providers/${dest}`;
+            // Same dest semantics as the local/k8s path above: bare name →
+            // _shared/providers/<name>; explicit subdir → _shared/<dest>.
+            const key = dest.includes('/')
+              ? `_shared/${dest}`
+              : `_shared/providers/${dest}`;
             if (sourceFiles.has(key)) continue;
             sourceFiles.set(key, readFileSync(srcFile, 'utf-8'));
           }

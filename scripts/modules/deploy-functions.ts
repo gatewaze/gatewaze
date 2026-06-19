@@ -94,8 +94,18 @@ async function main() {
   }
   const modules = await loadModules(effectiveConfig, PROJECT_ROOT);
 
+  // Module needs to be passed to deployEdgeFunctions if it has EITHER:
+  //   - edgeFunctions[] (own Edge Function deploys), or
+  //   - functionFiles[] (shared files like provider.ts / detector.ts that
+  //     OTHER modules' Edge Functions import dynamically).
+  // The earlier `edgeFunctions.length > 0`-only filter excluded
+  // email-bot-detector-signals (no edgeFunctions, only a functionFiles
+  // entry) — the detector source was never copied into _shared/detectors/
+  // and getBotDetector() returned null silently in prod. (Fix 2026-06-19.)
   const modulesWithFunctions = modules.filter(
-    (m) => m.config.edgeFunctions && m.config.edgeFunctions.length > 0
+    (m) =>
+      (m.config.edgeFunctions && m.config.edgeFunctions.length > 0) ||
+      (m.config.functionFiles && m.config.functionFiles.length > 0)
   );
 
   if (modulesWithFunctions.length === 0) {
@@ -106,6 +116,10 @@ async function main() {
   const result = await deployEdgeFunctions({
     projectRoot: PROJECT_ROOT,
     modules: modulesWithFunctions,
+    // Pass the full resolved module list as `allModules` so the cloud-deploy
+    // path's provider-injection iterates EVERY module that could be reached
+    // by a dynamic import — see the matching comment in deploy-edge-functions.ts.
+    allModules: modules,
     deploy: shouldDeploy,
     projectRef: process.env.SUPABASE_PROJECT_REF,
   });
