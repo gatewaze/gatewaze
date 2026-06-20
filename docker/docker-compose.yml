@@ -231,6 +231,10 @@ services:
       SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
       EMAIL_FROM: ${EMAIL_FROM:-noreply@localhost}
       EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-Gatewaze}
+      # Central Sending Service canary: when 'true' the Edge newsletter-send fn
+      # SKIPS its per-recipient drip (the Node worker owns it) so the two never
+      # double-send. Must match the worker's flag. Off = unchanged Edge drip.
+      SEND_ENGINE_USE_WORKER: ${SEND_ENGINE_USE_WORKER:-}
       # HMAC secret for one-click unsubscribe links in newsletter sends.
       # Used by newsletter-send (to mint per-recipient tokens) and
       # newsletter-unsubscribe (to verify them). Must be stable across
