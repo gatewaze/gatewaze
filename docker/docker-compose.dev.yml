@@ -122,6 +122,13 @@ services:
       - ../data:/app/data
     environment:
       NODE_ENV: development
+      # Central Sending Service canary — worker owns the newsletter drip.
+      SEND_ENGINE_USE_WORKER: ${SEND_ENGINE_USE_WORKER:-}
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-noreply@localhost}
+      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-Gatewaze}
+      UNSUBSCRIBE_HMAC_SECRET: ${UNSUBSCRIBE_HMAC_SECRET:-}
+      SITE_URL: ${SITE_URL:-}
 
   scheduler:
     build:
