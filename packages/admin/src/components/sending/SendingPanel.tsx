@@ -127,6 +127,27 @@ export function SendingPanel({ adapter }: { adapter: SendingAdapter }) {
   const [testEmail, setTestEmail] = useState('');
   const [sendingTest, setSendingTest] = useState(false);
 
+  // Live "will send to N recipients" — the real deliverable count for the
+  // current exclusions (audience minus already-sent overlap), not a subtraction.
+  const [recipientEstimate, setRecipientEstimate] = useState<number | null>(adapter.recipientCount ?? null);
+  const [countingRecipients, setCountingRecipients] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    if (!adapter.countRecipients) { setRecipientEstimate(adapter.recipientCount ?? null); return; }
+    setCountingRecipients(true);
+    const t = setTimeout(async () => {
+      try {
+        const n = await adapter.countRecipients!(excludeSentSendIds);
+        if (!cancelled) setRecipientEstimate(n);
+      } catch {
+        if (!cancelled) setRecipientEstimate(adapter.recipientCount ?? null);
+      } finally {
+        if (!cancelled) setCountingRecipients(false);
+      }
+    }, 300);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [excludeSentSendIds, adapter]);
+
   const formTargetMs = scheduleType === 'scheduled' && scheduledAt ? new Date(scheduledAt).getTime() : NaN;
   const hasActiveRow = sends.some((s) => s.status === 'scheduled' || s.status === 'sending' || s.status === 'cancelling');
   const needCountdown = (Number.isFinite(formTargetMs) && formTargetMs > now) || hasActiveRow;
@@ -489,6 +510,17 @@ export function SendingPanel({ adapter }: { adapter: SendingAdapter }) {
 
             {!canSend && hasParent && canSendReason && (
               <div className="rounded-md border border-[var(--amber-a6)] bg-[var(--amber-a2)] px-3 py-2 text-xs text-[var(--amber-11)]">{canSendReason}</div>
+            )}
+
+            {recipientEstimate != null && (
+              <p className="text-xs text-[var(--gray-11)] flex items-center gap-1">
+                <EnvelopeIcon className="w-3.5 h-3.5 text-[var(--gray-9)]" />
+                {countingRecipients ? (
+                  <span className="text-[var(--gray-9)]">Calculating recipients…</span>
+                ) : (
+                  <span>Will send to <span className="font-semibold text-[var(--gray-12)]">{recipientEstimate.toLocaleString()}</span> recipient{recipientEstimate === 1 ? '' : 's'}{excludeSentSendIds.length > 0 ? ' (after exclusions)' : ''}</span>
+                )}
+              </p>
             )}
 
             <Button variant="solid" onClick={handleSend} disabled={sending || !hasParent || isActive || !canSend}>

@@ -95,6 +95,15 @@ export interface SendingAdapter {
   emailDetails: EmailDetailsControl;
   recipients: RecipientsControl;
 
+  /** Base audience size, shown next to Send by default (before exclusions). */
+  recipientCount?: number | null;
+  /**
+   * Exact deliverable count for the current exclusions (audience minus
+   * already-sent), so the Send indicator reacts to the exclude checkboxes.
+   * Falls back to recipientCount when omitted.
+   */
+  countRecipients?: (excludeSentSendIds: string[]) => Promise<number>;
+
   /** Create a new send instance from the composer config; returns its id. */
   createSend: (config: SendComposerConfig) => Promise<{ id: string }>;
   /** Re-render + overwrite a send's stored content for not-yet-sent recipients. */
