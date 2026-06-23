@@ -344,6 +344,7 @@ function walkPortalPagesDir(
   rootDir: string,
   currentDir: string,
   segments: string[],
+  routeRoot: string,
   moduleId: string,
   pages: PortalPageDef[]
 ) {
@@ -377,12 +378,12 @@ function walkPortalPagesDir(
       // [foo] dynamic directory
       if (entry.startsWith('[') && entry.endsWith(']')) {
         const segment = entry // already in `[foo]` form
-        walkPortalPagesDir(rootDir, fullPath, [...segments, segment], moduleId, pages)
+        walkPortalPagesDir(rootDir, fullPath, [...segments, segment], routeRoot, moduleId, pages)
         continue
       }
 
       // Static directory
-      walkPortalPagesDir(rootDir, fullPath, [...segments, entry], moduleId, pages)
+      walkPortalPagesDir(rootDir, fullPath, [...segments, entry], routeRoot, moduleId, pages)
       continue
     }
 
@@ -401,7 +402,10 @@ function walkPortalPagesDir(
       routeSegments = [...segments, nameToRouteSegment(name)]
     }
 
-    const routePath = '/' + [moduleId, ...routeSegments].filter(Boolean).join('/')
+    // Route path uses the directory-derived `routeRoot` (the public URL prefix);
+    // the gating `moduleId` is the module's manifest id, which may differ (e.g.
+    // dir `meetups` serving the `meetup-ops` module).
+    const routePath = '/' + [routeRoot, ...routeSegments].filter(Boolean).join('/')
 
     // Component import path: drop the .tsx extension AND any trailing
     // /index segment. Webpack does folder→index resolution on its own,
@@ -463,7 +467,20 @@ function discoverPortalModules(sourceDirs: string[]): PortalPageDef[] {
     for (const moduleDir of moduleDirs) {
       const pagesDir = resolve(sourceDir, moduleDir, 'portal', 'pages')
       if (!existsSync(pagesDir)) continue
-      walkPortalPagesDir(pagesDir, pagesDir, [], moduleDir, pages)
+      // Route root = directory name (the public URL prefix). Gating moduleId =
+      // the manifest `id`, which equals the dir name for every module EXCEPT
+      // ones that deliberately serve under a different path (dir `meetups` →
+      // id `meetup-ops`). Reading module.json keeps the route's moduleId in
+      // sync with installed_modules.id so isModuleEnabled() resolves correctly.
+      let moduleId = moduleDir
+      try {
+        const mjPath = resolve(sourceDir, moduleDir, 'module.json')
+        if (existsSync(mjPath)) {
+          const mj = JSON.parse(readFileSync(mjPath, 'utf-8')) as { id?: unknown }
+          if (typeof mj.id === 'string' && mj.id) moduleId = mj.id
+        }
+      } catch {}
+      walkPortalPagesDir(pagesDir, pagesDir, [], moduleDir, moduleId, pages)
     }
   }
 
@@ -654,8 +671,11 @@ export const adminModulePages: AdminModulePage[] = []
 `
   writeIfChanged(ADMIN_OUTPUT_PATH, adminOutput)
 
-  // Generate Next.js rewrites
-  const modulePrefixes = [...new Set(pages.map(p => p.moduleId))]
+  // Generate Next.js rewrites. The URL prefix is the route path's first
+  // segment (the directory-derived route root), NOT the gating moduleId — these
+  // differ when a module serves under a different path (dir `meetups` → id
+  // `meetup-ops`). Middleware must rewrite the public `/meetups/*` URL.
+  const modulePrefixes = [...new Set(pages.map(p => p.path.split('/').filter(Boolean)[0]).filter(Boolean))]
   const rewrites = modulePrefixes.flatMap(prefix => [
     { source: `/${prefix}/:path*`, destination: `/m/${prefix}/:path*` },
     { source: `/${prefix}`, destination: `/m/${prefix}` },
