@@ -21,7 +21,7 @@ import os, re, sys, json, time, urllib.request, urllib.parse, html as htmllib, a
 from html.parser import HTMLParser
 
 CIO_BASE = "https://api.customer.io/v1"
-COLLECTION_SLUG = "usercommunity"
+COLLECTION_SLUG = os.environ.get("COLLECTION_SLUG", "usercommunity")
 MIN_BLOCKS = 3   # skip editions that parse to fewer (newer single-mega-row / short format)
 IMG_HOST_ALLOW = re.compile(r'(customeriomail\.com|customer\.io|db\.mlops\.community|mlops\.community)', re.I)
 IMG_PATH_PREFIX = "newsletters/newsletter-images"   # relative path stored in content
@@ -434,10 +434,14 @@ def main():
     a=ap.parse_args()
     commit = a.commit and not a.dry_run
     mode="COMMIT (writes!)" if commit else "DRY-RUN (no writes)"
-    print(f"=== CIO -> AAIF usercommunity migration | {mode} | {os.environ['SUPABASE_URL']} ===")
+    print(f"=== CIO -> AAIF {COLLECTION_SLUG} migration | {mode} | {os.environ['SUPABASE_URL']} ===")
 
     coll=sb_get(f"newsletters_template_collections?slug=eq.{COLLECTION_SLUG}&select=id")[0]
     cid=coll["id"]
+    # schema drift: some envs' newsletters_editions lack templates_library_id
+    # (it's redundant with collection_id). Include it only when present.
+    _ed_sample=sb_get("newsletters_editions?limit=1")
+    has_lib_id=bool(_ed_sample) and ('templates_library_id' in _ed_sample[0])
     blockdefs={b["key"]:b["id"] for b in sb_get(f"templates_block_defs?library_id=eq.{cid}&is_current=eq.true&select=key,id")}
     mc_id=blockdefs["mlops_community"]
     brickdefs={b["key"]:b["id"] for b in sb_get(f"templates_brick_defs?block_def_id=eq.{mc_id}&select=key,id")}
@@ -467,9 +471,10 @@ def main():
         nb=sum(len(b.get("bricks",[])) for b in blocks)
         print(f"  {dt}: {len(blocks)} blocks, {nb} bricks | {subj[:50]}")
         if commit:
-            ed=sb_insert("newsletters_editions",{
-                "collection_id":cid,"templates_library_id":cid,"title":subj,
-                "edition_date":dt,"status":"draft","preheader":c.get("preheader_text") or ""})
+            ed_row={"collection_id":cid,"title":subj,"edition_date":dt,
+                    "status":"draft","preheader":c.get("preheader_text") or ""}
+            if has_lib_id: ed_row["templates_library_id"]=cid
+            ed=sb_insert("newsletters_editions",ed_row)
             for i,blk in enumerate(blocks):
                 bid=blockdefs.get(blk["block"])
                 row=sb_insert("newsletters_edition_blocks",{
