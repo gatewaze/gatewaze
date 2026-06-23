@@ -501,17 +501,18 @@ export function SendingPanel({ adapter }: { adapter: SendingAdapter }) {
               {sending ? 'Sending...' : isActive ? 'Send in progress...' : !canSend ? (canSendReason || 'Cannot send') : scheduleType === 'scheduled' ? 'Schedule Send' : 'Send Now'}
             </Button>
 
-            {/* Test send */}
-            {adapter.sendTest && (
-              <div className="pt-2 border-t border-[var(--gray-a4)]">
-                <label className="block text-xs font-medium text-[var(--gray-9)] mb-1 flex items-center gap-1"><BeakerIcon className="w-3.5 h-3.5" />Send a test</label>
-                <div className="flex gap-2">
-                  <input type="email" placeholder="you@example.com" value={testEmail} onChange={(e) => setTestEmail(e.target.value)} className={INPUT_CLS} />
-                  <Button variant="soft" size="2" onClick={handleTestSend} disabled={sendingTest || !testEmail}>{sendingTest ? '…' : 'Test'}</Button>
-                </div>
-              </div>
-            )}
           </div>
+          {/* Test send — outside the composer's space-y so the divider gets
+              clear breathing room under the Send button. */}
+          {adapter.sendTest && (
+            <div className="mt-5 pt-4 border-t border-[var(--gray-a4)]">
+              <label className="block text-xs font-medium text-[var(--gray-9)] mb-1 flex items-center gap-1"><BeakerIcon className="w-3.5 h-3.5" />Send a test</label>
+              <div className="flex gap-2">
+                <input type="email" placeholder="you@example.com" value={testEmail} onChange={(e: ChangeEvent<HTMLInputElement>) => setTestEmail(e.target.value)} className={INPUT_CLS} />
+                <Button variant="soft" size="2" onClick={handleTestSend} disabled={sendingTest || !testEmail}>{sendingTest ? '…' : 'Test'}</Button>
+              </div>
+            </div>
+          )}
         </Card>
 
         {/* Send history */}
