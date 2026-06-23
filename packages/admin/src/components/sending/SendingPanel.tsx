@@ -210,7 +210,11 @@ export function SendingPanel({ adapter }: { adapter: SendingAdapter }) {
   useEffect(() => { setSendLogPage(0); }, [selectedSendId]);
 
   const refreshRef = useRef<() => void>(() => {});
-  refreshRef.current = () => { loadSendLog(); loadOpenedCount(); if (selectedSendId) loadBreakdown(selectedSendId); };
+  // Reload the sends list too (not just the log): the left-side progress/counts
+  // come from newsletter_sends, whose realtime updates can lag/drop, whereas the
+  // email_send_log tick fires reliably during a send — so piggy-back on it to
+  // keep the Send History counts + status in sync with the delivery log.
+  refreshRef.current = () => { loadSends(); loadSendLog(); loadOpenedCount(); if (selectedSendId) loadBreakdown(selectedSendId); };
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scheduleRefresh = useCallback(() => {
     if (refreshTimer.current) clearTimeout(refreshTimer.current);
