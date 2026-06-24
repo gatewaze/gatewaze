@@ -122,6 +122,17 @@ if [ -n "$MODULE_SOURCES" ]; then
     reponame=$(echo "$url" | sed 's|.*/||; s|\.git$||')
     target="/tmp/module-repos/$reponame"
 
+    # If the target dir exists from a prior container/image-bake we MUST
+    # wipe it first. `git clone` refuses to write into a non-empty dir and
+    # would silently fall through to whatever stale tree is already there
+    # (image-bake from an older main) — exactly the failure that left
+    # admin crash-looping after a 2026-06-24 mid-flight merge. Removing
+    # the dir guarantees the runtime tree matches the live branch tip.
+    if [ -d "$target" ]; then
+      echo "[admin] $target exists (likely image-baked) — wiping for fresh clone"
+      rm -rf "$target"
+    fi
+
     echo "[admin] Cloning $url (branch: $branch) → $target"
     if ! git clone --depth 1 --branch "$branch" "$url" "$target"; then
       # In PREBUILD mode, a missing module repo means the baked bundle
