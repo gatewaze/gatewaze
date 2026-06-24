@@ -185,7 +185,8 @@ export function ProfileContent({ brandConfig }: Props) {
 
         // Fetch all active lists and user's subscriptions in parallel
         const [listsRes, subsRes] = await Promise.all([
-          sb.from('lists').select('id, slug, name, description, is_public, default_subscribed').eq('is_active', true).order('name'),
+          // Internal/staff lists are never offered for self-service subscription.
+          sb.from('lists').select('id, slug, name, description, is_public, default_subscribed').eq('is_active', true).eq('is_internal', false).order('name'),
           sb.from('list_subscriptions').select('list_id, subscribed').eq('email', user.email),
         ])
 
