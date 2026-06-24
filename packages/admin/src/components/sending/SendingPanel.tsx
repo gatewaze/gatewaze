@@ -17,7 +17,6 @@ import {
 import { toast } from 'sonner';
 import { Card, Button, Badge } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
-import { getSupabaseConfig } from '@/config/brands';
 import type {
   SendingAdapter, SendRecord, EmailDetails, ScheduleType, DeliveryStrategy, SendComposerConfig,
 } from './types';
@@ -259,32 +258,32 @@ export function SendingPanel({ adapter }: { adapter: SendingAdapter }) {
     if (!canSend) { toast.error(canSendReason || 'Cannot send yet'); return; }
     setSending(true);
     try {
+      // Treat 'Send Now' as 'scheduled for now' so it goes through the EXACT
+      // same Tier 2 path as 'Send Later'. Previously the immediate branch
+      // synchronously invoked the per-domain Edge function (newsletter-send /
+      // broadcast-send) which then tried to do fanout + initial batch send
+      // within Supabase's ~150s function timeout — that worked for small
+      // lists but blew up on real ones (e.g. 53k recipients on the 06-24
+      // mlopscommunity re-send: Edge timed out mid-fanout, status flipped to
+      // 'failed', recipients stranded). Routing through the worker cron
+      // (which already supports `{process_scheduled: true}` mode for every
+      // SendingAdapter) removes the timeout cliff and unifies the two paths.
+      const isImmediate = scheduleType === 'immediate';
       const config: SendComposerConfig = {
-        scheduleType,
-        scheduledAt: scheduleType === 'scheduled' && scheduledAt ? new Date(scheduledAt).toISOString() : null,
-        deliveryStrategy: scheduleType === 'immediate' ? 'global' : deliveryStrategy,
-        targetLocal: scheduleType === 'immediate' || deliveryStrategy === 'global' ? null : targetLocal,
-        defaultTimezone: scheduleType === 'immediate' || deliveryStrategy === 'global' ? null : (defaultTimezone || null),
+        scheduleType: 'scheduled',
+        scheduledAt: isImmediate
+          ? new Date().toISOString()
+          : (scheduledAt ? new Date(scheduledAt).toISOString() : null),
+        deliveryStrategy: isImmediate ? 'global' : deliveryStrategy,
+        targetLocal: isImmediate || deliveryStrategy === 'global' ? null : targetLocal,
+        defaultTimezone: isImmediate || deliveryStrategy === 'global' ? null : (defaultTimezone || null),
         excludeSentSendIds,
       };
       const { id } = await adapter.createSend(config);
       setSelectedSendId(id);
-      if (scheduleType === 'immediate') {
-        const { url } = getSupabaseConfig();
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) throw new Error('Authentication required');
-        const res = await fetch(`${url}/functions/v1/${adapter.sendEndpoint}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-          body: JSON.stringify({ send_id: id }),
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          await supabase.from(adapter.sendsTable).update({ status: 'failed' }).eq('id', id);
-          throw new Error(err.error || `Send failed (${res.status})`);
-        }
-      }
-      if (scheduleType === 'scheduled') toast.success('Send scheduled');
+      toast.success(isImmediate
+        ? 'Send queued — dispatch begins within 60s'
+        : 'Send scheduled');
       setExcludeSentSendIds([]);
       await loadSends();
     } catch (err) {
