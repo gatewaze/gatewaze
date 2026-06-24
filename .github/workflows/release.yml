@@ -153,6 +153,23 @@ jobs:
           build-args: |
             BUILD_TIME_GITHUB_TOKEN=${{ secrets.GH_PAT_MODULES }}
 
+      - name: Build and push scrapling-fetcher image
+        uses: docker/build-push-action@v6
+        with:
+          context: services/scrapling-fetcher
+          file: services/scrapling-fetcher/Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ghcr.io/gatewaze/scrapling-fetcher:${{ steps.version.outputs.VERSION }}
+            ghcr.io/gatewaze/scrapling-fetcher:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # Self-contained Python/FastAPI service (Scrapling on the Playwright
+          # base image). No module sources, so no BUILD_TIME_GITHUB_TOKEN.
+          # See docs/spec-scrapling-fetcher-service.md §4.1. gatewaze ghcr
+          # packages are public, so the cluster pulls this with no pull secret.
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
