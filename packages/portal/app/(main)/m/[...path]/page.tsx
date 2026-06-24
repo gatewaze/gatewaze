@@ -48,7 +48,7 @@ async function newsletterEditionMetadata(
     const supabase = await createServerSupabase(brand.id)
 
     const { data: collection } = await supabase
-      .from('newsletters')
+      .from('newsletters_template_collections')
       .select('id, name')
       .eq('slug', collectionSlug)
       .single()
@@ -94,9 +94,11 @@ async function newsletterEditionMetadata(
         images: ogImage ? [ogImage] : undefined,
       },
     }
-  } catch {
+  } catch (err) {
     // Metadata failures should never break the page render — return empty
-    // and let the layout default carry through.
+    // and let the layout default carry through. Log so we can spot
+    // misconfigurations that quietly degrade unfurls.
+    console.warn('[newsletter-metadata] failed to build:', err)
     return {}
   }
 }
