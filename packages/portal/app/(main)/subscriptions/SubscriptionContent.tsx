@@ -90,7 +90,8 @@ export function SubscriptionContent({ brandConfig: _brandConfig }: SubscriptionC
       interface ListRow { id: string; name: string; description: string | null; is_public: boolean; default_subscribed: boolean | null }
       interface SubRow { list_id: string; subscribed: boolean }
       const [listsRes, subsRes] = await Promise.all([
-        supabase.from('lists').select('id, name, description, is_public, default_subscribed').eq('is_active', true).order('name'),
+        // Internal/staff lists are never offered in the Subscription Centre.
+        supabase.from('lists').select('id, name, description, is_public, default_subscribed').eq('is_active', true).eq('is_internal', false).order('name'),
         user?.email
           ? supabase.from('list_subscriptions').select('list_id, subscribed').eq('email', user.email)
           : Promise.resolve({ data: [] as SubRow[] }),
