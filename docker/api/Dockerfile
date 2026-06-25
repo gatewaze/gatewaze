@@ -183,7 +183,7 @@ RUN chmod +x /docker-entrypoint.sh
 #
 # Wrap in `|| (...)` so a private-repo clone failure during build
 # doesn't abort the image — same defence as docker/admin/Dockerfile.
-ARG BUILD_TIME_MODULE_SOURCES="https://github.com/gatewaze/gatewaze-modules.git#branch=main&path=modules,https://github.com/gatewaze/premium-gatewaze-modules.git#branch=main&path=modules,https://github.com/gatewaze/lf-gatewaze-modules.git#branch=main&path=modules"
+ARG BUILD_TIME_MODULE_SOURCES="https://github.com/gatewaze/gatewaze-modules.git#branch=main&path=modules,https://github.com/gatewaze/lf-gatewaze-modules.git#branch=main&path=modules"
 ARG BUILD_TIME_GITHUB_TOKEN=""
 ENV BUILD_TIME_MODULE_SOURCES=$BUILD_TIME_MODULE_SOURCES
 RUN MODULE_SOURCES="$BUILD_TIME_MODULE_SOURCES" \

@@ -74,8 +74,9 @@ jobs:
           # BUILD_TIME_MODULE_SOURCES and aggregates their declared
           # deps into the workspace install so `next build` at pod
           # startup can resolve module-side packages without a
-          # per-pod aggregate-and-install. PAT, not auto-token,
-          # because premium-gatewaze-modules is private.
+          # per-pod aggregate-and-install. PAT, not auto-token, in
+          # case any baked source repo is private (lf-gatewaze-modules
+          # historically required it).
           build-args: |
             BUILD_TIME_GITHUB_TOKEN=${{ secrets.GH_PAT_MODULES }}
 
