@@ -43,7 +43,7 @@ RUN chmod +x /docker-entrypoint.sh
 # This is the single biggest reliability improvement for admin pods:
 # fast cold-starts → faster recovery from node failures → less time
 # in unhealthy state when the cluster has issues.
-ARG BUILD_TIME_MODULE_SOURCES="https://github.com/gatewaze/gatewaze-modules.git#branch=main&path=modules,https://github.com/gatewaze/premium-gatewaze-modules.git#branch=main&path=modules,https://github.com/gatewaze/lf-gatewaze-modules.git#branch=main&path=modules"
+ARG BUILD_TIME_MODULE_SOURCES="https://github.com/gatewaze/gatewaze-modules.git#branch=main&path=modules,https://github.com/gatewaze/lf-gatewaze-modules.git#branch=main&path=modules"
 ARG BUILD_TIME_GITHUB_TOKEN=""
 ENV BUILD_TIME_MODULE_SOURCES=$BUILD_TIME_MODULE_SOURCES
 ENV ADMIN_NODE_HEAP_MB=4608

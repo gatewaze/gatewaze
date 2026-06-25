@@ -110,7 +110,8 @@ RUN mkdir -p /tmp/crashpad && chmod 777 /tmp/crashpad
 
 # Symlink node_modules to locations where mounted module scripts can find packages.
 # ESM resolution walks up from the importing file's directory, so modules mounted
-# at /premium-gatewaze-modules need a node_modules somewhere in that ancestor chain.
+# at e.g. /gatewaze-modules or /lf-gatewaze-modules need a node_modules somewhere
+# in that ancestor chain.
 # Using `ln -sfn` so it always creates/replaces the symlink and fails loudly on real errors.
 RUN ln -sfn /app/node_modules /node_modules && \
     ls -la /node_modules && \
@@ -118,7 +119,8 @@ RUN ln -sfn /app/node_modules /node_modules && \
 
 # Copy the same entrypoint the api image uses: it clones MODULE_SOURCES into
 # /tmp/module-repos and symlinks them under / before handing off to CMD.
-# Without this the worker crashes on `import '/premium-gatewaze-modules/...'`.
+# Without this the worker crashes on `import '/lf-gatewaze-modules/...'`
+# (or any other top-level module-repo path the modules register against).
 COPY docker/api/entrypoint.sh /docker-entrypoint.sh
 COPY docker/shared/aggregate-module-deps.mjs /docker/shared/aggregate-module-deps.mjs
 RUN chmod +x /docker-entrypoint.sh && mkdir -p /tmp/module-repos
@@ -138,7 +140,7 @@ RUN chmod +x /docker-entrypoint.sh && mkdir -p /tmp/module-repos
 # no install runs (the deps are baked in). If a brand pulls a module
 # repo we didn't bake, its handlers will crash on first dispatch —
 # matches the api behaviour and is loud rather than silent.
-ARG BUILD_TIME_MODULE_SOURCES="https://github.com/gatewaze/gatewaze-modules.git#branch=main&path=modules,https://github.com/gatewaze/premium-gatewaze-modules.git#branch=main&path=modules,https://github.com/gatewaze/lf-gatewaze-modules.git#branch=main&path=modules"
+ARG BUILD_TIME_MODULE_SOURCES="https://github.com/gatewaze/gatewaze-modules.git#branch=main&path=modules,https://github.com/gatewaze/lf-gatewaze-modules.git#branch=main&path=modules"
 ARG BUILD_TIME_GITHUB_TOKEN=""
 ENV BUILD_TIME_MODULE_SOURCES=$BUILD_TIME_MODULE_SOURCES
 RUN if [ -n "$BUILD_TIME_GITHUB_TOKEN" ]; then \

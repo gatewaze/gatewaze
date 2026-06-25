@@ -59,7 +59,7 @@ RUN chmod +x /docker-entrypoint.sh
 # this prebuild step, the first module that introduces a new npm dep
 # breaks `next build` with MODULE_NOT_FOUND. Mirrors the api + worker
 # pattern (docker/api/Dockerfile, docker/worker/Dockerfile).
-ARG BUILD_TIME_MODULE_SOURCES="https://github.com/gatewaze/gatewaze-modules.git#branch=main&path=modules,https://github.com/gatewaze/premium-gatewaze-modules.git#branch=main&path=modules,https://github.com/gatewaze/lf-gatewaze-modules.git#branch=main&path=modules"
+ARG BUILD_TIME_MODULE_SOURCES="https://github.com/gatewaze/gatewaze-modules.git#branch=main&path=modules,https://github.com/gatewaze/lf-gatewaze-modules.git#branch=main&path=modules"
 ARG BUILD_TIME_GITHUB_TOKEN=""
 ENV BUILD_TIME_MODULE_SOURCES=$BUILD_TIME_MODULE_SOURCES
 RUN if [ -n "$BUILD_TIME_GITHUB_TOKEN" ]; then \

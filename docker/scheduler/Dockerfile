@@ -42,7 +42,7 @@ COPY scripts/ ./scripts/
 # one npm install. At runtime loadModules sees existing repos in
 # /app/.gatewaze-modules and `git pull`s instead of re-cloning.
 COPY docker/shared/aggregate-module-deps.mjs /docker/shared/aggregate-module-deps.mjs
-ARG BUILD_TIME_MODULE_SOURCES="https://github.com/gatewaze/gatewaze-modules.git#branch=main&path=modules,https://github.com/gatewaze/premium-gatewaze-modules.git#branch=main&path=modules,https://github.com/gatewaze/lf-gatewaze-modules.git#branch=main&path=modules"
+ARG BUILD_TIME_MODULE_SOURCES="https://github.com/gatewaze/gatewaze-modules.git#branch=main&path=modules,https://github.com/gatewaze/lf-gatewaze-modules.git#branch=main&path=modules"
 ARG BUILD_TIME_GITHUB_TOKEN=""
 ENV BUILD_TIME_MODULE_SOURCES=$BUILD_TIME_MODULE_SOURCES
 RUN if [ -n "$BUILD_TIME_GITHUB_TOKEN" ]; then \
