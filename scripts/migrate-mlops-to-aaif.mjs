@@ -127,8 +127,9 @@ async function paginate(src, keyCol, batch, maxRows, build, onBatch) {
 }
 
 // --------------------------------------------------------------- auth.users
-// Login-essential columns only. Excludes the generated confirmed_at and all
-// *_token columns (which carry partial-unique indexes that would collide).
+// Login-essential columns only (the generated confirmed_at is excluded). The
+// four GoTrue token columns are set to '' (see AUTH_TOKEN_EMPTY_COLS) — not
+// copied and not left NULL, which this GoTrue version rejects.
 // Copying encrypted_password preserves the user's existing credentials so
 // they can sign in to aaif unchanged. Direct INSERTs never trigger GoTrue
 // email (confirmation/magic-link), so the migration stays silent.
@@ -141,6 +142,12 @@ const AUTH_IDENTITY_COLS = [
   'id', 'provider_id', 'user_id', 'identity_data', 'provider',
   'last_sign_in_at', 'created_at', 'updated_at',
 ];
+// GoTrue requires '' (not NULL) in these token columns — NULL breaks
+// auth.admin.createUser, generate_link, and magic-link sign-in for imported
+// users. We don't copy the source values (they're per-session tokens); we set
+// '' to match a clean GoTrue user. '' matches the partial-unique-index
+// predicate ('^[0-9 ]*$'), so it's excluded from those indexes → no collision.
+const AUTH_TOKEN_EMPTY_COLS = ['confirmation_token', 'recovery_token', 'email_change_token_new', 'email_change'];
 
 async function stageAuthUsers(src, dst, args, scope) {
   console.log('\n── Stage 0: auth users (auth.users + auth.identities) ──');
@@ -187,9 +194,12 @@ async function stageAuthUsers(src, dst, args, scope) {
       if (!fresh.length) return;
       for (const r of fresh) existingEmails.add(lc(r.email));
       const jsonbCols = new Set(['raw_app_meta_data', 'raw_user_meta_data']);
-      const payload = fresh.map((r) => AUTH_USER_COLS.map((c) =>
-        jsonbCols.has(c) && r[c] != null ? JSON.stringify(r[c]) : r[c]));
-      written += await insertBatch(dst, 'auth.users', AUTH_USER_COLS, payload, 'ON CONFLICT (id) DO NOTHING');
+      const insertCols = [...AUTH_USER_COLS, ...AUTH_TOKEN_EMPTY_COLS];
+      const payload = fresh.map((r) => [
+        ...AUTH_USER_COLS.map((c) => (jsonbCols.has(c) && r[c] != null ? JSON.stringify(r[c]) : r[c])),
+        ...AUTH_TOKEN_EMPTY_COLS.map(() => ''),
+      ]);
+      written += await insertBatch(dst, 'auth.users', insertCols, payload, 'ON CONFLICT (id) DO NOTHING');
       const ids = fresh.map((r) => r.id);
       const idRows = (await src.query(
         `SELECT ${AUTH_IDENTITY_COLS.map((c) => '"' + c + '"').join(', ')}
