@@ -32,6 +32,7 @@ interface SignupRequest {
   source: string // Required - identifies which app/platform the signup came from
   app?: string // Optional - app identifier (cohorts, app, etc.)
   redirect_to?: string // Optional - callback URL for magic link redirect
+  geo_refresh?: boolean // Geo-only refresh (portal visit): update IP/location, nothing else
 }
 
 interface SignupResponse {
@@ -107,6 +108,35 @@ async function handler(req: Request) {
       }
     }
 
+    // Geo-only refresh (portal visit). Securely scoped to the caller's own person
+    // via their JWT — refreshes IP-derived location and nothing else (no consent,
+    // source, person creation, or magic link). Called once per session.
+    if (body.geo_refresh) {
+      if (currentAuthUserId && (ipLocation || clientIp)) {
+        const { data: gp } = await supabase
+          .from('people')
+          .select('id, attributes')
+          .eq('auth_user_id', currentAuthUserId)
+          .maybeSingle()
+        if (gp) {
+          const ex = (gp.attributes as Record<string, any>) || {}
+          const upd: Record<string, any> = { ...ex }
+          if (ipLocation?.city) upd.city = ipLocation.city
+          if (ipLocation?.country) upd.country = ipLocation.country
+          if (ipLocation?.country_code) upd.country_code = ipLocation.country_code
+          if (ipLocation?.continent) upd.continent = ipLocation.continent
+          if (ipLocation?.location) upd.location = ipLocation.location
+          if (ipLocation?.timezone && !ex.timezone) upd.timezone = ipLocation.timezone
+          if (clientIp) upd.ip_address = clientIp
+          upd.geo_updated_at = new Date().toISOString()
+          await supabase.from('people').update({ attributes: upd }).eq('id', gp.id)
+        }
+      }
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     // Step 1: Check if person already exists in Supabase
     const { data: existingPerson } = await supabase
       .from('people')
@@ -134,15 +164,12 @@ async function handler(req: Request) {
     if (existingPerson?.auth_user_id && existingAuthIsTrusted) {
       console.log(`Person already exists with auth: ${existingPerson.auth_user_id}`)
 
-      // Update attributes if new metadata provided OR IP location available
+      // Update attributes if new metadata provided OR IP location available.
+      // IP-derived details are REFRESHED (overwritten) on each sign-in/visit.
       const existingAttrs = existingPerson.attributes as Record<string, any> || {}
-      const needsLocationUpdate = (!existingAttrs.city && ipLocation?.city) ||
-                                   (!existingAttrs.country && ipLocation?.country) ||
-                                   (!existingAttrs.country_code && ipLocation?.country_code) ||
-                                   (!existingAttrs.continent && ipLocation?.continent) ||
-                                   (!existingAttrs.location && ipLocation?.location)
+      const hasLocation = !!(ipLocation || clientIp)
 
-      if (Object.keys(user_metadata).length > 0 || needsLocationUpdate) {
+      if (Object.keys(user_metadata).length > 0 || hasLocation) {
         const updatedAttributes: Record<string, any> = {
           ...existingAttrs,
           ...user_metadata,
@@ -152,19 +179,25 @@ async function handler(req: Request) {
           ...(existingAttrs.marketing_consent !== false ? { marketing_consent: true } : {}),
         }
 
-        // Add IP location if missing
-        if (!existingAttrs.city && ipLocation?.city) updatedAttributes.city = ipLocation.city
-        if (!existingAttrs.country && ipLocation?.country) updatedAttributes.country = ipLocation.country
-        if (!existingAttrs.country_code && ipLocation?.country_code) updatedAttributes.country_code = ipLocation.country_code
-        if (!existingAttrs.continent && ipLocation?.continent) updatedAttributes.continent = ipLocation.continent
-        if (!existingAttrs.location && ipLocation?.location) updatedAttributes.location = ipLocation.location
+        // Refresh IP-derived location on every sign-in/visit (overwrite stale data).
+        if (ipLocation?.city) updatedAttributes.city = ipLocation.city
+        if (ipLocation?.country) updatedAttributes.country = ipLocation.country
+        if (ipLocation?.country_code) updatedAttributes.country_code = ipLocation.country_code
+        if (ipLocation?.continent) updatedAttributes.continent = ipLocation.continent
+        if (ipLocation?.location) updatedAttributes.location = ipLocation.location
+        // Timezone from IP only fills a gap — never override a user-set timezone.
+        if (ipLocation?.timezone && !existingAttrs.timezone && !user_metadata.timezone) {
+          updatedAttributes.timezone = ipLocation.timezone
+        }
+        if (clientIp) updatedAttributes.ip_address = clientIp
+        if (hasLocation) updatedAttributes.geo_updated_at = new Date().toISOString()
 
         await supabase
           .from('people')
           .update({ attributes: updatedAttributes })
           .eq('id', existingPerson.id)
 
-        console.log(`Updated person ${existingPerson.id} with${needsLocationUpdate ? ' IP location and' : ''} attributes`)
+        console.log(`Updated person ${existingPerson.id} with${hasLocation ? ' refreshed IP location and' : ''} attributes`)
 
         // Notify integration modules about the attribute update
         emitIntegrationEvent(supabase, 'person.updated', { email, attributes: updatedAttributes })
@@ -181,8 +214,9 @@ async function handler(req: Request) {
         }
       }
 
-      // Send magic link if requested (portal sign-in flow)
-      const magicLinkSent = await sendMagicLinkIfRequested(email, app, redirect_to)
+      // Send magic link if requested (portal sign-in flow). Skipped when the
+      // caller is already authenticated (e.g. profile wizard after SSO).
+      const magicLinkSent = await sendMagicLinkIfRequested(email, app, redirect_to, !!currentAuthUserId)
 
       return new Response(JSON.stringify({
         success: true,
@@ -209,12 +243,16 @@ async function handler(req: Request) {
       marketing_consent: true, // Direct platform signups consent by default
     }
 
-    // Add IP location if available
+    // Add IP-derived location + the raw IP if available
     if (ipLocation?.city) attributes.city = ipLocation.city
     if (ipLocation?.country) attributes.country = ipLocation.country
     if (ipLocation?.country_code) attributes.country_code = ipLocation.country_code
     if (ipLocation?.continent) attributes.continent = ipLocation.continent
     if (ipLocation?.location) attributes.location = ipLocation.location
+    // Timezone from IP only as a fallback — don't override a user-provided one.
+    if (ipLocation?.timezone && !attributes.timezone) attributes.timezone = ipLocation.timezone
+    if (clientIp) attributes.ip_address = clientIp
+    if (ipLocation || clientIp) attributes.geo_updated_at = new Date().toISOString()
 
     console.log('Preparing person record for email:', email)
     console.log('Attributes:', attributes)
@@ -372,8 +410,9 @@ async function handler(req: Request) {
       }
     }
 
-    // Send magic link if requested (portal sign-in flow)
-    const magicLinkSent = await sendMagicLinkIfRequested(email, app, redirect_to)
+    // Send magic link if requested (portal sign-in flow). Skipped when the
+    // caller is already authenticated (e.g. profile wizard after SSO).
+    const magicLinkSent = await sendMagicLinkIfRequested(email, app, redirect_to, !!currentAuthUserId)
 
     const response: SignupResponse = {
       success: true,
@@ -444,11 +483,12 @@ async function getIpLocation(ipAddress: string | null): Promise<{
   country_code?: string;
   continent?: string;
   location?: string;
+  timezone?: string;
 } | null> {
   if (!ipAddress) return null
 
   try {
-    const url = `http://ip-api.com/json/${encodeURIComponent(ipAddress)}?fields=status,message,city,country,countryCode,continentCode,lat,lon`
+    const url = `http://ip-api.com/json/${encodeURIComponent(ipAddress)}?fields=status,message,city,country,countryCode,continentCode,lat,lon,timezone`
     const response = await fetch(url)
 
     if (!response.ok) {
@@ -469,6 +509,7 @@ async function getIpLocation(ipAddress: string | null): Promise<{
       country_code: data.countryCode || undefined, // 2-letter code: "US"
       continent: data.continentCode ? data.continentCode.toLowerCase() : undefined, // Lowercase: "na", "eu", "as"
       location: data.lat && data.lon ? `${data.lat},${data.lon}` : undefined, // "lat,lng"
+      timezone: data.timezone || undefined, // IANA tz: "America/New_York"
     }
   } catch (error) {
     console.error('Error fetching IP location:', error)
@@ -523,8 +564,14 @@ async function sendMagicLinkIfRequested(
   email: string,
   app: string | undefined,
   redirectTo: string | undefined,
+  alreadyAuthenticated: boolean,
 ): Promise<boolean> {
   if (app !== 'portal') return false
+  // Never email a "here's your login link" to someone who is already signed in.
+  // This is the case when an authenticated user completes the profile wizard
+  // (e.g. after LFID SSO) — they have a live session, so a magic link is both
+  // pointless and confusing.
+  if (alreadyAuthenticated) return false
   if (!isEmailConfigured()) {
     console.warn('[magic-link] Email not configured, skipping magic link send')
     return false

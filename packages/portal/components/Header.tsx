@@ -273,7 +273,7 @@ export function Header({ brandConfig, navItems = [] }: Props) {
                 </div>
               ) : !isOnSignInPage ? (
                 <Link
-                  href={`/sign-in?redirectTo=${encodeURIComponent(pathname)}`}
+                  href={`/sign-in?sso=1&redirectTo=${encodeURIComponent(pathname)}`}
                   className="flex items-center gap-1.5 px-4 py-2 bg-white/10 hover:bg-white/20 transition-colors text-white font-medium"
                   style={{ borderRadius: 'var(--radius-control)', backdropFilter: 'blur(var(--glass-blur, 4px))', WebkitBackdropFilter: 'blur(var(--glass-blur, 4px))' }}
                 >
@@ -419,7 +419,7 @@ export function Header({ brandConfig, navItems = [] }: Props) {
                 </div>
               ) : !isOnSignInPage ? (
                 <Link
-                  href={`/sign-in?redirectTo=${encodeURIComponent(pathname)}`}
+                  href={`/sign-in?sso=1&redirectTo=${encodeURIComponent(pathname)}`}
                   onClick={closeMobileMenu}
                   className="flex items-center gap-3 py-3 text-lg text-white/70 active:opacity-70 transition-colors"
                 >

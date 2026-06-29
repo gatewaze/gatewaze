@@ -6,13 +6,15 @@ import { useUserEnrichment } from '@/hooks/useUserEnrichment'
 import { getClientBrandConfig } from '@/config/brand'
 import type { BrandConfig } from '@/config/brand'
 import { ProfileWizard, WizardStep } from './ProfileWizard'
-import { ProfileDetailsStep, ProfileDetails, validateLinkedInUrlExists } from './ProfileDetailsStep'
+import { ProfileDetailsStep, ProfileDetails, validateLinkedInUrlExists, detectedTimeZone } from './ProfileDetailsStep'
 import { PreferencesStep } from './PreferencesStep'
 import type { PeopleAttributeConfig } from '@gatewaze/shared/types/people'
 import { DEFAULT_PEOPLE_ATTRIBUTES } from '@gatewaze/shared/types/people'
 
 interface Props {
   brandConfig: BrandConfig
+  /** When true, show the Communication Preferences step (lists subscriptions). */
+  listsEnabled?: boolean
 }
 
 interface PersonData {
@@ -33,7 +35,7 @@ const ATTR_KEY_TO_FIELD: Record<string, keyof ProfileDetails> = {
  * Wrapper component that checks if a user's profile is complete
  * and shows a wizard to complete it if not.
  */
-export function ProfileCompletionWizard({ brandConfig }: Props) {
+export function ProfileCompletionWizard({ brandConfig, listsEnabled = false }: Props) {
   const { user, session } = useAuth()
   const { enrichUser } = useUserEnrichment()
   const [showWizard, setShowWizard] = useState(false)
@@ -47,7 +49,6 @@ export function ProfileCompletionWizard({ brandConfig }: Props) {
     linkedInUrl: '',
   })
   const [attributeConfig, setAttributeConfig] = useState<PeopleAttributeConfig[]>(DEFAULT_PEOPLE_ATTRIBUTES)
-  const [marketingConsent, setMarketingConsent] = useState(false)
   const [errors, setErrors] = useState<Partial<Record<keyof ProfileDetails, string>>>({})
   const [isLoading, setIsLoading] = useState(true)
   const hasCheckedRef = useRef(false)
@@ -115,7 +116,9 @@ export function ProfileCompletionWizard({ brandConfig }: Props) {
 
           // Check if any required fields are missing
           const isMissingRequired = requiredKeys.some((key: string) => !attrs[key])
-          const isMissingConsent = attrs.marketing_consent === undefined || attrs.marketing_consent === null
+          // Communication preferences only exist when the lists module is enabled,
+          // so only gate on "preferences captured" in that case.
+          const isMissingConsent = listsEnabled && (attrs.marketing_consent === undefined || attrs.marketing_consent === null)
 
           // If profile fields are missing, try enrichment first
           if (isMissingRequired && user.email) {
@@ -137,19 +140,16 @@ export function ProfileCompletionWizard({ brandConfig }: Props) {
             }
           }
 
-          // Pre-populate form with existing + enriched data
+          // Pre-populate form with existing + enriched data. Time zone defaults
+          // to the browser's locale-derived zone when not already set.
           setProfileDetails({
             firstName: attrs.first_name || '',
             lastName: attrs.last_name || '',
             company: attrs.company || '',
             jobTitle: attrs.job_title || '',
             linkedInUrl: attrs.linkedin_url || '',
+            timezone: attrs.timezone || detectedTimeZone(),
           })
-
-          // Pre-populate marketing consent if already set
-          if (String(attrs.marketing_consent) === 'true') {
-            setMarketingConsent(true)
-          }
 
           // Re-check after enrichment
           const stillMissingRequired = requiredKeys.some((key: string) => !attrs[key])
@@ -157,7 +157,9 @@ export function ProfileCompletionWizard({ brandConfig }: Props) {
             setShowWizard(true)
           }
         } else {
-          // No person record - show wizard to create one
+          // No person record - show wizard to create one. Default the time zone
+          // from the browser locale.
+          setProfileDetails(prev => ({ ...prev, timezone: prev.timezone || detectedTimeZone() }))
           setShowWizard(true)
         }
       } catch (err) {
@@ -200,7 +202,11 @@ export function ProfileCompletionWizard({ brandConfig }: Props) {
             company: profileDetails.company.trim() || undefined,
             job_title: profileDetails.jobTitle.trim() || undefined,
             linkedin_url: profileDetails.linkedInUrl.trim() || undefined,
-            marketing_consent: marketingConsent,
+            timezone: profileDetails.timezone?.trim() || undefined,
+            // Mark communication preferences as captured (lists subscriptions are
+            // saved per-toggle in the preferences step). Only relevant when the
+            // lists module is enabled and that step is shown.
+            ...(listsEnabled ? { marketing_consent: true } : {}),
           },
         }),
       })
@@ -218,7 +224,7 @@ export function ProfileCompletionWizard({ brandConfig }: Props) {
       console.error('Error updating profile:', err)
       throw err
     }
-  }, [session, user, profileDetails, marketingConsent])
+  }, [session, user, profileDetails, listsEnabled])
 
   // Validation function for the details step - returns errors or true
   const validateDetails = useCallback(async (): Promise<true | Record<string, string>> => {
@@ -279,17 +285,19 @@ export function ProfileCompletionWizard({ brandConfig }: Props) {
       countInProgress: true,
       validate: validateDetails,
     },
-    {
-      id: 'preferences',
-      title: 'Communication Preferences',
-      component: (
-        <PreferencesStep
-          brandConfig={brandConfig}
-          marketingConsent={marketingConsent}
-          onChange={setMarketingConsent}
-        />
-      ),
-    },
+    // Communication Preferences — only when the lists module is enabled.
+    ...(listsEnabled
+      ? [{
+          id: 'preferences',
+          title: 'Communication Preferences',
+          component: (
+            <PreferencesStep
+              brandConfig={brandConfig}
+              userEmail={user?.email || ''}
+            />
+          ),
+        }]
+      : []),
   ]
 
   return (

@@ -1,7 +1,6 @@
 'use client'
 
 import { useRef, useEffect, ReactNode } from 'react'
-import { useGlowPosition } from './GlowContext'
 
 interface Props {
   children: ReactNode
@@ -62,7 +61,6 @@ export function GlowBorder({
   const overlayRef = useRef<HTMLDivElement>(null)
   const glowStateRef = useRef({ angle: 0, intensity: 1 })
   const dimensionsRef = useRef({ width: 0, height: 0 })
-  const glowPosition = useGlowPosition()
 
   const updateOverlay = () => {
     const overlay = overlayRef.current
@@ -134,21 +132,8 @@ export function GlowBorder({
     return () => cancelAnimationFrame(animationFrame)
   }, [autoRotate, autoRotateSpeed])
 
-  // Mouse-following effect (only when not auto-rotating)
-  useEffect(() => {
-    if (autoRotate) return
-    if (!containerRef.current || glowPosition.source === 'none') return
-
-    const rect = containerRef.current.getBoundingClientRect()
-    const centerX = rect.left + rect.width / 2
-    const centerY = rect.top + rect.height / 2
-
-    const angle = Math.atan2(glowPosition.y - centerY, glowPosition.x - centerX)
-    const angleDeg = ((angle * 180) / Math.PI + 90 + 360) % 360
-
-    glowStateRef.current = { angle: angleDeg, intensity: 1 }
-    updateOverlay()
-  }, [glowPosition, autoRotate])
+  // Mouse-following glow removed: the border no longer animates with the cursor.
+  // Time-based `autoRotate` (above) is preserved for callers that opt into it.
 
   return (
     <div

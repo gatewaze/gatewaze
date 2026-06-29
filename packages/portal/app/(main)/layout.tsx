@@ -22,6 +22,7 @@ import { WorkspaceShell } from '@/components/shell/WorkspaceShell'
 import { resolvePortalAccess, ZERO_ACCESS } from '@/lib/permissions/resolve'
 import { getModuleAccess } from '@/lib/modules/access'
 import { ProfileCompletionWrapper } from '@/components/wizard'
+import { GeoTouch } from '@/components/GeoTouch'
 import { AnalyticsProvider } from '@/components/AnalyticsProvider'
 import { TrackingMarkup } from '@/components/TrackingMarkup'
 import { getServerBrandConfig, buildGoogleFontsUrl, buildFontStack, isLightColor, getThemeBackgroundColor, resolveEventTheme, deriveAccentTints, type ThemeColors } from '@/config/brand'
@@ -258,8 +259,9 @@ export default async function MainLayout({
                 </div>
               )}
               {!isCustomDomain && (
-                <ProfileCompletionWrapper brandConfig={brandConfig} />
+                <ProfileCompletionWrapper brandConfig={brandConfig} listsEnabled={isModuleEnabled(modules, 'lists')} />
               )}
+              <GeoTouch />
             </GlowProvider>
           </TrackingProvider>
         </AnalyticsProvider>

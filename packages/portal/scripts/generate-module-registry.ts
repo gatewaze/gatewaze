@@ -561,6 +561,104 @@ function discoverEventPages(sourceDirs: string[]): EventPageDef[] {
 }
 
 // ---------------------------------------------------------------------------
+// Portal slot discovery (manifest `portalSlots`)
+// ---------------------------------------------------------------------------
+
+interface PortalSlotDef {
+  moduleId: string
+  slotName: string
+  componentPath: string
+  order: number
+  requiredFeature?: string
+}
+
+// Modules contribute UI into named portal slots (e.g. 'sign-in:providers') via
+// the `portalSlots` array in their manifest (index.ts). The portal is a Next.js
+// app with no Vite virtual module, so those declarations are turned into
+// registerPortalSlot() calls here at generation time. We parse the manifest
+// SOURCE (not by importing it) to stay consistent with the rest of this
+// generator, which never executes module code.
+function discoverPortalSlots(sourceDirs: string[]): PortalSlotDef[] {
+  const slots: PortalSlotDef[] = []
+  const seen = new Set<string>() // dedupe by moduleId:slotName across source variants
+
+  for (const sourceDir of sourceDirs) {
+    if (!existsSync(sourceDir)) continue
+
+    const moduleDirs = readdirSync(sourceDir).filter(name => {
+      if (name.startsWith('.') || name.startsWith('_')) return false
+      try {
+        return statSync(resolve(sourceDir, name)).isDirectory()
+      } catch {
+        return false
+      }
+    })
+
+    for (const moduleDir of moduleDirs) {
+      const indexPath = resolve(sourceDir, moduleDir, 'index.ts')
+      if (!existsSync(indexPath)) continue
+
+      let src: string
+      try {
+        src = readFileSync(indexPath, 'utf-8')
+      } catch {
+        continue
+      }
+      if (!src.includes('portalSlots')) continue
+
+      // Isolate the portalSlots: [ ... ] array body.
+      const arrMatch = src.match(/portalSlots\s*:\s*\[([\s\S]*?)\]\s*,/)
+      if (!arrMatch) continue
+      const arrBody = arrMatch[1]
+
+      // Resolve the gating module id: prefer module.json, else the manifest's
+      // `id:` field, else the directory name.
+      let moduleId = moduleDir
+      try {
+        const mjPath = resolve(sourceDir, moduleDir, 'module.json')
+        if (existsSync(mjPath)) {
+          const mj = JSON.parse(readFileSync(mjPath, 'utf-8')) as { id?: unknown }
+          if (typeof mj.id === 'string' && mj.id) moduleId = mj.id
+        } else {
+          const idMatch = src.match(/\bid\s*:\s*['"]([^'"]+)['"]/)
+          if (idMatch) moduleId = idMatch[1]
+        }
+      } catch {}
+
+      // Each slot entry is an object literal keyed by a `slotName`. Walk them.
+      const entryRegex = /slotName\s*:\s*['"]([^'"]+)['"]/g
+      let m: RegExpExecArray | null
+      while ((m = entryRegex.exec(arrBody)) !== null) {
+        const slotName = m[1]
+        // Inspect the window of text following this slotName for the entry's
+        // other fields (component / order / requiredFeature).
+        const tail = arrBody.slice(m.index, m.index + 400)
+        const compMatch = tail.match(/component\s*:\s*\(\)\s*=>\s*import\(\s*['"]([^'"]+)['"]\s*\)/)
+        if (!compMatch) continue
+        const rel = compMatch[1].replace(/^\.\//, '')
+        const componentPath = resolve(sourceDir, moduleDir, rel)
+        const orderMatch = tail.match(/order\s*:\s*(\d+)/)
+        const featMatch = tail.match(/requiredFeature\s*:\s*['"]([^'"]+)['"]/)
+
+        const key = `${moduleId}:${slotName}`
+        if (seen.has(key)) continue
+        seen.add(key)
+
+        slots.push({
+          moduleId,
+          slotName,
+          componentPath,
+          order: orderMatch ? parseInt(orderMatch[1], 10) : 100,
+          requiredFeature: featMatch ? featMatch[1] : undefined,
+        })
+      }
+    }
+  }
+
+  return slots
+}
+
+// ---------------------------------------------------------------------------
 // Generate
 // ---------------------------------------------------------------------------
 
@@ -589,6 +687,7 @@ async function generate() {
 
   const pages = discoverPortalModules(sourceDirs)
   const eventPages = discoverEventPages(sourceDirs)
+  const portalSlots = discoverPortalSlots(sourceDirs)
 
   const entries: string[] = []
   for (const page of pages) {
@@ -650,6 +749,24 @@ export function extractParams(routePath: string, pathname: string): Record<strin
 `
 
   writeIfChanged(OUTPUT_PATH, output)
+
+  // Portal slot registry. Emits registerPortalSlot() side-effect calls from
+  // each module's manifest `portalSlots`. Imported for its side effects by
+  // lib/modules/ModuleSlot.tsx so registrations run before any slot renders.
+  const SLOTS_PATH = resolve(__dirname, '../lib/modules/generated-portal-slots.ts')
+  const slotEntries = portalSlots.map(s =>
+    `registerPortalSlot({ moduleId: '${s.moduleId}', slotName: '${s.slotName}', order: ${s.order}, ` +
+    `${s.requiredFeature ? `requiredFeature: '${s.requiredFeature}', ` : ''}` +
+    `component: () => import('${s.componentPath}') })`
+  )
+  const slotsOutput = `// AUTO-GENERATED — do not edit manually
+// Run: npx tsx scripts/generate-module-registry.ts
+
+import { registerPortalSlot } from './registry'
+
+${slotEntries.join('\n')}
+`
+  writeIfChanged(SLOTS_PATH, slotsOutput)
 
   // Admin-page registry (spec §8.4). Consumed by app/(main)/admin/[module]/[[...path]].
   // TODO: discover each module's admin/pages/** once modules expose Next-compatible admin pages

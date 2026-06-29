@@ -107,25 +107,21 @@ export default async function UpcomingEventsPage({ searchParams }: PageProps) {
     pastCount = countResult.count
   } catch (err) {
     return (
-      <main className="relative z-10">
-        <div className="max-w-7xl mx-auto px-6 sm:px-6 lg:px-8 py-8 sm:py-12">
-          <PortalListingErrorBoundary error={err} retryHref="/events/upcoming" />
-        </div>
-      </main>
+      <div className="pub-wrap">
+        <PortalListingErrorBoundary error={err} retryHref="/events/upcoming" />
+      </div>
     )
   }
 
   return (
-    <main className="relative z-10">
-      <div className="max-w-7xl mx-auto px-6 sm:px-6 lg:px-8 py-8 sm:py-12">
-        <TimelineContent
-          brandConfig={brandConfig}
-          view="upcoming"
-          initialPage={initialPage}
-          query={query}
-          otherViewCount={pastCount}
-        />
-      </div>
-    </main>
+    <div className="pub-wrap">
+      <TimelineContent
+        brandConfig={brandConfig}
+        view="upcoming"
+        initialPage={initialPage}
+        query={query}
+        otherViewCount={pastCount}
+      />
+    </div>
   )
 }
