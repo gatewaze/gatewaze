@@ -183,6 +183,16 @@ export function WorkspaceShell({
   const showSidebar = !activeItem?.fullBleed && nav.length > 0
   const content = activeEntry?.access === 'gated' ? <SignInGate label={activeItem?.full} /> : children
 
+  // Brand mark for the mobile top bar + menu head — full logo when configured,
+  // else icon + name. Mirrors PublicTopbar so signed-in === signed-out.
+  const mobileBrand = logoUrl ? (
+    <img src={logoUrl} alt={brandName} className="pub-logo-img" />
+  ) : logoIconUrl ? (
+    <><Image src={logoIconUrl} alt="" width={24} height={24} /><span>{brandName}</span></>
+  ) : (
+    <span>{brandName}</span>
+  )
+
   return (
     <ShellProvider access={access} activeModuleId={activeModuleId} featureKeys={featureKeys} isSuperAdmin={isSuperAdmin}>
       {/* Prototype structure: rail | (app: sidebar + main(top + content)) — the full-width
@@ -196,12 +206,12 @@ export function WorkspaceShell({
         {!activeIsAdmin && (
           <div className="gw-mobile-topbar gw-mobile-only">
             <Link href="/" className="gw-mobile-brand" aria-label={brandName}>
-              {logoIconUrl ? <Image src={logoIconUrl} alt="" width={26} height={26} /> : null}
-              <span>{brandName}</span>
+              {mobileBrand}
             </Link>
             <MobileMenu
               items={railItems.filter((it) => access[it.moduleId]?.access !== 'hidden')}
               activeModuleId={activeModuleId}
+              brand={<Link href="/" className="gw-mobile-brand" aria-label={brandName}>{mobileBrand}</Link>}
               footer={
                 <div className="gw-mobile-menu-acct">
                   <Link href="/profile" className="gw-mobile-menu-foot-link">Profile</Link>
