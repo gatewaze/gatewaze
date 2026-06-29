@@ -24,19 +24,23 @@ export function PublicTopbar({ items, activeModuleId, brandName, logoUrl, logoIc
   // Public nav = rail items visible to the public (Home is always public).
   const nav = items.filter((it) => it.visibility === 'public')
 
+  // Brand mark: full logo when configured, else icon + name. Shared by the top
+  // bar and the mobile menu head so they're identical.
+  const brandContent = logoUrl ? (
+    <img src={logoUrl} alt={brandName} className="pub-logo-img" />
+  ) : logoIconUrl ? (
+    <>
+      <Image src={logoIconUrl} alt="" width={24} height={24} />
+      <span>{brandName}</span>
+    </>
+  ) : (
+    <span>{brandName}</span>
+  )
+
   return (
     <div className={`pub-topbar${scrolled ? ' scrolled' : ''}`}>
       <Link href="/" className="brand" aria-label={brandName}>
-        {logoUrl ? (
-          <img src={logoUrl} alt={brandName} className="pub-logo-img" />
-        ) : logoIconUrl ? (
-          <>
-            <Image src={logoIconUrl} alt="" width={24} height={24} />
-            <span>{brandName}</span>
-          </>
-        ) : (
-          <span>{brandName}</span>
-        )}
+        {brandContent}
       </Link>
 
       <nav className="pub-nav">
@@ -67,6 +71,7 @@ export function PublicTopbar({ items, activeModuleId, brandName, logoUrl, logoIc
         <MobileMenu
           items={nav}
           activeModuleId={activeModuleId}
+          brand={<Link href="/" className="brand" aria-label={brandName}>{brandContent}</Link>}
           footer={
             <Link href="/sign-in?sso=1" className="gw-mobile-menu-foot-link">
               <Icon name="signin" size={18} className="ic" />
