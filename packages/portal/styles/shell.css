@@ -78,8 +78,13 @@
 
 /* ---- Contextual app: sidebar + main, full-width header over the sidebar --- */
 .gw-app { display: flex; height: 100%; width: 100%; position: relative; }
-.gw-app > .gw-side { padding-top: 56px; }
-.gw-app > .gw-main { padding-top: 56px; }
+/* Reserve space for the absolute ShellHeader ONLY when it's present (admin
+   sections). Non-admin views have no header — without this guard the 56px band
+   stayed and the scrolling content was clipped beneath it ("top cut off"). */
+.gw-app > .gw-side { padding-top: 0; }
+.gw-app > .gw-main { padding-top: 0; }
+.gw-app:has(> .gw-main > .gw-top) > .gw-side,
+.gw-app:has(> .gw-main > .gw-top) > .gw-main { padding-top: 56px; }
 .gw-app > .gw-main > .gw-top { position: absolute; top: 0; left: 0; right: 0; z-index: 30;
   background: rgba(var(--panel-tint), 0.72); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
 .gw-ws-root.side-collapsed .gw-app > .gw-side { display: none; }
