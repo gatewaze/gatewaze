@@ -197,12 +197,17 @@ export function WorkspaceShell({
           <div className="gw-app">
             {showSidebar && <ContextualSidebar nav={nav} featureKeys={featureKeys} />}
             <div className="gw-main">
-              <ShellHeader
-                activeItem={activeItem}
-                activeIsAdmin={activeIsAdmin}
-                navLabel={navLabel}
-                onToggleMobileNav={() => setMobileNavOpen((v) => !v)}
-              />
+              {/* Top bar only renders where the user has admin access to the
+                  section (its breadcrumb/back-nav is for the module admin).
+                  Public / non-admin views render chrome-free. */}
+              {activeIsAdmin && (
+                <ShellHeader
+                  activeItem={activeItem}
+                  activeIsAdmin={activeIsAdmin}
+                  navLabel={navLabel}
+                  onToggleMobileNav={() => setMobileNavOpen((v) => !v)}
+                />
+              )}
               <main className="gw-content">
                 <ShellErrorBoundary resetKey={pathname}>{content}</ShellErrorBoundary>
               </main>
