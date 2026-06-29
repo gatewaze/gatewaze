@@ -11,11 +11,14 @@ interface Props {
 }
 
 export function SignInPageContent({ brandConfig, enabledModuleIds, enabledFeatures }: Props) {
-  // Content uses fixed positioning to center in full viewport regardless of header
-  // No wrapper div needed - fixed position removes it from document flow
+  // Center in normal flow (min-h-screen) rather than position:fixed. The page
+  // transition (app/(main)/template.tsx) animates a transform on an ancestor,
+  // and a transformed ancestor makes position:fixed resolve relative to it —
+  // which mispositioned the card (top-left) until the animation's transform
+  // cleared, then it snapped to centre. In-flow centring isn't affected.
   return (
-    <main className="fixed inset-0 z-10 flex items-center justify-center px-4 pointer-events-none">
-      <div className="w-full max-w-md pointer-events-auto">
+    <main className="min-h-screen relative z-10 flex items-center justify-center px-4 py-10">
+      <div className="w-full max-w-md">
         <GlassPanel padding="p-8">
           <SignInForm
             brandConfig={brandConfig}
