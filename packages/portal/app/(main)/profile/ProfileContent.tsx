@@ -22,6 +22,7 @@ interface ProfileData {
   company: string
   job_title: string
   linkedin_url: string
+  timezone: string
   avatar_url: string | null
   avatar_storage_path: string | null
   marketing_consent: boolean
@@ -33,6 +34,16 @@ interface FormErrors {
   company?: string
   job_title?: string
 }
+
+// IANA timezone list (full when the browser supports it, else a curated set) —
+// mirrors the onboarding wizard's timezone picker.
+const TIMEZONES: string[] = (() => {
+  try {
+    const intl = Intl as typeof Intl & { supportedValuesOf?: (k: string) => string[] }
+    if (typeof intl.supportedValuesOf === 'function') return intl.supportedValuesOf('timeZone')
+  } catch { /* ignore */ }
+  return ['UTC', 'Europe/London', 'Europe/Paris', 'Europe/Berlin', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'Asia/Singapore', 'Asia/Tokyo', 'Australia/Sydney']
+})()
 
 export function ProfileContent({ brandConfig }: Props) {
   const router = useRouter()
@@ -51,6 +62,7 @@ export function ProfileContent({ brandConfig }: Props) {
     company: '',
     job_title: '',
     linkedin_url: '',
+    timezone: '',
   })
   const [errors, setErrors] = useState<FormErrors>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -147,6 +159,7 @@ export function ProfileContent({ brandConfig }: Props) {
           company: personAttrs.company || '',
           job_title: personAttrs.job_title || '',
           linkedin_url: personAttrs.linkedin_url || '',
+          timezone: personAttrs.timezone || '',
           avatar_url: avatarUrl,
           avatar_storage_path: person.avatar_storage_path,
           marketing_consent: String(personAttrs.marketing_consent) === 'true',
@@ -159,6 +172,7 @@ export function ProfileContent({ brandConfig }: Props) {
           company: profile.company,
           job_title: profile.job_title,
           linkedin_url: profile.linkedin_url,
+          timezone: profile.timezone,
         })
         if (avatarUrl) {
           setProfileImagePreview(avatarUrl)
@@ -390,6 +404,7 @@ export function ProfileContent({ brandConfig }: Props) {
           company: formData.company.trim() || undefined,
           job_title: formData.job_title.trim() || undefined,
           linkedin_url: formData.linkedin_url.trim() || undefined,
+          timezone: formData.timezone || undefined,
           avatar_storage_path: avatarStoragePath,
         }),
       })
@@ -648,6 +663,26 @@ export function ProfileContent({ brandConfig }: Props) {
                     disabled={isSubmitting}
                   />
                 </div>
+              </div>
+
+              {/* Timezone (set during onboarding; editable here) */}
+              <div>
+                <label htmlFor="timezone" className="block text-sm font-medium text-white mb-2">
+                  Timezone
+                </label>
+                <select
+                  id="timezone"
+                  name="timezone"
+                  value={formData.timezone}
+                  onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}
+                  disabled={isSubmitting}
+                  className="w-full text-sm px-4 py-2.5 border border-white/30 rounded-lg bg-white/60 text-gray-900 focus:outline-none transition-colors disabled:opacity-50"
+                >
+                  <option value="">Select your timezone…</option>
+                  {TIMEZONES.map((tz) => (
+                    <option key={tz} value={tz}>{tz}</option>
+                  ))}
+                </select>
               </div>
 
               {/* LinkedIn */}
