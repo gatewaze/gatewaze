@@ -1,5 +1,5 @@
 import { Suspense, lazy, useMemo } from 'react';
-import { useModuleSlots } from '@/hooks/useModuleSlots';
+import { useModuleSlots, type ModuleEnablementOverride } from '@/hooks/useModuleSlots';
 
 interface ModuleSlotProps {
   /** The slot name to render, e.g. 'event-detail:tabs' */
@@ -10,6 +10,11 @@ interface ModuleSlotProps {
   wrapper?: React.ComponentType<{ moduleId: string; children: React.ReactNode }>;
   /** Fallback shown while a slot component is loading */
   fallback?: React.ReactNode;
+  /**
+   * Pre-auth enablement override (login page). When the modules context has no
+   * data (no session), supply the enabled sets fetched via public_enabled_modules.
+   */
+  enabledOverride?: ModuleEnablementOverride;
 }
 
 /**
@@ -30,8 +35,8 @@ interface ModuleSlotProps {
  *   wrapper={({ children }) => <Card>{children}</Card>}
  * />
  */
-export function ModuleSlot({ name, props, wrapper: Wrapper, fallback }: ModuleSlotProps) {
-  const slots = useModuleSlots(name);
+export function ModuleSlot({ name, props, wrapper: Wrapper, fallback, enabledOverride }: ModuleSlotProps) {
+  const slots = useModuleSlots(name, enabledOverride);
 
   const components = useMemo(
     () =>

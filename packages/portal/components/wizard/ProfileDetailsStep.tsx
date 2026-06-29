@@ -50,6 +50,36 @@ const FIELD_INPUT_TYPE: Record<string, string> = {
   linkedInUrl: 'url',
 }
 
+// A small fallback list for browsers without Intl.supportedValuesOf.
+const FALLBACK_TIMEZONES = [
+  'America/Los_Angeles', 'America/Denver', 'America/Chicago', 'America/New_York',
+  'America/Sao_Paulo', 'Europe/London', 'Europe/Paris', 'Europe/Berlin',
+  'Europe/Moscow', 'Africa/Johannesburg', 'Asia/Dubai', 'Asia/Kolkata',
+  'Asia/Singapore', 'Asia/Shanghai', 'Asia/Tokyo', 'Australia/Sydney',
+  'Pacific/Auckland', 'UTC',
+]
+
+/** Full IANA timezone list when the browser supports it, else a curated fallback. */
+export function getTimeZones(): string[] {
+  try {
+    const intl = Intl as unknown as { supportedValuesOf?: (k: string) => string[] }
+    if (typeof intl.supportedValuesOf === 'function') {
+      const zones = intl.supportedValuesOf('timeZone')
+      if (Array.isArray(zones) && zones.length > 0) return zones
+    }
+  } catch { /* fall through */ }
+  return FALLBACK_TIMEZONES
+}
+
+/** The browser's current IANA timezone (locale-derived), e.g. 'Europe/London'. */
+export function detectedTimeZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || ''
+  } catch {
+    return ''
+  }
+}
+
 /**
  * Validates a LinkedIn profile URL format.
  * Accepts formats like:
@@ -166,6 +196,32 @@ export function ProfileDetailsStep({ brandConfig, values, onChange, errors = {},
             rows={3}
             className={inputClassName}
           />
+          {error}
+        </div>
+      )
+    }
+
+    // Time Zone → searchable-ish dropdown of IANA zones (defaulted from the
+    // user's locale by the wizard). Determined from the browser, which is more
+    // accurate than IP for the actual zone.
+    if (attr.key === 'timezone' || attrType === 'timezone') {
+      return (
+        <div key={attr.key}>
+          {label}
+          <div className="relative" style={{ borderRadius: '0.5rem' }}>
+            <select
+              id={fieldId}
+              value={values[fieldName] || ''}
+              onChange={handleChange(fieldName)}
+              className={`${inputClassName} appearance-none cursor-pointer`}
+              style={{ borderRadius: '0.5rem' }}
+            >
+              <option value="">Select your time zone…</option>
+              {getTimeZones().map(z => (
+                <option key={z} value={z}>{z.replace(/_/g, ' ')}</option>
+              ))}
+            </select>
+          </div>
           {error}
         </div>
       )

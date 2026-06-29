@@ -85,7 +85,7 @@ export function ModuleRail({
           <Avatar name={user.email ?? undefined} size={36} />
         </button>
       ) : (
-        <Link href="/sign-in" className="gw-rail-collapse" title="Sign in" aria-label="Sign in">
+        <Link href="/sign-in?sso=1" className="gw-rail-collapse" title="Sign in" aria-label="Sign in">
           <Icon name="signin" size={18} />
         </Link>
       )}

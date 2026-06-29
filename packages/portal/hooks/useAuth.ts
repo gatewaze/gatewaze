@@ -106,6 +106,12 @@ export function useAuth(): UseAuthReturn {
       isLoading: false,
       error: null,
     })
+    // Full navigation to the public home page. Landing on a guarded page would
+    // bounce to /sign-in, and with SSO that risks an immediate silent re-login.
+    // A hard nav also guarantees every surface reflects the signed-out state.
+    if (typeof window !== 'undefined') {
+      window.location.href = '/'
+    }
   }, [supabase])
 
   /**

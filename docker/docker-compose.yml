@@ -82,6 +82,10 @@ services:
       GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: /auth/v1/verify
       GOTRUE_EXTERNAL_PHONE_ENABLED: "false"
       GOTRUE_SMS_AUTOCONFIRM: "true"
+      # NOTE: LFID SSO (lfid-auth module) needs NO GoTrue config. Supabase has no
+      # Auth0 provider, so the module's integrations-lfid-callback edge function
+      # verifies the Auth0 id_token itself and mints a Supabase session via the
+      # admin API. See lf-gatewaze-modules/docs/lfid-auth-setup.md.
       # Custom email templates (mounted via volume below). Removes the
       # OTP code block from the default magic-link template since the
       # portal UI doesn't offer a code entry surface.

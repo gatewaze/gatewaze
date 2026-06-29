@@ -8,7 +8,7 @@ import { getClientBrandConfig } from '@/config/brand'
 import { getEmailFromParams } from '@/lib/emailEncoding'
 import { GlowInput } from '@/components/ui/GlowInput'
 import { PortalButton } from '@/components/ui/PortalButton'
-import { ModuleSlot } from '@/lib/modules'
+import { ModuleSlot, hasPortalSlot } from '@/lib/modules'
 
 interface Props {
   brandConfig: BrandConfig
@@ -21,6 +21,20 @@ export function SignInForm({ brandConfig, enabledModuleIds = [], enabledFeatures
   const router = useRouter()
   const searchParams = useSearchParams()
   const redirectTo = searchParams.get('redirectTo') || '/'
+
+  // When a sign-in provider module (e.g. LFID) is enabled, it replaces the
+  // native magic-link form — the provider button becomes the only way in.
+  const hasSsoProvider = hasPortalSlot(
+    'sign-in:providers',
+    new Set(enabledModuleIds),
+    new Set(enabledFeatures),
+  )
+  // Only auto-initiate the provider when the user *intentionally* asked to sign
+  // in (the sign-in buttons add ?sso=1). Route guards that bounce you to
+  // /sign-in (e.g. after sign-out on a protected page) omit it, so they show the
+  // button instead of silently re-logging you in — which would make sign-out
+  // impossible while the Auth0 SSO session is still alive.
+  const autoStartIntent = searchParams.get('sso') === '1'
 
   // Pre-fill email from URL params (email=, utm_medium=, e=) or sessionStorage
   const prefillEmail = getEmailFromParams(searchParams)
@@ -64,8 +78,12 @@ export function SignInForm({ brandConfig, enabledModuleIds = [], enabledFeatures
           access_token: accessToken,
           refresh_token: refreshToken,
         }).then(() => {
-          window.history.replaceState(null, '', window.location.pathname)
-          router.push(destination)
+          // Full navigation (not a soft router.push) so every surface re-reads
+          // the freshly-persisted session cookie — server components AND the
+          // client header's auth state. A soft push leaves the header showing
+          // "Sign in" until a manual refresh. replace() drops the token URL
+          // from history so Back doesn't return to it.
+          window.location.replace(destination)
         })
       })
     } else {
@@ -261,56 +279,66 @@ export function SignInForm({ brandConfig, enabledModuleIds = [], enabledFeatures
         )}
         <h1 className="text-2xl font-semibold text-white">Sign in</h1>
         <p className="text-white/70 mt-2 text-sm sm:text-base whitespace-nowrap">
-          Enter your email to receive a magic link
+          {hasSsoProvider ? 'Sign in to continue' : 'Enter your email to receive a magic link'}
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div>
-          <label htmlFor="email" className="block text-sm font-medium text-white mb-2">
-            Email Address
-          </label>
-        <GlowInput
-          id="email"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="you@example.com"
-          glowColor={primaryColor}
-          borderRadius="0.5rem"
-          className="w-full text-sm px-4 py-2.5 border border-white/30 rounded-lg bg-white/60 text-gray-900 placeholder-gray-500 focus:outline-none transition-colors"
-          disabled={isSubmitting}
-          autoComplete="email"
-          autoFocus
-        />
-      </div>
-
-      {error && (
-        <div className="p-3 rounded-lg bg-red-500/20 border border-red-400/50">
-          <p className="text-red-300 text-sm">{error}</p>
+      {!hasSsoProvider && (
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <label htmlFor="email" className="block text-sm font-medium text-white mb-2">
+              Email Address
+            </label>
+          <GlowInput
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            glowColor={primaryColor}
+            borderRadius="0.5rem"
+            className="w-full text-sm px-4 py-2.5 border border-white/30 rounded-lg bg-white/60 text-gray-900 placeholder-gray-500 focus:outline-none transition-colors"
+            disabled={isSubmitting}
+            autoComplete="email"
+            autoFocus
+          />
         </div>
+
+        {error && (
+          <div className="p-3 rounded-lg bg-red-500/20 border border-red-400/50">
+            <p className="text-red-300 text-sm">{error}</p>
+          </div>
+        )}
+
+        <PortalButton
+          variant="primary"
+          primaryColor={primaryColor}
+          type="submit"
+          disabled={isSubmitting}
+          isLoading={isSubmitting}
+          glow
+          className="w-full"
+        >
+          {isSubmitting ? 'Sending...' : 'Send magic link'}
+        </PortalButton>
+
+      </form>
       )}
 
-      <PortalButton
-        variant="primary"
-        primaryColor={primaryColor}
-        type="submit"
-        disabled={isSubmitting}
-        isLoading={isSubmitting}
-        glow
-        className="w-full"
-      >
-        {isSubmitting ? 'Sending...' : 'Send magic link'}
-      </PortalButton>
-
-    </form>
-
-      {/* Extension point for third-party auth providers (e.g. LFID, Google, GitHub) */}
+      {/* Extension point for third-party auth providers (e.g. LFID, Google, GitHub).
+          When a provider is enabled it is the sole sign-in method (form hidden above). */}
       <ModuleSlot
         name="sign-in:providers"
         enabledModuleIds={enabledModuleIds}
         enabledFeatures={enabledFeatures}
-        props={{ redirectTo, primaryColor: brandConfig.primaryColor }}
+        props={{
+          redirectTo,
+          primaryColor: brandConfig.primaryColor,
+          soleProvider: hasSsoProvider,
+          // Sole provider + explicit intent (?sso=1) + fresh visit (not returning
+          // with a token, not already signed in) → go straight to Auth0.
+          autoStart: hasSsoProvider && autoStartIntent && !isProcessingToken && !user && !isLoading,
+        }}
       />
     </>
   )

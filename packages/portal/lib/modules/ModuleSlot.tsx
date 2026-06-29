@@ -2,6 +2,9 @@
 
 import { Suspense, lazy, useMemo } from 'react';
 import { getPortalSlots } from './registry';
+// Side-effect import: runs the generated registerPortalSlot() calls (from each
+// module's manifest `portalSlots`) before any slot is queried below.
+import './generated-portal-slots';
 
 interface ModuleSlotProps {
   /** The slot name to render, e.g. 'event-detail:tabs' */

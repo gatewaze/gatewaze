@@ -13,7 +13,7 @@ export function SignInGate({ label = 'This area' }: { label?: string }) {
         </span>
         <div className="gw-gate-title">Sign in to continue</div>
         <p className="gw-gate-text">{label} is available to signed-in members and staff.</p>
-        <Link href="/sign-in" className="gw-gate-btn">
+        <Link href="/sign-in?sso=1" className="gw-gate-btn">
           <Icon name="signin" size={15} />
           Sign in
         </Link>

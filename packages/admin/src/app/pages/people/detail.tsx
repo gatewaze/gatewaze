@@ -1128,6 +1128,25 @@ export default function MemberDetailPage() {
                       <AttributeField label="Last Name" value={person.attributes?.last_name} attributeName="last_name" />
                       <AttributeField label="Job Title" value={person.attributes?.job_title} attributeName="job_title" />
                       <AttributeField label="Company" value={person.attributes?.company} attributeName="company" />
+                      {(person.attributes?.lfid_username || person.attributes?.lfid_sub) && (
+                        <AttributeField
+                          label="LFID"
+                          value={(person.attributes?.lfid_username as string) || (person.attributes?.lfid_sub as string)}
+                          attributeName="lfid_sub"
+                        />
+                      )}
+                      {person.attributes?.timezone && (
+                        <AttributeField label="Time Zone" value={person.attributes.timezone as string} attributeName="timezone" />
+                      )}
+                      {person.attributes?.city && (
+                        <AttributeField label="City" value={person.attributes.city as string} attributeName="city" />
+                      )}
+                      {person.attributes?.country && (
+                        <AttributeField label="Country" value={person.attributes.country as string} attributeName="country" />
+                      )}
+                      {person.attributes?.ip_address && (
+                        <AttributeField label="IP Address" value={person.attributes.ip_address as string} attributeName="ip_address" />
+                      )}
                       {person.attributes?.linkedin_url && (
                         <div>
                           <label className="block text-sm font-medium text-[var(--gray-11)]">

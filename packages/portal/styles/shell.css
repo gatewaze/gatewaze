@@ -287,7 +287,19 @@
 .pub-body { color: var(--ink-2); font-size: 16.5px; line-height: 1.78; }
 .pub-body p { margin: 0 0 20px; }
 .pub-body h2 { color: var(--ink); font: 600 23px var(--font-display); margin: 32px 0 12px; letter-spacing: -0.01em; }
+.pub-body h3 { color: var(--ink); font: 600 18.5px var(--font-display); margin: 28px 0 10px; letter-spacing: -0.01em; }
 .pub-body a { color: var(--accent); }
+.pub-body strong { color: var(--ink); font-weight: 600; }
+.pub-body ul, .pub-body ol { margin: 0 0 20px; padding-left: 1.45em; }
+.pub-body li { margin: 0 0 11px; line-height: 1.72; padding-left: 4px; }
+.pub-body li:last-child { margin-bottom: 0; }
+.pub-body ul { list-style: disc; }
+.pub-body ol { list-style: decimal; }
+.pub-body li::marker { color: var(--ink-4); }
+/* consecutive single-item lists (one bullet per <ul>) read as one list */
+.pub-body ul + ul, .pub-body ol + ol { margin-top: -14px; }
+.pub-body blockquote { margin: 0 0 20px; padding: 2px 0 2px 16px; border-left: 3px solid var(--line); color: var(--ink-3); }
+.pub-body > :first-child { margin-top: 0; }
 .pub-article-side { display: flex; flex-direction: column; gap: 14px; position: sticky; top: 96px; }
 .pub-side-card { background: var(--paper); border: 1px solid rgba(var(--ui-text), 0.1); border-radius: 14px; padding: 16px; }
 .pub-side-h { font: 600 10.5px var(--font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-4); margin-bottom: 10px; }
