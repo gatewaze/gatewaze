@@ -17,6 +17,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { Icon, type IconName } from '@/components/ui/Icon'
 import type { RailItem } from '@/lib/modules/enabledModules'
 
 interface MobileMenuProps {
@@ -24,13 +25,11 @@ interface MobileMenuProps {
   activeModuleId: string | null
   /** Signed-in → admin landing per item; logged-out / public → public href. */
   useAdminHref?: boolean
-  /** Brand shown at the top-left of the overlay, in line with the X (matches the top bar). */
-  brand?: React.ReactNode
   /** Account section at the bottom of the overlay (sign-in link, or profile/sign-out). */
   footer?: React.ReactNode
 }
 
-export function MobileMenu({ items, activeModuleId, useAdminHref = false, brand, footer }: MobileMenuProps) {
+export function MobileMenu({ items, activeModuleId, useAdminHref = false, footer }: MobileMenuProps) {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
   // Separate "animating" flag: mount at opacity 0, then flip to 1 next frame so
@@ -64,13 +63,14 @@ export function MobileMenu({ items, activeModuleId, useAdminHref = false, brand,
 
   const overlay = (
     <div className="gw-mobile-menu" style={{ opacity: animating ? 1 : 0 }} role="dialog" aria-modal="true">
-      {/* Brand (left) + close X (right) — in line, matching the top bar. */}
+      {/* No logo — the menu covers it. Close button: the hamburger morphs into
+          an X in the same spot it occupies in the top bar. */}
       <div className="gw-mobile-menu-head">
-        {brand ? <div className="gw-mobile-menu-brand">{brand}</div> : <span />}
         <button type="button" className="gw-burger-btn" onClick={closeMenu} aria-label="Close menu">
           <span className="gw-burger-box" aria-hidden>
-            <span className="gw-burger-line" style={{ top: '9px', transform: 'rotate(45deg)' }} />
-            <span className="gw-burger-line" style={{ top: '9px', transform: 'rotate(-45deg)' }} />
+            <span className="gw-burger-line" style={{ top: animating ? '9px' : '2px', transform: animating ? 'rotate(45deg)' : 'none' }} />
+            <span className="gw-burger-line" style={{ top: '9px', opacity: animating ? 0 : 1, transform: animating ? 'scaleX(0)' : 'none' }} />
+            <span className="gw-burger-line" style={{ top: animating ? '9px' : '16px', transform: animating ? 'rotate(-45deg)' : 'none' }} />
           </span>
         </button>
       </div>
@@ -93,7 +93,8 @@ export function MobileMenu({ items, activeModuleId, useAdminHref = false, brand,
                   transitionDelay: animating ? `${100 + i * 55}ms` : '0ms',
                 }}
               >
-                {label}
+                <Icon name={(it.icon as IconName) || 'default'} size={22} className="gw-mobile-menu-ico" />
+                <span>{label}</span>
               </Link>
             )
           })}

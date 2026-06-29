@@ -18,9 +18,13 @@ interface PublicTopbarProps {
   logoUrl?: string
   logoIconUrl?: string
   scrolled: boolean
+  /** Extra class on the root (e.g. to mark the signed-in mobile instance). */
+  className?: string
+  /** Mobile-menu account section. Defaults to a Sign in link (logged-out). */
+  menuFooter?: React.ReactNode
 }
 
-export function PublicTopbar({ items, activeModuleId, brandName, logoUrl, logoIconUrl, scrolled }: PublicTopbarProps) {
+export function PublicTopbar({ items, activeModuleId, brandName, logoUrl, logoIconUrl, scrolled, className, menuFooter }: PublicTopbarProps) {
   // Public nav = rail items visible to the public (Home is always public).
   const nav = items.filter((it) => it.visibility === 'public')
 
@@ -38,7 +42,7 @@ export function PublicTopbar({ items, activeModuleId, brandName, logoUrl, logoIc
   )
 
   return (
-    <div className={`pub-topbar${scrolled ? ' scrolled' : ''}`}>
+    <div className={`pub-topbar${scrolled ? ' scrolled' : ''}${className ? ` ${className}` : ''}`}>
       <Link href="/" className="brand" aria-label={brandName}>
         {brandContent}
       </Link>
@@ -71,12 +75,13 @@ export function PublicTopbar({ items, activeModuleId, brandName, logoUrl, logoIc
         <MobileMenu
           items={nav}
           activeModuleId={activeModuleId}
-          brand={<Link href="/" className="brand" aria-label={brandName}>{brandContent}</Link>}
           footer={
-            <Link href="/sign-in?sso=1" className="gw-mobile-menu-foot-link">
-              <Icon name="signin" size={18} className="ic" />
-              Sign in
-            </Link>
+            menuFooter ?? (
+              <Link href="/sign-in?sso=1" className="gw-mobile-menu-foot-link">
+                <Icon name="signin" size={18} className="ic" />
+                Sign in
+              </Link>
+            )
           }
         />
       </div>
