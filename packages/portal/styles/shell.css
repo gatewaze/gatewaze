@@ -109,7 +109,10 @@
 .gw-nav-item.active .gw-pill-num { background: var(--on-accent); color: var(--accent); }
 
 .gw-main { flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column;
-  background: rgba(var(--panel-tint), 0.5); box-sizing: border-box; }
+  /* Transparent so the animated background shows through the content area at full
+     brightness (the rail/sidebar keep their own glass tint). Content cards carry
+     their own --paper backing for readability. */
+  background: transparent; box-sizing: border-box; }
 .gw-top {
   height: 56px; flex-shrink: 0; border-bottom: 1px solid var(--line);
   display: flex; align-items: center; gap: 14px; padding: 0 24px; box-sizing: border-box;
@@ -400,8 +403,18 @@
   .pub-area { padding-bottom: 84px; }
 }
 
-.pub-fade { animation: pubContentFade .32s ease; }
+/* Page entrance transition is centralized in app/(main)/template.tsx (framer-motion
+   slide-up + fade), applied to every portal page. .pub-fade is kept as an inert
+   class so existing pages that reference it don't break, but it no longer animates
+   on its own — otherwise pub pages would double-animate against the template. */
+.pub-fade { animation: none; }
 @keyframes pubContentFade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+/* Content-level fade matching the (main)/template.tsx page entrance. For
+   client-rendered pages whose data arrives after mount (so the template fade
+   already ran against an empty/loading frame) — apply to the wrapper and key it
+   on the loaded state so the real content fades in once, like server pages. */
+.gw-page-fade { animation: pubContentFade 0.32s ease-out both; }
+@media (prefers-reduced-motion: reduce) { .gw-page-fade { animation: none; } }
 
 /* ============================================================================
  * Buttons / pills / tags (prototype values)

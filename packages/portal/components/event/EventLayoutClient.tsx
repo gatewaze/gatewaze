@@ -182,7 +182,7 @@ function EventLayoutInner({
 
   return (
     <main className="relative z-10">
-      <div className="max-w-7xl mx-auto px-6 sm:px-6 lg:px-8">
+      <div className="pub-wrap">
         {/* Hero Section (now carries the Register + Add-to-calendar actions) */}
         <EventHero event={event} brandConfig={brandConfig} useDarkText={useDarkText} heroRef={heroRef} />
 
