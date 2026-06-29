@@ -41,16 +41,7 @@ export function ShellHeader({ activeItem, activeIsAdmin, navLabel, onToggleMobil
         )}
       </div>
 
-      {/* Search — visually present, inactive in v1 (spec D1). */}
-      <div className="gw-top-search" aria-hidden title="Search (coming soon)">
-        <Icon name="search" size={15} />
-        <input placeholder="Search…" disabled />
-      </div>
-
-      {/* Notification bell — stubbed in v1 (spec D1). */}
-      <button type="button" className="gw-top-ico" style={{ marginLeft: 'auto' }} aria-label="Notifications (coming soon)" disabled>
-        <Icon name="bell" size={18} />
-      </button>
+      {/* Search + notification bell intentionally hidden for now (not ready). */}
     </header>
   )
 }
