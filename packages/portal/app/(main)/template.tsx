@@ -17,12 +17,16 @@ export default function Template({ children }: { children: React.ReactNode }) {
 
   return (
     <motion.div
+      // Fade only — no transform. A transform on this wrapper changes the
+      // containing block for `position: fixed` descendants, which mispositioned
+      // fixed-centered page content (e.g. sign-in) until the animation cleared,
+      // causing a left→centre jump. Opacity creates no containing block, so
+      // fixed content stays viewport-relative throughout.
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{
         type: 'tween',
-        duration: 0.4,
-        delay: 0.15,
+        duration: 0.32,
         ease: 'easeOut',
       }}
     >
