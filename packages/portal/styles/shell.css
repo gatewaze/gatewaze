@@ -392,9 +392,13 @@
  * The trigger sits in the top bar; nav lives in the overlay (no bottom bar).
  * ========================================================================== */
 .gw-mobile-only { display: none; }
-.gw-burger-btn { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center;
+/* NB: no `display` here — the trigger's visibility is owned by .gw-mobile-only
+   (hidden on desktop). Setting display on .gw-burger-btn would override that and
+   leak the hamburger onto desktop. The overlay's close button sets display
+   explicitly below since it has no .gw-mobile-only. */
+.gw-burger-btn { width: 44px; height: 44px; align-items: center; justify-content: center;
   background: none; border: 0; color: var(--ink); cursor: pointer; padding: 0; }
-.gw-mobile-menu .gw-burger-btn { color: #fff; }
+.gw-mobile-menu .gw-burger-btn { color: #fff; display: inline-flex; }
 .gw-burger-box { position: relative; width: 20px; height: 18px; display: block; }
 .gw-burger-line { position: absolute; left: 0; display: block; height: 2px; width: 100%; border-radius: 2px;
   background: currentColor; transform-origin: center; transition: top .3s ease, transform .3s ease, opacity .3s ease; }
