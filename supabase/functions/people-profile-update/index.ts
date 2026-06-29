@@ -22,6 +22,7 @@ interface ProfileUpdateRequest {
   company?: string
   job_title?: string
   linkedin_url?: string
+  timezone?: string
   avatar_storage_path?: string
   marketing_consent?: boolean
 }
@@ -96,6 +97,7 @@ async function handler(req: Request) {
       if (body.company) newAttributes.company = body.company
       if (body.job_title) newAttributes.job_title = body.job_title
       if (body.linkedin_url) newAttributes.linkedin_url = body.linkedin_url
+      if (body.timezone) newAttributes.timezone = body.timezone
       if (body.marketing_consent !== undefined) newAttributes.marketing_consent = body.marketing_consent
 
       const newPerson: Record<string, any> = {
@@ -138,6 +140,7 @@ async function handler(req: Request) {
     if (body.company !== undefined) updatedAttrs.company = body.company
     if (body.job_title !== undefined) updatedAttrs.job_title = body.job_title
     if (body.linkedin_url !== undefined) updatedAttrs.linkedin_url = body.linkedin_url
+    if (body.timezone !== undefined) updatedAttrs.timezone = body.timezone
     if (body.marketing_consent !== undefined) updatedAttrs.marketing_consent = body.marketing_consent
 
     const personUpdate: Record<string, any> = {
