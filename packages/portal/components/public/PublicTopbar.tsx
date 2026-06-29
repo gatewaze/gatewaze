@@ -8,6 +8,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { Icon } from '@/components/ui/Icon'
+import { MobileMenu } from './MobileMenu'
 import type { RailItem } from '@/lib/modules/enabledModules'
 
 interface PublicTopbarProps {
@@ -57,10 +58,22 @@ export function PublicTopbar({ items, activeModuleId, brandName, logoUrl, logoIc
       </nav>
 
       <div className="right">
-        <Link href="/sign-in" className="btn btn-primary btn-sm">
+        {/* Desktop: inline Sign in. Mobile: the hamburger menu (which carries
+            the nav + a Sign in link); the desktop button is hidden on mobile. */}
+        <Link href="/sign-in?sso=1" className="btn btn-primary btn-sm gw-desktop-only">
           <Icon name="signin" size={14} className="ic" />
           Sign in
         </Link>
+        <MobileMenu
+          items={nav}
+          activeModuleId={activeModuleId}
+          footer={
+            <Link href="/sign-in?sso=1" className="gw-mobile-menu-foot-link">
+              <Icon name="signin" size={18} className="ic" />
+              Sign in
+            </Link>
+          }
+        />
       </div>
     </div>
   )
