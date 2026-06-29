@@ -9,9 +9,12 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { usePathname } from 'next/navigation'
+import Link from 'next/link'
+import Image from 'next/image'
 import type { RailItem } from '@/lib/modules/enabledModules'
 import type { ModuleAccessMap } from '@/lib/modules/access'
 import type { PortalShellNavEntry, PortalShellNavItem } from '@gatewaze/shared'
+import { useAuth } from '@/hooks/useAuth'
 import { ShellProvider } from './ShellContext'
 import { ModuleRail } from './ModuleRail'
 import { ContextualSidebar } from './ContextualSidebar'
@@ -19,6 +22,7 @@ import { ShellHeader } from './ShellHeader'
 import { ShellErrorBoundary } from './ShellErrorBoundary'
 import { SignInGate } from './SignInGate'
 import { PublicTopbar } from '@/components/public/PublicTopbar'
+import { MobileMenu } from '@/components/public/MobileMenu'
 
 /** Paths that render without shell chrome (full-bleed auth screens). */
 const CHROMELESS_PATHS = ['/sign-in', '/auth/callback']
@@ -86,6 +90,7 @@ export function WorkspaceShell({
   children,
 }: WorkspaceShellProps) {
   const pathname = usePathname() || '/'
+  const { signOut } = useAuth()
   const [sideCollapsed, setSideCollapsed] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
@@ -183,6 +188,31 @@ export function WorkspaceShell({
       {/* Prototype structure: rail | (app: sidebar + main(top + content)) — the full-width
           header lives inside .gw-main but spans .gw-app via absolute positioning. */}
       <div className={`gw-ws-root${sideCollapsed ? ' side-collapsed' : ''}${mobileNavOpen ? ' mobile-nav-open' : ''}`}>
+        {/* Mobile-only top bar: brand + hamburger menu. On mobile the icon rail
+            (bottom tab bar) is hidden and module nav lives in the hamburger
+            overlay, so signed-in mobile matches the logged-out top bar. Admin
+            sections render ShellHeader instead (its own top bar), so this only
+            shows on non-admin views. */}
+        {!activeIsAdmin && (
+          <div className="gw-mobile-topbar gw-mobile-only">
+            <Link href="/" className="gw-mobile-brand" aria-label={brandName}>
+              {logoIconUrl ? <Image src={logoIconUrl} alt="" width={26} height={26} /> : null}
+              <span>{brandName}</span>
+            </Link>
+            <MobileMenu
+              items={railItems.filter((it) => access[it.moduleId]?.access !== 'hidden')}
+              activeModuleId={activeModuleId}
+              footer={
+                <div className="gw-mobile-menu-acct">
+                  <Link href="/profile" className="gw-mobile-menu-foot-link">Profile</Link>
+                  <button type="button" className="gw-mobile-menu-foot-link" onClick={() => signOut()}>
+                    Sign out
+                  </button>
+                </div>
+              }
+            />
+          </div>
+        )}
         <ModuleRail
           items={railItems}
           access={access}
