@@ -10,7 +10,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
-import Image from 'next/image'
 import type { RailItem } from '@/lib/modules/enabledModules'
 import type { ModuleAccessMap } from '@/lib/modules/access'
 import type { PortalShellNavEntry, PortalShellNavItem } from '@gatewaze/shared'
@@ -22,7 +21,6 @@ import { ShellHeader } from './ShellHeader'
 import { ShellErrorBoundary } from './ShellErrorBoundary'
 import { SignInGate } from './SignInGate'
 import { PublicTopbar } from '@/components/public/PublicTopbar'
-import { MobileMenu } from '@/components/public/MobileMenu'
 
 /** Paths that render without shell chrome (full-bleed auth screens). */
 const CHROMELESS_PATHS = ['/sign-in', '/auth/callback']
@@ -117,6 +115,17 @@ export function WorkspaceShell({
     setMobileNavOpen(false)
   }, [pathname])
 
+  // Signed-in mobile: the document scrolls (the logged-out site scrolls inside
+  // .pub-area instead), so track window scroll to fade in the mobile top bar's
+  // blur, matching the logged-out PublicTopbar behaviour.
+  useEffect(() => {
+    if (!isSignedIn) return
+    const onScroll = () => setScrolled(window.scrollY > 8)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [isSignedIn])
+
   const chromeless = CHROMELESS_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'))
   const activeModuleId = useMemo(() => deriveActiveModuleId(pathname, railItems), [pathname, railItems])
   const activeItem = useMemo(
@@ -183,45 +192,34 @@ export function WorkspaceShell({
   const showSidebar = !activeItem?.fullBleed && nav.length > 0
   const content = activeEntry?.access === 'gated' ? <SignInGate label={activeItem?.full} /> : children
 
-  // Brand mark for the mobile top bar + menu head — full logo when configured,
-  // else icon + name. Mirrors PublicTopbar so signed-in === signed-out.
-  const mobileBrand = logoUrl ? (
-    <img src={logoUrl} alt={brandName} className="pub-logo-img" />
-  ) : logoIconUrl ? (
-    <><Image src={logoIconUrl} alt="" width={24} height={24} /><span>{brandName}</span></>
-  ) : (
-    <span>{brandName}</span>
-  )
-
   return (
     <ShellProvider access={access} activeModuleId={activeModuleId} featureKeys={featureKeys} isSuperAdmin={isSuperAdmin}>
       {/* Prototype structure: rail | (app: sidebar + main(top + content)) — the full-width
           header lives inside .gw-main but spans .gw-app via absolute positioning. */}
       <div className={`gw-ws-root${sideCollapsed ? ' side-collapsed' : ''}${mobileNavOpen ? ' mobile-nav-open' : ''}`}>
-        {/* Mobile-only top bar: brand + hamburger menu. On mobile the icon rail
-            (bottom tab bar) is hidden and module nav lives in the hamburger
-            overlay, so signed-in mobile matches the logged-out top bar. Admin
-            sections render ShellHeader instead (its own top bar), so this only
-            shows on non-admin views. */}
+        {/* Mobile-only top bar — the SAME PublicTopbar used logged-out, so the
+            signed-in bar is identical (logo, positioning, scroll fade). On
+            mobile the icon rail (bottom tab bar) is hidden and module nav lives
+            in the hamburger overlay. Admin sections render ShellHeader instead,
+            so this only shows on non-admin views. */}
         {!activeIsAdmin && (
-          <div className="gw-mobile-topbar gw-mobile-only">
-            <Link href="/" className="gw-mobile-brand" aria-label={brandName}>
-              {mobileBrand}
-            </Link>
-            <MobileMenu
-              items={railItems.filter((it) => access[it.moduleId]?.access !== 'hidden')}
-              activeModuleId={activeModuleId}
-              brand={<Link href="/" className="gw-mobile-brand" aria-label={brandName}>{mobileBrand}</Link>}
-              footer={
-                <div className="gw-mobile-menu-acct">
-                  <Link href="/profile" className="gw-mobile-menu-foot-link">Profile</Link>
-                  <button type="button" className="gw-mobile-menu-foot-link" onClick={() => signOut()}>
-                    Sign out
-                  </button>
-                </div>
-              }
-            />
-          </div>
+          <PublicTopbar
+            className="gw-signed-topbar"
+            items={railItems.filter((it) => access[it.moduleId]?.access !== 'hidden')}
+            activeModuleId={activeModuleId}
+            brandName={brandName}
+            logoUrl={logoUrl}
+            logoIconUrl={logoIconUrl}
+            scrolled={scrolled}
+            menuFooter={
+              <div className="gw-mobile-menu-acct">
+                <Link href="/profile" className="gw-mobile-menu-foot-link">Profile</Link>
+                <button type="button" className="gw-mobile-menu-foot-link" onClick={() => signOut()}>
+                  Sign out
+                </button>
+              </div>
+            }
+          />
         )}
         <ModuleRail
           items={railItems}
