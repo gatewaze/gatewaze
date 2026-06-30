@@ -22,6 +22,7 @@ import { WorkspaceShell } from '@/components/shell/WorkspaceShell'
 import { resolvePortalAccess, ZERO_ACCESS } from '@/lib/permissions/resolve'
 import { getModuleAccess } from '@/lib/modules/access'
 import { ProfileCompletionWrapper } from '@/components/wizard'
+import { ModuleSlot } from '@/lib/modules/ModuleSlot'
 import { GeoTouch } from '@/components/GeoTouch'
 import { AnalyticsProvider } from '@/components/AnalyticsProvider'
 import { TrackingMarkup } from '@/components/TrackingMarkup'
@@ -259,7 +260,19 @@ export default async function MainLayout({
                 </div>
               )}
               {!isCustomDomain && (
-                <ProfileCompletionWrapper brandConfig={brandConfig} listsEnabled={isModuleEnabled(modules, 'lists')} />
+                // The AI onboarding module (lf-gatewaze-modules/onboarding) replaces the
+                // step-form wizard when enabled: render its 'app:profile-gate' slot. The
+                // wizard remains the disabled-module degradation floor (flag-flip rollback,
+                // no data migration). See spec-onboarding-module.md §1.1 / Migration.
+                isModuleEnabled(modules, 'onboarding') ? (
+                  <ModuleSlot
+                    name="app:profile-gate"
+                    enabledModuleIds={[...modules.enabledIds]}
+                    enabledFeatures={[...modules.enabledFeatures]}
+                  />
+                ) : (
+                  <ProfileCompletionWrapper brandConfig={brandConfig} listsEnabled={isModuleEnabled(modules, 'lists')} />
+                )
               )}
               <GeoTouch />
             </GlowProvider>
