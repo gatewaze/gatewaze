@@ -126,6 +126,7 @@ export function ProfileContent({ brandConfig }: Props) {
             company: '',
             job_title: '',
             linkedin_url: '',
+            timezone: '',
             avatar_url: null,
             avatar_storage_path: null,
             marketing_consent: false,
@@ -136,6 +137,7 @@ export function ProfileContent({ brandConfig }: Props) {
             company: '',
             job_title: '',
             linkedin_url: '',
+            timezone: '',
           })
           setIsLoadingProfile(false)
           return
