@@ -235,6 +235,14 @@ export default async function MainLayout({
             href={`https://${brandConfig.domain}/feeds/events.xml`}
           />
         )}
+        {!isCustomDomain && navVisibleIds.has('blog') && (
+          <link
+            rel="alternate"
+            type="application/rss+xml"
+            title={`${brandConfig.name} — Blog`}
+            href={`https://${brandConfig.domain}/feeds/blog.xml`}
+          />
+        )}
       </head>
       <body className="flex flex-col min-h-screen" style={{ backgroundColor: (brandConfig.portalTheme === 'gradient_wave' && brandConfig.gradientWaveConfig?.fallbackColor) || getThemeBackgroundColor(brandConfig.portalTheme, brandConfig.themeColors, brandConfig.secondaryColor) }} suppressHydrationWarning>
         {(() => {

@@ -38,6 +38,10 @@ export async function GET(
     if (segs.length === 1) return newslettersFeed(null)
     if (segs.length === 2) return newslettersFeed(segs[1])
   }
+  if (segs[0] === 'blog' && segs.length === 1) {
+    if (!navVisible.has('blog')) return notFound()
+    return blogFeed()
+  }
 
   return notFound()
 }
@@ -133,6 +137,39 @@ async function eventsFeed(): Promise<Response> {
     link: `${baseUrl}/events/upcoming`,
     feedUrl: `${baseUrl}/feeds/events.xml`,
     description: `Events from ${brand.name}.`,
+    items,
+  })
+}
+
+async function blogFeed(): Promise<Response> {
+  const brand = await getServerBrandConfig()
+  const supabase = await createServerSupabase(brand.id)
+  const baseUrl = `https://${brand.domain}`
+
+  const { data: posts } = await supabase
+    .from('blog_posts')
+    .select('slug, title, excerpt, published_at, updated_at')
+    .eq('status', 'published')
+    .eq('visibility', 'public')
+    .order('published_at', { ascending: false })
+    .limit(FEED_LIMIT)
+
+  const items: FeedItem[] = (posts ?? []).map((p) => {
+    const link = `${baseUrl}/blog/${p.slug}`
+    return {
+      title: p.title || 'Post',
+      link,
+      guid: link,
+      pubDate: p.published_at || p.updated_at,
+      description: p.excerpt || null,
+    }
+  })
+
+  return renderRss({
+    title: `${brand.name} — Blog`,
+    link: `${baseUrl}/blog`,
+    feedUrl: `${baseUrl}/feeds/blog.xml`,
+    description: `Blog posts from ${brand.name}.`,
     items,
   })
 }

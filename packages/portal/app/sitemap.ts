@@ -164,6 +164,26 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
   }
 
+  // ── Blog ────────────────────────────────────────────────────────────────────
+  if (navVisible.has('blog')) {
+    entries.push({ url: `${baseUrl}/blog`, changeFrequency: 'weekly', priority: 0.6 })
+    const { data: posts } = await supabase
+      .from('blog_posts')
+      .select('slug, updated_at')
+      .eq('status', 'published')
+      .eq('visibility', 'public')
+      .limit(LIMIT)
+    for (const p of posts ?? []) {
+      if (!p.slug) continue
+      entries.push({
+        url: `${baseUrl}/blog/${p.slug}`,
+        lastModified: lastmod(p.updated_at),
+        changeFrequency: 'monthly',
+        priority: 0.6,
+      })
+    }
+  }
+
   // Legal/static — always present.
   entries.push(
     { url: `${baseUrl}/privacy`, changeFrequency: 'monthly', priority: 0.3 },
