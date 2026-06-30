@@ -1,6 +1,7 @@
 import type { MetadataRoute } from 'next'
 import { getServerBrandConfig } from '@/config/brand'
 import { createServerSupabase } from '@/lib/supabase/server'
+import { getNavVisibleModuleIds } from '@/lib/modules/navVisible'
 import { editionFolderSlug } from '@gatewaze-modules/newsletters/lib/edition-slug'
 
 export const dynamic = 'force-dynamic'
@@ -19,8 +20,8 @@ function lastmod(value: unknown): Date | undefined {
 }
 
 /**
- * Brand-aware sitemap. Enumerates every enabled content module's public records
- * so crawlers and AI agents can discover all of them.
+ * Brand-aware sitemap. Enumerates every nav-visible content module's public
+ * records so crawlers and AI agents can discover all of them.
  *
  * Gating is enforced by RLS: `createServerSupabase` uses the anon key, so a
  * plain `status='published'` / `is_listed=true` filter returns exactly the
@@ -36,15 +37,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = `https://${brand.domain}`
   const supabase = await createServerSupabase(brand.id)
 
-  const { data: mods } = await supabase.from('installed_modules').select('id, status')
-  const enabled = new Set((mods ?? []).filter((m) => m.status === 'enabled').map((m) => m.id))
+  // Gate on NAV VISIBILITY, not merely `enabled`: a module hidden from the site
+  // nav (content "not ready for public consumption") is excluded from the
+  // sitemap too, so it's never advertised for crawling.
+  const navVisible = await getNavVisibleModuleIds()
 
   const entries: Entry[] = [
     { url: baseUrl, changeFrequency: 'daily', priority: 1.0 },
   ]
 
   // ── Events ────────────────────────────────────────────────────────────────
-  if (enabled.has('events')) {
+  if (navVisible.has('events')) {
     entries.push(
       { url: `${baseUrl}/events/upcoming`, changeFrequency: 'daily', priority: 0.9 },
       { url: `${baseUrl}/events/past`, changeFrequency: 'daily', priority: 0.8 },
@@ -68,7 +71,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }
 
   // ── Calendars ───────────────────────────────────────────────────────────────
-  if (enabled.has('calendars')) {
+  if (navVisible.has('calendars')) {
     const { data } = await supabase
       .from('calendars')
       .select('slug, calendar_id, updated_at')
@@ -86,7 +89,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }
 
   // ── Newsletters ─────────────────────────────────────────────────────────────
-  if (enabled.has('newsletters')) {
+  if (navVisible.has('newsletters')) {
     entries.push({ url: `${baseUrl}/newsletters`, changeFrequency: 'weekly', priority: 0.6 })
 
     const { data: collections } = await supabase
@@ -123,7 +126,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }
 
   // ── Resources ───────────────────────────────────────────────────────────────
-  if (enabled.has('resources')) {
+  if (navVisible.has('resources')) {
     entries.push({ url: `${baseUrl}/resources`, changeFrequency: 'weekly', priority: 0.6 })
 
     // Anon RLS returns only published collections with access='public'.
