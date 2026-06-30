@@ -299,6 +299,9 @@
 /* consecutive single-item lists (one bullet per <ul>) read as one list */
 .pub-body ul + ul, .pub-body ol + ol { margin-top: -14px; }
 .pub-body blockquote { margin: 0 0 20px; padding: 2px 0 2px 16px; border-left: 3px solid var(--line); color: var(--ink-3); }
+.pub-body pre { margin: 0 0 20px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; background: rgba(var(--ui-text), 0.045); overflow-x: auto; }
+.pub-body pre code { display: block; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size: 13px; line-height: 1.6; color: var(--ink); white-space: pre; background: none; padding: 0; border: 0; }
+.pub-body code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size: 0.86em; background: rgba(var(--ui-text), 0.07); color: var(--ink); padding: 1.5px 5px; border-radius: 5px; }
 .pub-body > :first-child { margin-top: 0; }
 .pub-article-side { display: flex; flex-direction: column; gap: 14px; position: sticky; top: 96px; }
 .pub-side-card { background: var(--paper); border: 1px solid rgba(var(--ui-text), 0.1); border-radius: 14px; padding: 16px; }
