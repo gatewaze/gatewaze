@@ -35,18 +35,23 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     : description
 
   const title = stripEmojis(event.event_title)
+  const eventPath = `/events/${event.event_slug || event.event_id}`
+  const selfUrl = `https://${brandConfig.domain}${eventPath}`
 
   return {
     title,
     description: truncatedDescription || `Register for ${title}`,
-    ...(event.event_link && {
-      alternates: {
-        canonical: event.event_link,
-      },
-    }),
+    alternates: {
+      // External event_link (the canonical source when the event lives
+      // elsewhere) else a self-canonical on the brand domain — collapses
+      // custom-domain duplicates. Always offer the clean /md representation.
+      canonical: event.event_link || selfUrl,
+      types: { 'text/markdown': `https://${brandConfig.domain}/md${eventPath}` },
+    },
     openGraph: {
       title,
       description: truncatedDescription || `Register for ${title}`,
+      url: selfUrl,
       images: event.screenshot_url ? [{ url: event.screenshot_url }] : event.event_logo ? [{ url: event.event_logo }] : [],
       type: 'website',
       siteName: await resolveSiteName(brandConfig.name, event.event_title),

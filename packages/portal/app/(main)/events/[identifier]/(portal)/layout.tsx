@@ -60,6 +60,16 @@ export default async function EventDetailLayout({ children, params }: Props) {
   const hasVirtualEvent = counts?.hasVirtualEvent ?? false
   const recommendedEvent = resolveEventImages(recommendedRaw, brandConfig.storageBucketUrl)
 
+  const eventUrl = `https://${brandConfig.domain}/events/${event.event_slug || event.event_id}`
+  const breadcrumbJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Events', item: `https://${brandConfig.domain}/events/upcoming` },
+      { '@type': 'ListItem', position: 2, name: event.event_title, item: eventUrl },
+    ],
+  }
+
   return (
     <>
       <EventJsonLd
@@ -67,6 +77,7 @@ export default async function EventDetailLayout({ children, params }: Props) {
         organizationName={brandConfig.name}
         siteUrl={`https://${brandConfig.domain}`}
       />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       {/* Ad tracking pixels (Reddit, Meta) - only load if configured */}
       {adPixelConfig && (adPixelConfig.reddit || adPixelConfig.meta) && (
         <AdPixels config={adPixelConfig} />
