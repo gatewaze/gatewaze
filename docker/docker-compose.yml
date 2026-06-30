@@ -657,6 +657,10 @@ services:
       # Mirror of the api service's key so worker-run skill syncs can
       # decrypt auth tokens stored on ai_skill_sources rows.
       GATEWAZE_SECRETS_KEY: ${GATEWAZE_SECRETS_KEY:-}
+      # Internal API base the gatewaze-wiki MCP uses to reach the AI module's
+      # /api/modules/ai/internal/wiki/* routes (service-to-service, internal-key
+      # authed). spec-ai-memory-wiki.md §5.1.
+      GATEWAZE_INTERNAL_API_URL: ${GATEWAZE_INTERNAL_API_URL:-http://api:3002}
       SCRAPER_MODULE_PATH: /gatewaze-modules/modules/scrapers/scripts
       BRAVE_SEARCH_API_KEY: ${BRAVE_SEARCH_API_KEY:-}
       GOOGLE_CSE_API_KEY: ${GOOGLE_CSE_API_KEY:-}

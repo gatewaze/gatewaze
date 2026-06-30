@@ -129,6 +129,10 @@ services:
       EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-Gatewaze}
       UNSUBSCRIBE_HMAC_SECRET: ${UNSUBSCRIBE_HMAC_SECRET:-}
       SITE_URL: ${SITE_URL:-}
+      # Internal API base the gatewaze-wiki MCP uses to reach the AI module's
+      # /api/modules/ai/internal/wiki/* routes (service-to-service, internal-key
+      # authed). spec-ai-memory-wiki.md §5.1.
+      GATEWAZE_INTERNAL_API_URL: ${GATEWAZE_INTERNAL_API_URL:-http://api:3002}
 
   scheduler:
     build:
