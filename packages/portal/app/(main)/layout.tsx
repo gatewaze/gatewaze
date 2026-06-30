@@ -22,6 +22,7 @@ import { WorkspaceShell } from '@/components/shell/WorkspaceShell'
 import { resolvePortalAccess, ZERO_ACCESS } from '@/lib/permissions/resolve'
 import { getModuleAccess } from '@/lib/modules/access'
 import { ProfileCompletionWrapper } from '@/components/wizard'
+import { ModuleSlot } from '@/lib/modules/ModuleSlot'
 import { GeoTouch } from '@/components/GeoTouch'
 import { AnalyticsProvider } from '@/components/AnalyticsProvider'
 import { TrackingMarkup } from '@/components/TrackingMarkup'
@@ -189,6 +190,11 @@ export default async function MainLayout({
     }
   }
 
+  // Feed autodiscovery is gated on nav visibility — a module hidden from the
+  // site navigation (content "not ready for public consumption") is not
+  // syndicated, so its <link rel="alternate" rss> is suppressed too.
+  const navVisibleIds = new Set(modules.railItems.filter((r) => r.moduleId !== 'home').map((r) => r.moduleId))
+
   return (
     <html lang="en" data-brand={brandConfig.id} data-custom-domain={isCustomDomain ? 'true' : undefined} data-corners={brandConfig.cornerStyle} data-glow={brandConfig.gradientWaveConfig.glowEffects ? 'true' : 'false'} data-ui-mode={uiMode} className={lightBg ? 'light-brand' : ''} style={{ fontFamily: fontStack, fontSize: `${brandConfig.bodyTextSize || '16'}px`, '--font-weight-heading': brandConfig.fontHeadingWeight || '600', '--font-weight-body': brandConfig.fontBodyWeight || '400', '--primary-text': isLightColor(brandConfig.primaryColor) ? '#000000' : '#ffffff', '--primary-color': brandConfig.primaryColor, '--glass-opacity': String(brandConfig.gradientWaveConfig.glassOpacity ?? 0.05), '--glass-blur': `${brandConfig.gradientWaveConfig.glassBlur ?? 4}px`, '--glass-border-opacity': String(brandConfig.gradientWaveConfig.glassBorderOpacity ?? 0.1), '--font-mono': fontMonoStack, '--font-display': `${brandConfig.fontHeading}, ui-sans-serif, system-ui, sans-serif`, '--font-sans': `${brandConfig.fontBody}, ui-sans-serif, system-ui, sans-serif`, '--success-color': brandConfig.successColor, '--warning-color': brandConfig.warningColor, '--danger-color': brandConfig.dangerColor, '--info-color': brandConfig.infoColor, '--primary-color-light': primaryColorLight, '--primary-color-soft': primaryColorSoft } as React.CSSProperties} suppressHydrationWarning>
       <head>
@@ -213,6 +219,22 @@ export default async function MainLayout({
           url={`https://${brandConfig.domain}`}
           logoUrl={brandConfig.logoUrl}
         />
+        {!isCustomDomain && navVisibleIds.has('newsletters') && (
+          <link
+            rel="alternate"
+            type="application/rss+xml"
+            title={`${brandConfig.name} — Newsletters`}
+            href={`https://${brandConfig.domain}/feeds/newsletters.xml`}
+          />
+        )}
+        {!isCustomDomain && navVisibleIds.has('events') && (
+          <link
+            rel="alternate"
+            type="application/rss+xml"
+            title={`${brandConfig.name} — Events`}
+            href={`https://${brandConfig.domain}/feeds/events.xml`}
+          />
+        )}
       </head>
       <body className="flex flex-col min-h-screen" style={{ backgroundColor: (brandConfig.portalTheme === 'gradient_wave' && brandConfig.gradientWaveConfig?.fallbackColor) || getThemeBackgroundColor(brandConfig.portalTheme, brandConfig.themeColors, brandConfig.secondaryColor) }} suppressHydrationWarning>
         {(() => {
@@ -259,7 +281,19 @@ export default async function MainLayout({
                 </div>
               )}
               {!isCustomDomain && (
-                <ProfileCompletionWrapper brandConfig={brandConfig} listsEnabled={isModuleEnabled(modules, 'lists')} />
+                // The AI onboarding module (lf-gatewaze-modules/onboarding) replaces the
+                // step-form wizard when enabled: render its 'app:profile-gate' slot. The
+                // wizard remains the disabled-module degradation floor (flag-flip rollback,
+                // no data migration). See spec-onboarding-module.md §1.1 / Migration.
+                isModuleEnabled(modules, 'onboarding') ? (
+                  <ModuleSlot
+                    name="app:profile-gate"
+                    enabledModuleIds={[...modules.enabledIds]}
+                    enabledFeatures={[...modules.enabledFeatures]}
+                  />
+                ) : (
+                  <ProfileCompletionWrapper brandConfig={brandConfig} listsEnabled={isModuleEnabled(modules, 'lists')} />
+                )
               )}
               <GeoTouch />
             </GlowProvider>

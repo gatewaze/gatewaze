@@ -1,6 +1,7 @@
 import { convert } from 'html-to-text'
 import { getServerBrandConfig } from '@/config/brand'
 import { createServerSupabase } from '@/lib/supabase/server'
+import { getNavVisibleModuleIds } from '@/lib/modules/navVisible'
 import { loadPublishedEdition, editionToMarkdown } from '@/lib/agent-content/newsletter'
 
 export const dynamic = 'force-dynamic'
@@ -38,17 +39,24 @@ export async function GET(
 ): Promise<Response> {
   const { path } = await params
 
+  // Gate on nav visibility — a module hidden from the site nav (content not
+  // ready for public consumption) serves no markdown, matching the sitemap/feeds.
+  const navVisible = await getNavVisibleModuleIds()
+
   if (path[0] === 'resources' && path.length === 3) {
+    if (!navVisible.has('resources')) return notFound()
     return resourceItemMarkdown(path[1], path[2])
   }
 
   // /newsletters/<collection>/<YYYY-MM-DD-slug>
   if (path[0] === 'newsletters' && path.length === 3) {
+    if (!navVisible.has('newsletters')) return notFound()
     return newsletterEditionMarkdown(path[1], path[2])
   }
 
   // /events/<event_id-or-slug>
   if (path[0] === 'events' && path.length === 2) {
+    if (!navVisible.has('events')) return notFound()
     return eventMarkdown(path[1])
   }
 

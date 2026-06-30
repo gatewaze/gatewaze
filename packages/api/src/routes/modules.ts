@@ -53,7 +53,16 @@ const upload = multer({
 });
 
 export const modulesRouter = labeledRouter('jwt');
-modulesRouter.use(requireJwt());
+// Module `/internal/*` routes are service-to-service: they authenticate with
+// a per-route internal key (x-gatewaze-internal-key, constant-time compared to
+// SUPABASE_SERVICE_ROLE_KEY) rather than a user JWT — e.g. the gatewaze-wiki-mcp
+// calling /api/modules/ai/internal/wiki/*. Skip the user-JWT gate for the
+// `internal` path segment; every such route MUST run its own internalAuth().
+const _moduleJwt = requireJwt();
+modulesRouter.use((req, res, next) => {
+  if (/\/internal\//.test(req.originalUrl)) return next();
+  return _moduleJwt(req, res, next);
+});
 
 /** Middleware: require leadership for all mutating operations */
 function requireLeadership(req: import('express').Request, res: import('express').Response, next: import('express').NextFunction) {
