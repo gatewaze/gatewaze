@@ -6,6 +6,7 @@ import { findModulePage, extractParams } from '@/lib/modules/generated-portal-mo
 import { createServerSupabase } from '@/lib/supabase/server'
 import { getServerBrandConfig } from '@/config/brand'
 import { editionFolderSlug } from '@gatewaze-modules/newsletters/lib/edition-slug'
+import { loadPublishedEdition, editionBodyMarkdown } from '@/lib/agent-content/newsletter'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,6 +34,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const [, collectionSlug, dateStr] = newsletterMatch
     const fullEditionParam = `${dateStr}-${newsletterMatch[3]}`
     return newsletterEditionMetadata(collectionSlug, dateStr, fullEditionParam)
+  }
+
+  // /newsletters/{collectionSlug} (archive)
+  const newsletterCollectionMatch = pathname.match(/^\/newsletters\/([^/]+)$/)
+  if (newsletterCollectionMatch) {
+    return newsletterCollectionMetadata(newsletterCollectionMatch[1])
   }
 
   // /resources/{collectionSlug}/{itemSlug}
@@ -195,12 +202,18 @@ async function newsletterEditionMetadata(
     const description =
       (edition.preheader && edition.preheader.trim()) ||
       `${edition.title} from ${collection.name}, ${brand.name}.`
-    const url = `/newsletters/${collectionSlug}/${editionParam}`
+    const baseUrl = `https://${brand.domain}`
+    const path = `/newsletters/${collectionSlug}/${editionParam}`
+    const url = `${baseUrl}${path}`
     const ogImage = brand.logoUrl ?? brand.faviconUrl ?? undefined
 
     return {
       title,
       description,
+      alternates: {
+        canonical: url,
+        types: { 'text/markdown': `${baseUrl}/md${path}` },
+      },
       openGraph: {
         title,
         description,
@@ -223,6 +236,154 @@ async function newsletterEditionMetadata(
     // misconfigurations that quietly degrade unfurls.
     console.warn('[newsletter-metadata] failed to build:', err)
     return {}
+  }
+}
+
+/** Newsletter collection (archive) metadata. */
+async function newsletterCollectionMetadata(collectionSlug: string): Promise<Metadata> {
+  try {
+    const brand = await getServerBrandConfig()
+    const supabase = await createServerSupabase(brand.id)
+    const baseUrl = `https://${brand.domain}`
+
+    const { data: collection } = await supabase
+      .from('newsletters_template_collections')
+      .select('name, description')
+      .eq('slug', collectionSlug)
+      .maybeSingle()
+    if (!collection) return {}
+
+    const path = `/newsletters/${collectionSlug}`
+    const title = `${collection.name} — ${brand.name}`
+    const description = collection.description || `${collection.name} newsletter archive from ${brand.name}.`
+    const ogImage = brand.logoUrl ?? brand.faviconUrl ?? undefined
+
+    return {
+      title,
+      description,
+      alternates: { canonical: `${baseUrl}${path}` },
+      openGraph: {
+        title,
+        description,
+        type: 'website',
+        url: `${baseUrl}${path}`,
+        siteName: brand.name,
+        images: ogImage ? [{ url: ogImage }] : undefined,
+      },
+      twitter: { card: 'summary_large_image', title, description },
+    }
+  } catch (err) {
+    console.warn('[newsletter-collection-metadata] failed to build:', err)
+    return {}
+  }
+}
+
+/**
+ * Server-rendered JSON-LD for a newsletter edition. The edition page renders its
+ * body client-side, so emitting NewsArticle (with articleBody) here puts the
+ * content into the initial HTML where non-JS agents and crawlers can read it.
+ * Returns null for non-edition paths or unpublished/missing editions.
+ */
+async function newsletterEditionJsonLd(pathname: string): Promise<object | null> {
+  const match = pathname.match(/^\/newsletters\/([^/]+)\/(\d{4}-\d{2}-\d{2}-.+)$/)
+  if (!match) return null
+  try {
+    const brand = await getServerBrandConfig()
+    const supabase = await createServerSupabase(brand.id)
+    const loaded = await loadPublishedEdition(supabase, match[1], match[2])
+    if (!loaded) return null
+
+    const baseUrl = `https://${brand.domain}`
+    const collectionUrl = `${baseUrl}/newsletters/${loaded.collection.slug}`
+    const pageUrl = `${collectionUrl}/${editionFolderSlug(loaded.edition.edition_date, loaded.edition.title)}`
+    const body = editionBodyMarkdown(loaded.blocks, loaded.bricksByBlock)
+
+    return {
+      '@context': 'https://schema.org',
+      '@graph': [
+        {
+          '@type': 'NewsArticle',
+          '@id': `${pageUrl}#article`,
+          headline: loaded.edition.title || 'Newsletter edition',
+          ...(loaded.edition.preheader ? { description: loaded.edition.preheader } : {}),
+          ...(body ? { articleBody: body } : {}),
+          datePublished: loaded.edition.created_at || loaded.edition.edition_date,
+          dateModified: loaded.edition.updated_at || loaded.edition.edition_date,
+          mainEntityOfPage: pageUrl,
+          isPartOf: { '@type': 'Periodical', name: loaded.collection.name, url: collectionUrl },
+          ...(brand.logoUrl ? { image: brand.logoUrl } : {}),
+        },
+        {
+          '@type': 'BreadcrumbList',
+          itemListElement: [
+            { '@type': 'ListItem', position: 1, name: 'Newsletters', item: `${baseUrl}/newsletters` },
+            { '@type': 'ListItem', position: 2, name: loaded.collection.name, item: collectionUrl },
+            { '@type': 'ListItem', position: 3, name: loaded.edition.title || 'Edition', item: pageUrl },
+          ],
+        },
+      ],
+    }
+  } catch (err) {
+    console.warn('[newsletter-jsonld] failed to build:', err)
+    return null
+  }
+}
+
+/** Server-rendered JSON-LD for a newsletter archive (Blog + ItemList of editions). */
+async function newsletterCollectionJsonLd(pathname: string): Promise<object | null> {
+  const match = pathname.match(/^\/newsletters\/([^/]+)$/)
+  if (!match) return null
+  try {
+    const brand = await getServerBrandConfig()
+    const supabase = await createServerSupabase(brand.id)
+    const baseUrl = `https://${brand.domain}`
+
+    const { data: collection } = await supabase
+      .from('newsletters_template_collections')
+      .select('id, name, slug, description')
+      .eq('slug', match[1])
+      .maybeSingle()
+    if (!collection) return null
+
+    const { data: editions } = await supabase
+      .from('newsletters_editions')
+      .select('title, edition_date')
+      .eq('collection_id', collection.id)
+      .eq('status', 'published')
+      .order('edition_date', { ascending: false })
+      .limit(500)
+
+    const collectionUrl = `${baseUrl}/newsletters/${collection.slug}`
+    const items = (editions ?? []).map((e, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      url: `${collectionUrl}/${editionFolderSlug(e.edition_date, e.title)}`,
+      name: e.title || e.edition_date,
+    }))
+
+    return {
+      '@context': 'https://schema.org',
+      '@graph': [
+        {
+          '@type': 'Blog',
+          '@id': `${collectionUrl}#blog`,
+          name: collection.name,
+          ...(collection.description ? { description: collection.description } : {}),
+          url: collectionUrl,
+          mainEntity: { '@type': 'ItemList', numberOfItems: items.length, itemListElement: items },
+        },
+        {
+          '@type': 'BreadcrumbList',
+          itemListElement: [
+            { '@type': 'ListItem', position: 1, name: 'Newsletters', item: `${baseUrl}/newsletters` },
+            { '@type': 'ListItem', position: 2, name: collection.name, item: collectionUrl },
+          ],
+        },
+      ],
+    }
+  } catch (err) {
+    console.warn('[newsletter-collection-jsonld] failed to build:', err)
+    return null
   }
 }
 
@@ -251,15 +412,24 @@ export default async function ModulePage({ params, searchParams }: Props) {
   // Pass API URL from server env so client components can reach the API service
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || ''
 
+  // Server-rendered JSON-LD for client-rendered module pages (newsletter
+  // editions) so agents see the structured content in the initial HTML.
+  const jsonLd = (await newsletterEditionJsonLd(pathname)) ?? (await newsletterCollectionJsonLd(pathname))
+
   // Forward both params and searchParams so module pages can read query
   // string values (e.g. /calendars/[slug]/confirm?token=...)
   return (
-    <Suspense fallback={null}>
-      <PageComponent
-        params={moduleParams}
-        searchParams={resolvedSearchParams}
-        apiUrl={apiUrl}
-      />
-    </Suspense>
+    <>
+      {jsonLd && (
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      )}
+      <Suspense fallback={null}>
+        <PageComponent
+          params={moduleParams}
+          searchParams={resolvedSearchParams}
+          apiUrl={apiUrl}
+        />
+      </Suspense>
+    </>
   )
 }
