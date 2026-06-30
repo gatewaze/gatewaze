@@ -178,53 +178,50 @@ export function ProfileCompletionWizard({ brandConfig, listsEnabled = false }: P
     }
   }, [session, user, enrichUser])
 
-  // Handle wizard completion
-  const handleComplete = useCallback(async () => {
+  // Persist the profile-details fields to the person record. Called both when the
+  // user advances past the details step (Next) — so edits are saved immediately,
+  // not just on Complete — and on final completion (with the consent marker).
+  const postProfile = useCallback(async (includeConsent: boolean) => {
     if (!session?.access_token || !user) return
-
-    try {
-      const config = getClientBrandConfig()
-
-      // Call people-signup to update person attributes
-      const response = await fetch(`${config.supabaseUrl}/functions/v1/people-signup`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
+    const config = getClientBrandConfig()
+    const response = await fetch(`${config.supabaseUrl}/functions/v1/people-signup`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        email: user.email,
+        source: 'event_portal_profile_completion',
+        app: 'portal',
+        user_metadata: {
+          first_name: profileDetails.firstName.trim(),
+          last_name: profileDetails.lastName.trim(),
+          company: profileDetails.company.trim() || undefined,
+          job_title: profileDetails.jobTitle.trim() || undefined,
+          linkedin_url: profileDetails.linkedInUrl.trim() || undefined,
+          timezone: profileDetails.timezone?.trim() || undefined,
+          // Mark communication preferences as captured on completion (lists
+          // subscriptions are saved per-toggle in the preferences step).
+          ...(includeConsent && listsEnabled ? { marketing_consent: true } : {}),
         },
-        body: JSON.stringify({
-          email: user.email,
-          source: 'event_portal_profile_completion',
-          app: 'portal',
-          user_metadata: {
-            first_name: profileDetails.firstName.trim(),
-            last_name: profileDetails.lastName.trim(),
-            company: profileDetails.company.trim() || undefined,
-            job_title: profileDetails.jobTitle.trim() || undefined,
-            linkedin_url: profileDetails.linkedInUrl.trim() || undefined,
-            timezone: profileDetails.timezone?.trim() || undefined,
-            // Mark communication preferences as captured (lists subscriptions are
-            // saved per-toggle in the preferences step). Only relevant when the
-            // lists module is enabled and that step is shown.
-            ...(listsEnabled ? { marketing_consent: true } : {}),
-          },
-        }),
-      })
-
-      if (!response.ok) {
-        console.error('Failed to update profile:', await response.text())
-        throw new Error('Failed to update profile')
-      }
-
-      const data = await response.json()
-      console.log('Profile updated:', data)
-
-      setShowWizard(false)
-    } catch (err) {
-      console.error('Error updating profile:', err)
-      throw err
+      }),
+    })
+    if (!response.ok) {
+      throw new Error(`Failed to save profile: ${await response.text()}`)
     }
   }, [session, user, profileDetails, listsEnabled])
+
+  // Handle wizard completion
+  const handleComplete = useCallback(async () => {
+    try {
+      await postProfile(true)
+      setShowWizard(false)
+    } catch (err) {
+      console.error('Error completing profile:', err)
+      throw err
+    }
+  }, [postProfile])
 
   // Validation function for the details step - returns errors or true
   const validateDetails = useCallback(async (): Promise<true | Record<string, string>> => {
@@ -260,8 +257,15 @@ export function ProfileCompletionWizard({ brandConfig, listsEnabled = false }: P
     }
 
     setErrors({})
+    // Persist the details now (on Next) so edits aren't lost if the user leaves
+    // before completing. Best-effort: don't block advancing on a transient error.
+    try {
+      await postProfile(false)
+    } catch (err) {
+      console.error('Could not save profile details on Next:', err)
+    }
     return true
-  }, [profileDetails, attributeConfig])
+  }, [profileDetails, attributeConfig, postProfile])
 
   // Don't render anything while loading or if wizard shouldn't show
   if (isLoading || !showWizard) {

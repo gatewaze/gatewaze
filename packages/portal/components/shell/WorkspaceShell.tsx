@@ -146,7 +146,12 @@ export function WorkspaceShell({
   }, [nav, pathname])
 
   if (chromeless) {
-    return <>{children}</>
+    // The (main) layout wraps the shell in a `flex` row. Returning children bare
+    // would make the chromeless page (e.g. sign-in) a flex item that shrinks to
+    // its content width and pins to the left. Fill the row so in-flow centring
+    // (min-h-screen flex items-center justify-center) resolves against the full
+    // viewport width.
+    return <div className="flex-1 w-full min-w-0">{children}</div>
   }
 
   // Logged out → flat public website (prototype PublicArea): a slim top bar over the content,
