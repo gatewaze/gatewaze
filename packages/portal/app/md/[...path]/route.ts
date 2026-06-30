@@ -1,6 +1,7 @@
 import { convert } from 'html-to-text'
 import { getServerBrandConfig } from '@/config/brand'
 import { createServerSupabase } from '@/lib/supabase/server'
+import { loadPublishedEdition, editionToMarkdown } from '@/lib/agent-content/newsletter'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,7 +42,26 @@ export async function GET(
     return resourceItemMarkdown(path[1], path[2])
   }
 
+  // /newsletters/<collection>/<YYYY-MM-DD-slug>
+  if (path[0] === 'newsletters' && path.length === 3) {
+    return newsletterEditionMarkdown(path[1], path[2])
+  }
+
   return notFound()
+}
+
+async function newsletterEditionMarkdown(collectionSlug: string, editionParam: string): Promise<Response> {
+  try {
+    const brand = await getServerBrandConfig()
+    const supabase = await createServerSupabase(brand.id)
+    const loaded = await loadPublishedEdition(supabase, collectionSlug, editionParam)
+    if (!loaded) return notFound()
+    const md = editionToMarkdown(loaded, { baseUrl: `https://${brand.domain}`, brandName: brand.name })
+    return markdownResponse(md)
+  } catch (err) {
+    console.warn('[md/newsletters] failed to build:', err)
+    return notFound()
+  }
 }
 
 function notFound(): Response {
