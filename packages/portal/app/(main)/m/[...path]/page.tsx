@@ -54,7 +54,71 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     return resourceCollectionMetadata(resourceCollectionMatch[1])
   }
 
+  // /blog/{slug}
+  const blogPostMatch = pathname.match(/^\/blog\/([^/]+)$/)
+  if (blogPostMatch) {
+    return blogPostMetadata(blogPostMatch[1])
+  }
+
   return {}
+}
+
+/**
+ * Blog post metadata — prefers the post's own SEO columns (meta_*, og_*,
+ * canonical_url) when set, else derives from title/excerpt. Canonical falls back
+ * to the brand-domain self URL; a text/markdown alternate points at /md.
+ */
+async function blogPostMetadata(slug: string): Promise<Metadata> {
+  try {
+    const brand = await getServerBrandConfig()
+    const supabase = await createServerSupabase(brand.id)
+    const baseUrl = `https://${brand.domain}`
+
+    const { data: post } = await supabase
+      .from('blog_posts')
+      .select(
+        'title, slug, excerpt, featured_image, published_at, updated_at, meta_title, meta_description, ' +
+          'canonical_url, og_title, og_description, og_image, twitter_title, twitter_description, twitter_image',
+      )
+      .eq('slug', slug)
+      .eq('status', 'published')
+      .eq('visibility', 'public')
+      .maybeSingle()
+    if (!post) return {}
+
+    const path = `/blog/${post.slug}`
+    const title = post.meta_title || post.title
+    const description = post.meta_description || post.excerpt || `${post.title} — ${brand.name}.`
+    const ogImage = post.og_image || post.featured_image || brand.logoUrl || undefined
+
+    return {
+      title,
+      description,
+      alternates: {
+        canonical: post.canonical_url || `${baseUrl}${path}`,
+        types: { 'text/markdown': `${baseUrl}/md${path}` },
+      },
+      openGraph: {
+        title: post.og_title || title,
+        description: post.og_description || description,
+        type: 'article',
+        url: `${baseUrl}${path}`,
+        siteName: brand.name,
+        images: ogImage ? [{ url: ogImage }] : undefined,
+        publishedTime: post.published_at ?? undefined,
+        modifiedTime: post.updated_at ?? undefined,
+      },
+      twitter: {
+        card: 'summary_large_image',
+        title: post.twitter_title || title,
+        description: post.twitter_description || description,
+        images: post.twitter_image || ogImage ? [post.twitter_image || ogImage] : undefined,
+      },
+    }
+  } catch (err) {
+    console.warn('[blog-post-metadata] failed to build:', err)
+    return {}
+  }
 }
 
 /**

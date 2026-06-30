@@ -60,7 +60,50 @@ export async function GET(
     return eventMarkdown(path[1])
   }
 
+  // /blog/<slug>
+  if (path[0] === 'blog' && path.length === 2) {
+    if (!navVisible.has('blog')) return notFound()
+    return blogPostMarkdown(path[1])
+  }
+
   return notFound()
+}
+
+async function blogPostMarkdown(slug: string): Promise<Response> {
+  try {
+    const brand = await getServerBrandConfig()
+    const supabase = await createServerSupabase(brand.id)
+
+    const { data: post } = await supabase
+      .from('blog_posts')
+      .select('title, slug, excerpt, content, published_at, updated_at')
+      .eq('slug', slug)
+      .eq('status', 'published')
+      .eq('visibility', 'public')
+      .maybeSingle()
+    if (!post) return notFound()
+
+    const pageUrl = `https://${brand.domain}/blog/${post.slug}`
+    const lines: string[] = []
+    lines.push('---')
+    lines.push(`title: ${JSON.stringify(post.title ?? '')}`)
+    if (post.published_at) lines.push(`published: ${post.published_at}`)
+    lines.push(`source: ${pageUrl}`)
+    lines.push('---')
+    lines.push('')
+    lines.push(`# ${post.title}`)
+    if (post.excerpt) lines.push('', `*${post.excerpt}*`)
+    if (post.content) {
+      const text = htmlToText(String(post.content))
+      if (text) lines.push('', text)
+    }
+    lines.push('', '---', `Source: ${pageUrl}`, '')
+
+    return markdownResponse(lines.join('\n'))
+  } catch (err) {
+    console.warn('[md/blog] failed to build:', err)
+    return notFound()
+  }
 }
 
 interface EventMdRow {
