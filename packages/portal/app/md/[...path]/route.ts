@@ -47,7 +47,94 @@ export async function GET(
     return newsletterEditionMarkdown(path[1], path[2])
   }
 
+  // /events/<event_id-or-slug>
+  if (path[0] === 'events' && path.length === 2) {
+    return eventMarkdown(path[1])
+  }
+
   return notFound()
+}
+
+interface EventMdRow {
+  event_id: string
+  event_slug: string | null
+  event_title: string | null
+  event_description: string | null
+  listing_intro: string | null
+  event_start: string | null
+  event_end: string | null
+  event_timezone: string | null
+  event_city: string | null
+  event_country_code: string | null
+  event_location: string | null
+  venue_address: string | null
+  event_link: string | null
+  event_type: string | null
+  event_topics: string[] | null
+}
+
+async function eventMarkdown(identifier: string): Promise<Response> {
+  try {
+    const brand = await getServerBrandConfig()
+    const supabase = await createServerSupabase(brand.id)
+
+    const { data } = await supabase
+      .from('events')
+      .select(
+        'event_id, event_slug, event_title, event_description, listing_intro, event_start, event_end, ' +
+          'event_timezone, event_city, event_country_code, event_location, venue_address, event_link, ' +
+          'event_type, event_topics',
+      )
+      .or(`event_id.eq.${identifier},event_slug.eq.${identifier}`)
+      .eq('is_live_in_production', true)
+      .eq('is_listed', true)
+      .maybeSingle()
+    const event = data as EventMdRow | null
+    if (!event) return notFound()
+
+    const pageUrl = `https://${brand.domain}/events/${event.event_slug || event.event_id}`
+    const where =
+      event.event_location ||
+      event.venue_address ||
+      [event.event_city, event.event_country_code].filter(Boolean).join(', ') ||
+      null
+
+    const lines: string[] = []
+    lines.push('---')
+    lines.push(`title: ${JSON.stringify(event.event_title ?? '')}`)
+    if (event.event_start) lines.push(`start: ${event.event_start}`)
+    if (where) lines.push(`location: ${JSON.stringify(where)}`)
+    lines.push(`source: ${pageUrl}`)
+    lines.push('---')
+    lines.push('')
+    lines.push(`# ${event.event_title}`)
+    if (event.listing_intro) lines.push('', event.listing_intro)
+
+    const facts: string[] = []
+    if (event.event_start) {
+      const range = event.event_end ? `${event.event_start} – ${event.event_end}` : String(event.event_start)
+      facts.push(`**When:** ${range}${event.event_timezone ? ` (${event.event_timezone})` : ''}`)
+    }
+    if (where) facts.push(`**Where:** ${where}`)
+    if (event.event_type) facts.push(`**Type:** ${event.event_type}`)
+    if (Array.isArray(event.event_topics) && event.event_topics.length) {
+      facts.push(`**Topics:** ${event.event_topics.join(', ')}`)
+    }
+    if (facts.length) lines.push('', facts.join('  \n'))
+
+    if (event.event_description) {
+      const text = htmlToText(String(event.event_description))
+      if (text) lines.push('', '## About', '', text)
+    }
+
+    lines.push('', `[Event details & registration](${event.event_link || pageUrl})`)
+    lines.push('', '---', `Source: ${pageUrl}`, '')
+
+    return markdownResponse(lines.join('\n'))
+  } catch (err) {
+    console.warn('[md/events] failed to build:', err)
+    return notFound()
+  }
 }
 
 async function newsletterEditionMarkdown(collectionSlug: string, editionParam: string): Promise<Response> {
