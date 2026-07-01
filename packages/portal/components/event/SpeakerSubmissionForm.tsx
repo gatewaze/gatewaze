@@ -318,7 +318,7 @@ export function SpeakerSubmissionForm({ event, brandConfig, onSuccess, onCancel,
 
       const config = getClientBrandConfig()
 
-      const response = await fetch(`${config.supabaseUrl}/functions/v1/speaker-submission`, {
+      const response = await fetch(`${config.supabaseUrl}/functions/v1/events-speaker-submission`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -503,7 +503,7 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
         requestBody.avatar_url = avatarUrl
       }
 
-      const response = await fetch(`${config.supabaseUrl}/functions/v1/speaker-update`, {
+      const response = await fetch(`${config.supabaseUrl}/functions/v1/events-speaker-update`, {
         method: 'POST',
         headers,
         body: JSON.stringify(requestBody),

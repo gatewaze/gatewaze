@@ -84,7 +84,7 @@ export function ConfirmedSpeakerTasks({
     if (!editToken || calendarAdded) return
 
     try {
-      const response = await fetch(`${config.supabaseUrl}/functions/v1/speaker-submissions`, {
+      const response = await fetch(`${config.supabaseUrl}/functions/v1/events-speaker-submissions`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -179,7 +179,7 @@ export function ConfirmedSpeakerTasks({
       }
 
       // Update the talk record via edge function
-      const response = await fetch(`${config.supabaseUrl}/functions/v1/speaker-submissions`, {
+      const response = await fetch(`${config.supabaseUrl}/functions/v1/events-speaker-submissions`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -254,7 +254,7 @@ export function ConfirmedSpeakerTasks({
       // Persist the copy event to the database (only if not already persisted)
       if (!trackingLinkCopiedAt && editToken) {
         try {
-          await fetch(`${config.supabaseUrl}/functions/v1/speaker-submissions`, {
+          await fetch(`${config.supabaseUrl}/functions/v1/events-speaker-submissions`, {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
