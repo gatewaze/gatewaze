@@ -239,8 +239,10 @@ export const ATTRIBUTE_FIELDS: AttributeFieldOption[] = [
   { value: 'attributes.company', label: 'Company', type: 'string' },
   { value: 'attributes.job_title', label: 'Job Title', type: 'string' },
   { value: 'attributes.country', label: 'Country', type: 'string' },
+  { value: 'attributes.state', label: 'State / Province', type: 'string' },
   { value: 'attributes.city', label: 'City', type: 'string' },
-  { value: 'attributes.region', label: 'Region', type: 'string' },
+  { value: 'attributes.postal', label: 'Postal / ZIP code', type: 'string' },
+  { value: 'attributes.region', label: 'Region (continent)', type: 'string' },
   { value: 'attributes.linkedin_url', label: 'LinkedIn URL', type: 'string' },
   { value: 'attributes.twitter_handle', label: 'Twitter Handle', type: 'string' },
 ];
