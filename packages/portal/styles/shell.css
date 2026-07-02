@@ -73,8 +73,25 @@
 .gw-rail-collapse:hover { color: var(--ink); border-color: var(--line-2); background: rgba(var(--ui-text), 0.08); }
 .gw-rail-av { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; padding: 0;
   color: var(--ink); font: 600 13px var(--font-sans); border: 1px solid var(--line-2); background: transparent;
-  cursor: pointer; margin-top: 6px; }
+  cursor: pointer; margin-top: 6px; overflow: hidden; text-decoration: none; }
 .gw-rail-av .gw-avatar { width: 100% !important; height: 100% !important; }
+
+/* Account button + hover/focus fly-out menu (edit profile / sign out). Anchored
+   to the bottom of the rail, opens to the right and expands upward. */
+.gw-rail-acct { position: relative; display: flex; }
+/* Portalled to <body> with position:fixed set inline from the avatar rect, so it
+   escapes the rail's backdrop-filter stacking context (the content area would
+   otherwise paint over it and eat pointer events). */
+.gw-rail-acct-menu { z-index: 300; animation: gwAcctIn .14s ease-out both; }
+@keyframes gwAcctIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+.gw-rail-acct-panel { min-width: 190px; padding: 6px; border-radius: 14px; background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid var(--line-2);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4); display: flex; flex-direction: column; gap: 2px; }
+.gw-rail-acct-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 12px; border-radius: 9px;
+  font: 500 14px var(--font-sans); color: rgba(255, 255, 255, 0.72); background: none; border: none; cursor: pointer;
+  text-align: left; text-decoration: none; }
+.gw-rail-acct-item:hover, .gw-rail-acct-item:focus-visible { background: rgba(255, 255, 255, 0.09); color: #fff; outline: none; }
+.gw-rail-acct-item svg { flex-shrink: 0; opacity: 0.85; }
 
 /* ---- Contextual app: sidebar + main, full-width header over the sidebar --- */
 .gw-app { display: flex; height: 100%; width: 100%; position: relative; }
