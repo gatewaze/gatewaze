@@ -33,6 +33,7 @@ interface SignupRequest {
   app?: string // Optional - app identifier (cohorts, app, etc.)
   redirect_to?: string // Optional - callback URL for magic link redirect
   geo_refresh?: boolean // Geo-only refresh (portal visit): update IP/location, nothing else
+  timezone?: string // Optional - browser IANA timezone, used as a fallback when IP geo yields none
 }
 
 interface SignupResponse {
@@ -88,6 +89,10 @@ async function handler(req: Request) {
     if (ipLocation?.city) {
       console.log(`📍 IP location detected: ${ipLocation.city}, ${ipLocation.country}`)
     }
+    // Browser-supplied IANA timezone (validated). Used ONLY as a fallback when
+    // IP geolocation resolves no timezone (localhost/private IPs, VPNs, proxies)
+    // and the user hasn't already set one — a real IP result always wins.
+    const browserTz = validTimezone(body.timezone)
 
     // Get auth user ID from request JWT token
     // NOTE: For admin_team_invite, we should NOT use the current user's auth ID
@@ -127,6 +132,7 @@ async function handler(req: Request) {
           if (ipLocation?.continent) upd.continent = ipLocation.continent
           if (ipLocation?.location) upd.location = ipLocation.location
           if (ipLocation?.timezone && !ex.timezone) upd.timezone = ipLocation.timezone
+          else if (browserTz && !ex.timezone) upd.timezone = browserTz
           if (clientIp) upd.ip_address = clientIp
           upd.geo_updated_at = new Date().toISOString()
           await supabase.from('people').update({ attributes: upd }).eq('id', gp.id)
@@ -188,6 +194,8 @@ async function handler(req: Request) {
         // Timezone from IP only fills a gap — never override a user-set timezone.
         if (ipLocation?.timezone && !existingAttrs.timezone && !user_metadata.timezone) {
           updatedAttributes.timezone = ipLocation.timezone
+        } else if (browserTz && !existingAttrs.timezone && !user_metadata.timezone) {
+          updatedAttributes.timezone = browserTz
         }
         if (clientIp) updatedAttributes.ip_address = clientIp
         if (hasLocation) updatedAttributes.geo_updated_at = new Date().toISOString()
@@ -251,6 +259,7 @@ async function handler(req: Request) {
     if (ipLocation?.location) attributes.location = ipLocation.location
     // Timezone from IP only as a fallback — don't override a user-provided one.
     if (ipLocation?.timezone && !attributes.timezone) attributes.timezone = ipLocation.timezone
+    else if (browserTz && !attributes.timezone) attributes.timezone = browserTz
     if (clientIp) attributes.ip_address = clientIp
     if (ipLocation || clientIp) attributes.geo_updated_at = new Date().toISOString()
 
@@ -473,6 +482,22 @@ async function authUserMatchesEmail(authUserId: string, email: string): Promise<
  * Returns:
  * - city: City name (e.g., "San Francisco")
  * - country: Full country name (e.g., "United States")
+ * Validate a client-supplied IANA timezone string. Returns the zone when it's a
+ * real, resolvable timezone (checked via Intl), else null — so a bad/hostile
+ * value can never be written to a person's attributes.
+ */
+function validTimezone(tz: unknown): string | null {
+  if (typeof tz !== 'string' || tz.length === 0 || tz.length > 64) return null
+  try {
+    // Throws RangeError for an unknown timezone.
+    new Intl.DateTimeFormat('en-US', { timeZone: tz })
+    return tz
+  } catch {
+    return null
+  }
+}
+
+/**
  * - country_code: 2-letter uppercase code (e.g., "US")
  * - continent: 2-letter lowercase code (e.g., "na", "eu", "as")
  * - location: "latitude,longitude" string
