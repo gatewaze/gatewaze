@@ -103,6 +103,14 @@ export interface ModuleRuntimeContext {
     jobName: string,
     data: Record<string, unknown>,
   ) => Promise<{ id: string | undefined }>;
+  /**
+   * Returns the platform's shared ioredis connection (the same pool BullMQ
+   * uses), or null when Redis isn't configured. The platform wires this at
+   * server bootstrap. Lets a module run a real Redis-backed rate limiter / lock
+   * (multi-replica safe) without taking a direct dep on @gatewaze/api or
+   * resolving `ioredis` from its own (often bind-mounted) directory.
+   */
+  getRedisConnection?: () => Promise<unknown>;
 }
 
 export interface GatewazeModule {

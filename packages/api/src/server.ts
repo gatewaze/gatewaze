@@ -242,6 +242,20 @@ async function registerModuleRoutes() {
             const job = await queue.add(jobName, data);
             return { id: job.id };
           },
+          // Expose the platform's shared Redis connection so modules can run a
+          // real Redis-backed rate limiter / lock (multi-replica safe) without
+          // resolving ioredis from their own bind-mounted dir. Lazy import for
+          // the same reason as enqueueJob; getRedisConnection throws when Redis
+          // isn't configured, so treat that as "no Redis" (module falls back).
+          getRedisConnection: async () => {
+            try {
+              const { getRedisConnection } = await import('./lib/queue/index.js');
+              return typeof getRedisConnection === 'function' ? getRedisConnection('client') : null;
+            } catch (err) {
+              moduleLogger.warn({ err: String(err) }, '[modules] getRedisConnection unavailable');
+              return null;
+            }
+          },
         };
         try {
           await mod.config.apiRoutes(app, runtimeCtx);
