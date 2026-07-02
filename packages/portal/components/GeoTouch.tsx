@@ -10,6 +10,11 @@ import { getClientBrandConfig } from '@/config/brand'
  * the caller's IP and updates only the geo attributes (scoped to the caller's own
  * person via their JWT). Sign-in already refreshes geo; this covers return visits
  * on a persisted session.
+ *
+ * We also send the browser's IANA timezone as a FALLBACK: IP geolocation can't
+ * resolve every caller (localhost/private IPs, VPNs, some proxies), so the edge
+ * function uses this only when the IP yields no timezone and the user hasn't set
+ * one — a real IP still wins.
  */
 export function GeoTouch() {
   const { user, session } = useAuth()
@@ -23,6 +28,13 @@ export function GeoTouch() {
       // sessionStorage unavailable — proceed without throttle.
     }
 
+    let browserTimezone: string | undefined
+    try {
+      browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || undefined
+    } catch {
+      /* Intl unavailable — omit the fallback */
+    }
+
     const config = getClientBrandConfig()
     fetch(`${config.supabaseUrl}/functions/v1/people-signup`, {
       method: 'POST',
@@ -31,7 +43,7 @@ export function GeoTouch() {
         apikey: config.supabaseAnonKey,
         Authorization: `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify({ email: user.email, source: 'portal_visit', geo_refresh: true }),
+      body: JSON.stringify({ email: user.email, source: 'portal_visit', geo_refresh: true, timezone: browserTimezone }),
     }).catch(() => { /* best-effort */ })
   }, [user?.email, session?.access_token])
 
