@@ -1,5 +1,6 @@
 import { Metadata } from 'next'
 import { getServerBrand, getBrandConfigById } from '@/config/brand'
+import { getEnabledModules } from '@/lib/modules/enabledModules'
 import { ProfileContent } from './ProfileContent'
 
 export const dynamic = 'force-dynamic'
@@ -28,6 +29,13 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function ProfilePage() {
   const brand = await getServerBrand()
   const brandConfig = await getBrandConfigById(brand)
+  const modules = await getEnabledModules()
 
-  return <ProfileContent brandConfig={brandConfig} />
+  return (
+    <ProfileContent
+      brandConfig={brandConfig}
+      enabledModuleIds={[...modules.enabledIds]}
+      enabledFeatures={[...modules.enabledFeatures]}
+    />
+  )
 }
