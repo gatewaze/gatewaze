@@ -53,12 +53,17 @@ class EmailService {
    * Get default from addresses from environment variables
    */
   static getFromAddresses() {
+    // Fallback sender for when the per-audience VITE_SENDGRID_FROM_* aren't
+    // configured — mirrors the server-side EMAIL_FROM (exposed to the build as
+    // VITE_EMAIL_FROM). Ensures the From dropdown is never empty and event comms
+    // / broadcasts are always sendable with a valid default sender.
+    const fallback = import.meta.env.VITE_EMAIL_FROM || '';
     return {
-      default: import.meta.env.VITE_SENDGRID_FROM_DEFAULT || '',
+      default: import.meta.env.VITE_SENDGRID_FROM_DEFAULT || fallback || '',
       partners: import.meta.env.VITE_SENDGRID_FROM_PARTNERS || '',
       admin: import.meta.env.VITE_SENDGRID_FROM_ADMIN || '',
       members: import.meta.env.VITE_SENDGRID_FROM_MEMBERS || '',
-      events: import.meta.env.VITE_SENDGRID_FROM_EVENTS || '',
+      events: import.meta.env.VITE_SENDGRID_FROM_EVENTS || fallback || '',
     };
   }
 
