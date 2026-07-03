@@ -43,6 +43,9 @@ export interface ConditionSourceParamSchema {
   required?: string[];
 }
 export interface ConditionSourceEntity { id: string; label: string; extra?: Record<string, unknown> }
+
+/** An aggregated location point for the audience map (one per city/country). */
+export interface SegmentGeoPoint { city: string; country: string; lat: number; lng: number; count: number }
 export interface ConditionSource {
   kind: string;
   label: string;

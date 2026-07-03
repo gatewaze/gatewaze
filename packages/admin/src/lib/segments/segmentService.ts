@@ -15,6 +15,7 @@ import type {
   SegmentMembersParams,
   PaginatedResult,
   ConditionSource,
+  SegmentGeoPoint,
 } from './types';
 
 export class SegmentService {
@@ -209,6 +210,14 @@ export class SegmentService {
     if (error || !data) return null;
     const g = data as { lat?: number; lng?: number; n?: number };
     return typeof g.lat === 'number' && typeof g.lng === 'number' ? { lat: g.lat, lng: g.lng, n: g.n } : null;
+  }
+
+  /** Aggregate the segment's members by city/country (avg lat/lng + count) for
+   *  the audience map preview — one point per location, not per person. */
+  async geoAggregate(definition: SegmentDefinition, limit = 500): Promise<SegmentGeoPoint[]> {
+    const { data, error } = await this.supabase.rpc('segments_geo_aggregate', { p_definition: definition, p_limit: limit });
+    if (error) throw error;
+    return ((data as SegmentGeoPoint[] | null) || []).filter((p) => typeof p.lat === 'number' && typeof p.lng === 'number');
   }
 
   /**
