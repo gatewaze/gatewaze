@@ -186,6 +186,10 @@ export function ProfileCompletionWizard({ brandConfig, listsEnabled = false }: P
     const config = getClientBrandConfig()
     const response = await fetch(`${config.supabaseUrl}/functions/v1/people-signup`, {
       method: 'POST',
+      // Bound the wait: during a backend outage an unbounded fetch left the
+      // Complete button spinning forever. Timing out lets the wizard surface
+      // the failure and re-enable retry.
+      signal: AbortSignal.timeout(15000),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${session.access_token}`,
