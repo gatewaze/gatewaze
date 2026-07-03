@@ -178,12 +178,16 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
           .eq('person_id', person.id)
         const profileIds = (peopleProfiles ?? []).map((p) => p.id)
 
-        // 2) Their talk: by emailed edit token when present, else their own
-        //    submission on this event.
+        // 2) The talk. With a token: THAT exact talk — the token identifies the
+        //    specific submission (a speaker can have several on one event) and
+        //    possession of it IS the authorization (it arrives by email), so it
+        //    must not additionally require the viewer to own the primary
+        //    speaker record. Without a token: the viewer's own submission on
+        //    this event.
         let talkData: TalkRow | null = null
         let speakerRecordData: SpeakerRow | null = null
 
-        if (profileIds.length > 0) {
+        if (editToken || profileIds.length > 0) {
           let linkQuery = supabase
             .from('events_talk_speakers')
             .select(`
@@ -204,11 +208,12 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
                 edit_token
               )
             `)
-            .in('speaker.people_profile_id', profileIds)
             .eq('is_primary', true)
           linkQuery = editToken
             ? linkQuery.eq('talk.edit_token', editToken)
-            : linkQuery.eq('speaker.event_uuid', event.id)
+            : linkQuery
+                .in('speaker.people_profile_id', profileIds)
+                .eq('speaker.event_uuid', event.id)
 
           const { data: links, error: linkError } = await linkQuery.limit(1)
           if (linkError) {
