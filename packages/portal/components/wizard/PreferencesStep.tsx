@@ -29,6 +29,7 @@ export function PreferencesStep({ brandConfig, userEmail }: Props) {
   const primaryColor = brandConfig.primaryColor
   const [items, setItems] = useState<ListItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [savingId, setSavingId] = useState<string | null>(null)
 
   useEffect(() => {
@@ -45,11 +46,18 @@ export function PreferencesStep({ brandConfig, userEmail }: Props) {
             .order('name'),
           userEmail
             ? sb.from('list_subscriptions').select('list_id, subscribed').eq('email', userEmail)
-            : Promise.resolve({ data: [] as { list_id: string; subscribed: boolean }[] }),
+            : Promise.resolve({ data: [] as { list_id: string; subscribed: boolean }[], error: null }),
         ])
         if (cancelled) return
+        // A failed read is NOT "no options configured" — during a backend
+        // outage this used to render the misleading empty-state message.
+        if (listsRes.error) {
+          console.error('Failed to load subscription lists:', listsRes.error)
+          setLoadError(true)
+          return
+        }
         const subMap = new Map<string, boolean>(
-          ((subsRes.data as { list_id: string; subscribed: boolean }[]) || []).map(s => [s.list_id, s.subscribed]),
+          (((subsRes as { data: { list_id: string; subscribed: boolean }[] | null }).data) || []).map(s => [s.list_id, s.subscribed]),
         )
         const lists = ((listsRes.data as { id: string; name: string; description: string | null; default_subscribed: boolean | null }[]) || [])
           .map(l => ({
@@ -59,6 +67,12 @@ export function PreferencesStep({ brandConfig, userEmail }: Props) {
             subscribed: subMap.has(l.id) ? !!subMap.get(l.id) : !!l.default_subscribed,
           }))
         setItems(lists)
+        setLoadError(false)
+      } catch (err) {
+        if (!cancelled) {
+          console.error('Failed to load subscription lists:', err)
+          setLoadError(true)
+        }
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -74,7 +88,7 @@ export function PreferencesStep({ brandConfig, userEmail }: Props) {
     try {
       const sb = getSupabaseClient()
       const now = new Date().toISOString()
-      await sb.from('list_subscriptions').upsert({
+      const { error } = await sb.from('list_subscriptions').upsert({
         list_id: id,
         email: userEmail,
         subscribed,
@@ -83,6 +97,11 @@ export function PreferencesStep({ brandConfig, userEmail }: Props) {
         source: 'portal',
         updated_at: now,
       }, { onConflict: 'list_id,email' })
+      if (error) throw error
+    } catch (err) {
+      // Revert the optimistic flip so the checkbox never lies about what was saved.
+      console.error('Failed to save subscription preference:', err)
+      setItems(prev => prev.map(it => (it.id === id ? { ...it, subscribed: !subscribed } : it)))
     } finally {
       setSavingId(null)
     }
@@ -96,6 +115,10 @@ export function PreferencesStep({ brandConfig, userEmail }: Props) {
 
       {loading ? (
         <p className="text-white/50 text-sm text-center py-4">Loading preferences…</p>
+      ) : loadError ? (
+        <p className="text-white/50 text-sm text-center py-4">
+          We couldn&apos;t load the subscription options right now — you can set these any time from your profile.
+        </p>
       ) : items.length === 0 ? (
         <p className="text-white/50 text-sm text-center py-4">No subscription options available right now.</p>
       ) : (
