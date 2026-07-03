@@ -46,6 +46,9 @@ export interface EmailDetails {
   fromAddress: string;
   fromName: string;
   replyTo: string;
+  /** Optional mailbox to forward human replies to. Rendered only when the
+   *  adapter provides it (broadcasts); omit to hide the field. */
+  forwardRepliesTo?: string;
 }
 
 /**

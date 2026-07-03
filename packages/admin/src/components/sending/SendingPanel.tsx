@@ -407,6 +407,14 @@ export function SendingPanel({ adapter }: { adapter: SendingAdapter }) {
                 <label className="block text-xs font-medium text-[var(--gray-9)] mb-0.5">Reply-to</label>
                 <input className={INPUT_CLS} value={details.replyTo} onChange={(e: ChangeEvent<HTMLInputElement>) => setDetails({ ...details, replyTo: e.target.value })} />
               </div>
+              {details.forwardRepliesTo !== undefined && (
+                <div>
+                  <label className="block text-xs font-medium text-[var(--gray-9)] mb-0.5">Forward replies to</label>
+                  <input className={INPUT_CLS} type="email" placeholder="team@example.com" value={details.forwardRepliesTo}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setDetails({ ...details, forwardRepliesTo: e.target.value })} />
+                  <p className="text-xs text-[var(--gray-8)] mt-0.5">Human replies are also emailed here (auto-replies and bounces are not). Leave blank to only collect them in the Replies tab.</p>
+                </div>
+              )}
               <div className="flex justify-end">
                 <Button variant="soft" size="2" onClick={handleSaveDetails} disabled={savingDetails}>
                   {savingDetails ? 'Saving…' : 'Save details'}
