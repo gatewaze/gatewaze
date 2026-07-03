@@ -62,17 +62,26 @@ function eventPath(identifier: string, suffix = ''): string {
 // Event detail
 // ---------------------------------------------------------------------------
 
+// Event detail + counts are read PER-REQUEST (revalidate: 0). These gate
+// correctness-critical UI — dates/"ended" state, registration, the call-for-
+// speakers CTA, section visibility — and NOTHING purges the Next data cache:
+// the tag-purge webhook the original caching design assumed was never built,
+// so a cached entry only ever swaps via flaky stale-while-revalidate and admin
+// edits stayed invisible for a long time (stale "ended" events, missing CFP).
+// Per-request matches the pre-gatewazeFetch behaviour (a direct read per view);
+// in a CDN-enabled deployment the CDN still shields the API. If a revalidation
+// pipeline is built later, these can go back to DEFAULT_REVALIDATE.
 export async function getEvent(identifier: string): Promise<EventWithUuid | null> {
   return gatewazeFetch<EventWithUuid>(eventPath(identifier), {
     tags: [`event:${identifier}`],
-    revalidate: DEFAULT_REVALIDATE,
+    revalidate: 0,
   })
 }
 
 export async function getEventCounts(identifier: string): Promise<EventCounts | null> {
   return gatewazeFetch<EventCounts>(eventPath(identifier, '/counts'), {
     tags: [`event:${identifier}:counts`],
-    revalidate: DEFAULT_REVALIDATE,
+    revalidate: 0,
   })
 }
 
