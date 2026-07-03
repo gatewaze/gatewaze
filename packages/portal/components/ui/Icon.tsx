@@ -55,7 +55,9 @@ const PATHS: Record<IconName, string> = {
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>',
   mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
   link: '<path d="M10 14a4 4 0 0 0 6 .5l3-3a4 4 0 0 0-5.5-5.5l-1.5 1.4"/><path d="M14 10a4 4 0 0 0-6-.5l-3 3A4 4 0 0 0 10.5 18l1.5-1.4"/>',
-  signin: '<path d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15"/><path d="M18 15l3-3m0 0-3-3m3 3H9"/>',
+  // heroicons arrow-right-END-on-rectangle (login: arrow entering the door);
+  // its -START- sibling is the logout glyph — easy to mix up.
+  signin: '<path d="M8.25 9V5.25A2.25 2.25 0 0 1 10.5 3h6a2.25 2.25 0 0 1 2.25 2.25v13.5A2.25 2.25 0 0 1 16.5 21h-6a2.25 2.25 0 0 1-2.25-2.25V15"/><path d="M12 9l3 3m0 0-3 3m3-3H2.25"/>',
   newspaper: '<path d="M4 5h13v14a1.5 1.5 0 0 0 1.5 1.5h0A1.5 1.5 0 0 0 20 19V8h-3"/><path d="M5.5 20.5h11A1.5 1.5 0 0 0 18 19V5H4v14a1.5 1.5 0 0 0 1.5 1.5z"/><path d="M7 8.5h7M7 12h7M7 15.5h4"/>',
   pencil: '<path d="M4 20h4l10-10a2 2 0 0 0-3-3L5 17z"/><path d="M14 6l3 3"/>',
   default: '<circle cx="12" cy="12" r="8"/>',
