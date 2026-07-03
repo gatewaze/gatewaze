@@ -73,6 +73,20 @@ export interface RecipientsControl {
   editNode?: ReactNode;           // optional inline editor (broadcast/event audience)
 }
 
+/**
+ * Mandatory list a send is tied to for unsubscribe (broadcasts). Selected in the
+ * panel; recipients are cross-referenced against this list's subscribers, so
+ * changing it updates the deliverable count. `save` persists to the parent.
+ */
+export interface UnsubscribeListControl {
+  options: { id: string; name: string }[];
+  value: string | null;
+  required?: boolean;
+  label?: string;
+  helpText?: string;
+  save: (listId: string | null) => Promise<void>;
+}
+
 export interface SendingAdapter {
   domainKey: 'newsletter' | 'broadcast' | 'event';
   title: string;                  // panel heading, e.g. 'Send Newsletter'
@@ -94,15 +108,18 @@ export interface SendingAdapter {
 
   emailDetails: EmailDetailsControl;
   recipients: RecipientsControl;
+  /** Mandatory unsubscribe list picker, rendered in the panel (broadcasts). */
+  unsubscribeList?: UnsubscribeListControl;
 
   /** Base audience size, shown next to Send by default (before exclusions). */
   recipientCount?: number | null;
   /**
    * Exact deliverable count for the current exclusions (audience minus
    * already-sent), so the Send indicator reacts to the exclude checkboxes.
+   * Cross-references the selected unsubscribe list's subscribers when provided.
    * Falls back to recipientCount when omitted.
    */
-  countRecipients?: (excludeSentSendIds: string[]) => Promise<number>;
+  countRecipients?: (excludeSentSendIds: string[], unsubscribeListId?: string | null) => Promise<number>;
 
   /** Create a new send instance from the composer config; returns its id. */
   createSend: (config: SendComposerConfig) => Promise<{ id: string }>;

@@ -130,13 +130,22 @@ export function SendingPanel({ adapter }: { adapter: SendingAdapter }) {
   // current exclusions (audience minus already-sent overlap), not a subtraction.
   const [recipientEstimate, setRecipientEstimate] = useState<number | null>(adapter.recipientCount ?? null);
   const [countingRecipients, setCountingRecipients] = useState(false);
+
+  // Mandatory unsubscribe list (broadcasts), selected here. Feeds the recipient
+  // count (segment ∩ list subscribers) and gates Send.
+  const [unsubListId, setUnsubListId] = useState<string | null>(adapter.unsubscribeList?.value ?? null);
+  useEffect(() => { setUnsubListId(adapter.unsubscribeList?.value ?? null); }, [adapter.unsubscribeList?.value]);
+  const listRequired = !!adapter.unsubscribeList?.required && !unsubListId;
+  const canSendNow = canSend && !listRequired;
+  const blockReason = listRequired ? `Choose ${adapter.unsubscribeList?.label || 'an unsubscribe list'} before sending` : canSendReason;
+
   useEffect(() => {
     let cancelled = false;
     if (!adapter.countRecipients) { setRecipientEstimate(adapter.recipientCount ?? null); return; }
     setCountingRecipients(true);
     const t = setTimeout(async () => {
       try {
-        const n = await adapter.countRecipients!(excludeSentSendIds);
+        const n = await adapter.countRecipients!(excludeSentSendIds, unsubListId);
         if (!cancelled) setRecipientEstimate(n);
       } catch {
         if (!cancelled) setRecipientEstimate(adapter.recipientCount ?? null);
@@ -145,7 +154,7 @@ export function SendingPanel({ adapter }: { adapter: SendingAdapter }) {
       }
     }, 300);
     return () => { cancelled = true; clearTimeout(t); };
-  }, [excludeSentSendIds, adapter]);
+  }, [excludeSentSendIds, adapter, unsubListId]);
 
   const formTargetMs = scheduleType === 'scheduled' && scheduledAt ? new Date(scheduledAt).getTime() : NaN;
   const hasActiveRow = sends.some((s) => s.status === 'scheduled' || s.status === 'sending' || s.status === 'cancelling');
@@ -255,7 +264,7 @@ export function SendingPanel({ adapter }: { adapter: SendingAdapter }) {
 
   const handleSend = async () => {
     if (!hasParent) { toast.error(canSendReason || 'Save first'); return; }
-    if (!canSend) { toast.error(canSendReason || 'Cannot send yet'); return; }
+    if (!canSendNow) { toast.error(blockReason || 'Cannot send yet'); return; }
     setSending(true);
     try {
       // Treat 'Send Now' as 'scheduled for now' so it goes through the EXACT
@@ -441,6 +450,34 @@ export function SendingPanel({ adapter }: { adapter: SendingAdapter }) {
                 <p className="text-sm text-[var(--gray-12)]">{rc.display}</p>
                 {rc.editNode}
               </div>
+
+              {/* Unsubscribe list (broadcasts) — recipients are cross-referenced
+                  against this list's subscribers, so it drives the count. */}
+              {adapter.unsubscribeList && (
+                <div>
+                  <label className="block text-xs font-medium text-[var(--gray-9)] mb-0.5">
+                    {adapter.unsubscribeList.label || 'Unsubscribe list'}
+                    {adapter.unsubscribeList.required && <span className="text-[var(--red-11)]"> *</span>}
+                  </label>
+                  <select
+                    className={INPUT_CLS}
+                    value={unsubListId ?? ''}
+                    onChange={(e) => {
+                      const v = e.target.value || null;
+                      setUnsubListId(v);
+                      adapter.unsubscribeList!.save(v).catch(() => { /* toast handled by adapter */ });
+                    }}
+                  >
+                    <option value="">Select a list…</option>
+                    {adapter.unsubscribeList.options.map((o) => (
+                      <option key={o.id} value={o.id}>{o.name}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-[var(--gray-8)] mt-0.5">
+                    {adapter.unsubscribeList.helpText || 'Recipients unsubscribe from this list; only its subscribers within the audience are emailed.'}
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Schedule */}
@@ -511,8 +548,8 @@ export function SendingPanel({ adapter }: { adapter: SendingAdapter }) {
               </div>
             )}
 
-            {!canSend && hasParent && canSendReason && (
-              <div className="rounded-md border border-[var(--amber-a6)] bg-[var(--amber-a2)] px-3 py-2 text-xs text-[var(--amber-11)]">{canSendReason}</div>
+            {!canSendNow && hasParent && blockReason && (
+              <div className="rounded-md border border-[var(--amber-a6)] bg-[var(--amber-a2)] px-3 py-2 text-xs text-[var(--amber-11)]">{blockReason}</div>
             )}
 
             {recipientEstimate != null && (
@@ -526,14 +563,14 @@ export function SendingPanel({ adapter }: { adapter: SendingAdapter }) {
               </p>
             )}
 
-            <Button variant="solid" onClick={handleSend} disabled={sending || !hasParent || isActive || !canSend}>
+            <Button variant="solid" onClick={handleSend} disabled={sending || !hasParent || isActive || !canSendNow}>
               {sendSpinning ? (
                 <svg className="w-4 h-4 mr-1 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
               ) : <PaperAirplaneIcon className="w-4 h-4 mr-1" />}
-              {sending ? 'Sending...' : isActive ? 'Send in progress...' : !canSend ? (canSendReason || 'Cannot send') : scheduleType === 'scheduled' ? 'Schedule Send' : 'Send Now'}
+              {sending ? 'Sending...' : isActive ? 'Send in progress...' : !canSendNow ? (blockReason || 'Cannot send') : scheduleType === 'scheduled' ? 'Schedule Send' : 'Send Now'}
             </Button>
 
           </div>
