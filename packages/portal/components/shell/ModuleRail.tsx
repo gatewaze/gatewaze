@@ -10,12 +10,14 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import Image from 'next/image'
+import { usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { getClientBrandConfig } from '@/config/brand'
 import { Icon } from '@/components/ui/Icon'
 import { Avatar } from '@/components/ui/Avatar'
 import type { RailItem } from '@/lib/modules/enabledModules'
 import type { ModuleAccessMap } from '@/lib/modules/access'
+import { signInHref } from '@/lib/signInHref'
 
 interface ModuleRailProps {
   items: RailItem[]
@@ -40,6 +42,8 @@ export function ModuleRail({
 }: ModuleRailProps) {
   const { user, session, signOut } = useAuth()
   const [avatarSrc, setAvatarSrc] = useState<string | null>(null)
+  // Sign-in (logged-out rail) carries the current page for the post-auth return.
+  const railPathname = usePathname()
 
   // Resolve the signed-in person's avatar (rail account button). Auth
   // user_metadata carries no picture, so read it from the person record:
@@ -221,7 +225,7 @@ export function ModuleRail({
           ) as React.ReactNode)}
         </div>
       ) : (
-        <Link href="/sign-in?sso=1" className="gw-rail-collapse" title="Sign in" aria-label="Sign in">
+        <Link href={signInHref(railPathname)} className="gw-rail-collapse" title="Sign in" aria-label="Sign in">
           <Icon name="signin" size={18} />
         </Link>
       )}

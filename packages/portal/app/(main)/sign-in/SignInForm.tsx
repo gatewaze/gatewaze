@@ -91,12 +91,21 @@ export function SignInForm({ brandConfig, enabledModuleIds = [], enabledFeatures
     }
   }, [isProcessingToken, redirectTo, router])
 
-  // Redirect if already signed in
+  // Redirect if already signed in. Skipped while the hash flow is processing —
+  // setSession() flips `user` before that flow's window.location.replace() runs,
+  // and this effect would race it to `/`, losing the stored destination. Also
+  // honours auth_redirect_to (set by the LFID button before the Auth0 hop) so
+  // an already-live session still returns the user to where they came from.
   useEffect(() => {
+    if (isProcessingToken) return
     if (!isLoading && user) {
-      router.push(redirectTo)
+      const destination = redirectTo !== '/'
+        ? redirectTo
+        : localStorage.getItem('auth_redirect_to') || '/'
+      localStorage.removeItem('auth_redirect_to')
+      router.push(destination)
     }
-  }, [user, isLoading, router, redirectTo])
+  }, [user, isLoading, router, redirectTo, isProcessingToken])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
