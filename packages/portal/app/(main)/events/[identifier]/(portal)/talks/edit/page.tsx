@@ -94,6 +94,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function SpeakerEditPage({ params, searchParams }: Props) {
   const { identifier } = await params
   const { token } = await searchParams
+  // Links built from a null edit_token arrive as the literal string "null"
+  // (?token=null). Treat those as no token so the signed-in fallback (resolve
+  // the viewer's own submission) kicks in instead of a doomed uuid lookup.
+  const editToken = token && token !== 'null' && token !== 'undefined' ? token : undefined
   const brand = await getServerBrand()
   const event = await getEventForMetadata(identifier, brand)
 
@@ -103,7 +107,7 @@ export default async function SpeakerEditPage({ params, searchParams }: Props) {
 
   return (
     <SpeakerEditContent
-      editToken={token}
+      editToken={editToken}
       confirmedDurationCounts={confirmedDurationCounts}
     />
   )

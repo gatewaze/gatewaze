@@ -257,7 +257,15 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
           if (editToken) {
             speakerQuery = speakerQuery.eq('edit_token', editToken)
           } else if (event.id) {
-            speakerQuery = speakerQuery.eq('event_uuid', event.id)
+            // No token → resolve the SIGNED-IN user's own submission on this
+            // event. Scoping to their auth user is essential: unscoped, this
+            // matched any speaker on the event — maybeSingle() blew up the
+            // moment an event had two submissions, and could load someone
+            // else's talk when it had one.
+            speakerQuery = speakerQuery
+              .eq('event_uuid', event.id)
+              .eq('people_profiles.people.auth_user_id', session?.user?.id ?? '')
+              .limit(1)
           }
 
           const { data, error } = await speakerQuery.maybeSingle()
