@@ -116,9 +116,12 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
     async function fetchSpeakerData() {
       if (hasFetchedRef.current) return
 
-      if (!editToken && authLoading) return
+      if (authLoading) return
 
-      if (!editToken && !session) {
+      // Editing requires a signed-in session (the success page already gates
+      // token links behind sign-in): person reads are RLS-scoped to the viewer,
+      // and the ownership lookups below hang off their person record.
+      if (!session) {
         setLoadError('Please sign in to edit your submission')
         setIsLoadingData(false)
         return
@@ -131,19 +134,15 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
           global: { headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {} }
         })
 
-        // Types for the nested Supabase select results below.
-        interface PersonRow {
+        // Row shapes for the lookups below. (Supabase types !inner embeds as
+        // arrays even for structurally-1:1 relations; unwrap defensively.)
+        interface TalkRow {
           id: string
-          email: string
-          auth_user_id: string | null
-          attributes?: Record<string, unknown> | null
-          avatar_source?: string | null
-          avatar_storage_path?: string | null
-        }
-        interface PersonProfileRow {
-          id: string
-          person_id: string
-          people: PersonRow | PersonRow[]
+          title?: string | null
+          synopsis?: string | null
+          duration_minutes?: number | null
+          status?: string | null
+          edit_token?: string | null
         }
         interface SpeakerRow {
           id: string
@@ -153,139 +152,96 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
           talk_duration_minutes?: number | null
           speaker_bio?: string | null
           speaker_title?: string | null
-          edit_token: string | null
-          people_profiles: PersonProfileRow | PersonProfileRow[]
-        }
-        interface TalkSpeakerLink {
-          speaker_id: string
-          is_primary: boolean
-          speaker: SpeakerRow | SpeakerRow[]
-        }
-        interface TalkRow {
-          id: string
-          title: string | null
-          synopsis: string | null
-          duration_minutes: number | null
-          status: string | null
-          edit_token: string | null
-          event_talk_speakers?: TalkSpeakerLink[]
         }
 
+        // 1) The signed-in person: the prefill source (name/company/avatar) AND
+        //    the ownership root — speaker records reference people_profiles.
+        //    This mirrors TalksFormContent, the schema-correct working path.
+        //    The previous embeds here (events_speakers→people_profiles, and the
+        //    singular event_talk_speakers / event_speakers) never matched the
+        //    schema, so every edit-page load failed on a swallowed PGRST200.
+        const { data: person } = await supabase
+          .from('people')
+          .select('id, email, attributes, avatar_storage_path')
+          .eq('auth_user_id', session.user.id)
+          .maybeSingle()
+
+        if (!person) {
+          setLoadError('Submission not found')
+          setIsLoadingData(false)
+          return
+        }
+
+        const { data: peopleProfiles } = await supabase
+          .from('people_profiles')
+          .select('id')
+          .eq('person_id', person.id)
+        const profileIds = (peopleProfiles ?? []).map((p) => p.id)
+
+        // 2) Their talk: by emailed edit token when present, else their own
+        //    submission on this event.
         let talkData: TalkRow | null = null
         let speakerRecordData: SpeakerRow | null = null
-        let personProfile: PersonProfileRow | null = null
 
-        if (editToken) {
-          const { data: talk, error: talkError } = await supabase
-            .from('events_talks')
+        if (profileIds.length > 0) {
+          let linkQuery = supabase
+            .from('events_talk_speakers')
             .select(`
-              id,
-              title,
-              synopsis,
-              duration_minutes,
-              status,
-              edit_token,
-              event_talk_speakers!inner (
-                speaker_id,
-                is_primary,
-                speaker:event_speakers!speaker_id (
-                  id,
-                  speaker_bio,
-                  speaker_title,
-                  edit_token,
-                  people_profiles!inner (
-                    id,
-                    person_id,
-                    people!inner (
-                      id,
-                      email,
-                      auth_user_id,
-                      attributes,
-                      avatar_source,
-                      avatar_storage_path
-                    )
-                  )
-                )
-              )
-            `)
-            .eq('edit_token', editToken)
-            .maybeSingle()
-
-          if (!talkError && talk) {
-            talkData = talk as TalkRow
-            const links = (talkData.event_talk_speakers ?? []) as TalkSpeakerLink[]
-            const primaryTalkSpeaker = links.find((ts) => ts.is_primary) ?? links[0]
-            if (primaryTalkSpeaker?.speaker) {
-              const speaker = Array.isArray(primaryTalkSpeaker.speaker)
-                ? primaryTalkSpeaker.speaker[0]
-                : primaryTalkSpeaker.speaker
-              if (speaker) {
-                speakerRecordData = speaker
-                const profiles = speaker.people_profiles
-                personProfile = Array.isArray(profiles) ? profiles[0] : profiles
-              }
-            }
-          }
-        }
-
-        if (!talkData && !speakerRecordData) {
-          let speakerQuery = supabase
-            .from('events_speakers')
-            .select(`
-              id,
-              status,
-              talk_title,
-              talk_synopsis,
-              talk_duration_minutes,
-              speaker_bio,
-              speaker_title,
-              edit_token,
-              people_profiles!inner (
+              is_primary,
+              speaker:events_speakers!inner (
                 id,
-                person_id,
-                people!inner (
-                  id,
-                  email,
-                  auth_user_id,
-                  attributes,
-                  avatar_source,
-                  avatar_storage_path
-                )
+                event_uuid,
+                people_profile_id,
+                speaker_bio,
+                speaker_title
+              ),
+              talk:events_talks!inner (
+                id,
+                title,
+                synopsis,
+                duration_minutes,
+                status,
+                edit_token
               )
             `)
+            .in('speaker.people_profile_id', profileIds)
+            .eq('is_primary', true)
+          linkQuery = editToken
+            ? linkQuery.eq('talk.edit_token', editToken)
+            : linkQuery.eq('speaker.event_uuid', event.id)
 
-          if (editToken) {
-            speakerQuery = speakerQuery.eq('edit_token', editToken)
-          } else if (event.id) {
-            // No token → resolve the SIGNED-IN user's own submission on this
-            // event. Scoping to their auth user is essential: unscoped, this
-            // matched any speaker on the event — maybeSingle() blew up the
-            // moment an event had two submissions, and could load someone
-            // else's talk when it had one.
-            speakerQuery = speakerQuery
-              .eq('event_uuid', event.id)
-              .eq('people_profiles.people.auth_user_id', session?.user?.id ?? '')
-              .limit(1)
-          }
-
-          const { data, error } = await speakerQuery.maybeSingle()
-
-          if (error) {
-            console.error('Error fetching speaker data:', error)
+          const { data: links, error: linkError } = await linkQuery.limit(1)
+          if (linkError) {
+            console.error('Error fetching speaker data:', linkError.message)
             setLoadError('Failed to load submission data')
             setIsLoadingData(false)
             return
           }
-
-          if (!data) {
-            setLoadError('Submission not found')
-            setIsLoadingData(false)
-            return
+          const link = links?.[0] as { speaker: SpeakerRow | SpeakerRow[]; talk: TalkRow | TalkRow[] } | undefined
+          if (link) {
+            talkData = (Array.isArray(link.talk) ? link.talk[0] : link.talk) ?? null
+            speakerRecordData = (Array.isArray(link.speaker) ? link.speaker[0] : link.speaker) ?? null
           }
 
-          speakerRecordData = data as SpeakerRow
-          const profiles = (data as SpeakerRow).people_profiles
-          personProfile = (Array.isArray(profiles) ? profiles[0] : profiles) ?? null
+          // 3) Legacy speaker-only submissions: talk fields directly on
+          //    events_speakers with no events_talks row (and no token — tokens
+          //    only exist on talks). Scoped to the viewer's own profiles.
+          if (!speakerRecordData && !editToken && event.id) {
+            const { data: sp, error: spError } = await supabase
+              .from('events_speakers')
+              .select('id, status, talk_title, talk_synopsis, talk_duration_minutes, speaker_bio, speaker_title')
+              .eq('event_uuid', event.id)
+              .in('people_profile_id', profileIds)
+              .limit(1)
+              .maybeSingle()
+            if (spError) {
+              console.error('Error fetching speaker data:', spError.message)
+              setLoadError('Failed to load submission data')
+              setIsLoadingData(false)
+              return
+            }
+            speakerRecordData = (sp as SpeakerRow | null) ?? null
+          }
         }
 
         if (!speakerRecordData) {
@@ -294,26 +250,13 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
           return
         }
 
-        const typedPersonProfile = personProfile as unknown as {
-          id: string
-          person_id: string
-          people: {
-            id: string
-            email: string
-            auth_user_id: string | null
-            attributes: Record<string, string> | null
-            avatar_source: string | null
-            avatar_storage_path: string | null
-          }
-        }
-
-        const personAttrs = typedPersonProfile?.people?.attributes || {}
+        const personAttrs = (person.attributes as Record<string, string>) || {}
 
         let avatarUrl: string | null = null
-        if (typedPersonProfile?.people?.avatar_storage_path) {
+        if (person.avatar_storage_path) {
           const { data: { publicUrl } } = supabase.storage
             .from('media')
-            .getPublicUrl(typedPersonProfile.people.avatar_storage_path)
+            .getPublicUrl(person.avatar_storage_path)
           avatarUrl = publicUrl
         }
 
@@ -328,7 +271,7 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
           speaker_title: speakerRecordData.speaker_title ?? null,
           first_name: personAttrs.first_name || '',
           last_name: personAttrs.last_name || '',
-          email: typedPersonProfile?.people?.email || '',
+          email: person.email || '',
           company: personAttrs.company,
           job_title: personAttrs.job_title,
           linkedin_url: personAttrs.linkedin_url,
