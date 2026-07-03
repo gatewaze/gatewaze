@@ -492,7 +492,7 @@ export function SpeakerSuccessContent({ editToken, isExisting, isUpdated, status
             <PortalButton
               variant="primary"
               primaryColor={primaryColor}
-              href={`${basePath}/talks/edit?token=${editToken}`}
+              href={`${basePath}/talks/edit${editToken ? `?token=${editToken}` : ""}`}
               className="flex-1"
             >
               Edit submission
