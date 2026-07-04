@@ -144,9 +144,12 @@ export default async function MainLayout({
   const brand = brandConfig.id
   const modules = await getEnabledModules()
   const complianceEnabled = isModuleEnabled(modules, 'compliance')
-  // When compliance is disabled, the footer shows a single configurable line (set in admin →
-  // Settings → Branding → Legal). Sanitised server-side so the shell can render it directly.
-  const rawFooterLegal = complianceEnabled ? null : await getAppSetting('footer_legal_html')
+  // Footer precedence: the configurable legal line (admin → Settings → Branding →
+  // Legal) always wins when set — even with compliance enabled, so a tenant can
+  // use compliance purely for cookie consent without the Privacy/Terms/Do-Not-Sell
+  // links. Those links are the fallback for compliance tenants with no custom
+  // text. Sanitised server-side so the shell can render it directly.
+  const rawFooterLegal = await getAppSetting('footer_legal_html')
   const footerLegalHtml = rawFooterLegal ? sanitizeHtml(rawFooterLegal, 'marketing-page') : null
   const fontsUrl = buildGoogleFontsUrl(brandConfig)
   const fontStack = buildFontStack(brandConfig)
