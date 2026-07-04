@@ -797,15 +797,17 @@ class GatewazeCookieConsent {
       mobileStyles.textContent = `
         @media (max-width: 820px) {
           #cookie-preferences-icon {
-            left: 0px !important;
-            border-radius: 0 8px 8px 0 !important;
+            right: 0px !important;
+            left: auto !important;
+            border-radius: 8px 0 0 8px !important;
             bottom: calc(96px + env(safe-area-inset-bottom)) !important;
           }
         }
 
         @media (min-width: 821px) {
           #cookie-preferences-icon {
-            left: 15px !important;
+            right: 15px !important;
+            left: auto !important;
             border-radius: 8px !important;
           }
         }
