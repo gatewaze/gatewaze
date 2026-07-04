@@ -186,12 +186,13 @@ class GatewazeCookieConsent {
       bottomPosition = hasBottomNav ? '100px' : '20px';
     }
 
-    // Create small bottom-left banner with glass effect
+    // Create small bottom-right banner with glass effect (matches the icon,
+    // which anchors right because the workspace rail owns the bottom-left).
     const bannerHTML = `
       <div id="cookie-consent-banner" style="
         position: fixed;
         bottom: ${bottomPosition};
-        left: 20px;
+        right: 20px;
         max-width: 350px;
         background: rgba(255, 255, 255, 0.7);
         backdrop-filter: blur(24px);
@@ -720,14 +721,16 @@ class GatewazeCookieConsent {
     // Calculate proper position above navigation bar
     // Navigation has: py-4 (32px) + button height (~40px) + border (2px) = ~74px
     // Add 20px spacing above nav = 94px from bottom
-    let bottomPosition, leftPosition;
+    // Anchored bottom-RIGHT: the signed-in workspace rail occupies the
+    // bottom-left corner, so the cookie icon lives on the right instead.
+    let bottomPosition, rightPosition;
     
     if (hasBottomNav) {
       bottomPosition = '100px'; // Above navigation with spacing
-      leftPosition = isMobile ? '0px' : '15px'; // Attached to left edge on mobile
+      rightPosition = isMobile ? '0px' : '15px'; // Attached to right edge on mobile
     } else {
       bottomPosition = '20px';
-      leftPosition = '15px';
+      rightPosition = '15px';
     }
     
 
@@ -736,11 +739,11 @@ class GatewazeCookieConsent {
       <div id="cookie-preferences-icon" style="
         position: fixed;
         bottom: ${bottomPosition};
-        left: ${leftPosition};
+        right: ${rightPosition};
         width: 32px;
         height: 32px;
         background: #1e2837;
-        border-radius: ${isMobile ? '0 8px 8px 0' : '8px'};
+        border-radius: ${isMobile ? '8px 0 0 8px' : '8px'};
         display: flex;
         align-items: center;
         justify-content: center;
