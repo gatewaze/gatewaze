@@ -43,7 +43,10 @@ export function TermsModal({ title = 'Event Terms', html, onAccept, onClose }: P
       {/* Backdrop — identical treatment to ProfileWizard */}
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative w-full max-w-lg">
+      {/* Wider than the wizard (long legal text) and nearly opaque: the glass
+          tint still comes from the brand theme, but --glass-opacity is raised
+          locally so the page behind doesn't bleed through the terms. */}
+      <div className="relative w-full max-w-2xl" style={{ '--glass-opacity': '0.88' } as React.CSSProperties}>
         <GlassPanel padding="p-0" className="overflow-hidden">
           <div className="flex max-h-[85vh] flex-col">
             <div className="flex items-start justify-between px-6 pt-6 pb-3">
