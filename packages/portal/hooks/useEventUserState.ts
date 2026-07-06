@@ -137,35 +137,46 @@ export function useEventUserState(event: Event & { id: string }): EventUserState
                 .maybeSingle()
             : Promise.resolve({ data: null }),
 
-          // Check speaker/talk submissions
+          // Check speaker/talk submissions — plain decomposed lookups
+          // (participation → bridge → talks). The previous embed resolved
+          // events_talk_speakers → events_speakers, but the bridge's
+          // speaker_id FK targets events_speaker_profiles, so PostgREST
+          // rejected the query and speaker state never populated.
           (async () => {
-            const { data: speakerTalks } = await supabase
-              .from('events_talk_speakers')
-              .select(`
-                is_primary,
-                speaker:events_speakers!inner (
-                  id,
-                  event_uuid,
-                  people_profile_id,
-                  status
-                ),
-                talk:events_talks!inner (
-                  id,
-                  title,
-                  status,
-                  edit_token,
-                  presentation_url,
-                  presentation_storage_path,
-                  presentation_type,
-                  calendar_added_at,
-                  tracking_link_copied_at
-                )
-              `)
-              .eq('speaker.event_uuid', event.id)
-              .in('speaker.people_profile_id', profileIds)
-              .eq('is_primary', true)
+            const { data: mySpeakers } = await supabase
+              .from('events_speakers')
+              .select('id, speaker_id, status')
+              .eq('event_uuid', event.id)
+              .in('people_profile_id', profileIds)
+            const rows = (mySpeakers ?? []).filter((s) => s.speaker_id)
+            if (rows.length === 0) return []
 
-            return speakerTalks
+            const { data: bridgeRows } = await supabase
+              .from('events_talk_speakers')
+              .select('talk_id, speaker_id, is_primary')
+              .in('speaker_id', rows.map((s) => s.speaker_id as string))
+              .eq('is_primary', true)
+            const talkIds = (bridgeRows ?? []).map((b) => b.talk_id)
+            if (talkIds.length === 0) return []
+
+            const { data: talkRows } = await supabase
+              .from('events_talks')
+              .select('id, title, status, edit_token, presentation_url, presentation_storage_path, presentation_type, calendar_added_at, tracking_link_copied_at')
+              .in('id', talkIds)
+              .eq('event_uuid', event.id)
+
+            const speakerByProfileId = new Map(rows.map((s) => [s.speaker_id as string, s]))
+            return (talkRows ?? []).map((talk) => {
+              const bridge = (bridgeRows ?? []).find((b) => b.talk_id === talk.id)
+              const sp = bridge ? speakerByProfileId.get(bridge.speaker_id) : undefined
+              return {
+                is_primary: bridge?.is_primary ?? null,
+                speaker: sp
+                  ? { id: sp.id, event_uuid: event.id, people_profile_id: '', status: sp.status ?? null }
+                  : null,
+                talk,
+              }
+            })
           })(),
         ])
 

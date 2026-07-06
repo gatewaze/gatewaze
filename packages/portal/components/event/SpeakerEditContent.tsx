@@ -186,44 +186,73 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
         let speakerRecordData: SpeakerRow | null = null
 
         if (editToken || profileIds.length > 0) {
-          let linkQuery = supabase
-            .from('events_talk_speakers')
-            .select(`
-              is_primary,
-              speaker:events_speakers!inner (
-                id,
-                event_uuid,
-                people_profile_id,
-                speaker_bio,
-                speaker_title
-              ),
-              talk:events_talks!inner (
-                id,
-                title,
-                synopsis,
-                duration_minutes,
-                status,
-                edit_token
-              )
-            `)
-            .eq('is_primary', true)
-          linkQuery = editToken
-            ? linkQuery.eq('talk.edit_token', editToken)
-            : linkQuery
-                .in('speaker.people_profile_id', profileIds)
-                .eq('speaker.event_uuid', event.id)
-
-          const { data: links, error: linkError } = await linkQuery.limit(1)
-          if (linkError) {
-            console.error('Error fetching speaker data:', linkError.message)
-            setLoadError('Failed to load submission data')
-            setIsLoadingData(false)
-            return
-          }
-          const link = links?.[0] as { speaker: SpeakerRow | SpeakerRow[]; talk: TalkRow | TalkRow[] } | undefined
-          if (link) {
-            talkData = (Array.isArray(link.talk) ? link.talk[0] : link.talk) ?? null
-            speakerRecordData = (Array.isArray(link.speaker) ? link.speaker[0] : link.speaker) ?? null
+          // Plain decomposed lookups — the previous embed resolved
+          // events_talk_speakers → events_speakers, but the bridge's
+          // speaker_id FK targets events_speaker_profiles, so PostgREST
+          // rejected the whole query (PGRST200) and the page showed
+          // "Submission not found" for every talk.
+          if (editToken) {
+            // Token path: the token identifies the exact talk and IS the
+            // authorization (it arrives by email).
+            const { data: talkRow } = await supabase
+              .from('events_talks')
+              .select('id, event_uuid, title, synopsis, duration_minutes, status, edit_token')
+              .eq('edit_token', editToken)
+              .maybeSingle()
+            if (talkRow) {
+              talkData = talkRow as TalkRow
+              const talkEventUuid = (talkRow as { event_uuid?: string | null }).event_uuid
+              // Resolve the per-event speaker record via the bridge → profile.
+              const { data: bridgeRow } = await supabase
+                .from('events_talk_speakers')
+                .select('speaker_id')
+                .eq('talk_id', (talkRow as { id: string }).id)
+                .eq('is_primary', true)
+                .maybeSingle()
+              if (bridgeRow?.speaker_id && talkEventUuid) {
+                const { data: sp } = await supabase
+                  .from('events_speakers')
+                  .select('id, event_uuid, people_profile_id, speaker_bio, speaker_title')
+                  .eq('speaker_id', bridgeRow.speaker_id)
+                  .eq('event_uuid', talkEventUuid)
+                  .maybeSingle()
+                speakerRecordData = (sp as SpeakerRow | null) ?? null
+              }
+            }
+          } else {
+            // No token: the viewer's own submission on this event —
+            // events_speakers is keyed by people_profile_id directly.
+            const { data: sp } = await supabase
+              .from('events_speakers')
+              .select('id, event_uuid, people_profile_id, speaker_bio, speaker_title, speaker_id')
+              .eq('event_uuid', event.id)
+              .in('people_profile_id', profileIds)
+              .limit(1)
+              .maybeSingle()
+            if (sp) {
+              speakerRecordData = sp as SpeakerRow
+              const spSpeakerId = (sp as { speaker_id?: string | null }).speaker_id
+              if (spSpeakerId) {
+                // Their most recent talk on this event via the bridge.
+                const { data: bridgeRows } = await supabase
+                  .from('events_talk_speakers')
+                  .select('talk_id')
+                  .eq('speaker_id', spSpeakerId)
+                  .eq('is_primary', true)
+                const talkIds = (bridgeRows ?? []).map((b) => b.talk_id)
+                if (talkIds.length > 0) {
+                  const { data: talkRow } = await supabase
+                    .from('events_talks')
+                    .select('id, title, synopsis, duration_minutes, status, edit_token, created_at')
+                    .in('id', talkIds)
+                    .eq('event_uuid', event.id)
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle()
+                  talkData = (talkRow as TalkRow | null) ?? null
+                }
+              }
+            }
           }
 
           // 3) Legacy speaker-only submissions: talk fields directly on
