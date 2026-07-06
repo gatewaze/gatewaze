@@ -879,10 +879,10 @@ export function SpeakerSubmissionForm({ event, brandConfig, onSuccess, onCancel,
                     }}
                     className="mt-1 h-4 w-4 flex-shrink-0 accent-current cursor-pointer"
                   />
-                  <span
-                    className={`text-sm leading-relaxed ${theme.footerText} [&_a]:underline`}
-                    dangerouslySetInnerHTML={{ __html: `${consentAckHtml} *` }}
-                  />
+                  <span className={`text-sm leading-relaxed ${theme.footerText} [&_a]:underline`}>
+                    <span dangerouslySetInnerHTML={{ __html: consentAckHtml }} />
+                    <span className={theme.requiredClass} style={{ backgroundColor: `${primaryColor}50` }}>required</span>
+                  </span>
                 </label>
               )}
               {errors.consent_ack && <p className={`text-sm ${theme.errorText} ml-7`}>{errors.consent_ack}</p>}
@@ -912,11 +912,11 @@ export function SpeakerSubmissionForm({ event, brandConfig, onSuccess, onCancel,
                           event terms
                         </button>
                         <span dangerouslySetInnerHTML={{ __html: consentAgreeHtml.split('{terms}')[1] ?? '' }} />
-                        {' *'}
                       </>
                     ) : (
-                      <span dangerouslySetInnerHTML={{ __html: `${consentAgreeHtml} *` }} />
+                      <span dangerouslySetInnerHTML={{ __html: consentAgreeHtml }} />
                     )}
+                    <span className={theme.requiredClass} style={{ backgroundColor: `${primaryColor}50` }}>required</span>
                   </span>
                 </label>
               )}
