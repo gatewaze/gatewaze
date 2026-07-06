@@ -231,6 +231,70 @@ async function handler(req: Request) {
 
     console.log(`✅ Member profile: ${memberProfile.id}`)
 
+    // Step 4b: Find or create the cross-event speaker profile
+    // (events_speaker_profiles is the person-level speaker identity that the
+    // events_speakers per-event participation row + the events_talk_speakers
+    // bridge both FK to). Without this row the bridge insert silently 500's
+    // with an FK violation and the admin can't resolve who submitted the
+    // talk — every CFP submission renders as "Unknown Speaker".
+    const submitterFullName = [first_name, last_name].filter(Boolean).join(' ').trim() || null
+    let speakerProfileId: string
+    {
+      const { data: existingProfile } = await supabase
+        .from('events_speaker_profiles')
+        .select('id')
+        .eq('person_id', personResult.id)
+        .maybeSingle()
+
+      if (existingProfile) {
+        speakerProfileId = (existingProfile as any).id
+        // Refresh identity fields opportunistically — a returning submitter may
+        // have new title / company / bio to share. Leave email untouched.
+        const profileUpdates: Record<string, any> = {}
+        if (submitterFullName) profileUpdates.name = submitterFullName
+        if (speaker_title) profileUpdates.title = speaker_title
+        if (company) profileUpdates.company = company
+        if (speaker_bio) profileUpdates.bio = speaker_bio
+        if (avatar_url) profileUpdates.avatar_url = avatar_url
+        if (linkedin_url) profileUpdates.linkedin_url = linkedin_url
+        if (Object.keys(profileUpdates).length > 0) {
+          await supabase
+            .from('events_speaker_profiles')
+            .update(profileUpdates)
+            .eq('id', speakerProfileId)
+        }
+        console.log(`✅ Reusing events_speaker_profile: ${speakerProfileId}`)
+      } else {
+        const { data: newProfile, error: profileError } = await supabase
+          .from('events_speaker_profiles')
+          .insert({
+            person_id: personResult.id,
+            name: submitterFullName || email,
+            email,
+            title: speaker_title || null,
+            company: company || null,
+            bio: speaker_bio || null,
+            avatar_url: avatar_url || null,
+            linkedin_url: linkedin_url || null,
+            is_active: true,
+          })
+          .select('id')
+          .single()
+        if (profileError || !newProfile) {
+          console.error('Error creating events_speaker_profile:', profileError)
+          return new Response(JSON.stringify({
+            success: false,
+            error: `Failed to create speaker profile: ${profileError?.message || 'unknown'}`
+          }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          })
+        }
+        speakerProfileId = (newProfile as any).id
+        console.log(`✅ events_speaker_profile created: ${speakerProfileId}`)
+      }
+    }
+
     // Step 5: Check if speaker record already exists for this event
     // If so, we reuse it (speaker = identity) and create a new talk
     const { data: existingSpeaker } = await supabase
@@ -280,6 +344,11 @@ async function handler(req: Request) {
 
       const speakerData: Record<string, any> = {
         event_uuid: eventUuid,
+        // FK to the cross-event speaker profile — the events_talk_speakers
+        // bridge references this same id. Was left NULL before the fix, which
+        // (combined with the missing bridge row) made the admin blind to the
+        // link between the talk and the submitter.
+        speaker_id: speakerProfileId,
         people_profile_id: memberProfile.id,
         // Speaker profile fields only - talk data is stored in event_talks
         speaker_title: speaker_title || null,
@@ -311,7 +380,8 @@ async function handler(req: Request) {
       console.log(`✅ Speaker record created: ${speakerId}`)
     }
 
-    // Step 6b: Create talk record (content) in event_talks table
+    // Step 6b: Create talk record (content) in events_talks table
+    const submitterName = [first_name, last_name].filter(Boolean).join(' ').trim() || null
     const talkData: Record<string, any> = {
       event_uuid: eventUuid,
       title: talk_title,
@@ -322,6 +392,11 @@ async function handler(req: Request) {
       submitted_at: new Date().toISOString(),
       sort_order: 0,
       is_featured: false,
+      // Denormalised submitter identity — the admin talks list surfaces these
+      // when the person hasn't been resolved into a linked speaker profile yet.
+      // Without these the CFP submission renders as "Unknown Speaker".
+      submitter_email: email,
+      submitter_name: submitterName,
     }
 
     const { data: talk, error: talkError } = await supabase
@@ -347,12 +422,17 @@ async function handler(req: Request) {
 
     console.log(`✅ Talk record created: ${talk.id}`)
 
-    // Step 6c: Link speaker to talk via event_talk_speakers junction table
+    // Step 6c: Link speaker to talk via events_talk_speakers junction table.
+    // The FK on speaker_id targets events_speaker_profiles(id), NOT
+    // events_speakers(id) — so we thread the cross-event profile id here.
+    // Passing events_speakers.id used to raise an FK violation which the
+    // previous log-and-continue swallowed, so no bridge row ever landed and
+    // the admin talks list showed "Unknown Speaker".
     const { error: linkError } = await supabase
       .from('events_talk_speakers')
       .insert({
         talk_id: talk.id,
-        speaker_id: speakerId,
+        speaker_id: speakerProfileId,
         role: 'presenter',
         is_primary: true,
         sort_order: 0,
@@ -360,11 +440,12 @@ async function handler(req: Request) {
 
     if (linkError) {
       console.error('Error linking speaker to talk:', linkError)
-      // This is not fatal - the records exist, just not linked
-      // Log but continue
+      // Non-fatal for the user-facing response (talk + speaker rows exist),
+      // but surface loudly in the logs so we notice a schema drift on any
+      // brand this hasn't been reconciled on.
+    } else {
+      console.log(`✅ Speaker-talk link created`)
     }
-
-    console.log(`✅ Speaker-talk link created`)
 
     // Step 7: Send automated submission email if enabled
     await sendSpeakerSubmittedEmail(
