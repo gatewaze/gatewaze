@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import Image from 'next/image'
-import { getClientBrandConfig } from '@/config/brand'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import { useEventContext } from './EventContext'
 import { GlowBorder } from '@/components/ui/GlowBorder'
 
@@ -50,9 +50,8 @@ export function SponsorsContent() {
     async function fetchSponsors() {
       setIsLoading(true)
       try {
-        const config = getClientBrandConfig()
-        const { createClient } = await import('@supabase/supabase-js')
-        const supabase = createClient(config.supabaseUrl, config.supabaseAnonKey)
+        // Singleton client — see Header.tsx for the leak story.
+        const supabase = getSupabaseClient()
 
         const { data, error } = await supabase
           .from('events_sponsors')

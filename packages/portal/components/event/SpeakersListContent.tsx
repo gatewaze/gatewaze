@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { getClientBrandConfig, isLightColor } from '@/config/brand'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import { useEventContext } from './EventContext'
 import { GlowBorder } from '@/components/ui/GlowBorder'
 import { toPublicUrl } from '@gatewaze/shared'
@@ -44,8 +45,8 @@ export function SpeakersListContent() {
         const config = getClientBrandConfig()
         setStorageUrl(config.supabaseUrl)
         setBucketUrl(config.storageBucketUrl || `${config.supabaseUrl}/storage/v1/object/public/media`)
-        const { createClient } = await import('@supabase/supabase-js')
-        const supabase = createClient(config.supabaseUrl, config.supabaseAnonKey)
+        // Singleton client — see Header.tsx for the leak story.
+        const supabase = getSupabaseClient()
 
         // Get speakers with 'confirmed' status for this event
         const { data, error } = await supabase

@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import type { Event } from '@/types/event'
 import type { BrandConfig } from '@/config/brand'
 import { getClientBrandConfig, isLightColor } from '@/config/brand'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import { GlowInput, GlowTextarea } from '@/components/ui/GlowInput'
 import { PortalButton } from '@/components/ui/PortalButton'
 import { trackEvent } from '@/lib/analytics'
@@ -101,9 +102,8 @@ export function RegistrationForm({ event, brandConfig, onSuccess, onCancel, trac
   useEffect(() => {
     async function loadAttrConfig() {
       try {
-        const config = getClientBrandConfig()
-        const { createClient } = await import('@supabase/supabase-js')
-        const supabase = createClient(config.supabaseUrl, config.supabaseAnonKey)
+        // Singleton client — see Header.tsx for the leak story.
+        const supabase = getSupabaseClient()
         const { data } = await supabase
           .from('platform_settings')
           .select('value')
@@ -173,9 +173,8 @@ export function RegistrationForm({ event, brandConfig, onSuccess, onCancel, trac
     setMagicLinkError(null)
 
     try {
-      const config = getClientBrandConfig()
-      const { createClient } = await import('@supabase/supabase-js')
-      const supabase = createClient(config.supabaseUrl, config.supabaseAnonKey)
+      // Singleton client — see Header.tsx for the leak story.
+      const supabase = getSupabaseClient()
 
       // Redirect to the event details page (strip /register from current URL)
       const redirectUrl = typeof window !== 'undefined'

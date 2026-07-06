@@ -103,11 +103,9 @@ export function ProfileContent({ brandConfig, enabledModuleIds = [], enabledFeat
       hasFetchedRef.current = true
 
       try {
-        const config = getClientBrandConfig()
-        const { createClient } = await import('@supabase/supabase-js')
-        const supabase = createClient(config.supabaseUrl, config.supabaseAnonKey, {
-          global: { headers: { Authorization: `Bearer ${session.access_token}` } }
-        })
+        // Reuse the singleton — this file imports `getSupabaseClient` above
+        // for the profile-save path already. See Header.tsx for the leak story.
+        const supabase = getSupabaseClient()
 
         // Get person for this auth user
         const { data: person, error: personError } = await supabase

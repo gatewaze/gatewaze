@@ -5,6 +5,7 @@ import ImageGallery from 'react-image-gallery'
 import 'react-image-gallery/styles/image-gallery.css'
 import Image from 'next/image'
 import { getClientBrandConfig, isLightColor } from '@/config/brand'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import { useEventContext } from './EventContext'
 import { GlowBorder } from '@/components/ui/GlowBorder'
 import { PhotoGrid } from './PhotoGrid'
@@ -138,11 +139,9 @@ export function MediaContent() {
 
   // ─── Supabase client helper ──────────────────────────────
 
-  const getSupabase = useCallback(async () => {
-    const config = getClientBrandConfig()
-    const { createClient } = await import('@supabase/supabase-js')
-    return createClient(config.supabaseUrl, config.supabaseAnonKey)
-  }, [])
+  // Async signature kept so existing `await getSupabase()` call sites don't
+  // change. Returns the singleton — see Header.tsx for the leak story.
+  const getSupabase = useCallback(async () => getSupabaseClient(), [])
 
   // ─── Media URL helper ────────────────────────────────────
 
