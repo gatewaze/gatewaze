@@ -34,20 +34,32 @@ export function PreferencesStep({ brandConfig, userEmail }: Props) {
 
   useEffect(() => {
     let cancelled = false
+    // Cap the load at 8s. Supabase PostgREST cold-path latency on the `lists`
+    // table has been observed at 10-12s from inside the cluster (measured
+    // 2026-07-06). Without this cap the wizard sat on "Loading preferences…"
+    // indefinitely and the user couldn't finish onboarding. Falling through
+    // to the graceful loadError state lets them click Complete and set
+    // preferences later from their profile.
+    const LOAD_TIMEOUT_MS = 8000
     async function load() {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), LOAD_TIMEOUT_MS)
       try {
         const sb = getSupabaseClient()
-        const [listsRes, subsRes] = await Promise.all([
-          // Internal/staff lists are never offered for self-service subscription.
-          sb.from('lists')
-            .select('id, name, description, default_subscribed')
-            .eq('is_active', true)
-            .eq('is_internal', false)
-            .order('name'),
-          userEmail
-            ? sb.from('list_subscriptions').select('list_id, subscribed').eq('email', userEmail)
-            : Promise.resolve({ data: [] as { list_id: string; subscribed: boolean }[], error: null }),
-        ])
+        // Internal/staff lists are never offered for self-service subscription.
+        const listsPromise = sb.from('lists')
+          .select('id, name, description, default_subscribed')
+          .eq('is_active', true)
+          .eq('is_internal', false)
+          .order('name')
+          .abortSignal(controller.signal)
+        const subsPromise = userEmail
+          ? sb.from('list_subscriptions')
+              .select('list_id, subscribed')
+              .eq('email', userEmail)
+              .abortSignal(controller.signal)
+          : Promise.resolve({ data: [] as { list_id: string; subscribed: boolean }[], error: null })
+        const [listsRes, subsRes] = await Promise.all([listsPromise, subsPromise])
         if (cancelled) return
         // A failed read is NOT "no options configured" — during a backend
         // outage this used to render the misleading empty-state message.
@@ -74,6 +86,7 @@ export function PreferencesStep({ brandConfig, userEmail }: Props) {
           setLoadError(true)
         }
       } finally {
+        clearTimeout(timeout)
         if (!cancelled) setLoading(false)
       }
     }
