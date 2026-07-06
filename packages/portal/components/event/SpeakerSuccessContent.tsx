@@ -1,13 +1,14 @@
 'use client'
 
-import { useEffect, useState, useMemo, useCallback } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
-import { getClientBrandConfig, isLightColor } from '@/config/brand'
+import { isLightColor } from '@/config/brand'
 import { GlowBorder } from '@/components/ui/GlowBorder'
 import { PortalButton } from '@/components/ui/PortalButton'
 import { ConfirmedSpeakerTasks } from '@/components/event/ConfirmedSpeakerTasks'
 import { useAuth } from '@/hooks/useAuth'
 import { useEventContext } from '@/components/event/EventContext'
+import { signInHref } from '@/lib/signInHref'
 
 interface Props {
   editToken?: string
@@ -45,50 +46,16 @@ export function SpeakerSuccessContent({ editToken, isExisting, isUpdated, status
   // Require sign-in if accessing via token without an active session
   const requiresSignIn = editToken && !session && !authLoading
 
-  // State for magic link sending
-  const [isSendingMagicLink, setIsSendingMagicLink] = useState(false)
-  const [magicLinkSent, setMagicLinkSent] = useState(false)
-  const [magicLinkError, setMagicLinkError] = useState<string | null>(null)
-
-  // Send magic link to the speaker's email
-  const sendMagicLink = useCallback(async () => {
-    if (!speakerEmail) return
-
-    setIsSendingMagicLink(true)
-    setMagicLinkError(null)
-
-    try {
-      const config = getClientBrandConfig()
-      const { createClient } = await import('@supabase/supabase-js')
-      const supabase = createClient(config.supabaseUrl, config.supabaseAnonKey)
-
-      // Use a redirect URL with the token in the path (not query params)
-      // This is more reliable with Supabase's redirect handling
-      // The /events/[identifier]/talks/success/[token] route will redirect to the main success page
-      const redirectUrl = editToken
-        ? `${window.location.origin}${basePath}/talks/success/${editToken}`
-        : `${window.location.origin}${basePath}/talks/success`
-
-      const { error } = await supabase.auth.signInWithOtp({
-        email: speakerEmail,
-        options: {
-          emailRedirectTo: redirectUrl,
-        },
-      })
-
-      if (error) {
-        console.error('Magic link error:', error)
-        setMagicLinkError('Failed to send magic link. Please try again.')
-      } else {
-        setMagicLinkSent(true)
-      }
-    } catch (err) {
-      console.error('Magic link error:', err)
-      setMagicLinkError('An unexpected error occurred. Please try again.')
-    } finally {
-      setIsSendingMagicLink(false)
-    }
-  }, [speakerEmail, editToken, basePath])
+  // Sign-in URL that lands back on this success page after auth. The sign-in
+  // page picks the right auth flow for the brand (LFID SSO auto-fires on
+  // ?sso=1 when it's the sole provider; magic-link otherwise). Previously
+  // this component hard-called supabase.auth.signInWithOtp, which broke on
+  // brands (AAIF) that have turned magic-link off in favour of LFID.
+  const signInRedirect = signInHref(
+    editToken
+      ? `${basePath}/talks/success/${editToken}`
+      : `${basePath}/talks/success`,
+  )
 
   // Theme for the panel
   const theme = useMemo(() => ({
@@ -144,131 +111,54 @@ export function SpeakerSuccessContent({ editToken, isExisting, isUpdated, status
       <GlowBorder useDarkTheme={useDarkText}>
         <div className={`${theme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${theme.panelBorder} p-6 sm:p-8`}>
           <div className="text-center">
-            {magicLinkSent ? (
-              <>
-                {/* Success: Magic link sent */}
-                <div
-                  className="w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center"
-                  style={{ backgroundColor: primaryColor, color: isLightColor(primaryColor) ? '#000000' : '#ffffff' }}
-                >
-                  <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                  </svg>
-                </div>
+            <div
+              className="w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center"
+              style={{ backgroundColor: primaryColor, color: isLightColor(primaryColor) ? '#000000' : '#ffffff' }}
+            >
+              <svg className="w-10 h-10" viewBox="0 0 24 24" fill="none">
+                <rect x="5" y="11" width="14" height="10" rx="2" fill="currentColor" className="opacity-90" />
+                <circle cx="12" cy="16" r="1.5" fill={primaryColor} />
+                <path
+                  d="M8 11V7a4 4 0 1 1 8 0v4"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  fill="none"
+                  className="animate-lock-shackle"
+                />
+              </svg>
+            </div>
+            <style jsx>{`
+              @keyframes lock-shackle {
+                0%   { transform: translateY(-3px); opacity: 0.7; }
+                50%  { transform: translateY(0);    opacity: 1; }
+                100% { transform: translateY(0);    opacity: 1; }
+              }
+              .animate-lock-shackle {
+                animation: lock-shackle 1s ease-out forwards;
+              }
+            `}</style>
 
-                <h1 className={`text-2xl font-bold ${theme.panelText} mb-2`}>
-                  Check your email
-                </h1>
-                <p className={`${theme.panelTextMuted} mb-2 max-w-md mx-auto`}>
-                  We&apos;ve sent a magic link to:
-                </p>
-                <p className={`${theme.panelText} font-medium mb-4`}>
-                  {speakerEmail}
-                </p>
-                <p className={`${theme.panelTextMuted} text-sm max-w-md mx-auto`}>
-                  Click the link in your email to sign in and view your submission. The link will expire in 1 hour.
-                </p>
+            <h1 className={`text-2xl font-bold ${theme.panelText} mb-2`}>
+              Verify your identity
+            </h1>
+            <p className={`${theme.panelTextMuted} mb-4 max-w-md mx-auto`}>
+              Sign in to view your speaker submission
+              {maskedEmail ? <> for <span className={`${theme.panelText} font-medium`}>{maskedEmail}</span></> : null}.
+            </p>
 
-                <button
-                  onClick={() => {
-                    setMagicLinkSent(false)
-                    setMagicLinkError(null)
-                  }}
-                  className={`mt-6 text-sm ${theme.panelTextMuted} hover:${theme.panelText} underline cursor-pointer transition-colors`}
-                >
-                  Didn&apos;t receive it? Send again
-                </button>
-              </>
-            ) : (
-              <>
-                {/* Initial: Request magic link */}
-                <div
-                  className="w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center"
-                  style={{ backgroundColor: primaryColor, color: isLightColor(primaryColor) ? '#000000' : '#ffffff' }}
-                >
-                  <svg className="w-10 h-10" viewBox="0 0 24 24" fill="none">
-                    {/* Lock body */}
-                    <rect
-                      x="5" y="11" width="14" height="10" rx="2"
-                      fill="currentColor"
-                      className="opacity-90"
-                    />
-                    {/* Keyhole */}
-                    <circle cx="12" cy="16" r="1.5" fill={primaryColor} />
-                    {/* Lock shackle with animation */}
-                    <path
-                      d="M8 11V7a4 4 0 1 1 8 0v4"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      fill="none"
-                      className="animate-lock-shackle"
-                    />
-                  </svg>
-                </div>
-                <style jsx>{`
-                  @keyframes lock-shackle {
-                    0% {
-                      transform: translateY(-3px);
-                      opacity: 0.7;
-                    }
-                    50% {
-                      transform: translateY(0);
-                      opacity: 1;
-                    }
-                    100% {
-                      transform: translateY(0);
-                      opacity: 1;
-                    }
-                  }
-                  .animate-lock-shackle {
-                    animation: lock-shackle 1s ease-out forwards;
-                  }
-                `}</style>
-
-                <h1 className={`text-2xl font-bold ${theme.panelText} mb-2`}>
-                  Verify your identity
-                </h1>
-                <p className={`${theme.panelTextMuted} mb-4 max-w-md mx-auto`}>
-                  To view your speaker submission, we&apos;ll send a magic link to:
-                </p>
-                <p className={`${theme.panelText} font-medium text-lg mb-6`}>
-                  {maskedEmail || speakerEmail}
-                </p>
-
-                {magicLinkError && (
-                  <div className="mb-4 p-3 rounded-lg bg-red-500/20 border border-red-400/30 text-red-200 text-sm">
-                    {magicLinkError}
-                  </div>
-                )}
-
-                <PortalButton
-                  variant="primary"
-                  primaryColor={primaryColor}
-                  onClick={sendMagicLink}
-                  disabled={isSendingMagicLink || !speakerEmail}
-                  glow={true}
-                  className="inline-flex cursor-pointer"
-                >
-                  {isSendingMagicLink ? (
-                    <>
-                      <svg className="w-4 h-4 mr-2 animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                      </svg>
-                      Sending...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                      </svg>
-                      Send magic link
-                    </>
-                  )}
-                </PortalButton>
-              </>
-            )}
+            <PortalButton
+              variant="primary"
+              primaryColor={primaryColor}
+              onClick={() => { window.location.href = signInRedirect }}
+              glow={true}
+              className="inline-flex cursor-pointer"
+            >
+              <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+              </svg>
+              Sign in to continue
+            </PortalButton>
           </div>
         </div>
       </GlowBorder>
