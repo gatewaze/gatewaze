@@ -36,53 +36,36 @@ async function getSpeakerInfo(editToken: string, brandId: string): Promise<Speak
 
   const supabase = await createServerSupabase(brandId)
 
-  // Query events_talks by edit_token — status is on this table. Speaker
-  // contact/avatar comes from events_speaker_profiles (events_speakers'
-  // only profile relation; the old people_profiles→people embed matched no
-  // FK and made the whole query fail with PGRST200). The profile embed is a
-  // LEFT join so RLS hiding profiles can't hide the talk itself.
+  // Plain decomposed lookups (talk → bridge → profile), no PostgREST embeds.
+  // The previous embed went events_talk_speakers → events_speakers, but the
+  // bridge's speaker_id FK points at events_speaker_profiles — PostgREST
+  // can't resolve a relationship with no FK, the whole query 400'd, and the
+  // page told a just-signed-in speaker their talk didn't exist.
   const { data: talk } = await supabase
     .from('events_talks')
-    .select(`
-      status,
-      title,
-      presentation_url,
-      presentation_storage_path,
-      presentation_type,
-      calendar_added_at,
-      tracking_link_copied_at,
-      events_talk_speakers!inner (
-        is_primary,
-        speaker:events_speakers!inner (
-          profile:events_speaker_profiles!speaker_id (
-            email,
-            avatar_url
-          )
-        )
-      )
-    `)
+    .select('id, status, title, presentation_url, presentation_storage_path, presentation_type, calendar_added_at, tracking_link_copied_at')
     .eq('edit_token', editToken)
-    .eq('events_talk_speakers.is_primary', true)
     .maybeSingle()
 
   if (!talk) return { status: null, avatarUrl: null, talkTitle: null, presentationUrl: null, presentationStoragePath: null, presentationType: null, speakerEmail: null, calendarAddedAt: null, trackingLinkCopiedAt: null }
 
-  // Supabase types !inner joins as deeply-nested arrays even when the
-  // relation is structurally 1:1; cast through a narrow shape rather than `any`.
-  type TalkSpeakerJoin = {
-    speaker?: {
-      profile?: { email?: string | null; avatar_url?: string | null }
-        | Array<{ email?: string | null; avatar_url?: string | null }>
-        | null
-    } | Array<{
-      profile?: { email?: string | null; avatar_url?: string | null }
-        | Array<{ email?: string | null; avatar_url?: string | null }>
-        | null
-    }> | null
+  // Primary speaker's profile (email + avatar). Best-effort: a missing
+  // bridge row (pre-fix submissions) must not hide the talk itself.
+  let profileNode: { email?: string | null; avatar_url?: string | null } | null = null
+  const { data: bridge } = await supabase
+    .from('events_talk_speakers')
+    .select('speaker_id')
+    .eq('talk_id', talk.id)
+    .eq('is_primary', true)
+    .maybeSingle()
+  if (bridge?.speaker_id) {
+    const { data: profile } = await supabase
+      .from('events_speaker_profiles')
+      .select('email, avatar_url')
+      .eq('id', bridge.speaker_id)
+      .maybeSingle()
+    profileNode = profile ?? null
   }
-  const talkSpeakerRaw = (talk.events_talk_speakers as TalkSpeakerJoin[] | null | undefined)?.[0]
-  const speakerNode = Array.isArray(talkSpeakerRaw?.speaker) ? talkSpeakerRaw?.speaker[0] : talkSpeakerRaw?.speaker
-  const profileNode = Array.isArray(speakerNode?.profile) ? speakerNode?.profile[0] : speakerNode?.profile
   const avatarUrl: string | null = profileNode?.avatar_url || null
 
   // Get presentation URL from storage if using storage

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { acquireGlowClock } from '@/lib/glowClock'
 
 /**
  * Shared "nearest to the viewport centre" coordinator for the mobile timeline glow.
@@ -69,6 +70,14 @@ function register(entry: Entry): () => void {
 export function useNearestCenterGlow<T extends HTMLElement>() {
   const ref = useRef<T>(null)
   const [active, setActive] = useState(false)
+
+  // Hold the shared glow clock only while this card is the active one —
+  // the clock is refcounted (lib/glowClock.ts) and stops when nothing
+  // holds it, so idle pages don't pay for a 60fps :root style write.
+  useEffect(() => {
+    if (!active) return
+    return acquireGlowClock()
+  }, [active])
 
   useEffect(() => {
     const el = ref.current

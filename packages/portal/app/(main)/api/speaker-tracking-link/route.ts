@@ -67,12 +67,16 @@ export async function POST(req: NextRequest) {
 
     const speakerId = talkSpeaker.speaker_id
 
-    // Step 3: Get speaker info
+    // Step 3: Get speaker info. The bridge's speaker_id is the CROSS-EVENT
+    // profile id (events_speaker_profiles) per its FK, so resolve the
+    // per-event participation row via events_speakers.speaker_id — matching
+    // on events_speakers.id here made this 404 for every talk.
     const { data: speaker, error: speakerError } = await supabase
       .from('events_speakers')
       .select('id, people_profile_id')
-      .eq('id', speakerId)
-      .single()
+      .eq('speaker_id', speakerId)
+      .eq('event_uuid', talk.event_uuid)
+      .maybeSingle()
 
     if (speakerError || !speaker) {
       return NextResponse.json({ success: false, error: 'Speaker not found' }, { status: 404 })

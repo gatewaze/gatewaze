@@ -1,30 +1,56 @@
 'use client'
 
 import { useEffect } from 'react'
+import { acquireGlowClock } from '@/lib/glowClock'
 
 /**
- * Drives one shared, continuously-advancing angle for the card glow borders.
+ * Desktop activation tracker for the shared card-glow clock.
  *
- * A single requestAnimationFrame loop writes `--gw-glow-angle` on :root; every `.gw-card-glow`
- * border reads it via inheritance. Because there's a single clock, whichever card is currently
- * visible (hover on desktop, nearest-to-centre on mobile) is always in continuous phase — a newly
- * activated card picks up exactly where the previous one left off. JS-driven on purpose: animating a
- * registered `@property` via CSS keyframes through inheritance is mishandled by iOS Safari.
+ * The glow border on `.gw-card-glow` cards only shows on :hover (desktop) or
+ * `.gw-glow-active` (mobile — driven by useNearestCenterGlow, which holds the
+ * clock itself). This component watches pointer movement via delegated
+ * listeners and holds the refcounted clock (lib/glowClock.ts) only while the
+ * pointer is inside a glow card. No hovered card → no rAF loop → no page-wide
+ * style invalidation on idle pages.
+ *
+ * JS-driven on purpose: animating a registered `@property` via CSS keyframes
+ * through inheritance is mishandled by iOS Safari.
  */
-const PERIOD_MS = 2400 // one full rotation
-
 export function CardGlowClock() {
   useEffect(() => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-    const root = document.documentElement
-    let raf = 0
-    const tick = (t: number) => {
-      const angle = ((t / PERIOD_MS) * 360) % 360
-      root.style.setProperty('--gw-glow-angle', angle.toFixed(2) + 'deg')
-      raf = requestAnimationFrame(tick)
+
+    let release: (() => void) | null = null
+
+    const stop = () => {
+      release?.()
+      release = null
     }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
+
+    // pointerover fires on every hovered-element change, so transitions
+    // between cards keep the hold; landing on a non-card element drops it.
+    const onPointerOver = (e: Event) => {
+      const card = (e.target as Element | null)?.closest?.('.gw-card-glow')
+      if (card && !release) {
+        release = acquireGlowClock()
+      } else if (!card && release) {
+        stop()
+      }
+    }
+
+    document.addEventListener('pointerover', onPointerOver, { passive: true })
+    // Pointer left the document entirely (no pointerover fires for that).
+    document.addEventListener('pointerleave', stop)
+    // Tab hidden: rAF is throttled anyway, but drop the hold so the loop
+    // isn't resumed the moment the tab is foregrounded without a pointer.
+    document.addEventListener('visibilitychange', stop)
+
+    return () => {
+      document.removeEventListener('pointerover', onPointerOver)
+      document.removeEventListener('pointerleave', stop)
+      document.removeEventListener('visibilitychange', stop)
+      stop()
+    }
   }, [])
 
   return null
