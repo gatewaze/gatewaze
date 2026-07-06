@@ -229,6 +229,9 @@
 .pub-nl-sub-h::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 999px;
   background: var(--nl-accent, var(--accent)); margin-right: 7px; vertical-align: 1px; }
 .pub-nl-signup { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; max-width: 460px; }
+/* Consent note under the signup — links read like the footer's: bright + underlined. */
+.pub-nl-consent a { color: var(--ink); text-decoration: underline; }
+.pub-nl-consent a:hover { color: var(--ink-2); }
 /* Inside the boxed sub-panel the column is narrow: let the input shrink, trim
    the button, and tighten the gap so both sit comfortably on ONE row (the
    status message still wraps below). */
