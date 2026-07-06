@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { useUserEnrichment } from '@/hooks/useUserEnrichment'
+import { getClientBrandConfig } from '@/config/brand'
 import type { BrandConfig } from '@/config/brand'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { ProfileWizard, WizardStep } from './ProfileWizard'
