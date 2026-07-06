@@ -59,9 +59,8 @@ function AboutEventContentInner() {
     if (competitionCount === 0) return
     async function fetchCompetitions() {
       try {
-        const config = getClientBrandConfig()
-        const { createClient } = await import('@supabase/supabase-js')
-        const supabase = createClient(config.supabaseUrl, config.supabaseAnonKey)
+        // Singleton client — see Header.tsx for the leak story.
+        const supabase = getSupabaseClient()
         const { data } = await supabase
           .from('events_competitions')
           .select('id, title, value, intro, close_date, close_display')

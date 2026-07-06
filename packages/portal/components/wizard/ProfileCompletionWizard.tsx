@@ -3,8 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { useUserEnrichment } from '@/hooks/useUserEnrichment'
-import { getClientBrandConfig } from '@/config/brand'
 import type { BrandConfig } from '@/config/brand'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import { ProfileWizard, WizardStep } from './ProfileWizard'
 import { ProfileDetailsStep, ProfileDetails, validateLinkedInUrlExists, detectedTimeZone } from './ProfileDetailsStep'
 import { PreferencesStep } from './PreferencesStep'
@@ -70,11 +70,8 @@ export function ProfileCompletionWizard({ brandConfig, listsEnabled = false }: P
       hasCheckedRef.current = true
 
       try {
-        const config = getClientBrandConfig()
-        const { createClient } = await import('@supabase/supabase-js')
-        const supabase = createClient(config.supabaseUrl, config.supabaseAnonKey, {
-          global: { headers: { Authorization: `Bearer ${session.access_token}` } }
-        })
+        // Singleton client — see Header.tsx for the leak story.
+        const supabase = getSupabaseClient()
 
         // Fetch people_attributes config and person data in parallel
         const [{ data: attrSetting }, { data: person }] = await Promise.all([

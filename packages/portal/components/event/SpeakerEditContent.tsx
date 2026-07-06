@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { getClientBrandConfig, isLightColor } from '@/config/brand'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import { GlowBorder } from '@/components/ui/GlowBorder'
 import { GlowInput, GlowTextarea } from '@/components/ui/GlowInput'
 import { PortalButton } from '@/components/ui/PortalButton'
@@ -128,11 +129,8 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
       }
 
       try {
-        const config = getClientBrandConfig()
-        const { createClient } = await import('@supabase/supabase-js')
-        const supabase = createClient(config.supabaseUrl, config.supabaseAnonKey, {
-          global: { headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {} }
-        })
+        // Singleton client — see Header.tsx for the leak story.
+        const supabase = getSupabaseClient()
 
         // Row shapes for the lookups below. (Supabase types !inner embeds as
         // arrays even for structurally-1:1 relations; unwrap defensively.)
@@ -375,9 +373,8 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
 
     setIsUploadingImage(true)
     try {
-      const { createClient } = await import('@supabase/supabase-js')
-      const config = getClientBrandConfig()
-      const supabase = createClient(config.supabaseUrl, config.supabaseAnonKey)
+      // Singleton client — see Header.tsx for the leak story.
+      const supabase = getSupabaseClient()
 
       const fileExt = profileImage.name.split('.').pop() || 'jpg'
       const timestamp = Date.now()

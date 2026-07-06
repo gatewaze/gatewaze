@@ -12,8 +12,8 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
-import { getClientBrandConfig } from '@/config/brand'
 import { Icon } from '@/components/ui/Icon'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import { Avatar } from '@/components/ui/Avatar'
 import type { RailItem } from '@/lib/modules/enabledModules'
 import type { ModuleAccessMap } from '@/lib/modules/access'
@@ -57,11 +57,8 @@ export function ModuleRail({
     let cancelled = false
     ;(async () => {
       try {
-        const config = getClientBrandConfig()
-        const { createClient } = await import('@supabase/supabase-js')
-        const sb = createClient(config.supabaseUrl, config.supabaseAnonKey, {
-          global: { headers: { Authorization: `Bearer ${session.access_token}` } },
-        })
+        // Singleton client — see Header.tsx for the leak story.
+        const sb = getSupabaseClient()
         const { data: person } = await sb
           .from('people')
           .select('attributes, avatar_storage_path')

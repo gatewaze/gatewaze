@@ -5,9 +5,10 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
-import { getClientBrandConfig, isLightColor } from '@/config/brand'
+import { isLightColor } from '@/config/brand'
 import type { BrandConfig } from '@/config/brand'
 import type { PortalNavItem } from '@/lib/modules/enabledModules'
+import { getSupabaseClient } from '@/lib/supabase/client'
 
 interface Props {
   brandConfig: BrandConfig
@@ -69,11 +70,11 @@ export function Header({ brandConfig, navItems = [] }: Props) {
     let cancelled = false
     async function fetchUserProfile() {
       try {
-        const config = getClientBrandConfig()
-        const { createClient } = await import('@supabase/supabase-js')
-        const supabase = createClient(config.supabaseUrl, config.supabaseAnonKey, {
-          global: { headers: { Authorization: `Bearer ${session!.access_token}` } }
-        })
+        // Reuse the singleton client from @supabase/ssr — it already carries
+        // the session via the auth cookie. Creating a new supabase-js client
+        // per render (as this file did before) leaks a GoTrueClient each time
+        // and Chrome eventually SIGTRAPs when the count crosses ~800.
+        const supabase = getSupabaseClient()
 
         const { data: person } = await supabase
           .from('people')
