@@ -10,6 +10,7 @@ import { stripEmojis } from '@/lib/text'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { GlowInput, GlowTextarea } from '@/components/ui/GlowInput'
 import { PortalButton } from '@/components/ui/PortalButton'
+import { TermsModal } from './TermsModal'
 import { isOnCustomDomain } from '@/lib/customDomain'
 
 interface UserProfile {
@@ -66,6 +67,8 @@ interface FormErrors {
   talk_title?: string
   talk_synopsis?: string
   talk_duration_minutes?: string
+  consent_ack?: string
+  consent_agree?: string
 }
 
 export function SpeakerSubmissionForm({ event, brandConfig, onSuccess, onCancel, useDarkTheme = false, initialStatus = 'pending', userProfile, confirmedDurationCounts = {}, isAdditionalTalk = false }: Props) {
@@ -130,6 +133,42 @@ export function SpeakerSubmissionForm({ event, brandConfig, onSuccess, onCancel,
   const [profileImage, setProfileImage] = useState<File | null>(null)
   const [profileImagePreview, setProfileImagePreview] = useState<string | null>(null)
   const [isUploadingImage, setIsUploadingImage] = useState(false)
+
+  // Consent checkboxes — labels + terms body come from per-brand
+  // platform_settings (admin → Settings → Branding → Portal → Legal). A brand
+  // that configures nothing sees no checkboxes; when a label IS configured its
+  // checkbox is required. `{terms}` in the agree label becomes a link opening
+  // the Event Terms modal, whose Accept button checks the box (Luma-style).
+  const [consentAckHtml, setConsentAckHtml] = useState<string | null>(null)
+  const [consentAgreeHtml, setConsentAgreeHtml] = useState<string | null>(null)
+  const [eventTermsHtml, setEventTermsHtml] = useState<string | null>(null)
+  const [ackChecked, setAckChecked] = useState(false)
+  const [agreeChecked, setAgreeChecked] = useState(false)
+  const [showTerms, setShowTerms] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const sb = getSupabaseClient()
+        const { data } = await sb
+          .from('platform_settings')
+          .select('key, value')
+          .in('key', ['talk_consent_ack_html', 'talk_consent_agree_html', 'event_terms_html'])
+        if (cancelled || !data) return
+        for (const row of data) {
+          const v = (row.value ?? '').trim()
+          if (!v) continue
+          if (row.key === 'talk_consent_ack_html') setConsentAckHtml(v)
+          if (row.key === 'talk_consent_agree_html') setConsentAgreeHtml(v)
+          if (row.key === 'event_terms_html') setEventTermsHtml(v)
+        }
+      } catch {
+        // No consent config reachable → no checkboxes (unconfigured-brand behaviour).
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Check if user profile has sufficient data (name and avatar at minimum)
@@ -205,6 +244,14 @@ export function SpeakerSubmissionForm({ event, brandConfig, onSuccess, onCancel,
     // Validate duration selection if options are available
     if (availableDurationOptions.length > 0 && !formData.talk_duration_minutes) {
       newErrors.talk_duration_minutes = 'Please select a talk duration'
+    }
+
+    // Configured consent checkboxes are required.
+    if (consentAckHtml && !ackChecked) {
+      newErrors.consent_ack = 'Please confirm the communication acknowledgement'
+    }
+    if (consentAgreeHtml && !agreeChecked) {
+      newErrors.consent_agree = 'Please agree to the event terms'
     }
 
     setErrors(newErrors)
@@ -816,6 +863,79 @@ export function SpeakerSubmissionForm({ event, brandConfig, onSuccess, onCancel,
               </div>
             </div>
           </div>
+
+          {/* Consent checkboxes (per-brand configured; nothing renders when unset) */}
+          {(consentAckHtml || consentAgreeHtml) && (
+            <div className={`space-y-4 pt-2 border-t ${theme.sectionBorder}`}>
+              {consentAckHtml && (
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={ackChecked}
+                    disabled={isSubmitting}
+                    onChange={(e) => {
+                      setAckChecked(e.target.checked)
+                      if (errors.consent_ack) setErrors(prev => ({ ...prev, consent_ack: undefined }))
+                    }}
+                    className="mt-1 h-4 w-4 flex-shrink-0 accent-current cursor-pointer"
+                  />
+                  <span
+                    className={`text-sm leading-relaxed ${theme.footerText} [&_a]:underline`}
+                    dangerouslySetInnerHTML={{ __html: `${consentAckHtml} *` }}
+                  />
+                </label>
+              )}
+              {errors.consent_ack && <p className={`text-sm ${theme.errorText} ml-7`}>{errors.consent_ack}</p>}
+
+              {consentAgreeHtml && (
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={agreeChecked}
+                    disabled={isSubmitting}
+                    onChange={(e) => {
+                      setAgreeChecked(e.target.checked)
+                      if (errors.consent_agree) setErrors(prev => ({ ...prev, consent_agree: undefined }))
+                    }}
+                    className="mt-1 h-4 w-4 flex-shrink-0 accent-current cursor-pointer"
+                  />
+                  <span className={`text-sm leading-relaxed ${theme.footerText}`}>
+                    {/* `{terms}` in the configured label becomes the modal trigger */}
+                    {consentAgreeHtml.includes('{terms}') ? (
+                      <>
+                        <span dangerouslySetInnerHTML={{ __html: consentAgreeHtml.split('{terms}')[0] }} />
+                        <button
+                          type="button"
+                          className={`${theme.footerLink} font-medium`}
+                          onClick={(e) => { e.preventDefault(); setShowTerms(true) }}
+                        >
+                          event terms
+                        </button>
+                        <span dangerouslySetInnerHTML={{ __html: consentAgreeHtml.split('{terms}')[1] ?? '' }} />
+                        {' *'}
+                      </>
+                    ) : (
+                      <span dangerouslySetInnerHTML={{ __html: `${consentAgreeHtml} *` }} />
+                    )}
+                  </span>
+                </label>
+              )}
+              {errors.consent_agree && <p className={`text-sm ${theme.errorText} ml-7`}>{errors.consent_agree}</p>}
+            </div>
+          )}
+
+          {showTerms && eventTermsHtml && (
+            <TermsModal
+              html={eventTermsHtml}
+              onClose={() => setShowTerms(false)}
+              onAccept={() => {
+                // Luma behaviour: accepting in the modal checks the box.
+                setAgreeChecked(true)
+                setErrors(prev => ({ ...prev, consent_agree: undefined }))
+                setShowTerms(false)
+              }}
+            />
+          )}
 
           {/* Submit buttons */}
           <div className="flex flex-col sm:flex-row gap-3 pt-2">

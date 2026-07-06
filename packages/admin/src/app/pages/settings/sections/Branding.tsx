@@ -1235,6 +1235,17 @@ const LEGAL_KEYS = [
   "terms_of_service_html",
   "do_not_sell_html",
   "footer_legal_html",
+  // Event / consent texts. All optional per brand: the portal renders the
+  // matching surface only when the setting is non-empty.
+  //  - event_terms_html: body of the Event Terms modal on the talk form
+  //  - talk_consent_ack_html: first required checkbox label on talk submission
+  //  - talk_consent_agree_html: second checkbox label; use {terms} where the
+  //    "event terms" modal link should appear
+  //  - newsletter_consent_html: note under the newsletter signup field
+  "event_terms_html",
+  "talk_consent_ack_html",
+  "talk_consent_agree_html",
+  "newsletter_consent_html",
 ] as const;
 type LegalKey = (typeof LEGAL_KEYS)[number];
 
@@ -1243,21 +1254,26 @@ const TAB_LABELS: Record<LegalKey, string> = {
   terms_of_service_html: "Terms of Service",
   do_not_sell_html: "Do Not Sell",
   footer_legal_html: "Footer Text",
+  event_terms_html: "Event Terms",
+  talk_consent_ack_html: "Talk Consent (Ack)",
+  talk_consent_agree_html: "Talk Consent (Agree)",
+  newsletter_consent_html: "Newsletter Consent",
+};
+
+const EMPTY_LEGAL_CONTENT: Record<LegalKey, string> = {
+  privacy_policy_html: "",
+  terms_of_service_html: "",
+  do_not_sell_html: "",
+  footer_legal_html: "",
+  event_terms_html: "",
+  talk_consent_ack_html: "",
+  talk_consent_agree_html: "",
+  newsletter_consent_html: "",
 };
 
 function LegalPagesContent() {
-  const [content, setContent] = useState<Record<LegalKey, string>>({
-    privacy_policy_html: "",
-    terms_of_service_html: "",
-    do_not_sell_html: "",
-    footer_legal_html: "",
-  });
-  const [original, setOriginal] = useState<Record<LegalKey, string>>({
-    privacy_policy_html: "",
-    terms_of_service_html: "",
-    do_not_sell_html: "",
-    footer_legal_html: "",
-  });
+  const [content, setContent] = useState<Record<LegalKey, string>>({ ...EMPTY_LEGAL_CONTENT });
+  const [original, setOriginal] = useState<Record<LegalKey, string>>({ ...EMPTY_LEGAL_CONTENT });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
