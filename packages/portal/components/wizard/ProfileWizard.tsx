@@ -115,8 +115,10 @@ export function ProfileWizard({ brandConfig, steps, onComplete, onClose }: Props
         onClick={onClose}
       />
 
-      {/* Wizard panel */}
-      <div className="relative w-full max-w-xl">
+      {/* Wizard panel — near-opaque: the glass tint stays theme-driven, but
+          --glass-opacity is raised locally so page content doesn't bleed
+          through the form (matches the Event Terms modal treatment). */}
+      <div className="relative w-full max-w-xl" style={{ '--glass-opacity': '0.88' } as React.CSSProperties}>
         <GlassPanel padding="p-0" className="overflow-hidden">
           {/* Progress bar */}
           <div className="px-6 pt-6">
