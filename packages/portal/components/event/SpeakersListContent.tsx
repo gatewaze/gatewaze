@@ -48,20 +48,54 @@ export function SpeakersListContent() {
         // Singleton client — see Header.tsx for the leak story.
         const supabase = getSupabaseClient()
 
-        // Get speakers with 'confirmed' status for this event
-        const { data, error } = await supabase
-          .from('events_speakers_with_details')
-          .select('*')
-          .eq('event_uuid', event.id)
-          .eq('status', 'confirmed')
-          .order('is_featured', { ascending: false })
-          .order('sort_order', { ascending: true })
-          .order('full_name', { ascending: true })
+        // Public speakers = speakers with a CONFIRMED TALK on this event.
+        // Talk status is the canonical review state (the admin approve/
+        // confirm flow only updates events_talks); events_speakers.status
+        // defaults to 'confirmed' at insert, so filtering on it alone put
+        // every fresh CFP submission straight onto the public page.
+        // Admin-added speakers with no talks at all keep the legacy
+        // behaviour (status = 'confirmed' shows them).
+        const [{ data: allSpeakers, error }, { data: eventTalks }] = await Promise.all([
+          supabase
+            .from('events_speakers_with_details')
+            .select('*')
+            .eq('event_uuid', event.id)
+            .order('is_featured', { ascending: false })
+            .order('sort_order', { ascending: true })
+            .order('full_name', { ascending: true }),
+          supabase
+            .from('events_talks')
+            .select('id, status')
+            .eq('event_uuid', event.id),
+        ])
 
         if (error) {
           console.error('Error fetching speakers:', error)
           return
         }
+
+        // Bridge rows: which speaker profiles hold which talks.
+        const talkIds = (eventTalks ?? []).map((t) => t.id)
+        let bridgeRows: { talk_id: string; speaker_id: string }[] = []
+        if (talkIds.length > 0) {
+          const { data: bridges } = await supabase
+            .from('events_talk_speakers')
+            .select('talk_id, speaker_id')
+            .in('talk_id', talkIds)
+          bridgeRows = bridges ?? []
+        }
+        const talkStatusById = new Map((eventTalks ?? []).map((t) => [t.id, t.status]))
+        const profilesWithAnyTalk = new Set(bridgeRows.map((b) => b.speaker_id))
+        const profilesWithConfirmedTalk = new Set(
+          bridgeRows.filter((b) => talkStatusById.get(b.talk_id) === 'confirmed').map((b) => b.speaker_id),
+        )
+
+        type SpeakerRowLike = { speaker_id?: string | null; status?: string | null }
+        const data = (allSpeakers ?? []).filter((s: SpeakerRowLike) => {
+          const pid = s.speaker_id
+          if (pid && profilesWithAnyTalk.has(pid)) return profilesWithConfirmedTalk.has(pid)
+          return s.status === 'confirmed'
+        })
 
         // If no confirmed speakers, fall back to placeholder speakers
         if (!data || data.length === 0) {
