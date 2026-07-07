@@ -471,6 +471,8 @@ export async function createPublicApiRouter(
       { name: 'events_speakers', description: 'Get speakers for a specific event.' },
       { name: 'events_sponsors', description: 'Get sponsors for a specific event.' },
       { name: 'platform_health', description: 'Check Gatewaze platform health and module count.' },
+      { name: 'content_list', description: 'Unified read-only feed of public content across all enabled modules.' },
+      { name: 'content_categories', description: 'List configured content categories.' },
       { name: 'resources_collections_list', description: 'List structured-resource collections, drafts included (resources:write).' },
       { name: 'resources_collection_get', description: 'Get a collection with its categories and section templates (resources:write).' },
       { name: 'resources_collection_create', description: 'Create a structured-resource collection (resources:write).' },
@@ -531,8 +533,13 @@ export async function createPublicApiRouter(
       });
     }
 
+    const publicMcpUrl = process.env.PUBLIC_MCP_URL || null;
     res.json({
-      transport: { stdio: true, http: false },
+      transport: { stdio: true, http: Boolean(publicMcpUrl) },
+      // Keyless streamable-HTTP endpoint serving the read-only tool profile
+      // (events_*, content_*, platform_health). Set PUBLIC_MCP_URL when the
+      // mcp-public service is deployed, e.g. https://mcp.<brand-domain>/mcp.
+      public_endpoint: publicMcpUrl,
       core: { tools: coreTools },
       modules: moduleTools,
     });

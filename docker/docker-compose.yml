@@ -868,6 +868,51 @@ services:
         reservations:
           memory: 128M
 
+  mcp-public:
+    build:
+      context: ../packages/mcp
+      dockerfile: Dockerfile
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-mcp-public
+    restart: unless-stopped
+    # PUBLIC keyless MCP endpoint (streamable HTTP) with the read-only tool
+    # profile — events_*, content_*, platform_health. Clients authenticate
+    # with nothing; this container holds a read-scoped platform API key and
+    # proxies to the public REST API. Per-IP rate limiting + CORS happen
+    # in-process. Routed publicly by traefik at MCP_HOST, unlike events-mcp
+    # (which is internal-only and service-role-backed).
+    networks:
+      - gatewaze
+      - traefik
+    environment:
+      MCP_TRANSPORT: http
+      MCP_PROFILE: public
+      PORT: 8080
+      GATEWAZE_API_URL: http://api:3002
+      # A platform API key with ONLY read scopes (events:read, blog:read,
+      # newsletters:read, resources:read, …). Create one in /admin/api-keys.
+      # Never grant write scopes to this key: the profile hides write tools,
+      # and a read-only key makes that a guarantee rather than a convention.
+      GATEWAZE_MCP_API_KEY: ${MCP_PUBLIC_API_KEY:-}
+      MCP_RATE_LIMIT_RPM: ${MCP_PUBLIC_RATE_LIMIT_RPM:-120}
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8080/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    labels:
+      - "autoheal=true"
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-mcp-public.rule=Host(`${MCP_HOST:-mcp.gatewaze.localhost}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-mcp-public.entrypoints=web"
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME:-gatewaze}-mcp-public.loadbalancer.server.port=8080"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 64M
+
   scheduler:
     build:
       context: ..
