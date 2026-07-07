@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { ANONYMOUS_ID_COOKIE, anonymousIdFromCookieHeader } from '../index'
+import { ANONYMOUS_ID_COOKIE, CONSENT_COOKIE, anonymousIdFromCookieHeader, consentFromCookieHeader, hasAnalyticsConsent } from '../index'
 import { createServerTracker } from '../server/index'
 
 const PROPERTY_ID = '11111111-2222-3333-4444-555555555555'
@@ -177,5 +177,58 @@ describe('createServerTracker — segment leg', () => {
     const collectBody = JSON.parse(calls[urls.indexOf('https://api.example.com/a/collect')][1].body as string)
     expect(collectBody.payload.name).toBe('identify')
     expect(collectBody.payload.data).toMatchObject({ user_id: 'u1', anonymous_id: 'a1', email: 'x@example.com' })
+  })
+})
+
+describe('consent parsing', () => {
+  it('null (implicit consent) when no cookie', () => {
+    expect(consentFromCookieHeader('foo=1')).toBeNull()
+    expect(hasAnalyticsConsent('foo=1')).toBe(true)
+    expect(hasAnalyticsConsent(null)).toBe(true)
+  })
+
+  it('explicit denial blocks', () => {
+    const value = encodeURIComponent(JSON.stringify({ analytics: false, marketing: false, functional: true }))
+    const header = `${CONSENT_COOKIE}=${value}; other=1`
+    expect(consentFromCookieHeader(header)).toEqual({ analytics: false, marketing: false, functional: true })
+    expect(hasAnalyticsConsent(header)).toBe(false)
+  })
+
+  it('explicit grant allows; malformed cookie falls back to implicit', () => {
+    const granted = `${CONSENT_COOKIE}=${encodeURIComponent(JSON.stringify({ analytics: true }))}`
+    expect(hasAnalyticsConsent(granted)).toBe(true)
+    expect(hasAnalyticsConsent(`${CONSENT_COOKIE}=not-json`)).toBe(true)
+  })
+})
+
+describe('createServerTracker — page()', () => {
+  it('sends a name-less umami payload (pageview) with client context, and Segment /page', async () => {
+    const fetchImpl = okFetch()
+    const tracker = createServerTracker({
+      collectUrl: 'https://api.example.com/a/collect',
+      propertyId: PROPERTY_ID,
+      siteOrigin: 'https://app.example.com',
+      segmentWriteKey: 'wk123',
+      fetchImpl,
+    })
+    await tracker.page('Events', {
+      anonymousId: 'a1',
+      client: { path: '/events', url: 'https://app.example.com/events', title: 'Events', screen: '1280x720', language: 'en-US', referrer: 'https://app.example.com/' },
+    })
+    const calls = (fetchImpl as ReturnType<typeof vi.fn>).mock.calls
+    const urls = calls.map((c) => String(c[0]))
+    const collectBody = JSON.parse(calls[urls.indexOf('https://api.example.com/a/collect')][1].body as string)
+    // No `name` → Umami records a pageview, not a custom event.
+    expect(collectBody.payload.name).toBeUndefined()
+    expect(collectBody.payload.url).toBe('/events')
+    expect(collectBody.payload.screen).toBe('1280x720')
+    expect(collectBody.payload.language).toBe('en-US')
+    expect(collectBody.payload.title).toBe('Events')
+    expect(collectBody.payload.referrer).toBe('https://app.example.com/')
+    expect(urls).toContain('https://api.segment.io/v1/page')
+    const pageBody = JSON.parse(calls[urls.indexOf('https://api.segment.io/v1/page')][1].body as string)
+    expect(pageBody.name).toBe('Events')
+    expect(pageBody.anonymousId).toBe('a1')
+    expect(pageBody.properties.path).toBe('/events')
   })
 })

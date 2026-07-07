@@ -143,6 +143,9 @@ class GatewazeCookieConsent {
         this.consentGiven = consent.consentGiven || false;
         this.consentDenied = consent.consentDenied || false;
         this.categories = { ...this.categories, ...consent.categories };
+        // Re-mirror on every load: existing visitors chose before the
+        // cookie existed, and the cookie can expire before localStorage.
+        this.mirrorConsentCookie();
 
       }
     } catch (error) {
@@ -160,8 +163,60 @@ class GatewazeCookieConsent {
         version: '1.0'
       };
       localStorage.setItem(this.storageKey, JSON.stringify(consent));
+      this.mirrorConsentCookie();
+      this.recordConsentAudit();
     } catch (error) {
       console.error('Error saving consent:', error);
+    }
+  }
+
+  /**
+   * Mirror the category map into the gw_consent cookie so SERVER-side
+   * code (the /api/t tracking relay, backend event emitters) can enforce
+   * the same consent — localStorage is invisible to the server.
+   */
+  mirrorConsentCookie() {
+    try {
+      const value = encodeURIComponent(JSON.stringify({
+        analytics: !!this.categories.analytics,
+        marketing: !!this.categories.marketing,
+        functional: !!this.categories.functional,
+      }));
+      // 400 days — Chrome's cookie-lifetime cap.
+      document.cookie = 'gw_consent=' + value + '; path=/; max-age=' + (400 * 24 * 60 * 60) + '; SameSite=Lax';
+    } catch (error) {
+      console.error('Error mirroring consent cookie:', error);
+    }
+  }
+
+  /**
+   * Record the decision in the compliance module's consent audit trail
+   * (compliance_consent_records). Fire-and-forget; deduped so reloads
+   * don't re-record an unchanged choice.
+   */
+  recordConsentAudit() {
+    try {
+      const snapshot = JSON.stringify({
+        consentGiven: this.consentGiven,
+        consentDenied: this.consentDenied,
+        categories: this.categories,
+      });
+      if (localStorage.getItem(this.storageKey + '-audited') === snapshot) return;
+      localStorage.setItem(this.storageKey + '-audited', snapshot);
+      fetch('/api/consent-record', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        keepalive: true,
+        body: JSON.stringify({
+          consentGiven: this.consentGiven,
+          consentDenied: this.consentDenied,
+          categories: this.categories,
+          source: 'cookie_banner',
+        }),
+      }).catch(() => {});
+    } catch (error) {
+      console.error('Error recording consent audit:', error);
     }
   }
 
@@ -622,7 +677,7 @@ class GatewazeCookieConsent {
               <input type="checkbox" id="analytics-consent-detailed" ${this.categories.analytics ? 'checked' : ''} style="margin-right: 10px;">
               <div>
                 <div><strong>Analytics Cookies</strong></div>
-                <div style="font-size: 12px; color: #9ca3af; margin-top: 2px;">Help us improve our service by analyzing usage</div>
+                <div style="font-size: 12px; color: #9ca3af; margin-top: 2px;">Help us improve our service by analyzing usage — collected first-party only, no third-party trackers</div>
               </div>
             </label>
           </div>

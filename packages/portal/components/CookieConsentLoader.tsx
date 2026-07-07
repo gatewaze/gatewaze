@@ -9,7 +9,7 @@ import Script from 'next/script'
 export function CookieConsentLoader() {
   return (
     <Script
-      src="/js/cookieconsent/custom-consent.js?v=9"
+      src="/js/cookieconsent/custom-consent.js?v=10"
       strategy="afterInteractive"
     />
   )
