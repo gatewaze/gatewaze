@@ -185,6 +185,9 @@ ingress:
     admin: admin.example.com
     portal: events.example.com
     api: api.example.com
+    # -- Public keyless MCP endpoint host (only routed when
+    #    mcpPublic.enabled=true). Remember to add it to tls.hosts too.
+    mcp: ""
 
   # -- TLS configuration
   tls:
@@ -576,6 +579,32 @@ scraplingFetcher:
     limits:
       cpu: "2"
       memory: "3Gi"
+
+mcpPublic:
+  # -- Enable the PUBLIC keyless MCP endpoint (packages/mcp with
+  # MCP_PROFILE=public): read-only tools (events_*, content_*,
+  # platform_health) over streamable HTTP, no client auth. Exposed through
+  # the ingress at ingress.hosts.mcp — set that (plus a tls.hosts entry)
+  # alongside enabling this. Requires apiKey below.
+  enabled: false
+  # -- Read-scoped platform API key the pod uses to call the platform API
+  # (events:read, blog:read, newsletters:read, resources:read, …).
+  # Create via /admin/api-keys. NEVER grant write scopes to this key.
+  apiKey: ""
+  # -- Per-IP request limit per minute (in-process sliding window).
+  rateLimitRpm: 120
+  replicaCount: 1
+  image:
+    repository: ghcr.io/gatewaze/mcp-public
+    tag: latest
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: "25m"
+      memory: "64Mi"
+    limits:
+      cpu: "250m"
+      memory: "256Mi"
 
 eventsMcp:
   # -- Enable the events-mcp Deployment + Service + NetworkPolicy. Serves the
