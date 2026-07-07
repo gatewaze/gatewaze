@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { checkRateLimit } from '@/lib/rate-limit'
+import { getRequestTracking } from '@/lib/server-tracking'
 
 /**
  * Portal-internal API for the Open RSVP self-serve flow.
@@ -470,6 +471,9 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'INTERNAL_ERROR', message: 'Failed to create party' }, { status: 500 })
       }
 
+      let leadPersonId: string | null = null
+      let acceptedMembers = 0
+
       for (let i = 0; i < members.length; i++) {
         const member = members[i]
 
@@ -499,6 +503,7 @@ export async function POST(req: NextRequest) {
           ...(ipLocation?.continent ? { continent: ipLocation.continent } : {}),
           ...(ipLocation?.location ? { location: ipLocation.location } : {}),
         })
+        if (i === 0) leadPersonId = personId
 
         const { data: partyMember, error: memberErr } = await supabase
           .from('invite_party_members')
@@ -552,6 +557,7 @@ export async function POST(req: NextRequest) {
         // accepted something AND we have a person record to link it to.
         // Declined and email-less guests stay out of the registration list.
         if (memberAccepted && personId) {
+          acceptedMembers++
           const registrationId = await ensureRegistration(supabase, {
             event_id: link.event_id,
             person_id: personId,
@@ -611,6 +617,24 @@ export async function POST(req: NextRequest) {
           last_used_at: nowIso,
         })
         .eq('id', link.id)
+
+      // Backend engagement event — joins the visitor's browser session via
+      // the gw_aid cookie + ip/UA threading. Fire-and-forget: never throws,
+      // never delays the response.
+      const { tracker, anonymousId, context } = getRequestTracking(req)
+      void tracker.track('RSVP Submitted', {
+        properties: {
+          event_id: link.event_id,
+          open_link_code: link.short_code,
+          party_id: party.id,
+          party_size: members.length,
+          accepted_members: acceptedMembers,
+          module: 'events',
+        },
+        userId: leadPersonId,
+        anonymousId,
+        context,
+      })
 
       return NextResponse.json({
         success: true,

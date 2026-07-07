@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { useConsent } from '@/hooks/useConsent'
-import { identifyUser, trackEvent, moduleFromPath } from '@/lib/analytics'
+import { identifyUser, trackEvent, moduleFromPath, ensureAnonymousId } from '@/lib/analytics'
 
 /**
  * Analytics provider — the portal's engagement-tracking spine.
@@ -33,6 +33,13 @@ export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
   pathRef.current = pathname
   const consentRef = useRef(consented)
   consentRef.current = consented
+
+  // -- First-party anonymous id ----------------------------------------------
+  // Minted once consent allows; from then on every event/identify (client
+  // AND same-origin server routes, which read the cookie) carries it.
+  useEffect(() => {
+    if (consented) ensureAnonymousId()
+  }, [consented])
 
   // -- Identity resolution ---------------------------------------------------
   const identifiedIdRef = useRef<string | null>(null)
