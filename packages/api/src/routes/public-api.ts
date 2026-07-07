@@ -471,6 +471,17 @@ export async function createPublicApiRouter(
       { name: 'events_speakers', description: 'Get speakers for a specific event.' },
       { name: 'events_sponsors', description: 'Get sponsors for a specific event.' },
       { name: 'platform_health', description: 'Check Gatewaze platform health and module count.' },
+      { name: 'resources_collections_list', description: 'List structured-resource collections, drafts included (resources:write).' },
+      { name: 'resources_collection_get', description: 'Get a collection with its categories and section templates (resources:write).' },
+      { name: 'resources_collection_create', description: 'Create a structured-resource collection (resources:write).' },
+      { name: 'resources_collection_update', description: 'Update or publish a collection (resources:write).' },
+      { name: 'resources_category_create', description: 'Create a category in a collection (resources:write).' },
+      { name: 'resources_template_create', description: 'Create a section template in a collection (resources:write).' },
+      { name: 'resources_items_list', description: "List a collection's items across all statuses (resources:write)." },
+      { name: 'resources_item_get', description: 'Get a full item with sections, any status (resources:write).' },
+      { name: 'resources_item_create', description: 'Create a resource item, optionally with sections (resources:write).' },
+      { name: 'resources_item_update', description: 'Update or publish a resource item (resources:write).' },
+      { name: 'resources_item_sections_set', description: "Replace a resource item's section list (resources:write)." },
     ];
 
     const moduleTools: Array<{
