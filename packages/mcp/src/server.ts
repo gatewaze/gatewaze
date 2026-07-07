@@ -70,6 +70,37 @@ const TOOLS = [
     },
   },
 
+  // ── Unified content feed (read-only, spans all enabled modules) ─────────
+  {
+    name: 'content_list',
+    description:
+      'Unified read-only feed of public content across ALL enabled modules — events, blog posts, newsletter editions, resource items, and any module that publishes content — sorted newest first. Filter by type or category. Pass full=true to include the complete public record for each row.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        type: {
+          type: 'string',
+          description: "Comma-separated content types to include (e.g. 'event,blog_post,resource'). Omit for all types.",
+        },
+        content_category: {
+          type: 'string',
+          description: 'Comma-separated category filter (see content_categories for available values)',
+        },
+        full: { type: 'boolean', description: 'Include the full public record per row (default false: summary fields only)' },
+        limit: { type: 'number', description: 'Max results (default 25, max 100)' },
+        offset: { type: 'number', description: 'Skip N results (default 0)' },
+      },
+    },
+  },
+  {
+    name: 'content_categories',
+    description: 'List the content categories configured on this platform (used to filter content_list).',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {},
+    },
+  },
+
   // ── Structured resources (require an API key with resources:write) ──────
   {
     name: 'resources_collections_list',
@@ -315,6 +346,19 @@ async function handlePlatformHealth(api: GatewazeApiClient) {
   return api.get('/health');
 }
 
+async function handleContentList(
+  params: Record<string, unknown>,
+  api: GatewazeApiClient,
+) {
+  const queryParams: Record<string, string | number | undefined> = {};
+  if (params.type) queryParams.type = String(params.type);
+  if (params.content_category) queryParams.content_category = String(params.content_category);
+  if (params.full === true) queryParams.expand = 'full';
+  if (params.limit) queryParams.limit = Number(params.limit);
+  if (params.offset) queryParams.offset = Number(params.offset);
+  return api.get('/content', queryParams);
+}
+
 // ── Structured-resources handlers ────────────────────────────────────────
 // Thin wrappers over the resources module's management API
 // (/api/v1/resources/*, resources:write scope). Body-building strips the
@@ -350,21 +394,64 @@ async function handleResourcesItemsList(
 
 // ── Server factory ───────────────────────────────────────────────────────
 
-export function createGatewazeMcpServer(api: GatewazeApiClient): Server {
+/**
+ * Tool visibility per profile.
+ *
+ * 'full'   — every tool, including the resources_* management surface.
+ *            Requires an API key with the matching write scopes; used for
+ *            keyed stdio registrations (local agents, .mcp.json).
+ * 'public' — read-only subset safe to expose WITHOUT client authentication
+ *            (the hosted server holds a read-scoped key internally). Every
+ *            tool here reads only published/public content by construction,
+ *            so keyless exposure leaks nothing that isn't already public.
+ */
+export type McpProfile = 'full' | 'public';
+
+const PUBLIC_PROFILE_TOOLS = new Set([
+  'events_search',
+  'events_get',
+  'events_speakers',
+  'events_sponsors',
+  'platform_health',
+  'content_list',
+  'content_categories',
+]);
+
+export function createGatewazeMcpServer(
+  api: GatewazeApiClient,
+  opts: { profile?: McpProfile } = {},
+): Server {
+  const profile = opts.profile ?? 'full';
+  const tools = profile === 'public'
+    ? TOOLS.filter((t) => PUBLIC_PROFILE_TOOLS.has(t.name))
+    : TOOLS;
+  const allowedNames = new Set(tools.map((t) => t.name));
+
   const server = new Server(
-    { name: 'gatewaze-mcp', version: '0.2.0' },
+    { name: profile === 'public' ? 'gatewaze-mcp-public' : 'gatewaze-mcp', version: '0.3.0' },
     { capabilities: { tools: {} } },
   );
 
   // List tools
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: TOOLS,
+    tools,
   }));
 
   // Call tool
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
     const params = (args ?? {}) as Record<string, unknown>;
+
+    // Profile gate — a public server must refuse full-profile tool names
+    // even though they aren't advertised, not just hide them.
+    if (!allowedNames.has(name)) {
+      return {
+        content: [
+          { type: 'text', text: JSON.stringify({ error: `Unknown tool: ${name}` }) },
+        ],
+        isError: true,
+      };
+    }
 
     let result: unknown;
 
@@ -384,6 +471,12 @@ export function createGatewazeMcpServer(api: GatewazeApiClient): Server {
           break;
         case 'platform_health':
           result = await handlePlatformHealth(api);
+          break;
+        case 'content_list':
+          result = await handleContentList(params, api);
+          break;
+        case 'content_categories':
+          result = await api.get('/categories');
           break;
         case 'resources_collections_list':
           result = await handleResourcesCollectionsList(params, api);
