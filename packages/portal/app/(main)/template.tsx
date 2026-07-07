@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { useAnalytics } from '@/hooks/useAnalytics'
+import { moduleFromPath } from '@/lib/analytics'
 
 export default function Template({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -12,7 +13,7 @@ export default function Template({ children }: { children: React.ReactNode }) {
   // Scroll to top on navigation and track page view
   useEffect(() => {
     window.scrollTo(0, 0)
-    page(undefined, { path: pathname })
+    page(undefined, { path: pathname, module: moduleFromPath(pathname) })
   }, [pathname, page])
 
   return (

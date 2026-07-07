@@ -25,6 +25,7 @@ import { ProfileCompletionWrapper } from '@/components/wizard'
 import { ModuleSlot } from '@/lib/modules/ModuleSlot'
 import { GeoTouch } from '@/components/GeoTouch'
 import { AnalyticsProvider } from '@/components/AnalyticsProvider'
+import { AnalyticsEmbed } from '@/components/AnalyticsEmbed'
 import { TrackingMarkup } from '@/components/TrackingMarkup'
 import { getServerBrandConfig, buildGoogleFontsUrl, buildFontStack, isLightColor, getThemeBackgroundColor, resolveEventTheme, deriveAccentTints, type ThemeColors } from '@/config/brand'
 import { OrganizationJsonLd } from '@/components/structured-data'
@@ -220,6 +221,8 @@ export default async function MainLayout({
           }}
         />
         <TrackingMarkup html={brandConfig.trackingHead} />
+        {/* First-party analytics (analytics module) — self-gating server component. */}
+        <AnalyticsEmbed />
         <OrganizationJsonLd
           name={brandConfig.name}
           url={`https://${brandConfig.domain}`}
