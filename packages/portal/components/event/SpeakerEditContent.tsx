@@ -162,6 +162,8 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
           .from('people')
           .select('id, email, attributes, avatar_storage_path')
           .eq('auth_user_id', session.user.id)
+          .order('created_at', { ascending: true })
+          .limit(1)
           .maybeSingle()
 
         if (!person) {

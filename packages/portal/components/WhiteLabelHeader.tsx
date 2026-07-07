@@ -64,6 +64,8 @@ export function WhiteLabelHeader({ brandConfig }: Props) {
           .from('people')
           .select('attributes, avatar_storage_path')
           .eq('auth_user_id', user!.id)
+          .order('created_at', { ascending: true })
+          .limit(1)
           .maybeSingle()
 
         if (!cancelled && person) {

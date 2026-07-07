@@ -149,6 +149,8 @@ export default async function CustomPage({ params }: Props) {
             .from('people')
             .select('id')
             .eq('auth_user_id', user.id)
+            .order('created_at', { ascending: true })
+            .limit(1)
             .maybeSingle()
           currentPersonId = person?.id || null
         }
