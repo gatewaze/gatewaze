@@ -166,6 +166,19 @@ publicApi:
   apiKeyPepper: ""
 
 # =============================================================================
+# Engagement Tracking (@gatewaze/tracking)
+# =============================================================================
+tracking:
+  # -- Segment write key for SERVER-side events (RSVP Submitted etc.),
+  #    posted to Segment's HTTP Tracking API from portal route handlers.
+  #    Use a dedicated "HTTP API" source in Segment (Connections →
+  #    Sources → Add Source → HTTP API) — one source per emitter; the
+  #    browser keeps its own JavaScript-source key via the admin
+  #    tracking-code settings. Empty = server-side Segment leg disabled
+  #    (the first-party analytics-module store still records events).
+  segmentWriteKey: ""
+
+# =============================================================================
 # Ingress Configuration
 # =============================================================================
 ingress:
