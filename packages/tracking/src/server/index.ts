@@ -70,7 +70,9 @@ export interface ServerTracker {
   track: (event: string, input?: ServerTrackInput) => Promise<void>
   /** A page view. `name` is Segment's page name (optional). */
   page: (name?: string, input?: ServerTrackInput) => Promise<void>
-  identify: (userId: string, traits?: IdentifyTraits, input?: Omit<ServerTrackInput, 'userId'>) => Promise<void>
+  /** userId null → anonymous identify (anonymousId + traits only); the
+   *  profile joins on anonymousId/email instead of a user id. */
+  identify: (userId: string | null, traits?: IdentifyTraits, input?: Omit<ServerTrackInput, 'userId'>) => Promise<void>
 }
 
 /** Browser-shaped UA for events with no originating request — anything
@@ -225,7 +227,7 @@ export function createServerTracker(config: ServerTrackerConfig): ServerTracker 
         // regular event so anonymous→person joins are queryable there too.
         sendToCollect('identify', { ...input, userId, properties: { ...traits } }),
         sendToSegment('identify', {
-          userId,
+          userId: userId ?? undefined,
           traits,
           anonymousId: input.anonymousId ?? undefined,
         }, { ...input, userId }),

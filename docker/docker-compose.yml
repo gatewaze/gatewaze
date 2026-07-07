@@ -442,6 +442,9 @@ services:
       NEXT_PUBLIC_APP_URL: ${PORTAL_URL:-http://${PORTAL_HOST}}
       SUPABASE_URL: ${SUPABASE_INTERNAL_URL:-http://supabase-kong:8000}
       SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
+      # Segment HTTP API write key for the server-side tracking relay
+      # (@gatewaze/tracking). Empty = Segment leg disabled.
+      SEGMENT_WRITE_KEY: ${SEGMENT_WRITE_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}

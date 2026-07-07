@@ -626,9 +626,9 @@ export async function POST(req: NextRequest) {
       // the gw_aid cookie + ip/UA threading. Fire-and-forget: never throws,
       // never delays the response.
       const { tracker, anonymousId, context } = getRequestTracking(req)
-      // userId is the lead's AUTH user id — the same id space identify()
-      // uses, so Segment/warehouse joins this event to the person's
-      // profile. person_id rides along as a property for platform joins.
+      // No userId: the LF workspace keys user_id on the LFID sub, and RSVP
+      // guests aren't LFID-signed-in — the event joins to the visitor's
+      // profile via anonymousId instead. Platform ids ride as properties.
       void tracker.track('RSVP Submitted', {
         properties: {
           event_id: link.event_id,
@@ -637,9 +637,9 @@ export async function POST(req: NextRequest) {
           party_size: members.length,
           accepted_members: acceptedMembers,
           lead_person_id: leadPersonId,
+          lead_supabase_user_id: leadAuthUserId,
           module: 'events',
         },
-        userId: leadAuthUserId,
         anonymousId,
         context,
       })
