@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
   KeyIcon,
@@ -8,7 +8,16 @@ import {
   CheckCircleIcon,
   PencilSquareIcon,
 } from '@heroicons/react/24/outline';
-import { Button, ConfirmModal, Modal } from '@/components/ui';
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  createColumnHelper,
+} from '@tanstack/react-table';
+import { Button, Card, ConfirmModal, Modal, WorkspaceLayout } from '@/components/ui';
+import { Page } from '@/components/shared/Page';
+import { DataTable } from '@/components/shared/table/DataTable';
+import { RowActions } from '@/components/shared/table/RowActions';
 import { Input } from '@/components/ui/Form/Input';
 import { ApiKeyService, type ApiKey } from '@/utils/apiKeyService';
 
@@ -24,7 +33,11 @@ const SCOPE_OPTIONS = [
   { scope: 'sponsors:read', label: 'Read sponsor profiles' },
   { scope: 'registrations:create', label: 'Create event registrations' },
   { scope: 'newsletters:read', label: 'Read newsletter editions' },
+  { scope: 'resources:read', label: 'Read public resource collections and items' },
+  { scope: 'resources:write', label: 'Create and manage structured resources (MCP authoring)' },
 ];
+
+const columnHelper = createColumnHelper<ApiKey>();
 
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—';
@@ -94,118 +107,141 @@ export default function ApiKeysSection() {
     }
   };
 
+  const columns = useMemo(
+    () => [
+      columnHelper.accessor('name', {
+        header: 'Name',
+        cell: (info) => (
+          <div className="text-sm font-medium text-[var(--gray-12)] max-w-xs truncate" title={info.getValue()}>
+            {info.getValue()}
+          </div>
+        ),
+      }),
+      columnHelper.accessor('keyPrefix', {
+        header: 'Prefix',
+        cell: (info) => <code className="text-xs text-[var(--gray-11)]">{info.getValue()}…</code>,
+      }),
+      columnHelper.accessor('scopes', {
+        header: 'Scopes',
+        enableSorting: false,
+        cell: (info) => {
+          const scopes = info.getValue();
+          return (
+            <div className="flex flex-wrap gap-1 max-w-xs">
+              {scopes.length === 0 ? (
+                <span className="text-xs italic text-[var(--gray-10)]">no scopes</span>
+              ) : scopes.length <= 3 ? (
+                scopes.map((s) => (
+                  <span key={s} className="text-xs bg-[var(--gray-a3)] px-1.5 py-0.5 rounded">
+                    {s}
+                  </span>
+                ))
+              ) : (
+                <span className="text-xs text-[var(--gray-11)]" title={scopes.join(', ')}>
+                  {scopes.slice(0, 2).join(', ')} +{scopes.length - 2} more
+                </span>
+              )}
+            </div>
+          );
+        },
+      }),
+      columnHelper.accessor('lastUsedAt', {
+        header: 'Last used',
+        cell: (info) => (
+          <span className="text-sm text-[var(--gray-11)] whitespace-nowrap">{formatDate(info.getValue())}</span>
+        ),
+      }),
+      columnHelper.accessor('totalRequests', {
+        header: 'Requests',
+        cell: (info) => (
+          <span className="text-sm text-[var(--gray-11)]">{info.getValue().toLocaleString()}</span>
+        ),
+      }),
+      columnHelper.accessor('isActive', {
+        header: 'Status',
+        cell: (info) => (
+          <span
+            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs ${
+              info.getValue()
+                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                : 'bg-gray-200 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+            }`}
+          >
+            {info.getValue() ? 'Active' : 'Revoked'}
+          </span>
+        ),
+      }),
+      columnHelper.display({
+        id: 'actions',
+        header: '',
+        cell: (info) => {
+          const key = info.row.original;
+          return (
+            <RowActions
+              actions={[
+                {
+                  label: 'Edit',
+                  icon: <PencilSquareIcon className="size-4" />,
+                  onClick: () => setEditTarget(key),
+                  hidden: !key.isActive,
+                },
+                {
+                  label: 'Revoke',
+                  icon: <TrashIcon className="size-4" />,
+                  onClick: () => setRevokeTarget(key),
+                  color: 'red',
+                  hidden: !key.isActive,
+                },
+              ]}
+            />
+          );
+        },
+      }),
+    ],
+    [],
+  );
+
+  const table = useReactTable({
+    data: keys,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
+
   return (
-    <div>
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <h2 className="text-xl font-semibold text-[var(--gray-12)]">API Keys</h2>
-          <p className="text-sm text-[var(--gray-11)] mt-1 max-w-2xl">
+    <Page title="API Keys">
+      <WorkspaceLayout
+        title="API Keys"
+        actions={
+          <Button variant="solid" onClick={() => setCreateOpen(true)}>
+            <PlusIcon className="size-4 mr-1" />
+            New key
+          </Button>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-[var(--gray-11)] max-w-2xl">
             API keys authenticate external consumers calling the public REST API at{' '}
             <code className="text-xs">/api/v1/</code> and the MCP server. Each key has scoped permissions
             and per-key rate limits.
           </p>
-        </div>
-        <Button onClick={() => setCreateOpen(true)}>
-          <PlusIcon className="size-4 mr-1" />
-          New key
-        </Button>
-      </div>
 
-      {loading ? (
-        <div className="flex justify-center py-12">
-          <div className="size-6 border-2 border-[var(--accent-9)] border-t-transparent rounded-full animate-spin" />
+          <Card className="overflow-hidden">
+            <DataTable
+              table={table}
+              loading={loading}
+              emptyState={
+                <div className="py-4">
+                  <KeyIcon className="mx-auto size-10 text-[var(--gray-a8)]" />
+                  <p className="mt-3 text-[var(--gray-11)]">No API keys yet.</p>
+                  <Button className="mt-4" onClick={() => setCreateOpen(true)}>
+                    Create your first key
+                  </Button>
+                </div>
+              }
+            />
+          </Card>
         </div>
-      ) : keys.length === 0 ? (
-        <div className="text-center py-12 border border-dashed border-[var(--gray-a6)] rounded-lg">
-          <KeyIcon className="mx-auto size-10 text-[var(--gray-a8)]" />
-          <p className="mt-3 text-[var(--gray-11)]">No API keys yet.</p>
-          <Button className="mt-4" onClick={() => setCreateOpen(true)}>
-            Create your first key
-          </Button>
-        </div>
-      ) : (
-        <div className="overflow-hidden rounded-lg border border-[var(--gray-a6)]">
-          <table className="w-full text-sm">
-            <thead className="bg-[var(--gray-a3)] text-left text-xs text-[var(--gray-11)] uppercase tracking-wide">
-              <tr>
-                <th className="px-4 py-2 font-medium">Name</th>
-                <th className="px-4 py-2 font-medium">Prefix</th>
-                <th className="px-4 py-2 font-medium">Scopes</th>
-                <th className="px-4 py-2 font-medium">Last used</th>
-                <th className="px-4 py-2 font-medium">Requests</th>
-                <th className="px-4 py-2 font-medium">Status</th>
-                <th className="px-4 py-2 font-medium" />
-              </tr>
-            </thead>
-            <tbody>
-              {keys.map((key) => (
-                <tr key={key.id} className="border-t border-[var(--gray-a4)]">
-                  <td className="px-4 py-3 font-medium">{key.name}</td>
-                  <td className="px-4 py-3">
-                    <code className="text-xs text-[var(--gray-11)]">{key.keyPrefix}…</code>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-1 max-w-xs">
-                      {key.scopes.length === 0 ? (
-                        <span className="text-xs italic text-[var(--gray-10)]">no scopes</span>
-                      ) : key.scopes.length <= 3 ? (
-                        key.scopes.map((s) => (
-                          <span key={s} className="text-xs bg-[var(--gray-a3)] px-1.5 py-0.5 rounded">
-                            {s}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-xs text-[var(--gray-11)]">
-                          {key.scopes.slice(0, 2).join(', ')} +{key.scopes.length - 2} more
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-[var(--gray-11)]">{formatDate(key.lastUsedAt)}</td>
-                  <td className="px-4 py-3 text-[var(--gray-11)]">
-                    {key.totalRequests.toLocaleString()}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs ${
-                        key.isActive
-                          ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                          : 'bg-gray-200 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
-                      }`}
-                    >
-                      {key.isActive ? 'Active' : 'Revoked'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      {key.isActive && (
-                        <Button
-                          variant="ghost"
-                          size="1"
-                          onClick={() => setEditTarget(key)}
-                          title="Edit scopes & rate limits"
-                        >
-                          <PencilSquareIcon className="size-4 text-[var(--gray-11)]" />
-                        </Button>
-                      )}
-                      {key.isActive && (
-                        <Button
-                          variant="ghost"
-                          size="1"
-                          onClick={() => setRevokeTarget(key)}
-                          title="Revoke"
-                        >
-                          <TrashIcon className="size-4 text-red-600" />
-                        </Button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
 
       {createOpen && (
         <KeyEditModal
@@ -281,7 +317,8 @@ export default function ApiKeysSection() {
         confirmText="Revoke"
         confirmVariant="danger"
       />
-    </div>
+      </WorkspaceLayout>
+    </Page>
   );
 }
 
