@@ -68,9 +68,20 @@ export async function POST(req: NextRequest) {
     } else if (body.type === 'page') {
       await tracker.page(typeof body.event === 'string' ? body.event.slice(0, 120) : undefined, input)
     } else {
-      const userId = await verifiedUserId(body.userId)
-      if (userId) {
-        await tracker.identify(userId, sanitizeProperties(body.traits), input)
+      const user = await verifiedUser(body.userId)
+      if (user) {
+        const meta = (user.user_metadata ?? {}) as Record<string, unknown>
+        const appMeta = (user.app_metadata ?? {}) as Record<string, unknown>
+        await tracker.identify(user.id, {
+          ...sanitizeProperties(body.traits),
+          // Authoritative traits from the verified session — clients can't
+          // omit or forge these. lfid_sub/lfid_username (set by the
+          // lfid-auth module) are the warehouse join keys to LF systems.
+          email: user.email,
+          ...(typeof meta.lfid_sub === 'string' ? { lfid_sub: meta.lfid_sub } : {}),
+          ...(typeof meta.lfid_username === 'string' ? { lfid_username: meta.lfid_username } : {}),
+          ...(typeof appMeta.provider === 'string' ? { auth_provider: appMeta.provider } : {}),
+        }, input)
       }
     }
 
@@ -98,15 +109,22 @@ function sanitizeProperties(props?: Record<string, unknown>): Record<string, unk
   return out
 }
 
-/** Resolve the userId from the visitor's real session; a client-asserted
- *  id only passes when it matches. */
-async function verifiedUserId(claimed?: string): Promise<string | null> {
+/** Resolve the visitor's real session user; a client-asserted id only
+ *  passes when it matches the session. Returns the full user so
+ *  authoritative traits (LFID identity) come from the session, not the
+ *  client payload. */
+async function verifiedUser(claimed?: string): Promise<{
+  id: string
+  email?: string
+  user_metadata?: Record<string, unknown>
+  app_metadata?: Record<string, unknown>
+} | null> {
   if (!claimed || typeof claimed !== 'string') return null
   try {
     const brand = await getServerBrand()
     const supabase = await createAuthenticatedServerSupabase(brand)
     const { data } = await supabase.auth.getUser()
-    return data?.user?.id === claimed ? claimed : null
+    return data?.user?.id === claimed ? data.user : null
   } catch {
     return null
   }

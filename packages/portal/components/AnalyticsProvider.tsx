@@ -56,14 +56,20 @@ export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
     identifiedIdRef.current = user.id
 
     const meta = (user.user_metadata ?? {}) as Record<string, unknown>
+    const appMeta = ((user as { app_metadata?: Record<string, unknown> }).app_metadata ?? {}) as Record<string, unknown>
     identifyUser(user.id, {
       email: user.email,
       name: (meta.full_name as string) || (meta.name as string) || undefined,
+      // LFID identity (set by the lfid-auth module) — the warehouse join
+      // key across LF systems. Absent for non-LFID sign-ins.
+      lfid_sub: (meta.lfid_sub as string) || undefined,
+      lfid_username: (meta.lfid_username as string) || undefined,
+      auth_provider: (appMeta.provider as string) || undefined,
     })
     // Only on the anonymous→signed-in flip within this mount — session
     // restores on page load identify silently without a Signed In event.
     if (sawSignedOutRef.current) {
-      trackEvent('Signed In', { method: (meta.provider as string) || undefined })
+      trackEvent('Signed In', { method: (appMeta.provider as string) || undefined })
       sawSignedOutRef.current = false
     }
   }, [user, isLoading, consented])

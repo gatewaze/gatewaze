@@ -151,9 +151,9 @@ async function findOrCreatePerson(
     realEmail?: boolean;
     city?: string; country?: string; country_code?: string; continent?: string; location?: string;
   },
-): Promise<string | null> {
+): Promise<{ personId: string | null; authUserId: string | null }> {
   const email = input.email.toLowerCase().trim()
-  if (!email) return null
+  if (!email) return { personId: null, authUserId: null }
 
   const userMetadata = {
     ...(input.first_name ? { first_name: input.first_name } : {}),
@@ -184,7 +184,7 @@ async function findOrCreatePerson(
         .update({ auth_user_id: authUserId })
         .eq('id', row.id)
     }
-    return row.id
+    return { personId: row.id, authUserId: authUserId ?? row.auth_user_id }
   }
 
   const attributes: Record<string, unknown> = {}
@@ -210,7 +210,7 @@ async function findOrCreatePerson(
 
   if (insertErr || !newPerson) {
     console.error('[open-rsvp] Failed to create person:', insertErr)
-    return null
+    return { personId: null, authUserId }
   }
 
   // Also create the paired people_profiles row so the person appears in
@@ -223,7 +223,7 @@ async function findOrCreatePerson(
       .insert({ person_id: (newPerson as { id: string }).id })
   } catch { /* best-effort */ }
 
-  return (newPerson as { id: string }).id
+  return { personId: (newPerson as { id: string }).id, authUserId }
 }
 
 /**
@@ -472,6 +472,7 @@ export async function POST(req: NextRequest) {
       }
 
       let leadPersonId: string | null = null
+      let leadAuthUserId: string | null = null
       let acceptedMembers = 0
 
       for (let i = 0; i < members.length; i++) {
@@ -489,7 +490,7 @@ export async function POST(req: NextRequest) {
           member.last_name,
           link.event_id,
         )
-        const personId: string | null = await findOrCreatePerson(supabase, {
+        const { personId, authUserId } = await findOrCreatePerson(supabase, {
           email: personEmail,
           // Only real addresses get an auth account pre-provisioned;
           // placeholders are synthetic routes nobody can sign in from.
@@ -503,7 +504,10 @@ export async function POST(req: NextRequest) {
           ...(ipLocation?.continent ? { continent: ipLocation.continent } : {}),
           ...(ipLocation?.location ? { location: ipLocation.location } : {}),
         })
-        if (i === 0) leadPersonId = personId
+        if (i === 0) {
+          leadPersonId = personId
+          leadAuthUserId = authUserId
+        }
 
         const { data: partyMember, error: memberErr } = await supabase
           .from('invite_party_members')
@@ -622,6 +626,9 @@ export async function POST(req: NextRequest) {
       // the gw_aid cookie + ip/UA threading. Fire-and-forget: never throws,
       // never delays the response.
       const { tracker, anonymousId, context } = getRequestTracking(req)
+      // userId is the lead's AUTH user id — the same id space identify()
+      // uses, so Segment/warehouse joins this event to the person's
+      // profile. person_id rides along as a property for platform joins.
       void tracker.track('RSVP Submitted', {
         properties: {
           event_id: link.event_id,
@@ -629,9 +636,10 @@ export async function POST(req: NextRequest) {
           party_id: party.id,
           party_size: members.length,
           accepted_members: acceptedMembers,
+          lead_person_id: leadPersonId,
           module: 'events',
         },
-        userId: leadPersonId,
+        userId: leadAuthUserId,
         anonymousId,
         context,
       })
