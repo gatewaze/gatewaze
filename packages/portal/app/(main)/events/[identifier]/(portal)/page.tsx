@@ -42,10 +42,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title,
     description: truncatedDescription || `Register for ${title}`,
     alternates: {
-      // External event_link (the canonical source when the event lives
-      // elsewhere) else a self-canonical on the brand domain — collapses
-      // custom-domain duplicates. Always offer the clean /md representation.
-      canonical: event.event_link || selfUrl,
+      // Canonical follows content provenance: SCRAPED events (source_type
+      // 'scraper') canonicalise to the page they were scraped from
+      // (event_link, e.g. the Luma page) — our copy is the duplicate, so we
+      // tell crawlers where the original lives. NATIVE events self-canonicalise
+      // on the brand domain even when they carry an external registration link:
+      // our page is the content origin, and ceding canonical to a ticket page
+      // would hand it our ranking. Self-canonical also collapses custom-domain
+      // duplicates. Always offer the clean /md representation.
+      canonical: event.source_type === 'scraper' && event.event_link ? event.event_link : selfUrl,
       types: { 'text/markdown': `https://${brandConfig.domain}/md${eventPath}` },
     },
     openGraph: {
