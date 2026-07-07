@@ -11,17 +11,17 @@ export async function generateMetadata(): Promise<Metadata> {
   const brandConfig = await getBrandConfigById(brand)
 
   return {
-    title: `Event Map - ${brandConfig.name}`,
+    title: 'Event Map',
     description: `View events on a map from ${brandConfig.name}`,
     openGraph: {
-      title: `Event Map - ${brandConfig.name}`,
+      title: 'Event Map',
       description: `View events on a map from ${brandConfig.name}`,
       type: 'website',
       siteName: brandConfig.name,
     },
     twitter: {
       card: 'summary',
-      title: `Event Map - ${brandConfig.name}`,
+      title: 'Event Map',
       description: `View events on a map from ${brandConfig.name}`,
     },
   }
