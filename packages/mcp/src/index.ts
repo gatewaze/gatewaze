@@ -59,10 +59,25 @@ async function handleMcpHttpRequest(
   res: ServerResponse,
   body: unknown,
 ): Promise<void> {
+  const ip = clientIp(req);
+
+  // Log initialize handshakes: clientInfo names the connecting MCP client
+  // (Claude Desktop, mcp-remote, custom agents) — pairs with the per-call
+  // mcp_call lines (same ip field) when analysing what consumers ask for.
+  const init = body as { method?: string; params?: { clientInfo?: unknown } } | undefined;
+  if (init?.method === 'initialize' && process.env.MCP_LOG_REQUESTS !== '0') {
+    console.error(JSON.stringify({
+      evt: 'mcp_initialize',
+      ts: new Date().toISOString(),
+      ip,
+      client: init.params?.clientInfo ?? null,
+    }));
+  }
+
   // Stateless mode: the SDK (≥1.13) requires a fresh transport + server pair
   // per request — a long-lived stateless transport only survives its first
   // request. Construction is cheap (tool tables in memory, no I/O).
-  const requestServer = createGatewazeMcpServer(api, { profile });
+  const requestServer = createGatewazeMcpServer(api, { profile, logMeta: { ip } });
   const requestTransport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
   res.on('close', () => {
     void requestTransport.close();

@@ -417,11 +417,39 @@ const PUBLIC_PROFILE_TOOLS = new Set([
   'content_categories',
 ]);
 
+/**
+ * One JSONL line per tool call on stderr (stdout is the stdio protocol
+ * channel; stderr reaches docker/kubectl logs in http mode). The point is an
+ * improvement loop for the public endpoint: `outcome:"unknown_tool"` shows
+ * which tools agents EXPECT to exist, `empty:true` shows queries the current
+ * surface can't answer, and `args` shows how agents actually parameterise
+ * calls. Disable with MCP_LOG_REQUESTS=0.
+ */
+const LOG_REQUESTS = process.env.MCP_LOG_REQUESTS !== '0';
+
+function truncate(s: string, max = 600): string {
+  return s.length > max ? `${s.slice(0, max)}…(${s.length})` : s;
+}
+
+/** Best-effort row count for list-shaped API responses ({data: [...]}) */
+function resultRows(result: unknown): number | undefined {
+  if (result && typeof result === 'object' && Array.isArray((result as { data?: unknown }).data)) {
+    return (result as { data: unknown[] }).data.length;
+  }
+  return undefined;
+}
+
+function logCall(entry: Record<string, unknown>): void {
+  if (!LOG_REQUESTS) return;
+  console.error(JSON.stringify({ evt: 'mcp_call', ts: new Date().toISOString(), ...entry }));
+}
+
 export function createGatewazeMcpServer(
   api: GatewazeApiClient,
-  opts: { profile?: McpProfile } = {},
+  opts: { profile?: McpProfile; logMeta?: Record<string, unknown> } = {},
 ): Server {
   const profile = opts.profile ?? 'full';
+  const logMeta = opts.logMeta ?? {};
   const tools = profile === 'public'
     ? TOOLS.filter((t) => PUBLIC_PROFILE_TOOLS.has(t.name))
     : TOOLS;
@@ -441,10 +469,20 @@ export function createGatewazeMcpServer(
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
     const params = (args ?? {}) as Record<string, unknown>;
+    const startedAt = Date.now();
+    const base = {
+      profile,
+      tool: name,
+      args: truncate(JSON.stringify(params)),
+      ...logMeta,
+    };
 
     // Profile gate — a public server must refuse full-profile tool names
-    // even though they aren't advertised, not just hide them.
+    // even though they aren't advertised, not just hide them. Logged
+    // distinctly: agents guessing tool names is the strongest signal for
+    // what the surface is missing.
     if (!allowedNames.has(name)) {
+      logCall({ ...base, outcome: 'unknown_tool', ms: Date.now() - startedAt });
       return {
         content: [
           { type: 'text', text: JSON.stringify({ error: `Unknown tool: ${name}` }) },
@@ -524,6 +562,7 @@ export function createGatewazeMcpServer(
           );
           break;
         default:
+          logCall({ ...base, outcome: 'unknown_tool', ms: Date.now() - startedAt });
           return {
             content: [
               { type: 'text', text: JSON.stringify({ error: `Unknown tool: ${name}` }) },
@@ -533,14 +572,25 @@ export function createGatewazeMcpServer(
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
+      logCall({ ...base, outcome: 'error', error: truncate(message, 300), ms: Date.now() - startedAt });
       return {
         content: [{ type: 'text', text: JSON.stringify({ error: message }) }],
         isError: true,
       };
     }
 
+    const text = JSON.stringify(result, null, 2);
+    const rows = resultRows(result);
+    logCall({
+      ...base,
+      outcome: 'ok',
+      ms: Date.now() - startedAt,
+      bytes: text.length,
+      ...(rows !== undefined ? { rows, empty: rows === 0 } : {}),
+    });
+
     return {
-      content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+      content: [{ type: 'text', text }],
     };
   });
 
