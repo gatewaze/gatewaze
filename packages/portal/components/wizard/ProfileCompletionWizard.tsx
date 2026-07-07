@@ -75,7 +75,7 @@ export function ProfileCompletionWizard({ brandConfig, listsEnabled = false }: P
         const supabase = getSupabaseClient()
 
         // Fetch people_attributes config and person data in parallel
-        const [{ data: attrSetting }, { data: person }] = await Promise.all([
+        const [{ data: attrSetting }, personRes] = await Promise.all([
           supabase
             .from('platform_settings')
             .select('value')
@@ -85,8 +85,20 @@ export function ProfileCompletionWizard({ brandConfig, listsEnabled = false }: P
             .from('people')
             .select('id, attributes')
             .eq('auth_user_id', user.id)
+            .order('created_at', { ascending: true })
+            .limit(1)
             .maybeSingle(),
         ])
+        // A FAILED lookup is not "no person". Treating errors as new-user made
+        // the wizard pop for existing members whenever this query broke (e.g.
+        // several people rows wrongly sharing one auth_user_id → maybeSingle
+        // errors) — and completing it could never clear the loop. Fail quiet.
+        if (personRes.error) {
+          console.error('Profile completion check failed:', personRes.error)
+          setIsLoading(false)
+          return
+        }
+        const person = personRes.data
 
         // Parse attribute config
         let attrConfig = DEFAULT_PEOPLE_ATTRIBUTES

@@ -70,6 +70,8 @@ export function RegisterContent() {
           .from('people')
           .select('email, attributes')
           .eq('auth_user_id', user.id)
+          .order('created_at', { ascending: true })
+          .limit(1)
           .maybeSingle()
 
         if (!person) {
