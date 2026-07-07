@@ -91,6 +91,7 @@ const EVENT_SELECT_FIELDS_STABLE = `
   enable_agenda,
   luma_event_id,
   source_details,
+  source_type,
   is_live_in_production,
   gradient_color_1,
   gradient_color_2,
