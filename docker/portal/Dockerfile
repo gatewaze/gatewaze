@@ -26,6 +26,7 @@ RUN printf 'packages:\n  - "packages/*"\n' > pnpm-workspace.yaml
 # Package manifests for dependency resolution
 COPY packages/portal/package.json packages/portal/
 COPY packages/shared/package.json packages/shared/
+COPY packages/tracking/package.json packages/tracking/
 
 # Install all deps — dev deps are needed for `next build` at runtime.
 # `--config.dangerously-allow-all-builds=true` is required on pnpm 10+:
@@ -37,6 +38,7 @@ RUN --mount=type=cache,id=pnpm-portal,target=/root/.local/share/pnpm/store \
 
 # Source
 COPY packages/shared/ packages/shared/
+COPY packages/tracking/ packages/tracking/
 COPY packages/portal/ packages/portal/
 
 # Shared lib is a compiled TS package that the portal imports
