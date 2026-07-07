@@ -31,9 +31,11 @@ interface CookiePolicyData {
 
 interface Props {
   brandConfig: BrandConfig
+  /** Whether this brand has privacy_policy_html configured — gates the /privacy reference. */
+  hasPrivacyPolicy?: boolean
 }
 
-export function CookiePolicyPageContent({ brandConfig }: Props) {
+export function CookiePolicyPageContent({ brandConfig, hasPrivacyPolicy = false }: Props) {
   const [data, setData] = useState<CookiePolicyData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -190,19 +192,23 @@ export function CookiePolicyPageContent({ brandConfig }: Props) {
               <p>You can manage your cookie preferences at any time by:</p>
               <ul>
                 <li>Using our cookie consent banner when you first visit</li>
-                <li>Clicking the cookie preferences icon in the bottom-left corner</li>
+                <li>Clicking the cookie preferences icon in the bottom-right corner</li>
                 <li>Adjusting your browser settings to block or delete cookies</li>
               </ul>
             </div>
 
-            {/* Contact */}
-            <div className="cp-category">
-              <h3>Contact Information</h3>
-              <p>
-                If you have questions about our use of cookies, please see our{' '}
-                <a href="/privacy">privacy policy</a> page.
-              </p>
-            </div>
+            {/* Contact — only when this brand has a privacy policy configured;
+                brands that publish policies off-site (e.g. AAIF) omit it so we
+                never dead-link /privacy. */}
+            {hasPrivacyPolicy && (
+              <div className="cp-category">
+                <h3>Contact Information</h3>
+                <p>
+                  If you have questions about our use of cookies, please see our{' '}
+                  <a href="/privacy">privacy policy</a> page.
+                </p>
+              </div>
+            )}
 
             {/* Footer */}
             <footer className="cp-footer">
