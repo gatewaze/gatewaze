@@ -122,6 +122,8 @@ async function handler(req: Request) {
           .from('people')
           .select('id, attributes')
           .eq('auth_user_id', currentAuthUserId)
+          .order('created_at', { ascending: true })
+          .limit(1)
           .maybeSingle()
         if (gp) {
           const ex = (gp.attributes as Record<string, any>) || {}
@@ -143,12 +145,23 @@ async function handler(req: Request) {
       })
     }
 
-    // Step 1: Check if person already exists in Supabase
-    const { data: existingPerson } = await supabase
+    // Step 1: Check if person already exists in Supabase.
+    // Duplicate rows for one human exist in the wild (case-variant emails from
+    // imports vs signups — 708 such pairs found in prod on 2026-07-07).
+    // maybeSingle() ERRORS on those, the error was destructured away, and the
+    // undefined result read as "no person" — so every sign-in for an affected
+    // user minted ANOTHER duplicate row. Fetch all matches and pick
+    // deterministically instead. Also escape ilike wildcards: an unescaped
+    // underscore (diego_ibarrola@…) matches any character and can hit a
+    // different person's row.
+    const emailPattern = email.replace(/[\\%_]/g, (ch) => `\\${ch}`)
+    const { data: personMatches } = await supabase
       .from('people')
       .select('id, cio_id, email, auth_user_id, attributes')
-      .ilike('email', email)
-      .maybeSingle()
+      .ilike('email', emailPattern)
+      .order('created_at', { ascending: true })
+    // Prefer a row already linked to an auth user, else the oldest.
+    const existingPerson = personMatches?.find((p) => p.auth_user_id) ?? personMatches?.[0] ?? null
 
     // Before trusting the people row's auth_user_id, verify it still points
     // at an auth user whose email matches the target. A stale row (e.g.
@@ -280,15 +293,31 @@ async function handler(req: Request) {
     // Step 5: Get the auth user ID
     let authUserId = currentAuthUserId
 
-    // If no auth user from JWT token, look up by email
+    // NEVER link the CALLER's auth user to a person with a different email.
+    // When an admin invites a member (source admin_member_invite etc.), the JWT
+    // is the ADMIN's — blindly attaching it stamped the admin's auth_user_id
+    // onto invited people, so the admin's portal person-lookup then matched
+    // several rows and their profile/wizard broke (observed in prod 2026-07-07:
+    // dbaker's auth user owned rahul's + demetrios's people rows).
+    if (authUserId && !(await authUserMatchesEmail(authUserId, email))) {
+      console.log('JWT user email differs from person email — not linking caller auth user')
+      authUserId = null
+    }
+
+    // If no auth user from JWT token, look up by email. listUsers is paged —
+    // the bare call returns only the first 50 users, so past that point the
+    // lookup silently missed existing users and the createUser below 500'd
+    // with "already registered". Page through until found.
     if (!authUserId) {
       console.log('No auth user from token, looking up by email...')
-      const { data: { users }, error: listError } = await supabase.auth.admin.listUsers()
-      if (!listError && users) {
-        const existingUser = users.find(u => u.email?.toLowerCase() === email.toLowerCase())
-        authUserId = existingUser?.id || null
-        console.log('Found auth user by email:', authUserId)
+      const target = email.toLowerCase()
+      for (let page = 1; page <= 200 && !authUserId; page++) {
+        const { data: { users }, error: listError } = await supabase.auth.admin.listUsers({ page, perPage: 1000 })
+        if (listError || !users?.length) break
+        authUserId = users.find(u => u.email?.toLowerCase() === target)?.id || null
+        if (users.length < 1000) break
       }
+      console.log('Found auth user by email:', authUserId)
     }
 
     // If still no auth user, create one (for admin invites)
@@ -334,12 +363,16 @@ async function handler(req: Request) {
     }
 
     // Step 6: Create or update person record in Supabase with the cio_id from Customer.io
-    // Check if person already exists (by email or cio_id)
-    const { data: existingPersonRecord } = await supabase
+    // Check if person already exists (by email or cio_id). Same duplicate-row
+    // hazard as Step 1: maybeSingle() errors when case-variant duplicates
+    // exist, which read as "no person" and inserted another duplicate. Fetch
+    // all matches and pick deterministically (auth-linked first, else oldest).
+    const { data: recordMatches } = await supabase
       .from('people')
       .select('id, cio_id, email, auth_user_id, attributes')
-      .or(`email.ilike.${email},cio_id.eq.${cioId}`)
-      .maybeSingle()
+      .or(`email.ilike.${emailPattern},cio_id.eq.${cioId}`)
+      .order('created_at', { ascending: true })
+    const existingPersonRecord = recordMatches?.find((p) => p.auth_user_id) ?? recordMatches?.[0] ?? null
 
     let person
 
