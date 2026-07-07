@@ -70,6 +70,16 @@ spec:
                   key: MCP_PUBLIC_API_KEY
             - name: MCP_RATE_LIMIT_RPM
               value: {{ .Values.mcpPublic.rateLimitRpm | default 120 | quote }}
+            {{- if .Values.mcpPublic.brandName }}
+            # Brand identity in the MCP initialize instructions — agents
+            # treat brand-name questions as platform-wide, not sub-entity.
+            - name: GATEWAZE_BRAND_NAME
+              value: {{ .Values.mcpPublic.brandName | quote }}
+            {{- end }}
+            {{- if .Values.mcpPublic.brandDescription }}
+            - name: GATEWAZE_BRAND_DESCRIPTION
+              value: {{ .Values.mcpPublic.brandDescription | quote }}
+            {{- end }}
           resources:
             requests:
               cpu: {{ .Values.mcpPublic.resources.requests.cpu | default "25m" }}

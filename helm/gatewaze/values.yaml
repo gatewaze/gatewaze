@@ -606,6 +606,13 @@ mcpPublic:
   apiKey: ""
   # -- Per-IP request limit per minute (in-process sliding window).
   rateLimitRpm: 120
+  # -- Brand identity surfaced to agents via MCP initialize instructions,
+  # e.g. "AAIF (Agentic AI Foundation)". Prevents agents treating the
+  # brand name as a calendar/topic to search for within the platform.
+  brandName: ""
+  # -- Optional extra sentence(s) describing what the platform's content
+  # covers, appended to the instructions.
+  brandDescription: ""
   replicaCount: 1
   image:
     repository: ghcr.io/gatewaze/mcp-public

@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { createApiClient } from './lib/supabase.js';
-import { createGatewazeMcpServer, type McpProfile } from './server.js';
+import { buildInstructions, createGatewazeMcpServer, type McpProfile } from './server.js';
 
 const transport = process.env.MCP_TRANSPORT ?? 'stdio';
 
@@ -10,6 +10,14 @@ const transport = process.env.MCP_TRANSPORT ?? 'stdio';
 // The server STILL needs GATEWAZE_MCP_API_KEY — it authenticates to the
 // platform API itself with a read-scoped key; connecting clients send nothing.
 const profile: McpProfile = process.env.MCP_PROFILE === 'public' ? 'public' : 'full';
+
+// Brand identity surfaced to agents at initialize time (MCP `instructions`).
+// Set GATEWAZE_BRAND_NAME (e.g. "AAIF (Agentic AI Foundation)") so agents
+// treat brand-name questions as platform-wide, not as a sub-entity lookup.
+const instructions = buildInstructions(
+  process.env.GATEWAZE_BRAND_NAME,
+  process.env.GATEWAZE_BRAND_DESCRIPTION,
+);
 
 const api = createApiClient();
 
@@ -77,7 +85,7 @@ async function handleMcpHttpRequest(
   // Stateless mode: the SDK (≥1.13) requires a fresh transport + server pair
   // per request — a long-lived stateless transport only survives its first
   // request. Construction is cheap (tool tables in memory, no I/O).
-  const requestServer = createGatewazeMcpServer(api, { profile, logMeta: { ip } });
+  const requestServer = createGatewazeMcpServer(api, { profile, logMeta: { ip }, instructions });
   const requestTransport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
   res.on('close', () => {
     void requestTransport.close();
@@ -89,7 +97,7 @@ async function handleMcpHttpRequest(
 
 async function main() {
   if (transport === 'stdio') {
-    const server = createGatewazeMcpServer(api, { profile });
+    const server = createGatewazeMcpServer(api, { profile, instructions });
     const shutdown = () => {
       console.error('Shutting down MCP server...');
       server.close().then(() => process.exit(0)).catch(() => process.exit(1));

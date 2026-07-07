@@ -894,6 +894,10 @@ services:
       # and a read-only key makes that a guarantee rather than a convention.
       GATEWAZE_MCP_API_KEY: ${MCP_PUBLIC_API_KEY:-}
       MCP_RATE_LIMIT_RPM: ${MCP_PUBLIC_RATE_LIMIT_RPM:-120}
+      # Brand identity in the MCP initialize instructions, so agents treat
+      # brand-name questions as platform-wide. Falls back to the app name.
+      GATEWAZE_BRAND_NAME: ${MCP_BRAND_NAME:-${GW_APP_NAME:-}}
+      GATEWAZE_BRAND_DESCRIPTION: ${MCP_BRAND_DESCRIPTION:-}
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:8080/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
       interval: 30s
