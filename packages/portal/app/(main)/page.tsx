@@ -42,9 +42,10 @@ export default async function HomePage() {
   // Public Home in the workspace-shell design: upcoming events + latest posts (spec §8.1).
   return (
     <PubHome
-      upcomingEvents={(eventData.upcoming ?? []).slice(0, 4) as never[]}
+      upcomingEvents={(eventData.upcoming ?? []).slice(0, 24) as never[]}
       blogPosts={blogPosts}
       storageBucketUrl={brandConfig.storageBucketUrl}
+      eventTypes={brandConfig.eventTypes}
     />
   )
 }

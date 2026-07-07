@@ -180,6 +180,9 @@
   background: repeating-linear-gradient(45deg, rgba(var(--ui-text),0.04), rgba(var(--ui-text),0.04) 10px, rgba(var(--ui-text),0.07) 10px, rgba(var(--ui-text),0.07) 20px); }
 .pub-cover.lg { aspect-ratio: 21/9; margin: 14px 0 8px; }
 .pub-cover > img { width: 100%; height: 100%; object-fit: cover; }
+/* Natural-aspect cover (event posters keep their original ratio, no 16:10 crop). */
+.pub-cover.natural { aspect-ratio: auto; }
+.pub-cover.natural > img { height: auto; object-fit: contain; }
 .pub-card-body { padding: 14px 6px 4px; }
 .pub-cat { display: inline-block; font: 600 12px var(--font-sans); color: var(--ink);
   background: rgba(var(--ui-text), 0.13); padding: 3px 11px; border-radius: 999px; }
@@ -287,6 +290,11 @@
   .pub-nl-card { grid-template-columns: 1fr; padding: 20px; gap: 20px; }
   .pub-nl-editions { border-left: 0; padding-left: 0; border-top: 1px solid var(--line); padding-top: 20px; }
 }
+/* Home: one sub-section per event type (resources-style card grids). */
+.pub-typesec { margin-top: 26px; }
+.pub-typesec:first-of-type { margin-top: 4px; }
+.pub-typesec-h { font: 600 19px var(--font-display); color: var(--ink); letter-spacing: -0.01em; margin: 0 0 2px; }
+.pub-typesec .pub-grid { margin-top: 12px; }
 .pub-ev-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 24px; }
 .pub-ev { display: flex; overflow: hidden; min-height: 150px; background: var(--paper); border: 1px solid rgba(var(--ui-text), 0.10);
   border-radius: 12px; transition: border-color .2s ease, filter .2s ease; text-decoration: none; }
