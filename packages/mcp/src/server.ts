@@ -100,6 +100,35 @@ const TOOLS = [
       properties: {},
     },
   },
+  {
+    name: 'content_get',
+    description:
+      "Get the FULL public record for a single content item found via content_list, including body content where the platform exposes it (newsletter editions include their full block content; events include descriptions; resource items include their public fields). Pass the type and id exactly as returned by content_list.",
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        type: {
+          type: 'string',
+          description: "Content type from content_list (e.g. 'event', 'newsletter_edition', 'resource')",
+        },
+        id: { type: 'string', description: 'Item id from content_list' },
+      },
+      required: ['type', 'id'],
+    },
+  },
+  {
+    name: 'calendars_list',
+    description:
+      "List the platform's public calendars (name, slug, description, event_count, calendar_id). Use this to resolve a calendar name to the calendar_id accepted by events_search — e.g. to scope event queries to one community's calendar.",
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        q: { type: 'string', description: 'Filter by calendar name (partial match)' },
+        limit: { type: 'number', description: 'Max results (default 25, max 100)' },
+        offset: { type: 'number', description: 'Skip N results (default 0)' },
+      },
+    },
+  },
 
   // ── Structured resources (require an API key with resources:write) ──────
   {
@@ -359,6 +388,49 @@ async function handleContentList(
   return api.get('/content', queryParams);
 }
 
+async function handleContentGet(
+  params: Record<string, unknown>,
+  api: GatewazeApiClient,
+) {
+  const type = String(params.type ?? '');
+  const id = String(params.id ?? '');
+  switch (type) {
+    case 'event':
+      return api.get(`/events/${id}`);
+    case 'newsletter_edition': {
+      // The edition record and its full block content are separate public
+      // endpoints — merge so agents get metadata + body in one call.
+      const [edition, content] = await Promise.all([
+        api.get<{ data?: unknown }>(`/newsletters/editions/${id}`),
+        api.get<{ data?: unknown }>(`/newsletters/editions/${id}/content`),
+      ]);
+      return {
+        data: {
+          ...(edition as { data?: Record<string, unknown> }).data,
+          content: (content as { data?: unknown }).data ?? content,
+        },
+      };
+    }
+    case 'resource':
+      return api.get(`/resources/items/${id}`);
+    default:
+      throw new Error(
+        `Unsupported content type '${type}' — pass a type returned by content_list (event, newsletter_edition, resource)`,
+      );
+  }
+}
+
+async function handleCalendarsList(
+  params: Record<string, unknown>,
+  api: GatewazeApiClient,
+) {
+  const queryParams: Record<string, string | number | undefined> = {};
+  if (params.q) queryParams.q = String(params.q);
+  if (params.limit) queryParams.limit = Number(params.limit);
+  if (params.offset) queryParams.offset = Number(params.offset);
+  return api.get('/calendars', queryParams);
+}
+
 // ── Structured-resources handlers ────────────────────────────────────────
 // Thin wrappers over the resources module's management API
 // (/api/v1/resources/*, resources:write scope). Body-building strips the
@@ -415,6 +487,8 @@ const PUBLIC_PROFILE_TOOLS = new Set([
   'platform_health',
   'content_list',
   'content_categories',
+  'content_get',
+  'calendars_list',
 ]);
 
 /**
@@ -515,6 +589,12 @@ export function createGatewazeMcpServer(
           break;
         case 'content_categories':
           result = await api.get('/categories');
+          break;
+        case 'content_get':
+          result = await handleContentGet(params, api);
+          break;
+        case 'calendars_list':
+          result = await handleCalendarsList(params, api);
           break;
         case 'resources_collections_list':
           result = await handleResourcesCollectionsList(params, api);

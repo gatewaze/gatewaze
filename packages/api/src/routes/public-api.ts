@@ -473,6 +473,8 @@ export async function createPublicApiRouter(
       { name: 'platform_health', description: 'Check Gatewaze platform health and module count.' },
       { name: 'content_list', description: 'Unified read-only feed of public content across all enabled modules.' },
       { name: 'content_categories', description: 'List configured content categories.' },
+      { name: 'content_get', description: 'Full public record for one content item, including body where exposed.' },
+      { name: 'calendars_list', description: 'Public calendar directory with event counts (resolve names to calendar_id).' },
       { name: 'resources_collections_list', description: 'List structured-resource collections, drafts included (resources:write).' },
       { name: 'resources_collection_get', description: 'Get a collection with its categories and section templates (resources:write).' },
       { name: 'resources_collection_create', description: 'Create a structured-resource collection (resources:write).' },
