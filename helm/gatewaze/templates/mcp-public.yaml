@@ -1,0 +1,113 @@
+{{- if .Values.mcpPublic.enabled }}
+###############################################################################
+# mcp-public — the PUBLIC keyless MCP endpoint (packages/mcp with
+# MCP_PROFILE=public). Serves the read-only tool profile (events_*,
+# content_*, platform_health) over streamable HTTP with NO client
+# authentication: the pod holds a read-scoped platform API key
+# (mcpPublic.apiKey → MCP_PUBLIC_API_KEY in the chart secret) and calls the
+# platform API on clients' behalf. Per-IP rate limiting + CORS are handled
+# in-process.
+#
+# Unlike events-mcp (internal-only, service-role, NetworkPolicy-fenced),
+# this service is EXPOSED through the ingress at ingress.hosts.mcp — that is
+# its entire purpose. Never grant the key write scopes: the public profile
+# hides write tools, and a read-only key makes that a guarantee.
+#
+# Toggle: set `mcpPublic.enabled: true` + `mcpPublic.apiKey` +
+# `ingress.hosts.mcp` in values-{brand}.yaml.
+###############################################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "gatewaze.fullname" . }}-mcp-public
+  labels:
+    {{- include "gatewaze.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mcp-public
+spec:
+  replicas: {{ .Values.mcpPublic.replicaCount | default 1 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "gatewaze.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: mcp-public
+  template:
+    metadata:
+      labels:
+        {{- include "gatewaze.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: mcp-public
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: mcp-public
+          image: "{{ .Values.mcpPublic.image.repository }}:{{ .Values.mcpPublic.image.tag }}"
+          imagePullPolicy: {{ .Values.mcpPublic.image.pullPolicy | default "IfNotPresent" }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: MCP_TRANSPORT
+              value: "http"
+            - name: MCP_PROFILE
+              value: "public"
+            - name: PORT
+              value: "8080"
+            # Internal service URL — MCP traffic terminates here and the pod
+            # calls the platform API over the cluster network.
+            - name: GATEWAZE_API_URL
+              value: "http://{{ include "gatewaze.fullname" . }}-api:3002"
+            - name: GATEWAZE_MCP_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "gatewaze.fullname" . }}-secret
+                  key: MCP_PUBLIC_API_KEY
+            - name: MCP_RATE_LIMIT_RPM
+              value: {{ .Values.mcpPublic.rateLimitRpm | default 120 | quote }}
+          resources:
+            requests:
+              cpu: {{ .Values.mcpPublic.resources.requests.cpu | default "25m" }}
+              memory: {{ .Values.mcpPublic.resources.requests.memory | default "64Mi" }}
+            limits:
+              cpu: {{ .Values.mcpPublic.resources.limits.cpu | default "250m" }}
+              memory: {{ .Values.mcpPublic.resources.limits.memory | default "256Mi" }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+            initialDelaySeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "gatewaze.fullname" . }}-mcp-public
+  labels:
+    {{- include "gatewaze.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mcp-public
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+  selector:
+    {{- include "gatewaze.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: mcp-public
+{{- end }}

@@ -120,6 +120,21 @@ jobs:
           build-args: |
             BUILD_TIME_GITHUB_TOKEN=${{ secrets.GH_PAT_MODULES }}
 
+      - name: Build and push mcp-public image
+        uses: docker/build-push-action@v6
+        with:
+          context: packages/mcp
+          file: packages/mcp/Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ghcr.io/gatewaze/mcp-public:${{ steps.version.outputs.VERSION }}
+            ghcr.io/gatewaze/mcp-public:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # Self-contained npm build (only external deps) — no module
+          # sources or PAT needed, unlike the app images above.
+
       - name: Build and push scheduler image
         uses: docker/build-push-action@v6
         with:
