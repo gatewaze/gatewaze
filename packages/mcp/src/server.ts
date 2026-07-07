@@ -518,9 +518,38 @@ function logCall(entry: Record<string, unknown>): void {
   console.error(JSON.stringify({ evt: 'mcp_call', ts: new Date().toISOString(), ...entry }));
 }
 
+/**
+ * Server-level instructions shown to connecting agents at initialize time.
+ * Without this, agents know the tools but not WHOSE data they serve — real
+ * test sessions showed an agent treating the brand name as a sub-entity
+ * (hunting for an "AAIF" calendar/topic) because nothing said "this whole
+ * server IS that brand".
+ */
+export function buildInstructions(brandName?: string, brandDescription?: string): string {
+  const brand = brandName?.trim();
+  const lines: string[] = [];
+  if (brand) {
+    lines.push(
+      `This MCP server serves the public content of ${brand}.`,
+      `Everything these tools return belongs to ${brand}'s platform — when a user mentions "${brand}" (or "the platform" / "the community"), they mean this ENTIRE dataset, not a calendar, topic, or category within it. Platform-wide questions ("how many events does ${brand} have?") are answered by the unfiltered totals.`,
+    );
+    if (brandDescription?.trim()) lines.push(brandDescription.trim());
+  } else {
+    lines.push('This MCP server serves the public content of a Gatewaze community platform.');
+  }
+  lines.push(
+    'Use content_list/content_get for cross-module content (newsletter editions, blog posts, resource items, events); events_* for event specifics; calendars_list only to scope queries to a named sub-calendar within the platform.',
+  );
+  return lines.join('\n\n');
+}
+
 export function createGatewazeMcpServer(
   api: GatewazeApiClient,
-  opts: { profile?: McpProfile; logMeta?: Record<string, unknown> } = {},
+  opts: {
+    profile?: McpProfile;
+    logMeta?: Record<string, unknown>;
+    instructions?: string;
+  } = {},
 ): Server {
   const profile = opts.profile ?? 'full';
   const logMeta = opts.logMeta ?? {};
@@ -531,7 +560,10 @@ export function createGatewazeMcpServer(
 
   const server = new Server(
     { name: profile === 'public' ? 'gatewaze-mcp-public' : 'gatewaze-mcp', version: '0.3.0' },
-    { capabilities: { tools: {} } },
+    {
+      capabilities: { tools: {} },
+      ...(opts.instructions ? { instructions: opts.instructions } : {}),
+    },
   );
 
   // List tools
