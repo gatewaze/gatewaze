@@ -80,6 +80,16 @@ spec:
             - name: GATEWAZE_BRAND_DESCRIPTION
               value: {{ .Values.mcpPublic.brandDescription | quote }}
             {{- end }}
+            {{- if and .Values.mcpPublic.brandId .Values.mcpPublic.portalUrl }}
+            # Portal AI-search backend for the semantic `search` tool
+            # (embeddings-based, published-only). PUBLIC portal URL — the
+            # portal's canonical-host middleware 307s internal service
+            # hostnames, so the call must arrive with the real Host.
+            - name: GATEWAZE_PORTAL_URL
+              value: {{ .Values.mcpPublic.portalUrl | quote }}
+            - name: GATEWAZE_BRAND_ID
+              value: {{ .Values.mcpPublic.brandId | quote }}
+            {{- end }}
           resources:
             requests:
               cpu: {{ .Values.mcpPublic.resources.requests.cpu | default "25m" }}

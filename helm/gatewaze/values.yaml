@@ -613,6 +613,12 @@ mcpPublic:
   # -- Optional extra sentence(s) describing what the platform's content
   # covers, appended to the instructions.
   brandDescription: ""
+  # -- Brand id for the portal's /api/ai-search (e.g. "aaif"). Enables the
+  # semantic `search` tool together with portalUrl; empty disables it.
+  brandId: ""
+  # -- PUBLIC portal base URL for /api/ai-search (e.g. "https://aaif.live").
+  # Must be the canonical host — the portal 307s other Host headers.
+  portalUrl: ""
   replicaCount: 1
   image:
     repository: ghcr.io/gatewaze/mcp-public

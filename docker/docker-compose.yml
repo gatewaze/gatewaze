@@ -901,6 +901,16 @@ services:
       # brand-name questions as platform-wide. Falls back to the app name.
       GATEWAZE_BRAND_NAME: ${MCP_BRAND_NAME:-${GW_APP_NAME:-}}
       GATEWAZE_BRAND_DESCRIPTION: ${MCP_BRAND_DESCRIPTION:-}
+      # Portal AI-search backend for the semantic `search` tool (embeddings,
+      # published-only). Tool is disabled when either is unset. Uses the
+      # PUBLIC portal URL: the portal's canonical-host middleware 307s
+      # requests whose Host header is an internal service name.
+      GATEWAZE_PORTAL_URL: http://${PORTAL_HOST:-app.gatewaze.localhost}
+      GATEWAZE_BRAND_ID: ${BRAND_ID:-default}
+    # Resolve the portal's *.localhost hostname to the host's traefik —
+    # same pattern as the api service's SUPABASE_HOST/FETCH_HOST mappings.
+    extra_hosts:
+      - "${PORTAL_HOST:-app.gatewaze.localhost}:host-gateway"
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:8080/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
       interval: 30s

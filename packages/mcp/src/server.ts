@@ -11,7 +11,7 @@ const TOOLS = [
   {
     name: 'events_search',
     description:
-      'Search events by title, date range, city, type, or topics. Returns paginated results.',
+      "Search PUBLISHED events by date range, city, type, topics, or calendar. Everything returned is already published/live on the portal — there is no draft state on this surface. The response's pagination.total is the COMPLETE count of published events matching the filters: to answer 'how many events…' call with limit=1 and read pagination.total (or use platform_stats).",
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -74,7 +74,7 @@ const TOOLS = [
   {
     name: 'content_list',
     description:
-      'Unified read-only feed of public content across ALL enabled modules — events, blog posts, newsletter editions, resource items, and any module that publishes content — sorted newest first. Filter by type or category. Pass full=true to include the complete public record for each row.',
+      "Unified read-only feed of PUBLISHED content across ALL enabled modules — events, newsletter editions, resource items, and any module that publishes content — sorted newest first. Filter by type or category; pass full=true for the complete public record per row. pagination.total is the complete published count for the given filters (use limit=1 for count questions).",
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -119,7 +119,7 @@ const TOOLS = [
   {
     name: 'calendars_list',
     description:
-      "List the platform's public calendars (name, slug, description, event_count, calendar_id). Use this to resolve a calendar name to the calendar_id accepted by events_search — e.g. to scope event queries to one community's calendar.",
+      "List the platform's public calendars (name, slug, description, event_count, calendar_id). Use this ONLY to scope event queries to a named sub-calendar via events_search's calendar_id — platform-wide questions need no calendar.",
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -127,6 +127,32 @@ const TOOLS = [
         limit: { type: 'number', description: 'Max results (default 25, max 100)' },
         offset: { type: 'number', description: 'Skip N results (default 0)' },
       },
+    },
+  },
+  {
+    name: 'platform_stats',
+    description:
+      "Counts of PUBLISHED content on this platform: total and upcoming events, newsletter editions, resource items, public calendars, and total content items. Call this FIRST for any 'how many …' question.",
+    inputSchema: {
+      type: 'object' as const,
+      properties: {},
+    },
+  },
+  {
+    name: 'search',
+    description:
+      "AI-powered semantic search over the platform's PUBLISHED content (events and blog posts). Interprets natural-language queries by meaning, not keywords — use this when the user is looking for content about a topic ('AI governance talks', 'articles on agent memory') rather than filtering by structured fields. Returns ranked results with match reasons plus a summary.",
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        query: { type: 'string', description: 'Natural-language search query' },
+        content_types: {
+          type: 'array',
+          items: { type: 'string' },
+          description: "Restrict to content types, e.g. ['events'] or ['blog'] (default: all)",
+        },
+      },
+      required: ['query'],
     },
   },
 
@@ -431,6 +457,64 @@ async function handleCalendarsList(
   return api.get('/calendars', queryParams);
 }
 
+type Paginated = { pagination?: { total?: number } };
+
+async function handlePlatformStats(api: GatewazeApiClient) {
+  const today = new Date().toISOString().slice(0, 10);
+  const total = async (path: string, params?: Record<string, string | number>) => {
+    try {
+      const r = await api.get<Paginated>(path, { ...params, limit: 1 });
+      return r.pagination?.total ?? null;
+    } catch {
+      return null; // module disabled / scope missing — omit rather than fail the whole call
+    }
+  };
+  const [events, upcoming, editions, resources, calendars, allContent] = await Promise.all([
+    total('/events'),
+    total('/events', { from: today }),
+    total('/content', { type: 'newsletter_edition' }),
+    total('/content', { type: 'resource' }),
+    total('/calendars'),
+    total('/content'),
+  ]);
+  return {
+    data: {
+      published_events: { total: events, upcoming },
+      newsletter_editions: editions,
+      resource_items: resources,
+      public_calendars: calendars,
+      all_content_items: allContent,
+      note: 'Counts cover PUBLISHED content only — this surface has no drafts.',
+    },
+  };
+}
+
+export interface SearchBackend {
+  /** Portal base URL, e.g. http://portal:3100 (internal) */
+  portalUrl: string;
+  brandId: string;
+}
+
+async function handleSearch(
+  params: Record<string, unknown>,
+  search: SearchBackend,
+) {
+  const query = String(params.query ?? '').trim();
+  if (!query) throw new Error('query is required');
+  const body: Record<string, unknown> = { query, brandId: search.brandId };
+  if (Array.isArray(params.content_types) && params.content_types.length > 0) {
+    body.contentTypes = params.content_types.map(String);
+  }
+  const res = await fetch(`${search.portalUrl.replace(/\/+$/, '')}/api/ai-search`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const payload = (await res.json().catch(() => ({}))) as { error?: string };
+  if (!res.ok) throw new Error(payload.error ?? `search failed (${res.status})`);
+  return payload;
+}
+
 // ── Structured-resources handlers ────────────────────────────────────────
 // Thin wrappers over the resources module's management API
 // (/api/v1/resources/*, resources:write scope). Body-building strips the
@@ -485,10 +569,12 @@ const PUBLIC_PROFILE_TOOLS = new Set([
   'events_speakers',
   'events_sponsors',
   'platform_health',
+  'platform_stats',
   'content_list',
   'content_categories',
   'content_get',
   'calendars_list',
+  'search',
 ]);
 
 /**
@@ -549,13 +635,17 @@ export function createGatewazeMcpServer(
     profile?: McpProfile;
     logMeta?: Record<string, unknown>;
     instructions?: string;
+    /** Portal AI-search backend — the `search` tool is only registered when set. */
+    search?: SearchBackend;
   } = {},
 ): Server {
   const profile = opts.profile ?? 'full';
   const logMeta = opts.logMeta ?? {};
-  const tools = profile === 'public'
-    ? TOOLS.filter((t) => PUBLIC_PROFILE_TOOLS.has(t.name))
-    : TOOLS;
+  const tools = TOOLS.filter(
+    (t) =>
+      (profile !== 'public' || PUBLIC_PROFILE_TOOLS.has(t.name)) &&
+      (t.name !== 'search' || opts.search !== undefined),
+  );
   const allowedNames = new Set(tools.map((t) => t.name));
 
   const server = new Server(
@@ -627,6 +717,12 @@ export function createGatewazeMcpServer(
           break;
         case 'calendars_list':
           result = await handleCalendarsList(params, api);
+          break;
+        case 'platform_stats':
+          result = await handlePlatformStats(api);
+          break;
+        case 'search':
+          result = await handleSearch(params, opts.search!);
           break;
         case 'resources_collections_list':
           result = await handleResourcesCollectionsList(params, api);
