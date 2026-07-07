@@ -127,10 +127,13 @@ export async function generateMetadata(): Promise<Metadata> {
 
   return {
     title: {
-      default: `Event Portal | ${brandConfig.name}`,
+      // Pages set their own leaf titles via the template; the default is the
+      // bare brand name (what the home page shows). "Event Portal" was a relic
+      // from when the portal was events-only.
+      default: brandConfig.name,
       template: `%s | ${brandConfig.name}`,
     },
-    description: `Discover and register for events from ${brandConfig.name}`,
+    description: `${brandConfig.name} — events, news and resources from the community.`,
     icons: faviconIcons,
   }
 }

@@ -60,6 +60,21 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     return blogPostMetadata(blogPostMatch[1])
   }
 
+  // Generic fallback: title module pages by their nav label so /newsletters,
+  // /resources, /calendars, /blog etc. read as themselves instead of
+  // inheriting the layout's bare-brand default. Sub-pages that need richer
+  // metadata get their own matcher above.
+  try {
+    const modules = await getEnabledModules()
+    const seg = '/' + (path[0] || '')
+    const railItem = modules.railItems.find((it) => it.moduleId !== 'home' && it.href.split('?')[0].startsWith(seg))
+    if (railItem) {
+      return { title: railItem.full || railItem.label }
+    }
+  } catch {
+    /* fall through to the layout default */
+  }
+
   return {}
 }
 
@@ -68,6 +83,24 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
  * canonical_url) when set, else derives from title/excerpt. Canonical falls back
  * to the brand-domain self URL; a text/markdown alternate points at /md.
  */
+interface BlogPostMetaRow {
+  title: string
+  slug: string
+  excerpt: string | null
+  featured_image: string | null
+  published_at: string | null
+  updated_at: string | null
+  meta_title: string | null
+  meta_description: string | null
+  canonical_url: string | null
+  og_title: string | null
+  og_description: string | null
+  og_image: string | null
+  twitter_title: string | null
+  twitter_description: string | null
+  twitter_image: string | null
+}
+
 async function blogPostMetadata(slug: string): Promise<Metadata> {
   try {
     const brand = await getServerBrandConfig()
@@ -84,6 +117,7 @@ async function blogPostMetadata(slug: string): Promise<Metadata> {
       .eq('status', 'published')
       .eq('visibility', 'public')
       .maybeSingle()
+      .then((r) => ({ ...r, data: r.data as BlogPostMetaRow | null }))
     if (!post) return {}
 
     const path = `/blog/${post.slug}`
@@ -112,7 +146,10 @@ async function blogPostMetadata(slug: string): Promise<Metadata> {
         card: 'summary_large_image',
         title: post.twitter_title || title,
         description: post.twitter_description || description,
-        images: post.twitter_image || ogImage ? [post.twitter_image || ogImage] : undefined,
+        images: (() => {
+          const img = post.twitter_image || ogImage
+          return img ? [img] : undefined
+        })(),
       },
     }
   } catch (err) {
@@ -205,7 +242,7 @@ async function resourceCollectionMetadata(collectionSlug: string): Promise<Metad
     if (!collection) return {}
 
     const path = `/resources/${collectionSlug}`
-    const title = collection.meta_title || `${collection.name} — ${brand.name}`
+    const title = collection.meta_title || collection.name
     const description =
       collection.meta_description ||
       collection.description ||
@@ -318,7 +355,7 @@ async function newsletterCollectionMetadata(collectionSlug: string): Promise<Met
     if (!collection) return {}
 
     const path = `/newsletters/${collectionSlug}`
-    const title = `${collection.name} — ${brand.name}`
+    const title = collection.name
     const description = collection.description || `${collection.name} newsletter archive from ${brand.name}.`
     const ogImage = brand.logoUrl ?? brand.faviconUrl ?? undefined
 
