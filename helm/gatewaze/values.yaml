@@ -154,6 +154,18 @@ email:
     password: ""
 
 # =============================================================================
+# Public API Configuration
+# =============================================================================
+publicApi:
+  # -- Pepper for HMAC-SHA256 hashing of /api/v1 API keys. REQUIRED for
+  #    the public REST API and MCP server: without it the platform can
+  #    neither create keys (admin /api/api-keys 500s) nor verify them
+  #    (every X-API-Key call fails). Must be stable — rotating it
+  #    invalidates every issued key. Base64-encoded random bytes;
+  #    generate with: openssl rand -base64 32
+  apiKeyPepper: ""
+
+# =============================================================================
 # Ingress Configuration
 # =============================================================================
 ingress:
