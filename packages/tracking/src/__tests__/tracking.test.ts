@@ -232,3 +232,24 @@ describe('createServerTracker — page()', () => {
     expect(pageBody.properties.path).toBe('/events')
   })
 })
+
+describe('createServerTracker — anonymous identify (userId null)', () => {
+  it('sends Segment identify with anonymousId only', async () => {
+    const fetchImpl = okFetch()
+    const tracker = createServerTracker({ segmentWriteKey: 'wk123', fetchImpl })
+    await tracker.identify(null, { email: 'x@example.com', supabase_user_id: 'sb-1' }, { anonymousId: 'a1' })
+    const [url, init] = (fetchImpl as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toBe('https://api.segment.io/v1/identify')
+    const body = JSON.parse(init.body as string)
+    expect(body.userId).toBeUndefined()
+    expect(body.anonymousId).toBe('a1')
+    expect(body.traits).toMatchObject({ email: 'x@example.com', supabase_user_id: 'sb-1' })
+  })
+
+  it('skips Segment identify entirely with neither userId nor anonymousId', async () => {
+    const fetchImpl = okFetch()
+    const tracker = createServerTracker({ segmentWriteKey: 'wk123', fetchImpl })
+    await tracker.identify(null, { email: 'x@example.com' })
+    expect(fetchImpl).not.toHaveBeenCalled()
+  })
+})

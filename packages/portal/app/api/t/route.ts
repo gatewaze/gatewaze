@@ -72,13 +72,19 @@ export async function POST(req: NextRequest) {
       if (user) {
         const meta = (user.user_metadata ?? {}) as Record<string, unknown>
         const appMeta = (user.app_metadata ?? {}) as Record<string, unknown>
-        await tracker.identify(user.id, {
+        // Segment userId = the LFID sub when present. The LF workspace's
+        // identity space (Auth0 Actions source, LFX Unify) keys profiles
+        // on the LFID — sending our app-local Supabase uid as user_id
+        // would split profiles there. Non-LFID users identify
+        // anonymously (anonymousId + email traits merge instead), and
+        // the Supabase uid always rides along as a trait.
+        const lfidSub = typeof meta.lfid_sub === 'string' ? meta.lfid_sub : null
+        await tracker.identify(lfidSub, {
           ...sanitizeProperties(body.traits),
           // Authoritative traits from the verified session — clients can't
-          // omit or forge these. lfid_sub/lfid_username (set by the
-          // lfid-auth module) are the warehouse join keys to LF systems.
+          // omit or forge these.
           email: user.email,
-          ...(typeof meta.lfid_sub === 'string' ? { lfid_sub: meta.lfid_sub } : {}),
+          supabase_user_id: user.id,
           ...(typeof meta.lfid_username === 'string' ? { lfid_username: meta.lfid_username } : {}),
           ...(typeof appMeta.provider === 'string' ? { auth_provider: appMeta.provider } : {}),
         }, input)
