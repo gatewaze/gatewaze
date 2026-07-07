@@ -139,6 +139,15 @@ const TOOLS = [
     },
   },
   {
+    name: 'content_schema',
+    description:
+      'Describes the content types available on this platform and the fields each exposes — the summary row shape from content_list and the full public record from content_get / full=true. Call this when unsure what data exists or which fields a type has.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {},
+    },
+  },
+  {
     name: 'search',
     description:
       "AI-powered semantic search over the platform's PUBLISHED content (events and blog posts). Interprets natural-language queries by meaning, not keywords — use this when the user is looking for content about a topic ('AI governance talks', 'articles on agent memory') rather than filtering by structured fields. Returns ranked results with match reasons plus a summary.",
@@ -489,6 +498,33 @@ async function handlePlatformStats(api: GatewazeApiClient) {
   };
 }
 
+async function handleContentSchema(api: GatewazeApiClient) {
+  try {
+    return await api.get('/content/schema');
+  } catch {
+    // Older API deployments predate /content/schema — fall back to a slimmed
+    // OpenAPI index (endpoint summaries + parameter names), which those
+    // deployments do serve.
+    const spec = await api.get<{
+      paths?: Record<string, Record<string, { summary?: string; parameters?: Array<{ name?: string }> }>>;
+    }>('/openapi.json');
+    const endpoints: Array<Record<string, unknown>> = [];
+    for (const [path, methods] of Object.entries(spec.paths ?? {})) {
+      for (const [method, op] of Object.entries(methods ?? {})) {
+        endpoints.push({
+          endpoint: `${method.toUpperCase()} ${path}`,
+          summary: op?.summary,
+          parameters: (op?.parameters ?? []).map((p) => p?.name).filter(Boolean),
+        });
+      }
+    }
+    return {
+      note: 'content/schema unavailable on this deployment — OpenAPI endpoint index returned instead',
+      endpoints,
+    };
+  }
+}
+
 export interface SearchBackend {
   /** Portal base URL, e.g. http://portal:3100 (internal) */
   portalUrl: string;
@@ -570,6 +606,7 @@ const PUBLIC_PROFILE_TOOLS = new Set([
   'events_sponsors',
   'platform_health',
   'platform_stats',
+  'content_schema',
   'content_list',
   'content_categories',
   'content_get',
@@ -720,6 +757,9 @@ export function createGatewazeMcpServer(
           break;
         case 'platform_stats':
           result = await handlePlatformStats(api);
+          break;
+        case 'content_schema':
+          result = await handleContentSchema(api);
           break;
         case 'search':
           result = await handleSearch(params, opts.search!);

@@ -460,6 +460,33 @@ export async function createPublicApiRouter(
     res.send(DOCS_HTML);
   });
 
+  // Content-type schema registry — public (schema only, no data), derived
+  // from each enabled module's publicContentSources declaration. Gives
+  // agents self-serve field discoverability for /content and the MCP
+  // content_list/content_get tools without opening arbitrary queries.
+  router.get('/content/schema', (_req: Request, res: Response) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'public, max-age=300');
+
+    const types: Array<Record<string, unknown>> = [];
+    for (const mod of enabledModules) {
+      for (const source of mod.config.publicContentSources ?? []) {
+        types.push({
+          type: source.type,
+          module: mod.config.id,
+          module_name: mod.config.name,
+          scope: source.scope,
+          // Normalized row shape every /content item carries.
+          summary_fields: ['type', 'id', 'title', 'date', 'summary', 'content_category'],
+          // Full public record (?expand=full / content_get / full=true).
+          full_fields: source.fullFields ?? null,
+        });
+      }
+    }
+
+    res.json({ data: types, _links: { self: '/api/v1/content/schema' } });
+  });
+
   // MCP tool registry — public, derived from module contributions
   router.get('/mcp/tools', (_req: Request, res: Response) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -476,6 +503,7 @@ export async function createPublicApiRouter(
       { name: 'content_get', description: 'Full public record for one content item, including body where exposed.' },
       { name: 'calendars_list', description: 'Public calendar directory with published-event counts (resolve names to calendar_id).' },
       { name: 'platform_stats', description: 'Counts of published content: events, editions, resources, calendars.' },
+      { name: 'content_schema', description: 'Content types and the fields each exposes (summary + full record).' },
       { name: 'search', description: 'AI semantic search over published events and blog posts (when configured).' },
       { name: 'resources_collections_list', description: 'List structured-resource collections, drafts included (resources:write).' },
       { name: 'resources_collection_get', description: 'Get a collection with its categories and section templates (resources:write).' },
