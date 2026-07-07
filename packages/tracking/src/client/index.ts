@@ -1,35 +1,38 @@
 /**
- * Browser SDK.
+ * Browser SDK — first-party relay transport.
  *
- * One call fans out to every configured sink, so product code never
- * cares which vendor (if any) a brand has installed:
- *   - window.dataLayer + a DOM CustomEvent (GTM / custom integrations)
- *   - window.analytics (Segment, injected via admin tracking code)
- *   - window.umami (the analytics module's first-party store)
+ * Events are NOT sent to vendor endpoints from the browser. Every call
+ * POSTs to the portal's own relay (`/api/t`, same-origin), which:
+ *   - enforces consent server-side (the single enforcement point — it
+ *     reads the gw_consent cookie the consent UI mirrors),
+ *   - fans out to the first-party store (analytics module / Umami) and
+ *     Segment's HTTP API.
+ *
+ * Why: ad blockers kill cdn.segment.com / api.segment.io, but not the
+ * site's own origin. Same-origin also means the gw_aid anonymous-id and
+ * gw_consent cookies ride along on every request with zero plumbing.
+ *
+ * Local in-page sinks are still fed (window.dataLayer + a DOM
+ * CustomEvent) so GTM-style integrations keep working — those are
+ * in-page pushes, not network calls.
  *
  * The SDK also owns the first-party anonymous id (`gw_aid` cookie):
  * call ensureAnonymousId() once per session (consent-gated by the
- * caller) and every subsequent event/identify carries it, giving the
- * internal store the same anonymous→person join Segment does with
- * ajs_anonymous_id.
+ * caller) and the relay reads it from the request cookie.
  */
 
-import { ANONYMOUS_ID_COOKIE, type IdentifyTraits, type TrackProperties } from '../index'
+import type { IdentifyTraits, RelayEvent, TrackProperties } from '../index'
+import { ANONYMOUS_ID_COOKIE } from '../index'
 
 declare global {
   interface Window {
     dataLayer?: Record<string, unknown>[]
-    analytics?: {
-      track: (event: string, properties?: Record<string, unknown>) => void
-      page: (name?: string, properties?: Record<string, unknown>) => void
-      identify: (userId: string, traits?: Record<string, unknown>) => void
-    }
-    umami?: {
-      track: (event: string, properties?: Record<string, unknown>) => void
-      identify?: (data: Record<string, unknown>) => void
-    }
   }
 }
+
+/** Same-origin relay path. Deliberately short and generic — ad-blocker
+ *  filter lists match on things like /analytics/ or /track/. */
+const RELAY_PATH = '/api/t'
 
 // ---------------------------------------------------------------------------
 // Anonymous id
@@ -54,7 +57,7 @@ export function getAnonymousId(): string | null {
 /**
  * Return the visitor's anonymous id, minting + persisting one on first
  * call. Callers gate this on analytics consent — the SDK itself never
- * decides whether tracking is allowed.
+ * decides whether tracking is allowed (the relay does, server-side).
  */
 export function ensureAnonymousId(): string | null {
   if (typeof document === 'undefined') return null
@@ -68,16 +71,48 @@ export function ensureAnonymousId(): string | null {
 }
 
 // ---------------------------------------------------------------------------
-// Event fan-out
+// Relay transport
 // ---------------------------------------------------------------------------
 
-function withAnonymousId(properties?: TrackProperties): TrackProperties | undefined {
-  const anonymousId = getAnonymousId()
-  if (!anonymousId) return properties
-  return { anonymous_id: anonymousId, ...properties }
+function clientContext(): RelayEvent['client'] {
+  if (typeof window === 'undefined') return undefined
+  return {
+    url: window.location.href,
+    path: window.location.pathname,
+    referrer: document.referrer || undefined,
+    title: document.title || undefined,
+    screen: window.screen ? `${window.screen.width}x${window.screen.height}` : undefined,
+    language: navigator.language || undefined,
+  }
 }
 
-function pushEvent(event: string, properties?: TrackProperties) {
+function sendToRelay(payload: RelayEvent): void {
+  if (typeof window === 'undefined') return
+  const body = JSON.stringify(payload)
+  try {
+    // sendBeacon survives page unloads (link clicks that navigate away)
+    // and carries same-origin cookies. Falls back to keepalive fetch.
+    if (navigator.sendBeacon) {
+      const ok = navigator.sendBeacon(RELAY_PATH, new Blob([body], { type: 'application/json' }))
+      if (ok) return
+    }
+    void fetch(RELAY_PATH, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+      keepalive: true,
+      credentials: 'same-origin',
+    }).catch(() => undefined)
+  } catch {
+    /* tracking must never break the page */
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Event API
+// ---------------------------------------------------------------------------
+
+function pushLocal(event: string, properties?: TrackProperties) {
   if (typeof window === 'undefined') return
 
   window.dataLayer = window.dataLayer || []
@@ -89,34 +124,18 @@ function pushEvent(event: string, properties?: TrackProperties) {
 }
 
 export function trackEvent(event: string, properties?: TrackProperties) {
-  const props = withAnonymousId(properties)
-  pushEvent(event, props)
-  window.analytics?.track(event, props)
-  // First-party store (analytics module / Umami) — page views are auto-tracked
-  // by its tracker, so only custom events fan out here.
-  try {
-    window.umami?.track(event, props)
-  } catch {
-    /* first-party tracker absent/not ready — vendor path already fired */
-  }
+  pushLocal(event, properties)
+  sendToRelay({ type: 'track', event, properties, client: clientContext() })
 }
 
 export function trackPageView(name?: string, properties?: TrackProperties) {
-  const props = withAnonymousId(properties)
-  pushEvent('page_view', { page_name: name, ...props })
-  window.analytics?.page(name, props)
+  pushLocal('page_view', { page_name: name, ...properties })
+  sendToRelay({ type: 'page', event: name, properties, client: clientContext() })
 }
 
 export function identifyUser(userId: string, traits?: IdentifyTraits) {
-  const enriched = withAnonymousId(traits)
-  pushEvent('identify', { user_id: userId, ...enriched })
-  window.analytics?.identify(userId, enriched)
-  // Umami ≥2.13 session data (no-op guard for older trackers).
-  try {
-    window.umami?.identify?.({ user_id: userId, ...enriched })
-  } catch {
-    /* ignore */
-  }
+  pushLocal('identify', { user_id: userId, ...traits })
+  sendToRelay({ type: 'identify', userId, traits, client: clientContext() })
 }
 
 /**

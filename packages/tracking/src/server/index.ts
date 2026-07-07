@@ -54,10 +54,22 @@ export interface ServerTrackInput {
   userId?: string | null
   anonymousId?: string | null
   context?: TrackContext
+  /** Browser context relayed from the client SDK — lets first-party
+   *  pageviews carry the fields Umami's own tracker would have sent. */
+  client?: {
+    url?: string
+    path?: string
+    referrer?: string
+    title?: string
+    screen?: string
+    language?: string
+  }
 }
 
 export interface ServerTracker {
   track: (event: string, input?: ServerTrackInput) => Promise<void>
+  /** A page view. `name` is Segment's page name (optional). */
+  page: (name?: string, input?: ServerTrackInput) => Promise<void>
   identify: (userId: string, traits?: IdentifyTraits, input?: Omit<ServerTrackInput, 'userId'>) => Promise<void>
 }
 
@@ -97,7 +109,9 @@ export function createServerTracker(config: ServerTrackerConfig): ServerTracker 
     return propertyLookup
   }
 
-  async function sendToCollect(event: string, input: ServerTrackInput): Promise<void> {
+  /** event === null → a pageview (Umami distinguishes by the absence of
+   *  `name` in the payload). */
+  async function sendToCollect(event: string | null, input: ServerTrackInput): Promise<void> {
     if (!config.collectUrl) return
     const propertyId = await resolvePropertyId()
     if (!propertyId) return
@@ -120,14 +134,13 @@ export function createServerTracker(config: ServerTrackerConfig): ServerTracker 
       payload: {
         website: propertyId,
         hostname,
-        language: '',
-        screen: '',
-        title: '',
-        url: input.context?.url ?? '/',
+        language: input.client?.language ?? '',
+        screen: input.client?.screen ?? '',
+        title: input.client?.title ?? '',
+        url: input.client?.path ?? input.context?.url ?? '/',
         // NOTE: never null — Umami 3.x rejects `referrer: null` with a 400.
-        referrer: '',
-        name: event,
-        data,
+        referrer: input.client?.referrer ?? '',
+        ...(event === null ? {} : { name: event, data }),
       },
     }
 
@@ -147,7 +160,7 @@ export function createServerTracker(config: ServerTrackerConfig): ServerTracker 
   }
 
   async function sendToSegment(
-    endpoint: 'track' | 'identify',
+    endpoint: 'track' | 'page' | 'identify',
     body: Record<string, unknown>,
     input: ServerTrackInput,
   ): Promise<void> {
@@ -181,6 +194,25 @@ export function createServerTracker(config: ServerTrackerConfig): ServerTracker 
         sendToSegment('track', {
           event,
           properties: input.properties,
+          userId: input.userId ?? undefined,
+          anonymousId: input.anonymousId ?? undefined,
+        }, input),
+      ])
+    },
+
+    async page(name, input = {}) {
+      await Promise.all([
+        // null event name → Umami records a pageview, not a custom event.
+        sendToCollect(null, input),
+        sendToSegment('page', {
+          name: name || undefined,
+          properties: {
+            ...input.properties,
+            url: input.client?.url,
+            path: input.client?.path,
+            referrer: input.client?.referrer,
+            title: input.client?.title,
+          },
           userId: input.userId ?? undefined,
           anonymousId: input.anonymousId ?? undefined,
         }, input),

@@ -16,7 +16,7 @@
  */
 
 import type { NextRequest } from 'next/server'
-import { anonymousIdFromCookieHeader } from '@gatewaze/tracking'
+import { anonymousIdFromCookieHeader, hasAnalyticsConsent } from '@gatewaze/tracking'
 import { createServerTracker, type ServerTracker } from '@gatewaze/tracking/server'
 import type { TrackContext } from '@gatewaze/tracking'
 
@@ -38,12 +38,31 @@ export function getServerTracker(): ServerTracker {
   return tracker
 }
 
-/** Build the per-event context + anonymous id from an incoming request. */
+/** Tracker that swallows every call — returned when the visitor has
+ *  explicitly withdrawn analytics consent, so call sites never need
+ *  their own consent branching. */
+const noopTracker: ServerTracker = {
+  track: async () => undefined,
+  page: async () => undefined,
+  identify: async () => undefined,
+}
+
+/**
+ * Build the per-event context + anonymous id from an incoming request.
+ *
+ * CONSENT IS ENFORCED HERE: the gw_consent cookie (mirrored by the
+ * consent UI) is read server-side, and an explicit analytics denial
+ * returns a no-op tracker — backend emitters (RSVP routes, the /api/t
+ * relay) all share this single gate.
+ */
 export function getRequestTracking(req: NextRequest): {
   tracker: ServerTracker
   anonymousId: string | null
   context: TrackContext
+  consented: boolean
 } {
+  const cookieHeader = req.headers.get('cookie')
+  const consented = hasAnalyticsConsent(cookieHeader)
   const referer = req.headers.get('referer')
   let url: string | null = null
   try {
@@ -52,8 +71,8 @@ export function getRequestTracking(req: NextRequest): {
     /* unparsable referer */
   }
   return {
-    tracker: getServerTracker(),
-    anonymousId: anonymousIdFromCookieHeader(req.headers.get('cookie')),
+    tracker: consented ? getServerTracker() : noopTracker,
+    anonymousId: consented ? anonymousIdFromCookieHeader(cookieHeader) : null,
     context: {
       ip: req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null,
       userAgent: req.headers.get('user-agent'),
@@ -61,5 +80,6 @@ export function getRequestTracking(req: NextRequest): {
       origin: req.headers.get('origin') || (req.headers.get('host') ? `${req.nextUrl.protocol}//${req.headers.get('host')}` : null),
       url,
     },
+    consented,
   }
 }

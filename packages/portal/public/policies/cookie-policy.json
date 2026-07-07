@@ -1,5 +1,5 @@
 {
-  "version": "1.0",
+  "version": "1.1",
   "categories": {
     "necessary": {
       "label": "Necessary Cookies",
@@ -7,19 +7,19 @@
       "cookies": [
         {
           "name": "gatewaze-consent",
-          "purpose": "Cookie consent preferences storage",
-          "duration": "Persistent (1 year)",
+          "purpose": "Cookie consent preferences storage (browser localStorage)",
+          "duration": "Persistent",
           "type": "First-party",
-          "description": "Stores user cookie consent preferences and privacy choices. Essential for GDPR compliance.",
+          "description": "Stores your cookie consent choices in the browser. Essential for GDPR compliance.",
           "firstParty": true,
           "verified": true
         },
         {
-          "name": "gatewaze-anonymous-id",
-          "purpose": "Anonymous user identification for consent tracking",
-          "duration": "Persistent",
+          "name": "gw_consent",
+          "purpose": "Consent enforcement",
+          "duration": "400 days",
           "type": "First-party",
-          "description": "Links anonymous consent records to users when they provide their email.",
+          "description": "Mirrors your consent choices so our own servers can enforce them: when analytics consent is withdrawn, no tracking data is processed or forwarded anywhere. Essential for making your choice effective.",
           "firstParty": true,
           "verified": true
         },
@@ -47,8 +47,18 @@
     },
     "analytics": {
       "label": "Analytics Cookies",
-      "description": "These cookies help us understand how visitors interact with the website by collecting and reporting information anonymously.",
-      "cookies": []
+      "description": "These cookies help us understand how visitors use the website. All analytics is collected first-party: your browser only ever talks to this site's own servers, which store the data in our own analytics system and may forward it to our analytics processor. No third-party analytics scripts run in your browser and no third-party analytics cookies are set. Only active with analytics consent.",
+      "cookies": [
+        {
+          "name": "gw_aid",
+          "purpose": "Anonymous visitor identification",
+          "duration": "400 days",
+          "type": "First-party",
+          "description": "A random identifier that lets us count returning visitors and connect your activity to your account if you sign in. Set only with analytics consent; never shared with advertisers.",
+          "firstParty": true,
+          "verified": true
+        }
+      ]
     },
     "marketing": {
       "label": "Marketing Cookies",
@@ -71,5 +81,7 @@
       "cookies": []
     }
   },
-  "thirdPartyServices": ["Cloudflare"]
+  "thirdPartyServices": [
+    "Cloudflare"
+  ]
 }
