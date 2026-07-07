@@ -1,3 +1,5 @@
+import { supabase } from '@/lib/supabase';
+
 export interface ApiKey {
   id: string;
   name: string;
@@ -31,9 +33,18 @@ export interface CreateApiKeyResult {
 const apiUrl = (): string => import.meta.env.VITE_API_URL ?? '';
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  // /api/api-keys is JWT-gated — plain fetch() carries no Supabase session,
+  // so attach the access token per-call (same pattern as moduleService).
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  const headers = new Headers(init?.headers);
+  headers.set('Content-Type', 'application/json');
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
   const res = await fetch(`${apiUrl()}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
     ...init,
+    headers,
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
