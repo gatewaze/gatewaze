@@ -36,6 +36,11 @@ data:
   NEXT_PUBLIC_APP_URL: {{ printf "https://%s" .Values.ingress.hosts.portal | quote }}
   ADMIN_BASE_URL: {{ printf "https://%s" .Values.ingress.hosts.admin | quote }}
   VITE_API_URL: {{ printf "https://%s" .Values.ingress.hosts.api | quote }}
+  # Portal server components read GATEWAZE_API_URL for the first-party
+  # analytics embed (script tags the BROWSER loads, so this must be the
+  # public API origin, not the cluster-internal Service) and for the
+  # @gatewaze/tracking server tracker's /a/collect + /a/portal-config.
+  GATEWAZE_API_URL: {{ printf "https://%s" .Values.ingress.hosts.api | quote }}
   # Admin's Vite build reads VITE_PORTAL_URL to build RSVP links in
   # invite PDFs, party detail modals, QR codes, etc. Without it,
   # callers fall back to window.location.origin — which is the admin
