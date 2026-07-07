@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { getRequestTracking } from '@/lib/server-tracking'
 
 function getSupabase() {
   return createClient(
@@ -420,6 +421,22 @@ export async function POST(req: NextRequest) {
           version: party.version + 1,
         })
         .eq('id', party.id)
+
+      // Backend engagement event — fire-and-forget, joins the visitor's
+      // browser session via the gw_aid cookie + ip/UA threading.
+      const { tracker, anonymousId, context } = getRequestTracking(req)
+      void tracker.track('RSVP Submitted', {
+        properties: {
+          party_id: party.id,
+          invite_flow: 'invite',
+          accepted_members: acceptedMembers.size,
+          declined_members: declinedMembers.size,
+          plus_ones_added: plusOnesAdded,
+          module: 'events',
+        },
+        anonymousId,
+        context,
+      })
 
       return NextResponse.json({
         success: true,

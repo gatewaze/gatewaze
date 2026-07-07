@@ -23,6 +23,8 @@
       "@/*": ["./*"],
       "@gatewaze/shared/*": ["../shared/src/*"],
       "@gatewaze/shared": ["../shared/src"],
+      "@gatewaze/tracking/*": ["../tracking/src/*"],
+      "@gatewaze/tracking": ["../tracking/src"],
       "@gatewaze-modules/*": [
         "../../../gatewaze-modules/modules/*",
         "../../../gatewaze-modules/modules/*",

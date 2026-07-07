@@ -156,6 +156,21 @@ importers:
         specifier: '*'
         version: 19.2.6
 
+  ../gatewaze-modules/modules/broadcasts:
+    dependencies:
+      '@gatewaze-modules/ai':
+        specifier: '*'
+        version: link:../ai
+      '@gatewaze/shared':
+        specifier: '*'
+        version: link:../../../gatewaze/packages/shared
+      '@supabase/supabase-js':
+        specifier: '*'
+        version: 2.108.1
+      express:
+        specifier: '*'
+        version: 4.22.1
+
   ../gatewaze-modules/modules/bulk-emailing:
     dependencies:
       '@gatewaze/shared':
@@ -519,7 +534,7 @@ importers:
         version: link:../../../gatewaze/packages/shared
       '@puckeditor/core':
         specifier: ~0.21.3
-        version: 0.21.3(@floating-ui/dom@1.7.6)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(immer@10.2.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(use-sync-external-store@1.6.0(react@19.2.6))
+        version: 0.21.3(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(immer@10.2.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(use-sync-external-store@1.6.0(react@19.2.6))
       '@react-email/components':
         specifier: ^1.0.12
         version: 1.0.12(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -591,6 +606,24 @@ importers:
         specifier: '*'
         version: link:../../../gatewaze/packages/shared
 
+  ../gatewaze-modules/modules/resources:
+    dependencies:
+      '@gatewaze/shared':
+        specifier: '*'
+        version: link:../../../gatewaze/packages/shared
+      '@supabase/supabase-js':
+        specifier: '*'
+        version: 2.108.1
+      isomorphic-dompurify:
+        specifier: '*'
+        version: 3.1.0(@noble/hashes@1.8.0)
+      next:
+        specifier: '*'
+        version: 15.5.18(@opentelemetry/api@1.9.1)(@playwright/test@1.58.2)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      react:
+        specifier: '*'
+        version: 19.2.6
+
   ../gatewaze-modules/modules/scheduler:
     dependencies:
       '@gatewaze/shared':
@@ -646,7 +679,7 @@ importers:
         version: link:../../../gatewaze/packages/shared
       '@puckeditor/core':
         specifier: ~0.21.3
-        version: 0.21.3(@floating-ui/dom@1.7.6)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(immer@10.2.0)(react-dom@19.2.6(react@19.2.4))(react@19.2.4)(use-sync-external-store@1.6.0(react@19.2.4))
+        version: 0.21.3(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(immer@10.2.0)(react-dom@19.2.6(react@19.2.4))(react@19.2.4)(use-sync-external-store@1.6.0(react@19.2.4))
       isomorphic-dompurify:
         specifier: ^3.1.0
         version: 3.1.0(@noble/hashes@1.8.0)
@@ -716,24 +749,6 @@ importers:
       stripe:
         specifier: ^17.0.0
         version: 17.7.0
-
-  ../gatewaze-modules/modules/structured-resources:
-    dependencies:
-      '@gatewaze/shared':
-        specifier: '*'
-        version: link:../../../gatewaze/packages/shared
-      '@supabase/supabase-js':
-        specifier: '*'
-        version: 2.98.0
-      isomorphic-dompurify:
-        specifier: '*'
-        version: 3.1.0(@noble/hashes@1.8.0)
-      next:
-        specifier: '*'
-        version: 15.5.18(@opentelemetry/api@1.9.1)(@playwright/test@1.58.2)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      react:
-        specifier: '*'
-        version: 19.2.6
 
   ../gatewaze-modules/modules/surveys:
     dependencies:
@@ -842,12 +857,9 @@ importers:
       '@dnd-kit/utilities':
         specifier: ^3.2.2
         version: 3.2.2(react@19.2.4)
-      '@fontsource-variable/inter':
+      '@fontsource/inter':
         specifier: ^5.1.0
         version: 5.2.8
-      '@fontsource/poppins':
-        specifier: ^5.1.0
-        version: 5.2.7
       '@formkit/auto-animate':
         specifier: ^0.8.2
         version: 0.8.4
@@ -1585,6 +1597,18 @@ importers:
       typescript:
         specifier: ^5.9.0
         version: 5.9.3
+
+  packages/tracking:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.19
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.0
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@7.3.2(@types/node@22.19.19)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.2)(tsx@4.21.0)(yaml@2.8.3))
 
 packages:
 
@@ -2820,11 +2844,8 @@ packages:
   '@floating-ui/vue@1.1.9':
     resolution: {integrity: sha512-BfNqNW6KA83Nexspgb9DZuz578R7HT8MZw1CfK9I6Ah4QReNWEJsXWHN+SdmOVLNGmTPDi+fDT535Df5PzMLbQ==}
 
-  '@fontsource-variable/inter@5.2.8':
-    resolution: {integrity: sha512-kOfP2D+ykbcX/P3IFnokOhVRNoTozo5/JxhAIVYLpea/UBmCQ/YWPBfWIDuBImXX/15KH+eKh4xpEUyS2sQQGQ==}
-
-  '@fontsource/poppins@5.2.7':
-    resolution: {integrity: sha512-6uQyPmseo4FgI97WIhA4yWRlNaoLk4vSDK/PyRwdqqZb5zAEuc+Kunt8JTMcsHYUEGYBtN15SNkMajMdqUSUmg==}
+  '@fontsource/inter@5.2.8':
+    resolution: {integrity: sha512-P6r5WnJoKiNVV+zvW2xM13gNdFhAEpQ9dQJHt3naLvfg+LkF2ldgSLiF4T41lf1SQCM9QmkqPTn4TH568IRagg==}
 
   '@formkit/auto-animate@0.8.4':
     resolution: {integrity: sha512-DHHC01EJ1p70Q0z/ZFRBIY8NDnmfKccQoyoM84Tgb6omLMat6jivCdf272Y8k3nf4Lzdin/Y4R9q8uFtU0GbnA==}
@@ -13466,9 +13487,7 @@ snapshots:
       - '@vue/composition-api'
       - vue
 
-  '@fontsource-variable/inter@5.2.8': {}
-
-  '@fontsource/poppins@5.2.7': {}
+  '@fontsource/inter@5.2.8': {}
 
   '@formkit/auto-animate@0.8.4': {}
 
@@ -14993,7 +15012,7 @@ snapshots:
       - use-sync-external-store
       - utf-8-validate
 
-  '@puckeditor/core@0.21.3(@floating-ui/dom@1.7.6)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(immer@10.2.0)(react-dom@19.2.6(react@19.2.4))(react@19.2.4)(use-sync-external-store@1.6.0(react@19.2.4))':
+  '@puckeditor/core@0.21.3(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(immer@10.2.0)(react-dom@19.2.6(react@19.2.4))(react@19.2.4)(use-sync-external-store@1.6.0(react@19.2.4))':
     dependencies:
       '@dnd-kit/helpers': 0.1.18
       '@dnd-kit/react': 0.1.18(react-dom@19.2.6(react@19.2.4))(react@19.2.4)
@@ -15018,7 +15037,7 @@ snapshots:
       '@tiptap/extension-underline': 3.20.1(@tiptap/core@3.20.1(@tiptap/pm@3.20.1))
       '@tiptap/html': 3.22.5(@tiptap/core@3.20.1(@tiptap/pm@3.20.1))(@tiptap/pm@3.20.1)(happy-dom@20.9.0)
       '@tiptap/pm': 3.20.1
-      '@tiptap/react': 3.20.1(@floating-ui/dom@1.7.6)(@tiptap/core@3.20.1(@tiptap/pm@3.20.1))(@tiptap/pm@3.20.1)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.4))(react@19.2.4)
+      '@tiptap/react': 3.20.1(@tiptap/core@3.20.1(@tiptap/pm@3.20.1))(@tiptap/pm@3.20.1)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.4))(react@19.2.4)
       deep-diff: 1.0.2
       fast-equals: 5.2.2
       flat: 5.0.2
@@ -15039,7 +15058,7 @@ snapshots:
       - use-sync-external-store
       - utf-8-validate
 
-  '@puckeditor/core@0.21.3(@floating-ui/dom@1.7.6)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(immer@10.2.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(use-sync-external-store@1.6.0(react@19.2.6))':
+  '@puckeditor/core@0.21.3(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(immer@10.2.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(use-sync-external-store@1.6.0(react@19.2.6))':
     dependencies:
       '@dnd-kit/helpers': 0.1.18
       '@dnd-kit/react': 0.1.18(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -15064,7 +15083,7 @@ snapshots:
       '@tiptap/extension-underline': 3.20.1(@tiptap/core@3.20.1(@tiptap/pm@3.20.1))
       '@tiptap/html': 3.22.5(@tiptap/core@3.20.1(@tiptap/pm@3.20.1))(@tiptap/pm@3.20.1)(happy-dom@20.9.0)
       '@tiptap/pm': 3.20.1
-      '@tiptap/react': 3.20.1(@floating-ui/dom@1.7.6)(@tiptap/core@3.20.1(@tiptap/pm@3.20.1))(@tiptap/pm@3.20.1)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@tiptap/react': 3.20.1(@tiptap/core@3.20.1(@tiptap/pm@3.20.1))(@tiptap/pm@3.20.1)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       deep-diff: 1.0.2
       fast-equals: 5.2.2
       flat: 5.0.2
@@ -18022,7 +18041,7 @@ snapshots:
     transitivePeerDependencies:
       - '@floating-ui/dom'
 
-  '@tiptap/react@3.20.1(@floating-ui/dom@1.7.6)(@tiptap/core@3.20.1(@tiptap/pm@3.20.1))(@tiptap/pm@3.20.1)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.4))(react@19.2.4)':
+  '@tiptap/react@3.20.1(@tiptap/core@3.20.1(@tiptap/pm@3.20.1))(@tiptap/pm@3.20.1)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.4))(react@19.2.4)':
     dependencies:
       '@tiptap/core': 3.20.1(@tiptap/pm@3.20.1)
       '@tiptap/pm': 3.20.1
@@ -18039,7 +18058,7 @@ snapshots:
     transitivePeerDependencies:
       - '@floating-ui/dom'
 
-  '@tiptap/react@3.20.1(@floating-ui/dom@1.7.6)(@tiptap/core@3.20.1(@tiptap/pm@3.20.1))(@tiptap/pm@3.20.1)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
+  '@tiptap/react@3.20.1(@tiptap/core@3.20.1(@tiptap/pm@3.20.1))(@tiptap/pm@3.20.1)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
     dependencies:
       '@tiptap/core': 3.20.1(@tiptap/pm@3.20.1)
       '@tiptap/pm': 3.20.1
