@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { getEnabledModules, isModuleEnabled } from '@/lib/modules/enabledModules'
+import { getEnabledModules } from '@/lib/modules/enabledModules'
 import { getServerBrandConfig, type BrandConfig } from '@/config/brand'
 import { getEvents } from '@/lib/events'
 import { getBlogPosts } from '@/lib/blog'
@@ -33,10 +33,13 @@ export default async function HomePage() {
 
   const brandConfig = await getServerBrandConfig()
 
-  // Fetch preview data for each enabled content type in parallel
+  // Fetch preview data for each content type in parallel. Home sections gate
+  // on NAV VISIBILITY, not merely `enabled` — a module hidden from the menu is
+  // not ready for public consumption, so its preview must not surface here.
+  const navVisible = new Set(portalNavItems.map((n) => n.moduleId))
   const [eventData, blogPosts] = await Promise.all([
     getEvents(brandConfig.id),
-    isModuleEnabled(modules, 'blog') ? getBlogPosts(3) : Promise.resolve([]),
+    navVisible.has('blog') ? getBlogPosts(3) : Promise.resolve([]),
   ])
 
   // Public Home in the workspace-shell design: upcoming events + latest posts (spec §8.1).

@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation'
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { getEnabledModules, isModuleEnabled } from '@/lib/modules/enabledModules'
+import { getNavVisibleModuleIds } from '@/lib/modules/navVisible'
 import { findModulePage, extractParams } from '@/lib/modules/generated-portal-modules'
 import { createServerSupabase } from '@/lib/supabase/server'
 import { getServerBrandConfig } from '@/config/brand'
@@ -498,9 +499,16 @@ export default async function ModulePage({ params, searchParams }: Props) {
     notFound()
   }
 
-  // Check that the module is enabled
+  // Check that the module is enabled AND shown in the public navigation.
+  // Hiding a module's menu item is how an operator marks its content "not
+  // ready for public consumption", so its pages must not be reachable by
+  // direct URL either (same rule as the sitemap/feeds//md gates).
   const modules = await getEnabledModules()
   if (!isModuleEnabled(modules, page.moduleId)) {
+    redirect('/')
+  }
+  const navVisible = await getNavVisibleModuleIds()
+  if (!navVisible.has(page.moduleId)) {
     redirect('/')
   }
 
