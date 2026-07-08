@@ -4,7 +4,7 @@ import { PubBlogCard } from './PubBlogCard'
 import type { BlogPostPreview } from '@/lib/blog'
 
 /** Per-section cap so one busy type can't swallow the home page. */
-const EVENTS_PER_TYPE = 6
+const EVENTS_PER_TYPE = 3
 
 function humanizeType(value: string): string {
   return value.replace(/[-_]+/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase())

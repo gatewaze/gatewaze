@@ -183,6 +183,12 @@
 /* Natural-aspect cover (event posters keep their original ratio, no 16:10 crop). */
 .pub-cover.natural { aspect-ratio: auto; }
 .pub-cover.natural > img { height: auto; object-fit: contain; }
+/* Blog cards: flex column of equal height so the date row pins to the card's
+   bottom-left corner; white so it stands out against the card. */
+.pub-card-flex { display: flex; flex-direction: column; height: 100%; }
+.pub-card-flex .pub-card-body { display: flex; flex-direction: column; flex: 1; }
+.pub-card-flex .pub-card-body > h3, .pub-card-flex .pub-card-body > p { flex: 0 0 auto; }
+.pub-meta.pub-meta-pin { margin-top: auto; padding-top: 14px; color: #fff; }
 .pub-card-body { padding: 14px 6px 4px; }
 .pub-cat { display: inline-block; font: 600 12px var(--font-sans); color: var(--ink);
   background: rgba(var(--ui-text), 0.13); padding: 3px 11px; border-radius: 999px; }
