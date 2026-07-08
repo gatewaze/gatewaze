@@ -9,8 +9,10 @@ function fmtDate(d: string | null): string {
 /** Public blog post card — the prototype's `.pub-card`. Matches the blog module's index cards. */
 export function PubBlogCard({ post }: { post: BlogPostPreview }) {
   return (
-    <Link href={`/blog/${post.slug}`} className="pub-card gw-card-glow">
-      <div className="pub-cover">
+    <Link href={`/blog/${post.slug}`} className="pub-card pub-card-flex gw-card-glow">
+      {/* natural: show the whole cover at its own aspect ratio (no crop).
+          Placeholders keep the default fixed aspect so they don't collapse. */}
+      <div className={post.featured_image ? 'pub-cover natural' : 'pub-cover'}>
         {post.featured_image ? (
           <img src={post.featured_image} alt={post.featured_image_alt || post.title} />
         ) : (
@@ -25,7 +27,7 @@ export function PubBlogCard({ post }: { post: BlogPostPreview }) {
         )}
         <h3>{post.title}</h3>
         {post.excerpt && <p>{post.excerpt}</p>}
-        <div className="pub-meta">
+        <div className="pub-meta pub-meta-pin">
           {fmtDate(post.published_at)}
           {post.reading_time ? (
             <>
