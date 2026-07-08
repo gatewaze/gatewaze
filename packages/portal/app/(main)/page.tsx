@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { getEnabledModules } from '@/lib/modules/enabledModules'
 import { getServerBrandConfig, type BrandConfig } from '@/config/brand'
 import { getEvents } from '@/lib/events'
-import { getBlogPosts } from '@/lib/blog'
+import { getBlogPosts, getContentCategories, type BlogPostPreview } from '@/lib/blog'
 import { HomepageContent } from '@/components/homepage/HomepageContent'
 import { PubHome } from '@/components/public/PubHome'
 
@@ -37,16 +37,23 @@ export default async function HomePage() {
   // on NAV VISIBILITY, not merely `enabled` — a module hidden from the menu is
   // not ready for public consumption, so its preview must not surface here.
   const navVisible = new Set(portalNavItems.map((n) => n.moduleId))
-  const [eventData, blogPosts] = await Promise.all([
+  const showBlog = navVisible.has('blog')
+  const [eventData, blogAll, blogCategories] = await Promise.all([
     getEvents(brandConfig.id),
-    navVisible.has('blog') ? getBlogPosts(3) : Promise.resolve([]),
+    showBlog ? getBlogPosts(3) : Promise.resolve([] as BlogPostPreview[]),
+    showBlog ? getContentCategories() : Promise.resolve([]),
   ])
+  // Latest 3 per content category, fetched in parallel, for the filter chips.
+  const perCategory = showBlog
+    ? await Promise.all(blogCategories.map((c) => getBlogPosts(3, c.value)))
+    : []
+  const byCategory = Object.fromEntries(blogCategories.map((c, i) => [c.value, perCategory[i] ?? []]))
 
   // Public Home in the workspace-shell design: upcoming events + latest posts (spec §8.1).
   return (
     <PubHome
       upcomingEvents={(eventData.upcoming ?? []).slice(0, 24) as never[]}
-      blogPosts={blogPosts}
+      blogSection={showBlog ? { categories: blogCategories, all: blogAll, byCategory } : undefined}
       storageBucketUrl={brandConfig.storageBucketUrl}
       eventTypes={brandConfig.eventTypes}
     />

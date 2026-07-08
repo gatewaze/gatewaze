@@ -7,7 +7,7 @@ function fmtDate(d: string | null): string {
 }
 
 /** Public blog post card — the prototype's `.pub-card`. Matches the blog module's index cards. */
-export function PubBlogCard({ post }: { post: BlogPostPreview }) {
+export function PubBlogCard({ post, pill }: { post: BlogPostPreview; pill?: string | null }) {
   return (
     <Link href={`/blog/${post.slug}`} className="pub-card pub-card-flex gw-card-glow">
       {/* natural: show the whole cover at its own aspect ratio (no crop).
@@ -20,6 +20,7 @@ export function PubBlogCard({ post }: { post: BlogPostPreview }) {
         )}
       </div>
       <div className="pub-card-body">
+        {pill && <span className="pub-cat">{pill}</span>}
         {post.category && (
           <span className="pub-cat" style={post.category.color ? { color: post.category.color } : undefined}>
             {post.category.name}

@@ -188,10 +188,20 @@
 .pub-card-flex { display: flex; flex-direction: column; height: 100%; }
 .pub-card-flex .pub-card-body { display: flex; flex-direction: column; flex: 1; }
 .pub-card-flex .pub-card-body > h3, .pub-card-flex .pub-card-body > p { flex: 0 0 auto; }
+/* Pills are flex children here — stop them stretching to the card width. */
+.pub-card-flex .pub-card-body > .pub-cat { align-self: flex-start; }
 .pub-meta.pub-meta-pin { margin-top: auto; padding-top: 14px; color: #fff; }
 .pub-card-body { padding: 14px 6px 4px; }
 .pub-cat { display: inline-block; font: 600 12px var(--font-sans); color: var(--ink);
   background: rgba(var(--ui-text), 0.13); padding: 3px 11px; border-radius: 999px; }
+.pub-cat + .pub-cat { margin-left: 6px; }
+/* Content-category filter chips (home "Latest posts") */
+.pub-chiprow { display: flex; gap: 8px; flex-wrap: wrap; margin: 14px 0 2px; }
+.pub-chip { font: 600 13px var(--font-sans); color: var(--ink-3); background: none;
+  border: 1px solid rgba(var(--ui-text), 0.18); border-radius: 999px; padding: 5px 14px; cursor: pointer;
+  transition: color .15s ease, border-color .15s ease, background .15s ease; }
+.pub-chip:hover { color: var(--ink); border-color: rgba(var(--ui-text), 0.32); }
+.pub-chip.active { color: var(--ink); background: rgba(var(--ui-text), 0.13); border-color: transparent; }
 .pub-card h3, .pub-card-body h3 { font: 600 19px var(--font-display); color: var(--ink); margin: 13px 0 7px; letter-spacing: -0.01em; line-height: 1.2; }
 .pub-card p, .pub-card-body p { color: var(--ink-3); font-size: 14px; line-height: 1.55; margin: 0; }
 .pub-meta { color: var(--ink-4); font-size: 13px; margin-top: 14px; display: flex; align-items: center; gap: 10px; }

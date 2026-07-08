@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import { PubEventCard, type PubEventCardEvent } from './PubEventCard'
-import { PubBlogCard } from './PubBlogCard'
-import type { BlogPostPreview } from '@/lib/blog'
+import { PubBlogSection, type PubBlogSectionData } from './PubBlogSection'
 
 /** Per-section cap so one busy type can't swallow the home page. */
 const EVENTS_PER_TYPE = 3
@@ -52,17 +51,19 @@ function groupByType(
  */
 export function PubHome({
   upcomingEvents,
-  blogPosts,
+  blogSection,
   storageBucketUrl,
   eventTypes = [],
 }: {
   upcomingEvents: PubEventCardEvent[]
-  blogPosts: BlogPostPreview[]
+  /** Latest-posts data (all + per-category); undefined/empty hides the section. */
+  blogSection?: PubBlogSectionData
   storageBucketUrl?: string
   /** Brand-configured event types, in display order (value → section label). */
   eventTypes?: { value: string; label: string }[]
 }) {
   const eventGroups = groupByType(upcomingEvents, eventTypes)
+  const hasPosts = (blogSection?.all.length ?? 0) > 0
 
   return (
     <div className="pub-wrap pub-fade">
@@ -88,23 +89,9 @@ export function PubHome({
         </section>
       )}
 
-      {blogPosts.length > 0 && (
-        <section className="pub-sec">
-          <div className="pub-sechead">
-            <div className="pub-h">
-              <h1>Latest posts</h1>
-            </div>
-            <Link href="/blog" className="pub-viewall">View all →</Link>
-          </div>
-          <div className="pub-grid">
-            {blogPosts.map((p) => (
-              <PubBlogCard key={p.id} post={p} />
-            ))}
-          </div>
-        </section>
-      )}
+      {hasPosts && blogSection && <PubBlogSection {...blogSection} />}
 
-      {upcomingEvents.length === 0 && blogPosts.length === 0 && (
+      {upcomingEvents.length === 0 && !hasPosts && (
         <div className="pub-empty">Nothing to show yet.</div>
       )}
     </div>
