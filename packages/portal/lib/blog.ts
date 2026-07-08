@@ -9,6 +9,8 @@ export interface BlogPostPreview {
   featured_image_alt: string | null
   published_at: string | null
   reading_time: number | null
+  /** System-wide content category (Settings → Content categories), e.g. foundation/member/community. */
+  content_category: string | null
   category: {
     name: string
     slug: string
@@ -16,7 +18,40 @@ export interface BlogPostPreview {
   } | null
 }
 
-export async function getBlogPosts(limit?: number): Promise<BlogPostPreview[]> {
+export interface ContentCategoryOption {
+  value: string
+  label: string
+}
+
+/**
+ * The brand's configured content categories (platform_settings.content_categories).
+ * Array order defines display priority — sections and filters must respect it.
+ */
+export async function getContentCategories(): Promise<ContentCategoryOption[]> {
+  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY
+  if (!url || !key) return []
+
+  const supabase = createClient(url, key, {
+    global: { fetch: (u, options = {}) => fetch(u, { ...options, cache: 'no-store' }) },
+  })
+  const { data } = await supabase
+    .from('platform_settings')
+    .select('value')
+    .eq('key', 'content_categories')
+    .maybeSingle()
+  if (!data?.value) return []
+  try {
+    const parsed = JSON.parse(data.value)
+    return Array.isArray(parsed)
+      ? parsed.filter((c): c is ContentCategoryOption => !!c && typeof c.value === 'string' && typeof c.label === 'string')
+      : []
+  } catch {
+    return []
+  }
+}
+
+export async function getBlogPosts(limit?: number, contentCategory?: string): Promise<BlogPostPreview[]> {
   const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY
   if (!url || !key) return []
@@ -29,13 +64,16 @@ export async function getBlogPosts(limit?: number): Promise<BlogPostPreview[]> {
     .from('blog_posts')
     .select(`
       id, title, slug, excerpt, featured_image, featured_image_alt,
-      published_at, reading_time,
+      published_at, reading_time, content_category,
       category:blog_categories(name, slug, color)
     `)
     .eq('status', 'published')
     .eq('visibility', 'public')
     .order('published_at', { ascending: false })
 
+  if (contentCategory) {
+    query = query.eq('content_category', contentCategory)
+  }
   if (limit) {
     query = query.limit(limit)
   }
