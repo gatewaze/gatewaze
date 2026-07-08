@@ -37,7 +37,18 @@ ARG GOOSE_VERSION=v1.34.1
 # "ssh: not found" and the mirror stays stale), curl + bzip2 (for the
 # Goose tarball below), Python + uv (for stdio MCP extensions that
 # Goose recipes load via `uvx <pkg>`), plus dependencies.
-RUN apt-get update && apt-get install -y \
+# Chromium is PINNED to 149 — Debian bookworm shipped Chromium 150 (Jul 2026),
+# which SIGTRAP-crashes ("Failed to launch the browser process!") on our LKE
+# nodes, breaking every browser-based scraper; 149 launches fine on the same
+# nodes. Debian keeps only the latest chromium in the live repo, so pull 149
+# from the snapshot archive, pin+hold it, and let everything else resolve from
+# the normal repo. To bump: verify the new Chromium launches on the prod nodes
+# FIRST, then change CHROMIUM_VERSION. See project_chromium150_worker_regression.
+ARG CHROMIUM_VERSION=149.0.7827.196-1~deb12u1
+ARG CHROMIUM_SNAPSHOT=20260703T000000Z
+RUN printf 'deb [check-valid-until=no] https://snapshot.debian.org/archive/debian-security/%s bookworm-security main\ndeb [check-valid-until=no] https://snapshot.debian.org/archive/debian/%s bookworm main\n' "$CHROMIUM_SNAPSHOT" "$CHROMIUM_SNAPSHOT" > /etc/apt/sources.list.d/chromium-pin.list \
+    && printf 'Package: chromium chromium-common chromium-sandbox\nPin: version %s\nPin-Priority: 1001\n' "$CHROMIUM_VERSION" > /etc/apt/preferences.d/chromium-pin \
+    && apt-get update && apt-get install -y \
     chromium \
     fonts-liberation \
     fonts-noto-color-emoji \
@@ -53,6 +64,8 @@ RUN apt-get update && apt-get install -y \
     libxcb1 \
     libdbus-1-3 \
     --no-install-recommends \
+    && apt-mark hold chromium chromium-common \
+    && rm -f /etc/apt/sources.list.d/chromium-pin.list \
     && rm -rf /var/lib/apt/lists/* \
     # Replace crashpad handler with a wrapper that provides the required --database flag
     && mv /usr/lib/chromium/chrome_crashpad_handler /usr/lib/chromium/chrome_crashpad_handler.real \
