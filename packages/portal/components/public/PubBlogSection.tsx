@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { isLightColor } from '@/config/brand'
 import { PubBlogCard } from './PubBlogCard'
 import type { BlogPostPreview, ContentCategoryOption } from '@/lib/blog'
 
@@ -12,22 +13,48 @@ export interface PubBlogSectionData {
   all: BlogPostPreview[]
   /** Latest posts per category value. */
   byCategory: Record<string, BlogPostPreview[]>
+  /** Brand primary, passed from the server (client-side brand lookup would
+   *  differ from the SSR default and cause a hydration mismatch). */
+  primaryColor: string
+}
+
+/** The events page's filter-pill look (see EventFilters): brand-primary when
+ *  active, glass panel otherwise, 200ms transition. */
+function pillStyle(active: boolean, primaryColor: string): React.CSSProperties {
+  return {
+    borderRadius: 'var(--radius-control)',
+    ...(active
+      ? {
+          backgroundColor: primaryColor,
+          color: isLightColor(primaryColor) ? '#000000' : '#ffffff',
+          border: '1px solid transparent',
+        }
+      : {
+          backgroundColor: 'rgba(var(--panel-tint,0,0,0),var(--glass-opacity,0.05))',
+          backdropFilter: 'blur(var(--glass-blur,4px))',
+          WebkitBackdropFilter: 'blur(var(--glass-blur,4px))',
+          border: '1px solid rgba(var(--panel-tint,0,0,0),var(--glass-border-opacity,0.1))',
+        }),
+  }
 }
 
 /**
- * Home-page "Latest posts" with a content-category filter. Defaults to "All"
- * (latest across every category); chips appear only when at least one
- * configured category actually has posts.
+ * Home-page "Latest posts" with a content-category filter, styled like the
+ * events page's type filter. Defaults to "All" (latest across every
+ * category); chips appear only when at least one configured category
+ * actually has posts. Clicking the active category toggles back to All.
  */
-export function PubBlogSection({ categories, all, byCategory }: PubBlogSectionData) {
-  const [selected, setSelected] = useState('all')
+export function PubBlogSection({ categories, all, byCategory, primaryColor }: PubBlogSectionData) {
+  const [selected, setSelected] = useState<string | null>(null)
   if (all.length === 0) return null
 
-  const chips = [
-    { value: 'all', label: 'All' },
-    ...categories.filter((c) => (byCategory[c.value] ?? []).length > 0),
-  ]
-  const posts = selected === 'all' ? all : byCategory[selected] ?? []
+  const withPosts = categories.filter((c) => (byCategory[c.value] ?? []).length > 0)
+  const posts = selected ? byCategory[selected] ?? [] : all
+
+  const pillClass = (active: boolean) =>
+    `cursor-pointer px-3 py-1.5 text-base font-medium transition-all duration-200 ${
+      active ? 'shadow-lg' : 'text-white/70 hover:text-white'
+    }`
 
   return (
     <section className="pub-sec">
@@ -37,15 +64,25 @@ export function PubBlogSection({ categories, all, byCategory }: PubBlogSectionDa
         </div>
         <Link href="/blog" className="pub-viewall">View all →</Link>
       </div>
-      {chips.length > 1 && (
-        <div className="pub-chiprow" role="group" aria-label="Filter posts by content category">
-          {chips.map((c) => (
+      {withPosts.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 mt-3.5" role="group" aria-label="Filter posts by content category">
+          <button
+            type="button"
+            onClick={() => setSelected(null)}
+            className={pillClass(!selected)}
+            style={pillStyle(!selected, primaryColor)}
+            aria-pressed={!selected}
+          >
+            All
+          </button>
+          {withPosts.map((c) => (
             <button
               key={c.value}
               type="button"
-              className={'pub-chip' + (selected === c.value ? ' active' : '')}
+              onClick={() => setSelected(selected === c.value ? null : c.value)}
+              className={pillClass(selected === c.value)}
+              style={pillStyle(selected === c.value, primaryColor)}
               aria-pressed={selected === c.value}
-              onClick={() => setSelected(c.value)}
             >
               {c.label}
             </button>

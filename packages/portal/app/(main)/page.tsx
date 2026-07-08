@@ -53,7 +53,7 @@ export default async function HomePage() {
   return (
     <PubHome
       upcomingEvents={(eventData.upcoming ?? []).slice(0, 24) as never[]}
-      blogSection={showBlog ? { categories: blogCategories, all: blogAll, byCategory } : undefined}
+      blogSection={showBlog ? { categories: blogCategories, all: blogAll, byCategory, primaryColor: brandConfig.primaryColor } : undefined}
       storageBucketUrl={brandConfig.storageBucketUrl}
       eventTypes={brandConfig.eventTypes}
     />
