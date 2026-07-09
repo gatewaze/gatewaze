@@ -186,10 +186,24 @@
 /* Natural-aspect cover (event posters keep their original ratio, no 16:10 crop). */
 .pub-cover.natural { aspect-ratio: auto; }
 .pub-cover.natural > img { height: auto; object-fit: contain; }
-/* Uniform cover: the fixed 16:10 box of the default cover, but letterboxing
-   (object-fit: contain) instead of cropping — the whole image stays visible
-   and every card in a row is the same size. */
+/* Uniform cover: letterboxes (object-fit: contain) instead of cropping — the
+   whole image stays visible and every card in a row is the same size. The
+   letterbox area matches the card background (no cross-hatch): the hatch is
+   only for missing-cover placeholders. */
+.pub-cover.fit { background: none; }
 .pub-cover.fit > img { object-fit: contain; }
+/* Per-row image height: each blog card subgrids the grid's [cover][body] row
+   pair, so a visual row's cover track is exactly as tall as its TALLEST image
+   — a row of short/wide images stays short, and shorter images in a taller
+   row centre on the plain card background. The grid's 22px row gap lands
+   between cover and body inside the card (so the body loses its top padding);
+   non-subgrid browsers keep the fixed 16:10 flex layout above. */
+@supports (grid-template-rows: subgrid) {
+  .pub-grid > .pub-card-flex { display: grid; grid-template-rows: subgrid; grid-row: span 2; height: auto; }
+  .pub-grid > .pub-card-flex .pub-card-body { padding-top: 0; }
+  .pub-grid > .pub-card-flex .pub-cover.fit { aspect-ratio: auto; }
+  .pub-grid > .pub-card-flex .pub-cover.fit > img { height: auto; }
+}
 /* Blog cards: flex column of equal height so the date row pins to the card's
    bottom-left corner; white so it stands out against the card. */
 .pub-card-flex { display: flex; flex-direction: column; height: 100%; }
