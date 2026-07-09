@@ -170,7 +170,10 @@
 .pub-empty { padding: 52px; text-align: center; color: var(--ink-3); border: 1px solid var(--line); border-radius: 16px; margin-top: 24px; }
 .pub-viewall { background: none; border: 0; cursor: pointer; color: var(--ink); font: 600 14.5px var(--font-sans); white-space: nowrap; text-decoration: none; }
 
-.pub-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; margin-top: 24px; }
+/* minmax(0,…): bare 1fr tracks still respect item min-content, so one card
+   with a huge intrinsic-width image widens its whole column and the row
+   renders one "big card". Zero the minimum so columns stay equal. */
+.pub-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; margin-top: 24px; }
 .pub-card { text-align: left; background: var(--paper); border: 1px solid rgba(var(--ui-text), 0.10);
   border-radius: 16px; padding: 13px; cursor: pointer; text-decoration: none; display: block;
   transition: border-color .2s ease, transform .2s ease; }
@@ -654,7 +657,7 @@
   .gw-top-search { display: none; }
   .pub-wrap, .pub-article-wrap { padding: 22px 16px 56px; }
   .pub-h h1 { font-size: 26px; }
-  .pub-grid { grid-template-columns: 1fr; gap: 16px; }
+  .pub-grid { grid-template-columns: minmax(0, 1fr); gap: 16px; }
   .pub-article-grid { grid-template-columns: 1fr; gap: 24px; }
   .pub-article-side { position: static; }
   .pub-prevnext { grid-template-columns: 1fr; }
