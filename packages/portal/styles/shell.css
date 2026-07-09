@@ -199,7 +199,10 @@
    between cover and body inside the card (so the body loses its top padding);
    non-subgrid browsers keep the fixed 16:10 flex layout above. */
 @supports (grid-template-rows: subgrid) {
-  .pub-grid > .pub-card-flex { display: grid; grid-template-rows: subgrid; grid-row: span 2; height: auto; }
+  /* minmax(0,1fr) column: like the outer grid, the card's own column track
+     must ignore the image's intrinsic min-content width, or a large source
+     image lays out wider than the card and overflows it. */
+  .pub-grid > .pub-card-flex { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: subgrid; grid-row: span 2; height: auto; }
   .pub-grid > .pub-card-flex .pub-card-body { padding-top: 0; }
   .pub-grid > .pub-card-flex .pub-cover.fit { aspect-ratio: auto; }
   .pub-grid > .pub-card-flex .pub-cover.fit > img { height: auto; }
