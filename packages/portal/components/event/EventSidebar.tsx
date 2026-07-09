@@ -117,6 +117,26 @@ function useModuleNavItems(basePath: string, hasVirtualEvent: boolean) {
 function useNavItems(event: Event, basePath: string, speakerCount: number, sponsorCount: number, competitionCount: number, discountCount: number, mediaCount: number, hasVirtualEvent: boolean, userState?: EventUserState) {
   const moduleNavItems = useModuleNavItems(basePath, hasVirtualEvent)
 
+  // A scraped speak action link can point BACK at this very portal — aaif.io's
+  // event pages link their Speak button to our /talks page, and the scraper
+  // faithfully records it. Treating that as an external CFP renders a
+  // new-tab link to the page the user is already on and loses the internal
+  // item's state ("Submit a talk"/"My talk"). Ignore speak links that resolve
+  // to this event's own talks path (checked on any host — custom domains
+  // serve the event at basePath '' while the recorded link uses the main
+  // portal host); genuinely external CFPs (e.g. LF events' /program/cfp/)
+  // keep the new-tab behaviour.
+  const externalSpeakLink = (() => {
+    const raw = event.source_details?.action_links?.speak
+    if (!raw) return null
+    try {
+      const path = new URL(raw).pathname.replace(/\/+$/, '')
+      if (path === `${basePath}/talks`) return null
+      if (event.event_slug && path === `/events/${event.event_slug}/talks`) return null
+    } catch { /* relative/malformed URL — keep the raw value */ }
+    return raw
+  })()
+
   const navItems: NavItem[] = [
     {
       label: 'Details',
@@ -218,11 +238,11 @@ function useNavItems(event: Event, basePath: string, speakerCount: number, spons
       //     the wrong UX.
       //   - otherwise: existing CFP toggle drives the internal /talks
       //     route (with "My talk" label once the user has submitted).
-      label: event.source_details?.action_links?.speak
+      label: externalSpeakLink
         ? 'Speak'
         : (userState?.hasTalkSubmission ? 'My talk' : 'Submit a talk'),
-      href: event.source_details?.action_links?.speak ?? `${basePath}/talks`,
-      external: !!event.source_details?.action_links?.speak,
+      href: externalSpeakLink ?? `${basePath}/talks`,
+      external: !!externalSpeakLink,
       show: !!event.source_details?.action_links?.speak
         || (event.enable_call_for_speakers ?? false)
         || (userState?.hasTalkSubmission ?? false),
