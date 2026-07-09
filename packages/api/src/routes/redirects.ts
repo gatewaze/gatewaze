@@ -73,7 +73,19 @@ interface BulkLinkResult {
   error?: string;
 }
 
-const SLUG_RE = /^[A-Za-z0-9._~-]{1,100}$/;
+const SLUG_RE = /^[A-Za-z0-9._~-]{1,80}$/;
+
+/** Umami's link slug column is varchar(100); the internal slug embeds the
+ *  serving host so every domain gets its own slug space:
+ *  `${domain}--${slug}` → served at https://{domain}/go/{slug}. */
+function internalSlug(domain: string, slug: string): string {
+  return `${domain}--${slug}`;
+}
+
+function shortUrlFor(domain: string, slug: string): string {
+  const proto = domain.endsWith('.localhost') || domain === 'localhost' ? 'http' : 'https';
+  return `${proto}://${domain}/go/${slug}`;
+}
 
 let umamiToken: { value: string; expiresAt: number } | null = null;
 
@@ -131,16 +143,6 @@ async function createUmamiLink(baseUrl: string, token: string, link: BulkLinkInp
   return { link: (await res.json()) as UmamiLink, isNew: true };
 }
 
-/** Public origin for composing short URLs. The redirect is served by the
- *  analytics module's /a/q/:slug proxy on this API host. */
-function publicOrigin(req: Request): string {
-  const configured = process.env.REDIRECT_PUBLIC_BASE_URL || '';
-  if (configured) return configured.replace(/\/+$/, '');
-  const proto = (req.headers['x-forwarded-proto'] as string) || req.protocol || 'https';
-  const host = (req.headers['x-forwarded-host'] as string) || req.get('host') || '';
-  return `${proto}://${host}`;
-}
-
 // Bulk-create short links (called by newsletters linkService when
 // generating edition links).
 redirectsRouter.post('/create-bulk', async (req: Request, res: Response) => {
@@ -173,9 +175,18 @@ redirectsRouter.post('/create-bulk', async (req: Request, res: Response) => {
     return res.status(501).json({ error: 'shortio create-bulk not implemented server-side; use the Short.io adapter' });
   }
 
+  // Short links are served on the PORTAL/site host at /go/<slug> — never
+  // the API host. Callers say which host (per-site links); default is the
+  // brand's portal host.
+  const linkDomain = (typeof domain === 'string' && domain.trim())
+    ? domain.trim().toLowerCase()
+    : (process.env.PORTAL_HOST || '').toLowerCase();
+  if (!linkDomain) {
+    return res.status(400).json({ error: 'domain required (no PORTAL_HOST fallback configured)' });
+  }
+
   const supabase = getSupabase();
   const baseUrl = (process.env.UMAMI_BASE_URL || 'http://umami:3000').replace(/\/+$/, '');
-  const origin = publicOrigin(req);
   const results: BulkLinkResult[] = [];
   let created = 0;
   let updated = 0;
@@ -189,27 +200,28 @@ redirectsRouter.post('/create-bulk', async (req: Request, res: Response) => {
   }
 
   for (const link of links) {
-    if (!link?.path || !SLUG_RE.test(link.path) || !link.originalUrl || link.originalUrl.length > 500) {
+    const scoped = link?.path ? internalSlug(linkDomain, link.path) : '';
+    if (!link?.path || !SLUG_RE.test(link.path) || scoped.length > 100 || !link.originalUrl || link.originalUrl.length > 500) {
       results.push({
         path: link?.path ?? '', originalUrl: link?.originalUrl ?? '', success: false,
-        error: 'invalid path (slug chars, ≤100) or originalUrl (required, ≤500 chars)',
+        error: 'invalid path (slug chars, ≤80, domain+slug ≤100) or originalUrl (required, ≤500 chars)',
       });
       errors++;
       continue;
     }
     try {
-      const { link: uLink, isNew } = await createUmamiLink(baseUrl, token, link);
-      const shortUrl = `${origin}/a/q/${uLink.slug}`;
+      const { link: uLink, isNew } = await createUmamiLink(baseUrl, token, { ...link, path: scoped });
+      const shortUrl = shortUrlFor(linkDomain, link.path);
       const { data: row } = await supabase
         .from('redirects')
         .upsert(
           {
             shortio_id: uLink.id,
             provider: 'umami',
-            domain: domain || new URL(origin).hostname,
+            domain: linkDomain,
             short_url: shortUrl,
             original_url: link.originalUrl,
-            path: uLink.slug,
+            path: link.path,
             title: link.title || null,
             updated_at: new Date().toISOString(),
           },
@@ -237,6 +249,63 @@ redirectsRouter.post('/create-bulk', async (req: Request, res: Response) => {
   }
 
   res.json({ success: errors === 0, provider, created, updated, errors, results });
+});
+
+// Per-link click stats (umami-provider links) — clicks are ordinary
+// Umami events keyed by the link id.
+redirectsRouter.get('/link/:redirectId/stats', async (req: Request, res: Response) => {
+  const { redirectId } = req.params;
+  const supabase = getSupabase();
+  const { data: row } = await supabase
+    .from('redirects')
+    .select('shortio_id, provider')
+    .eq('id', redirectId)
+    .maybeSingle();
+  if (!row) return res.status(404).json({ error: 'redirect not found' });
+  if (row.provider !== 'umami') return res.status(400).json({ error: 'stats only available for umami links' });
+
+  const baseUrl = (process.env.UMAMI_BASE_URL || 'http://umami:3000').replace(/\/+$/, '');
+  try {
+    const token = await umamiLogin(baseUrl);
+    const to = Date.now();
+    const from = to - 90 * 24 * 60 * 60 * 1000;
+    const r = await fetch(`${baseUrl}/api/websites/${row.shortio_id}/stats?startAt=${from}&endAt=${to}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!r.ok) return res.status(502).json({ error: `umami responded ${r.status}` });
+    const stats = (await r.json()) as { pageviews?: unknown; visitors?: unknown };
+    const num = (v: unknown) => (typeof v === 'number' ? v : (v as { value?: number } | null)?.value ?? 0);
+    res.json({ clicks: num(stats.pageviews), unique_visitors: num(stats.visitors), range_days: 90 });
+  } catch (e) {
+    res.status(502).json({ error: e instanceof Error ? e.message : String(e) });
+  }
+});
+
+// Delete a short link (provider-aware: removes the umami link too).
+redirectsRouter.delete('/link/:redirectId', async (req: Request, res: Response) => {
+  const { redirectId } = req.params;
+  const supabase = getSupabase();
+  const { data: row } = await supabase
+    .from('redirects')
+    .select('id, shortio_id, provider')
+    .eq('id', redirectId)
+    .maybeSingle();
+  if (!row) return res.status(404).json({ error: 'redirect not found' });
+
+  if (row.provider === 'umami') {
+    const baseUrl = (process.env.UMAMI_BASE_URL || 'http://umami:3000').replace(/\/+$/, '');
+    try {
+      const token = await umamiLogin(baseUrl);
+      await fetch(`${baseUrl}/api/links/${row.shortio_id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch (e) {
+      logger.warn({ err: e }, 'umami link delete failed (removing row anyway)');
+    }
+  }
+  await supabase.from('redirects').delete().eq('id', row.id);
+  res.status(204).send();
 });
 
 // Sync redirects from Short.io
@@ -298,13 +367,16 @@ redirectsRouter.get('/sync/:logId', async (req: Request, res: Response) => {
 redirectsRouter.get('/', async (req: Request, res: Response) => {
   try {
     const supabase = getSupabase();
-    const { search, limit = '50', offset = '0' } = req.query;
+    const { search, domain, provider, limit = '50', offset = '0' } = req.query;
 
     let query = supabase
       .from('redirects')
       .select('*', { count: 'exact' })
       .order('created_at', { ascending: false })
       .range(parseInt(offset as string, 10), parseInt(offset as string, 10) + parseInt(limit as string, 10) - 1);
+
+    if (typeof domain === 'string' && domain) query = query.eq('domain', domain.toLowerCase());
+    if (typeof provider === 'string' && provider) query = query.eq('provider', provider);
 
     if (search) {
       // Strip PostgREST filter-grammar metacharacters before interpolation.
