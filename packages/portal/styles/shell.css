@@ -191,7 +191,10 @@
    letterbox area matches the card background (no cross-hatch): the hatch is
    only for missing-cover placeholders. */
 .pub-cover.fit { background: none; }
-.pub-cover.fit > img { object-fit: contain; }
+/* Radius on the image itself: the cover's overflow clipping only rounds an
+   image that fills the box — letterboxed (smaller) images would show square
+   corners without their own radius. */
+.pub-cover.fit > img { object-fit: contain; border-radius: 11px; }
 /* Per-row image height: each blog card subgrids the grid's [cover][body] row
    pair, so a visual row's cover track is exactly as tall as its TALLEST image
    — a row of short/wide images stays short, and shorter images in a taller
