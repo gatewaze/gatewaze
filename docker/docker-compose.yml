@@ -558,6 +558,14 @@ services:
     environment:
       PORT: "3002"
       NODE_ENV: production
+      # Umami admin API credentials for the analytics module's dashboard
+      # queries (base URL defaults to http://umami:3000 in-module).
+      UMAMI_USERNAME: ${UMAMI_USERNAME:-admin}
+      UMAMI_PASSWORD: ${UMAMI_PASSWORD:-}
+      # Mirrors the portal relay's Segment key so /api/modules/analytics/
+      # relay-status reports the effective config (prod gets it via the
+      # shared envFrom secret automatically).
+      SEGMENT_WRITE_KEY: ${SEGMENT_WRITE_KEY:-}
       SUPABASE_URL: http://supabase-kong:8000
       # Browser-facing Supabase URL. Used by media adapters to build
       # cdn_url responses — internal SUPABASE_URL is the docker DNS
