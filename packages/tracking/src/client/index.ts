@@ -78,7 +78,10 @@ function clientContext(): RelayEvent['client'] {
   if (typeof window === 'undefined') return undefined
   return {
     url: window.location.href,
-    path: window.location.pathname,
+    // Include the query string — Umami derives utm_* campaign attribution
+    // from the url's query params, so a bare pathname silently kills the
+    // whole UTM feature.
+    path: window.location.pathname + window.location.search,
     referrer: document.referrer || undefined,
     title: document.title || undefined,
     screen: window.screen ? `${window.screen.width}x${window.screen.height}` : undefined,
