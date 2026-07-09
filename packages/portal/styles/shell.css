@@ -183,6 +183,10 @@
 /* Natural-aspect cover (event posters keep their original ratio, no 16:10 crop). */
 .pub-cover.natural { aspect-ratio: auto; }
 .pub-cover.natural > img { height: auto; object-fit: contain; }
+/* Uniform cover: the fixed 16:10 box of the default cover, but letterboxing
+   (object-fit: contain) instead of cropping — the whole image stays visible
+   and every card in a row is the same size. */
+.pub-cover.fit > img { object-fit: contain; }
 /* Blog cards: flex column of equal height so the date row pins to the card's
    bottom-left corner; white so it stands out against the card. */
 .pub-card-flex { display: flex; flex-direction: column; height: 100%; }
@@ -190,6 +194,20 @@
 .pub-card-flex .pub-card-body > h3, .pub-card-flex .pub-card-body > p { flex: 0 0 auto; }
 /* Pills are flex children here — stop them stretching to the card width. */
 .pub-card-flex .pub-card-body > .pub-cat { align-self: flex-start; }
+/* Clamp card excerpts to three lines so one long summary can't balloon a row. */
+.pub-card-flex .pub-card-body > p { display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+/* Whole-card click target: the title link stretches an invisible overlay over
+   the card (the card itself stays a non-anchor so inner links are valid HTML);
+   inner links (author) sit above the overlay. The glow ::after is z-index 2
+   pointer-events-none, so it never eats clicks. */
+.pub-card { position: relative; }
+.pub-card-title-link { color: inherit; text-decoration: none; }
+.pub-card-title-link::after { content: ''; position: absolute; inset: 0; }
+.pub-author-link { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 7px; color: inherit; text-decoration: none; }
+.pub-author-link:hover { text-decoration: underline; }
+.pub-author-avatar { width: 20px; height: 20px; border-radius: 50%; object-fit: cover; flex: 0 0 auto; }
+.pub-author-avatar-ph { display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(var(--ui-text), 0.14); color: var(--ink-2); font: 600 9px var(--font-sans); letter-spacing: 0.02em; }
 .pub-meta.pub-meta-pin { margin-top: auto; padding-top: 14px; color: #fff; }
 .pub-card-body { padding: 14px 6px 4px; }
 .pub-cat { display: inline-block; font: 600 12px var(--font-sans); color: var(--ink);
