@@ -225,6 +225,23 @@
 .pub-author-avatar { width: 20px; height: 20px; border-radius: 50%; object-fit: cover; flex: 0 0 auto; }
 .pub-author-avatar-ph { display: inline-flex; align-items: center; justify-content: center;
   background: rgba(var(--ui-text), 0.14); color: var(--ink-2); font: 600 9px var(--font-sans); letter-spacing: 0.02em; }
+/* Generic theme button (matches the newsletter signup button look). */
+.pub-btn { display: inline-flex; align-items: center; gap: 8px; height: 42px; padding: 0 20px; border-radius: 10px;
+  border: 0; cursor: pointer; font: 600 14px var(--font-sans); background: var(--ink); color: var(--paper);
+  text-decoration: none; transition: opacity .15s ease; white-space: nowrap; }
+.pub-btn:hover { opacity: .9; }
+/* Author page hero: rounded-corner avatar with the name alongside; the
+   All-posts action sits on the right as a theme button. */
+.pub-author-h { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.pub-author-hero { display: flex; align-items: center; gap: 20px; min-width: 0; }
+.pub-author-hero-avatar { width: 84px; height: 84px; border-radius: 18px; object-fit: cover; flex: 0 0 auto; }
+.pub-author-hero .pub-author-avatar-ph { font-size: 26px; border-radius: 18px; }
+.pub-author-hero h1 { margin: 0; }
+.pub-author-bio { color: var(--ink-3); font-size: 14.5px; line-height: 1.5; margin: 5px 0 0; max-width: 640px; }
+.pub-author-count { color: var(--ink-4); font-size: 13.5px; margin-top: 6px; }
+@media (max-width: 760px) {
+  .pub-author-hero-avatar { width: 64px; height: 64px; border-radius: 14px; }
+}
 .pub-meta.pub-meta-pin { margin-top: auto; padding-top: 14px; color: #fff; }
 .pub-card-body { padding: 14px 6px 4px; }
 .pub-cat { display: inline-block; font: 600 12px var(--font-sans); color: var(--ink);
