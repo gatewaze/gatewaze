@@ -1,32 +1,46 @@
 // Import Dependencies
-import { useState, useEffect } from "react";
-import { PlusIcon, PencilIcon, TrashIcon, ShieldCheckIcon, ArrowRightOnRectangleIcon } from "@heroicons/react/24/outline";
+import { useState, useEffect, useMemo } from "react";
+import {
+  PlusIcon,
+  PencilIcon,
+  TrashIcon,
+  ShieldCheckIcon,
+  ArrowRightOnRectangleIcon,
+  MagnifyingGlassIcon,
+  UserGroupIcon,
+  UserPlusIcon,
+  XMarkIcon,
+} from "@heroicons/react/24/outline";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as Yup from 'yup';
 import { toast } from "sonner";
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  createColumnHelper,
+} from '@tanstack/react-table';
 
 // Local Imports
 import {
   Button,
   Card,
   Input,
+  Select,
   Badge,
   Avatar,
   Modal,
   ConfirmModal,
-  Table,
-  THead,
-  TBody,
-  Tr,
-  Th,
-  Td,
+  Spinner,
+  WorkspaceLayout,
 } from "@/components/ui";
 import { Page } from "@/components/shared/Page";
+import { DataTable } from "@/components/shared/table/DataTable";
 import { RowActions } from "@/components/shared/table/RowActions";
-import { ScrollableTable } from "@/components/shared/table/ScrollableTable";
 import { AdminUserService, CreateUserData, UpdateUserData } from "@/utils/adminUserService";
-import { AdminUser } from "@/lib/supabase";
+import { PeopleService, Person } from "@/utils/peopleService";
+import { supabase, AdminUser } from "@/lib/supabase";
 import { useAuthContext } from "@/app/contexts/auth/context";
 import { FeatureSelectionDialog } from "@/components/permissions/FeatureSelectionDialog";
 import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
@@ -58,14 +72,58 @@ const roleOptions = [
 // Extend AdminUser type to include feature count
 type AdminUserWithFeatures = AdminUser & { featureCount?: number };
 
+type AddUserMode = 'existing' | 'new';
+
+const columnHelper = createColumnHelper<AdminUserWithFeatures>();
+
+function getRoleBadgeColor(role: string): "red" | "cyan" | "orange" | "gray" {
+  switch (role) {
+    case 'super_admin':
+      return 'red';
+    case 'admin':
+      return 'cyan';
+    case 'editor':
+      return 'orange';
+    default:
+      return 'gray';
+  }
+}
+
+function personDisplayName(person: Person): string {
+  const first = person.attributes?.first_name || '';
+  const last = person.attributes?.last_name || '';
+  const name = `${first} ${last}`.trim();
+  return name || person.email || 'Unknown';
+}
+
+// Search the platform's people table by email or name for the
+// existing-person picker. Wildcards use PostgREST's `*` form because the
+// pattern is embedded in a raw .or() filter string.
+async function searchPeopleByNameOrEmail(term: string): Promise<Person[]> {
+  const q = term.replace(/[,()]/g, ' ').trim();
+  if (!q) return [];
+  const { data, error } = await supabase
+    .from('people')
+    .select('id, cio_id, email, attributes, avatar_source, avatar_storage_path, linkedin_avatar_url')
+    .or(`email.ilike.*${q}*,attributes->>first_name.ilike.*${q}*,attributes->>last_name.ilike.*${q}*`)
+    .not('email', 'is', null)
+    .limit(20);
+
+  if (error) {
+    console.error('Error searching people:', error);
+    return [];
+  }
+  return (data as Person[]) || [];
+}
+
 export default function AdminUsers() {
   const { user: currentUser, startImpersonation } = useAuthContext();
   const [users, setUsers] = useState<AdminUserWithFeatures[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [deleteUser, setDeleteUser] = useState<AdminUser | null>(null);
-  const [submitting, setSubmitting] = useState(false);
   const [impersonating, setImpersonating] = useState<string | null>(null);
 
   // Feature permissions state
@@ -88,18 +146,6 @@ export default function AdminUsers() {
       toast.error(`Failed to update permissions: ${error.message}`);
     },
   });
-
-  const form = useForm<UserFormData>({
-    resolver: yupResolver(userSchema) as any,
-    defaultValues: {
-      first_name: '',
-      last_name: '',
-      email: '',
-      role: 'admin',
-    },
-  });
-
-  const isEditing = !!editingUser;
 
   useEffect(() => {
     loadUsers();
@@ -140,40 +186,13 @@ export default function AdminUsers() {
     }
   };
 
-  const handleOpenModal = (user?: AdminUser) => {
-    if (user) {
-      setEditingUser(user);
-      // Split name into first and last name
-      const nameParts = user.name.split(' ');
-      const firstName = nameParts[0] || '';
-      const lastName = nameParts.slice(1).join(' ') || '';
-
-      form.reset({
-        first_name: firstName,
-        last_name: lastName,
-        email: user.email,
-        role: user.role || 'admin',
-      });
-    } else {
-      setEditingUser(null);
-      form.reset({
-        first_name: '',
-        last_name: '',
-        email: '',
-        role: 'admin',
-      });
-    }
-    setShowModal(true);
-  };
-
   const handleCloseModal = () => {
     setShowModal(false);
     setEditingUser(null);
-    form.reset();
   };
 
   // Load user's current features and open feature dialog
-  const loadUserFeatures = async (userId: string, userName: string, userRole: string) => {
+  const loadUserFeatures = async (userId: string) => {
     setLoadingFeatures(true);
     setPendingUserId(userId);
 
@@ -195,67 +214,13 @@ export default function AdminUsers() {
     await syncPermissions(pendingUserId, features);
   };
 
-  // Handle opening feature dialog for existing user
-  const handleManagePermissions = async (user: AdminUser) => {
-    await loadUserFeatures(user.id, user.name, user.role || 'admin');
-  };
-
-  const onSubmit = async (data: UserFormData) => {
-    setSubmitting(true);
-    try {
-      const fullName = `${data.first_name} ${data.last_name}`.trim();
-
-      if (isEditing) {
-        const updateData: UpdateUserData = {
-          name: fullName,
-          email: data.email,
-          role: data.role,
-          first_name: data.first_name,
-          last_name: data.last_name,
-        };
-        const { success, error } = await AdminUserService.updateUser(editingUser!.id, updateData);
-
-        if (success) {
-          toast.success('User updated successfully');
-          handleCloseModal();
-
-          // Open feature dialog for non-super admins
-          if (data.role !== 'super_admin') {
-            await loadUserFeatures(editingUser!.id, fullName, data.role);
-          } else {
-            loadUsers();
-          }
-        } else {
-          toast.error(error || 'Failed to update user');
-        }
-      } else {
-        const createData: CreateUserData = {
-          name: fullName,
-          email: data.email,
-          role: data.role,
-          first_name: data.first_name,
-          last_name: data.last_name,
-        };
-        const { success, error, user: newUser } = await AdminUserService.createUser(createData);
-
-        if (success && newUser) {
-          toast.success('User created successfully');
-          handleCloseModal();
-
-          // Open feature dialog for non-super admins
-          if (data.role !== 'super_admin') {
-            await loadUserFeatures(newUser.id, fullName, data.role);
-          } else {
-            loadUsers();
-          }
-        } else {
-          toast.error(error || 'Failed to create user');
-        }
-      }
-    } catch {
-      toast.error('An error occurred');
-    } finally {
-      setSubmitting(false);
+  const handleSaved = async (savedUser: AdminUser | undefined, role: string) => {
+    handleCloseModal();
+    // Open feature dialog for non-super admins
+    if (savedUser && role !== 'super_admin') {
+      await loadUserFeatures(savedUser.id);
+    } else {
+      loadUsers();
     }
   };
 
@@ -277,19 +242,6 @@ export default function AdminUsers() {
     }
   };
 
-  const getRoleBadgeColor = (role: string): "red" | "cyan" | "orange" | "gray" => {
-    switch (role) {
-      case 'super_admin':
-        return 'red';
-      case 'admin':
-        return 'cyan';
-      case 'editor':
-        return 'orange';
-      default:
-        return 'gray';
-    }
-  };
-
   const handleImpersonate = async (user: AdminUser) => {
     if (!currentUser?.id) {
       toast.error('No authenticated user');
@@ -308,7 +260,6 @@ export default function AdminUsers() {
 
       if (success) {
         toast.success(`Now viewing as ${user.name}`);
-        // Optionally navigate to a different page or refresh
       } else {
         toast.error('Failed to start impersonation');
       }
@@ -319,216 +270,172 @@ export default function AdminUsers() {
     }
   };
 
+  const filteredUsers = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return users;
+    return users.filter((user) =>
+      [user.name, user.email, user.role]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(q))
+    );
+  }, [users, search]);
+
+  const columns = useMemo(
+    () => [
+      columnHelper.accessor('name', {
+        header: 'User',
+        cell: (info) => (
+          <div className="flex items-center gap-3">
+            <Avatar name={info.getValue() || 'U'} size={9} initialColor="auto" className="flex-shrink-0" />
+            <div className="text-sm font-medium text-[var(--gray-12)]">
+              {info.getValue()}
+            </div>
+          </div>
+        ),
+      }),
+      columnHelper.accessor('email', {
+        header: 'Email',
+        cell: (info) => (
+          <span className="text-sm text-[var(--gray-12)]">{info.getValue()}</span>
+        ),
+      }),
+      columnHelper.accessor('role', {
+        header: 'Role',
+        cell: (info) => (
+          <Badge color={getRoleBadgeColor(info.getValue() || 'admin')}>
+            {info.getValue() || 'admin'}
+          </Badge>
+        ),
+      }),
+      columnHelper.accessor('featureCount', {
+        header: 'Features',
+        cell: (info) => {
+          const user = info.row.original;
+          if (user.role === 'super_admin') {
+            return <Badge color="green">All Features</Badge>;
+          }
+          return (
+            <span className="text-sm text-[var(--gray-12)]">
+              <span className="font-medium">{user.featureCount ?? 0}</span>
+              <span className="text-[var(--gray-a11)]"> / {Object.keys(FEATURE_METADATA).length}</span>
+            </span>
+          );
+        },
+      }),
+      columnHelper.accessor('created_at', {
+        header: 'Created',
+        cell: (info) => (
+          <span className="text-sm text-[var(--gray-11)] whitespace-nowrap">
+            {new Date(info.getValue()).toLocaleDateString()}
+          </span>
+        ),
+      }),
+      columnHelper.display({
+        id: 'actions',
+        header: '',
+        cell: (info) => {
+          const user = info.row.original;
+          if (!isSuperAdmin) {
+            return <span className="text-[var(--gray-a9)] text-sm">View Only</span>;
+          }
+          return (
+            <RowActions actions={[
+              ...(user.id !== currentUser?.id ? [{
+                label: "Login As",
+                icon: <ArrowRightOnRectangleIcon className="size-4" />,
+                onClick: () => handleImpersonate(user),
+                disabled: impersonating === user.id,
+              }] : []),
+              {
+                label: "Permissions",
+                icon: <ShieldCheckIcon className="size-4" />,
+                onClick: () => loadUserFeatures(user.id),
+              },
+              {
+                label: "Edit",
+                icon: <PencilIcon className="size-4" />,
+                onClick: () => {
+                  setEditingUser(user);
+                  setShowModal(true);
+                },
+              },
+              {
+                label: "Deactivate",
+                icon: <TrashIcon className="size-4" />,
+                onClick: () => setDeleteUser(user),
+                color: "red" as const,
+              },
+            ]} />
+          );
+        },
+      }),
+    ],
+    [isSuperAdmin, currentUser?.id, impersonating],
+  );
+
+  const table = useReactTable({
+    data: filteredUsers,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
+
   return (
     <Page title="Admin Users">
-      <div className="p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-semibold text-[var(--gray-12)]">
-              Admin Users
-            </h1>
-            <p className="text-[var(--gray-11)] mt-1">
-              Manage admin users and their permissions
-            </p>
-          </div>
-          {isSuperAdmin && (
-            <Button
-              onClick={() => handleOpenModal()}
-              color="cyan"
-              className="gap-2"
-            >
-              <PlusIcon className="size-4" />
+      <WorkspaceLayout
+        title="Admin Users"
+        actions={
+          isSuperAdmin ? (
+            <Button variant="solid" onClick={() => { setEditingUser(null); setShowModal(true); }}>
+              <PlusIcon className="size-4 mr-1" />
               Add User
             </Button>
-          )}
+          ) : undefined
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-[var(--gray-11)] max-w-2xl">
+            Admin users can sign in to this dashboard. Roles and per-feature permissions
+            control what each user can see and manage.
+          </p>
+
+          <Card className="overflow-hidden">
+            <div className="p-4 border-b border-[var(--gray-a5)]">
+              <div className="relative max-w-md">
+                <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-5 text-[var(--gray-a8)]" />
+                <input
+                  type="text"
+                  placeholder="Search by name, email, or role..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 bg-[var(--color-background)] border border-[var(--gray-a6)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent-9)] text-[var(--gray-12)]"
+                />
+              </div>
+            </div>
+            <DataTable
+              table={table}
+              loading={loading}
+              emptyState={
+                <div className="py-4 text-center">
+                  <UserGroupIcon className="mx-auto size-10 text-[var(--gray-a8)]" />
+                  <p className="mt-3 text-[var(--gray-11)]">
+                    {search ? 'No users match your search.' : 'No admin users found.'}
+                  </p>
+                </div>
+              }
+            />
+          </Card>
         </div>
 
-        {loading ? (
-          <div className="flex justify-center py-12">
-            <div className="size-6 border-2 border-[var(--accent-9)] border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : (
-          <Card className="overflow-hidden">
-            <ScrollableTable>
-              <Table>
-                <THead>
-                  <Tr>
-                    <Th data-sticky-left style={{ position: 'sticky', left: 0, zIndex: 20, background: 'var(--color-panel-solid)' }}>User</Th>
-                    <Th>Email</Th>
-                    <Th>Role</Th>
-                    <Th>Features</Th>
-                    <Th>Created</Th>
-                    <Th data-sticky-right style={{ position: 'sticky', right: 0, background: 'var(--color-panel-solid)', zIndex: 2 }} />
-                  </Tr>
-                </THead>
-                <TBody>
-                  {users.map((user) => (
-                    <Tr key={user.id}>
-                      <Td data-sticky-left style={{ position: 'sticky', left: 0, zIndex: 10, background: 'var(--color-panel-solid)' }}>
-                        <div className="flex items-center">
-                          <Avatar size={10} className="mr-3">
-                            {user.name?.charAt(0).toUpperCase() || 'U'}
-                          </Avatar>
-                          <div>
-                            <div className="text-sm font-medium text-[var(--gray-12)]">
-                              {user.name}
-                            </div>
-                          </div>
-                        </div>
-                      </Td>
-                      <Td>
-                        <div className="text-sm text-[var(--gray-12)]">
-                          {user.email}
-                        </div>
-                      </Td>
-                      <Td>
-                        <Badge color={getRoleBadgeColor(user.role || 'admin')}>
-                          {user.role || 'admin'}
-                        </Badge>
-                      </Td>
-                      <Td>
-                        <div className="flex items-center gap-2">
-                          {user.role === 'super_admin' ? (
-                            <Badge color="green">All Features</Badge>
-                          ) : (
-                            <span className="text-sm text-[var(--gray-12)]">
-                              {user.featureCount !== undefined ? (
-                                <>
-                                  <span className="font-medium">{user.featureCount}</span>
-                                  <span className="text-[var(--gray-a11)]"> / {Object.keys(FEATURE_METADATA).length}</span>
-                                </>
-                              ) : (
-                                <span className="text-[var(--gray-a9)]">Loading...</span>
-                              )}
-                            </span>
-                          )}
-                        </div>
-                      </Td>
-                      <Td>
-                        <div className="text-sm text-[var(--gray-12)]">
-                          {new Date(user.created_at).toLocaleDateString()}
-                        </div>
-                      </Td>
-                      <Td data-sticky-right style={{ position: 'sticky', right: 0, background: 'var(--color-panel-solid)', zIndex: 1 }}>
-                        {isSuperAdmin && (
-                          <RowActions actions={[
-                            ...(user.id !== currentUser?.id ? [{
-                              label: "Login As",
-                              icon: <ArrowRightOnRectangleIcon className="size-4" />,
-                              onClick: () => handleImpersonate(user),
-                              disabled: impersonating === user.id,
-                            }] : []),
-                            {
-                              label: "Permissions",
-                              icon: <ShieldCheckIcon className="size-4" />,
-                              onClick: () => handleManagePermissions(user),
-                            },
-                            {
-                              label: "Edit",
-                              icon: <PencilIcon className="size-4" />,
-                              onClick: () => handleOpenModal(user),
-                            },
-                            {
-                              label: "Deactivate",
-                              icon: <TrashIcon className="size-4" />,
-                              onClick: () => setDeleteUser(user),
-                              color: "red" as const,
-                            },
-                          ]} />
-                        )}
-                        {!isSuperAdmin && (
-                          <span className="text-[var(--gray-a9)] text-sm">View Only</span>
-                        )}
-                      </Td>
-                    </Tr>
-                  ))}
-                </TBody>
-              </Table>
-
-              {users.length === 0 && (
-                <div className="text-center py-12">
-                  <p className="text-[var(--gray-11)]">No users found</p>
-                </div>
-              )}
-            </ScrollableTable>
-          </Card>
+        {/* Add / Edit User Modal */}
+        {showModal && (
+          <UserEditModal
+            editingUser={editingUser}
+            existingUsers={users}
+            onClose={handleCloseModal}
+            onSaved={handleSaved}
+          />
         )}
-
-        {/* User Modal */}
-        <Modal
-          isOpen={showModal}
-          onClose={handleCloseModal}
-          title={isEditing ? 'Edit User' : 'Add User'}
-        >
-          <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <Input
-                label="First Name"
-                placeholder="John"
-                {...form.register('first_name')}
-                error={form.formState.errors.first_name?.message}
-              />
-              <Input
-                label="Last Name"
-                placeholder="Doe"
-                {...form.register('last_name')}
-                error={form.formState.errors.last_name?.message}
-              />
-            </div>
-
-            <Input
-              label="Email"
-              type="email"
-              placeholder="Enter email address"
-              {...form.register('email')}
-              error={form.formState.errors.email?.message}
-            />
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Role
-              </label>
-              <select
-                {...form.register('role')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-              {roleOptions.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-              </select>
-              {form.formState.errors.role && (
-                <p className="text-red-500 text-sm mt-1">{form.formState.errors.role.message}</p>
-              )}
-            </div>
-
-            {!isEditing && (
-              <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
-                <p className="text-sm text-blue-700">
-                  🔗 <strong>Magic Link Authentication:</strong> A secure login link will be sent to the user's email address. No password required.
-                </p>
-              </div>
-            )}
-
-            <div className="flex justify-end space-x-3 pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleCloseModal}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                color="cyan"
-                disabled={submitting}
-              >
-                {isEditing ? 'Update User' : 'Create User'}
-              </Button>
-            </div>
-          </form>
-        </Modal>
 
         {/* Deactivate Confirmation Modal */}
         <ConfirmModal
@@ -555,7 +462,343 @@ export default function AdminUsers() {
           userRole={users.find(u => u.id === pendingUserId)?.role || 'admin'}
           loading={loadingFeatures || savingPermissions}
         />
-      </div>
+      </WorkspaceLayout>
     </Page>
+  );
+}
+
+interface UserEditModalProps {
+  editingUser: AdminUser | null;
+  existingUsers: AdminUser[];
+  onClose: () => void;
+  onSaved: (user: AdminUser | undefined, role: string) => void;
+}
+
+function UserEditModal({ editingUser, existingUsers, onClose, onSaved }: UserEditModalProps) {
+  const isEditing = !!editingUser;
+  const [mode, setMode] = useState<AddUserMode>(isEditing ? 'new' : 'existing');
+  const [submitting, setSubmitting] = useState(false);
+
+  // Existing-person picker state
+  const [personSearch, setPersonSearch] = useState('');
+  const [personResults, setPersonResults] = useState<Person[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
+  const [selectedRole, setSelectedRole] = useState('admin');
+
+  const form = useForm<UserFormData>({
+    resolver: yupResolver(userSchema) as any,
+    defaultValues: (() => {
+      if (editingUser) {
+        const nameParts = editingUser.name.split(' ');
+        return {
+          first_name: nameParts[0] || '',
+          last_name: nameParts.slice(1).join(' ') || '',
+          email: editingUser.email,
+          role: editingUser.role || 'admin',
+        };
+      }
+      return { first_name: '', last_name: '', email: '', role: 'admin' };
+    })(),
+  });
+
+  const adminEmails = useMemo(
+    () => new Set(existingUsers.map((u) => u.email?.toLowerCase()).filter(Boolean)),
+    [existingUsers],
+  );
+
+  // Debounced people search
+  useEffect(() => {
+    if (mode !== 'existing') return;
+    const term = personSearch.trim();
+    if (term.length < 2) {
+      setPersonResults([]);
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    const timer = setTimeout(async () => {
+      const results = await searchPeopleByNameOrEmail(term);
+      setPersonResults(results);
+      setSearching(false);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [personSearch, mode]);
+
+  const createUser = async (data: CreateUserData) => {
+    setSubmitting(true);
+    try {
+      const { success, error, user: newUser } = await AdminUserService.createUser(data);
+      if (success) {
+        toast.success('User created successfully');
+        onSaved(newUser, data.role || 'admin');
+      } else {
+        toast.error(error || 'Failed to create user');
+      }
+    } catch {
+      toast.error('An error occurred');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleAddExisting = async () => {
+    if (!selectedPerson?.email) return;
+    const first = selectedPerson.attributes?.first_name || '';
+    const last = selectedPerson.attributes?.last_name || '';
+    await createUser({
+      name: personDisplayName(selectedPerson),
+      email: selectedPerson.email,
+      role: selectedRole,
+      first_name: first || undefined,
+      last_name: last || undefined,
+    });
+  };
+
+  const onSubmitForm = async (data: UserFormData) => {
+    const fullName = `${data.first_name} ${data.last_name}`.trim();
+
+    if (isEditing) {
+      setSubmitting(true);
+      try {
+        const updateData: UpdateUserData = {
+          name: fullName,
+          email: data.email,
+          role: data.role,
+          first_name: data.first_name,
+          last_name: data.last_name,
+        };
+        const { success, error } = await AdminUserService.updateUser(editingUser!.id, updateData);
+
+        if (success) {
+          toast.success('User updated successfully');
+          onSaved({ ...editingUser!, name: fullName, email: data.email, role: data.role }, data.role);
+        } else {
+          toast.error(error || 'Failed to update user');
+        }
+      } catch {
+        toast.error('An error occurred');
+      } finally {
+        setSubmitting(false);
+      }
+    } else {
+      await createUser({
+        name: fullName,
+        email: data.email,
+        role: data.role,
+        first_name: data.first_name,
+        last_name: data.last_name,
+      });
+    }
+  };
+
+  return (
+    <Modal
+      isOpen
+      onClose={onClose}
+      title={isEditing ? 'Edit User' : 'Add User'}
+      size="lg"
+      resizable={false}
+    >
+      <div className="space-y-4">
+        {/* Mode toggle — only when adding */}
+        {!isEditing && (
+          <div className="grid grid-cols-2 gap-2 p-1 bg-[var(--gray-a3)] rounded-lg">
+            {([
+              { id: 'existing', label: 'Select Existing Person', icon: UserGroupIcon },
+              { id: 'new', label: 'Create New User', icon: UserPlusIcon },
+            ] as const).map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setMode(id)}
+                className={`flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  mode === id
+                    ? 'bg-[var(--color-panel-solid)] text-[var(--gray-12)] shadow-sm'
+                    : 'text-[var(--gray-11)] hover:text-[var(--gray-12)]'
+                }`}
+              >
+                <Icon className="size-4" />
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {!isEditing && mode === 'existing' ? (
+          <div className="space-y-4">
+            {selectedPerson ? (
+              <div className="flex items-center gap-3 p-3 border border-[var(--gray-a6)] rounded-lg bg-[var(--gray-a2)]">
+                <Avatar
+                  src={PeopleService.getAvatarUrl(selectedPerson as any, 80) || undefined}
+                  name={personDisplayName(selectedPerson)}
+                  size={10}
+                  initialColor="auto"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-[var(--gray-12)] truncate">
+                    {personDisplayName(selectedPerson)}
+                  </div>
+                  <div className="text-sm text-[var(--gray-11)] truncate">{selectedPerson.email}</div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="1"
+                  onClick={() => setSelectedPerson(null)}
+                  aria-label="Clear selection"
+                >
+                  <XMarkIcon className="size-4" />
+                </Button>
+              </div>
+            ) : (
+              <>
+                <div className="relative">
+                  <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-5 text-[var(--gray-a8)]" />
+                  <input
+                    type="text"
+                    autoFocus
+                    placeholder="Search people by name or email..."
+                    value={personSearch}
+                    onChange={(e) => setPersonSearch(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 bg-[var(--color-background)] border border-[var(--gray-a6)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent-9)] text-[var(--gray-12)]"
+                  />
+                </div>
+
+                <div className="border border-[var(--gray-a6)] rounded-lg max-h-64 overflow-y-auto divide-y divide-[var(--gray-a4)]">
+                  {searching ? (
+                    <div className="flex items-center justify-center gap-2 py-6 text-sm text-[var(--gray-11)]">
+                      <Spinner className="size-4" /> Searching…
+                    </div>
+                  ) : personResults.length === 0 ? (
+                    <div className="py-6 text-center text-sm text-[var(--gray-11)]">
+                      {personSearch.trim().length < 2
+                        ? 'Type at least two characters to search existing people.'
+                        : 'No matching people found.'}
+                    </div>
+                  ) : (
+                    personResults.map((person) => {
+                      const alreadyAdmin = adminEmails.has(person.email?.toLowerCase() || '');
+                      return (
+                        <button
+                          key={person.id || person.cio_id}
+                          type="button"
+                          disabled={alreadyAdmin}
+                          onClick={() => setSelectedPerson(person)}
+                          className={`w-full flex items-center gap-3 px-3 py-2 text-left ${
+                            alreadyAdmin
+                              ? 'opacity-60 cursor-not-allowed'
+                              : 'hover:bg-[var(--gray-a3)] cursor-pointer'
+                          }`}
+                        >
+                          <Avatar
+                            src={PeopleService.getAvatarUrl(person as any, 80) || undefined}
+                            name={personDisplayName(person)}
+                            size={9}
+                            initialColor="auto"
+                            className="flex-shrink-0"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-[var(--gray-12)] truncate">
+                              {personDisplayName(person)}
+                            </div>
+                            <div className="text-xs text-[var(--gray-11)] truncate">
+                              {person.email}
+                              {person.attributes?.company ? ` · ${person.attributes.company}` : ''}
+                            </div>
+                          </div>
+                          {alreadyAdmin && <Badge color="gray">Already admin</Badge>}
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </>
+            )}
+
+            {selectedPerson && (
+              <Select
+                label="Role"
+                data={roleOptions}
+                value={selectedRole}
+                onChange={(e) => setSelectedRole(e.target.value)}
+              />
+            )}
+
+            <div className="bg-[var(--accent-a3)] p-3 rounded-lg border border-[var(--accent-a6)]">
+              <p className="text-sm text-[var(--accent-11)]">
+                🔗 <strong>Magic Link Authentication:</strong> A secure login link will be sent to the
+                person's email address. No password required.
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={handleAddExisting}
+                disabled={!selectedPerson || submitting}
+              >
+                {submitting ? 'Adding…' : 'Add as Admin'}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={form.handleSubmit(onSubmitForm as any)} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="First Name"
+                placeholder="John"
+                {...form.register('first_name')}
+                error={form.formState.errors.first_name?.message}
+              />
+              <Input
+                label="Last Name"
+                placeholder="Doe"
+                {...form.register('last_name')}
+                error={form.formState.errors.last_name?.message}
+              />
+            </div>
+
+            <Input
+              label="Email"
+              type="email"
+              placeholder="Enter email address"
+              {...form.register('email')}
+              error={form.formState.errors.email?.message}
+            />
+
+            <Select
+              label="Role"
+              data={roleOptions}
+              value={form.watch('role')}
+              onChange={(e) => form.setValue('role', e.target.value)}
+              error={form.formState.errors.role?.message}
+            />
+
+            {!isEditing && (
+              <div className="bg-[var(--accent-a3)] p-3 rounded-lg border border-[var(--accent-a6)]">
+                <p className="text-sm text-[var(--accent-11)]">
+                  🔗 <strong>Magic Link Authentication:</strong> A secure login link will be sent to the
+                  user's email address. No password required.
+                </p>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 pt-2">
+              <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={submitting}>
+                {submitting
+                  ? (isEditing ? 'Updating…' : 'Creating…')
+                  : (isEditing ? 'Update User' : 'Create User')}
+              </Button>
+            </div>
+          </form>
+        )}
+      </div>
+    </Modal>
   );
 }
