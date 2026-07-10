@@ -337,11 +337,13 @@ const TOOLS = [
   },
   {
     name: 'resources_item_sections_set',
-    description: "Replace a resource item's full section list with the given ordered sections.",
+    description:
+      "Replace a resource item's full section list with the given ordered sections. DESTRUCTIVE full-replace: sections absent from the payload are deleted. Each section carries either raw `content` HTML or a typed `blocks` array (never both). Read the item first (resources_item_get) and echo its `version` as `if_match` to guard against concurrent edits.",
     inputSchema: {
       type: 'object' as const,
       properties: {
         id: { type: 'string', description: 'Item UUID' },
+        if_match: { type: 'string', description: "Optional concurrency token: the item's `version` from resources_item_get, echoed verbatim. Stale -> conflict; omitted -> last-write-wins." },
         sections: {
           type: 'array',
           description: 'Ordered content sections (replaces all existing sections)',
@@ -349,9 +351,23 @@ const TOOLS = [
             type: 'object',
             properties: {
               heading: { type: 'string' },
-              content: { type: 'string', description: 'Markdown content' },
+              content: { type: 'string', description: 'Raw HTML content (mutually exclusive with blocks)' },
               template_id: { type: 'string', description: 'Section template UUID (optional)' },
               sort_order: { type: 'number' },
+              blocks: {
+                type: 'array',
+                description: 'Typed content blocks (mutually exclusive with content). Kinds + data schemas: resources_block_kinds.',
+                items: {
+                  type: 'object',
+                  properties: {
+                    kind: { type: 'string', description: "'html' | 'talk'" },
+                    slug: { type: 'string', description: 'Stable anchor slug (required for talk; generated from title when omitted)' },
+                    sort_order: { type: 'number' },
+                    data: { type: 'object', description: 'Kind-specific payload, validated server-side' },
+                  },
+                  required: ['kind', 'data'],
+                },
+              },
             },
             required: ['heading'],
           },
@@ -359,6 +375,38 @@ const TOOLS = [
       },
       required: ['id', 'sections'],
     },
+  },
+  {
+    name: 'resources_section_blocks_set',
+    description:
+      "Replace ONE section's typed blocks without resending the item's other sections. Never touches the section's legacy content; an empty blocks array reverts the section to legacy content rendering. Block ids regenerate on every write — slugs are the stable identifiers.",
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        item_id: { type: 'string', description: 'Item UUID' },
+        section_id: { type: 'string', description: 'Section UUID' },
+        if_match: { type: 'string', description: "Optional concurrency token from resources_item_get `version`, echoed verbatim." },
+        blocks: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              kind: { type: 'string', description: "'html' | 'talk'" },
+              slug: { type: 'string' },
+              sort_order: { type: 'number' },
+              data: { type: 'object' },
+            },
+            required: ['kind', 'data'],
+          },
+        },
+      },
+      required: ['item_id', 'section_id', 'blocks'],
+    },
+  },
+  {
+    name: 'resources_block_kinds',
+    description: 'List the registered block kinds with their JSON Schemas, so typed blocks can be authored without guessing the data shape.',
+    inputSchema: { type: 'object' as const, properties: {} },
   },
 ];
 
@@ -808,6 +856,15 @@ export function createGatewazeMcpServer(
             `/resources/items/${params.id}/sections`,
             bodyWithout(params, 'id'),
           );
+          break;
+        case 'resources_section_blocks_set':
+          result = await api.put(
+            `/resources/items/${params.item_id}/sections/${params.section_id}/blocks`,
+            bodyWithout(params, 'item_id', 'section_id'),
+          );
+          break;
+        case 'resources_block_kinds':
+          result = await api.get('/resources/block-kinds');
           break;
         default:
           logCall({ ...base, outcome: 'unknown_tool', ms: Date.now() - startedAt });
