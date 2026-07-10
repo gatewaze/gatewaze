@@ -17,6 +17,7 @@ export type IconName =
   | 'layers' | 'shield' | 'signal' | 'trend' | 'badge' | 'sparkle' | 'route'
   | 'filter' | 'download' | 'mappin' | 'clock' | 'mic' | 'link' | 'signin'
   | 'newspaper' | 'pencil'
+  | 'book-open' | 'file-text' | 'ticket'
   | 'default'
 
 /** Each value is the inner markup of a 24x24 stroke icon. */
@@ -60,6 +61,11 @@ const PATHS: Record<IconName, string> = {
   signin: '<path d="M8.25 9V5.25A2.25 2.25 0 0 1 10.5 3h6a2.25 2.25 0 0 1 2.25 2.25v13.5A2.25 2.25 0 0 1 16.5 21h-6a2.25 2.25 0 0 1-2.25-2.25V15"/><path d="M12 9l3 3m0 0-3 3m3-3H2.25"/>',
   newspaper: '<path d="M4 5h13v14a1.5 1.5 0 0 0 1.5 1.5h0A1.5 1.5 0 0 0 20 19V8h-3"/><path d="M5.5 20.5h11A1.5 1.5 0 0 0 18 19V5H4v14a1.5 1.5 0 0 0 1.5 1.5z"/><path d="M7 8.5h7M7 12h7M7 15.5h4"/>',
   pencil: '<path d="M4 20h4l10-10a2 2 0 0 0-3-3L5 17z"/><path d="M14 6l3 3"/>',
+  // Match the admin UI's module icons (lucide names): BookOpen → resources,
+  // FileText → blog, Ticket → events.
+  'book-open': '<path d="M12 7c-1.4-1.5-3.4-2.25-5.5-2.25-1.24 0-2.43.26-3.5.72v13.06a8.7 8.7 0 0 1 3.5-.72c2.1 0 4.1.75 5.5 2.25 1.4-1.5 3.4-2.25 5.5-2.25 1.24 0 2.43.26 3.5.72V5.47a8.7 8.7 0 0 0-3.5-.72C15.4 4.75 13.4 5.5 12 7z"/><path d="M12 7v13"/>',
+  'file-text': '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M9 12.5h6M9 16h6"/>',
+  ticket: '<path d="M3 8.5V8a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v.5a2 2 0 0 0 0 7v.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-.5a2 2 0 0 0 0-7z"/><path d="M14 7v2.2M14 11v2M14 14.8V17"/>',
   default: '<circle cx="12" cy="12" r="8"/>',
 }
 
