@@ -23,6 +23,16 @@ import { createServerSupabase } from '@/lib/supabase/server'
 const TOPIC_RE = /^[a-z0-9][a-z0-9-]{0,60}$/
 const MAX_TOPICS = 8
 const MAX_CARDS = 6
+/** In-person events within this range rank above the rest. */
+const NEARBY_KM = 500
+
+function haversineKm(aLat: number, aLon: number, bLat: number, bLon: number): number {
+  const rad = (d: number) => (d * Math.PI) / 180
+  const dLat = rad(bLat - aLat)
+  const dLon = rad(bLon - aLon)
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(aLat)) * Math.cos(rad(bLat)) * Math.sin(dLon / 2) ** 2
+  return 6371 * 2 * Math.asin(Math.sqrt(h))
+}
 
 interface RelatedCard {
   type: string // resource | event | blog | link — display label
@@ -125,18 +135,41 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 3) upcoming events with overlapping topics
+    // 3) upcoming events with overlapping topics. When the panel supplies the
+    //    visitor's coarse IP location (shared ipinfo cache client-side),
+    //    in-person events within NEARBY_KM rank first; virtual events and
+    //    events with no coordinates keep their date order.
     if (cards.length < MAX_CARDS) {
+      const lat = Number.parseFloat(url.searchParams.get('lat') ?? '')
+      const lon = Number.parseFloat(url.searchParams.get('lon') ?? '')
+      const hasGeo = Number.isFinite(lat) && Number.isFinite(lon)
+
       const { data: events } = await supabase
         .from('events')
-        .select('event_title, event_slug, event_start, event_city, event_country_code, event_featured_image, event_topics')
+        .select('event_id, event_title, event_slug, event_start, event_city, event_country_code, event_featured_image, event_topics, event_latitude, event_longitude')
         .overlaps('event_topics', topics)
         .eq('is_listed', true)
         .gt('event_start', new Date().toISOString())
         .order('event_start', { ascending: true })
-        .limit(3)
-      for (const e of events ?? []) {
-        if (!e.event_slug) continue
+        .limit(15)
+
+      const ranked = (events ?? [])
+        // event pages resolve by the short event_id; event_slug is usually null
+        .filter((e) => e.event_slug || e.event_id)
+        .map((e) => {
+          const eLat = Number.parseFloat(e.event_latitude ?? '')
+          const eLon = Number.parseFloat(e.event_longitude ?? '')
+          const km = hasGeo && Number.isFinite(eLat) && Number.isFinite(eLon)
+            ? haversineKm(lat, lon, eLat, eLon)
+            : null
+          return { e, km, nearby: km !== null && km <= NEARBY_KM }
+        })
+        .sort((a, b) =>
+          Number(b.nearby) - Number(a.nearby) ||
+          Date.parse(a.e.event_start ?? '') - Date.parse(b.e.event_start ?? ''))
+        .slice(0, 3)
+
+      for (const { e, nearby } of ranked) {
         const when = e.event_start
           ? new Date(e.event_start).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
           : ''
@@ -144,9 +177,9 @@ export async function GET(req: NextRequest) {
         push({
           type: 'event',
           title: e.event_title,
-          href: `/events/${e.event_slug}`,
+          href: `/events/${e.event_slug ?? e.event_id}`,
           image: e.event_featured_image ?? undefined,
-          meta: [when, where].filter(Boolean).join(' · '),
+          meta: [when, where && nearby ? `${where} — near you` : where].filter(Boolean).join(' · '),
           source: 'event',
         })
       }
