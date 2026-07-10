@@ -44,6 +44,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     return newsletterCollectionMetadata(newsletterCollectionMatch[1])
   }
 
+  // /resources/{collectionSlug}/{itemSlug}/{anchorSlug} — deep link to one
+  // block inside an item (e.g. a talk card in a conference recap); previews
+  // should describe THAT talk, not the whole item.
+  const resourceAnchorMatch = pathname.match(/^\/resources\/([^/]+)\/([^/]+)\/([^/]+)$/)
+  if (resourceAnchorMatch) {
+    return resourceAnchorMetadata(resourceAnchorMatch[1], resourceAnchorMatch[2], resourceAnchorMatch[3])
+  }
+
   // /resources/{collectionSlug}/{itemSlug}
   const resourceItemMatch = pathname.match(/^\/resources\/([^/]+)\/([^/]+)$/)
   if (resourceItemMatch) {
@@ -224,6 +232,104 @@ async function resourceItemMetadata(collectionSlug: string, itemSlug: string): P
     }
   } catch (err) {
     console.warn('[resource-item-metadata] failed to build:', err)
+    return {}
+  }
+}
+
+/** Strip tags + decode the entities our content pipeline emits. */
+function htmlToPlain(html: string): string {
+  return html
+    .replace(/<[^>]+>/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/**
+ * Deep-link (anchor) metadata for a single block inside a resource item.
+ * The block is an HTML fragment authored into a section with a stable
+ * `id` (e.g. `talk-...` cards in conference recaps): title comes from its
+ * first <h3>, description from the paragraph after a "Worth noting" label
+ * (fallback: first paragraph), and the image from an embedded YouTube
+ * thumbnail when present. Falls back to the parent item's metadata when
+ * the anchor can't be found.
+ */
+async function resourceAnchorMetadata(collectionSlug: string, itemSlug: string, anchorSlug: string): Promise<Metadata> {
+  try {
+    const brand = await getServerBrandConfig()
+    const supabase = await createServerSupabase(brand.id)
+    const baseUrl = `https://${brand.domain}`
+
+    const { data: collection } = await supabase
+      .from('sr_collections')
+      .select('id, name')
+      .eq('slug', collectionSlug)
+      .eq('status', 'published')
+      .maybeSingle()
+    if (!collection) return {}
+
+    const { data: item } = await supabase
+      .from('sr_items')
+      .select('title, featured_image_url, created_at, updated_at, sections:sr_sections(content)')
+      .eq('collection_id', collection.id)
+      .eq('slug', itemSlug)
+      .eq('status', 'published')
+      .maybeSingle()
+    if (!item) return {}
+
+    // Isolate the anchored block's HTML: from its id to the next id'd block
+    // (or end of section).
+    const needle = `id="${anchorSlug}"`
+    const section = (item.sections || []).find((s: { content: string | null }) => (s.content || '').includes(needle))
+    if (!section?.content) return resourceItemMetadata(collectionSlug, itemSlug)
+    const start = section.content.indexOf(needle)
+    const rest = section.content.slice(start)
+    const nextId = rest.slice(needle.length).search(/ id="/)
+    const block = nextId > 0 ? rest.slice(0, needle.length + nextId) : rest
+
+    const h3 = block.match(/<h3[^>]*>([\s\S]*?)<\/h3>/)
+    const talkTitle = h3 ? htmlToPlain(h3[1]) : null
+    const noting = block.match(/>\s*Worth noting\s*<\/p>\s*<p[^>]*>([\s\S]*?)<\/p>/)
+    const firstP = block.match(/<p[^>]*>([\s\S]*?)<\/p>/)
+    const description = htmlToPlain((noting?.[1] || firstP?.[1] || '')) || `${item.title} — ${collection.name}`
+    const yt = block.match(/i\.ytimg\.com\/vi\/([\w-]+)\//) || block.match(/youtu\.be\/([\w-]+)/)
+    const ogImage = yt
+      ? `https://i.ytimg.com/vi/${yt[1]}/hqdefault.jpg`
+      : item.featured_image_url || brand.logoUrl || brand.faviconUrl || undefined
+
+    const path = `/resources/${collectionSlug}/${itemSlug}/${anchorSlug}`
+    const title = talkTitle ? `${talkTitle} — ${item.title}` : `${item.title} — ${collection.name}`
+
+    return {
+      title,
+      description,
+      alternates: {
+        // the anchor page repeats the item's content; the item is canonical
+        canonical: `${baseUrl}/resources/${collectionSlug}/${itemSlug}`,
+      },
+      openGraph: {
+        title,
+        description,
+        type: 'article',
+        url: `${baseUrl}${path}`,
+        siteName: brand.name,
+        images: ogImage ? [{ url: ogImage }] : undefined,
+        publishedTime: item.created_at ?? undefined,
+        modifiedTime: item.updated_at ?? undefined,
+      },
+      twitter: {
+        card: 'summary_large_image',
+        title,
+        description,
+        images: ogImage ? [ogImage] : undefined,
+      },
+    }
+  } catch (err) {
+    console.warn('[resource-anchor-metadata] failed to build:', err)
     return {}
   }
 }
