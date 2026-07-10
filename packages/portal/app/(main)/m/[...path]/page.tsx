@@ -3,6 +3,7 @@ import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { getEnabledModules, isModuleEnabled } from '@/lib/modules/enabledModules'
 import { getNavVisibleModuleIds } from '@/lib/modules/navVisible'
+import { getViewableDraftModuleIds } from '@/lib/modules/draftAccess'
 import { findModulePage, extractParams } from '@/lib/modules/generated-portal-modules'
 import { createServerSupabase } from '@/lib/supabase/server'
 import { getServerBrandConfig } from '@/config/brand'
@@ -509,7 +510,12 @@ export default async function ModulePage({ params, searchParams }: Props) {
   }
   const navVisible = await getNavVisibleModuleIds()
   if (!navVisible.has(page.moduleId)) {
-    redirect('/')
+    // Draft modules stay reachable for authorised viewers (super admins /
+    // module feature grants) so unreleased content can be reviewed in place.
+    const draftViewable = await getViewableDraftModuleIds()
+    if (!draftViewable.has(page.moduleId)) {
+      redirect('/')
+    }
   }
 
   // Extract dynamic params from route pattern (e.g., /forms/[slug] → { slug: 'meetup-organizer' })

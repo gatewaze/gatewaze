@@ -15,6 +15,9 @@ interface NavItemOverride {
   label?: string; // custom label (undefined = use module default)
   order: number;
   hidden?: boolean;
+  /** Draft: hidden from the public exactly like `hidden`, but portal admins
+   *  (super admins / module feature grants) see the item + pages, badged. */
+  draft?: boolean;
 }
 
 interface ModuleNavSource {
@@ -96,6 +99,7 @@ export function PortalNavEditor({ value, onChange }: Props) {
           icon: mod.defaultIcon,
           order: override?.order ?? mod.defaultOrder,
           hidden: override?.hidden ?? false,
+          draft: (override?.draft && !override?.hidden) ?? false,
           hasCustomLabel: !!override?.label,
         };
       })
@@ -133,6 +137,7 @@ export function PortalNavEditor({ value, onChange }: Props) {
       label: item.hasCustomLabel ? item.label : undefined,
       order: i * 10,
       hidden: item.hidden || undefined,
+      draft: item.draft || undefined,
     }));
 
     onChange({ items: newItems });
@@ -178,7 +183,8 @@ export function PortalNavEditor({ value, onChange }: Props) {
             Menu Items
           </Text>
           <Text as="p" size="1" color="gray" className="pb-2">
-            Drag to reorder, click the label to rename, or toggle visibility.
+            Drag to reorder, click the label to rename. The eye toggle cycles visible → draft → hidden;
+            draft items (and their pages) are only shown to portal admins, for previewing unreleased content.
           </Text>
         </div>
         <button
@@ -272,19 +278,40 @@ export function PortalNavEditor({ value, onChange }: Props) {
             </div>
 
             {/* Visibility toggle */}
+            {/* Visibility: three states cycled by the toggle.
+                Visible → Draft (admins-only preview) → Hidden → Visible */}
             {item.moduleId !== "_home" && (
-              <button
-                type="button"
-                onClick={() => updateItem(item.moduleId, { hidden: !item.hidden })}
-                className="rounded p-1.5 hover:bg-[var(--gray-3)] transition-colors flex-shrink-0"
-                title={item.hidden ? "Show in menu" : "Hide from menu"}
-              >
-                {item.hidden ? (
-                  <EyeSlashIcon className="size-4 text-[var(--gray-8)]" />
-                ) : (
-                  <EyeIcon className="size-4 text-[var(--gray-11)]" />
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                {item.draft && (
+                  <span className="rounded-full border border-[var(--amber-8)] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--amber-11)]">
+                    Draft
+                  </span>
                 )}
-              </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (item.hidden) updateItem(item.moduleId, { hidden: undefined, draft: undefined });
+                    else if (item.draft) updateItem(item.moduleId, { hidden: true, draft: undefined });
+                    else updateItem(item.moduleId, { hidden: undefined, draft: true });
+                  }}
+                  className="rounded p-1.5 hover:bg-[var(--gray-3)] transition-colors"
+                  title={
+                    item.hidden
+                      ? "Hidden from everyone — click to show in menu"
+                      : item.draft
+                      ? "Draft: only portal admins see this — click to hide from everyone"
+                      : "Visible to everyone — click to mark as draft (admins-only preview)"
+                  }
+                >
+                  {item.hidden ? (
+                    <EyeSlashIcon className="size-4 text-[var(--gray-8)]" />
+                  ) : item.draft ? (
+                    <EyeIcon className="size-4 text-[var(--amber-11)]" />
+                  ) : (
+                    <EyeIcon className="size-4 text-[var(--gray-11)]" />
+                  )}
+                </button>
+              </div>
             )}
           </div>
         ))}
