@@ -45,10 +45,16 @@ const HIDDEN = "hidden";
 const UNSORTED = "unsorted";
 const secId = (id: string) => `sec:${id}`;
 
+// A collapsible group is a container whose id IS its synthetic `group:*` key
+// (already unique + namespaced; no pool item ever collides). It belongs to a
+// section and holds leaf keys.
+
 interface EditorState {
   containers: Containers;
   sectionOrder: string[]; // section ids (without the sec: prefix)
   sectionMeta: Record<string, { title?: string; icon?: string }>;
+  groups: Record<string, { label?: string; icon?: string }>;
+  sectionGroups: Record<string, string[]>; // section id -> ordered group keys
   overrides: Record<string, Override>;
   defaultRoute?: string;
 }
@@ -58,6 +64,8 @@ function layoutToState(layout: NavLayout, poolKeys: string[]): EditorState {
   const containers: Containers = { [SETTINGS]: [], [HIDDEN]: [], [UNSORTED]: [] };
   const sectionOrder: string[] = [];
   const sectionMeta: EditorState["sectionMeta"] = {};
+  const groups: EditorState["groups"] = {};
+  const sectionGroups: EditorState["sectionGroups"] = {};
   const overrides: Record<string, Override> = {};
   const placed = new Set<string>();
 
@@ -75,8 +83,21 @@ function layoutToState(layout: NavLayout, poolKeys: string[]): EditorState {
     sectionOrder.push(id);
     sectionMeta[id] = { title: section.title, icon: section.icon };
     containers[secId(id)] = [];
+    sectionGroups[id] = [];
     for (const item of section.items) {
-      if (take(item.key)) {
+      if (item.children && item.children.length > 0) {
+        // A collapsible group entry.
+        const gkey = item.key;
+        groups[gkey] = { label: item.label, icon: item.icon };
+        sectionGroups[id].push(gkey);
+        containers[gkey] = [];
+        for (const child of item.children) {
+          if (take(child.key)) {
+            containers[gkey].push(child.key);
+            recordOverride(child.key, child.icon, child.label);
+          }
+        }
+      } else if (take(item.key)) {
         containers[secId(id)].push(item.key);
         recordOverride(item.key, item.icon, item.label);
       }
@@ -99,19 +120,32 @@ function layoutToState(layout: NavLayout, poolKeys: string[]): EditorState {
     sectionOrder.push("main");
     sectionMeta.main = {};
     containers[secId("main")] = [];
+    sectionGroups.main = [];
   }
-  return { containers, sectionOrder, sectionMeta, overrides, defaultRoute: layout.defaultRoute };
+  return { containers, sectionOrder, sectionMeta, groups, sectionGroups, overrides, defaultRoute: layout.defaultRoute };
 }
 
 function stateToLayout(state: EditorState): NavLayout {
   const itemRef = (key: string) => ({ key, ...state.overrides[key] });
+  const groupRef = (gkey: string) => ({
+    key: gkey,
+    ...(state.groups[gkey]?.label ? { label: state.groups[gkey].label } : {}),
+    ...(state.groups[gkey]?.icon ? { icon: state.groups[gkey].icon } : {}),
+    children: (state.containers[gkey] ?? []).map(itemRef),
+  });
   return {
     version: 1,
     sidebar: state.sectionOrder.map((id) => ({
       id,
       ...(state.sectionMeta[id]?.title ? { title: state.sectionMeta[id].title } : {}),
       ...(state.sectionMeta[id]?.icon ? { icon: state.sectionMeta[id].icon } : {}),
-      items: (state.containers[secId(id)] ?? []).map(itemRef),
+      items: [
+        ...(state.containers[secId(id)] ?? []).map(itemRef),
+        // Groups with no remaining children are dropped on save.
+        ...(state.sectionGroups[id] ?? [])
+          .filter((gkey) => (state.containers[gkey] ?? []).length > 0)
+          .map(groupRef),
+      ],
     })),
     settings: (state.containers[SETTINGS] ?? []).map(itemRef),
     hidden: state.containers[HIDDEN] ?? [],
@@ -305,14 +339,17 @@ export default function NavigationSettings() {
   const mutate = (fn: (s: EditorState) => EditorState) =>
     setState((prev) => (prev ? fn(prev) : prev));
 
+  const uid = () => Math.random().toString(36).slice(2, 9);
+
   const addSection = () =>
     mutate((s) => {
-      const id = `section-${Date.now().toString(36)}`;
+      const id = `section-${uid()}`;
       return {
         ...s,
         sectionOrder: [...s.sectionOrder, id],
         sectionMeta: { ...s.sectionMeta, [id]: { title: "New section" } },
         containers: { ...s.containers, [secId(id)]: [] },
+        sectionGroups: { ...s.sectionGroups, [id]: [] },
       };
     });
 
@@ -321,14 +358,21 @@ export default function NavigationSettings() {
 
   const deleteSection = (id: string) =>
     mutate((s) => {
-      const moved = s.containers[secId(id)] ?? [];
+      const groupKeys = s.sectionGroups[id] ?? [];
+      const moved = [
+        ...(s.containers[secId(id)] ?? []),
+        ...groupKeys.flatMap((g) => s.containers[g] ?? []),
+      ];
       const containers: Containers = { ...s.containers, [UNSORTED]: [...s.containers[UNSORTED], ...moved] };
       delete containers[secId(id)];
+      for (const g of groupKeys) delete containers[g];
       return {
         ...s,
         containers,
         sectionOrder: s.sectionOrder.filter((x) => x !== id),
         sectionMeta: Object.fromEntries(Object.entries(s.sectionMeta).filter(([k]) => k !== id)),
+        sectionGroups: Object.fromEntries(Object.entries(s.sectionGroups).filter(([k]) => k !== id)),
+        groups: Object.fromEntries(Object.entries(s.groups).filter(([k]) => !groupKeys.includes(k))),
       };
     });
 
@@ -338,6 +382,34 @@ export default function NavigationSettings() {
       const target = idx + dir;
       if (target < 0 || target >= s.sectionOrder.length) return s;
       return { ...s, sectionOrder: arrayMove(s.sectionOrder, idx, target) };
+    });
+
+  // ── Collapsible group operations ─────────────────────────────────────────
+  const addGroup = (sectionId: string) =>
+    mutate((s) => {
+      const gkey = `group:${uid()}`;
+      return {
+        ...s,
+        groups: { ...s.groups, [gkey]: { label: "New group" } },
+        sectionGroups: { ...s.sectionGroups, [sectionId]: [...(s.sectionGroups[sectionId] ?? []), gkey] },
+        containers: { ...s.containers, [gkey]: [] },
+      };
+    });
+
+  const renameGroup = (gkey: string, label: string) =>
+    mutate((s) => ({ ...s, groups: { ...s.groups, [gkey]: { ...s.groups[gkey], label } } }));
+
+  const deleteGroup = (sectionId: string, gkey: string) =>
+    mutate((s) => {
+      const moved = s.containers[gkey] ?? [];
+      const containers: Containers = { ...s.containers, [UNSORTED]: [...s.containers[UNSORTED], ...moved] };
+      delete containers[gkey];
+      return {
+        ...s,
+        containers,
+        sectionGroups: { ...s.sectionGroups, [sectionId]: (s.sectionGroups[sectionId] ?? []).filter((g) => g !== gkey) },
+        groups: Object.fromEntries(Object.entries(s.groups).filter(([k]) => k !== gkey)),
+      };
     });
 
   const setOverride = (key: string, ov: Override) =>
@@ -388,7 +460,11 @@ export default function NavigationSettings() {
   const sidebarRouteOptions = useMemo(() => {
     if (!state) return [];
     return state.sectionOrder
-      .flatMap((id) => state.containers[secId(id)] ?? [])
+      .flatMap((id) => [
+        ...(state.containers[secId(id)] ?? []),
+        // Include items nested inside this section's collapsible groups.
+        ...(state.sectionGroups[id] ?? []).flatMap((g) => state.containers[g] ?? []),
+      ])
       .map((key) => ({ key, node: pool.items.get(key) }))
       .filter((o) => o.node?.path);
   }, [state, pool]);
@@ -501,6 +577,37 @@ export default function NavigationSettings() {
                     <Container id={secId(id)} keys={state.containers[secId(id)] ?? []}>
                       {(state.containers[secId(id)] ?? []).map(renderItem)}
                     </Container>
+
+                    {/* Collapsible groups (nested menus) within this section. */}
+                    {(state.sectionGroups[id] ?? []).map((gkey) => (
+                      <div
+                        key={gkey}
+                        className="mt-2 rounded-md border border-dashed border-[var(--accent-a6)] bg-[var(--accent-a2)] p-2"
+                      >
+                        <div className="mb-1.5 flex items-center gap-2">
+                          <span className="text-[var(--gray-9)]" aria-hidden>▸</span>
+                          <input
+                            value={state.groups[gkey]?.label ?? ""}
+                            onChange={(e) => renameGroup(gkey, e.target.value)}
+                            placeholder="Group name"
+                            className="flex-1 rounded border border-transparent bg-transparent px-1 py-0.5 text-sm font-medium text-[var(--gray-12)] hover:border-[var(--gray-a5)] focus:border-[var(--accent-8)] focus:outline-none"
+                          />
+                          <button type="button" onClick={() => deleteGroup(id, gkey)}
+                            className="px-1 text-xs text-rose-500 hover:text-rose-600">Delete</button>
+                        </div>
+                        <Container id={gkey} keys={state.containers[gkey] ?? []}>
+                          {(state.containers[gkey] ?? []).map(renderItem)}
+                        </Container>
+                      </div>
+                    ))}
+
+                    <button
+                      type="button"
+                      onClick={() => addGroup(id)}
+                      className="mt-2 text-xs text-[var(--accent-11)] hover:underline"
+                    >
+                      + Add nested group
+                    </button>
                   </div>
                 ))}
               </div>

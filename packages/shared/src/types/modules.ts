@@ -404,14 +404,24 @@ export interface NavLayoutSection {
   items: NavLayoutItem[];
 }
 
-/** A reference to a nav item by stable key, with optional per-item overrides. */
+/**
+ * An entry in a sidebar section or the settings list. Usually a reference to a
+ * real nav item by stable `key` (with optional per-item icon/label overrides).
+ *
+ * When `children` is present the entry is instead a **collapsible group** — a
+ * user-created expandable parent (chevron + label) whose `key` is synthetic
+ * (conventionally `group:<slug>`), not a pool item, and whose children are leaf
+ * references. Nesting is one level deep.
+ */
 export interface NavLayoutItem {
-  /** Stable key of the underlying item (matches the rendered NavigationTree.id). */
+  /** Stable key of the underlying item, or a synthetic `group:<slug>` for a group. */
   key: string;
-  /** Override the module-declared icon when rendered. */
+  /** Override the module-declared icon when rendered (or the group's icon). */
   icon?: string;
-  /** Override the module-declared label when rendered. */
+  /** Override the module-declared label when rendered (or the group's label). */
   label?: string;
+  /** Present → this entry is a collapsible parent containing these leaf items. */
+  children?: NavLayoutItem[];
 }
 
 export interface PortalRouteDefinition {

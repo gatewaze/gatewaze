@@ -32,7 +32,7 @@ function str(value: unknown, max = MAX_STR): string | undefined {
   return trimmed.slice(0, max);
 }
 
-function sanitizeItem(input: unknown): NavLayoutItem | null {
+function sanitizeItem(input: unknown, allowChildren: boolean): NavLayoutItem | null {
   if (!input || typeof input !== 'object') return null;
   const raw = input as Record<string, unknown>;
   const key = str(raw.key);
@@ -43,14 +43,20 @@ function sanitizeItem(input: unknown): NavLayoutItem | null {
   const label = str(raw.label);
   if (icon) item.icon = icon;
   if (label) item.label = label;
+
+  // Groups nest one level only — children are always leaves.
+  if (allowChildren && Array.isArray(raw.children)) {
+    const children = sanitizeItems(raw.children, false);
+    if (children.length > 0) item.children = children;
+  }
   return item;
 }
 
-function sanitizeItems(input: unknown): NavLayoutItem[] {
+function sanitizeItems(input: unknown, allowChildren = true): NavLayoutItem[] {
   if (!Array.isArray(input)) return [];
   return input
     .slice(0, MAX_ITEMS_PER_SECTION)
-    .map(sanitizeItem)
+    .map((i) => sanitizeItem(i, allowChildren))
     .filter((i): i is NavLayoutItem => i !== null);
 }
 

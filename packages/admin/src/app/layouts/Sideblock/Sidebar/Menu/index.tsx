@@ -10,6 +10,7 @@ import { Accordion } from "@/components/ui";
 import { isRouteActive } from "@/utils/isRouteActive";
 import { Group } from "./Group";
 import { MenuItem } from "./Group/MenuItem";
+import { CollapsibleItem } from "./Group/CollapsibleItem";
 import { useFeaturePermissions } from "@/hooks/useFeaturePermissions";
 import { filterNavigationByPermissions } from "@/utils/navigationPermissions";
 import { useModulesContext } from "@/app/contexts/modules/context";
@@ -79,6 +80,14 @@ export function Menu() {
         {filteredNavigation.map((nav) => {
           if (nav.type === "root" || nav.type === "group") {
             return <Group key={nav.id} data={nav} />;
+          } else if (nav.type === "collapse") {
+            // In the rail there's no room for an expandable parent, so flatten
+            // the group to its children's icons.
+            return collapsed
+              ? (nav.childs ?? []).map((child) => (
+                  <MenuItem key={child.id} data={child} />
+                ))
+              : <CollapsibleItem key={nav.id} data={nav} />;
           } else if (nav.type === "item") {
             return <MenuItem key={nav.id} data={nav} />;
           }

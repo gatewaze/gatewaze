@@ -2,7 +2,7 @@
 import { ChevronRightIcon, ChevronLeftIcon } from "@heroicons/react/24/outline";
 import clsx from "clsx";
 import { useTranslation } from "react-i18next";
-import { useLocation } from "react-router";
+import { NavLink, useLocation } from "react-router";
 import invariant from "tiny-invariant";
 
 // Local Imports
@@ -12,7 +12,8 @@ import {
   AccordionPanel,
 } from "@/components/ui";
 import { isRtl } from "@/utils/localeUtils";
-import { MenuItem } from "./MenuItem";
+import { useBreakpointsContext } from "@/app/contexts/breakpoint/context";
+import { useSidebarContext } from "@/app/contexts/sidebar/context";
 import { type NavigationTree } from "@/@types/navigation";
 import { navigationIcons } from "@/app/navigation/icons";
 
@@ -21,24 +22,22 @@ import { navigationIcons } from "@/app/navigation/icons";
 export function CollapsibleItem({ data }: { data: NavigationTree }) {
   const { id, path, transKey, icon, childs, title } = data;
   const { t } = useTranslation();
-  invariant(path, `[CollapsibleItem] path is required for navigation item`);
-
-  invariant(
-    icon && navigationIcons[icon],
-    `[CollapsibleItem] Icon "${icon}" not found in navigationIcons registry for item: ${path}`,
-  );
+  const { lgAndDown } = useBreakpointsContext();
+  const { close } = useSidebarContext();
 
   invariant(
     childs && childs.length > 0,
-    `[CollapsibleItem] At least one child item is required for collapsible menu: ${path}`,
+    `[CollapsibleItem] At least one child item is required for collapsible menu: ${id}`,
   );
 
   const label = transKey ? t(transKey) : title;
   const ChevronIcon = isRtl ? ChevronLeftIcon : ChevronRightIcon;
   const { pathname } = useLocation();
 
-  const Icon = navigationIcons[icon];
+  // Icon is optional — user-created groups may have none.
+  const Icon = icon ? navigationIcons[icon] : undefined;
   const hasActiveChild = childs.some((child) => child.path && pathname.startsWith(child.path));
+  const handleChildClick = () => lgAndDown && close();
 
   return (
     <AccordionItem
@@ -47,13 +46,13 @@ export function CollapsibleItem({ data }: { data: NavigationTree }) {
     >
       {({ open }) => (
         <>
-          {hasActiveChild && (
+          {hasActiveChild && !open && (
             <div className="absolute bottom-1 top-1 w-1 bg-[var(--brand-accent)] ltr:left-0 ltr:rounded-r-full rtl:right-0 rtl:rounded-l-lg" />
           )}
           <AccordionButton
             className={clsx(
-              "group flex flex-1 cursor-pointer items-center justify-between rounded-lg px-3 py-2 font-medium outline-hidden transition-colors duration-300 ease-in-out",
-              open
+              "group flex flex-1 cursor-pointer items-center justify-between rounded-md px-3 py-2 font-medium outline-hidden transition-colors duration-300 ease-in-out",
+              open || hasActiveChild
                 ? "text-[var(--accent-12)]"
                 : "text-[var(--accent-11)] hover:bg-[var(--accent-a3)] hover:text-[var(--accent-12)] focus:bg-[var(--accent-a3)] focus:text-[var(--accent-12)]",
             )}
@@ -76,10 +75,27 @@ export function CollapsibleItem({ data }: { data: NavigationTree }) {
               )}
             />
           </AccordionButton>
-          <AccordionPanel className="flex flex-col space-y-1 px-3 py-1.5">
-            {childs.map((child) => (
-              <MenuItem key={child.id} data={child} />
-            ))}
+          {/* Compact, icon-less text children (indented under the parent). */}
+          <AccordionPanel className="flex flex-col py-0.5">
+            {childs.map((child) =>
+              child.path ? (
+                <NavLink
+                  key={child.id}
+                  to={child.path}
+                  onClick={handleChildClick}
+                  className={({ isActive }) =>
+                    clsx(
+                      "truncate rounded-md py-1.5 text-xs-plus tracking-wide transition-colors ltr:pl-9 ltr:pr-3 rtl:pr-9 rtl:pl-3",
+                      isActive
+                        ? "font-medium text-[var(--accent-12)]"
+                        : "text-[var(--accent-11)] hover:bg-[var(--accent-a3)] hover:text-[var(--accent-12)]",
+                    )
+                  }
+                >
+                  {child.transKey ? t(child.transKey) : child.title}
+                </NavLink>
+              ) : null,
+            )}
           </AccordionPanel>
         </>
       )}
