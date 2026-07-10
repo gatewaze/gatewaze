@@ -274,22 +274,62 @@ async function resourceAnchorMetadata(collectionSlug: string, itemSlug: string, 
 
     const { data: item } = await supabase
       .from('sr_items')
-      .select('title, featured_image_url, created_at, updated_at, sections:sr_sections(content)')
+      .select('id, title, featured_image_url, created_at, updated_at, sections:sr_sections(content, blocks:sr_blocks(id, kind, sort_order, data))')
       .eq('collection_id', collection.id)
       .eq('slug', itemSlug)
       .eq('status', 'published')
       .maybeSingle()
     if (!item) return {}
 
-    // Isolate the anchored block's HTML: from its id to the next id'd block
-    // (or end of section).
+    // Per-kind extraction: a promoted anchor is an sr_blocks row and typed
+    // kinds carry their metadata as structured fields — no HTML parsing.
+    const { data: anchorBlock } = await supabase
+      .from('sr_blocks')
+      .select('kind, data')
+      .eq('item_id', item.id)
+      .eq('slug', anchorSlug)
+      .maybeSingle()
+
+    let block: string | null = null
+    if (anchorBlock?.kind === 'talk') {
+      const d = (anchorBlock.data ?? {}) as Record<string, any>
+      const talkTitle = typeof d.title === 'string' ? d.title : null
+      const description =
+        (typeof d.worth_noting === 'string' && d.worth_noting) ||
+        (typeof d.quote === 'string' && d.quote) ||
+        `${item.title} — ${collection.name}`
+      const ogImage = typeof d.youtube_id === 'string'
+        ? `https://i.ytimg.com/vi/${d.youtube_id}/hqdefault.jpg`
+        : item.featured_image_url || brand.logoUrl || brand.faviconUrl || undefined
+      return anchorMetadataResponse({ brand, collection, item, collectionSlug, itemSlug, anchorSlug, talkTitle, description, ogImage })
+    }
+    if (anchorBlock && typeof (anchorBlock.data as any)?.html === 'string') {
+      // html-kind (or unknown-kind compat payload): legacy regex extraction
+      // over the block's own payload — fallback symmetry with the scan path.
+      block = (anchorBlock.data as any).html as string
+    }
+
+    // Fallback scan for anchors never promoted to a slug: html-kind block
+    // payloads first (fresher than a stale content mirror), then legacy
+    // section content, isolating the fragment from its id to the next id.
     const needle = `id="${anchorSlug}"`
-    const section = (item.sections || []).find((s: { content: string | null }) => (s.content || '').includes(needle))
-    if (!section?.content) return resourceItemMetadata(collectionSlug, itemSlug)
-    const start = section.content.indexOf(needle)
-    const rest = section.content.slice(start)
-    const nextId = rest.slice(needle.length).search(/ id="/)
-    const block = nextId > 0 ? rest.slice(0, needle.length + nextId) : rest
+    if (!block) {
+      for (const s of item.sections || []) {
+        const blocks = ((s as any).blocks || []).sort((a: any, b: any) => a.sort_order - b.sort_order || (a.id < b.id ? -1 : 1))
+        for (const b of blocks) {
+          if (b.kind === 'html' && typeof b.data?.html === 'string' && b.data.html.includes(needle)) { block = b.data.html; break }
+        }
+        if (!block && (s.content || '').includes(needle)) block = s.content as string
+        if (block) break
+      }
+    }
+    if (!block) return resourceItemMetadata(collectionSlug, itemSlug)
+    if (block.includes(needle)) {
+      const start = block.indexOf(needle)
+      const rest = block.slice(start)
+      const nextId = rest.slice(needle.length).search(/ id="/)
+      block = nextId > 0 ? rest.slice(0, needle.length + nextId) : rest
+    }
 
     const h3 = block.match(/<h3[^>]*>([\s\S]*?)<\/h3>/)
     const talkTitle = h3 ? htmlToPlain(h3[1]) : null
@@ -302,36 +342,52 @@ async function resourceAnchorMetadata(collectionSlug: string, itemSlug: string, 
       ? `https://i.ytimg.com/vi/${yt[1]}/hqdefault.jpg`
       : blockImg?.[1] || item.featured_image_url || brand.logoUrl || brand.faviconUrl || undefined
 
-    const path = `/resources/${collectionSlug}/${itemSlug}/${anchorSlug}`
-    const title = talkTitle ? `${talkTitle} — ${item.title}` : `${item.title} — ${collection.name}`
-
-    return {
-      title,
-      description,
-      alternates: {
-        // the anchor page repeats the item's content; the item is canonical
-        canonical: `${baseUrl}/resources/${collectionSlug}/${itemSlug}`,
-      },
-      openGraph: {
-        title,
-        description,
-        type: 'article',
-        url: `${baseUrl}${path}`,
-        siteName: brand.name,
-        images: ogImage ? [{ url: ogImage }] : undefined,
-        publishedTime: item.created_at ?? undefined,
-        modifiedTime: item.updated_at ?? undefined,
-      },
-      twitter: {
-        card: 'summary_large_image',
-        title,
-        description,
-        images: ogImage ? [ogImage] : undefined,
-      },
-    }
+    return anchorMetadataResponse({ brand, collection, item, collectionSlug, itemSlug, anchorSlug, talkTitle, description, ogImage })
   } catch (err) {
     console.warn('[resource-anchor-metadata] failed to build:', err)
     return {}
+  }
+}
+
+function anchorMetadataResponse(args: {
+  brand: { domain: string; name: string }
+  collection: { name: string }
+  item: { title: string; created_at?: string | null; updated_at?: string | null }
+  collectionSlug: string
+  itemSlug: string
+  anchorSlug: string
+  talkTitle: string | null
+  description: string
+  ogImage: string | undefined
+}): Metadata {
+  const { brand, collection, item, collectionSlug, itemSlug, anchorSlug, talkTitle, description, ogImage } = args
+  const baseUrl = `https://${brand.domain}`
+  const path = `/resources/${collectionSlug}/${itemSlug}/${anchorSlug}`
+  const title = talkTitle ? `${talkTitle} — ${item.title}` : `${item.title} — ${collection.name}`
+
+  return {
+    title,
+    description,
+    alternates: {
+      // the anchor page repeats the item's content; the item is canonical
+      canonical: `${baseUrl}/resources/${collectionSlug}/${itemSlug}`,
+    },
+    openGraph: {
+      title,
+      description,
+      type: 'article',
+      url: `${baseUrl}${path}`,
+      siteName: brand.name,
+      images: ogImage ? [{ url: ogImage }] : undefined,
+      publishedTime: item.created_at ?? undefined,
+      modifiedTime: item.updated_at ?? undefined,
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: ogImage ? [ogImage] : undefined,
+    },
   }
 }
 
