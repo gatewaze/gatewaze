@@ -11,14 +11,15 @@ import { getServerBrandConfig } from '@/config/brand'
  * A nav item marked `draft` is invisible on every PUBLIC surface (nav, home
  * sections, pages, sitemap/feeds//md) exactly like `hidden` — but authorised
  * viewers get the menu item (badged) and the pages, so unreleased modules can
- * be reviewed in place. Authorised = portal super admin, or a user holding
- * that module's admin feature grant (a "blog" editor can preview the draft
- * blog).
+ * be reviewed in place. Authorised = anyone with an ACTIVE ADMIN ACCOUNT of
+ * any role (super_admin/admin/editor — previewing is read-only, so no feature
+ * grants are required), plus feature-grant holders such as portal managers
+ * who may not hold an admin_profiles row.
  */
 export function permittedDraftRailItems(draftRailItems: RailItem[], access: PortalAccess): RailItem[] {
   if (draftRailItems.length === 0) return []
   return draftRailItems.filter(
-    (r) => access.isSuperAdmin || access.featureKeys.includes(r.moduleId),
+    (r) => access.hasAdminAccount || access.isSuperAdmin || access.featureKeys.includes(r.moduleId),
   )
 }
 
