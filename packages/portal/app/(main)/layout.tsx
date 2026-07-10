@@ -201,7 +201,12 @@ export default async function MainLayout({
       if (drafts.length > 0) {
         railItems = [...modules.railItems, ...drafts].sort((a, b) => a.order - b.order)
       }
-      accessMap = getModuleAccess(railItems, portalAccess, Boolean(userId))
+      // The portal has no admin editing surfaces yet, so signed-in users —
+      // admins included — get the PUBLIC experience, just authenticated
+      // (draft previews above are the one admin affordance). Resolving the
+      // access map at member level keeps the rail on public hrefs and the
+      // contextual nav on publicNav instead of routing admins to /admin/*.
+      accessMap = getModuleAccess(railItems, ZERO_ACCESS, Boolean(userId))
     }
   }
 
@@ -290,8 +295,10 @@ export default async function MainLayout({
                   <WorkspaceShell
                     railItems={railItems}
                     access={accessMap}
-                    featureKeys={portalAccess.featureKeys}
-                    isSuperAdmin={portalAccess.isSuperAdmin}
+                    // Member-level on purpose (see the access-map note above):
+                    // admin feature grants must not alter the rendered portal.
+                    featureKeys={[]}
+                    isSuperAdmin={false}
                     isSignedIn={isSignedIn}
                     brandName={brandConfig.name}
                     logoUrl={brandConfig.logoUrl || undefined}
