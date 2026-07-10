@@ -146,7 +146,7 @@ export async function GET(req: NextRequest) {
 
       const { data: events } = await supabase
         .from('events')
-        .select('event_id, event_title, event_slug, event_start, event_city, event_country_code, event_featured_image, event_topics, event_latitude, event_longitude')
+        .select('event_id, event_title, event_slug, event_start, event_city, event_country_code, event_featured_image, event_topics, event_latitude, event_longitude, event_type')
         .overlaps('event_topics', topics)
         .eq('is_listed', true)
         .gt('event_start', new Date().toISOString())
@@ -157,17 +157,20 @@ export async function GET(req: NextRequest) {
         // event pages resolve by the short event_id; event_slug is usually null
         .filter((e) => e.event_slug || e.event_id)
         .map((e) => {
+          // topic match always runs; location only decides whether an
+          // IN-PERSON event is worth showing. Virtual events are exempt from
+          // the distance gate even when they carry organizer coordinates.
+          const virtual = ['webinar', 'virtual', 'online'].includes((e.event_type ?? '').toLowerCase())
           const eLat = Number.parseFloat(e.event_latitude ?? '')
           const eLon = Number.parseFloat(e.event_longitude ?? '')
-          const km = hasGeo && Number.isFinite(eLat) && Number.isFinite(eLon)
+          const km = !virtual && hasGeo && Number.isFinite(eLat) && Number.isFinite(eLon)
             ? haversineKm(lat, lon, eLat, eLon)
             : null
           return { e, km, nearby: km !== null && km <= NEARBY_KM }
         })
-        // vicinity GATE, not just a rank boost: when we know both locations
-        // and the event is far away, an in-person event is noise — drop it.
-        // Events with unknown coordinates (or visitors with unknown location)
-        // can't be judged, so they stay, ranked by date.
+        // vicinity GATE, not just a rank boost: show a topic-matched event
+        // only when it's local to the visitor, virtual, or has no location
+        // (or the visitor's location is unknown — can't judge, keep it).
         .filter((x) => x.km === null || x.nearby)
         .sort((a, b) =>
           Number(b.nearby) - Number(a.nearby) ||
