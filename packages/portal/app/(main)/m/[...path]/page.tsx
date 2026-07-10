@@ -297,9 +297,10 @@ async function resourceAnchorMetadata(collectionSlug: string, itemSlug: string, 
     const firstP = block.match(/<p[^>]*>([\s\S]*?)<\/p>/)
     const description = htmlToPlain((noting?.[1] || firstP?.[1] || '')) || `${item.title} — ${collection.name}`
     const yt = block.match(/i\.ytimg\.com\/vi\/([\w-]+)\//) || block.match(/youtu\.be\/([\w-]+)/)
+    const blockImg = block.match(/<img[^>]*src="([^"]+)"/)
     const ogImage = yt
       ? `https://i.ytimg.com/vi/${yt[1]}/hqdefault.jpg`
-      : item.featured_image_url || brand.logoUrl || brand.faviconUrl || undefined
+      : blockImg?.[1] || item.featured_image_url || brand.logoUrl || brand.faviconUrl || undefined
 
     const path = `/resources/${collectionSlug}/${itemSlug}/${anchorSlug}`
     const title = talkTitle ? `${talkTitle} — ${item.title}` : `${item.title} — ${collection.name}`
