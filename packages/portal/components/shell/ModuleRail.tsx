@@ -163,6 +163,7 @@ export function ModuleRail({
           >
             <Icon name={it.icon} size={21} />
             <span className="rl">{it.label}</span>
+            {it.draft && <span className="gw-rail-draft" aria-label="Draft — only visible to admins">Draft</span>}
           </Link>
         )
       })}

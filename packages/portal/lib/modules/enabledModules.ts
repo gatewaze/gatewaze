@@ -33,6 +33,9 @@ export interface RailItem {
   fullBleed: boolean;
   nav: PortalShellNavEntry[];
   publicNav: PortalShellNavEntry[];
+  /** Draft nav state: excluded from every PUBLIC surface; shown (with a badge)
+   *  only to viewers the layout authorises (super admins / module feature grants). */
+  draft?: boolean;
 }
 
 interface ModuleState {
@@ -40,6 +43,9 @@ interface ModuleState {
   enabledFeatures: Set<string>;
   portalNavItems: PortalNavItem[];
   railItems: RailItem[];
+  /** Rail items whose nav override marks them `draft` — NOT in railItems;
+   *  the layout merges them in per-request for authorised viewers only. */
+  draftRailItems: RailItem[];
 }
 
 let cache: ModuleState | null = null;
@@ -57,7 +63,7 @@ export async function getEnabledModules(): Promise<ModuleState> {
 
   if (!url || !key) {
     console.warn('[modules] Missing Supabase env vars, returning empty module state');
-    return { enabledIds: new Set(), enabledFeatures: new Set(), portalNavItems: [], railItems: [] };
+    return { enabledIds: new Set(), enabledFeatures: new Set(), portalNavItems: [], railItems: [], draftRailItems: [] };
   }
 
   try {
@@ -89,7 +95,7 @@ export async function getEnabledModules(): Promise<ModuleState> {
     const { data, error } = modulesResult;
 
     // Parse nav overrides from platform_settings
-    let navOverrides: { items: { moduleId: string; label?: string; order: number; hidden?: boolean }[] } = { items: [] };
+    let navOverrides: { items: { moduleId: string; label?: string; order: number; hidden?: boolean; draft?: boolean }[] } = { items: [] };
     if (navOverridesResult.data?.value) {
       try {
         const parsed = JSON.parse(navOverridesResult.data.value);
@@ -99,7 +105,7 @@ export async function getEnabledModules(): Promise<ModuleState> {
 
     if (error) {
       console.error('[modules] Failed to fetch installed_modules:', error);
-      return cache ?? { enabledIds: new Set(), enabledFeatures: new Set(), portalNavItems: [], railItems: [] };
+      return cache ?? { enabledIds: new Set(), enabledFeatures: new Set(), portalNavItems: [], railItems: [], draftRailItems: [] };
     }
 
     const enabledIds = new Set<string>();
@@ -151,10 +157,11 @@ export async function getEnabledModules(): Promise<ModuleState> {
         if (override.order !== undefined) item.order = override.order;
       }
     }
-    // Remove hidden items
+    // Remove hidden AND draft items from the public nav (draft = hidden from
+    // the public; the layout re-adds drafts per-request for authorised viewers).
     const visibleNavItems = portalNavItems.filter(item => {
       const override = overrideMap.get(item.moduleId);
-      return !override?.hidden;
+      return !override?.hidden && !override?.draft;
     });
     visibleNavItems.sort((a, b) => a.order - b.order);
 
@@ -162,7 +169,10 @@ export async function getEnabledModules(): Promise<ModuleState> {
     // the rail is the CURATED set of those modules (matching the design's top-level rail); otherwise
     // it falls back to deriving one item per `portal_nav` module. href = public landing,
     // adminHref = `/admin/<module>`.
-    const navByModule = new Map(visibleNavItems.map((n) => [n.moduleId, n]));
+    // Keyed off ALL nav items (not just visible): draft rail items still need
+    // their module's real path (e.g. meetup-ops → /meetups); hidden modules
+    // never reach the rail regardless.
+    const navByModule = new Map(portalNavItems.map((n) => [n.moduleId, n]));
     const home: RailItem = {
       moduleId: 'home', label: 'Home', full: 'Home', icon: 'home', order: 0,
       visibility: 'public', href: '/', adminHref: '/', fullBleed: false, nav: [], publicNav: [],
@@ -189,7 +199,9 @@ export async function getEnabledModules(): Promise<ModuleState> {
           };
         });
     } else {
-      moduleRail = visibleNavItems.map((item) => ({
+      // From ALL nav items: hidden/draft are filtered when railItems is built,
+      // and drafts must survive into draftRailItems.
+      moduleRail = portalNavItems.map((item) => ({
         moduleId: item.moduleId,
         label: item.label,
         full: item.label,
@@ -212,15 +224,22 @@ export async function getEnabledModules(): Promise<ModuleState> {
         if (o.order !== undefined) r.order = o.order;
       }
     }
-    const railItems: RailItem[] = [home, ...moduleRail.filter((r) => !overrideMap.get(r.moduleId)?.hidden)];
+    const railItems: RailItem[] = [home, ...moduleRail.filter((r) => {
+      const o = overrideMap.get(r.moduleId);
+      return !o?.hidden && !o?.draft;
+    })];
     railItems.sort((a, b) => a.order - b.order);
+    const draftRailItems: RailItem[] = moduleRail
+      .filter((r) => overrideMap.get(r.moduleId)?.draft && !overrideMap.get(r.moduleId)?.hidden)
+      .map((r) => ({ ...r, draft: true }));
+    draftRailItems.sort((a, b) => a.order - b.order);
 
-    cache = { enabledIds, enabledFeatures, portalNavItems: visibleNavItems, railItems };
+    cache = { enabledIds, enabledFeatures, portalNavItems: visibleNavItems, railItems, draftRailItems };
     cacheTimestamp = now;
     return cache;
   } catch (err) {
     console.error('[modules] Error fetching modules:', err);
-    return cache ?? { enabledIds: new Set(), enabledFeatures: new Set(), portalNavItems: [], railItems: [] };
+    return cache ?? { enabledIds: new Set(), enabledFeatures: new Set(), portalNavItems: [], railItems: [], draftRailItems: [] };
   }
 }
 

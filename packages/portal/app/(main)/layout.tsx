@@ -20,6 +20,7 @@ import { WhiteLabelFooter } from '@/components/ui/WhiteLabelFooter'
 import { PersistentBackground } from '@/components/ui/PersistentBackground'
 import { WorkspaceShell } from '@/components/shell/WorkspaceShell'
 import { resolvePortalAccess, ZERO_ACCESS } from '@/lib/permissions/resolve'
+import { permittedDraftRailItems } from '@/lib/modules/draftAccess'
 import { getModuleAccess } from '@/lib/modules/access'
 import { ProfileCompletionWrapper } from '@/components/wizard'
 import { ModuleSlot } from '@/lib/modules/ModuleSlot'
@@ -181,7 +182,8 @@ export default async function MainLayout({
   // §9.2a anonymous fast-path: only validate the session when a Supabase auth cookie is present,
   // so anonymous public traffic incurs no auth round-trip or RBAC RPCs.
   let portalAccess = ZERO_ACCESS
-  let accessMap = getModuleAccess(modules.railItems, portalAccess, false)
+  let railItems = modules.railItems
+  let accessMap = getModuleAccess(railItems, portalAccess, false)
   let isSignedIn = false
   if (!isCustomDomain) {
     const cookieStore = await cookies()
@@ -192,7 +194,14 @@ export default async function MainLayout({
       const userId = data.user?.id ?? null
       isSignedIn = Boolean(userId)
       portalAccess = await resolvePortalAccess(supabase, userId)
-      accessMap = getModuleAccess(modules.railItems, portalAccess, Boolean(userId))
+      // Draft nav items (Settings → Portal navigation) surface only for
+      // authorised viewers: super admins and holders of that module's
+      // feature grant. The public railItems set never contains them.
+      const drafts = permittedDraftRailItems(modules.draftRailItems, portalAccess)
+      if (drafts.length > 0) {
+        railItems = [...modules.railItems, ...drafts].sort((a, b) => a.order - b.order)
+      }
+      accessMap = getModuleAccess(railItems, portalAccess, Boolean(userId))
     }
   }
 
@@ -279,7 +288,7 @@ export default async function MainLayout({
               ) : (
                 <div className="relative z-10 flex-1 flex">
                   <WorkspaceShell
-                    railItems={modules.railItems}
+                    railItems={railItems}
                     access={accessMap}
                     featureKeys={portalAccess.featureKeys}
                     isSuperAdmin={portalAccess.isSuperAdmin}

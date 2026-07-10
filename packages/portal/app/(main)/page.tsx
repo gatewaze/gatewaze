@@ -3,6 +3,7 @@ import { getEnabledModules } from '@/lib/modules/enabledModules'
 import { getServerBrandConfig, type BrandConfig } from '@/config/brand'
 import { getEvents } from '@/lib/events'
 import { getBlogPosts, getContentCategories, type BlogPostPreview } from '@/lib/blog'
+import { getViewableDraftModuleIds } from '@/lib/modules/draftAccess'
 import { HomepageContent } from '@/components/homepage/HomepageContent'
 import { PubHome } from '@/components/public/PubHome'
 
@@ -36,8 +37,11 @@ export default async function HomePage() {
   // Fetch preview data for each content type in parallel. Home sections gate
   // on NAV VISIBILITY, not merely `enabled` — a module hidden from the menu is
   // not ready for public consumption, so its preview must not surface here.
+  // Draft modules count as visible for authorised viewers only, so previewing
+  // admins see the full home-page experience.
   const navVisible = new Set(portalNavItems.map((n) => n.moduleId))
-  const showBlog = navVisible.has('blog')
+  const draftViewable = await getViewableDraftModuleIds()
+  const showBlog = navVisible.has('blog') || draftViewable.has('blog')
   const [eventData, blogAll, blogCategories] = await Promise.all([
     getEvents(brandConfig.id),
     showBlog ? getBlogPosts(3) : Promise.resolve([] as BlogPostPreview[]),
