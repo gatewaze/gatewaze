@@ -505,6 +505,12 @@ export function gatewazeModulesPlugin(): Plugin {
     // replace broken import statements with inline no-op declarations.
     transform(code, id) {
       if (!id.includes('gatewaze-modules')) return;
+      // Only module SOURCE files should be rewritten. Third-party packages
+      // installed under `gatewaze-modules/node_modules/**` also match the path
+      // check above, but their internal relative imports (e.g. a client-side
+      // `./api/…` dir in @assistant-ui/react) must never be stubbed — doing so
+      // both corrupts real code and trips the server-only `api` pattern below.
+      if (id.includes('node_modules')) return;
 
       const fileDir = dirname(id);
       // Match all import statements with named imports from relative paths
