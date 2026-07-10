@@ -108,9 +108,13 @@ export async function GET(req: NextRequest) {
     }
 
     // 2) resource topic containment: blocks -> parent items. One containment
-    //    filter per topic OR'd together (the in-contract @> shape).
+    //    filter per topic OR'd together (the in-contract @> shape), matching
+    //    both hand-set topics and rule-derived topics_auto (content-keywords
+    //    engine sync — see resources migration 009).
     if (cards.length < MAX_CARDS) {
-      const orFilter = topics.map((t) => `data->topics.cs.${JSON.stringify([t])}`).join(',')
+      const orFilter = topics
+        .flatMap((t) => [`data->topics.cs.${JSON.stringify([t])}`, `data->topics_auto.cs.${JSON.stringify([t])}`])
+        .join(',')
       const { data: blocks } = await supabase
         .from('sr_blocks')
         .select('item_id, item:sr_items(title, slug, subtitle, featured_image_url, collection:sr_collections(slug, name))')
@@ -190,6 +194,35 @@ export async function GET(req: NextRequest) {
           meta: [when, where && nearby ? `${where} — near you` : where].filter(Boolean).join(' · '),
           source: 'event',
         })
+      }
+    }
+
+    // 4) semantic fill: embedding neighbours of the SOURCE block (the card
+    //    that was played), when pins/topics/events left slots open. Events
+    //    are excluded here — the events leg above owns the vicinity gate.
+    const blockSlug = url.searchParams.get('block') ?? ''
+    if (cards.length < MAX_CARDS && excludeItemId && /^[a-z0-9][a-z0-9-]{0,120}$/.test(blockSlug)) {
+      const { data: srcBlock } = await supabase
+        .from('sr_blocks')
+        .select('id')
+        .eq('item_id', excludeItemId)
+        .eq('slug', blockSlug)
+        .maybeSingle()
+      if (srcBlock) {
+        const { data: neighbours } = await supabase
+          .rpc('related_by_embedding', { p_content_type: 'sr_block', p_content_id: srcBlock.id, p_limit: 8 })
+        for (const n of (neighbours ?? []) as Array<Record<string, any>>) {
+          if (n.card_type === 'event') continue
+          push({
+            type: n.card_type,
+            title: n.title,
+            href: n.href,
+            description: n.description ?? undefined,
+            image: n.image_url ?? undefined,
+            meta: n.meta ?? undefined,
+            source: 'similar',
+          })
+        }
       }
     }
 

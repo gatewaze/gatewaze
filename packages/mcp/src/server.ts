@@ -408,6 +408,69 @@ const TOOLS = [
     description: 'List the registered block kinds with their JSON Schemas, so typed blocks can be authored without guessing the data shape.',
     inputSchema: { type: 'object' as const, properties: {} },
   },
+  {
+    name: 'signals_rules_list',
+    description: 'List the Signals routing rules (content-to-audience routing engine): name, status, definition, last evaluation.',
+    inputSchema: { type: 'object' as const, properties: {} },
+  },
+  {
+    name: 'signals_rule_create',
+    description:
+      'Propose a Signals routing rule. Lands PAUSED for human review unless status=active is passed explicitly. definition: { topics: [slugs], min_overlap, content: {types:[sr_item,event], hrefs:[]}, audience: {per_person, max, segment_id}, channel: {type: log|webhook|portal_pin|broadcast_draft, config}, frequency_cap: {per_person_days}, interval_minutes }.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        name: { type: 'string' },
+        description: { type: 'string' },
+        definition: { type: 'object', description: 'Rule definition (validated server-side)' },
+        status: { type: 'string', description: "'paused' (default) or 'active'" },
+      },
+      required: ['name', 'definition'],
+    },
+  },
+  {
+    name: 'signals_rule_update',
+    description: 'Update a Signals rule — activate/pause it or edit its definition.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        id: { type: 'string', description: 'Rule UUID' },
+        name: { type: 'string' },
+        description: { type: 'string' },
+        definition: { type: 'object' },
+        status: { type: 'string', description: "'active' | 'paused'" },
+      },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'signals_rule_evaluate',
+    description: 'Evaluate one Signals rule now (audit: creates fires and dispatches them). Pass dry_run=true to preview candidate/audience/fire counts without writing anything.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        id: { type: 'string', description: 'Rule UUID' },
+        dry_run: { type: 'boolean' },
+      },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'signals_fires_list',
+    description: 'Recent Signals fires (routing decisions): content, person, channel, dispatch status. Filter by rule_id or status.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        rule_id: { type: 'string' },
+        status: { type: 'string', description: 'fired | dispatched | failed | suppressed' },
+      },
+    },
+  },
+  {
+    name: 'signals_stats',
+    description: 'Per-rule Signals telemetry: fires, dispatched/failed/suppressed counts, outcomes, clicks.',
+    inputSchema: { type: 'object' as const, properties: {} },
+  },
 ];
 
 // ── Handlers ─────────────────────────────────────────────────────────────
@@ -865,6 +928,31 @@ export function createGatewazeMcpServer(
           break;
         case 'resources_block_kinds':
           result = await api.get('/resources/block-kinds');
+          break;
+        case 'signals_rules_list':
+          result = await api.get('/signals/rules');
+          break;
+        case 'signals_rule_create':
+          result = await api.post('/signals/rules', bodyWithout(params));
+          break;
+        case 'signals_rule_update':
+          result = await api.patch(`/signals/rules/${params.id}`, bodyWithout(params, 'id'));
+          break;
+        case 'signals_rule_evaluate':
+          result = await api.post(
+            `/signals/rules/${params.id}/evaluate${params.dry_run ? '?dry_run=1' : ''}`,
+            {},
+          );
+          break;
+        case 'signals_fires_list': {
+          const qs = new URLSearchParams();
+          if (params.rule_id) qs.set('rule_id', String(params.rule_id));
+          if (params.status) qs.set('status', String(params.status));
+          result = await api.get(`/signals/fires${qs.size ? `?${qs}` : ''}`);
+          break;
+        }
+        case 'signals_stats':
+          result = await api.get('/signals/stats');
           break;
         default:
           logCall({ ...base, outcome: 'unknown_tool', ms: Date.now() - startedAt });

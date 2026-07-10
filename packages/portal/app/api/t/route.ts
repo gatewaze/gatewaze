@@ -65,6 +65,11 @@ export async function POST(req: NextRequest) {
         return new NextResponse(null, { status: 204 })
       }
       await tracker.track(body.event, input)
+      // Signals outcome attribution: engagement with a gw_sig-tagged href
+      // (signals-routed content, e.g. a portal_pin card) closes the fire's
+      // outcome loop. Validity is enforced DB-side by the RPC; failures
+      // never affect the tracking path.
+      await recordSignalsOutcome(body)
     } else if (body.type === 'page') {
       await tracker.page(typeof body.event === 'string' ? body.event.slice(0, 120) : undefined, input)
     } else {
@@ -133,5 +138,27 @@ async function verifiedUser(claimed?: string): Promise<{
     return data?.user?.id === claimed ? data.user : null
   } catch {
     return null
+  }
+}
+
+const GW_SIG_RE = /[?&]gw_sig=([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i
+
+/** Attribute a tracked interaction back to the signals fire whose tagged
+ *  href it touched. Best-effort by contract: never throws to the caller. */
+async function recordSignalsOutcome(body: RelayEvent): Promise<void> {
+  try {
+    const props = (body.properties ?? {}) as Record<string, unknown>
+    const candidates = [props.href, props.url, body.client?.url]
+    let fireId: string | null = null
+    for (const c of candidates) {
+      const m = typeof c === 'string' ? GW_SIG_RE.exec(c) : null
+      if (m) { fireId = m[1]; break }
+    }
+    if (!fireId) return
+    const brand = await getServerBrand()
+    const supabase = await createAuthenticatedServerSupabase(brand)
+    await supabase.rpc('signals_record_outcome', { p_fire_id: fireId, p_kind: 'click' })
+  } catch {
+    /* outcome recording must never break tracking */
   }
 }
