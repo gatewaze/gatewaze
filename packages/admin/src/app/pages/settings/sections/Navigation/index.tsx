@@ -28,6 +28,7 @@ import { useFeaturePermissions } from "@/hooks/useFeaturePermissions";
 import { buildPool, seedLayoutFromTree } from "@/app/navigation/resolveNavLayout";
 import { navigationIcons } from "@/app/navigation/icons";
 import { navLayoutService } from "@/utils/navLayoutService";
+import { IconPicker } from "./IconPicker";
 import type { NavLayout } from "@gatewaze/shared/modules";
 import type { NavigationTree } from "@/@types/navigation";
 
@@ -255,6 +256,7 @@ export default function NavigationSettings() {
   const [message, setMessage] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
+  const [iconPickerFor, setIconPickerFor] = useState<string | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
@@ -398,6 +400,9 @@ export default function NavigationSettings() {
 
   const renameGroup = (gkey: string, label: string) =>
     mutate((s) => ({ ...s, groups: { ...s.groups, [gkey]: { ...s.groups[gkey], label } } }));
+
+  const setGroupIcon = (gkey: string, icon: string | undefined) =>
+    mutate((s) => ({ ...s, groups: { ...s.groups, [gkey]: { ...s.groups[gkey], icon } } }));
 
   const deleteGroup = (sectionId: string, gkey: string) =>
     mutate((s) => {
@@ -586,6 +591,20 @@ export default function NavigationSettings() {
                       >
                         <div className="mb-1.5 flex items-center gap-2">
                           <span className="text-[var(--gray-9)]" aria-hidden>▸</span>
+                          {(() => {
+                            const gi = state.groups[gkey]?.icon;
+                            const GIcon = gi ? navigationIcons[gi] : undefined;
+                            return (
+                              <button
+                                type="button"
+                                onClick={() => setIconPickerFor(gkey)}
+                                title="Choose group icon"
+                                className="flex size-6 shrink-0 items-center justify-center rounded border border-[var(--gray-a5)] text-[var(--gray-10)] hover:border-[var(--accent-8)] hover:text-[var(--accent-11)]"
+                              >
+                                {GIcon ? <GIcon className="size-4" /> : <span className="text-xs">+</span>}
+                              </button>
+                            );
+                          })()}
                           <input
                             value={state.groups[gkey]?.label ?? ""}
                             onChange={(e) => renameGroup(gkey, e.target.value)}
@@ -686,6 +705,17 @@ export default function NavigationSettings() {
               setOverride(editing, ov);
               setEditing(null);
             }}
+          />
+        )}
+
+        {iconPickerFor && state && (
+          <IconPicker
+            value={state.groups[iconPickerFor]?.icon}
+            onSelect={(icon) => {
+              setGroupIcon(iconPickerFor, icon);
+              setIconPickerFor(null);
+            }}
+            onClose={() => setIconPickerFor(null)}
           />
         )}
       </WorkspaceLayout>
