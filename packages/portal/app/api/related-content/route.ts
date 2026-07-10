@@ -164,6 +164,11 @@ export async function GET(req: NextRequest) {
             : null
           return { e, km, nearby: km !== null && km <= NEARBY_KM }
         })
+        // vicinity GATE, not just a rank boost: when we know both locations
+        // and the event is far away, an in-person event is noise — drop it.
+        // Events with unknown coordinates (or visitors with unknown location)
+        // can't be judged, so they stay, ranked by date.
+        .filter((x) => x.km === null || x.nearby)
         .sort((a, b) =>
           Number(b.nearby) - Number(a.nearby) ||
           Date.parse(a.e.event_start ?? '') - Date.parse(b.e.event_start ?? ''))
