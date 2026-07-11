@@ -25,6 +25,16 @@ const MAX_TOPICS = 8
 const MAX_CARDS = 6
 /** In-person events within this range rank above the rest. */
 const NEARBY_KM = 500
+/** A topic matching more blocks than this is page-generic on this corpus
+ *  (e.g. `mcp` on an MCP-conference recap) — it can't discriminate, so the
+ *  containment legs ignore it when any rarer topic is available. */
+const GENERIC_TOPIC_BLOCKS = 25
+/** Per-leg caps: topic matches must not crowd out per-card semantic fill. */
+const MAX_TOPIC_CARDS = 3
+const MAX_BLOG_CARDS = 2
+const MAX_EVENT_CARDS = 2
+/** Embedding neighbours below this cosine similarity are noise, not kin. */
+const MIN_SIMILARITY = 0.33
 
 function haversineKm(aLat: number, aLon: number, bLat: number, bLon: number): number {
   const rad = (d: number) => (d * Math.PI) / 180
@@ -107,43 +117,94 @@ export async function GET(req: NextRequest) {
       })
     }
 
-    // 2) resource topic containment: blocks -> parent items. One containment
-    //    filter per topic OR'd together (the in-contract @> shape), matching
-    //    both hand-set topics and rule-derived topics_auto (content-keywords
-    //    engine sync — see resources migration 009).
-    if (cards.length < MAX_CARDS) {
-      const orFilter = topics
-        .flatMap((t) => [`data->topics.cs.${JSON.stringify([t])}`, `data->topics_auto.cs.${JSON.stringify([t])}`])
-        .join(',')
+    // Discriminative-topic selection: count how many blocks each requested
+    // topic matches; topics over the generic threshold (page-generic like
+    // `mcp` on an MCP recap) are dropped from the containment legs when any
+    // rarer topic exists — they made every card's panel identical.
+    const topicFilters = (t: string) =>
+      [`data->topics.cs.${JSON.stringify([t])}`, `data->topics_auto.cs.${JSON.stringify([t])}`]
+    const topicCounts = await Promise.all(topics.map(async (t) => {
+      const { count } = await supabase
+        .from('sr_blocks')
+        .select('id', { count: 'exact', head: true })
+        .or(topicFilters(t).join(','))
+      return { topic: t, count: count ?? 0 }
+    }))
+    const rare = topicCounts.filter((t) => t.count > 0 && t.count <= GENERIC_TOPIC_BLOCKS).map((t) => t.topic)
+    const discriminative = rare.length > 0
+      ? rare
+      : topicCounts.filter((t) => t.count > 0).sort((a, b) => a.count - b.count).slice(0, 2).map((t) => t.topic)
+
+    // 2) resource topic containment: blocks -> parent items, ranked by how
+    //    many discriminative topics each item shares, capped so per-card
+    //    semantic fill still differentiates the panel.
+    if (cards.length < MAX_CARDS && discriminative.length > 0) {
+      const orFilter = discriminative.flatMap(topicFilters).join(',')
       const { data: blocks } = await supabase
         .from('sr_blocks')
-        .select('item_id, item:sr_items(title, slug, subtitle, featured_image_url, collection:sr_collections(slug, name))')
+        .select('item_id, data, item:sr_items(title, slug, subtitle, featured_image_url, collection:sr_collections(slug, name))')
         .or(orFilter)
-        .limit(60)
-      const seenItems = new Set<string>(excludeItemId ? [excludeItemId] : [])
+        .limit(120)
+      const perItem = new Map<string, { item: any; matched: Set<string> }>()
       for (const b of blocks ?? []) {
-        if (seenItems.has(b.item_id)) continue
-        seenItems.add(b.item_id)
+        if (excludeItemId && b.item_id === excludeItemId) continue
         const item = Array.isArray(b.item) ? b.item[0] : b.item
         const collection = item && (Array.isArray(item.collection) ? item.collection[0] : item.collection)
         if (!item || !collection) continue
+        const entry = perItem.get(b.item_id) ?? { item: { ...item, collection }, matched: new Set<string>() }
+        const blockTopics = new Set<string>([
+          ...(Array.isArray((b.data as any)?.topics) ? (b.data as any).topics : []),
+          ...(Array.isArray((b.data as any)?.topics_auto) ? (b.data as any).topics_auto : []),
+        ])
+        for (const t of discriminative) if (blockTopics.has(t)) entry.matched.add(t)
+        perItem.set(b.item_id, entry)
+      }
+      const ranked = [...perItem.values()].sort((a, b) => b.matched.size - a.matched.size)
+      let topicCards = 0
+      for (const { item } of ranked) {
+        if (topicCards >= MAX_TOPIC_CARDS || cards.length >= MAX_CARDS) break
+        const before = cards.length
         push({
           type: 'resource',
           title: item.title,
-          href: `/resources/${collection.slug}/${item.slug}`,
+          href: `/resources/${item.collection.slug}/${item.slug}`,
           description: item.subtitle ?? undefined,
           image: item.featured_image_url ?? undefined,
-          meta: collection.name,
+          meta: item.collection.name,
           source: 'topic',
         })
+        if (cards.length > before) topicCards++
       }
     }
 
-    // 3) upcoming events with overlapping topics. When the panel supplies the
-    //    visitor's coarse IP location (shared ipinfo cache client-side),
-    //    in-person events within NEARBY_KM rank first; virtual events and
-    //    events with no coordinates keep their date order.
-    if (cards.length < MAX_CARDS) {
+    // 2b) blog posts by topic (keyword-engine matches; external posts link
+    //     out to their canonical article) — same discriminative topics.
+    if (cards.length < MAX_CARDS && discriminative.length > 0) {
+      const { data: blogCards } = await supabase
+        .rpc('related_blog_posts_by_topics', { p_topics: discriminative, p_limit: MAX_BLOG_CARDS + 2 })
+      let blogCount = 0
+      for (const b of (blogCards ?? []) as Array<Record<string, any>>) {
+        if (blogCount >= MAX_BLOG_CARDS || cards.length >= MAX_CARDS) break
+        const before = cards.length
+        push({
+          type: 'blog',
+          title: b.title,
+          href: b.href,
+          description: b.description ?? undefined,
+          image: b.image_url ?? undefined,
+          meta: 'Blog',
+          source: 'topic',
+        })
+        if (cards.length > before) blogCount++
+      }
+    }
+
+    // 3) upcoming events with overlapping DISCRIMINATIVE topics (the generic
+    //    corpus tag would put the same summits on every card). When the panel
+    //    supplies the visitor's coarse IP location (shared ipinfo cache
+    //    client-side), in-person events within NEARBY_KM rank first; virtual
+    //    events and events with no coordinates keep their date order.
+    if (cards.length < MAX_CARDS && discriminative.length > 0) {
       const lat = Number.parseFloat(url.searchParams.get('lat') ?? '')
       const lon = Number.parseFloat(url.searchParams.get('lon') ?? '')
       const hasGeo = Number.isFinite(lat) && Number.isFinite(lon)
@@ -151,7 +212,7 @@ export async function GET(req: NextRequest) {
       const { data: events } = await supabase
         .from('events')
         .select('event_id, event_title, event_slug, event_start, event_city, event_country_code, event_featured_image, event_topics, event_latitude, event_longitude, event_type')
-        .overlaps('event_topics', topics)
+        .overlaps('event_topics', discriminative)
         .eq('is_listed', true)
         .gt('event_start', new Date().toISOString())
         .order('event_start', { ascending: true })
@@ -179,7 +240,7 @@ export async function GET(req: NextRequest) {
         .sort((a, b) =>
           Number(b.nearby) - Number(a.nearby) ||
           Date.parse(a.e.event_start ?? '') - Date.parse(b.e.event_start ?? ''))
-        .slice(0, 3)
+        .slice(0, MAX_EVENT_CARDS)
 
       for (const { e, nearby } of ranked) {
         const when = e.event_start
@@ -213,6 +274,7 @@ export async function GET(req: NextRequest) {
           .rpc('related_by_embedding', { p_content_type: 'sr_block', p_content_id: srcBlock.id, p_limit: 8 })
         for (const n of (neighbours ?? []) as Array<Record<string, any>>) {
           if (n.card_type === 'event') continue
+          if (typeof n.similarity === 'number' && n.similarity < MIN_SIMILARITY) continue
           push({
             type: n.card_type,
             title: n.title,
