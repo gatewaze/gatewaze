@@ -39,23 +39,24 @@ const STYLE_ID = 'gw-rel-carousel-style'
 const CSS = `
 .gw-rel-inline { margin-top: 32px; }
 .gw-rel-inline .gw-rel-label { display: block; font-size: 12px; font-weight: 700; color: var(--ink-3); letter-spacing: .04em; text-transform: uppercase; margin-bottom: 10px; }
-.gw-rel-carousel { position: relative; }
+.gw-rel-carousel { position: relative; container-type: inline-size; }
 .gw-rel-track { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-behavior: smooth; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .gw-rel-track::-webkit-scrollbar { display: none; }
 a.gw-rel-card { flex: 0 0 calc((100% - 20px) / 3); scroll-snap-align: start; display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: rgba(var(--ui-text), 0.03); text-decoration: none !important; color: inherit; transition: background .15s ease, border-color .15s ease; min-width: 0; }
 a.gw-rel-card:hover { background: rgba(var(--ui-text), 0.07); border-color: var(--accent); }
-@media (max-width: 900px) { a.gw-rel-card { flex-basis: calc((100% - 10px) / 2); } }
-@media (max-width: 560px) { a.gw-rel-card { flex-basis: 80%; } }
+@container (max-width: 700px) { a.gw-rel-card { flex-basis: calc((100% - 10px) / 2); } }
+@container (max-width: 460px) { a.gw-rel-card { flex-basis: 80%; } }
 .gw-rel-img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 7px; background: rgba(var(--ui-text), 0.06); }
 .gw-rel-type { font-size: 10.5px; font-weight: 700; color: var(--accent); letter-spacing: .05em; text-transform: uppercase; }
 .gw-rel-title { font-size: 13.5px; font-weight: 600; color: var(--ink); line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .gw-rel-desc { font-size: 12.5px; color: var(--ink-3); line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .gw-rel-meta { font-size: 11.5px; color: var(--ink-3); margin-top: auto; padding-top: 2px; }
-.gw-rel-arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--line); background: var(--paper); color: var(--ink); display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 2; box-shadow: 0 2px 10px rgba(0, 0, 0, .28); font-size: 15px; line-height: 1; padding: 0; }
-.gw-rel-arrow:hover { border-color: var(--accent); }
+.gw-rel-arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--accent); color: #111; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 2; box-shadow: 0 4px 16px rgba(0, 0, 0, .4); padding: 0; transition: transform .15s ease, box-shadow .15s ease; }
+.gw-rel-arrow:hover { transform: translateY(-50%) scale(1.08); box-shadow: 0 6px 20px rgba(0, 0, 0, .5); }
+.gw-rel-arrow svg { display: block; }
 .gw-rel-arrow[data-off='1'] { display: none; }
-.gw-rel-arrow-left { left: -12px; }
-.gw-rel-arrow-right { right: -12px; }
+.gw-rel-arrow-left { left: 8px; }
+.gw-rel-arrow-right { right: 8px; }
 `
 
 function beacon(event: string, properties: Record<string, unknown>): void {
@@ -153,7 +154,7 @@ export function RelatedInline({ sourceType, sourceId, topics, heading = 'Related
           className="gw-rel-arrow gw-rel-arrow-left"
           data-off={arrows.left ? undefined : '1'}
           onClick={() => scrollByCard(-1)}
-        >‹</button>
+        ><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
         <div className="gw-rel-track" ref={trackRef} onScroll={updateArrows}>
           {cards.map((card) => {
             const external = /^https?:\/\//.test(card.href)
@@ -188,7 +189,7 @@ export function RelatedInline({ sourceType, sourceId, topics, heading = 'Related
           className="gw-rel-arrow gw-rel-arrow-right"
           data-off={arrows.right ? undefined : '1'}
           onClick={() => scrollByCard(1)}
-        >›</button>
+        ><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
       </div>
     </div>
   )
