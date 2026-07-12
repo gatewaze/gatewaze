@@ -142,17 +142,39 @@ async function handleScreenshotJob(job: Job): Promise<void> {
             }),
           );
           const html = await pageRes.text();
-          const ogMatch =
-            html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) ||
-            html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
-          if (ogMatch?.[1]) {
-            const ogUrl = ogMatch[1]
-              .replace(/&amp;/g, '&')
-              .replace(/&lt;/g, '<')
-              .replace(/&gt;/g, '>')
-              .replace(/&quot;/g, '"');
-            const imgRes = await withHostSlot(ogUrl, () =>
-              fetch(ogUrl, { signal: AbortSignal.timeout(10_000) }),
+          // Prefer the event's ACTUAL cover image embedded in the page over the
+          // og:image, which is frequently a branded social-share card rather
+          // than the event's own poster (e.g. Luma serves a "luma+ <title>"
+          // og:image but SSRs the real cover at __NEXT_DATA__
+          // props.pageProps.initialData.data.event.cover_url). This runs on a
+          // plain fetch, so it also recovers the cover for sources whose
+          // Puppeteer-based scraper page fetch is failing.
+          let imageUrl: string | null = null;
+          const ndMatch = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+          if (ndMatch) {
+            try {
+              const nd = JSON.parse(ndMatch[1]);
+              const cover = nd?.props?.pageProps?.initialData?.data?.event?.cover_url;
+              if (typeof cover === 'string' && cover) imageUrl = cover;
+            } catch {
+              // not a parseable __NEXT_DATA__ page — fall through to og:image
+            }
+          }
+          if (!imageUrl) {
+            const ogMatch =
+              html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) ||
+              html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
+            if (ogMatch?.[1]) {
+              imageUrl = ogMatch[1]
+                .replace(/&amp;/g, '&')
+                .replace(/&lt;/g, '<')
+                .replace(/&gt;/g, '>')
+                .replace(/&quot;/g, '"');
+            }
+          }
+          if (imageUrl) {
+            const imgRes = await withHostSlot(imageUrl, () =>
+              fetch(imageUrl, { signal: AbortSignal.timeout(10_000) }),
             );
             if (imgRes.ok) imageBuffer = Buffer.from(await imgRes.arrayBuffer());
           }
