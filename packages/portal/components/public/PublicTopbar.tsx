@@ -12,6 +12,7 @@ import { Icon } from '@/components/ui/Icon'
 import { MobileMenu } from './MobileMenu'
 import type { RailItem } from '@/lib/modules/enabledModules'
 import { signInHref } from '@/lib/signInHref'
+import { useEffect, useState } from 'react'
 
 interface PublicTopbarProps {
   items: RailItem[]
@@ -32,6 +33,13 @@ export function PublicTopbar({ items, activeModuleId, brandName, logoUrl, logoIc
   // Sign-in carries the current page so the user returns here after auth.
   const pathname = usePathname()
   const signIn = signInHref(pathname)
+  // Immediate feedback on click: the sign-in icon becomes a spinner while the
+  // browser navigates (the SSO flow can take a beat before anything visibly
+  // happens). Reset on route change so a back-navigation doesn't strand it.
+  const [signingIn, setSigningIn] = useState(false)
+  useEffect(() => { setSigningIn(false) }, [pathname])
+  const signInIcon = (size: number) =>
+    signingIn ? <span className="gw-signin-spin ic" aria-hidden /> : <Icon name="signin" size={size} className="ic" />
 
   // Brand mark: full logo when configured, else icon + name. Shared by the top
   // bar and the mobile menu head so they're identical.
@@ -73,8 +81,8 @@ export function PublicTopbar({ items, activeModuleId, brandName, logoUrl, logoIc
       <div className="right">
         {/* Desktop: inline Sign in. Mobile: the hamburger menu (which carries
             the nav + a Sign in link); the desktop button is hidden on mobile. */}
-        <Link href={signIn} className="btn btn-primary btn-sm gw-desktop-only">
-          <Icon name="signin" size={14} className="ic" />
+        <Link href={signIn} className="btn btn-primary btn-sm gw-desktop-only" onClick={() => setSigningIn(true)}>
+          {signInIcon(14)}
           Sign in
         </Link>
         <MobileMenu
@@ -82,8 +90,8 @@ export function PublicTopbar({ items, activeModuleId, brandName, logoUrl, logoIc
           activeModuleId={activeModuleId}
           footer={
             menuFooter ?? (
-              <Link href={signIn} className="gw-mobile-menu-foot-link">
-                <Icon name="signin" size={18} className="ic" />
+              <Link href={signIn} className="gw-mobile-menu-foot-link" onClick={() => setSigningIn(true)}>
+                {signInIcon(18)}
                 Sign in
               </Link>
             )
