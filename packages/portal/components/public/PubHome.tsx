@@ -50,11 +50,14 @@ function groupByType(
  * the shell. Spec §8.1.
  */
 export function PubHome({
+  hero,
   upcomingEvents,
   blogSection,
   storageBucketUrl,
   eventTypes = [],
 }: {
+  /** Brand-editable intro (Settings → Branding → Portal → Home); absent → no hero. */
+  hero?: { heading: string | null; introHtml: string | null }
   upcomingEvents: PubEventCardEvent[]
   /** Latest-posts data (all + per-category); undefined/empty hides the section. */
   blogSection?: PubBlogSectionData
@@ -67,6 +70,14 @@ export function PubHome({
 
   return (
     <div className="pub-wrap pub-fade">
+      {hero && (
+        <section className="pub-hero">
+          {hero.heading && <h1>{hero.heading}</h1>}
+          {hero.introHtml && (
+            <div className="pub-hero-body" dangerouslySetInnerHTML={{ __html: hero.introHtml }} />
+          )}
+        </section>
+      )}
       {upcomingEvents.length > 0 && (
         <section className="pub-sec">
           <div className="pub-sechead">

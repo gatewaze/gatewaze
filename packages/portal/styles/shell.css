@@ -327,6 +327,16 @@
   border: 1px solid rgba(var(--ui-text), 0.22); transition: color .15s ease, border-color .15s ease; }
 .pub-nl-unsub-btn:hover { color: var(--ink); border-color: rgba(var(--ui-text), 0.4); }
 .pub-nl-unsub-btn:disabled { opacity: .5; cursor: not-allowed; }
+/* Brand-editable home intro (Settings → Branding → Portal → Home). */
+.pub-hero { margin: 6px 0 34px; max-width: 780px; }
+.pub-hero h1 { font: 600 clamp(28px, 4vw, 40px) var(--font-display); color: var(--ink);
+  letter-spacing: -0.02em; line-height: 1.12; margin: 0 0 14px; }
+.pub-hero-body { color: var(--ink-2); font-size: 17px; line-height: 1.7; }
+.pub-hero-body p { margin: 0 0 14px; }
+.pub-hero-body p:last-child { margin-bottom: 0; }
+.pub-hero-body a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px;
+  text-decoration-thickness: 1px; text-decoration-color: color-mix(in srgb, currentColor 55%, transparent); }
+.pub-hero-body a:hover { text-decoration-color: currentColor; }
 /* Inline spinner swapped in for the topbar sign-in icon while navigating. */
 .gw-signin-spin { display: inline-block; width: 14px; height: 14px; border-radius: 50%;
   border: 2px solid currentColor; border-top-color: transparent; animation: gw-spin .7s linear infinite; }

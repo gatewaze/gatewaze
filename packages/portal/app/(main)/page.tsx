@@ -4,6 +4,8 @@ import { getServerBrandConfig, type BrandConfig } from '@/config/brand'
 import { getEvents } from '@/lib/events'
 import { getBlogPosts, getContentCategories, type BlogPostPreview } from '@/lib/blog'
 import { getViewableDraftModuleIds } from '@/lib/modules/draftAccess'
+import { createServerSupabase } from '@/lib/supabase/server'
+import { sanitizeHtml } from '@/lib/sanitize-html'
 import { HomepageContent } from '@/components/homepage/HomepageContent'
 import { PubHome } from '@/components/public/PubHome'
 
@@ -42,10 +44,20 @@ export default async function HomePage() {
   const navVisible = new Set(portalNavItems.map((n) => n.moduleId))
   const draftViewable = await getViewableDraftModuleIds()
   const showBlog = navVisible.has('blog') || draftViewable.has('blog')
-  const [eventData, blogAll, blogCategories] = await Promise.all([
+  const [eventData, blogAll, blogCategories, heroSettings] = await Promise.all([
     getEvents(brandConfig.id),
     showBlog ? getBlogPosts(3) : Promise.resolve([] as BlogPostPreview[]),
     showBlog ? getContentCategories() : Promise.resolve([]),
+    // Brand-editable home intro (Settings → Branding → Portal → Home).
+    (async () => {
+      const supabase = await createServerSupabase(brandConfig.id)
+      const { data } = await supabase
+        .from('platform_settings')
+        .select('key, value')
+        .in('key', ['portal_home_heading', 'portal_home_intro_html'])
+      const get = (k: string) => data?.find((r) => r.key === k)?.value?.trim() || null
+      return { heading: get('portal_home_heading'), introHtml: sanitizeHtml(get('portal_home_intro_html')) || null }
+    })(),
   ])
   // Latest 3 per content category, fetched in parallel, for the filter chips.
   const perCategory = showBlog
@@ -56,6 +68,7 @@ export default async function HomePage() {
   // Public Home in the workspace-shell design: upcoming events + latest posts (spec §8.1).
   return (
     <PubHome
+      hero={heroSettings.heading || heroSettings.introHtml ? heroSettings : undefined}
       upcomingEvents={(eventData.upcoming ?? []).slice(0, 24) as never[]}
       blogSection={showBlog ? { categories: blogCategories, all: blogAll, byCategory, primaryColor: brandConfig.primaryColor } : undefined}
       storageBucketUrl={brandConfig.storageBucketUrl}
