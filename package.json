@@ -48,7 +48,8 @@
       "picomatch@>=4.0.0 <4.0.4": "^4.0.4",
       "path-to-regexp@<0.1.13": "^0.1.13",
       "highlight.js@<10.4.1": "^11.10.0",
-      "@supabase/realtime-js": "2.98.0"
+      "@supabase/realtime-js": "2.98.0",
+      "@react-email/render": "2.0.10"
     }
   },
   "devDependencies": {
