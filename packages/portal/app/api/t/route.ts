@@ -155,9 +155,12 @@ async function recordSignalsOutcome(body: RelayEvent): Promise<void> {
       if (m) { fireId = m[1]; break }
     }
     if (!fireId) return
+    // Distinguish a play from a plain click so signals can weight video
+    // engagement separately. Any other tracked interaction stays 'click'.
+    const kind = body.event === 'video_play' ? 'video_play' : 'click'
     const brand = await getServerBrand()
     const supabase = await createAuthenticatedServerSupabase(brand)
-    await supabase.rpc('signals_record_outcome', { p_fire_id: fireId, p_kind: 'click' })
+    await supabase.rpc('signals_record_outcome', { p_fire_id: fireId, p_kind: kind })
   } catch {
     /* outcome recording must never break tracking */
   }

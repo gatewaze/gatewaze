@@ -45,7 +45,7 @@ const DEFAULT_MIN_RELEVANCE = 0.9
  *  legitimize it. Cards must clear BOTH bars — really relevant or nothing. */
 const ABS_RELEVANCE_FLOOR = 0.4
 /** Source types the resolver accepts (must have embedding rows). */
-const SOURCE_TYPES = new Set(['sr_block', 'sr_item', 'event', 'blog_post'])
+const SOURCE_TYPES = new Set(['sr_block', 'sr_item', 'event', 'blog_post', 'video'])
 
 function haversineKm(aLat: number, aLon: number, bLat: number, bLon: number): number {
   const rad = (d: number) => (d * Math.PI) / 180
