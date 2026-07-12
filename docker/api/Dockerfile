@@ -25,11 +25,11 @@ COPY packages/api/package.json packages/api/
 COPY packages/shared/package.json packages/shared/
 
 # Install all dependencies (cache pnpm store between builds).
-# `--config.dangerously-allow-all-builds=true` required on pnpm 10+ —
-# sharp / esbuild / @sentry/cli native build scripts otherwise abort
-# the install with ERR_PNPM_IGNORED_BUILDS.
+# Native build scripts governed by pnpm.onlyBuiltDependencies in the
+# root package.json (the removed dangerously-allow-all-builds flag
+# conflicts with it on pnpm 10).
 RUN --mount=type=cache,id=pnpm-api,target=/root/.local/share/pnpm/store \
-    pnpm install --no-frozen-lockfile --config.dangerously-allow-all-builds=true
+    pnpm install --no-frozen-lockfile
 
 # Copy source code
 COPY gatewaze.config.ts ./
@@ -108,11 +108,11 @@ COPY packages/api/package.json packages/api/
 COPY packages/shared/package.json packages/shared/
 
 # Install production dependencies only (cache pnpm store between builds).
-# `--config.dangerously-allow-all-builds=true` required on pnpm 10+ —
-# sharp / @sentry/cli native build scripts otherwise abort with
-# ERR_PNPM_IGNORED_BUILDS.
+# Native build scripts governed by pnpm.onlyBuiltDependencies in the
+# root package.json (the removed dangerously-allow-all-builds flag
+# conflicts with it on pnpm 10).
 RUN --mount=type=cache,id=pnpm-api,target=/root/.local/share/pnpm/store \
-    pnpm install --no-frozen-lockfile --prod --config.dangerously-allow-all-builds=true
+    pnpm install --no-frozen-lockfile --prod
 
 # Copy built output
 COPY --from=builder /app/packages/api/dist/packages/api/src packages/api/dist

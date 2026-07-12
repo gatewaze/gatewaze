@@ -18,7 +18,7 @@ COPY tsconfig.json ./
 RUN printf 'packages:\n  - "packages/*"\n' > pnpm-workspace.yaml
 COPY packages/shared/package.json packages/shared/
 RUN --mount=type=cache,id=pnpm-worker,target=/root/.local/share/pnpm/store \
-    pnpm install --no-frozen-lockfile --config.dangerously-allow-all-builds=true --filter @gatewaze/shared...
+    pnpm install --no-frozen-lockfile --filter @gatewaze/shared...
 COPY packages/shared/ packages/shared/
 RUN pnpm --filter @gatewaze/shared build
 
