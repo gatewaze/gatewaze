@@ -2,7 +2,7 @@
 FROM node:22-slim AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@10.31.0 --activate
 
 WORKDIR /app
 
@@ -66,7 +66,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libxcb1 \
       libdbus-1-3 \
     && rm -rf /var/lib/apt/lists/*
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@10.31.0 --activate
 
 # Install Goose CLI. Version pin tracked via Renovate (.github/
 # renovate.json5 watches block/goose releases and bumps both this

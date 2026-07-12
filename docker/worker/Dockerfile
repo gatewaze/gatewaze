@@ -11,7 +11,7 @@
 # runtime image so Node's resolver finds it from cloned module code.
 FROM node:22-slim AS builder
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@10.31.0 --activate
 WORKDIR /app
 COPY package.json ./
 COPY tsconfig.json ./
