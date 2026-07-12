@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { getServerBrand, getBrandConfigById } from '@/config/brand'
 import { getEvent } from '@/lib/portal-data'
 import { AboutEventContent } from '@/components/event/AboutEventContent'
+import { RelatedInline } from '@/components/RelatedInline'
 import { stripEmojis } from '@/lib/text'
 import { resolveEventImages } from '@/lib/storage-resolve'
 
@@ -70,7 +71,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 }
 
-export default function EventDetailPage() {
-  // Event data comes from layout via context
-  return <AboutEventContent />
+export default async function EventDetailPage({ params }: Props) {
+  // Event data comes from layout via context; the related section needs the
+  // event's row id (its embedding/topic key), fetched here server-side.
+  const { identifier } = await params
+  const event = await getEvent(identifier)
+  return (
+    <>
+      <AboutEventContent />
+      {event?.id && (
+        <RelatedInline sourceType="event" sourceId={event.id} surface="event_page" />
+      )}
+    </>
+  )
 }

@@ -36,9 +36,15 @@ const MAX_EVENT_CARDS = 2
 /** Embedding neighbours below this cosine similarity are noise, not kin. */
 const MIN_SIMILARITY = 0.33
 /** Relative relevance gate: after scoring every inferred candidate against
- *  the played block's embedding, keep only cards at least this fraction as
- *  similar as the best match. Overridable per-request via ?min_relevance=. */
+ *  the source's embedding, keep only cards at least this fraction as similar
+ *  as the best match. Overridable per-request via ?min_relevance=. */
 const DEFAULT_MIN_RELEVANCE = 0.9
+/** Absolute floor under the relative gate: on a sparse corpus the "best
+ *  available" match can itself be weak, and a relative gate alone would
+ *  legitimize it. Cards must clear BOTH bars — really relevant or nothing. */
+const ABS_RELEVANCE_FLOOR = 0.4
+/** Source types the resolver accepts (must have embedding rows). */
+const SOURCE_TYPES = new Set(['sr_block', 'sr_item', 'event', 'blog_post'])
 
 function haversineKm(aLat: number, aLon: number, bLat: number, bLon: number): number {
   const rad = (d: number) => (d * Math.PI) / 180
@@ -69,9 +75,6 @@ export async function GET(req: NextRequest) {
       .filter((t) => TOPIC_RE.test(t))
       .slice(0, MAX_TOPICS)
     const exclude = url.searchParams.get('exclude') ?? ''
-    if (topics.length === 0) {
-      return NextResponse.json({ cards: [] }, { headers: { 'Cache-Control': 'public, max-age=300' } })
-    }
 
     const brand = await getServerBrand()
     const supabase = await createServerSupabase(brand.id)
@@ -97,6 +100,50 @@ export async function GET(req: NextRequest) {
           seenHrefs.add(`/resources/${excludeMatch[1]}/${exItem.slug}`)
         }
       }
+    }
+
+    // ── Source resolution ────────────────────────────────────────────────
+    // The "thing you're looking at": any embedded unit (source_type +
+    // source_id), or the legacy talk-card form (exclude item + block slug).
+    // The source drives self-exclusion, topic derivation, semantic fill and
+    // relevance scoring.
+    const sourceTypeParam = url.searchParams.get('source_type') ?? ''
+    const sourceIdParam = url.searchParams.get('source_id') ?? ''
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    let source: { type: string; id: string } | null =
+      SOURCE_TYPES.has(sourceTypeParam) && UUID_RE.test(sourceIdParam)
+        ? { type: sourceTypeParam, id: sourceIdParam }
+        : null
+    if (!source) {
+      const blockSlugParam = url.searchParams.get('block') ?? ''
+      if (excludeItemId && /^[a-z0-9][a-z0-9-]{0,120}$/.test(blockSlugParam)) {
+        const { data: srcBlock } = await supabase
+          .from('sr_blocks')
+          .select('id')
+          .eq('item_id', excludeItemId)
+          .eq('slug', blockSlugParam)
+          .maybeSingle()
+        if (srcBlock) source = { type: 'sr_block', id: srcBlock.id }
+      }
+    }
+    if (source) {
+      const { data: meta } = await supabase
+        .rpc('related_source_meta', { p_content_type: source.type, p_content_id: source.id })
+      const m = Array.isArray(meta) ? meta[0] : meta
+      if (m?.href) seenHrefs.add(m.href)
+      if (m?.item_id && !excludeItemId) excludeItemId = m.item_id
+    }
+
+    // topics: explicit param wins; otherwise derive from the source itself
+    if (topics.length === 0 && source) {
+      const { data: derived } = await supabase
+        .rpc('related_topics_for', { p_content_type: source.type, p_content_id: source.id })
+      for (const t of (derived ?? []) as string[]) {
+        if (TOPIC_RE.test(t) && topics.length < MAX_TOPICS) topics.push(t)
+      }
+    }
+    if (topics.length === 0 && !source) {
+      return NextResponse.json({ cards: [] }, { headers: { 'Cache-Control': 'public, max-age=300' } })
     }
 
     const push = (card: RelatedCard) => {
@@ -264,23 +311,12 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 4) semantic fill: embedding neighbours of the SOURCE block (the card
-    //    that was played), when pins/topics/events left slots open. Events
-    //    are excluded here — the events leg above owns the vicinity gate.
-    const blockSlug = url.searchParams.get('block') ?? ''
-    let srcBlockId: string | null = null
-    if (excludeItemId && /^[a-z0-9][a-z0-9-]{0,120}$/.test(blockSlug)) {
-      const { data: srcBlock } = await supabase
-        .from('sr_blocks')
-        .select('id')
-        .eq('item_id', excludeItemId)
-        .eq('slug', blockSlug)
-        .maybeSingle()
-      srcBlockId = srcBlock?.id ?? null
-    }
-    if (cards.length < MAX_CARDS && srcBlockId) {
+    // 4) semantic fill: embedding neighbours of the source, when pins/topics/
+    //    events left slots open. Events are excluded here — the events leg
+    //    above owns the vicinity gate.
+    if (cards.length < MAX_CARDS && source) {
       const { data: neighbours } = await supabase
-        .rpc('related_by_embedding', { p_content_type: 'sr_block', p_content_id: srcBlockId, p_limit: 8 })
+        .rpc('related_by_embedding', { p_content_type: source.type, p_content_id: source.id, p_limit: 8 })
       for (const n of (neighbours ?? []) as Array<Record<string, any>>) {
         if (n.card_type === 'event') continue
         if (typeof n.similarity === 'number' && n.similarity < MIN_SIMILARITY) continue
@@ -309,19 +345,19 @@ export async function GET(req: NextRequest) {
       ? minRelevanceParam
       : DEFAULT_MIN_RELEVANCE
     let out = cards
-    if (srcBlockId) {
+    if (source) {
       const inferred = cards.filter((c) => c.source !== 'pin')
       if (inferred.length > 0) {
         const { data: scores } = await supabase.rpc('related_score_hrefs', {
-          p_content_type: 'sr_block',
-          p_content_id: srcBlockId,
+          p_content_type: source.type,
+          p_content_id: source.id,
           p_hrefs: inferred.map((c) => c.href),
         })
         const simByHref = new Map<string, number>(
           ((scores ?? []) as Array<{ href: string; similarity: number }>).map((s) => [s.href, s.similarity]),
         )
         const top = Math.max(...inferred.map((c) => simByHref.get(c.href) ?? 0), MIN_SIMILARITY)
-        const cut = Math.max(MIN_SIMILARITY, minRelevance * top)
+        const cut = Math.max(ABS_RELEVANCE_FLOOR, minRelevance * top)
         const kept = inferred
           .map((c) => ({ card: c, sim: simByHref.get(c.href) }))
           .filter(({ sim }) => sim === undefined || sim >= cut)
