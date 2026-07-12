@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerBrand } from '@/config/brand'
 import { createServerSupabase } from '@/lib/supabase/server'
+import { getRelatedVisibility, moduleForCard } from '@/lib/modules/relatedVisibility'
 
 /**
  * Related-content resolver — the person-independent v1 of the surface the
@@ -370,9 +371,21 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // ── Module-visibility gate ─────────────────────────────────────────────
+    // Never surface a module the CURRENT VIEWER can't see in the portal nav:
+    // hidden modules are out for everyone, draft modules only reach authorised
+    // previewers, 'members' modules require a session (the future member-tier
+    // seam), and unmappable custom-link pins pass (operator-authored).
+    const visibility = await getRelatedVisibility()
+    out = out.filter((c) => {
+      const moduleId = moduleForCard(c, visibility)
+      return moduleId === null || visibility.allowed.has(moduleId)
+    })
+
+    // responses now vary by viewer (draft/member visibility) — never shared-cache
     return NextResponse.json(
       { cards: out },
-      { headers: { 'Cache-Control': 'public, max-age=300, stale-while-revalidate=600' } },
+      { headers: { 'Cache-Control': 'private, max-age=300' } },
     )
   } catch (err) {
     console.warn(JSON.stringify({ event: 'resources.related.resolver_error', message: err instanceof Error ? err.message : String(err) }))
