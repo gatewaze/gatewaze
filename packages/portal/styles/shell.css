@@ -327,6 +327,11 @@
   border: 1px solid rgba(var(--ui-text), 0.22); transition: color .15s ease, border-color .15s ease; }
 .pub-nl-unsub-btn:hover { color: var(--ink); border-color: rgba(var(--ui-text), 0.4); }
 .pub-nl-unsub-btn:disabled { opacity: .5; cursor: not-allowed; }
+/* Inline spinner swapped in for the topbar sign-in icon while navigating. */
+.gw-signin-spin { display: inline-block; width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid currentColor; border-top-color: transparent; animation: gw-spin .7s linear infinite; }
+@keyframes gw-spin { to { transform: rotate(360deg) } }
+@media (prefers-reduced-motion: reduce) { .gw-signin-spin { animation-duration: 1.6s } }
 .pub-nl-signup-msg { flex-basis: 100%; font-size: 12.5px; margin: 2px 0 0; }
 .pub-nl-signup-msg.err { color: #f87171; }
 .pub-nl-signup-msg.ok { color: var(--ink-2); }
