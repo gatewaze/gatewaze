@@ -74,6 +74,7 @@ export const getRelatedVisibility = cache(async (): Promise<RelatedVisibility> =
  *  (external canonical blog articles, absolute URLs). */
 const TYPE_MODULE: Record<string, string> = {
   resource: 'resources',
+  video: 'resources',
   event: 'events',
   blog: 'blog',
 }

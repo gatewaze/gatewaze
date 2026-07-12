@@ -196,20 +196,42 @@ export async function GET(req: NextRequest) {
       const orFilter = discriminative.flatMap(topicFilters).join(',')
       const { data: blocks } = await supabase
         .from('sr_blocks')
-        .select('item_id, data, item:sr_items(title, slug, subtitle, featured_image_url, collection:sr_collections(slug, name))')
+        .select('item_id, kind, slug, data, item:sr_items(title, slug, subtitle, featured_image_url, collection:sr_collections(slug, name))')
         .or(orFilter)
         .limit(120)
       const perItem = new Map<string, { item: any; matched: Set<string> }>()
+      const talkCards: Array<{ card: RelatedCard; matched: number }> = []
       for (const b of blocks ?? []) {
         if (excludeItemId && b.item_id === excludeItemId) continue
         const item = Array.isArray(b.item) ? b.item[0] : b.item
         const collection = item && (Array.isArray(item.collection) ? item.collection[0] : item.collection)
         if (!item || !collection) continue
-        const entry = perItem.get(b.item_id) ?? { item: { ...item, collection }, matched: new Set<string>() }
         const blockTopics = new Set<string>([
           ...(Array.isArray((b.data as any)?.topics) ? (b.data as any).topics : []),
           ...(Array.isArray((b.data as any)?.topics_auto) ? (b.data as any).topics_auto : []),
         ])
+        const matched = discriminative.filter((t) => blockTopics.has(t)).length
+        if (matched === 0) continue
+        // a topic-matched TALK is a card in its own right — the deep link and
+        // video thumbnail make it a first-class recommendation (e.g. a voice
+        // talk on a voice event page), not just "the recap it lives in"
+        if (b.kind === 'talk' && b.slug && (b.data as any)?.title) {
+          const d = b.data as any
+          talkCards.push({
+            matched,
+            card: {
+              type: 'video',
+              title: d.title,
+              href: `/resources/${collection.slug}/${item.slug}/${b.slug}`,
+              description: d.worth_noting ?? undefined,
+              image: d.youtube_id ? `https://i.ytimg.com/vi/${d.youtube_id}/hqdefault.jpg` : undefined,
+              meta: item.title,
+              source: 'topic',
+            },
+          })
+          continue
+        }
+        const entry = perItem.get(b.item_id) ?? { item: { ...item, collection }, matched: new Set<string>() }
         for (const t of discriminative) if (blockTopics.has(t)) entry.matched.add(t)
         perItem.set(b.item_id, entry)
       }
@@ -228,6 +250,13 @@ export async function GET(req: NextRequest) {
           source: 'topic',
         })
         if (cards.length > before) topicCards++
+      }
+      let videoCards = 0
+      for (const { card } of talkCards.sort((a, b) => b.matched - a.matched)) {
+        if (videoCards >= MAX_TOPIC_CARDS || cards.length >= MAX_CARDS) break
+        const before = cards.length
+        push(card)
+        if (cards.length > before) videoCards++
       }
     }
 
@@ -265,7 +294,7 @@ export async function GET(req: NextRequest) {
 
       const { data: events } = await supabase
         .from('events')
-        .select('event_id, event_title, event_slug, event_start, event_city, event_country_code, event_featured_image, event_topics, event_latitude, event_longitude, event_type')
+        .select('event_id, event_title, event_slug, event_start, event_city, event_country_code, event_featured_image, screenshot_url, event_logo, event_topics, event_latitude, event_longitude, event_type')
         .overlaps('event_topics', discriminative)
         .eq('is_listed', true)
         .gt('event_start', new Date().toISOString())
@@ -305,7 +334,7 @@ export async function GET(req: NextRequest) {
           type: 'event',
           title: e.event_title,
           href: `/events/${e.event_slug ?? e.event_id}`,
-          image: e.event_featured_image ?? undefined,
+          image: e.event_featured_image ?? e.screenshot_url ?? e.event_logo ?? undefined,
           meta: [when, where && nearby ? `${where} — near you` : where].filter(Boolean).join(' · '),
           source: 'event',
         })
@@ -357,15 +386,23 @@ export async function GET(req: NextRequest) {
         const simByHref = new Map<string, number>(
           ((scores ?? []) as Array<{ href: string; similarity: number }>).map((s) => [s.href, s.similarity]),
         )
-        const top = Math.max(...inferred.map((c) => simByHref.get(c.href) ?? 0), MIN_SIMILARITY)
+        // Dual-evidence boost: a topic-sourced card passed BOTH a declared
+        // topic match and this embedding score — two independent signals
+        // agreeing outrank a similarity-only signal of the same strength.
+        const effective = (c: RelatedCard, sim: number | undefined) =>
+          sim === undefined ? undefined : c.source === 'topic' || c.source === 'event' ? sim * 1.07 : sim
+        const top = Math.max(
+          ...inferred.map((c) => effective(c, simByHref.get(c.href)) ?? 0),
+          MIN_SIMILARITY,
+        )
         const cut = Math.max(ABS_RELEVANCE_FLOOR, minRelevance * top)
         const kept = inferred
-          .map((c) => ({ card: c, sim: simByHref.get(c.href) }))
+          .map((c) => ({ card: c, sim: effective(c, simByHref.get(c.href)) }))
           .filter(({ sim }) => sim === undefined || sim >= cut)
           .sort((a, b) => (b.sim ?? 0) - (a.sim ?? 0))
           .map(({ card, sim }) => ({
             ...card,
-            relevance: sim !== undefined && top > 0 ? Math.round((sim / top) * 100) : undefined,
+            relevance: sim !== undefined && top > 0 ? Math.min(100, Math.round((sim / top) * 100)) : undefined,
           }))
         out = [...cards.filter((c) => c.source === 'pin'), ...kept]
       }
