@@ -35,6 +35,10 @@ const MAX_BLOG_CARDS = 2
 const MAX_EVENT_CARDS = 2
 /** Embedding neighbours below this cosine similarity are noise, not kin. */
 const MIN_SIMILARITY = 0.33
+/** Relative relevance gate: after scoring every inferred candidate against
+ *  the played block's embedding, keep only cards at least this fraction as
+ *  similar as the best match. Overridable per-request via ?min_relevance=. */
+const DEFAULT_MIN_RELEVANCE = 0.9
 
 function haversineKm(aLat: number, aLon: number, bLat: number, bLon: number): number {
   const rad = (d: number) => (d * Math.PI) / 180
@@ -51,7 +55,9 @@ interface RelatedCard {
   description?: string
   image?: string
   meta?: string // secondary line, e.g. event date/city
-  source: 'pin' | 'topic' | 'event'
+  source: 'pin' | 'topic' | 'event' | 'similar'
+  /** 0–100, relative to the best-matching card for this source block. */
+  relevance?: number
 }
 
 export async function GET(req: NextRequest) {
@@ -262,34 +268,74 @@ export async function GET(req: NextRequest) {
     //    that was played), when pins/topics/events left slots open. Events
     //    are excluded here — the events leg above owns the vicinity gate.
     const blockSlug = url.searchParams.get('block') ?? ''
-    if (cards.length < MAX_CARDS && excludeItemId && /^[a-z0-9][a-z0-9-]{0,120}$/.test(blockSlug)) {
+    let srcBlockId: string | null = null
+    if (excludeItemId && /^[a-z0-9][a-z0-9-]{0,120}$/.test(blockSlug)) {
       const { data: srcBlock } = await supabase
         .from('sr_blocks')
         .select('id')
         .eq('item_id', excludeItemId)
         .eq('slug', blockSlug)
         .maybeSingle()
-      if (srcBlock) {
-        const { data: neighbours } = await supabase
-          .rpc('related_by_embedding', { p_content_type: 'sr_block', p_content_id: srcBlock.id, p_limit: 8 })
-        for (const n of (neighbours ?? []) as Array<Record<string, any>>) {
-          if (n.card_type === 'event') continue
-          if (typeof n.similarity === 'number' && n.similarity < MIN_SIMILARITY) continue
-          push({
-            type: n.card_type,
-            title: n.title,
-            href: n.href,
-            description: n.description ?? undefined,
-            image: n.image_url ?? undefined,
-            meta: n.meta ?? undefined,
-            source: 'similar',
-          })
-        }
+      srcBlockId = srcBlock?.id ?? null
+    }
+    if (cards.length < MAX_CARDS && srcBlockId) {
+      const { data: neighbours } = await supabase
+        .rpc('related_by_embedding', { p_content_type: 'sr_block', p_content_id: srcBlockId, p_limit: 8 })
+      for (const n of (neighbours ?? []) as Array<Record<string, any>>) {
+        if (n.card_type === 'event') continue
+        if (typeof n.similarity === 'number' && n.similarity < MIN_SIMILARITY) continue
+        push({
+          type: n.card_type,
+          title: n.title,
+          href: n.href,
+          description: n.description ?? undefined,
+          image: n.image_url ?? undefined,
+          meta: n.meta ?? undefined,
+          source: 'similar',
+        })
+      }
+    }
+
+    // ── Unified relevance gate ──────────────────────────────────────────────
+    // Topic/event/blog selection is set-membership; without this, sharing one
+    // tag reads as "fully relevant" and panels go broad. Score every inferred
+    // card against the source block's embedding, then keep only cards at
+    // least min_relevance (default 90%) as similar as the BEST match — a
+    // relative gate, because absolute cosine values are corpus-dependent.
+    // Pins are editorial guarantees and never filtered. Cards without an
+    // embedding row can't be judged and are kept.
+    const minRelevanceParam = Number.parseFloat(url.searchParams.get('min_relevance') ?? '')
+    const minRelevance = Number.isFinite(minRelevanceParam) && minRelevanceParam > 0 && minRelevanceParam <= 1
+      ? minRelevanceParam
+      : DEFAULT_MIN_RELEVANCE
+    let out = cards
+    if (srcBlockId) {
+      const inferred = cards.filter((c) => c.source !== 'pin')
+      if (inferred.length > 0) {
+        const { data: scores } = await supabase.rpc('related_score_hrefs', {
+          p_content_type: 'sr_block',
+          p_content_id: srcBlockId,
+          p_hrefs: inferred.map((c) => c.href),
+        })
+        const simByHref = new Map<string, number>(
+          ((scores ?? []) as Array<{ href: string; similarity: number }>).map((s) => [s.href, s.similarity]),
+        )
+        const top = Math.max(...inferred.map((c) => simByHref.get(c.href) ?? 0), MIN_SIMILARITY)
+        const cut = Math.max(MIN_SIMILARITY, minRelevance * top)
+        const kept = inferred
+          .map((c) => ({ card: c, sim: simByHref.get(c.href) }))
+          .filter(({ sim }) => sim === undefined || sim >= cut)
+          .sort((a, b) => (b.sim ?? 0) - (a.sim ?? 0))
+          .map(({ card, sim }) => ({
+            ...card,
+            relevance: sim !== undefined && top > 0 ? Math.round((sim / top) * 100) : undefined,
+          }))
+        out = [...cards.filter((c) => c.source === 'pin'), ...kept]
       }
     }
 
     return NextResponse.json(
-      { cards },
+      { cards: out },
       { headers: { 'Cache-Control': 'public, max-age=300, stale-while-revalidate=600' } },
     )
   } catch (err) {
