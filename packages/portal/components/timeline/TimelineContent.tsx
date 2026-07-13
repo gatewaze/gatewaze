@@ -53,6 +53,11 @@ interface Props {
    * server-side filters without a separate client roundtrip.
    */
   otherViewCount?: number | null
+  /** Distinct event_type values present across ALL published events (server
+   *  census, unfiltered). Without it the pill set derives from the currently
+   *  loaded rows — which are already type-filtered, so picking a type made
+   *  every other pill vanish, and types beyond page one never showed. */
+  availableTypeValues?: string[]
   /**
    * Calendar / map views need every event for their visualisation. The
    * upcoming / past paginated paths leave this undefined.
@@ -87,6 +92,7 @@ function TimelineContentInner({
   initialPage,
   query,
   otherViewCount,
+  availableTypeValues,
   allEvents,
   upcomingEvents,
   pastEvents,
@@ -179,6 +185,7 @@ function TimelineContentInner({
     : []
 
   const availableTypes = useMemo(() => {
+    if (availableTypeValues) return new Set(availableTypeValues)
     const sourceArr =
       view === 'upcoming'
         ? upcomingEvents ?? paginatedRows
@@ -190,7 +197,7 @@ function TimelineContentInner({
       if (event.event_type) types.add(event.event_type)
     }
     return types
-  }, [view, upcomingEvents, pastEvents, allEvents, paginatedRows])
+  }, [availableTypeValues, view, upcomingEvents, pastEvents, allEvents, paginatedRows])
 
   const isPastView = view === 'past'
 

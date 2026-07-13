@@ -6,6 +6,7 @@ import { getServerBrand, getBrandConfigById } from '@/config/brand'
 import { createServerSupabase } from '@/lib/supabase/server'
 import { resolveEventImagesList } from '@/lib/storage-resolve'
 import { TimelineContent } from '@/components/timeline/TimelineContent'
+import { getPublishedEventTypeValues } from '@/lib/events'
 import { PortalListingErrorBoundary } from '@/components/listing/PortalListingErrorBoundary'
 import { eventListingQueryFromUrl, parseEventUrl } from '@/lib/listing/event-url-filters'
 import type { Event } from '@/types/event'
@@ -112,10 +113,14 @@ export default async function PastEventsPage({ searchParams }: PageProps) {
     )
   }
 
+  // Unfiltered census for the type-filter pills (see TimelineContent).
+  const availableTypeValues = await getPublishedEventTypeValues(brand)
+
   return (
     <div className="pub-wrap">
       <TimelineContent
         brandConfig={brandConfig}
+        availableTypeValues={availableTypeValues}
         view="past"
         initialPage={initialPage}
         query={query}

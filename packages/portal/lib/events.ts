@@ -1,4 +1,5 @@
 import { getEventListing, type EventListing } from '@/lib/portal-data'
+import { createServerSupabase } from '@/lib/supabase/server'
 import type { Event } from '@/types/event'
 
 export type EventData = EventListing
@@ -36,4 +37,22 @@ export async function getEvents(_brandId: string): Promise<EventData> {
     past: data.past as Event[],
     all: data.all as Event[],
   }
+}
+
+/**
+ * Distinct event_type values across ALL published, listed events — the
+ * unfiltered census that drives the type-filter pills. Derived from the whole
+ * table (not the current page/filter) so every type with published events
+ * keeps its pill while other filters are active.
+ */
+export async function getPublishedEventTypeValues(brandId: string): Promise<string[]> {
+  const supabase = await createServerSupabase(brandId)
+  const { data } = await supabase
+    .from('events')
+    .select('event_type')
+    .eq('is_live_in_production', true)
+    .eq('is_listed', true)
+    .not('event_type', 'is', null)
+    .limit(5000)
+  return [...new Set((data ?? []).map((r: { event_type: string | null }) => (r.event_type ?? '').trim().toLowerCase()).filter(Boolean))]
 }
