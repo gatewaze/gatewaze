@@ -72,6 +72,7 @@ interface FormErrors {
   consent_coc?: string
   consent_inclusivity?: string
   consent_privacy?: string
+  consent_quality?: string
 }
 
 export function SpeakerSubmissionForm({ event, brandConfig, onSuccess, onCancel, useDarkTheme = false, initialStatus = 'pending', userProfile, confirmedDurationCounts = {}, isAdditionalTalk = false }: Props) {
@@ -285,6 +286,9 @@ export function SpeakerSubmissionForm({ event, brandConfig, onSuccess, onCancel,
     }
     if (privacyHtml && !cfpChecked.privacy) {
       newErrors.consent_privacy = 'Please acknowledge the privacy notice'
+    }
+    if (qualityHtml && !cfpChecked.quality) {
+      newErrors.consent_quality = 'Please agree to the content quality agreement'
     }
 
     setErrors(newErrors)
@@ -937,13 +941,15 @@ export function SpeakerSubmissionForm({ event, brandConfig, onSuccess, onCancel,
                     {consentAgreeHtml.includes('{terms}') ? (
                       <>
                         <span dangerouslySetInnerHTML={{ __html: consentAgreeHtml.split('{terms}')[0] }} />
-                        <button
-                          type="button"
+                        {/* An anchor, not a <button>: buttons are atomic inline
+                            boxes, so trailing punctuation after them can orphan-wrap
+                            onto its own line. Text-level anchors wrap like words. */}
+                        <a
+                          href="#"
+                          role="button"
                           className={`${theme.footerLink} font-medium cursor-pointer`}
                           onClick={(e) => { e.preventDefault(); setShowTerms(true) }}
-                        >
-                          event terms
-                        </button>
+                        >event terms</a>
                         <span dangerouslySetInnerHTML={{ __html: consentAgreeHtml.split('{terms}')[1] ?? '' }} />
                       </>
                     ) : (
@@ -962,7 +968,7 @@ export function SpeakerSubmissionForm({ event, brandConfig, onSuccess, onCancel,
                 { k: 'coc', html: cocHtml, required: true, errKey: 'consent_coc' as const },
                 { k: 'inclusivity', html: inclusivityHtml, required: true, errKey: 'consent_inclusivity' as const },
                 { k: 'privacy', html: privacyHtml, required: true, errKey: 'consent_privacy' as const },
-                { k: 'quality', html: qualityHtml, required: false, errKey: null },
+                { k: 'quality', html: qualityHtml, required: true, errKey: 'consent_quality' as const },
               ]).filter((it) => it.html).map((it) => (
                 <div key={it.k}>
                   <label className="flex items-start gap-3 cursor-pointer">
@@ -981,13 +987,12 @@ export function SpeakerSubmissionForm({ event, brandConfig, onSuccess, onCancel,
                       {it.html!.includes('{terms}') ? (
                         <>
                           <span dangerouslySetInnerHTML={{ __html: it.html!.split('{terms}')[0] }} />
-                          <button
-                            type="button"
+                          <a
+                            href="#"
+                            role="button"
                             className={`${theme.footerLink} font-medium cursor-pointer`}
                             onClick={(e) => { e.preventDefault(); setSpeakerTermsOpener(it.k) }}
-                          >
-                            speaker terms
-                          </button>
+                          >speaker terms</a>
                           <span dangerouslySetInnerHTML={{ __html: it.html!.split('{terms}')[1] ?? '' }} />
                         </>
                       ) : (
