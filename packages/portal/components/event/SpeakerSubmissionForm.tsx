@@ -912,7 +912,7 @@ export function SpeakerSubmissionForm({ event, brandConfig, onSuccess, onCancel,
                     }}
                     className="mt-1 h-4 w-4 flex-shrink-0 accent-current cursor-pointer"
                   />
-                  <span className={`text-sm leading-relaxed ${theme.footerText} [&_a]:underline`}>
+                  <span className={`text-sm leading-relaxed ${theme.footerText} [&_a]:underline [&_a]:text-white`}>
                     <span dangerouslySetInnerHTML={{ __html: consentAckHtml }} />
                     <span className={theme.requiredClass} style={{ backgroundColor: `${primaryColor}50` }}>required</span>
                   </span>
@@ -932,7 +932,7 @@ export function SpeakerSubmissionForm({ event, brandConfig, onSuccess, onCancel,
                     }}
                     className="mt-1 h-4 w-4 flex-shrink-0 accent-current cursor-pointer"
                   />
-                  <span className={`text-sm leading-relaxed ${theme.footerText}`}>
+                  <span className={`text-sm leading-relaxed ${theme.footerText} [&_a]:underline [&_a]:text-white`}>
                     {/* `{terms}` in the configured label becomes the modal trigger */}
                     {consentAgreeHtml.includes('{terms}') ? (
                       <>
@@ -977,7 +977,7 @@ export function SpeakerSubmissionForm({ event, brandConfig, onSuccess, onCancel,
                       }}
                       className="mt-1 h-4 w-4 flex-shrink-0 accent-current cursor-pointer"
                     />
-                    <span className={`text-sm leading-relaxed ${theme.footerText} [&_a]:underline`}>
+                    <span className={`text-sm leading-relaxed ${theme.footerText} [&_a]:underline [&_a]:text-white`}>
                       {it.html!.includes('{terms}') ? (
                         <>
                           <span dangerouslySetInnerHTML={{ __html: it.html!.split('{terms}')[0] }} />
