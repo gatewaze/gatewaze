@@ -45,7 +45,7 @@ const DEFAULT_MIN_RELEVANCE = 0.9
  *  legitimize it. Cards must clear BOTH bars — really relevant or nothing. */
 const ABS_RELEVANCE_FLOOR = 0.4
 /** Source types the resolver accepts (must have embedding rows). */
-const SOURCE_TYPES = new Set(['sr_block', 'sr_item', 'event', 'blog_post'])
+const SOURCE_TYPES = new Set(['sr_block', 'sr_item', 'event', 'blog_post', 'video'])
 
 function haversineKm(aLat: number, aLon: number, bLat: number, bLon: number): number {
   const rad = (d: number) => (d * Math.PI) / 180
@@ -53,6 +53,19 @@ function haversineKm(aLat: number, aLon: number, bLat: number, bLon: number): nu
   const dLon = rad(bLon - aLon)
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(aLat)) * Math.cos(rad(bLat)) * Math.sin(dLon / 2) ** 2
   return 6371 * 2 * Math.asin(Math.sqrt(h))
+}
+
+const YT_ID_RE = /^[A-Za-z0-9_-]{6,20}$/
+/** The YouTube id a card points at — a talk card and the standalone `video`
+ *  object for the same recording share it (thumbnail is i.ytimg.com/vi/<id>/,
+ *  or the href is a youtu.be/embed link). Used to drop the recording the
+ *  visitor is already watching and to collapse two cards for one video. */
+function ytIdOf(card: { image?: string; href: string }): string | null {
+  // thumbnails come off any of i.ytimg.com / i1‑i3.ytimg.com
+  const mImg = /ytimg\.com\/vi\/([A-Za-z0-9_-]{6,20})\//.exec(card.image ?? '')
+  if (mImg) return mImg[1]
+  const mHref = /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/))([A-Za-z0-9_-]{6,20})/.exec(card.href)
+  return mHref ? mHref[1] : null
 }
 
 interface RelatedCard {
@@ -127,12 +140,25 @@ export async function GET(req: NextRequest) {
         if (srcBlock) source = { type: 'sr_block', id: srcBlock.id }
       }
     }
+    let sourceYoutubeId: string | null = null
     if (source) {
       const { data: meta } = await supabase
         .rpc('related_source_meta', { p_content_type: source.type, p_content_id: source.id })
       const m = Array.isArray(meta) ? meta[0] : meta
       if (m?.href) seenHrefs.add(m.href)
       if (m?.item_id && !excludeItemId) excludeItemId = m.item_id
+
+      // The recording the visitor is already on — never recommend the same
+      // video back (a talk block and its standalone `video` object share a
+      // YouTube id but have different hrefs, so seenHrefs alone misses it).
+      if (source.type === 'sr_block') {
+        const { data: sb } = await supabase.from('sr_blocks').select('data').eq('id', source.id).maybeSingle()
+        const yt = (sb?.data as Record<string, unknown> | null)?.youtube_id
+        if (typeof yt === 'string' && YT_ID_RE.test(yt)) sourceYoutubeId = yt
+      } else if (source.type === 'video') {
+        const { data: v } = await supabase.from('videos').select('provider_video_id').eq('id', source.id).maybeSingle()
+        if (typeof v?.provider_video_id === 'string' && YT_ID_RE.test(v.provider_video_id)) sourceYoutubeId = v.provider_video_id
+      }
     }
 
     // topics: explicit param wins; otherwise derive from the source itself
@@ -147,9 +173,14 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ cards: [] }, { headers: { 'Cache-Control': 'public, max-age=300' } })
     }
 
+    // one card per recording, and never the recording being viewed
+    const seenYt = new Set<string>()
     const push = (card: RelatedCard) => {
       if (seenHrefs.has(card.href) || cards.length >= MAX_CARDS) return
+      const yt = ytIdOf(card)
+      if (yt && (yt === sourceYoutubeId || seenYt.has(yt))) return
       seenHrefs.add(card.href)
+      if (yt) seenYt.add(yt)
       cards.push(card)
     }
 

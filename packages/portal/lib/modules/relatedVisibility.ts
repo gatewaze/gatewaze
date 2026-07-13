@@ -71,10 +71,17 @@ export const getRelatedVisibility = cache(async (): Promise<RelatedVisibility> =
 })
 
 /** Card type -> owning module, for destinations the nav prefixes can't map
- *  (external canonical blog articles, absolute URLs). */
+ *  (external canonical blog articles, absolute URLs).
+ *
+ *  `video` is deliberately absent: a standalone video recommendation (its
+ *  href is the in-portal /videos/{id} page, which no nav prefix owns) is
+ *  never gated by any module's nav visibility — videos are always available
+ *  as related material. moduleForCard falls through to null (ungated) for
+ *  them. (A video card that deep-links INTO a resource item still maps to
+ *  'resources' via the href prefix below — that one is genuinely resources
+ *  content.) */
 const TYPE_MODULE: Record<string, string> = {
   resource: 'resources',
-  video: 'resources',
   event: 'events',
   blog: 'blog',
 }
