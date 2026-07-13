@@ -1251,6 +1251,15 @@ const LEGAL_KEYS = [
   "talk_consent_ack_html",
   "talk_consent_agree_html",
   "newsletter_consent_html",
+  // CFP consents (LF events team requirements, 2026-07). Each non-empty label
+  // renders as its own checkbox on the Submit-a-talk form; CoC/Inclusivity/
+  // Privacy are required, Content Quality is optional. `{terms}` in a label
+  // links to the Speaker Terms pop-up (speaker_terms_html).
+  "talk_consent_coc_html",
+  "talk_consent_inclusivity_html",
+  "talk_consent_privacy_html",
+  "talk_consent_quality_html",
+  "speaker_terms_html",
 ] as const;
 type LegalKey = (typeof LEGAL_KEYS)[number];
 
@@ -1263,6 +1272,11 @@ const TAB_LABELS: Record<LegalKey, string> = {
   talk_consent_ack_html: "Talk Consent (Ack)",
   talk_consent_agree_html: "Talk Consent (Agree)",
   newsletter_consent_html: "Newsletter Consent",
+  talk_consent_coc_html: "CFP: Code of Conduct",
+  talk_consent_inclusivity_html: "CFP: Inclusivity",
+  talk_consent_privacy_html: "CFP: Privacy",
+  talk_consent_quality_html: "CFP: Content Quality",
+  speaker_terms_html: "Speaker Terms",
 };
 
 const EMPTY_LEGAL_CONTENT: Record<LegalKey, string> = {
@@ -1274,6 +1288,11 @@ const EMPTY_LEGAL_CONTENT: Record<LegalKey, string> = {
   talk_consent_ack_html: "",
   talk_consent_agree_html: "",
   newsletter_consent_html: "",
+  talk_consent_coc_html: "",
+  talk_consent_inclusivity_html: "",
+  talk_consent_privacy_html: "",
+  talk_consent_quality_html: "",
+  speaker_terms_html: "",
 };
 
 function LegalPagesContent() {
