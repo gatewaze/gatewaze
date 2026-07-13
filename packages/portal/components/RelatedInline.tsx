@@ -24,7 +24,7 @@ interface RelatedCard {
 }
 
 interface Props {
-  sourceType: 'sr_block' | 'sr_item' | 'event' | 'blog_post'
+  sourceType: 'sr_block' | 'sr_item' | 'event' | 'blog_post' | 'video'
   sourceId: string
   /** Optional explicit topics; the resolver derives them from the source when omitted. */
   topics?: string[]
