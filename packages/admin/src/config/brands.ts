@@ -186,7 +186,47 @@ export function getShortLinkDomain(): string {
 }
 
 export function getPortalDomain(): string {
-  return getBrandConfig().domains.portal;
+  const configured = getBrandConfig().domains.portal;
+  if (configured) return configured;
+
+  // Helm deploys set VITE_PORTAL_URL (full origin) but not
+  // VITE_PORTAL_DOMAIN — see helm/gatewaze/templates/configmap.yaml.
+  const portalUrl = import.meta.env.VITE_PORTAL_URL || '';
+  if (portalUrl) {
+    try {
+      return new URL(portalUrl).host;
+    } catch {
+      // malformed URL — fall through to hostname derivation
+    }
+  }
+
+  // Last resort: derive from the admin hostname. Local docker serves the
+  // portal at app.<brand>.localhost beside admin.<brand>.localhost; Helm
+  // brands serve it at the apex (admin.aaif.live → aaif.live); Fly.io /
+  // preview deployments use a -admin. / -app. infix.
+  if (typeof window !== 'undefined') {
+    const host = window.location.host;
+    if (host.includes('-admin.')) return host.replace('-admin.', '-app.');
+    if (/\.localhost(:\d+)?$/.test(host)) return host.replace(/^admin\./, 'app.');
+    return host.replace(/^admin\./, '');
+  }
+  return '';
+}
+
+/**
+ * Full portal origin (protocol + host) for public-facing links.
+ * Prefers VITE_PORTAL_URL verbatim when set (it carries its own
+ * protocol); otherwise builds one from getPortalDomain(), using
+ * http:// for *.localhost hosts (no TLS in local docker) and
+ * https:// everywhere else.
+ */
+export function getPortalUrl(): string {
+  const portalUrl = (import.meta.env.VITE_PORTAL_URL || '').trim();
+  if (portalUrl) return portalUrl.replace(/\/+$/, '');
+  const domain = getPortalDomain();
+  if (!domain) return '';
+  const isLocal = /(^|\.)localhost(:\d+)?$/.test(domain);
+  return `${isLocal ? 'http' : 'https'}://${domain}`;
 }
 
 export function getNewsletterConfig() {

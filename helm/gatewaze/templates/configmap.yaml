@@ -46,6 +46,10 @@ data:
   # callers fall back to window.location.origin — which is the admin
   # subdomain, not the portal — and every RSVP link is broken.
   VITE_PORTAL_URL: {{ printf "https://%s" .Values.ingress.hosts.portal | quote }}
+  # Bare portal host for admin callers that build their own URLs
+  # (getPortalDomain() in packages/admin/src/config/brands.ts — e.g. the
+  # events "View on portal" button, ad-platform tracking URLs).
+  VITE_PORTAL_DOMAIN: {{ .Values.ingress.hosts.portal | quote }}
   {{- else }}
   VITE_API_URL: {{ printf "http://%s-api:3002" (include "gatewaze.fullname" .) | quote }}
   {{- end }}
