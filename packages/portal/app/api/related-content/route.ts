@@ -34,6 +34,9 @@ const GENERIC_TOPIC_BLOCKS = 25
 const MAX_TOPIC_CARDS = 3
 const MAX_BLOG_CARDS = 2
 const MAX_EVENT_CARDS = 2
+/** Containment legs may never saturate the panel — the similarity leg is the
+ *  per-card differentiator and always gets slots to compete for. */
+const RESERVED_FOR_SIMILAR = 2
 /** Embedding neighbours below this cosine similarity are noise, not kin. */
 const MIN_SIMILARITY = 0.33
 /** Relative relevance gate: after scoring every inferred candidate against
@@ -141,12 +144,14 @@ export async function GET(req: NextRequest) {
       }
     }
     let sourceYoutubeId: string | null = null
+    let sourceEmbedLen = 0
     if (source) {
       const { data: meta } = await supabase
         .rpc('related_source_meta', { p_content_type: source.type, p_content_id: source.id })
       const m = Array.isArray(meta) ? meta[0] : meta
       if (m?.href) seenHrefs.add(m.href)
       if (m?.item_id && !excludeItemId) excludeItemId = m.item_id
+      if (typeof m?.embed_len === 'number') sourceEmbedLen = m.embed_len
 
       // The recording the visitor is already on — never recommend the same
       // video back (a talk block and its standalone `video` object share a
@@ -216,6 +221,10 @@ export async function GET(req: NextRequest) {
       return { topic: t, count: count ?? 0 }
     }))
     const rare = topicCounts.filter((t) => t.count > 0 && t.count <= GENERIC_TOPIC_BLOCKS).map((t) => t.topic)
+    // when every topic is corpus-generic, the fallback still lets containment
+    // legs run — but matches on generic topics have NOT earned the dual-
+    // evidence boost (see the relevance gate below)
+    const hasRareTopics = rare.length > 0
     const discriminative = rare.length > 0
       ? rare
       : topicCounts.filter((t) => t.count > 0).sort((a, b) => a.count - b.count).slice(0, 2).map((t) => t.topic)
@@ -267,9 +276,11 @@ export async function GET(req: NextRequest) {
         perItem.set(b.item_id, entry)
       }
       const ranked = [...perItem.values()].sort((a, b) => b.matched.size - a.matched.size)
+      // fallback-generic topics are weak evidence: smaller budget
+      const topicBudget = hasRareTopics ? MAX_TOPIC_CARDS : 1
       let topicCards = 0
       for (const { item } of ranked) {
-        if (topicCards >= MAX_TOPIC_CARDS || cards.length >= MAX_CARDS) break
+        if (topicCards >= topicBudget || cards.length >= MAX_CARDS - RESERVED_FOR_SIMILAR) break
         const before = cards.length
         push({
           type: 'resource',
@@ -284,7 +295,7 @@ export async function GET(req: NextRequest) {
       }
       let videoCards = 0
       for (const { card } of talkCards.sort((a, b) => b.matched - a.matched)) {
-        if (videoCards >= MAX_TOPIC_CARDS || cards.length >= MAX_CARDS) break
+        if (videoCards >= topicBudget || cards.length >= MAX_CARDS - RESERVED_FOR_SIMILAR) break
         const before = cards.length
         push(card)
         if (cards.length > before) videoCards++
@@ -298,7 +309,7 @@ export async function GET(req: NextRequest) {
         .rpc('related_blog_posts_by_topics', { p_topics: discriminative, p_limit: MAX_BLOG_CARDS + 2 })
       let blogCount = 0
       for (const b of (blogCards ?? []) as Array<Record<string, any>>) {
-        if (blogCount >= MAX_BLOG_CARDS || cards.length >= MAX_CARDS) break
+        if (blogCount >= MAX_BLOG_CARDS || cards.length >= MAX_CARDS - RESERVED_FOR_SIMILAR) break
         const before = cards.length
         push({
           type: 'blog',
@@ -414,23 +425,47 @@ export async function GET(req: NextRequest) {
           p_content_id: source.id,
           p_hrefs: inferred.map((c) => c.href),
         })
-        const simByHref = new Map<string, number>(
-          ((scores ?? []) as Array<{ href: string; similarity: number }>).map((s) => [s.href, s.similarity]),
-        )
+        const scoreRows = (scores ?? []) as Array<{ href: string; similarity: number; published_at: string | null }>
+        const simByHref = new Map<string, number>(scoreRows.map((s) => [s.href, s.similarity]))
+        const dateByHref = new Map<string, string | null>(scoreRows.map((s) => [s.href, s.published_at]))
+
+        // Recency decay: dated kin (blog posts, videos) should prefer FRESH
+        // content — a mild multiplier so relevance still dominates. Undated
+        // content (resources, upcoming events) is untouched.
+        const recencyFactor = (href: string) => {
+          const published = dateByHref.get(href)
+          if (!published) return 1
+          const ageDays = (Date.now() - Date.parse(published)) / 86_400_000
+          if (!Number.isFinite(ageDays) || ageDays <= 120) return 1
+          if (ageDays <= 365) return 0.96
+          if (ageDays <= 730) return 0.9
+          return 0.82
+        }
+
         // Dual-evidence boost: a topic-sourced card passed BOTH a declared
         // topic match and this embedding score — two independent signals
         // agreeing outrank a similarity-only signal of the same strength.
-        const effective = (c: RelatedCard, sim: number | undefined) =>
-          sim === undefined ? undefined : c.source === 'topic' || c.source === 'event' ? sim * 1.07 : sim
+        // Recency deliberately does NOT feed the gate: it reorders what
+        // qualifies (fresh first) but never disqualifies relevant content or
+        // hands undated content an inclusion advantage over dated kin.
+        const gateScore = (c: RelatedCard, sim: number | undefined) =>
+          sim === undefined
+            ? undefined
+            : hasRareTopics && (c.source === 'topic' || c.source === 'event') ? sim * 1.07 : sim
         const top = Math.max(
-          ...inferred.map((c) => effective(c, simByHref.get(c.href)) ?? 0),
+          ...inferred.map((c) => gateScore(c, simByHref.get(c.href)) ?? 0),
           MIN_SIMILARITY,
         )
-        const cut = Math.max(ABS_RELEVANCE_FLOOR, minRelevance * top)
+        // A stub source (title-only embed text, e.g. an event with no
+        // description) produces unreliable similarities — demand a higher
+        // absolute bar before trusting its kin at all.
+        const absFloor = sourceEmbedLen > 0 && sourceEmbedLen < 60 ? 0.55 : ABS_RELEVANCE_FLOOR
+        const cut = Math.max(absFloor, minRelevance * top)
         const kept = inferred
-          .map((c) => ({ card: c, sim: effective(c, simByHref.get(c.href)) }))
+          .map((c) => ({ card: c, sim: gateScore(c, simByHref.get(c.href)) }))
           .filter(({ sim }) => sim === undefined || sim >= cut)
-          .sort((a, b) => (b.sim ?? 0) - (a.sim ?? 0))
+          .sort((a, b) =>
+            ((b.sim ?? 0) * recencyFactor(b.card.href)) - ((a.sim ?? 0) * recencyFactor(a.card.href)))
           .map(({ card, sim }) => ({
             ...card,
             relevance: sim !== undefined && top > 0 ? Math.min(100, Math.round((sim / top) * 100)) : undefined,
