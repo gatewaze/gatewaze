@@ -939,7 +939,7 @@ export function SpeakerSubmissionForm({ event, brandConfig, onSuccess, onCancel,
                         <span dangerouslySetInnerHTML={{ __html: consentAgreeHtml.split('{terms}')[0] }} />
                         <button
                           type="button"
-                          className={`${theme.footerLink} font-medium`}
+                          className={`${theme.footerLink} font-medium cursor-pointer`}
                           onClick={(e) => { e.preventDefault(); setShowTerms(true) }}
                         >
                           event terms
@@ -983,7 +983,7 @@ export function SpeakerSubmissionForm({ event, brandConfig, onSuccess, onCancel,
                           <span dangerouslySetInnerHTML={{ __html: it.html!.split('{terms}')[0] }} />
                           <button
                             type="button"
-                            className={`${theme.footerLink} font-medium`}
+                            className={`${theme.footerLink} font-medium cursor-pointer`}
                             onClick={(e) => { e.preventDefault(); setSpeakerTermsOpener(it.k) }}
                           >
                             speaker terms
