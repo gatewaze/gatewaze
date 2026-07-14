@@ -85,6 +85,11 @@ interface RelatedCard {
   source: 'pin' | 'topic' | 'event' | 'similar'
   /** 0–100, relative to the best-matching card for this source block. */
   relevance?: number
+  /** Canonical identity, when known — lets the version-drift gate judge this
+   *  card (spec-version-aware-related-content.md). Pins/events usually lack it
+   *  and are exempt (KEEP). */
+  contentType?: string
+  contentId?: string
 }
 
 export async function GET(req: NextRequest) {
@@ -240,7 +245,7 @@ export async function GET(req: NextRequest) {
       const orFilter = discriminative.flatMap(topicFilters).join(',')
       const { data: blocks } = await supabase
         .from('sr_blocks')
-        .select('item_id, kind, slug, data, item:sr_items(title, slug, subtitle, featured_image_url, collection:sr_collections(slug, name))')
+        .select('id, item_id, kind, slug, data, item:sr_items(title, slug, subtitle, featured_image_url, collection:sr_collections(slug, name))')
         .or(orFilter)
         .limit(120)
       const perItem = new Map<string, { item: any; matched: Set<string> }>()
@@ -271,11 +276,13 @@ export async function GET(req: NextRequest) {
               image: d.youtube_id ? `https://i.ytimg.com/vi/${d.youtube_id}/hqdefault.jpg` : undefined,
               meta: item.title,
               source: 'topic',
+              contentType: 'sr_block',
+              contentId: b.id,
             },
           })
           continue
         }
-        const entry = perItem.get(b.item_id) ?? { item: { ...item, collection }, matched: new Set<string>() }
+        const entry = perItem.get(b.item_id) ?? { item: { ...item, collection, id: b.item_id }, matched: new Set<string>() }
         for (const t of discriminative) if (blockTopics.has(t)) entry.matched.add(t)
         perItem.set(b.item_id, entry)
       }
@@ -294,6 +301,8 @@ export async function GET(req: NextRequest) {
           image: item.featured_image_url ?? undefined,
           meta: item.collection.name,
           source: 'topic',
+          contentType: 'sr_item',
+          contentId: item.id ?? undefined,
         })
         if (cards.length > before) topicCards++
       }
@@ -323,6 +332,8 @@ export async function GET(req: NextRequest) {
           image: b.image_url ?? undefined,
           meta: 'Blog',
           source: 'topic',
+          contentType: 'blog_post',
+          contentId: b.id ?? b.content_id ?? undefined,
         })
         if (cards.length > before) blogCount++
       }
@@ -414,6 +425,8 @@ export async function GET(req: NextRequest) {
           image: n.image_url ?? undefined,
           meta: n.meta ?? undefined,
           source: 'similar',
+          contentType: n.content_type,
+          contentId: n.content_id,
         })
       }
     }
@@ -495,6 +508,47 @@ export async function GET(req: NextRequest) {
           return true
         })
         out = [...cards.filter((c) => c.source === 'pin'), ...capped]
+      }
+    }
+
+    // ── Version-drift gate ──────────────────────────────────────────────────
+    // Demote/exclude a candidate whose project version context has drifted too
+    // far from the source (only when BOTH are version-sensitive — evergreen and
+    // unclassified content is exempt; see spec-version-aware-related-content.md).
+    // Runs strictly AFTER the relevance gate (can only shrink/reorder its output,
+    // never resurrect a cut card) and is fail-open. Pins/events without a
+    // resolvable content id are exempt (KEEP).
+    if (source) {
+      const judged = out.filter((c) => c.contentType && c.contentId)
+      if (judged.length > 0) {
+        try {
+          const { data: verdicts } = await supabase.rpc('related_version_verdicts', {
+            p_source_type: source.type,
+            p_source_id: source.id,
+            p_targets: judged.map((c) => ({ key: c.href, content_type: c.contentType, content_id: c.contentId })),
+          })
+          const verdictByHref = new Map<string, string>(
+            ((verdicts ?? []) as Array<{ target_key: string; verdict: string }>).map((v) => [v.target_key, v.verdict]),
+          )
+          for (const v of (verdicts ?? []) as Array<Record<string, unknown>>) {
+            if (v.verdict !== 'KEEP') {
+              console.warn(JSON.stringify({ event: 'related.version_gate', source_type: source.type, source_id: source.id, ...v }))
+            }
+          }
+          const demoted = new Set<string>()
+          out = out.filter((c) => {
+            const v = verdictByHref.get(c.href)
+            if (v === 'EXCLUDE') return false
+            if (v === 'DEMOTE') demoted.add(c.href)
+            return true
+          })
+          // stable partition: demoted cards sink below the rest (rarely win a slot)
+          if (demoted.size > 0) {
+            out = [...out.filter((c) => !demoted.has(c.href)), ...out.filter((c) => demoted.has(c.href))]
+          }
+        } catch {
+          /* fail-open: a broken gate must never blank the related panel */
+        }
       }
     }
 
