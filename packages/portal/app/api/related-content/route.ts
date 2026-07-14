@@ -37,6 +37,10 @@ const MAX_EVENT_CARDS = 2
 /** Containment legs may never saturate the panel — the similarity leg is the
  *  per-card differentiator and always gets slots to compete for. */
 const RESERVED_FOR_SIMILAR = 2
+/** No single content type may dominate the panel: at most this many cards of
+ *  one type among the inferred results (pins are editorial and exempt).
+ *  Applied AFTER the relevance gate — a cap trims, it never admits. */
+const MAX_PER_TYPE = 2
 /** Embedding neighbours below this cosine similarity are noise, not kin. */
 const MIN_SIMILARITY = 0.33
 /** Relative relevance gate: after scoring every inferred candidate against
@@ -383,13 +387,23 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 4) semantic fill: embedding neighbours of the source, when pins/topics/
-    //    events left slots open. Events are excluded here — the events leg
-    //    above owns the vicinity gate.
+    // 4) semantic fill: embedding neighbours of the source, retrieved PER
+    //    TYPE — a global nearest list is monopolised by whichever type has
+    //    the richest embed text (blog posts), so videos and resources never
+    //    even reach the relevance gate. Per-type retrieval gives each type
+    //    its best candidates; the gate still judges every one on merit.
+    //    Events are excluded here — the events leg above owns the vicinity
+    //    gate.
     if (cards.length < MAX_CARDS && source) {
-      const { data: neighbours } = await supabase
-        .rpc('related_by_embedding', { p_content_type: source.type, p_content_id: source.id, p_limit: 8 })
-      for (const n of (neighbours ?? []) as Array<Record<string, any>>) {
+      const neighbourTypes = ['blog', 'video', 'resource']
+      const perType = await Promise.all(neighbourTypes.map((t) =>
+        supabase.rpc('related_by_embedding', {
+          p_content_type: source!.type, p_content_id: source!.id, p_limit: 4, p_card_type: t,
+        })))
+      const neighbours = perType
+        .flatMap(({ data }) => (data ?? []) as Array<Record<string, any>>)
+        .sort((a, b) => (b.similarity ?? 0) - (a.similarity ?? 0))
+      for (const n of neighbours) {
         if (n.card_type === 'event') continue
         if (typeof n.similarity === 'number' && n.similarity < MIN_SIMILARITY) continue
         push({
@@ -470,7 +484,17 @@ export async function GET(req: NextRequest) {
             ...card,
             relevance: sim !== undefined && top > 0 ? Math.min(100, Math.round((sim / top) * 100)) : undefined,
           }))
-        out = [...cards.filter((c) => c.source === 'pin'), ...kept]
+        // type-diversity cap: walk the ranked list, letting each type fill at
+        // most MAX_PER_TYPE slots — later types surface without any card
+        // being shown that didn't already clear the gate
+        const typeCounts = new Map<string, number>()
+        const capped = kept.filter((k) => {
+          const n = typeCounts.get(k.type) ?? 0
+          if (n >= MAX_PER_TYPE) return false
+          typeCounts.set(k.type, n + 1)
+          return true
+        })
+        out = [...cards.filter((c) => c.source === 'pin'), ...capped]
       }
     }
 
