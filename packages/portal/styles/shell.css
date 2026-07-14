@@ -403,7 +403,11 @@
 .gw-card-glow { position: relative; }
 .gw-card-glow::after {
   content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 2px; z-index: 2; pointer-events: none;
-  background: conic-gradient(from var(--gw-glow-angle), transparent 0deg, rgba(var(--ui-text), 0.85) 55deg, transparent 130deg);
+  /* Two identical arcs 180° apart, so the sweep runs from opposite sides at
+     once instead of a single clockwise point. */
+  background: conic-gradient(from var(--gw-glow-angle),
+    transparent 0deg, rgba(var(--ui-text), 0.85) 55deg, transparent 130deg,
+    transparent 180deg, rgba(var(--ui-text), 0.85) 235deg, transparent 310deg);
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor; mask-composite: exclude;
   opacity: 0; transition: opacity .3s ease;
