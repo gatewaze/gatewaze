@@ -19,6 +19,11 @@ export interface Person {
   avatar_storage_path?: string | null;
   linkedin_avatar_url?: string | null;
   avatar_updated_at?: string | null;
+  /** Lawful basis: member (consented signup), event_contact (registered for an
+   *  event), prospect (legitimate interest, no opt-in — excluded from bulk email). */
+  contact_kind?: 'member' | 'event_contact' | 'prospect';
+  /** Provenance for prospects (e.g. apollo_export_2026_07) — GDPR Art. 14 notices. */
+  acquisition_source?: string | null;
 }
 
 // Service class for people data operations

@@ -69,6 +69,8 @@ interface Person {
   };
   avatar_source?: 'uploaded' | 'linkedin' | 'gravatar' | null;
   avatar_storage_path?: string | null;
+  contact_kind?: 'member' | 'event_contact' | 'prospect';
+  acquisition_source?: string | null;
 }
 
 // Helper function to get avatar URL from Supabase storage only
@@ -155,6 +157,11 @@ export default function MembersPage() {
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'created', desc: true }
   ]);
+  // Members = consented community (authenticated people, the default view).
+  // Prospects = legitimate-interest outreach contacts (contact_kind='prospect',
+  // no auth account) — stored for CFP/sponsorship outreach, excluded from bulk
+  // email, and invisible to the members RPC, so they get their own query.
+  const [kindFilter, setKindFilter] = useState<'members' | 'prospects'>('members');
   const [peopleWithGravatar, setPeopleWithGravatar] = useState<Person[]>([]);
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -203,6 +210,11 @@ export default function MembersPage() {
     company: '',
   });
   const [addingMember, setAddingMember] = useState(false);
+  // Add-person kind: member goes through people-signup (auth user + consent
+  // flow); prospect is a direct row — no auth account, contact_kind='prospect',
+  // excluded from bulk email until they opt in.
+  const [addPersonKind, setAddPersonKind] = useState<'member' | 'prospect'>('member');
+  const [addPersonSource, setAddPersonSource] = useState('');
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
     title: string;
@@ -222,6 +234,41 @@ export default function MembersPage() {
       // Determine sort parameters
       const sortBy = sorting.length > 0 ? sorting[0].id : 'created_at';
       const sortOrder = sorting.length > 0 ? (sorting[0].desc ? 'desc' : 'asc') : 'desc';
+
+      // Prospects view: direct query (the members RPC filters to authenticated
+      // people, which prospects never are).
+      if (kindFilter === 'prospects') {
+        let query = supabase
+          .from('people')
+          .select('id, cio_id, email, created_at, attributes, avatar_storage_path, avatar_source, contact_kind, acquisition_source', { count: 'exact' })
+          .eq('contact_kind', 'prospect');
+        const term = (globalFilter || '').trim().replace(/[%_\\,()]/g, '');
+        if (term) {
+          query = query.or(
+            `email.ilike.%${term}%,acquisition_source.ilike.%${term}%,` +
+            `attributes->>first_name.ilike.%${term}%,attributes->>last_name.ilike.%${term}%,` +
+            `attributes->>company.ilike.%${term}%,attributes->>job_title.ilike.%${term}%`
+          );
+        }
+        const { data, count, error } = await query
+          .order('created_at', { ascending: sortOrder === 'asc' })
+          .range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1);
+        if (error) throw error;
+        setPeople((data ?? []).map(c => ({
+          cio_id: c.cio_id,
+          email: c.email || '',
+          id: c.id?.toString() || '',
+          created_at: c.created_at,
+          attributes: c.attributes as Person['attributes'],
+          avatar_storage_path: c.avatar_storage_path,
+          avatar_source: c.avatar_source,
+          contact_kind: c.contact_kind,
+          acquisition_source: c.acquisition_source,
+        })));
+        setTotalPeople(count ?? 0);
+        setLastUpdated(new Date());
+        return;
+      }
 
       // Fetch only the current page with server-side pagination, sorting, and filtering
       const { people: fetchedPeople, total } = await PeopleService.getAuthenticatedPeoplePaginated(
@@ -482,10 +529,32 @@ export default function MembersPage() {
                 className="flex-shrink-0"
               />
               <span className="truncate">{email}</span>
+              {person.contact_kind === 'prospect' && (
+                <span
+                  className="inline-block flex-shrink-0 rounded-md bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 px-1.5 py-0.5 text-xs font-medium"
+                  title="Outreach prospect — no marketing consent; excluded from bulk email"
+                >
+                  Prospect
+                </span>
+              )}
             </div>
           );
         },
       }),
+      // Provenance column, shown only in the Prospects view (GDPR Art. 14:
+      // you must be able to say where a contact came from).
+      ...(kindFilter === 'prospects'
+        ? [
+            columnHelper.accessor((row) => row.acquisition_source, {
+              id: 'acquisitionSource',
+              header: 'Source',
+              enableSorting: false,
+              cell: (info) => (
+                <span className="text-sm text-[var(--gray-11)]">{info.getValue() || '-'}</span>
+              ),
+            }),
+          ]
+        : []),
       columnHelper.accessor((row) => row.attributes?.first_name, {
         id: 'firstName',
         header: 'First Name',
@@ -593,7 +662,7 @@ export default function MembersPage() {
         },
       }),
     ],
-    [selectedPersonIds, people, selectAllMode, totalPeople, peopleAttrConfig]
+    [selectedPersonIds, people, selectAllMode, totalPeople, peopleAttrConfig, kindFilter]
   );
 
   const table = useReactTable({
@@ -630,7 +699,7 @@ export default function MembersPage() {
 
   useEffect(() => {
     loadPeople();
-  }, [currentPage, sorting, globalFilter]);
+  }, [currentPage, sorting, globalFilter, kindFilter]);
 
   useEffect(() => {
     // Load all customers for avatar gallery on initial mount
@@ -961,6 +1030,42 @@ export default function MembersPage() {
       return;
     }
 
+    // Outreach prospect: direct insert — no auth account, no signup email.
+    // Skips the required-attrs check (imported prospect records are partial by
+    // nature) and stamps lawful basis + provenance instead.
+    if (addPersonKind === 'prospect') {
+      setAddingMember(true);
+      try {
+        const attrs = Object.fromEntries(
+          peopleAttrConfig
+            .filter(a => a.enabled && addPersonFormData[a.key]?.trim())
+            .map(a => [a.key, addPersonFormData[a.key].trim()])
+        );
+        const { error } = await supabase.from('people').insert({
+          email: email.trim().toLowerCase(),
+          contact_kind: 'prospect',
+          acquisition_source: addPersonSource.trim() || 'admin_manual',
+          attributes: attrs,
+        });
+        if (error) {
+          throw new Error(/duplicate|unique/i.test(error.message)
+            ? 'A person with this email already exists'
+            : error.message);
+        }
+        toast.success('Prospect added — excluded from bulk email until they opt in');
+        setAddPersonFormData({ email: '', first_name: '', last_name: '', job_title: '', company: '' });
+        setAddPersonSource('');
+        setAddPersonModalOpen(false);
+        loadPeople();
+      } catch (error) {
+        console.error('Add prospect error:', error);
+        toast.error(error instanceof Error ? error.message : 'Failed to add prospect');
+      } finally {
+        setAddingMember(false);
+      }
+      return;
+    }
+
     // Validate required fields from people attributes config
     const missingRequired = peopleAttrConfig
       .filter(a => a.enabled && a.required && !addPersonFormData[a.key]?.trim())
@@ -1230,15 +1335,31 @@ export default function MembersPage() {
           {/* Search / filter */}
           <div className="p-4 border-b border-[var(--gray-a5)]">
             <div className="space-y-2">
-              <div className="relative">
-                <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-5 text-[var(--gray-a8)]" />
-                <input
-                  type="text"
-                  placeholder="Search people... (e.g., company:microsoft or john)"
-                  value={globalFilter ?? ''}
-                  onChange={(e) => setGlobalFilter(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 bg-[var(--color-background)] border border-[var(--gray-a6)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent-9)] text-[var(--gray-12)]"
-                />
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-5 text-[var(--gray-a8)]" />
+                  <input
+                    type="text"
+                    placeholder={kindFilter === 'prospects' ? 'Search prospects by name, email, company, or source...' : 'Search people... (e.g., company:microsoft or john)'}
+                    value={globalFilter ?? ''}
+                    onChange={(e) => setGlobalFilter(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 bg-[var(--color-background)] border border-[var(--gray-a6)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent-9)] text-[var(--gray-12)]"
+                  />
+                </div>
+                {/* Members = consented community; Prospects = legitimate-interest
+                    outreach contacts (excluded from bulk email). */}
+                <div className="inline-flex rounded-lg border border-[var(--gray-a6)] overflow-hidden self-stretch">
+                  {(['members', 'prospects'] as const).map((k) => (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => { setKindFilter(k); setCurrentPage(0); setSelectedPersonIds(new Set()); setSelectAllMode(false); }}
+                      className={`px-3 text-sm font-medium ${kindFilter === k ? 'bg-[var(--accent-9)] text-white' : 'text-[var(--gray-11)] hover:bg-[var(--gray-a3)]'}`}
+                    >
+                      {k === 'members' ? 'Members' : 'Prospects'}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div className="text-xs text-[var(--gray-11)] flex items-center gap-2">
                 <span className="font-medium">💡 Tip:</span>
@@ -1521,6 +1642,33 @@ export default function MembersPage() {
           }
         >
           <div className="space-y-4">
+            {/* Lawful basis: member (consented signup) vs outreach prospect
+                (legitimate interest — stored only, excluded from bulk email). */}
+            <div>
+              <span className="block text-sm font-medium text-[var(--gray-12)] mb-1.5">Contact kind</span>
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  { value: 'member', label: 'Community member', hint: 'Creates an account via the signup flow' },
+                  { value: 'prospect', label: 'Outreach prospect', hint: 'Stored only — excluded from bulk email' },
+                ] as const).map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    disabled={addingMember}
+                    onClick={() => setAddPersonKind(opt.value)}
+                    className={`rounded-lg border p-3 text-left transition-colors ${
+                      addPersonKind === opt.value
+                        ? 'border-[var(--accent-9)] bg-[var(--accent-a3)]'
+                        : 'border-[var(--gray-a6)] hover:bg-[var(--gray-a2)]'
+                    }`}
+                  >
+                    <span className="block text-sm font-medium text-[var(--gray-12)]">{opt.label}</span>
+                    <span className="block text-xs text-[var(--gray-11)] mt-0.5">{opt.hint}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <Input
               label="Email"
               type="email"
@@ -1530,6 +1678,16 @@ export default function MembersPage() {
               required
               disabled={addingMember}
             />
+
+            {addPersonKind === 'prospect' && (
+              <Input
+                label="Where did this contact come from? (acquisition source)"
+                value={addPersonSource}
+                onChange={(e) => setAddPersonSource(e.target.value)}
+                placeholder="e.g. apollo_export_2026_07, conference_badges, linkedin_research"
+                disabled={addingMember}
+              />
+            )}
 
             {(() => {
               const enabledAttrs = peopleAttrConfig.filter(a => a.enabled);
