@@ -20,8 +20,14 @@ let holders = 0
 let raf = 0
 
 function tick(t: number) {
-  const angle = ((t / PERIOD_MS) * 360) % 360
-  document.documentElement.style.setProperty('--gw-glow-angle', angle.toFixed(2) + 'deg')
+  const p = ((t / PERIOD_MS) * 100) % 100
+  const root = document.documentElement.style
+  // Two glow segments riding the border path, 180° out of phase. The legacy
+  // angle stays for the conic-gradient fallback on browsers without
+  // offset-path basic-shape support.
+  root.setProperty('--gw-glow-p1', p.toFixed(2) + '%')
+  root.setProperty('--gw-glow-p2', ((p + 50) % 100).toFixed(2) + '%')
+  root.setProperty('--gw-glow-angle', ((p / 100) * 360).toFixed(2) + 'deg')
   raf = holders > 0 ? requestAnimationFrame(tick) : 0
 }
 
