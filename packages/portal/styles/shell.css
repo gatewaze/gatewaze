@@ -401,11 +401,10 @@
    (it stuttered/reversed). */
 @property --gw-glow-angle { syntax: '<angle>'; inherits: true; initial-value: 0deg; }
 .gw-card-glow { position: relative; }
-/* Fallback (no offset-path basic-shape support): conic arcs. Angle-based, so
-   segment size/speed distort on non-square cards — the motion-path version
-   below replaces it wherever supported. */
 .gw-card-glow::after {
   content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 2px; z-index: 2; pointer-events: none;
+  /* Two identical arcs 180° apart, so the sweep runs from opposite sides at
+     once instead of a single clockwise point. */
   background: conic-gradient(from var(--gw-glow-angle),
     transparent 0deg, rgba(var(--ui-text), 0.85) 55deg, transparent 130deg,
     transparent 180deg, rgba(var(--ui-text), 0.85) 235deg, transparent 310deg);
@@ -418,30 +417,6 @@
    the glow "spotlights" each card as the page scrolls. */
 @media (max-width: 820px) {
   .gw-card-glow.gw-glow-active::after { opacity: 1; }
-}
-/* Motion-path glow: two fixed-length capsules riding the border path, 180°
-   out of phase (the shared clock writes --gw-glow-p1/p2). Constant segment
-   size and constant edge speed on ANY aspect ratio — the conic fallback
-   above sizes arcs in angle space, which balloons them near the far ends of
-   wide cards and squeezes them mid-edge. Moving a capsule by offset-distance
-   is a compositor transform, cheaper than repainting a conic backdrop. */
-@supports (offset-path: inset(0 round 1px)) {
-  .gw-card-glow::before,
-  .gw-card-glow::after {
-    content: ''; position: absolute; left: 0; top: 0; z-index: 2; pointer-events: none;
-    inset: auto; width: 110px; height: 2.5px; border-radius: 999px; padding: 0;
-    background: linear-gradient(90deg, transparent, rgba(var(--ui-text), 0.9), transparent);
-    -webkit-mask: none; mask: none;
-    /* ride 2px inside the cards' 16px-radius border */
-    offset-path: inset(2px round 14px);
-    opacity: 0; transition: opacity .3s ease;
-  }
-  .gw-card-glow::before { offset-distance: var(--gw-glow-p1, 0%); }
-  .gw-card-glow::after { offset-distance: var(--gw-glow-p2, 50%); }
-  .gw-card-glow:hover::before, .gw-card-glow:hover::after { opacity: 1; }
-  @media (max-width: 820px) {
-    .gw-card-glow.gw-glow-active::before, .gw-card-glow.gw-glow-active::after { opacity: 1; }
-  }
 }
 .pub-ev-cat { display: inline-flex; align-self: flex-start; font: 700 10px var(--font-sans); text-transform: uppercase; letter-spacing: 0.09em;
   padding: 3px 8px; border-radius: 4px; background: rgba(var(--ui-text), 0.13); color: var(--ink); margin-bottom: 7px; }
