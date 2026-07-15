@@ -15,7 +15,8 @@ import {
   MapPinIcon,
 } from '@heroicons/react/24/outline';
 import { toast } from 'sonner';
-import { getApiConfig, getSupabaseConfig } from '@/config/brands';
+import { getSupabaseConfig } from '@/config/brands';
+import { ImportPeopleModal } from '@/components/people/ImportPeopleModal';
 import {
   useReactTable,
   getCoreRowModel,
@@ -146,8 +147,7 @@ export default function MembersPage() {
   const { isAccountUser, isSystemAdmin } = useAccountAccess();
   const { attributes: peopleAttrConfig } = usePeopleAttributes();
   const [people, setPeople] = useState<Person[]>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isImporting, setIsImporting] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [globalFilter, setGlobalFilter] = useState('');
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -939,78 +939,15 @@ export default function MembersPage() {
     setSelectedPersonIds(newSelected);
   };
 
-  // Handle CSV import
-  const handleCsvImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    // Validate file type
-    if (!file.name.endsWith('.csv')) {
-      toast.error('Please select a CSV file');
-      return;
-    }
-
-    // Validate file size (50MB limit)
-    const maxSize = 50 * 1024 * 1024;
-    if (file.size > maxSize) {
-      toast.error('File size exceeds 50MB limit');
-      return;
-    }
-
-    setIsImporting(true);
-    const toastId = toast.loading('Importing customers from CSV...');
-
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
-      if (!token) {
-        throw new Error('Not authenticated');
-      }
-
-      // Use brand-aware API configuration
-      const apiConfig = getApiConfig();
-      const apiUrl = apiConfig.baseUrl;
-      const response = await fetch(`${apiUrl}/csv/import/people`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const text = await response.text();
-        let errorMsg = 'Import failed';
-        try {
-          const err = JSON.parse(text);
-          errorMsg = err.error || errorMsg;
-        } catch {
-          if (text) errorMsg = text;
-        }
-        throw new Error(errorMsg);
-      }
-
-      const result = await response.json();
-
-      toast.success(result.message || `Successfully imported ${result.stats?.success || 0} customers`, {
-        id: toastId,
-      });
-
-      // Reload customers list
+  // CSV import runs through the ImportPeopleModal wizard (people_import_batch
+  // RPC + per-import segment); the old POST /csv/import/people endpoint it
+  // replaced never existed server-side.
+  const handleImportComplete = ({ kind }: { segmentId: string | null; kind: string }) => {
+    if (kind === 'prospect' && kindFilter !== 'prospects') {
+      setKindFilter('prospects');
+      setCurrentPage(0);
+    } else {
       loadPeople();
-    } catch (error) {
-      console.error('CSV import error:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to import CSV', {
-        id: toastId,
-      });
-    } finally {
-      setIsImporting(false);
-      // Reset file input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
     }
   };
 
@@ -1198,27 +1135,16 @@ export default function MembersPage() {
         Add Person
       </Button>
 
-      {/* CSV Import button for super admins */}
+      {/* CSV import wizard for super admins */}
       {isSystemAdmin && (
-        <>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".csv"
-            onChange={handleCsvImport}
-            className="hidden"
-            disabled={isImporting}
-          />
-          <Button
-            onClick={() => fileInputRef.current?.click()}
-            variant="outline"
-            disabled={isImporting}
-            className="gap-2 text-[var(--green-11)] border-[var(--green-a6)] hover:bg-[var(--green-a3)]"
-          >
-            <ArrowUpTrayIcon className="size-4" />
-            {isImporting ? 'Importing...' : 'Import CSV'}
-          </Button>
-        </>
+        <Button
+          onClick={() => setImportModalOpen(true)}
+          variant="outline"
+          className="gap-2 text-[var(--green-11)] border-[var(--green-a6)] hover:bg-[var(--green-a3)]"
+        >
+          <ArrowUpTrayIcon className="size-4" />
+          Import CSV
+        </Button>
       )}
 
       {selectedPersonIds.size > 0 && (
@@ -1606,6 +1532,13 @@ export default function MembersPage() {
             personId={selectedPerson.id}
           />
         )}
+
+        {/* CSV Import wizard */}
+        <ImportPeopleModal
+          isOpen={importModalOpen}
+          onClose={() => setImportModalOpen(false)}
+          onComplete={handleImportComplete}
+        />
 
         {/* Add Person Modal */}
         <Modal
