@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState, useCallback, useEffect, useLayoutEffect, useRef, Suspense } from 'react'
-import { useWindowVirtualizer } from '@tanstack/react-virtual'
+import { useVirtualizer, useWindowVirtualizer } from '@tanstack/react-virtual'
 import type { ListingQuery } from '@gatewaze/shared/listing'
 import type { Event } from '@/types/event'
 import type { BrandConfig } from '@/config/brand'
@@ -410,10 +410,15 @@ function TimelineContentInner({
 /**
  * Virtualised renderer for the grouped timeline.
  *
- * One virtual item per date group. Uses `useWindowVirtualizer` because
- * the page itself scrolls (the timeline is a child of the document, not
- * a fixed-height scroll container). Variable group heights are handled
- * by `measureElement`, which re-measures each group after it mounts.
+ * One virtual item per date group. The portal shell scrolls in an INNER
+ * container (`.pub-area.gw-scroll` logged out, `.gw-content` in the
+ * workspace shell), so the virtualizer must track that element — the old
+ * window virtualizer never saw those scrolls and only ever mounted the
+ * initial overscan window (≈5 groups on a phone viewport) while still
+ * reserving the full list height. The nearest scrollable ancestor is
+ * detected at mount; a window virtualizer remains as the fallback for
+ * surfaces that really do scroll the document. Variable group heights are
+ * handled by `measureElement`, which re-measures each group after it mounts.
  *
  * Server vs client:
  *   - On SSR + first hydration we render the natural-flow list (no
@@ -436,6 +441,7 @@ function VirtualisedGroups({
   const parentRef = useRef<HTMLDivElement>(null)
   const [parentOffset, setParentOffset] = useState(0)
   const [isClient, setIsClient] = useState(false)
+  const [scrollEl, setScrollEl] = useState<HTMLElement | null>(null)
 
   useEffect(() => {
     setIsClient(true)
@@ -443,9 +449,24 @@ function VirtualisedGroups({
 
   useIsoLayoutEffect(() => {
     if (!parentRef.current) return
+    // Nearest scrollable ancestor (the shell's inner scroll container).
+    let el: HTMLElement | null = parentRef.current.parentElement
+    while (el && el !== document.body) {
+      const oy = getComputedStyle(el).overflowY
+      if (oy === 'auto' || oy === 'scroll') break
+      el = el.parentElement
+    }
+    const scroller = el && el !== document.body ? el : null
+    setScrollEl(scroller)
+
     const update = () => {
-      if (parentRef.current) {
-        const rect = parentRef.current.getBoundingClientRect()
+      if (!parentRef.current) return
+      const rect = parentRef.current.getBoundingClientRect()
+      if (scroller) {
+        // Offset of the list within the scroller's CONTENT box.
+        const sRect = scroller.getBoundingClientRect()
+        setParentOffset(rect.top - sRect.top + scroller.scrollTop)
+      } else {
         setParentOffset(rect.top + window.scrollY)
       }
     }
@@ -454,13 +475,24 @@ function VirtualisedGroups({
     return () => window.removeEventListener('resize', update)
   }, [groups.length])
 
-  const virtualizer = useWindowVirtualizer({
-    count: isClient ? groups.length : 0,
+  const commonOptions = {
     estimateSize: () => 480, // date header (~50px) + 1–2 event cards (~200–250px each)
     overscan: 4,
     scrollMargin: parentOffset,
-    getItemKey: (index) => groups[index]?.dateKey ?? `group-${index}`,
+    getItemKey: (index: number) => groups[index]?.dateKey ?? `group-${index}`,
+  }
+  // Hooks must run unconditionally: instantiate both, drive only the active
+  // one (count: 0 disables the other entirely).
+  const elementVirtualizer = useVirtualizer({
+    ...commonOptions,
+    count: isClient && scrollEl ? groups.length : 0,
+    getScrollElement: () => scrollEl,
   })
+  const windowVirtualizer = useWindowVirtualizer({
+    ...commonOptions,
+    count: isClient && !scrollEl ? groups.length : 0,
+  })
+  const virtualizer = scrollEl ? elementVirtualizer : windowVirtualizer
 
   // SSR + first hydration render: natural flow, no virtualizer. Matches
   // what the server emitted, so React reuses the DOM without mismatch.
