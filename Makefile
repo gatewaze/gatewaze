@@ -119,7 +119,8 @@ EDGE_FUNCTION_SECRETS := \
 	SENDGRID_FROM_EVENTS SENDGRID_FROM_PARTNERS SENDGRID_FROM_MEMBERS SENDGRID_FROM_ADMIN SENDGRID_FROM_DEFAULT \
 	OPENAI_API_KEY ENRICHLAYER_API_KEY GW_API_BEARER \
 	VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY VAPID_SUBJECT \
-	CUSTOMERIO_SITE_ID CUSTOMERIO_API_KEY CUSTOMERIO_APP_API_KEY
+	CUSTOMERIO_SITE_ID CUSTOMERIO_API_KEY CUSTOMERIO_APP_API_KEY \
+	NEWSLETTER_ACQUISITION_SOURCE
 
 _check-env:
 	@if [ ! -f "$(ENV_FILE)" ]; then \
@@ -145,16 +146,16 @@ endif
 _sync-secrets:
 ifeq ($(SUPABASE_MODE),cloud)
 	@echo "Syncing edge function secrets from $(ENV_FILE)..."
-	@SECRETS=""; \
+	@set --; \
 	for key in $(EDGE_FUNCTION_SECRETS); do \
 		val=$$(grep -E "^$$key=" "$(ENV_FILE)" 2>/dev/null | head -1 | cut -d= -f2-); \
 		if [ -n "$$val" ]; then \
-			SECRETS="$$SECRETS $$key=$$val"; \
+			set -- "$$@" "$$key=$$val"; \
 		fi; \
 	done; \
-	if [ -n "$$SECRETS" ]; then \
-		echo "  Setting: $$(echo $$SECRETS | sed 's/=[^ ]*/=***/g')"; \
-		npx supabase secrets set $$SECRETS; \
+	if [ "$$#" -gt 0 ]; then \
+		echo "  Setting $$# secret(s) (values hidden)"; \
+		npx supabase secrets set "$$@"; \
 	else \
 		echo "  No secrets to sync."; \
 	fi
