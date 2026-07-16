@@ -2,6 +2,12 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { emitIntegrationEvent } from '../_shared/integrationEvents.ts'
 import { isEmailConfigured, sendEmail } from '../_shared/email.ts'
 
+// acquisition_source for newsletter signups is BRAND-SPECIFIC and must not be
+// hardcoded in core. Each brand supplies it via the NEWSLETTER_ACQUISITION_SOURCE
+// edge-function secret (value lives in that brand's env file). Unset -> null
+// (no attribution). Only applied on NEW person creation to preserve first-touch.
+const NEWSLETTER_ACQUISITION_SOURCE = Deno.env.get('NEWSLETTER_ACQUISITION_SOURCE') ?? null
+
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
@@ -418,6 +424,8 @@ async function handler(req: Request) {
           email: email,
           auth_user_id: authUserId,
           attributes: attributes,
+          contact_kind: 'member',
+          acquisition_source: source === 'newsletter-signup' ? NEWSLETTER_ACQUISITION_SOURCE : null,
           last_synced_at: new Date().toISOString()
         })
         .select('id, cio_id, email, auth_user_id, attributes')
