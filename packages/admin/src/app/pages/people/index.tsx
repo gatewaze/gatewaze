@@ -291,10 +291,6 @@ export default function MembersPage() {
       }
       console.log('========================================');
 
-      // Fetch LinkedIn count
-      const linkedInCount = await PeopleService.getAuthenticatedPeopleWithLinkedInCount();
-      setPeopleWithLinkedIn(linkedInCount);
-
       const mappedPeople = fetchedPeople.map(c => ({
         cio_id: c.cio_id,
         email: c.email || '',
@@ -701,9 +697,18 @@ export default function MembersPage() {
     loadPeople();
   }, [currentPage, sorting, globalFilter, kindFilter]);
 
+  // "With LinkedIn" is a platform-wide total, independent of the current
+  // search / page / kind filter — fetch it once on mount and on manual refresh,
+  // never inside loadPeople (that re-ran an expensive count on every keystroke).
+  const loadLinkedInCount = async () => {
+    const linkedInCount = await PeopleService.getAuthenticatedPeopleWithLinkedInCount();
+    setPeopleWithLinkedIn(linkedInCount);
+  };
+
   useEffect(() => {
     // Load all customers for avatar gallery on initial mount
     loadAllPeopleForGallery();
+    loadLinkedInCount();
   }, []);
 
   // Load people locations when map tab is active
@@ -715,6 +720,7 @@ export default function MembersPage() {
 
   const handleRefresh = () => {
     loadPeople();
+    loadLinkedInCount();
   };
 
   // View person
