@@ -96,24 +96,34 @@ function personDisplayName(person: Person): string {
   return name || person.email || 'Unknown';
 }
 
-// Search the platform's people table by email or name for the
-// existing-person picker. Wildcards use PostgREST's `*` form because the
-// pattern is embedded in a raw .or() filter string.
+// Search the platform's people for the existing-person picker.
+//
+// This goes through the same SECURITY DEFINER listing RPC the People dashboard
+// uses, NOT a direct `.from('people')` query. The admin session does not
+// satisfy the is_admin() RLS check on `people` (people_select_v1), so a direct
+// select silently returns zero rows even for people who clearly exist. The RPC
+// is RLS-exempt and indexed (migrations 00044/00045) and matches email / name /
+// company. It returns authenticated people (auth_user_id set) — brand-new
+// contacts are added via the "Create New User" tab instead.
 async function searchPeopleByNameOrEmail(term: string): Promise<Person[]> {
-  const q = term.replace(/[,()]/g, ' ').trim();
-  if (!q) return [];
-  const { data, error } = await supabase
-    .from('people')
-    .select('id, cio_id, email, attributes, avatar_source, avatar_storage_path, linkedin_avatar_url')
-    .or(`email.ilike.*${q}*,attributes->>first_name.ilike.*${q}*,attributes->>last_name.ilike.*${q}*`)
-    .not('email', 'is', null)
-    .limit(20);
+  const q = term.trim();
+  if (q.length < 2) return [];
+  const { data, error } = await supabase.rpc('people_get_authenticated_sorted', {
+    p_offset: 0,
+    p_limit: 20,
+    p_sort_by: 'created_at',
+    p_sort_order: 'desc',
+    p_search_term: q,
+  });
 
   if (error) {
     console.error('Error searching people:', error);
     return [];
   }
-  return (data as Person[]) || [];
+  // The RPC tacks a total_count onto every row — drop it before returning.
+  return ((data as (Person & { total_count?: number })[]) || []).map(
+    ({ total_count: _total, ...person }) => person as Person,
+  );
 }
 
 export default function AdminUsers() {
