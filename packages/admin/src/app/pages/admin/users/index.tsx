@@ -45,7 +45,7 @@ import { useAuthContext } from "@/app/contexts/auth/context";
 import { FeatureSelectionDialog } from "@/components/permissions/FeatureSelectionDialog";
 import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { PermissionsService } from "@/lib/permissions/service";
-import { FEATURE_METADATA } from "@/lib/permissions/types";
+import { useAdminPermissionCatalog, selectedModuleIds } from "@/lib/permissions/catalog";
 import type { AdminFeature } from "@/lib/permissions/types";
 
 // Types
@@ -69,8 +69,9 @@ const roleOptions = [
   { value: 'editor', label: 'Editor' },
 ];
 
-// Extend AdminUser type to include feature count
-type AdminUserWithFeatures = AdminUser & { featureCount?: number };
+// Extend AdminUser type to carry the member's granted features (mapped to a
+// module count for display).
+type AdminUserWithFeatures = AdminUser & { grantedFeatures?: string[] };
 
 type AddUserMode = 'existing' | 'new';
 
@@ -128,6 +129,7 @@ async function searchPeopleByNameOrEmail(term: string): Promise<Person[]> {
 
 export default function AdminUsers() {
   const { user: currentUser, startImpersonation } = useAuthContext();
+  const catalog = useAdminPermissionCatalog();
   const [users, setUsers] = useState<AdminUserWithFeatures[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -171,18 +173,18 @@ export default function AdminUsers() {
         // Filter to only show active users
         const activeUsers = (fetchedUsers || []).filter(user => user.is_active !== false);
 
-        // Load feature counts for each user
+        // Load each user's granted features (rendered as a module count).
         const usersWithFeatureCounts = await Promise.all(
           activeUsers.map(async (user) => {
             if (user.role === 'super_admin') {
-              return { ...user, featureCount: Object.keys(FEATURE_METADATA).length };
+              return { ...user, grantedFeatures: [] as string[] };
             }
 
             try {
               const features = await PermissionsService.getAdminFeatures(user.id);
-              return { ...user, featureCount: features.length };
+              return { ...user, grantedFeatures: features };
             } catch {
-              return { ...user, featureCount: 0 };
+              return { ...user, grantedFeatures: [] as string[] };
             }
           })
         );
@@ -317,17 +319,19 @@ export default function AdminUsers() {
           </Badge>
         ),
       }),
-      columnHelper.accessor('featureCount', {
-        header: 'Features',
+      columnHelper.display({
+        id: 'features',
+        header: 'Modules',
         cell: (info) => {
           const user = info.row.original;
           if (user.role === 'super_admin') {
-            return <Badge color="green">All Features</Badge>;
+            return <Badge color="green">All Modules</Badge>;
           }
+          const granted = selectedModuleIds(user.grantedFeatures ?? [], catalog).size;
           return (
             <span className="text-sm text-[var(--gray-12)]">
-              <span className="font-medium">{user.featureCount ?? 0}</span>
-              <span className="text-[var(--gray-a11)]"> / {Object.keys(FEATURE_METADATA).length}</span>
+              <span className="font-medium">{granted}</span>
+              <span className="text-[var(--gray-a11)]"> / {catalog.moduleCount} modules</span>
             </span>
           );
         },
@@ -380,7 +384,7 @@ export default function AdminUsers() {
         },
       }),
     ],
-    [isSuperAdmin, currentUser?.id, impersonating],
+    [isSuperAdmin, currentUser?.id, impersonating, catalog],
   );
 
   const table = useReactTable({
