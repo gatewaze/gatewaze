@@ -50,19 +50,59 @@ export class BulkRegistrationService {
   }
 
   /**
+   * Maps external export headers (Gradual, Luma, etc.) onto the importer's
+   * canonical snake_case column names, so raw exports import without editing.
+   * Keys must be already normalized (lowercased, trimmed, BOM/quotes stripped).
+   */
+  static headerAliases: Record<string, string> = {
+    'first name': 'first_name',
+    'last name': 'last_name',
+    'full name': 'name',
+    'title': 'job_title',
+    'job title': 'job_title',
+    'linkedin': 'linkedin_url',
+    'linkedin url': 'linkedin_url',
+    'ticket type': 'ticket_type',
+    'registered at': 'registered_at',
+    'phone number': 'phone',
+  };
+
+  /**
+   * Normalize a raw CSV header into a canonical column name.
+   * Strips a UTF-8 BOM, lowercases, trims, drops surrounding quotes, then
+   * applies the alias map. Falls back to converting spaces to underscores so
+   * "First Name" -> "first_name" etc. even without an explicit alias.
+   */
+  static normalizeHeader(raw: string): string {
+    const cleaned = raw
+      .replace(/^\uFEFF/, '')
+      .trim()
+      .replace(/^["']|["']$/g, '')
+      .trim()
+      .toLowerCase();
+    if (this.headerAliases[cleaned]) {
+      return this.headerAliases[cleaned];
+    }
+    return cleaned.replace(/\s+/g, '_');
+  }
+
+  /**
    * Parse CSV text content
    * Now supports flexible column order - reads headers from first row
    * Only email is required
    */
   static parseCsvText(text: string): BulkRegistrationRow[] {
-    const lines = text.split('\n').filter(line => line.trim());
+    // Parse into records first so quoted fields containing commas/newlines
+    // (e.g. multi-line bios in Gradual/Luma exports) stay intact, then drop
+    // any fully-blank records.
+    const records = this.parseCsv(text).filter(record => record.some(v => v.trim() !== ''));
 
-    if (lines.length === 0) {
+    if (records.length === 0) {
       throw new Error('CSV file is empty');
     }
 
-    // Parse header - normalize to lowercase and trim
-    const header = this.parseCsvLine(lines[0]).map(h => h.trim().toLowerCase().replace(/^["']|["']$/g, ''));
+    // Parse header - normalize + apply alias map (handles "First Name", etc.)
+    const header = records[0].map(h => this.normalizeHeader(h));
 
     // Validate that email column exists (only required field)
     if (!header.includes('email')) {
@@ -84,8 +124,8 @@ export class BulkRegistrationService {
 
     // Parse data rows
     const rows: BulkRegistrationRow[] = [];
-    for (let i = 1; i < lines.length; i++) {
-      const values = this.parseCsvLine(lines[i]);
+    for (let i = 1; i < records.length; i++) {
+      const values = records[i];
 
       // Allow rows with fewer columns than headers (missing trailing columns)
       if (values.length > header.length) {
@@ -113,28 +153,76 @@ export class BulkRegistrationService {
   }
 
   /**
-   * Parse a single CSV line, handling quoted fields
+   * Parse CSV text into records (arrays of field values), following RFC 4180:
+   * fields may be quoted, quoted fields may contain commas and newlines, and
+   * a doubled quote ("") inside a quoted field is a literal quote. This is
+   * required for exports whose free-text fields (bios, etc.) contain line
+   * breaks — a naive line-by-line split corrupts those rows.
    */
-  static parseCsvLine(line: string): string[] {
-    const result: string[] = [];
-    let current = '';
-    let inQuotes = false;
-
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i];
-
-      if (char === '"') {
-        inQuotes = !inQuotes;
-      } else if (char === ',' && !inQuotes) {
-        result.push(current);
-        current = '';
-      } else {
-        current += char;
-      }
+  static parseCsv(text: string): string[][] {
+    // Strip a leading UTF-8 BOM if present.
+    if (text.charCodeAt(0) === 0xfeff) {
+      text = text.slice(1);
     }
 
-    result.push(current);
-    return result;
+    const records: string[][] = [];
+    let record: string[] = [];
+    let field = '';
+    let inQuotes = false;
+    let i = 0;
+    const n = text.length;
+
+    while (i < n) {
+      const char = text[i];
+
+      if (inQuotes) {
+        if (char === '"') {
+          if (text[i + 1] === '"') {
+            field += '"';
+            i += 2;
+            continue;
+          }
+          inQuotes = false;
+          i++;
+          continue;
+        }
+        field += char;
+        i++;
+        continue;
+      }
+
+      if (char === '"') {
+        inQuotes = true;
+        i++;
+        continue;
+      }
+      if (char === ',') {
+        record.push(field);
+        field = '';
+        i++;
+        continue;
+      }
+      if (char === '\r') {
+        // Swallow CR; the following LF (if any) ends the record.
+        i++;
+        continue;
+      }
+      if (char === '\n') {
+        record.push(field);
+        records.push(record);
+        record = [];
+        field = '';
+        i++;
+        continue;
+      }
+      field += char;
+      i++;
+    }
+
+    // Flush the final field/record (files may not end with a newline).
+    record.push(field);
+    records.push(record);
+    return records;
   }
 
   /**
@@ -155,7 +243,7 @@ export class BulkRegistrationService {
 
     // Validate LinkedIn URL if provided
     if (row.linkedin_url && row.linkedin_url.trim()) {
-      if (!row.linkedin_url.includes('linkedin.com')) {
+      if (!row.linkedin_url.toLowerCase().includes('linkedin.com')) {
         return `Row ${rowIndex}: LinkedIn URL must contain 'linkedin.com'`;
       }
     }
@@ -785,4 +873,5 @@ export class BulkRegistrationService {
       };
     }
   }
+
 }
