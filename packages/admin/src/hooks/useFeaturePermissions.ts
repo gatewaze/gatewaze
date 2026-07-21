@@ -49,39 +49,13 @@ export function useFeaturePermissions(accountId?: string | null): UseFeaturePerm
       return;
     }
 
-    // Super admins have all permissions
+    // Super admins have every feature. We don't enumerate them here — the
+    // catalog is dynamic (modules come and go), and `hasFeature`/`hasAnyFeature`
+    // /`hasAllFeatures` all short-circuit to `true` for super admins below, so
+    // an empty map is sufficient and can never drift out of sync.
     if (isSuperAdmin) {
-      const allFeatures: AdminFeature[] = [
-        'dashboard_home',
-        'dashboard_people',
-        'accounts',
-        'users',
-        'calendars',
-        'events',
-        'blog',
-        'scrapers',
-        'competitions',
-        'discounts',
-        'offers',
-        'cohorts',
-        'payments',
-        'emails',
-        'compliance',
-        'scheduler',
-        'surveys',
-        'redirects',
-        'newsletters',
-        'slack',
-        'settings',
-      ];
-
-      const allPermissions: AdminPermissionsMap = {};
-      allFeatures.forEach(feature => {
-        allPermissions[feature] = true;
-      });
-
-      setPermissions(allPermissions);
-      setFeatures(allFeatures);
+      setPermissions({});
+      setFeatures([]);
       setIsLoading(false);
       return;
     }
