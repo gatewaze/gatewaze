@@ -170,7 +170,7 @@ const TOOLS = [
   {
     name: 'events_metrics',
     description:
-      "Registration metrics for PUBLISHED events, searchable by title: each matching event's details (title, city, dates, type) with its registrant count, check-ins, and cancellations. Example: q='MCP Release Party' lists every matching event with its numbers. Requires the events:metrics API-key scope.",
+      "Registration metrics for ALL events — published AND unpublished/draft — searchable by title: each matching event's details (title, city, dates, type, publish state) with its registrant count, check-ins, and cancellations. Example: q='MCP Release Party' lists every matching event with its numbers. is_published=false rows are internal-only events invisible on the portal. Requires the events:metrics API-key scope.",
     inputSchema: {
       type: 'object' as const,
       properties: {
