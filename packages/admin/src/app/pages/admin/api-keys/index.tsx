@@ -23,6 +23,7 @@ import { ApiKeyService, type ApiKey } from '@/utils/apiKeyService';
 
 const SCOPE_OPTIONS = [
   { scope: 'events:read', label: 'Read events (incl. speakers, sponsors)' },
+  { scope: 'events:metrics', label: 'Read event registration metrics (registrants, check-ins)' },
   { scope: 'calendars:read', label: 'Read public calendars' },
   { scope: 'forms:read', label: 'Read form definitions' },
   { scope: 'forms:submit', label: 'Submit form responses' },

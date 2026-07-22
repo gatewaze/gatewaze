@@ -15,6 +15,7 @@ const TOOLS = [
     inputSchema: {
       type: 'object' as const,
       properties: {
+        q: { type: 'string', description: 'Filter by event title (partial match, case-insensitive)' },
         city: { type: 'string', description: 'Filter by city (partial match)' },
         type: { type: 'string', description: 'Filter by event type' },
         from: { type: 'string', description: 'Events starting after this date (ISO 8601)' },
@@ -162,6 +163,24 @@ const TOOLS = [
         },
       },
       required: ['query'],
+    },
+  },
+
+  // ── Event metrics (requires an API key with events:metrics) ─────────────
+  {
+    name: 'events_metrics',
+    description:
+      "Registration metrics for PUBLISHED events, searchable by title: each matching event's details (title, city, dates, type) with its registrant count, check-ins, and cancellations. Example: q='MCP Release Party' lists every matching event with its numbers. Requires the events:metrics API-key scope.",
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        q: { type: 'string', description: 'Filter by event title (partial match, case-insensitive)' },
+        calendar_id: { type: 'string', description: 'Restrict to one calendar (see calendars_list)' },
+        from: { type: 'string', description: 'Events starting after this date (ISO 8601)' },
+        to: { type: 'string', description: 'Events starting before this date (ISO 8601)' },
+        limit: { type: 'number', description: 'Max results (default 25, max 50)' },
+        offset: { type: 'number', description: 'Skip N results (default 0)' },
+      },
     },
   },
 
@@ -480,6 +499,7 @@ async function handleEventsSearch(
   api: GatewazeApiClient,
 ) {
   const queryParams: Record<string, string | number | undefined> = {};
+  if (params.q) queryParams.q = String(params.q);
   if (params.city) queryParams.city = String(params.city);
   if (params.type) queryParams.type = String(params.type);
   if (params.from) queryParams.from = String(params.from);
@@ -519,6 +539,20 @@ async function handleEventsSponsors(
 
 async function handlePlatformHealth(api: GatewazeApiClient) {
   return api.get('/health');
+}
+
+async function handleEventsMetrics(
+  params: Record<string, unknown>,
+  api: GatewazeApiClient,
+) {
+  const queryParams: Record<string, string | number | undefined> = {};
+  if (params.q) queryParams.q = String(params.q);
+  if (params.calendar_id) queryParams.calendar_id = String(params.calendar_id);
+  if (params.from) queryParams.from = String(params.from);
+  if (params.to) queryParams.to = String(params.to);
+  if (params.limit) queryParams.limit = Number(params.limit);
+  if (params.offset) queryParams.offset = Number(params.offset);
+  return api.get('/events/metrics', queryParams);
 }
 
 async function handleContentList(
@@ -853,6 +887,9 @@ export function createGatewazeMcpServer(
           break;
         case 'platform_health':
           result = await handlePlatformHealth(api);
+          break;
+        case 'events_metrics':
+          result = await handleEventsMetrics(params, api);
           break;
         case 'content_list':
           result = await handleContentList(params, api);
