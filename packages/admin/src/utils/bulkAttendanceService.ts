@@ -347,10 +347,14 @@ export class BulkAttendanceService {
   ): Promise<BulkAttendanceResult> {
     try {
       const apiConfig = getApiConfig();
-      const apiBaseUrl = apiConfig.baseUrl;
-      if (!apiBaseUrl) {
+      // baseUrl may already include a trailing /api (e.g. `${VITE_API_URL}/api`),
+      // and we append `/api/attendance/bulk` below — strip the suffix so we don't
+      // build a double `/api/api/...` path. Mirrors screenshotService.getApiBase().
+      const rawBaseUrl = apiConfig.baseUrl;
+      if (!rawBaseUrl) {
         throw new Error('API base URL not configured');
       }
+      const apiBaseUrl = rawBaseUrl.endsWith('/api') ? rawBaseUrl.slice(0, -4) : rawBaseUrl;
 
       // Transform rows to match API format
       const attendanceRecords = rows.map(row => {

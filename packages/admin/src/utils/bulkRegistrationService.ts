@@ -712,11 +712,15 @@ export class BulkRegistrationService {
   ): Promise<BulkRegistrationResult> {
     try {
       const apiConfig = getApiConfig();
-      // The baseUrl already doesn't have /api suffix, so we can use it directly
-      const apiBaseUrl = apiConfig.baseUrl;
-      if (!apiBaseUrl) {
+      // baseUrl may already include a trailing /api (e.g. `${VITE_API_URL}/api`),
+      // and we append `/api/registrations/bulk` below — strip the suffix so we
+      // don't build a double `/api/api/...` path (which 404s → HTML → JSON parse
+      // error). Mirrors screenshotService.getApiBase().
+      const rawBaseUrl = apiConfig.baseUrl;
+      if (!rawBaseUrl) {
         throw new Error('API base URL not configured');
       }
+      const apiBaseUrl = rawBaseUrl.endsWith('/api') ? rawBaseUrl.slice(0, -4) : rawBaseUrl;
 
       // Transform rows to match API format
       const registrations = rows.map((row, rowIndex) => {
