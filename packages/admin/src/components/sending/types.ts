@@ -31,6 +31,13 @@ export type ScheduleType = 'immediate' | 'scheduled';
 export type DeliveryStrategy = 'global' | 'tz_local' | 'personalised';
 
 /** What the operator picks in the composer for a new send. */
+/** One timezone cohort's delivery time for the pre-send confirmation. */
+export interface ScheduleBreakdownRow {
+  timezone: string;
+  recipients: number;
+  send_at: string;   // ISO instant this cohort will be dispatched
+}
+
 export interface SendComposerConfig {
   scheduleType: ScheduleType;
   scheduledAt: string | null;     // ISO instant when scheduled
@@ -123,6 +130,14 @@ export interface SendingAdapter {
    * Falls back to recipientCount when omitted.
    */
   countRecipients?: (excludeSentSendIds: string[], unsubscribeListId?: string | null) => Promise<number>;
+
+  /**
+   * Preview per-timezone delivery times for a would-be scheduled send, using
+   * the same formula the server fan-out will apply — so the panel can show a
+   * confirmation ("who receives when") before committing. Omit to skip the
+   * breakdown confirmation (a plain confirm is shown instead).
+   */
+  previewSchedule?: (config: SendComposerConfig) => Promise<ScheduleBreakdownRow[]>;
 
   /** Create a new send instance from the composer config; returns its id. */
   createSend: (config: SendComposerConfig) => Promise<{ id: string }>;

@@ -19,6 +19,7 @@ import { Card, Button, Badge } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import type {
   SendingAdapter, SendRecord, EmailDetails, ScheduleType, DeliveryStrategy, SendComposerConfig,
+  ScheduleBreakdownRow,
 } from './types';
 
 interface SendLogEntry {
@@ -96,6 +97,23 @@ function tzRowStatus(r: TimezoneBreakdownRow, nowMs: number): { label: string; c
 
 const INPUT_CLS = 'w-full px-3 py-1.5 text-sm border border-[var(--gray-a6)] rounded-md bg-[var(--color-surface)]';
 
+// The schedule <input type="datetime-local"> value is a naive 'YYYY-MM-DDTHH:MM'
+// wall-clock string. We interpret it as UTC (not the browser's local zone) so
+// the scheduled time the admin types is unambiguous — see the "(UTC)" label.
+function scheduleInputToIso(s: string): string | null {
+  if (!s) return null;
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+  if (!m) return null;
+  const [, y, mo, d, h, mi] = m;
+  return new Date(Date.UTC(+y, +mo - 1, +d, +h, +mi)).toISOString();
+}
+
+function fmtUtc(iso: string): string {
+  return new Date(iso).toLocaleString('en-GB', {
+    timeZone: 'UTC', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false,
+  }) + ' UTC';
+}
+
 export function SendingPanel({ adapter }: { adapter: SendingAdapter }) {
   const { parentId, canSend, canSendReason } = adapter;
   const hasParent = !!parentId;
@@ -156,7 +174,15 @@ export function SendingPanel({ adapter }: { adapter: SendingAdapter }) {
     return () => { cancelled = true; clearTimeout(t); };
   }, [excludeSentSendIds, adapter, unsubListId]);
 
-  const formTargetMs = scheduleType === 'scheduled' && scheduledAt ? new Date(scheduledAt).getTime() : NaN;
+  const formTargetIso = scheduleType === 'scheduled' && scheduledAt ? scheduleInputToIso(scheduledAt) : null;
+  const formTargetMs = formTargetIso ? new Date(formTargetIso).getTime() : NaN;
+
+  // Pre-send confirmation: holds the pending config + the per-timezone delivery
+  // preview so the admin can see who receives when (and catch an all-at-once
+  // blast) before committing.
+  const [confirmState, setConfirmState] = useState<
+    { config: SendComposerConfig; rows: ScheduleBreakdownRow[]; loading: boolean } | null
+  >(null);
   const hasActiveRow = sends.some((s) => s.status === 'scheduled' || s.status === 'sending' || s.status === 'cancelling');
   const needCountdown = (Number.isFinite(formTargetMs) && formTargetMs > now) || hasActiveRow;
   useEffect(() => {
@@ -262,44 +288,62 @@ export function SendingPanel({ adapter }: { adapter: SendingAdapter }) {
     return () => { supabase.removeChannel(channel); };
   }, [selectedSendId, adapter.logSendIdColumn, scheduleRefresh]);
 
-  const handleSend = async () => {
-    if (!hasParent) { toast.error(canSendReason || 'Save first'); return; }
-    if (!canSendNow) { toast.error(blockReason || 'Cannot send yet'); return; }
+  // Build the send config from the composer state. 'Send Now' is modelled as
+  // 'scheduled for now' so it rides the EXACT same Tier 2 worker path as 'Send
+  // Later' (the immediate Edge path timed out mid-fanout on real lists). The
+  // typed schedule time is interpreted as UTC (see scheduleInputToIso).
+  const buildConfig = (): SendComposerConfig => {
+    const isImmediate = scheduleType === 'immediate';
+    return {
+      scheduleType: 'scheduled',
+      scheduledAt: isImmediate ? new Date().toISOString() : scheduleInputToIso(scheduledAt),
+      deliveryStrategy: isImmediate ? 'global' : deliveryStrategy,
+      targetLocal: isImmediate || deliveryStrategy === 'global' ? null : targetLocal,
+      defaultTimezone: isImmediate || deliveryStrategy === 'global' ? null : (defaultTimezone || null),
+      excludeSentSendIds,
+    };
+  };
+
+  const doCreate = async (config: SendComposerConfig) => {
     setSending(true);
     try {
-      // Treat 'Send Now' as 'scheduled for now' so it goes through the EXACT
-      // same Tier 2 path as 'Send Later'. Previously the immediate branch
-      // synchronously invoked the per-domain Edge function (newsletter-send /
-      // broadcast-send) which then tried to do fanout + initial batch send
-      // within Supabase's ~150s function timeout — that worked for small
-      // lists but blew up on real ones (e.g. 53k recipients on the 06-24
-      // mlopscommunity re-send: Edge timed out mid-fanout, status flipped to
-      // 'failed', recipients stranded). Routing through the worker cron
-      // (which already supports `{process_scheduled: true}` mode for every
-      // SendingAdapter) removes the timeout cliff and unifies the two paths.
-      const isImmediate = scheduleType === 'immediate';
-      const config: SendComposerConfig = {
-        scheduleType: 'scheduled',
-        scheduledAt: isImmediate
-          ? new Date().toISOString()
-          : (scheduledAt ? new Date(scheduledAt).toISOString() : null),
-        deliveryStrategy: isImmediate ? 'global' : deliveryStrategy,
-        targetLocal: isImmediate || deliveryStrategy === 'global' ? null : targetLocal,
-        defaultTimezone: isImmediate || deliveryStrategy === 'global' ? null : (defaultTimezone || null),
-        excludeSentSendIds,
-      };
       const { id } = await adapter.createSend(config);
       setSelectedSendId(id);
-      toast.success(isImmediate
+      toast.success(scheduleType === 'immediate'
         ? 'Send queued — dispatch begins within 60s'
         : 'Send scheduled');
       setExcludeSentSendIds([]);
+      setConfirmState(null);
       await loadSends();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create send');
     } finally {
       setSending(false);
     }
+  };
+
+  const handleSend = async () => {
+    if (!hasParent) { toast.error(canSendReason || 'Save first'); return; }
+    if (!canSendNow) { toast.error(blockReason || 'Cannot send yet'); return; }
+    const config = buildConfig();
+    // Staggered (recipient-local / personalised) scheduled sends get a
+    // per-timezone confirmation so an accidental all-at-once blast is visible
+    // before committing. Immediate / everyone-at-once sends proceed directly.
+    const staggered = config.scheduleType === 'scheduled'
+      && config.deliveryStrategy !== 'global'
+      && scheduleType === 'scheduled';
+    if (staggered && adapter.previewSchedule && config.scheduledAt) {
+      setConfirmState({ config, rows: [], loading: true });
+      try {
+        const rows = await adapter.previewSchedule(config);
+        setConfirmState({ config, rows, loading: false });
+      } catch {
+        toast.error('Could not load the delivery preview');
+        setConfirmState(null);
+      }
+      return;
+    }
+    await doCreate(config);
   };
 
   const handleSaveDetails = async () => {
@@ -501,11 +545,14 @@ export function SendingPanel({ adapter }: { adapter: SendingAdapter }) {
               </div>
               {scheduleType === 'scheduled' && (
                 <>
-                  <input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} className={`mt-2 ${INPUT_CLS}`} />
-                  {Number.isFinite(formTargetMs) && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} className={INPUT_CLS} />
+                    <span className="text-xs font-medium text-[var(--gray-9)] whitespace-nowrap">UTC</span>
+                  </div>
+                  {formTargetIso && Number.isFinite(formTargetMs) && (
                     <p className="mt-1.5 flex items-center gap-1 text-xs text-[var(--gray-11)]">
                       <ClockIcon className="w-3.5 h-3.5 text-[var(--accent-9)]" />
-                      <span>Sends <span className="font-semibold text-[var(--gray-12)]">{formatCountdown(formTargetMs, now)}</span></span>
+                      <span>Starts <span className="font-semibold text-[var(--gray-12)]">{formatCountdown(formTargetMs, now)}</span> · {fmtUtc(formTargetIso)}</span>
                     </p>
                   )}
                 </>
@@ -759,6 +806,76 @@ export function SendingPanel({ adapter }: { adapter: SendingAdapter }) {
           )}
         </Card>
       </div>
+
+      {confirmState && (() => {
+        const rows = confirmState.rows;
+        const total = rows.reduce((n, r) => n + r.recipients, 0);
+        const first = rows[0]?.send_at;
+        const last = rows[rows.length - 1]?.send_at;
+        const schedIso = confirmState.config.scheduledAt;
+        const atSchedule = schedIso ? rows.filter((r) => r.send_at === schedIso).reduce((n, r) => n + r.recipients, 0) : 0;
+        const distinctTimes = new Set(rows.map((r) => r.send_at)).size;
+        const blast = !confirmState.loading && total > 0 && (distinctTimes === 1 || (schedIso ? atSchedule / total >= 0.9 : false));
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+            <div className="absolute inset-0 bg-black/40" onClick={() => !sending && setConfirmState(null)} />
+            <div className="relative z-10 w-full max-w-2xl max-h-[85vh] flex flex-col rounded-xl bg-[var(--color-surface)] border border-[var(--gray-a5)] shadow-xl">
+              <div className="px-5 py-4 border-b border-[var(--gray-a4)]">
+                <h2 className="text-base font-semibold text-[var(--gray-12)]">Confirm scheduled send</h2>
+                <p className="text-xs text-[var(--gray-9)] mt-0.5">Recipients receive at their local {confirmState.config.targetLocal} — here&apos;s exactly when each timezone goes out.</p>
+              </div>
+
+              <div className="px-5 py-4 overflow-y-auto">
+                {confirmState.loading ? (
+                  <div className="flex items-center gap-2 text-sm text-[var(--gray-9)] py-8 justify-center">
+                    <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                    Calculating delivery times…
+                  </div>
+                ) : (
+                  <>
+                    {blast && (
+                      <div className="mb-3 rounded-md border border-[var(--red-a6)] bg-[var(--red-a2)] px-3 py-2 text-xs text-[var(--red-11)]">
+                        <strong>All {total.toLocaleString()} recipients will be sent at once</strong> at {schedIso ? fmtUtc(schedIso) : '—'} — no timezone staggering. This usually means {confirmState.config.targetLocal} has already passed for everyone on the schedule date. Move the scheduled time earlier (before {confirmState.config.targetLocal} UTC) if you want it staggered.
+                      </div>
+                    )}
+                    <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-[var(--gray-11)] mb-3">
+                      <span>Recipients: <span className="font-semibold text-[var(--gray-12)]">{total.toLocaleString()}</span></span>
+                      <span>Timezones: <span className="font-semibold text-[var(--gray-12)]">{rows.length}</span></span>
+                      <span>First delivery: <span className="font-semibold text-[var(--gray-12)]">{first ? fmtUtc(first) : '—'}</span></span>
+                      <span>Last delivery: <span className="font-semibold text-[var(--gray-12)]">{last ? fmtUtc(last) : '—'}</span></span>
+                    </div>
+                    <div className="border border-[var(--gray-a4)] rounded-lg overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead><tr className="bg-[var(--gray-a2)] border-b border-[var(--gray-a4)]">
+                          <th className="text-left px-3 py-2 text-xs font-medium text-[var(--gray-9)]">Timezone</th>
+                          <th className="text-right px-3 py-2 text-xs font-medium text-[var(--gray-9)]">Recipients</th>
+                          <th className="text-left px-3 py-2 text-xs font-medium text-[var(--gray-9)]">Delivered (UTC)</th>
+                        </tr></thead>
+                        <tbody>
+                          {rows.map((r) => (
+                            <tr key={r.timezone} className="border-b border-[var(--gray-a3)] last:border-0">
+                              <td className="px-3 py-1.5 text-[var(--gray-12)]">{r.timezone}</td>
+                              <td className="px-3 py-1.5 text-right text-[var(--gray-11)] tabular-nums">{r.recipients.toLocaleString()}</td>
+                              <td className="px-3 py-1.5 text-[var(--gray-11)] tabular-nums">{fmtUtc(r.send_at)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="px-5 py-3 border-t border-[var(--gray-a4)] flex items-center justify-end gap-2">
+                <Button variant="outlined" onClick={() => setConfirmState(null)} disabled={sending}>Cancel</Button>
+                <Button variant="solid" onClick={() => doCreate(confirmState.config)} disabled={sending || confirmState.loading}>
+                  {sending ? 'Scheduling…' : 'Confirm &amp; schedule'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
