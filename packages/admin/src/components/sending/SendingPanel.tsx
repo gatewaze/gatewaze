@@ -16,6 +16,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { toast } from 'sonner';
 import { Card, Button, Badge } from '@/components/ui';
+import { SendScheduleMap } from './SendScheduleMap';
 import { supabase } from '@/lib/supabase';
 import type {
   SendingAdapter, SendRecord, EmailDetails, ScheduleType, DeliveryStrategy, SendComposerConfig,
@@ -183,6 +184,7 @@ export function SendingPanel({ adapter }: { adapter: SendingAdapter }) {
   const [confirmState, setConfirmState] = useState<
     { config: SendComposerConfig; rows: ScheduleBreakdownRow[]; loading: boolean } | null
   >(null);
+  const [confirmView, setConfirmView] = useState<'list' | 'map'>('list');
   const hasActiveRow = sends.some((s) => s.status === 'scheduled' || s.status === 'sending' || s.status === 'cancelling');
   const needCountdown = (Number.isFinite(formTargetMs) && formTargetMs > now) || hasActiveRow;
   useEffect(() => {
@@ -844,24 +846,47 @@ export function SendingPanel({ adapter }: { adapter: SendingAdapter }) {
                       <span>First delivery: <span className="font-semibold text-[var(--gray-12)]">{first ? fmtUtc(first) : '—'}</span></span>
                       <span>Last delivery: <span className="font-semibold text-[var(--gray-12)]">{last ? fmtUtc(last) : '—'}</span></span>
                     </div>
-                    <div className="border border-[var(--gray-a4)] rounded-lg overflow-hidden">
-                      <table className="w-full text-sm">
-                        <thead><tr className="bg-[var(--gray-a2)] border-b border-[var(--gray-a4)]">
-                          <th className="text-left px-3 py-2 text-xs font-medium text-[var(--gray-9)]">Timezone</th>
-                          <th className="text-right px-3 py-2 text-xs font-medium text-[var(--gray-9)]">Recipients</th>
-                          <th className="text-left px-3 py-2 text-xs font-medium text-[var(--gray-9)]">Delivered (UTC)</th>
-                        </tr></thead>
-                        <tbody>
-                          {rows.map((r) => (
-                            <tr key={r.timezone} className="border-b border-[var(--gray-a3)] last:border-0">
-                              <td className="px-3 py-1.5 text-[var(--gray-12)]">{r.timezone}</td>
-                              <td className="px-3 py-1.5 text-right text-[var(--gray-11)] tabular-nums">{r.recipients.toLocaleString()}</td>
-                              <td className="px-3 py-1.5 text-[var(--gray-11)] tabular-nums">{fmtUtc(r.send_at)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+
+                    {/* List / Map tabs */}
+                    <div className="flex gap-4 border-b border-[var(--gray-a4)] mb-3">
+                      {(['list', 'map'] as const).map((v) => (
+                        <button
+                          key={v}
+                          type="button"
+                          onClick={() => setConfirmView(v)}
+                          className={`-mb-px border-b-2 px-1 py-1.5 text-sm capitalize transition-colors ${
+                            confirmView === v
+                              ? 'border-[var(--accent-9)] text-[var(--gray-12)] font-medium'
+                              : 'border-transparent text-[var(--gray-10)] hover:text-[var(--gray-12)]'
+                          }`}
+                        >
+                          {v}
+                        </button>
+                      ))}
                     </div>
+
+                    {confirmView === 'list' ? (
+                      <div className="border border-[var(--gray-a4)] rounded-lg overflow-hidden">
+                        <table className="w-full text-sm">
+                          <thead><tr className="bg-[var(--gray-a2)] border-b border-[var(--gray-a4)]">
+                            <th className="text-left px-3 py-2 text-xs font-medium text-[var(--gray-9)]">Timezone</th>
+                            <th className="text-right px-3 py-2 text-xs font-medium text-[var(--gray-9)]">Recipients</th>
+                            <th className="text-left px-3 py-2 text-xs font-medium text-[var(--gray-9)]">Delivered (UTC)</th>
+                          </tr></thead>
+                          <tbody>
+                            {rows.map((r) => (
+                              <tr key={r.timezone} className="border-b border-[var(--gray-a3)] last:border-0">
+                                <td className="px-3 py-1.5 text-[var(--gray-12)]">{r.timezone}</td>
+                                <td className="px-3 py-1.5 text-right text-[var(--gray-11)] tabular-nums">{r.recipients.toLocaleString()}</td>
+                                <td className="px-3 py-1.5 text-[var(--gray-11)] tabular-nums">{fmtUtc(r.send_at)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <SendScheduleMap rows={rows} />
+                    )}
                   </>
                 )}
               </div>
