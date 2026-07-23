@@ -31,14 +31,29 @@ FROM node:22-slim
 # extension-API changes inside minor versions occasionally).
 ARG GOOSE_VERSION=v1.34.1
 
-# Install Chromium, git (entrypoint clones module repos), openssh-client
-# (publish-worker mirrors theme git repos to GitHub via ssh deploy keys —
-# without ssh present, `git push` to the deploy-keyed remote 127s with
-# "ssh: not found" and the mirror stays stale), curl + bzip2 (for the
-# Goose tarball below), Python + uv (for stdio MCP extensions that
-# Goose recipes load via `uvx <pkg>`), plus dependencies.
+# Chromium is PINNED to a known-good version — do NOT `apt-get install chromium`
+# unpinned. Debian bookworm-security only ever carries the single latest
+# Chromium, so a plain install floats: a routine rebuild silently pulled
+# Chromium 150, which crashes non-deterministically on our LKE nodes
+# ("Failed to launch the browser process" / SIGTRAP under the puppeteer flag
+# set + load). That breaks EVERY browser scraper while leaving non-browser
+# jobs (newsletters, broadcasts, AI, calendars, sites, analytics) working —
+# so it ships green and is only caught in production. Chromium 149 is the last
+# version verified to launch reliably on the cluster. We fetch the exact .deb
+# set from the Debian snapshot archive (immutable) and hold it, so the browser
+# can never float underneath us again. To bump: pick a newer CHROMIUM_VERSION,
+# find a snapshot timestamp that carries it (snapshot.debian.org), and verify a
+# real launch on a cluster node (scripts/workers/browser-selftest.js) first.
+ARG CHROMIUM_VERSION=149.0.7827.196-1~deb12u1
+ARG CHROMIUM_SNAPSHOT=20260629T000000Z
+
+# Install git (entrypoint clones module repos), openssh-client (publish-worker
+# mirrors theme git repos to GitHub via ssh deploy keys — without ssh present,
+# `git push` to the deploy-keyed remote 127s with "ssh: not found" and the
+# mirror stays stale), curl + bzip2 (for the Goose tarball below), Python + uv
+# (for stdio MCP extensions that Goose recipes load via `uvx <pkg>`), the
+# Chromium runtime libs, plus the pinned Chromium itself.
 RUN apt-get update && apt-get install -y \
-    chromium \
     fonts-liberation \
     fonts-noto-color-emoji \
     git \
@@ -53,7 +68,25 @@ RUN apt-get update && apt-get install -y \
     libxcb1 \
     libdbus-1-3 \
     --no-install-recommends \
+    # Pin Chromium: fetch the exact .deb set from the Debian snapshot archive
+    # (arch resolved at build time so amd64 CI + arm64 local both work) and
+    # install via apt so the runtime lib deps still resolve from the normal
+    # bookworm repo. `apt-mark hold` keeps it from ever being upgraded.
+    && arch="$(dpkg --print-architecture)" \
+    && snap_base="https://snapshot.debian.org/archive/debian-security/${CHROMIUM_SNAPSHOT}/pool/updates/main/c/chromium" \
+    && for p in chromium-common chromium-sandbox chromium; do \
+         curl -fSL --connect-timeout 30 --retry 5 --retry-delay 5 \
+           "${snap_base}/${p}_${CHROMIUM_VERSION}_${arch}.deb" -o "/tmp/${p}.deb"; \
+       done \
+    && apt-get install -y --no-install-recommends \
+         /tmp/chromium-common.deb /tmp/chromium-sandbox.deb /tmp/chromium.deb \
+    && apt-mark hold chromium chromium-common chromium-sandbox \
+    && rm -f /tmp/chromium-common.deb /tmp/chromium-sandbox.deb /tmp/chromium.deb \
     && rm -rf /var/lib/apt/lists/* \
+    # Fail the build loudly if the pinned binary isn't what we expect.
+    && installed="$(chromium --version)" \
+    && echo "[worker-build] Chromium: ${installed}" \
+    && case "$installed" in *"${CHROMIUM_VERSION%%-*}"*) : ;; *) echo "FATAL: expected Chromium ${CHROMIUM_VERSION%%-*}, got ${installed}"; exit 1 ;; esac \
     # Replace crashpad handler with a wrapper that provides the required --database flag
     && mv /usr/lib/chromium/chrome_crashpad_handler /usr/lib/chromium/chrome_crashpad_handler.real \
     && printf '#!/bin/sh\nexec /usr/lib/chromium/chrome_crashpad_handler.real --database=/tmp/crashpad "$@"\n' > /usr/lib/chromium/chrome_crashpad_handler \
