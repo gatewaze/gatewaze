@@ -772,22 +772,6 @@ export class BulkRegistrationService {
           }
         }
 
-        // DEBUG: Log new fields for first row
-        if (rowIndex === 0) {
-          console.log('🔍 DEBUG Frontend: First row CSV values:', {
-            sponsor_permission_raw: row.sponsor_permission,
-            external_qr_code_raw: row.external_qr_code,
-            source_raw: row.source,
-            registered_at_raw: row.registered_at,
-          });
-          console.log('🔍 DEBUG Frontend: First registration object being sent:', {
-            sponsor_permission: registration.sponsor_permission,
-            external_qr_code: registration.external_qr_code,
-            source: registration.source,
-            registered_at: registration.registered_at,
-          });
-        }
-
         return registration;
       });
 
