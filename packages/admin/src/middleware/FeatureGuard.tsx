@@ -7,6 +7,7 @@ import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuthContext as useAuth } from '@/app/contexts/auth/context';
 import { useHasPermission } from '@/hooks/usePermissions';
+import { AccessDeniedRedirect } from '@/app/router/AccessDeniedRedirect';
 import type { AdminFeature } from '@/lib/permissions/types';
 
 interface FeatureGuardProps {
@@ -14,6 +15,11 @@ interface FeatureGuardProps {
   accountId?: string | null;
   children: React.ReactNode;
   fallback?: React.ReactNode;
+  /**
+   * Where to send a denied user. When omitted (the default), we redirect to a
+   * page they *can* access via {@link AccessDeniedRedirect} instead of
+   * dead-ending on the Access Denied screen. Pass an explicit path to override.
+   */
   redirectTo?: string;
   showLoading?: boolean;
 }
@@ -36,7 +42,7 @@ export function FeatureGuard({
   accountId,
   children,
   fallback,
-  redirectTo = '/unauthorized',
+  redirectTo,
   showLoading = true,
 }: FeatureGuardProps) {
   const { user, loading: authLoading } = useAuth();
@@ -64,12 +70,16 @@ export function FeatureGuard({
     return <Navigate to="/login" replace />;
   }
 
-  // No permission - show fallback or redirect
+  // No permission - show fallback, redirect to an explicit target, or (default)
+  // send the user to a page they *can* access instead of a dead end.
   if (!hasPermission) {
     if (fallback) {
       return <>{fallback}</>;
     }
-    return <Navigate to={redirectTo} replace />;
+    if (redirectTo) {
+      return <Navigate to={redirectTo} replace />;
+    }
+    return <AccessDeniedRedirect />;
   }
 
   // Has permission - render children
