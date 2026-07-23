@@ -27,6 +27,8 @@ import type { Tab } from '@/components/ui/Tabs';
 import { Spinner } from '@/components/ui/Spinner';
 import { Page } from '@/components/shared/Page';
 import { PeopleService, Person } from '@/utils/peopleService';
+import { geocodeCityCountry } from '@/utils/geocode';
+import { StaticLocationMap } from '@/components/charts/StaticLocationMap';
 import { PeopleAvatarService } from '@/utils/peopleAvatarService';
 import { CompetitionWinner } from '@/utils/competitionWinnerService';
 import { supabase } from '@/lib/supabase';
@@ -234,20 +236,47 @@ export default function MemberDetailPage() {
 
     setIsSaving(true);
     try {
+      const city = (editFormData.city || '').trim();
+      const country = (editFormData.country || '').trim();
+
+      const attributes: Record<string, unknown> = {
+        ...person.attributes,
+        first_name: editFormData.first_name,
+        last_name: editFormData.last_name,
+        job_title: editFormData.job_title,
+        company: editFormData.company,
+        linkedin_url: editFormData.linkedin_url,
+        city,
+        country,
+      };
+
+      // Keep the map coordinates in sync with the edited city/country. Only
+      // re-geocode when the location actually changed: clear coordinates if the
+      // location was removed, otherwise look them up and overwrite. On a failed
+      // lookup we leave the existing coordinates in place (inherited from the
+      // spread above) so a transient geocoder hiccup can't wipe good data.
+      const prevCity = (person.attributes?.city as string) || '';
+      const prevCountry = (person.attributes?.country as string) || '';
+      if (city !== prevCity || country !== prevCountry) {
+        if (!city && !country) {
+          delete attributes.coordinates;
+        } else {
+          const coordinates = await geocodeCityCountry(city, country);
+          if (coordinates) {
+            attributes.coordinates = coordinates;
+          } else {
+            toast.warning(
+              'Saved, but could not find map coordinates for that city/country — the map may be out of date.',
+            );
+          }
+        }
+      }
+
       const result = await PeopleService.updatePerson(
         person.id,
         {
           email: editFormData.email,
-          attributes: {
-            ...person.attributes,
-            first_name: editFormData.first_name,
-            last_name: editFormData.last_name,
-            job_title: editFormData.job_title,
-            company: editFormData.company,
-            linkedin_url: editFormData.linkedin_url,
-            city: editFormData.city,
-            country: editFormData.country,
-          },
+          attributes,
         }
       );
 
@@ -793,37 +822,29 @@ export default function MemberDetailPage() {
     );
   }
 
-  // Check if we have valid location coordinates for the map background
-  const hasMapLocation = (() => {
-    const location = person.attributes?.coordinates || person.attributes?.location;
-    if (location) {
-      const [lat, lng] = location.split(',').map((coord: string) => parseFloat(coord.trim()));
-      return !isNaN(lat) && !isNaN(lng);
-    }
-    return false;
+  // Parse the person's map coordinates for the hero background (prefer the
+  // explicit `coordinates`, fall back to the geocoder's `location`).
+  const heroCoords = (() => {
+    const raw = (person.attributes?.coordinates as string) || (person.attributes?.location as string);
+    if (!raw) return null;
+    const [lat, lng] = raw.split(',').map((coord: string) => parseFloat(coord.trim()));
+    return !isNaN(lat) && !isNaN(lng) ? { lat, lng } : null;
   })();
 
   return (
     <Page>
       {/* Hero Section */}
       <div className="relative h-48 md:h-56 lg:h-64 overflow-hidden bg-gray-900 -mx-(--margin-x) -mt-(--margin-x)">
-        {/* Background - map if location available, otherwise gradient */}
-        {hasMapLocation ? (
-          <iframe
+        {/* Background - map if location available, otherwise gradient.
+            Uses Leaflet tiles (plain <img>) rather than a cross-origin OSM
+            <iframe>, which production's COEP: credentialless policy blocks. */}
+        {heroCoords ? (
+          <div
             className="absolute inset-0 w-full h-full scale-110 pointer-events-none"
-            src={(() => {
-              const location = person.attributes?.coordinates || person.attributes?.location;
-              if (location) {
-                const [lat, lng] = location.split(',').map((coord: string) => parseFloat(coord.trim()));
-                // Use a wider bounding box for the hero background view, with marker
-                return `https://www.openstreetmap.org/export/embed.html?bbox=${lng - 0.15},${lat - 0.08},${lng + 0.15},${lat + 0.08}&layer=mapnik&marker=${lat},${lng}`;
-              }
-              return '';
-            })()}
-            style={{ border: 0, filter: 'saturate(0.7)' }}
-            scrolling="no"
-            frameBorder="0"
-          />
+            style={{ filter: 'saturate(0.7)' }}
+          >
+            <StaticLocationMap lat={heroCoords.lat} lng={heroCoords.lng} className="w-full h-full" />
+          </div>
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-primary-600 to-primary-800 dark:from-primary-800 dark:to-primary-950" />
         )}
