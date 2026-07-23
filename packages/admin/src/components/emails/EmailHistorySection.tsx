@@ -1,13 +1,5 @@
 import { useState, useEffect } from 'react';
-import {
-  EnvelopeIcon,
-  EnvelopeOpenIcon,
-  CursorArrowRippleIcon,
-  ExclamationCircleIcon,
-  CheckCircleIcon,
-  NoSymbolIcon,
-  PaperAirplaneIcon,
-} from '@heroicons/react/24/outline';
+import { EnvelopeIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import { supabase } from '@/lib/supabase';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { useHasModule } from '@/hooks/useModuleFeature';
@@ -21,6 +13,7 @@ interface SendGridEmailLog {
   subject: string;
   status: string;
   created_at: string;
+  sent_at?: string;
   delivered_at?: string;
   first_opened_at?: string;
   first_clicked_at?: string;
@@ -28,6 +21,22 @@ interface SendGridEmailLog {
   bounce_reason?: string;
   unsubscribed_at?: string;
   spam_reported_at?: string;
+  // The exact rendered email body, when the sender retained it.
+  content_html?: string | null;
+  // Which sending path produced this row (only one is set).
+  newsletter_send_id?: string | null;
+  broadcast_send_id?: string | null;
+  campaign_send_id?: string | null;
+  bulk_send_id?: string | null;
+}
+
+// Human label for the sending path a log row came from.
+function deriveSendType(log: SendGridEmailLog): string {
+  if (log.newsletter_send_id) return 'Newsletter';
+  if (log.broadcast_send_id) return 'Broadcast';
+  if (log.campaign_send_id) return 'Campaign';
+  if (log.bulk_send_id) return 'Bulk';
+  return 'Transactional';
 }
 
 // Customer.io email event structure (one record per event)
@@ -69,6 +78,10 @@ interface UnifiedEmail {
     timestamp: string;
     linkUrl?: string;
   }[];
+  // Sending path label (Newsletter / Broadcast / Bulk / Campaign / Transactional)
+  sendType?: string;
+  // Exact rendered HTML that was sent, when retained.
+  contentHtml?: string | null;
 }
 
 interface EmailHistorySectionProps {
@@ -81,6 +94,8 @@ export function EmailHistorySection({ customerEmail, personId }: EmailHistorySec
   const [emails, setEmails] = useState<UnifiedEmail[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeSource, setActiveSource] = useState<'all' | 'sendgrid' | 'customerio'>('all');
+  // Which email's exact content is expanded (lazy-render the iframe only then).
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [stats, setStats] = useState({
     total: 0,
     delivered: 0,
@@ -98,17 +113,26 @@ export function EmailHistorySection({ customerEmail, personId }: EmailHistorySec
   const fetchEmails = async () => {
     setLoading(true);
     try {
-      // Fetch SendGrid emails from the bulk-emailing module's send log
-      let sendgridQuery = supabase
+      // Fetch from the send log by recipient_email. NOTE: we deliberately do
+      // NOT filter by recipient_customer_id — that column is currently never
+      // populated by the send pipeline, so filtering on it returned nothing
+      // (which is why newsletters/broadcasts didn't show). recipient_email is
+      // indexed (idx_esl_recipient); use exact `.in` (not ilike, which can't
+      // use the btree index and full-scans the multi-million-row table).
+      const emailVariants = Array.from(
+        new Set([customerEmail, customerEmail.toLowerCase()].filter(Boolean)),
+      );
+      const sendgridQuery = supabase
         .from('email_send_log')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (personId) {
-        sendgridQuery = sendgridQuery.eq('recipient_customer_id', personId);
-      } else {
-        sendgridQuery = sendgridQuery.ilike('recipient_email', customerEmail);
-      }
+        .select(
+          'id, recipient_email, from_address, subject, status, created_at, sent_at, ' +
+          'delivered_at, first_opened_at, first_clicked_at, bounced_at, bounce_reason, ' +
+          'unsubscribed_at, spam_reported_at, content_html, ' +
+          'newsletter_send_id, broadcast_send_id, campaign_send_id, bulk_send_id',
+        )
+        .in('recipient_email', emailVariants)
+        .order('sent_at', { ascending: false, nullsFirst: false })
+        .limit(300);
 
       // Fetch Customer.io email events (only when module is installed)
       const cioQueryPromise = hasCIO
@@ -125,13 +149,13 @@ export function EmailHistorySection({ customerEmail, personId }: EmailHistorySec
       ]);
 
       // Process SendGrid emails
-      const sendgridEmails: UnifiedEmail[] = (sendgridResult.data || []).map((log: SendGridEmailLog) => ({
+      const sendgridEmails: UnifiedEmail[] = ((sendgridResult.data || []) as unknown as SendGridEmailLog[]).map((log) => ({
         id: `sg-${log.id}`,
         source: 'sendgrid' as const,
         email: log.recipient_email,
         subject: log.subject,
         fromAddress: log.from_address,
-        sentAt: log.created_at,
+        sentAt: log.sent_at || log.created_at,
         deliveredAt: log.delivered_at,
         openedAt: log.first_opened_at,
         clickedAt: log.first_clicked_at,
@@ -139,6 +163,8 @@ export function EmailHistorySection({ customerEmail, personId }: EmailHistorySec
         bounceReason: log.bounce_reason,
         unsubscribedAt: log.unsubscribed_at,
         spamReportedAt: log.spam_reported_at,
+        sendType: deriveSendType(log),
+        contentHtml: log.content_html,
       }));
 
       // Process Customer.io events - group by email_id to create unified email records
@@ -218,53 +244,18 @@ export function EmailHistorySection({ customerEmail, personId }: EmailHistorySec
     return new Date(dateString).toLocaleString();
   };
 
-  const getStatusBadge = (email: UnifiedEmail) => {
-    if (email.bouncedAt) {
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
-          <ExclamationCircleIcon className="size-3" />
-          Bounced
-        </span>
-      );
-    }
-    if (email.spamReportedAt) {
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-          <NoSymbolIcon className="size-3" />
-          Spam
-        </span>
-      );
-    }
-    if (email.clickedAt) {
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
-          <CursorArrowRippleIcon className="size-3" />
-          Clicked
-        </span>
-      );
-    }
-    if (email.openedAt) {
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-          <EnvelopeOpenIcon className="size-3" />
-          Opened
-        </span>
-      );
-    }
-    if (email.deliveredAt) {
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-          <CheckCircleIcon className="size-3" />
-          Delivered
-        </span>
-      );
-    }
-    return (
-      <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200">
-        <EnvelopeIcon className="size-3" />
-        Sent
-      </span>
-    );
+  // Class for a status flag chip: coloured when the event happened, faded when not.
+  const flagClass = (color: string, active: boolean) => {
+    if (!active) return 'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-600';
+    const map: Record<string, string> = {
+      gray: 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200',
+      green: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
+      blue: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
+      purple: 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300',
+      red: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
+      yellow: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300',
+    };
+    return map[color] || map.gray;
   };
 
   const getSourceBadge = (source: 'sendgrid' | 'customerio') => {
@@ -368,51 +359,90 @@ export function EmailHistorySection({ customerEmail, personId }: EmailHistorySec
           <p>No emails sent to this member yet.</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {filteredEmails.map((email) => (
-            <div
-              key={email.id}
-              className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-2 flex-wrap">
-                    {getStatusBadge(email)}
-                    {getSourceBadge(email.source)}
-                    {email.unsubscribedAt && (
-                      <span className="text-xs text-orange-600 dark:text-orange-400">Unsubscribed</span>
-                    )}
+        <div className="space-y-2">
+          {filteredEmails.map((email) => {
+            const isOpen = expandedId === email.id;
+            const flags: { label: string; active: boolean; color: string }[] = [
+              { label: 'Sent', active: true, color: 'gray' },
+              { label: 'Delivered', active: !!email.deliveredAt, color: 'green' },
+              { label: 'Opened', active: !!email.openedAt, color: 'blue' },
+              { label: 'Clicked', active: !!email.clickedAt, color: 'purple' },
+            ];
+            if (email.bouncedAt) flags.push({ label: 'Bounced', active: true, color: 'red' });
+            if (email.spamReportedAt) flags.push({ label: 'Spam', active: true, color: 'yellow' });
+
+            return (
+              <div key={email.id} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                {/* Summary row — click to expand */}
+                <button
+                  type="button"
+                  onClick={() => setExpandedId(isOpen ? null : email.id)}
+                  className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                >
+                  <ChevronRightIcon className={`size-4 shrink-0 text-gray-400 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="font-medium text-gray-900 dark:text-white truncate">
+                        {email.subject || '(No subject)'}
+                      </span>
+                      {getSourceBadge(email.source)}
+                      {email.sendType && email.sendType !== 'Transactional' && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 shrink-0">
+                          {email.sendType}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-500 mt-0.5">{formatDate(email.sentAt)}</div>
                   </div>
-                  <h4 className="font-medium text-gray-900 dark:text-white truncate">{email.subject}</h4>
-                  {email.fromAddress && (
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                      From: {email.fromAddress}
-                    </p>
-                  )}
-                  <div className="text-xs text-gray-500 dark:text-gray-500 mt-2 space-y-1">
-                    <div>Sent: {formatDate(email.sentAt)}</div>
-                    {email.deliveredAt && <div>Delivered: {formatDate(email.deliveredAt)}</div>}
-                    {email.openedAt && <div>Opened: {formatDate(email.openedAt)}</div>}
-                    {email.clickedAt && (
-                      <div>
-                        Clicked: {formatDate(email.clickedAt)}
-                        {email.clickCount && email.clickCount > 1 && ` (${email.clickCount} times)`}
-                      </div>
-                    )}
-                    {email.bouncedAt && (
-                      <div className="text-red-600 dark:text-red-400">
-                        Bounced: {formatDate(email.bouncedAt)}
-                        {email.bounceReason && ` - ${email.bounceReason}`}
-                      </div>
-                    )}
+                  {/* Status flags (compact, hidden on narrow screens) */}
+                  <div className="hidden sm:flex items-center gap-1 shrink-0">
+                    {flags.map((f) => (
+                      <span key={f.label} className={`px-1.5 py-0.5 text-[10px] font-medium rounded ${flagClass(f.color, f.active)}`}>
+                        {f.label}
+                      </span>
+                    ))}
                   </div>
-                  {/* Show CIO event timeline for expanded detail */}
-                  {email.source === 'customerio' && email.events && email.events.length > 1 && (
-                    <details className="mt-3">
-                      <summary className="text-xs text-gray-500 dark:text-gray-400 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300">
-                        View {email.events.length} events
-                      </summary>
-                      <div className="mt-2 pl-3 border-l-2 border-gray-200 dark:border-gray-700 space-y-1">
+                </button>
+
+                {/* Expanded detail */}
+                {isOpen && (
+                  <div className="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-4 space-y-3">
+                    {/* Flags on narrow screens */}
+                    <div className="flex sm:hidden flex-wrap items-center gap-1">
+                      {flags.map((f) => (
+                        <span key={f.label} className={`px-1.5 py-0.5 text-[10px] font-medium rounded ${flagClass(f.color, f.active)}`}>
+                          {f.label}
+                        </span>
+                      ))}
+                    </div>
+
+                    {email.fromAddress && (
+                      <div className="text-xs text-gray-600 dark:text-gray-400">From: {email.fromAddress}</div>
+                    )}
+                    <div className="text-xs text-gray-500 dark:text-gray-500 space-y-1">
+                      <div>Sent: {formatDate(email.sentAt)}</div>
+                      {email.deliveredAt && <div>Delivered: {formatDate(email.deliveredAt)}</div>}
+                      {email.openedAt && <div>Opened: {formatDate(email.openedAt)}</div>}
+                      {email.clickedAt && (
+                        <div>
+                          Clicked: {formatDate(email.clickedAt)}
+                          {email.clickCount && email.clickCount > 1 ? ` (${email.clickCount} times)` : ''}
+                        </div>
+                      )}
+                      {email.bouncedAt && (
+                        <div className="text-red-600 dark:text-red-400">
+                          Bounced: {formatDate(email.bouncedAt)}
+                          {email.bounceReason ? ` - ${email.bounceReason}` : ''}
+                        </div>
+                      )}
+                      {email.unsubscribedAt && (
+                        <div className="text-orange-600 dark:text-orange-400">Unsubscribed: {formatDate(email.unsubscribedAt)}</div>
+                      )}
+                    </div>
+
+                    {/* Customer.io event timeline */}
+                    {email.source === 'customerio' && email.events && email.events.length > 1 && (
+                      <div className="pl-3 border-l-2 border-gray-200 dark:border-gray-700 space-y-1">
                         {email.events.map((event, idx) => (
                           <div key={idx} className="text-xs text-gray-500 dark:text-gray-400">
                             <span className="font-medium capitalize">{event.type}</span>
@@ -426,12 +456,28 @@ export function EmailHistorySection({ customerEmail, personId }: EmailHistorySec
                           </div>
                         ))}
                       </div>
-                    </details>
-                  )}
-                </div>
+                    )}
+
+                    {/* The exact rendered email, in a sandboxed iframe (no scripts). */}
+                    {email.source === 'sendgrid' && (
+                      email.contentHtml ? (
+                        <iframe
+                          title={`Email content: ${email.subject}`}
+                          sandbox=""
+                          srcDoc={email.contentHtml}
+                          className="w-full h-[32rem] rounded border border-gray-200 dark:border-gray-700 bg-white"
+                        />
+                      ) : (
+                        <div className="text-xs text-gray-400 dark:text-gray-500">
+                          Exact content not retained for this send.
+                        </div>
+                      )
+                    )}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
