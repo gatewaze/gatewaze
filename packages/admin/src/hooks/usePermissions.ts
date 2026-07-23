@@ -2,7 +2,7 @@
  * Custom hooks for permission management
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuthContext as useAuth } from '@/app/contexts/auth/context';
 import { PermissionsService } from '@/lib/permissions/service';
 import type {
@@ -515,8 +515,21 @@ export function useAdminScope() {
   const isSuperAdmin = user?.role === 'super_admin';
   const loading = calLoading || evLoading;
 
-  const calendarIds = isSuperAdmin ? null : calendars.map((c) => c.calendar_id);
-  const eventIds = isSuperAdmin ? null : events.map((e) => e.event_id);
+  // Memoise the derived id lists so their references stay stable across
+  // renders. Without this, `.map()` returns a fresh array every render, and
+  // any consumer that lists `calendarIds`/`eventIds` in a hook dependency
+  // array (e.g. the calendars page's load effect) re-fires on every render —
+  // an infinite fetch loop that shows as a spinner that never settles. The
+  // null (super-admin) case is a stable primitive, which is why the loop only
+  // ever bit calendar-scoped admins.
+  const calendarIds = useMemo(
+    () => (isSuperAdmin ? null : calendars.map((c) => c.calendar_id)),
+    [isSuperAdmin, calendars],
+  );
+  const eventIds = useMemo(
+    () => (isSuperAdmin ? null : events.map((e) => e.event_id)),
+    [isSuperAdmin, events],
+  );
 
   const canAdminCalendar = useCallback(
     (calendarId: string): boolean => {
