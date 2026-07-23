@@ -483,6 +483,15 @@ api:
 # Worker Service Configuration
 # =============================================================================
 worker:
+  # -- Optional image override for the worker container ONLY. The worker image
+  # ships Chromium + the browser scrapers, so it fails and gets fixed on a
+  # different cadence than the app images; pin `worker.image.tag` to release a
+  # worker-only fix without a full-platform bump, or to hold the worker on a
+  # browser-verified build while the platform moves ahead. Unset => the global
+  # `image.tag` is used (the common case). Registry is always `image.registry`.
+  image:
+    tag: ""
+
   # -- Pod-container securityContext for the worker container. The worker
   # image's entrypoint clones module repos and symlinks them at the
   # filesystem root, so it cannot run non-root. Keep {} to use the image

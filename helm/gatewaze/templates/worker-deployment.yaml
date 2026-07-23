@@ -24,7 +24,14 @@ spec:
       serviceAccountName: {{ include "gatewaze.serviceAccountName" . }}
       containers:
         - name: worker
-          image: "{{ .Values.image.registry }}/worker:{{ include "gatewaze.imageTag" . }}"
+          # The worker image carries Chromium + the browser scrapers, so it
+          # breaks (and gets fixed) on a different cadence than the app images.
+          # An optional worker.image.tag lets a brand pin/roll the worker
+          # independently of the platform-wide image.tag — so a worker-only fix
+          # doesn't force a full-platform release, and a platform release
+          # doesn't drag the worker onto an unvetted-for-browser build. Falls
+          # back to the global imageTag when unset (the common case).
+          image: "{{ .Values.image.registry }}/worker:{{ dig "image" "tag" "" .Values.worker | default (include "gatewaze.imageTag" .) }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           {{- with .Values.worker.securityContext }}
           securityContext:
