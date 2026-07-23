@@ -56,17 +56,18 @@ async function main() {
 
     const version = await browser.version();
     const page = await browser.newPage();
-    // A data: URL exercises the full navigate + render + DOM-read path
-    // without any network egress (which can be slow/blocked on a node).
-    await page.setContent('<html><body><h1 id="ok">selftest</h1></body></html>', {
-      waitUntil: 'domcontentloaded',
-      timeout: TIMEOUT_MS,
-    });
-    const text = await page.$eval('#ok', (el) => el.textContent);
+    // Navigate to about:blank then run JS in the renderer — this is the exact
+    // launch -> newPage -> goto -> evaluate path the scrapers depend on, with no
+    // network egress (which can be slow/blocked on a node). NOTE: use goto +
+    // evaluate, NOT setContent + $eval — in a headless container the execution
+    // context from setContent can leave $eval hanging indefinitely, whereas a
+    // goto reliably establishes the context the scrapers use.
+    await page.goto('about:blank', { waitUntil: 'domcontentloaded', timeout: TIMEOUT_MS });
+    const result = await page.evaluate(() => 6 * 7);
     await page.close();
 
-    if (text !== 'selftest') {
-      throw new Error(`unexpected DOM read: ${JSON.stringify(text)}`);
+    if (result !== 42) {
+      throw new Error(`unexpected evaluate result: ${JSON.stringify(result)}`);
     }
 
     console.log(`BROWSER_SELFTEST_OK executable=${executablePath} version=${version}`);
