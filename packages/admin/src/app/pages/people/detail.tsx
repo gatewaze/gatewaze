@@ -20,6 +20,7 @@ import {
   BuildingOfficeIcon,
   BriefcaseIcon,
   Square3Stack3DIcon,
+  ClockIcon,
 } from '@heroicons/react/24/outline';
 import { toast } from 'sonner';
 import { Card, Button, Input, Badge, Avatar, Table, THead, TBody, Tr, Th, Td, Tabs } from '@/components/ui';
@@ -33,6 +34,7 @@ import { PeopleAvatarService } from '@/utils/peopleAvatarService';
 import { CompetitionWinner } from '@/utils/competitionWinnerService';
 import { supabase } from '@/lib/supabase';
 import { EmailHistorySection } from '@/components/emails/EmailHistorySection';
+import { PersonActivityTimeline } from '@/components/people/PersonActivityTimeline';
 import { useHasModule } from '@/hooks/useModuleFeature';
 import { ModuleSlot } from '@/components/ModuleSlot';
 
@@ -147,9 +149,9 @@ interface OfferActivity {
   event?: CompetitionEvent;
 }
 
-type TabType = 'profile' | 'attributes' | 'segments' | 'events' | 'wins' | 'emails' | 'competitions' | 'offers';
+type TabType = 'profile' | 'attributes' | 'segments' | 'events' | 'wins' | 'emails' | 'activity' | 'competitions' | 'offers';
 
-const validTabs: TabType[] = ['profile', 'attributes', 'segments', 'events', 'wins', 'emails', 'competitions', 'offers'];
+const validTabs: TabType[] = ['profile', 'attributes', 'segments', 'events', 'wins', 'emails', 'activity', 'competitions', 'offers'];
 
 export default function MemberDetailPage() {
   const { id, tab: tabFromUrl } = useParams<{ id: string; tab?: string }>();
@@ -968,6 +970,7 @@ export default function MemberDetailPage() {
             hasEvents && { id: 'events', label: 'Events', icon: <CalendarIcon className="size-4" /> },
             competitionWins.length > 0 && { id: 'wins', label: 'Wins', icon: <TrophyIcon className="size-4" />, count: competitionWins.length },
             { id: 'emails', label: 'Emails', icon: <EnvelopeIcon className="size-4" /> },
+            { id: 'activity', label: 'Activity', icon: <ClockIcon className="size-4" /> },
           ].filter(Boolean) as Tab[]}
         />
       </div>
@@ -1636,6 +1639,17 @@ export default function MemberDetailPage() {
               customerEmail={person.email || ''}
               personId={person.id}
             />
+          </Card>
+        )}
+
+        {/* Activity Tab — unified timeline of everything the person has done */}
+        {activeTab === 'activity' && person && (
+          <Card variant="surface" className="p-6">
+            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <ClockIcon className="size-5" />
+              Activity
+            </h2>
+            <PersonActivityTimeline personId={person.id || ''} email={person.email || undefined} />
           </Card>
         )}
       </div>

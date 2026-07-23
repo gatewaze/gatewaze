@@ -70,8 +70,10 @@ export async function POST(req: NextRequest) {
       // outcome loop. Validity is enforced DB-side by the RPC; failures
       // never affect the tracking path.
       await recordSignalsOutcome(body)
+      await persistPersonEvent(req, body)
     } else if (body.type === 'page') {
       await tracker.page(typeof body.event === 'string' ? body.event.slice(0, 120) : undefined, input)
+      await persistPersonEvent(req, body)
     } else {
       const user = await verifiedUser(body.userId)
       if (user) {
@@ -138,6 +140,54 @@ async function verifiedUser(claimed?: string): Promise<{
     return data?.user?.id === claimed ? data.user : null
   } catch {
     return null
+  }
+}
+
+/**
+ * Mirror an identified visitor's web activity into people_events so the admin
+ * People > Activity timeline can show page views / video plays / link clicks
+ * alongside email and event activity.
+ *
+ * Only records for a verified signed-in session (anonymous events stay in
+ * Umami); resolution is server-side, never client-asserted. Cheap for the
+ * common anonymous case — we skip entirely unless an auth cookie is present,
+ * so we never create a Supabase client or hit getUser for logged-out traffic.
+ * Best-effort and non-blocking: the edge fn write is fire-and-forget and no
+ * failure ever surfaces to the visitor.
+ */
+async function persistPersonEvent(req: NextRequest, body: RelayEvent): Promise<void> {
+  try {
+    const cookie = req.headers.get('cookie') ?? ''
+    if (!cookie.includes('-auth-token')) return // not signed in — nothing to attribute
+
+    const brand = await getServerBrand()
+    const supabase = await createAuthenticatedServerSupabase(brand)
+    const { data } = await supabase.auth.getUser()
+    const email = data?.user?.email
+    if (!email) return
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || ''
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || ''
+    if (!supabaseUrl || !anonKey) return
+
+    const props = (body.properties ?? {}) as Record<string, unknown>
+    const eventName = body.type === 'page'
+      ? 'page_view'
+      : (typeof body.event === 'string' ? body.event : 'track')
+    const url = typeof props.url === 'string' ? props.url
+      : typeof props.href === 'string' ? props.href
+      : typeof body.client?.url === 'string' ? body.client.url : undefined
+    const title = typeof props.title === 'string' ? props.title : undefined
+
+    // Fire-and-forget: people-track-event resolves the person by email (service
+    // role) and inserts into people_events. Errors are swallowed by contract.
+    void fetch(`${supabaseUrl}/functions/v1/people-track-event`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: anonKey, Authorization: `Bearer ${anonKey}` },
+      body: JSON.stringify({ email, event: eventName, properties: { url, title }, source: 'portal' }),
+    }).catch(() => {})
+  } catch {
+    /* never break the tracking path */
   }
 }
 
