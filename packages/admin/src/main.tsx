@@ -49,6 +49,30 @@ import "leaflet/dist/leaflet.css";
 
 import "./styles/index.css";
 
+// Stale-chunk recovery after a deploy.
+// ----------------------------------------------------------------------
+// Vite dispatches `vite:preloadError` on window when its dynamic-import
+// preload helper fails to fetch a code-split chunk — the signature of a
+// tab that was loaded before a new version was deployed (old hash-named
+// chunks are gone from the server). Most of these come through the router
+// and land in RootErrorBoundary, which shows a friendly "reload" screen;
+// but lazy imports OUTSIDE the router (ModuleSlot, shader gradient, etc.)
+// would otherwise throw uncaught. Here we swallow the throw and reload
+// once to pull the fresh bundle. A sessionStorage guard prevents an
+// infinite reload loop if the chunk is genuinely broken rather than stale.
+window.addEventListener("vite:preloadError", (event) => {
+  event.preventDefault();
+  const RELOAD_GUARD = "gw:chunk-reload";
+  if (sessionStorage.getItem(RELOAD_GUARD)) return;
+  sessionStorage.setItem(RELOAD_GUARD, String(Date.now()));
+  window.location.reload();
+});
+// Clear the guard once a page has loaded successfully, so a genuine
+// stale-chunk event on a later deploy can reload again.
+window.addEventListener("load", () => {
+  sessionStorage.removeItem("gw:chunk-reload");
+});
+
 // Setup brand-specific favicon and title
 setupFavicon();
 

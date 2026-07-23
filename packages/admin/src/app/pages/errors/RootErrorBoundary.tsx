@@ -4,6 +4,7 @@ import { lazy, useEffect } from "react";
 
 // Local Imports
 import { Loadable } from "@/components/shared/Loadable";
+import { isChunkLoadError } from "@/utils/isChunkLoadError";
 
 // ----------------------------------------------------------------------
 
@@ -35,6 +36,32 @@ function RootErrorBoundary() {
   ) {
     const Component = Loadable(app[error.status as keyof typeof app]);
     return <Component />;
+  }
+
+  // A stale-chunk failure means a new version was deployed while this tab
+  // was open — the requested code-split chunk no longer exists on the
+  // server. This isn't a crash; a reload fetches the fresh index.html and
+  // chunks. Show a friendly "please refresh" screen instead of the scary
+  // generic error below.
+  if (isChunkLoadError(error)) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center p-6">
+        <div className="mx-auto max-w-md text-center space-y-4">
+          <h1 className="text-lg font-semibold">A new version is available</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            The app was updated while this tab was open. Reload to get the
+            latest version.
+          </p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="inline-flex items-center justify-center rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+          >
+            Reload page
+          </button>
+        </div>
+      </div>
+    );
   }
 
   const message = (error as any)?.message || (typeof error === "string" ? error : null);
