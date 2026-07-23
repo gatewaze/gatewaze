@@ -310,25 +310,16 @@ async function handler(req: Request) {
       authUserId = null
     }
 
-    // If no auth user from JWT token, look up by email. listUsers is paged —
-    // the bare call returns only the first 50 users, so past that point the
-    // lookup silently missed existing users and the createUser below 500'd
-    // with "already registered". Page through until found.
+    // No auth user from the JWT token: create one directly (the common case
+    // for admin invites / CSV imports is a brand-new email). We used to page
+    // the ENTIRE auth.users table first to find an existing user, but that
+    // scan is O(all users) and, as auth.users grew past ~100k, a new-email
+    // signup blew past the 150s edge idle-timeout (504 IDLE_TIMEOUT) — the
+    // person never got created. createUser fails fast when the email already
+    // exists, so we attempt it first and only page listUsers as a fallback to
+    // link the rare orphaned/unlinked auth user.
     if (!authUserId) {
-      console.log('No auth user from token, looking up by email...')
-      const target = email.toLowerCase()
-      for (let page = 1; page <= 200 && !authUserId; page++) {
-        const { data: { users }, error: listError } = await supabase.auth.admin.listUsers({ page, perPage: 1000 })
-        if (listError || !users?.length) break
-        authUserId = users.find(u => u.email?.toLowerCase() === target)?.id || null
-        if (users.length < 1000) break
-      }
-      console.log('Found auth user by email:', authUserId)
-    }
-
-    // If still no auth user, create one (for admin invites)
-    if (!authUserId) {
-      console.log('No auth user found, creating new auth user...')
+      console.log('No auth user from token, creating new auth user...')
       try {
         // Auto-confirm so GoTrue never sends its own "Confirm your email"
         // template. Subsequent signInWithOtp() calls hit the magic_link
@@ -341,20 +332,36 @@ async function handler(req: Request) {
           user_metadata: user_metadata
         })
 
-        if (createError || !newAuthUser.user) {
-          console.error('Failed to create auth user:', createError)
-          return new Response(JSON.stringify({
-            success: false,
-            error: createError?.message || 'Failed to create auth user',
-            message: 'Could not create user account'
-          }), {
-            status: 500,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          })
-        }
+        if (newAuthUser?.user) {
+          authUserId = newAuthUser.user.id
+          console.log('Created new auth user with ID:', authUserId)
+        } else {
+          // createUser failed — almost always because the email already has an
+          // auth user (createError message includes "already been registered").
+          // Fall back to paging listUsers to find and link it. Bounded and
+          // rare; a genuinely new email never reaches here.
+          console.log('createUser failed, looking up existing auth user by email:', createError?.message)
+          const target = email.toLowerCase()
+          for (let page = 1; page <= 200 && !authUserId; page++) {
+            const { data: { users }, error: listError } = await supabase.auth.admin.listUsers({ page, perPage: 1000 })
+            if (listError || !users?.length) break
+            authUserId = users.find(u => u.email?.toLowerCase() === target)?.id || null
+            if (users.length < 1000) break
+          }
+          console.log('Found existing auth user by email:', authUserId)
 
-        authUserId = newAuthUser.user.id
-        console.log('Created new auth user with ID:', authUserId)
+          if (!authUserId) {
+            console.error('Failed to create auth user:', createError)
+            return new Response(JSON.stringify({
+              success: false,
+              error: createError?.message || 'Failed to create auth user',
+              message: 'Could not create user account'
+            }), {
+              status: 500,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            })
+          }
+        }
       } catch (error) {
         console.error('Error creating auth user:', error)
         return new Response(JSON.stringify({
