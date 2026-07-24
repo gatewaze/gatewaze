@@ -82,3 +82,20 @@ export function computeIdentity(slug: string, sourceSlug: string): ModuleIdentit
 export function resolveDisplayId(identity: ModuleIdentity, isReserved: boolean): string {
   return isReserved ? identity.slug : identity.qualifiedId;
 }
+
+/**
+ * The route-namespace prefix for a module's routes + nav, given its resolvedId
+ * (spec-module-namespacing §5). Reserved modules (resolvedId is a bare slug, no
+ * '/') keep their vanity top-level; unreserved (resolvedId is `source/slug`,
+ * contains '/') are namespaced under `m/<resolvedId>` — but only when
+ * ROUTE_COMPOSER_MODE=namespaced-new. Returns '' (vanity/top-level) otherwise.
+ *
+ * This is the RUNTIME authority (uses the DB-resolved id) and must agree with
+ * the Vite plugin's build-time proxy (first-party ⇒ vanity); the nav↔route
+ * invariant guards the agreement.
+ */
+export function composeRouteBase(resolvedId: string, mode?: string): string {
+  const m = mode ?? process.env.ROUTE_COMPOSER_MODE ?? 'vanity-all';
+  const scoped = resolvedId.includes('/');
+  return m === 'namespaced-new' && scoped ? `m/${resolvedId}` : '';
+}

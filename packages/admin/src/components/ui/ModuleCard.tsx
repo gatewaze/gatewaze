@@ -29,6 +29,13 @@ export interface ModuleCardProps {
     updating: boolean;
     onUpdate: () => void;
   };
+  /**
+   * Namespacing status (spec-module-namespacing §4-5). Present + `scoped` when
+   * this module's bare name is reserved to another source, so it resolves to a
+   * source-scoped id and routes under /m/<qualifiedId> instead of the vanity
+   * top-level. Surfaced as a badge so the collision is visible, not silent.
+   */
+  namespace?: { scoped: boolean; qualifiedId?: string; routeBase?: string };
   children?: ReactNode;
 }
 
@@ -66,6 +73,7 @@ export function ModuleCard({
   onInfo,
   settingsHref,
   update,
+  namespace,
   children,
 }: ModuleCardProps) {
   const updatedLabel = lastModifiedAt ? formatRelative(lastModifiedAt) : '';
@@ -95,6 +103,14 @@ export function ModuleCard({
                 title={lastModifiedAt}
               >
                 {updatedLabel}
+              </span>
+            )}
+            {namespace?.scoped && (
+              <span
+                className="text-[10px] font-medium shrink-0 rounded px-1.5 py-0.5 bg-[var(--amber-a3)] text-[var(--amber-11)]"
+                title={`Bare name reserved elsewhere — this module is namespaced as ${namespace.qualifiedId ?? ''}${namespace.routeBase ? ` (routes under /${namespace.routeBase})` : ''}`}
+              >
+                namespaced
               </span>
             )}
           </div>
