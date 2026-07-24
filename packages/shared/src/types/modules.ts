@@ -691,6 +691,17 @@ export interface LoadedModule {
   /** Human-readable label for the source this module was loaded from. */
   sourceLabel?: string;
   /**
+   * Identity resolution (spec-module-namespacing §3-4). `slug` is the module's
+   * config.id; `sourceSlug` is a stable id for its source; `qualifiedId` is
+   * `${sourceSlug}/${slug}`. `resolvedId` (bare slug if reserved, else qualifiedId)
+   * is filled in by reconcile once the reservation table is consulted — the
+   * loader leaves it undefined (it has no DB access).
+   */
+  slug?: string;
+  sourceSlug?: string;
+  qualifiedId?: string;
+  resolvedId?: string;
+  /**
    * ISO timestamp of the most-recently-modified source file inside the
    * module directory (index.ts, migrations, admin/, portal/, api/, …).
    * Used by the admin UI to show "Updated <relative>" in place of the
@@ -712,6 +723,10 @@ export interface ModuleSourceRow {
 
 export interface InstalledModuleRow {
   id: string;
+  /** Identity (spec-module-namespacing §3-4). `id` is the immutable PK; these are additive. */
+  slug?: string | null;
+  qualified_id?: string | null;
+  resolved_id?: string | null;
   name: string;
   version: string;
   features: string[];
