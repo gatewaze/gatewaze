@@ -6,6 +6,7 @@ import { mkdirSync } from 'fs';
 import { liveModuleDir } from './module-paths';
 import { readLiveSnapshotHash } from './live-tree';
 import { computeModuleHashFromPath } from './module-hash';
+import { computeIdentity, deriveSourceSlug } from './identity';
 
 /** Subdirectories within a module that contribute to its "last modified" time. */
 const MTIME_DIRS = ['migrations', 'admin', 'portal', 'api', 'lib', 'workers', 'helm'];
@@ -160,14 +161,18 @@ export async function loadModules(
       let mod: Record<string, unknown> | undefined;
       let resolvedDir: string | undefined;
       let sourceLabel: string | undefined;
+      let sourceMountDir: string | undefined;
 
       // Figure out sourceLabel by scanning source dirs regardless of
       // where the code is loaded from; this preserves the Modules page
-      // tab behaviour even when serving from the live tree.
+      // tab behaviour even when serving from the live tree. We also capture
+      // the source *mount* dir here (stable `/…/<repo>/modules`) so identity's
+      // sourceSlug derives from the real repo, not the live-serving tree.
       for (const sourceDir of resolvedSources) {
         const indexTs = resolve(sourceDir, slug, 'index.ts');
         if (existsSync(indexTs)) {
           sourceLabel = sourceLabels.get(sourceDir);
+          sourceMountDir = sourceDir;
           break;
         }
       }
@@ -234,12 +239,23 @@ export async function loadModules(
         console.warn(`[modules] ${w.code}: ${w.message}`);
       }
 
+      // Deterministic identity (spec-module-namespacing §3-4). resolvedId needs
+      // the reservation table, so it's left to reconcile — here we compute the
+      // source-scoped parts only.
+      const identity = computeIdentity(
+        moduleExport.id,
+        deriveSourceSlug(sourceMountDir ?? resolvedDir, sourceLabel),
+      );
+
       modules.push({
         config: moduleExport,
         packageName,
         moduleConfig: config.moduleConfig?.[moduleExport.id] ?? {},
         resolvedDir,
         sourceLabel,
+        slug: identity.slug,
+        sourceSlug: identity.sourceSlug,
+        qualifiedId: identity.qualifiedId,
         lastModifiedAt: resolvedDir ? computeModuleLastModifiedAt(resolvedDir) : undefined,
       });
     } catch (err) {

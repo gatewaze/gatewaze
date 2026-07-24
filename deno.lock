@@ -1,0 +1,18 @@
+{
+  "version": "5",
+  "remote": {
+    "https://esm.sh/@supabase/supabase-js@2.57.4": "05a369085eb4a4c99d85ccece97f0cf1e05357122e0e74373da1f0e91b014902"
+  },
+  "workspace": {
+    "packageJson": {
+      "dependencies": [
+        "npm:@pdf-lib/fontkit@^1.1.1",
+        "npm:@playwright/test@^1.58.2",
+        "npm:husky@^9.1.7",
+        "npm:lint-staged@^15.5.0",
+        "npm:pdf-lib@^1.17.1",
+        "npm:vitest@^4.1.0"
+      ]
+    }
+  }
+}

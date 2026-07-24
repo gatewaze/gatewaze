@@ -394,7 +394,110 @@ export async function reconcileModules(
     }
   }
 
+  // Phase 0/1 (spec-module-namespacing): resolve + persist source-scoped
+  // identity onto each row, seeding the reservation registry exactly once
+  // (grandfathering the current set). Best-effort — never fails reconcile.
+  try {
+    await syncModuleIdentity(loaded, supabase);
+  } catch (err) {
+    console.warn('[modules] identity sync skipped:', err instanceof Error ? err.message : String(err));
+  }
+
   return summary;
+}
+
+/** Top-level route slugs a module claims (from its nav items + non-admin routes). */
+function topRouteSlugs(mod: LoadedModule): string[] {
+  const out = new Set<string>();
+  const push = (p?: string) => {
+    if (!p) return;
+    const seg = p.replace(/^\/+/, '').split('/')[0];
+    if (seg) out.add(seg);
+  };
+  for (const n of mod.config.adminNavItems ?? []) push(n.path);
+  for (const r of mod.config.adminRoutes ?? []) {
+    if ((r as { guard?: string }).guard !== 'admin') push(r.path);
+  }
+  return [...out];
+}
+
+/**
+ * Resolve + persist module identity (slug / qualified_id / resolved_id).
+ *
+ * On the first run after migration 00046 (marker false) it grandfathers the
+ * current set: every discovered module's bare slug + top routes are reserved to
+ * its own source, so nothing changes identity. Thereafter new/duplicate installs
+ * that don't hold a reservation resolve to their scoped `qualifiedId`.
+ * `installed_modules.id` (the PK/FK target) is never touched — only the additive
+ * identity columns.
+ */
+async function syncModuleIdentity(
+  loaded: LoadedModule[],
+  supabase: SupabaseClient,
+): Promise<void> {
+  // 1. One-time grandfather seed of the reservation registry.
+  const { data: marker } = await supabase
+    .from('platform_settings')
+    .select('value')
+    .eq('key', 'module_reservations_seeded')
+    .maybeSingle();
+
+  if (marker && marker.value !== 'true') {
+    const rows: { kind: string; name: string; owner_source: string }[] = [];
+    for (const mod of loaded) {
+      const slug = mod.slug ?? mod.config.id;
+      const src = mod.sourceSlug ?? 'bundled';
+      rows.push({ kind: 'module_id', name: slug, owner_source: src });
+      for (const r of topRouteSlugs(mod)) rows.push({ kind: 'route', name: r, owner_source: src });
+    }
+    if (rows.length > 0) {
+      // Dedup within the batch (two modules could claim the same route slug);
+      // ignoreDuplicates keeps the first claimant, matching runtime resolution.
+      const seen = new Set<string>();
+      const deduped = rows.filter((r) => {
+        const k = `${r.kind}:${r.name}`;
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      });
+      await supabase
+        .from('module_reserved_names')
+        .upsert(deduped, { onConflict: 'kind,name', ignoreDuplicates: true });
+    }
+    await supabase
+      .from('platform_settings')
+      .update({ value: 'true', updated_at: new Date().toISOString() })
+      .eq('key', 'module_reservations_seeded');
+    console.log(`[modules] Seeded module-name reservations (grandfathered ${loaded.length} module(s))`);
+  }
+
+  // 2. Load module-id reservations, then resolve + persist identity per module.
+  const { data: reserved } = await supabase
+    .from('module_reserved_names')
+    .select('name,owner_source')
+    .eq('kind', 'module_id');
+  const reservedOwner = new Map<string, string | null>();
+  for (const r of reserved ?? []) {
+    reservedOwner.set(r.name as string, ((r.owner_source as string) ?? null));
+  }
+
+  for (const mod of loaded) {
+    const slug = mod.slug ?? mod.config.id;
+    const sourceSlug = mod.sourceSlug ?? 'bundled';
+    const qualifiedId = mod.qualifiedId ?? `${sourceSlug}/${slug}`;
+    // Reserved iff a module_id reservation exists for this slug AND its owner
+    // is this module's source (null owner = legacy/any). Else scoped.
+    const owner = reservedOwner.has(slug) ? reservedOwner.get(slug) : undefined;
+    const isReserved = owner !== undefined && (owner === null || owner === sourceSlug);
+    const resolvedId = isReserved ? slug : qualifiedId;
+    const { error: updErr } = await supabase
+      .from('installed_modules')
+      .update({ slug, qualified_id: qualifiedId, resolved_id: resolvedId })
+      .eq('id', mod.config.id);
+    if (updErr) {
+      console.warn(`[modules] identity update failed for "${mod.config.id}":`, updErr.message ?? updErr);
+    }
+  }
 }
 
 /**
