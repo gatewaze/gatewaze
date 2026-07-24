@@ -8,6 +8,46 @@ const VIRTUAL_MODULE_ID = 'virtual:gatewaze-modules';
 const RESOLVED_ID = '\0' + VIRTUAL_MODULE_ID;
 
 /**
+ * Build-time module identity for route/slot composition
+ * (spec-module-namespacing §5). Mirrors the shared loader's rules but runs in
+ * the Vite build with only filesystem knowledge — no DB. `firstParty` (module
+ * from a core source) is the build-time proxy for "reserved": first-party keep
+ * their vanity top-level route, everyone else is namespaced under
+ * `/m/<qualifiedId>`. Gated by ROUTE_COMPOSER_MODE (default `vanity-all` = no
+ * change). The DB reservation table remains the runtime authority for notices.
+ */
+const FIRST_PARTY_SOURCES = (
+  process.env.MODULE_FIRST_PARTY_SOURCES || 'gatewaze-modules,lf-gatewaze-modules'
+)
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+function pluginKebab(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'unknown';
+}
+
+interface BuildIdentity {
+  sourceSlug: string;
+  qualifiedId: string;
+  firstParty: boolean;
+  /** '' = vanity top-level; else the composed namespace prefix e.g. 'm/acme-modules/foo'. */
+  routeBase: string;
+}
+
+function pluginModuleIdentity(moduleId: string, importPath: string): BuildIdentity {
+  const slug = moduleId.split('/').pop() || moduleId;
+  const parts = importPath.split('/').filter(Boolean);
+  const mi = parts.lastIndexOf('modules');
+  const sourceSlug = mi > 0 ? pluginKebab(parts[mi - 1]) : 'bundled';
+  const qualifiedId = `${sourceSlug}/${slug}`;
+  const firstParty = FIRST_PARTY_SOURCES.includes(sourceSlug);
+  const mode = process.env.ROUTE_COMPOSER_MODE || 'vanity-all';
+  const routeBase = mode === 'namespaced-new' && !firstParty ? `m/${qualifiedId}` : '';
+  return { sourceSlug, qualifiedId, firstParty, routeBase };
+}
+
+/**
  * Every package admin has as a direct dependency — these are always
  * handed back to Vite (return undefined from resolveId) rather than
  * pre-resolved to an absolute filesystem path. Vite pre-bundles these
@@ -376,6 +416,7 @@ export function gatewazeModulesPlugin(): Plugin {
         const refs: string[] = [];
         const adminBootRefs: string[] = [];
         const cssImports: string[] = [];
+        const metaAssignments: string[] = [];
 
         for (let i = 0; i < moduleIds.length; i++) {
           const moduleId = moduleIds[i];
@@ -383,6 +424,15 @@ export function gatewazeModulesPlugin(): Plugin {
           if (importPath) {
             imports.push(`import mod${i} from '${importPath}';`);
             refs.push(`mod${i}`);
+            // Build-time identity (spec-module-namespacing §5). The plugin has
+            // source knowledge here (which repo each module came from), so it
+            // composes the route base without any client/DB dependency. The DB
+            // reservation table is the runtime authority for notices; this is
+            // the build-time proxy (first-party source ⇒ vanity, else scoped).
+            const bid = pluginModuleIdentity(moduleId, importPath);
+            metaAssignments.push(
+              `mod${i}.__identity = ${JSON.stringify(bid)};`,
+            );
             // If the module also ships `admin/index.ts` (or .tsx/.js),
             // side-effect-import it. Modules use this to register
             // contributions into shared admin-side registries (e.g.
@@ -464,6 +514,7 @@ export function gatewazeModulesPlugin(): Plugin {
           ...imports,
           ...cssImports,
           ...guideAssignments,
+          ...metaAssignments,
           ...adminBootPin,
           `export default [${refs.join(', ')}];`,
           // Accept HMR updates silently. Without this, any filesystem event
