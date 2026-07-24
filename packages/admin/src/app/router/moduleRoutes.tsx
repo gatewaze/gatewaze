@@ -65,12 +65,24 @@ function collectRoutes(guardFilter: string | undefined): RouteObject[] {
   for (const mod of modules) {
     if (!mod.adminRoutes) continue;
 
+    // Build-time route namespace (spec-module-namespacing §5). Unreserved
+    // (non-first-party) modules are composed under `/m/<qualifiedId>` when
+    // ROUTE_COMPOSER_MODE=namespaced-new; first-party keep their vanity paths.
+    // routeBase is '' in the default `vanity-all` mode → no change.
+    const routeBase = (mod as { __identity?: { routeBase?: string } }).__identity?.routeBase ?? '';
+
     for (const route of mod.adminRoutes) {
       const guard = (route as { guard?: string }).guard;
       const effectiveGuard = guard === 'none' ? undefined : guard;
       if (effectiveGuard !== guardFilter) continue;
 
-      const routeObj = buildRouteObject(route as any);
+      // Only top-level (non-admin) routes are namespaced; guard:'admin' routes
+      // keep nesting under /admin as before.
+      const composed = routeBase && effectiveGuard !== 'admin'
+        ? { ...route, path: `${routeBase}/${route.path.replace(/^\//, '')}` }
+        : route;
+
+      const routeObj = buildRouteObject(composed as any);
       const topPath = routeObj.path!;
 
       // Merge children if we already have a route for this top-level path

@@ -9,7 +9,18 @@ import type { SlotRegistration } from '@gatewaze/shared/modules';
 export interface ResolvedSlot {
   moduleId: string;
   registration: SlotRegistration;
+  /**
+   * Collision-safe contribution id `<moduleId>:<localId>` (spec-module-namespacing
+   * §6.2). Two modules contributing the same `tabId` get distinct scopedIds, so
+   * hosts should key on this instead of moduleId/tabId alone.
+   */
+  scopedId: string;
+  /** Order after band-clamping (§6.3): first-party keep their number; others are floored into the community band (≥500). */
+  effectiveOrder: number;
 }
+
+/** Community band floor (spec-module-namespacing §6.3): core 0–99, first-party 100–499, community ≥500. */
+const COMMUNITY_BAND = 500;
 
 /**
  * Pre-auth override for enablement gating. The modules context only has data
@@ -48,15 +59,28 @@ export function useModuleSlots(slotName: string, override?: ModuleEnablementOver
     for (const mod of modules) {
       if (!mod.adminSlots || !isModuleEnabled(mod.id)) continue;
 
+      const firstParty = (mod as { __identity?: { firstParty?: boolean } }).__identity?.firstParty ?? true;
+
       for (const reg of mod.adminSlots) {
         if (reg.slotName !== slotName) continue;
         if (reg.requiredFeature && !isFeatureEnabled(reg.requiredFeature)) continue;
 
-        result.push({ moduleId: mod.id, registration: reg });
+        const localId = (reg.meta as { tabId?: string } | undefined)?.tabId ?? reg.slotName;
+        const rawOrder = reg.order ?? 100;
+        // Clamp out-of-band community orders so first-party contributions stay
+        // ahead regardless of author-chosen numbers (§6.3). First-party keep theirs.
+        const effectiveOrder = firstParty ? rawOrder : Math.max(COMMUNITY_BAND, rawOrder);
+
+        result.push({
+          moduleId: mod.id,
+          registration: reg,
+          scopedId: `${mod.id}:${localId}`,
+          effectiveOrder,
+        });
       }
     }
 
-    result.sort((a, b) => (a.registration.order ?? 100) - (b.registration.order ?? 100));
+    result.sort((a, b) => a.effectiveOrder - b.effectiveOrder);
     return result;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slotName, ctx.isModuleEnabled, ctx.isFeatureEnabled, idsKey, featKey]);
