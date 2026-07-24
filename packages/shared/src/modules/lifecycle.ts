@@ -437,11 +437,11 @@ async function syncModuleIdentity(
   supabase: SupabaseClient,
 ): Promise<void> {
   // 1. One-time grandfather seed of the reservation registry.
-  const { data: marker } = await supabase
+  const markerRes = await supabase
     .from('platform_settings')
     .select('value')
-    .eq('key', 'module_reservations_seeded')
-    .maybeSingle();
+    .eq('key', 'module_reservations_seeded');
+  const marker = markerRes.data?.[0];
 
   if (marker && marker.value !== 'true') {
     const rows: { kind: string; name: string; owner_source: string }[] = [];
@@ -453,7 +453,9 @@ async function syncModuleIdentity(
     }
     if (rows.length > 0) {
       // Dedup within the batch (two modules could claim the same route slug);
-      // ignoreDuplicates keeps the first claimant, matching runtime resolution.
+      // keep the first claimant, matching runtime resolution. This seed is
+      // marker-gated + runs against an empty table, so a plain insert is safe
+      // (no ON CONFLICT needed — the shim doesn't model ignoreDuplicates).
       const seen = new Set<string>();
       const deduped = rows.filter((r) => {
         const k = `${r.kind}:${r.name}`;
@@ -461,9 +463,7 @@ async function syncModuleIdentity(
         seen.add(k);
         return true;
       });
-      await supabase
-        .from('module_reserved_names')
-        .upsert(deduped, { onConflict: 'kind,name', ignoreDuplicates: true });
+      await supabase.from('module_reserved_names').insert(deduped);
     }
     await supabase
       .from('platform_settings')
@@ -511,7 +511,7 @@ async function syncModuleIdentity(
       .update(update)
       .eq('id', mod.config.id);
     if (updErr) {
-      console.warn(`[modules] identity update failed for "${mod.config.id}":`, updErr.message ?? updErr);
+      console.warn(`[modules] identity update failed for "${mod.config.id}":`, (updErr as { message?: string })?.message ?? updErr);
     }
   }
 }
