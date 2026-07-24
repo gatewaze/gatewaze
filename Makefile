@@ -17,6 +17,16 @@
 ENV_FILE      := docker/.env
 TRAEFIK_FILE  := -f docker/docker-compose.traefik.yml
 
+# Docker context pin. All Gatewaze/AAIF containers run on the `desktop-linux`
+# context on this machine; the shell's default context (`orbstack`) hosts a
+# separate LFX/k8s stack that collides on host ports (54332, 80). Exporting it
+# here means every `docker`/`docker compose` invocation in `make up`/`down`/etc
+# targets the right VM regardless of the shell default — fixing the class of bug
+# where `make up` silently spins up a duplicate stack on the wrong context.
+# `?=` keeps it overridable: `DOCKER_CONTEXT=other make up`, or set it in your
+# shell/CI. Machine-specific — change the default if your context isn't desktop-linux.
+export DOCKER_CONTEXT ?= desktop-linux
+
 # Detect Supabase mode from the env file
 SUPABASE_MODE := $(shell grep -E '^SUPABASE_MODE=' "$(ENV_FILE)" 2>/dev/null | head -1 | cut -d= -f2-)
 

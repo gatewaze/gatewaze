@@ -955,15 +955,21 @@ function parseConfig(configPath: string): {
     if (sourcesMatch) {
       let sourcesBody = sourcesMatch[1];
 
-      // Parse object-style entries first: { url: '...', path: '...', branch: '...' }
-      const objMatches = sourcesBody.matchAll(
-        /\{\s*url\s*:\s*['"]([^'"]+)['"]\s*(?:,\s*path\s*:\s*['"]([^'"]+)['"])?\s*(?:,\s*branch\s*:\s*['"]([^'"]+)['"])?\s*\}/g
-      );
+      // Parse object-style entries: { url: '...', ... } with any additional
+      // keys (label, token, path, branch) in any order. Extract each field BY
+      // NAME rather than positionally — the previous fixed-order regex required
+      // the object to end right after url/path/branch, so an unrecognised key
+      // like `label` (which the shipped `{…, label: 'Free'}` entry has) made the
+      // whole entry silently fail to match and get dropped.
+      const objMatches = sourcesBody.matchAll(/\{([^}]*)\}/g);
       for (const m of objMatches) {
+        const body = m[1];
+        const url = body.match(/\burl\s*:\s*['"]([^'"]+)['"]/)?.[1];
+        if (!url) continue;
         sources.push({
-          url: m[1],
-          path: m[2] || undefined,
-          branch: m[3] || undefined,
+          url,
+          path: body.match(/\bpath\s*:\s*['"]([^'"]+)['"]/)?.[1] || undefined,
+          branch: body.match(/\bbranch\s*:\s*['"]([^'"]+)['"]/)?.[1] || undefined,
         });
       }
 
