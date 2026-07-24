@@ -61,6 +61,11 @@ function buildRouteObject(route: {
 
 function collectRoutes(guardFilter: string | undefined): RouteObject[] {
   const topLevel = new Map<string, RouteObject>();
+  // nav↔route invariant #2 (spec §5.3): two DIFFERENT modules must not resolve
+  // to the same composed route. Warn (never throw at runtime — a throw would
+  // break the whole admin; `enforce` is a CI concern). Reserved wins is handled
+  // upstream by composition; here we surface any residual collision loudly.
+  const claimedBy = new Map<string, string>();
 
   for (const mod of modules) {
     if (!mod.adminRoutes) continue;
@@ -81,6 +86,20 @@ function collectRoutes(guardFilter: string | undefined): RouteObject[] {
       const composed = routeBase && effectiveGuard !== 'admin'
         ? { ...route, path: `${routeBase}/${route.path.replace(/^\//, '')}` }
         : route;
+
+      // Invariant #2: flag cross-module collisions on the same composed path.
+      const fullPath = composed.path.replace(/^\//, '');
+      const priorOwner = claimedBy.get(fullPath);
+      const modId = (mod as { id?: string }).id ?? '(unknown)';
+      if (priorOwner && priorOwner !== modId) {
+         
+        console.warn(
+          `[modules] ROUTE_COLLISION: "${fullPath}" is claimed by both "${priorOwner}" and "${modId}". ` +
+          `Namespace one of them (spec-module-namespacing §5). Rendering the first-registered.`,
+        );
+      } else {
+        claimedBy.set(fullPath, modId);
+      }
 
       const routeObj = buildRouteObject(composed as any);
       const topPath = routeObj.path!;

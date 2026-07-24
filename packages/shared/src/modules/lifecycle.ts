@@ -2,6 +2,7 @@ import type { LoadedModule, InstalledModuleRow, ModuleSource } from '../types/mo
 import type { SupabaseClient } from './supabase-types';
 import { applyModuleMigrations } from './migrations';
 import { isNewerVersion } from './semver';
+import { composeRouteBase } from './identity';
 
 /**
  * Detect circular dependencies in the module graph.
@@ -490,9 +491,24 @@ async function syncModuleIdentity(
     const owner = reservedOwner.has(slug) ? reservedOwner.get(slug) : undefined;
     const isReserved = owner !== undefined && (owner === null || owner === sourceSlug);
     const resolvedId = isReserved ? slug : qualifiedId;
+
+    const update: Record<string, unknown> = { slug, qualified_id: qualifiedId, resolved_id: resolvedId };
+
+    // namespaced-new: keep admin_nav paths in lock-step with the composed
+    // routes (spec §5) so nav links resolve. Only touch admin_nav when the
+    // module is actually namespaced (routeBase non-empty) — reserved/vanity
+    // modules keep the admin_nav the reconcile branches already wrote.
+    const routeBase = composeRouteBase(resolvedId);
+    if (routeBase && Array.isArray(mod.config.adminNavItems)) {
+      update.admin_nav = mod.config.adminNavItems.map((n) => ({
+        ...n,
+        path: `/${routeBase}/${String(n.path ?? '').replace(/^\/+/, '')}`,
+      }));
+    }
+
     const { error: updErr } = await supabase
       .from('installed_modules')
-      .update({ slug, qualified_id: qualifiedId, resolved_id: resolvedId })
+      .update(update)
       .eq('id', mod.config.id);
     if (updErr) {
       console.warn(`[modules] identity update failed for "${mod.config.id}":`, updErr.message ?? updErr);

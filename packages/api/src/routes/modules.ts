@@ -47,6 +47,15 @@ const PROJECT_ROOT = resolve(import.meta.dirname ?? __dirname, '../../../..');
 const UPLOAD_DIR = resolve(PROJECT_ROOT, 'data/uploaded-modules');
 
 const MAX_UPLOAD_SIZE = 50 * 1024 * 1024; // 50MB
+
+/**
+ * First-party sources (spec-module-namespacing §5): the build-time proxy for
+ * "reserved" — modules from these sources keep their vanity top-level route.
+ * Mirrors the Vite plugin's default; overridable via env for parity.
+ */
+const FIRST_PARTY_SOURCES = (
+  process.env.MODULE_FIRST_PARTY_SOURCES || 'gatewaze-modules,lf-gatewaze-modules'
+).split(',').map((s) => s.trim()).filter(Boolean);
 const upload = multer({
   dest: resolve(PROJECT_ROOT, 'data/.tmp-uploads'),
   limits: { fileSize: MAX_UPLOAD_SIZE },
@@ -1406,8 +1415,20 @@ modulesRouter.get('/available', async (_req, res) => {
       }
       // NOTE: intentionally excludes resolvedDir / rootPath to avoid
       // leaking absolute filesystem paths in the API response.
+      // Identity (spec-module-namespacing §3-4). resolvedId is DB-owned
+      // (persisted by reconcile) so the UI joins it from installed_modules;
+      // here we surface the loader's deterministic slug/sourceSlug/qualifiedId
+      // and a routeBase PREVIEW using the first-party proxy (available modules
+      // predate the DB reservation lookup, so we can't use resolvedId here).
+      const firstParty = FIRST_PARTY_SOURCES.includes(m.sourceSlug ?? '');
+      const namespaced = (process.env.ROUTE_COMPOSER_MODE ?? 'vanity-all') === 'namespaced-new' && !firstParty;
+      const routeBase = namespaced && m.qualifiedId ? `m/${m.qualifiedId}` : '';
       return {
         id: m.config.id,
+        slug: m.slug ?? m.config.id,
+        sourceSlug: m.sourceSlug,
+        qualifiedId: m.qualifiedId,
+        routeBase,
         name: m.config.name,
         description: m.config.description,
         version: m.config.version,
