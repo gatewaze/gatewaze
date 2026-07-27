@@ -56,7 +56,7 @@ export const admin: NavigationTree = {
       id: "admin.api_keys",
       path: "/admin/api-keys",
       type: "item",
-      title: "API Keys",
+      title: "API & MCP Access",
       icon: "Key",
       requiredFeature: "settings",
     },
