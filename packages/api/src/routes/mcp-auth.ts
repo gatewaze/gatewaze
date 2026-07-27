@@ -47,8 +47,18 @@ async function redis() {
 
 // ── Login-mode resolution (pluggable per spec §3) ─────────────────────────
 
-interface LfidConfig { domain: string; clientId: string; clientSecret: string }
+interface LfidConfig { startUrl: string }
 
+/**
+ * LFID mode rides the lfid-auth module's EXISTING sign-in flow (the
+ * integrations-lfid-callback edge function): its callback URL is already
+ * registered in the LF Auth0 application, so no Auth0 tenant changes are
+ * needed. The function validates our return_url origin against the
+ * module's AUTH0_ALLOWED_RETURN_ORIGINS (self-service in admin
+ * Integrations settings) and hands the Supabase session back in the URL
+ * fragment; provisioning (auth user + canonical person reconciliation)
+ * happens inside that function — the platform's single LFID path.
+ */
 async function lfidConfig(): Promise<LfidConfig | null> {
   const { data } = await getSupabase()
     .from('installed_modules')
@@ -57,8 +67,10 @@ async function lfidConfig(): Promise<LfidConfig | null> {
     .maybeSingle();
   if (!data || data.status !== 'enabled') return null;
   const cfg = (data.config ?? {}) as Record<string, string>;
-  if (!cfg.AUTH0_DOMAIN || !cfg.AUTH0_CLIENT_ID || !cfg.AUTH0_CLIENT_SECRET) return null;
-  return { domain: cfg.AUTH0_DOMAIN, clientId: cfg.AUTH0_CLIENT_ID, clientSecret: cfg.AUTH0_CLIENT_SECRET };
+  if (!cfg.AUTH0_DOMAIN || !cfg.AUTH0_CLIENT_ID) return null;
+  const supabasePublic = (process.env.SUPABASE_PUBLIC_URL ?? '').replace(/\/+$/, '');
+  if (!supabasePublic) return null;
+  return { startUrl: `${supabasePublic}/functions/v1/integrations-lfid-callback` };
 }
 
 // ── Client resolution: CIMD primary, DCR fallback ─────────────────────────
@@ -157,13 +169,9 @@ mcpAuthRouter.get('/api/mcp-auth/authorize', async (req, res) => {
 
     const lfid = await lfidConfig();
     if (lfid) {
-      const cb = `${apiBase()}/api/mcp-auth/callback`;
-      const url = new URL(`https://${lfid.domain}/authorize`);
-      url.searchParams.set('response_type', 'code');
-      url.searchParams.set('client_id', lfid.clientId);
-      url.searchParams.set('redirect_uri', cb);
-      url.searchParams.set('scope', 'openid profile email');
-      url.searchParams.set('state', reqId);
+      const url = new URL(lfid.startUrl);
+      url.searchParams.set('action', 'start');
+      url.searchParams.set('return_url', `${apiBase()}/api/mcp-auth/lfid-return?req_id=${encodeURIComponent(reqId)}`);
       return res.redirect(url.toString());
     }
 
@@ -176,55 +184,73 @@ mcpAuthRouter.get('/api/mcp-auth/authorize', async (req, res) => {
   }
 });
 
-// ── LFID (Auth0) callback ─────────────────────────────────────────────────
+// ── LFID return (rides the lfid-auth module's sign-in flow) ───────────────
+//
+// The module's edge function 302s here with the Supabase session in the URL
+// FRAGMENT (never sent to servers), so this route serves a minimal bridge
+// page whose script forwards the access token to /lfid-complete and then
+// navigates to the client's redirect URI.
 
-mcpAuthRouter.get('/api/mcp-auth/callback', async (req, res) => {
+mcpAuthRouter.get('/api/mcp-auth/lfid-return', (req, res) => {
+  const reqId = String(req.query.req_id ?? '');
+  if (!/^[A-Za-z0-9_-]{16,64}$/.test(reqId)) return res.status(400).send('bad request');
+  res.setHeader('content-type', 'text/html; charset=utf-8');
+  res.send(pageShell('Completing sign-in', `
+<h1>Completing sign-in…</h1>
+<p>One moment.</p>
+<script>
+(async () => {
+  const params = new URLSearchParams(window.location.hash.slice(1));
+  const token = params.get('access_token');
+  history.replaceState(null, '', window.location.pathname); // scrub the fragment
+  if (!token) { document.querySelector('p').textContent = 'Sign-in failed: no session returned.'; return; }
   try {
-    const { code, state } = req.query as Record<string, string>;
-    if (!code || !state) return res.status(400).send('missing code/state');
-    const r = await redis();
-    const rawReq = await r.get(`mcp:authreq:${state}`);
-    if (!rawReq) return res.status(400).send('authorization request expired — retry from your client');
-    const authreq = JSON.parse(rawReq) as { clientId: string; clientName: string; redirectUri: string; state: string | null; codeChallenge: string };
-
-    const lfid = await lfidConfig();
-    if (!lfid) return res.status(409).send('LFID module no longer enabled');
-
-    const tokenRes = await fetch(`https://${lfid.domain}/oauth/token`, {
+    const r = await fetch('/api/mcp-auth/lfid-complete', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        grant_type: 'authorization_code',
-        client_id: lfid.clientId,
-        client_secret: lfid.clientSecret,
-        code,
-        redirect_uri: `${apiBase()}/api/mcp-auth/callback`,
-      }),
+      body: JSON.stringify({ req_id: ${JSON.stringify(reqId)}, access_token: token }),
     });
-    if (!tokenRes.ok) {
-      logger.error({ status: tokenRes.status }, '[mcp-auth] Auth0 code exchange failed');
-      return res.status(502).send('identity provider error');
-    }
-    const tokens = (await tokenRes.json()) as { id_token: string };
-    // The id_token arrives over the direct TLS channel from Auth0's token
-    // endpoint in exchange for the one-time code — decode is sufficient here.
-    const payload = JSON.parse(Buffer.from(tokens.id_token.split('.')[1]!, 'base64url').toString()) as {
-      sub: string; email?: string; email_verified?: boolean; name?: string;
-    };
-    if (!payload.email || payload.email_verified !== true) {
-      return res.status(403).send('LFID account has no verified email');
-    }
+    const body = await r.json();
+    if (r.ok && body.redirect) { window.location.replace(body.redirect); return; }
+    document.querySelector('p').textContent = 'Sign-in failed: ' + (body.error_description || body.error || r.status);
+  } catch (e) {
+    document.querySelector('p').textContent = 'Sign-in failed: ' + e;
+  }
+})();
+</script>`));
+});
 
-    await completeLogin(res, authreq, state, {
-      email: payload.email,
-      subject: payload.sub,
+mcpAuthRouter.post('/api/mcp-auth/lfid-complete', async (req, res) => {
+  try {
+    const { req_id: reqId, access_token: accessToken } = (req.body ?? {}) as { req_id?: string; access_token?: string };
+    if (!reqId || !accessToken) return res.status(400).json({ error: 'invalid_request' });
+    const rawReq = await (await redis()).get(`mcp:authreq:${reqId}`);
+    if (!rawReq) return res.status(400).json({ error: 'expired', error_description: 'authorization request expired — retry from your client' });
+    const authreq = JSON.parse(rawReq) as { clientId: string; clientName: string; redirectUri: string; state: string | null; codeChallenge: string };
+
+    // Validate the Supabase session the module minted. This is a REAL
+    // verified session (the module already verified the Auth0 id_token and
+    // provisioned auth user + person), so getUser() is the trust anchor.
+    const supabase = getSupabase();
+    const who = await supabase.auth.getUser(accessToken);
+    const user = who.data.user;
+    if (who.error || !user?.email) {
+      return res.status(401).json({ error: 'invalid_token', error_description: 'session not accepted' });
+    }
+    const lfidSub = (user.user_metadata as Record<string, unknown> | null)?.lfid_sub as string | undefined;
+
+    const redirect = await completeLoginRedirect(authreq, reqId, {
+      email: user.email,
+      subject: lfidSub ?? user.id,
       authMode: 'lfid',
-      lfidSub: payload.sub,
-      displayName: payload.name,
+      lfidSub,
+      authUserId: user.id,
+      displayName: (user.user_metadata as Record<string, unknown> | null)?.full_name as string | undefined,
     });
+    res.json({ redirect });
   } catch (err) {
-    logger.error({ err }, '[mcp-auth] callback failed');
-    res.status(500).send('authorization error');
+    logger.error({ err }, '[mcp-auth] lfid-complete failed');
+    res.status(500).json({ error: 'server_error' });
   }
 });
 
@@ -301,6 +327,14 @@ async function completeLogin(
   reqId: string,
   identity: { email: string; subject: string; authMode: 'lfid' | 'magic_link'; lfidSub?: string; authUserId?: string; displayName?: string },
 ): Promise<void> {
+  res.redirect(await completeLoginRedirect(authreq, reqId, identity));
+}
+
+async function completeLoginRedirect(
+  authreq: { clientId: string; clientName: string; redirectUri: string; state: string | null; codeChallenge: string },
+  reqId: string,
+  identity: { email: string; subject: string; authMode: 'lfid' | 'magic_link'; lfidSub?: string; authUserId?: string; displayName?: string },
+): Promise<string> {
   const supabase = getSupabase();
   const provisioned = await ensureAuthAndPerson(supabase, {
     email: identity.email,
@@ -318,7 +352,7 @@ async function completeLogin(
     redirectUri: authreq.redirectUri,
     codeChallenge: authreq.codeChallenge,
     personId: provisioned.personId,
-    subject: identity.authMode === 'lfid' ? identity.lfidSub! : provisioned.authUserId,
+    subject: identity.subject,
     email: identity.email.toLowerCase(),
     authMode: identity.authMode,
     scopes: access.scopes,
@@ -330,7 +364,7 @@ async function completeLogin(
   target.searchParams.set('code', grantCode);
   if (authreq.state) target.searchParams.set('state', authreq.state);
   target.searchParams.set('iss', apiBase());
-  res.redirect(target.toString());
+  return target.toString();
 }
 
 // ── /token — authorization_code + refresh_token grants ────────────────────
