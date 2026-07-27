@@ -158,10 +158,33 @@ async function main() {
       }
       // RFC 9728 Protected Resource Metadata — how clients discover the
       // authorization server for this endpoint (spec-mcp-lfid-access.md §3).
+      // Served for both resources: the optional-auth root and the
+      // auth-REQUIRED /auth alias (RFC 9728 path-suffix form).
       if (req.method === 'GET' && req.url?.startsWith('/.well-known/oauth-protected-resource')) {
+        const meta = protectedResourceMetadata();
+        if (req.url.startsWith('/.well-known/oauth-protected-resource/auth')) {
+          meta.resource = `${meta.resource}/auth`;
+        }
         res.writeHead(200, { 'content-type': 'application/json' });
-        res.end(JSON.stringify(protectedResourceMetadata()));
+        res.end(JSON.stringify(meta));
         return;
+      }
+      // /auth alias: identical server, but authentication is REQUIRED.
+      // Rationale: on the optional-auth root, clients connect anonymously
+      // and never launch their OAuth flow (they only do so on a 401
+      // challenge). Users who want to sign in add the /auth URL instead.
+      const isAuthPath = req.url === '/auth' || req.url?.startsWith('/auth?') || req.url?.startsWith('/auth/');
+      if (isAuthPath) {
+        if (!req.headers.authorization) {
+          res.writeHead(401, {
+            'content-type': 'application/json',
+            'WWW-Authenticate': wwwAuthenticateChallenge(),
+          });
+          res.end(JSON.stringify({ error: 'unauthorized', error_description: 'authentication required on this endpoint — complete the OAuth flow' }));
+          return;
+        }
+        // Strip the alias prefix so the transport sees its normal paths.
+        req.url = (req.url ?? '').slice('/auth'.length) || '/';
       }
       // A PRESENT-but-invalid token must 401 with a challenge rather than
       // silently downgrade to anonymous (token expiry → client refreshes).

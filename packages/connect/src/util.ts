@@ -1,7 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-export const DEFAULT_SERVER_URL = 'https://mcp.aaif.live/';
+// /auth = the authentication-REQUIRED alias: clients only launch their
+// OAuth sign-in on a 401 challenge, and the connector's purpose is
+// signed-in (tiered) access. Pass --server .../ for anonymous read-only.
+export const DEFAULT_SERVER_URL = 'https://mcp.aaif.live/auth';
 
 /**
  * Derive a short connector name from the server URL's hostname.
