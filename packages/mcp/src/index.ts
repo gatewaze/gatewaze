@@ -156,6 +156,24 @@ async function main() {
         res.end('ok');
         return;
       }
+      // Brand identity for installers: @gatewaze/connect names the
+      // connector from here (GATEWAZE_CONNECTOR_NAME, e.g. "AAIF")
+      // instead of deriving it from the hostname.
+      if (req.method === 'GET' && (req.url === '/brand.json' || req.url === '/brand')) {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            brand_id: process.env.GATEWAZE_BRAND_ID ?? null,
+            brand_name: process.env.GATEWAZE_BRAND_NAME ?? null,
+            connector_name:
+              process.env.GATEWAZE_CONNECTOR_NAME ||
+              process.env.GATEWAZE_BRAND_ID ||
+              'gatewaze',
+            portal_url: process.env.GATEWAZE_PORTAL_URL ?? null,
+          }),
+        );
+        return;
+      }
       // RFC 9728 Protected Resource Metadata — how clients discover the
       // authorization server for this endpoint (spec-mcp-lfid-access.md §3).
       // Served for both resources: the optional-auth root and the

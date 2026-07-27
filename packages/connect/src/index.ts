@@ -2,7 +2,7 @@
 import { parseArgs } from 'node:util';
 import type { ApplyResult, ClientId, DetectedClient } from './types.js';
 import { CLIENT_IDS } from './types.js';
-import { DEFAULT_SERVER_URL, deriveName, validateServerUrl } from './util.js';
+import { DEFAULT_SERVER_URL, deriveName, fetchConnectorName, validateServerUrl } from './util.js';
 import { detectClients } from './detect.js';
 import { confirm, selectClients } from './prompt.js';
 import { applyClaudeDesktopConfig, claudeDesktopConfigPath } from './clients/claude-desktop.js';
@@ -60,7 +60,10 @@ function parseCliArgs(argv: string[]): Options {
   }
 
   const serverUrl = validateServerUrl(values.server ?? DEFAULT_SERVER_URL);
-  const name = values.name?.trim() || deriveName(serverUrl);
+  // Placeholder — main() resolves the final name (brand-configured via the
+  // server's /brand.json, falling back to hostname derivation) because
+  // that lookup is async.
+  const name = values.name?.trim() || '';
 
   const clients: ClientId[] = [];
   for (const raw of values.client ?? []) {
@@ -115,6 +118,10 @@ async function main(): Promise<void> {
     console.error(`Error: ${(err as Error).message}\n`);
     console.error(HELP);
     process.exit(2);
+  }
+
+  if (!opts.name) {
+    opts.name = (await fetchConnectorName(opts.serverUrl)) ?? deriveName(opts.serverUrl);
   }
 
   console.log('gatewaze-connect');
