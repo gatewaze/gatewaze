@@ -31,6 +31,14 @@ const fail = (res: Response, err: unknown, what: string) => {
   res.status(500).json({ error: { code: 'internal_error', message: `${what} failed` } });
 };
 
+// people has no name column — names live in the attributes JSONB.
+type PersonRow = { attributes?: Record<string, unknown> | null; email?: string | null } | null;
+const personName = (p: PersonRow): string | null => {
+  const a = p?.attributes ?? {};
+  const full = [a.first_name, a.last_name].filter(Boolean).join(' ');
+  return full || (typeof a.full_name === 'string' && a.full_name) || null;
+};
+
 // ── Scopes (for pickers): platform API-key scope registry ────────────────
 mcpAdminRouter.get('/scopes', async (_req, res) => {
   try {
@@ -152,15 +160,15 @@ mcpAdminRouter.get('/groups/:id/members', async (req, res) => {
     const limit = Math.min(parseInt(String(req.query.limit)) || 50, 200);
     const offset = parseInt(String(req.query.offset)) || 0;
     const { data, error, count } = await getSupabase().from('mcp_group_members')
-      .select('person_id, added_at, people(full_name, email)', { count: 'exact' })
+      .select('person_id, added_at, people(attributes, email)', { count: 'exact' })
       .eq('group_id', req.params.id)
       .order('added_at', { ascending: false })
       .range(offset, offset + limit - 1);
     if (error) throw new Error(error.message);
     res.json({
       data: (data ?? []).map((m) => {
-        const p = (Array.isArray(m.people) ? m.people[0] : m.people) as { full_name?: string; email?: string } | null;
-        return { person_id: m.person_id, name: p?.full_name ?? null, email: p?.email ?? null, added_at: m.added_at };
+        const p = (Array.isArray(m.people) ? m.people[0] : m.people) as PersonRow;
+        return { person_id: m.person_id, name: personName(p), email: p?.email ?? null, added_at: m.added_at };
       }),
       pagination: { total: count ?? 0, limit, offset, has_more: offset + (data?.length ?? 0) < (count ?? 0) },
     });
@@ -192,14 +200,14 @@ mcpAdminRouter.delete('/groups/:id/members/:personId', async (req, res) => {
 mcpAdminRouter.get('/people/:personId/access', async (req, res) => {
   try {
     const supabase = getSupabase();
-    const person = await supabase.from('people').select('id, email, full_name').eq('id', req.params.personId).maybeSingle();
+    const person = await supabase.from('people').select('id, email, attributes').eq('id', req.params.personId).maybeSingle();
     if (!person.data) return res.status(404).json({ error: { code: 'not_found', message: 'person not found' } });
     const access = await resolveAccess(supabase, person.data.id, person.data.email ?? '');
     const grants = await supabase.from('mcp_person_grants')
       .select('scopes_add, scopes_remove, note').eq('person_id', person.data.id).maybeSingle();
     res.json({
       data: {
-        person: { id: person.data.id, name: person.data.full_name, email: person.data.email },
+        person: { id: person.data.id, name: personName(person.data), email: person.data.email },
         effective_scopes: access.scopes,
         derivation: access.derivation,
         groups: access.groups,
@@ -231,7 +239,7 @@ mcpAdminRouter.get('/sessions', async (req, res) => {
     const limit = Math.min(parseInt(String(req.query.limit)) || 50, 200);
     const offset = parseInt(String(req.query.offset)) || 0;
     let q = getSupabase().from('mcp_sessions')
-      .select('id, person_id, email, auth_mode, client_id, client_name, scopes, issued_at, last_refreshed_at, last_seen_at, expires_at, revoked_at, people(full_name)', { count: 'exact' })
+      .select('id, person_id, email, auth_mode, client_id, client_name, scopes, issued_at, last_refreshed_at, last_seen_at, expires_at, revoked_at, people(attributes)', { count: 'exact' })
       .order('issued_at', { ascending: false })
       .range(offset, offset + limit - 1);
     if (req.query.person_id) q = q.eq('person_id', String(req.query.person_id));
@@ -239,8 +247,8 @@ mcpAdminRouter.get('/sessions', async (req, res) => {
     if (error) throw new Error(error.message);
     res.json({
       data: (data ?? []).map((s) => {
-        const p = (Array.isArray(s.people) ? s.people[0] : s.people) as { full_name?: string } | null;
-        return { ...s, people: undefined, person_name: p?.full_name ?? null };
+        const p = (Array.isArray(s.people) ? s.people[0] : s.people) as PersonRow;
+        return { ...s, people: undefined, person_name: personName(p) };
       }),
       pagination: { total: count ?? 0, limit, offset, has_more: offset + (data?.length ?? 0) < (count ?? 0) },
     });
