@@ -1,13 +1,9 @@
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js';
+import { Server, type Tool } from '@modelcontextprotocol/server';
 import type { GatewazeApiClient } from './lib/supabase.js';
 
 // ── Tool definitions ─────────────────────────────────────────────────────
 
-const TOOLS = [
+const TOOLS: Tool[] = [
   {
     name: 'events_search',
     description:
@@ -838,13 +834,16 @@ export function createGatewazeMcpServer(
     },
   );
 
-  // List tools
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({
+  // List tools. The 2026-07-28 revision requires cache metadata on list
+  // results; our tool table is static per profile, so a generous public TTL.
+  server.setRequestHandler('tools/list', async () => ({
     tools,
+    ttlMs: 300_000,
+    cacheScope: 'public' as const,
   }));
 
   // Call tool
-  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  server.setRequestHandler('tools/call', async (request) => {
     const { name, arguments: args } = request.params;
     const params = (args ?? {}) as Record<string, unknown>;
     const startedAt = Date.now();
