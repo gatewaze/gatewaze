@@ -112,29 +112,70 @@ export async function POST(req: NextRequest) {
     const wordRoot = queryLower.replace(/(s|ic|ing|ed|tion|ive)$/i, '')
     const stemPattern = `%${wordRoot}%`
 
-    // Generate embedding for semantic search via @gatewaze-modules/ai's
-    // aiEmbed — writes an ai_usage_events row per call so the portal-
-    // ai-search use_case shows up on the cost dashboard.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { aiEmbed } = await import('@gatewaze-modules/ai/lib/runner.js' as any).catch(
-      // Resolve via the relative path when the workspace alias isn't on
-      // the runtime require path (portal runs out of /app/packages/portal).
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      () => import('../../../../../../../gatewaze-modules/modules/ai/lib/runner.ts' as any),
-    )
-    const embedded = await aiEmbed(
-      { supabase },
-      {
-        useCase: 'portal-ai-search',
-        userId: null,                     // anonymous portal session
-        texts: [query],
-        systemRun: true,
-      },
-    )
-    const queryEmbedding = embedded.vectors[0]
-    if (!queryEmbedding) {
-      return NextResponse.json({ error: 'embedding failed' }, { status: 500 })
+    // Generate the query embedding INLINE — never import module code into
+    // the portal process. The previous aiEmbed bridge dynamically imported
+    // @gatewaze-modules/ai at runtime, which loads a second copy of the
+    // fetch/stream stack; its polyfills replace the process's global stream
+    // classes, after which EVERY NextResponse.json() in the process
+    // (including /api/health) throws cross-realm "Expected ... to be an
+    // instance of ReadableStream" and the pod is killed by its probes.
+    // Cost still lands in ai_usage_events tagged use_case='portal-ai-search'
+    // via the direct insert below.
+    const openaiKey = process.env.OPENAI_API_KEY
+    if (!openaiKey) {
+      return NextResponse.json(
+        { error: 'search is not configured (no embeddings credential)' },
+        { status: 503 },
+      )
     }
+    const { data: useCaseRow } = await supabase
+      .from('ai_use_cases')
+      .select('default_model')
+      .eq('id', 'portal-ai-search')
+      .maybeSingle()
+    const embeddingModel = useCaseRow?.default_model ?? 'text-embedding-3-small'
+
+    const embedStarted = Date.now()
+    let queryEmbedding: number[] | undefined
+    let embedTokens = 0
+    try {
+      const embedRes = await fetch('https://api.openai.com/v1/embeddings', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${openaiKey}` },
+        body: JSON.stringify({ model: embeddingModel, input: [query] }),
+        signal: AbortSignal.timeout(15_000),
+      })
+      if (!embedRes.ok) {
+        const detail = await embedRes.text().catch(() => '')
+        throw new Error(`embeddings API ${embedRes.status}: ${detail.slice(0, 200)}`)
+      }
+      const embedJson = await embedRes.json()
+      queryEmbedding = embedJson.data?.[0]?.embedding
+      embedTokens = embedJson.usage?.prompt_tokens ?? 0
+    } catch (err) {
+      console.error('[ai-search] embedding failed:', err)
+      return NextResponse.json({ error: 'embedding failed' }, { status: 502 })
+    }
+    if (!queryEmbedding) {
+      return NextResponse.json({ error: 'embedding failed' }, { status: 502 })
+    }
+    // text-embedding-3-small is $0.02/1M tokens = 0.02 micro-USD per token.
+    void supabase
+      .from('ai_usage_events')
+      .insert({
+        use_case: 'portal-ai-search',
+        kind: 'embedding',
+        provider: 'openai',
+        model: embeddingModel,
+        input_tokens: embedTokens,
+        bytes_in: query.length,
+        cost_micro_usd: Math.round(embedTokens * 0.02),
+        latency_ms: Date.now() - embedStarted,
+        status: 'ok',
+      })
+      .then(({ error: usageErr }) => {
+        if (usageErr) console.error('[ai-search] usage log failed:', usageErr.message)
+      })
     const embeddingString = `[${queryEmbedding.join(',')}]`
 
     const allResults: UniversalSearchResult[] = []
