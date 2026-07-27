@@ -7,6 +7,13 @@ metadata:
     app.kubernetes.io/component: api
 spec:
   replicas: {{ .Values.replicaCount.api }}
+  # Recreate, not RollingUpdate: the api mounts a ReadWriteOnce PVC, so a
+  # rolling replacement pod scheduled on another node deadlocks on
+  # Multi-Attach (old RS keeps its pod until the new one is ready; the new
+  # one can't attach the volume until the old pod dies). AAIF ran with a
+  # live-patched Recreate for this reason — make it chart-managed.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       {{- include "gatewaze.selectorLabels" . | nindent 6 }}
