@@ -23,6 +23,9 @@ import { slackRouter } from './routes/slack.js';
 import { calendarProxyRouter } from './routes/calendar-proxy.js';
 import { modulesRouter } from './routes/modules.js';
 import { apiKeysRouter } from './routes/api-keys.js';
+import { mcpAuthRouter } from './routes/mcp-auth.js';
+import { mcpAdminRouter } from './routes/mcp-admin.js';
+import { mcpEventsRouter } from './routes/mcp-events.js';
 import { adminNavLayoutRouter } from './routes/admin-nav-layout.js';
 import { internalRouter } from './routes/internal.js';
 import { portalEventsRouter } from './routes/portal-events.js';
@@ -144,6 +147,16 @@ mountLabeled(app, '/api/slack', slackRouter);
 mountLabeled(app, '/api/calendar', calendarProxyRouter);
 mountLabeled(app, '/api/modules', modulesRouter);
 mountLabeled(app, '/api/api-keys', apiKeysRouter);
+// MCP authorization server (OAuth 2.1 + PKCE; login via LFID module or
+// magic link), admin access-model CRUD, and the pod's audit ingest.
+// mcpAuthRouter declares absolute paths (/.well-known/*, /api/mcp-auth/*),
+// so label those prefixes explicitly for the deny-by-default route check —
+// a '/' mount can't carry the label to absolute child paths.
+labelMountPrefix('/api/mcp-auth', 'public');
+labelDirectRoute('GET', '/.well-known/oauth-authorization-server', 'public');
+app.use(mcpAuthRouter);
+mountLabeled(app, '/api/mcp-admin', mcpAdminRouter);
+mountLabeled(app, '/api/internal/mcp-events', mcpEventsRouter);
 mountLabeled(app, '/api/admin/nav-layout', adminNavLayoutRouter);
 mountLabeled(app, '/api/internal', internalRouter);
 

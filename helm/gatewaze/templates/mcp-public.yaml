@@ -70,6 +70,27 @@ spec:
                   key: MCP_PUBLIC_API_KEY
             - name: MCP_RATE_LIMIT_RPM
               value: {{ .Values.mcpPublic.rateLimitRpm | default 120 | quote }}
+            {{- if .Values.ingress.hosts.mcp }}
+            # OAuth resource server: audience + AS discovery target.
+            - name: PUBLIC_MCP_URL
+              value: "https://{{ .Values.ingress.hosts.mcp }}"
+            - name: GATEWAZE_AUTH_SERVER_URL
+              value: "https://{{ .Values.ingress.hosts.api }}"
+            {{- end }}
+            {{- if .Values.mcpPublic.tokenSecret }}
+            - name: MCP_TOKEN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "gatewaze.fullname" . }}-secret
+                  key: MCP_TOKEN_SECRET
+            {{- end }}
+            {{- if .Values.mcpPublic.eventsToken }}
+            - name: MCP_EVENTS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "gatewaze.fullname" . }}-secret
+                  key: MCP_EVENTS_TOKEN
+            {{- end }}
             {{- if .Values.mcpPublic.brandName }}
             # Brand identity in the MCP initialize instructions — agents
             # treat brand-name questions as platform-wide, not sub-entity.

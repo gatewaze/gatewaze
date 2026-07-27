@@ -10,7 +10,9 @@
   },
   "dependencies": {
     "@modelcontextprotocol/node": "^2.0.0-beta.5",
-    "@modelcontextprotocol/server": "^2.0.0-beta.5"
+    "@modelcontextprotocol/server": "^2.0.0-beta.5",
+    "@types/jsonwebtoken": "^9.0.10",
+    "jsonwebtoken": "^9.0.3"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

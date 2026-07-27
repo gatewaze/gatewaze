@@ -3,6 +3,7 @@ import { createMcpHandler, type McpRequestContext } from '@modelcontextprotocol/
 import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import { toNodeHandler } from '@modelcontextprotocol/node';
 import { createApiClient } from './lib/supabase.js';
+import { authenticate, protectedResourceMetadata, wwwAuthenticateChallenge } from './lib/auth.js';
 import { buildInstructions, createGatewazeMcpServer, type McpProfile, type SearchBackend } from './server.js';
 
 const transport = process.env.MCP_TRANSPORT ?? 'stdio';
@@ -32,6 +33,32 @@ if (!search) {
 }
 
 const api = createApiClient();
+
+// ── Audit batching (spec §5) — ship request events to the platform API ────
+// Buffered, flushed every 5s / 100 events to /api/internal/mcp-events,
+// authenticated with the shared MCP_EVENTS_TOKEN. stderr JSONL remains as
+// belt-and-braces; loss here is tolerable (fire-and-forget analytics).
+const auditQueue: Array<Record<string, unknown>> = [];
+function auditSink(entry: Record<string, unknown>): void {
+  if (!process.env.MCP_EVENTS_TOKEN) return;
+  auditQueue.push(entry);
+  if (auditQueue.length >= 100) void flushAudit();
+}
+async function flushAudit(): Promise<void> {
+  if (auditQueue.length === 0) return;
+  const batch = auditQueue.splice(0, 500);
+  try {
+    await fetch(`${(process.env.GATEWAZE_API_URL ?? '').replace(/\/+$/, '')}/api/internal/mcp-events`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-internal-token': process.env.MCP_EVENTS_TOKEN ?? '' },
+      body: JSON.stringify({ events: batch }),
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch (err) {
+    console.error('[audit] flush failed:', err instanceof Error ? err.message : err);
+  }
+}
+setInterval(() => void flushAudit(), 5000).unref();
 
 // ── Per-IP rate limiting (HTTP transport only) ────────────────────────────
 // The public endpoint has no client credential to meter on, so meter on IP.
@@ -98,11 +125,16 @@ async function main() {
       (ctx: McpRequestContext) => {
         const fwd = ctx.requestInfo?.headers.get('x-forwarded-for');
         const ip = fwd?.split(',')[0]?.trim() || 'unknown';
+        // Bearer token (if any) selects the OAuth scope-gated surface;
+        // keyless requests keep the anonymous public profile.
+        const auth = authenticate(ctx.requestInfo?.headers.get('authorization'));
         return createGatewazeMcpServer(api, {
           profile,
           instructions,
           search,
-          logMeta: { ip, era: ctx.era },
+          identity: auth.identity ?? undefined,
+          audit: auditSink,
+          logMeta: { ip, era: ctx.era, client_name: auth.identity?.clientId },
         });
       },
       {
@@ -122,6 +154,24 @@ async function main() {
       if (req.method === 'GET' && req.url === '/healthz') {
         res.writeHead(200, { 'content-type': 'text/plain' });
         res.end('ok');
+        return;
+      }
+      // RFC 9728 Protected Resource Metadata — how clients discover the
+      // authorization server for this endpoint (spec-mcp-lfid-access.md §3).
+      if (req.method === 'GET' && req.url?.startsWith('/.well-known/oauth-protected-resource')) {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify(protectedResourceMetadata()));
+        return;
+      }
+      // A PRESENT-but-invalid token must 401 with a challenge rather than
+      // silently downgrade to anonymous (token expiry → client refreshes).
+      const authOutcome = authenticate(req.headers.authorization);
+      if (authOutcome.invalid) {
+        res.writeHead(401, {
+          'content-type': 'application/json',
+          'WWW-Authenticate': wwwAuthenticateChallenge('invalid_token'),
+        });
+        res.end(JSON.stringify({ error: 'invalid_token', error_description: authOutcome.invalid }));
         return;
       }
       if (rateLimited(clientIp(req))) {
