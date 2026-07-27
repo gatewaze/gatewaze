@@ -1,0 +1,38 @@
+{
+  "name": "@gatewaze/connect",
+  "version": "0.1.0",
+  "description": "One-command setup that connects your AI clients (Claude Desktop, Claude Code, Goose, ChatGPT) to a Gatewaze MCP server.",
+  "type": "module",
+  "bin": {
+    "gatewaze-connect": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gatewaze/gatewaze.git",
+    "directory": "packages/connect"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc",
+    "test": "tsx --test test/*.test.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "yaml": "^2.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
