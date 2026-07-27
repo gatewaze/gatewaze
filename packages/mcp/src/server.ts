@@ -179,6 +179,57 @@ const TOOLS: Tool[] = [
       },
     },
   },
+  {
+    name: 'events_metrics_summary',
+    description:
+      "Platform-wide registration totals in ONE call: total events, registrations, check-ins, cancellations, and how many events actually log attendance (most don't — always caveat attendance numbers with the included attendance_note). Also returns the top events by registrants, which answers 'what is our most successful event'. Optional q/from/to restrict the totals. Requires the events:metrics scope.",
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        q: { type: 'string', description: 'Restrict totals to events whose title matches' },
+        from: { type: 'string', description: 'Events starting after this date (ISO 8601)' },
+        to: { type: 'string', description: 'Events starting before this date (ISO 8601)' },
+        limit: { type: 'number', description: 'Size of the top-events list (default 10, max 50)' },
+      },
+    },
+  },
+  {
+    name: 'events_registrant_breakdown',
+    description:
+      "AGGREGATED registration-form answers for an event — each question asked at registration with per-answer counts (e.g. company/job-title tables). Never returns registrant-level rows. Forms vary per event: some ask a combined 'company - role' field, so bin the aggregated answers yourself when summarising. Requires the events:metrics scope.",
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        q: { type: 'string', description: 'Event title filter (partial match)' },
+        id: { type: 'string', description: 'Event UUID or short event_id' },
+        limit: { type: 'number', description: 'Max matching events to break down (default 3, max 5)' },
+      },
+    },
+  },
+  {
+    name: 'events_nearby',
+    description:
+      "Upcoming PUBLISHED events near a location, soonest first with distance_km. Provide lat/lng, or a city name (falls back to a city-filtered search), or NOTHING — with no location the server geolocates the caller's IP address. Answers 'when is the next event in my area?'.",
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        lat: { type: 'number', description: 'Latitude (with lng)' },
+        lng: { type: 'number', description: 'Longitude (with lat)' },
+        city: { type: 'string', description: 'City name — used when lat/lng not provided' },
+        radius_km: { type: 'number', description: 'Search radius in km (default 150, max 5000)' },
+        limit: { type: 'number', description: 'Max results (default 10, max 50)' },
+      },
+    },
+  },
+  {
+    name: 'my_registrations',
+    description:
+      "The signed-in user's OWN event registrations: total and upcoming counts, their next event, and the full list with check-in status. Answers 'how many events am I registered for?' and 'when is my next event?'. Requires sign-in (any authenticated tier); only ever returns the caller's own data.",
+    inputSchema: {
+      type: 'object' as const,
+      properties: {},
+    },
+  },
 
   // ── Structured resources (require an API key with resources:write) ──────
   {
@@ -490,6 +541,43 @@ const TOOLS: Tool[] = [
 
 // ── Handlers ─────────────────────────────────────────────────────────────
 
+/**
+ * The API's sparse-fieldset parser silently strips unknown names, and agents
+ * habitually ask for `title`/`city`/`start_at` — map the common aliases onto
+ * the real event columns so requests don't quietly lose fields.
+ */
+const EVENT_FIELD_ALIASES: Record<string, string> = {
+  title: 'event_title',
+  name: 'event_title',
+  description: 'event_description',
+  city: 'event_city',
+  region: 'event_region',
+  country: 'event_country_code',
+  country_code: 'event_country_code',
+  start: 'event_start',
+  start_at: 'event_start',
+  starts_at: 'event_start',
+  end: 'event_end',
+  end_at: 'event_end',
+  ends_at: 'event_end',
+  timezone: 'event_timezone',
+  type: 'event_type',
+  topics: 'event_topics',
+  location: 'event_location',
+  link: 'event_link',
+  logo: 'event_logo',
+  slug: 'event_id',
+};
+
+function mapEventFields(fields: unknown): string {
+  return String(fields)
+    .split(',')
+    .map((f) => f.trim())
+    .filter(Boolean)
+    .map((f) => EVENT_FIELD_ALIASES[f.toLowerCase()] ?? f)
+    .join(',');
+}
+
 async function handleEventsSearch(
   params: Record<string, unknown>,
   api: GatewazeApiClient,
@@ -502,7 +590,7 @@ async function handleEventsSearch(
   if (params.to) queryParams.to = String(params.to);
   if (params.topics) queryParams.topics = String(params.topics);
   if (params.calendar_id) queryParams.calendar_id = String(params.calendar_id);
-  if (params.fields) queryParams.fields = String(params.fields);
+  if (params.fields) queryParams.fields = mapEventFields(params.fields);
   if (params.limit) queryParams.limit = Number(params.limit);
   if (params.offset) queryParams.offset = Number(params.offset);
 
@@ -514,7 +602,7 @@ async function handleEventsGet(
   api: GatewazeApiClient,
 ) {
   const queryParams: Record<string, string | number | undefined> = {};
-  if (params.fields) queryParams.fields = String(params.fields);
+  if (params.fields) queryParams.fields = mapEventFields(params.fields);
 
   return api.get(`/events/${params.id}`, queryParams);
 }
@@ -549,6 +637,80 @@ async function handleEventsMetrics(
   if (params.limit) queryParams.limit = Number(params.limit);
   if (params.offset) queryParams.offset = Number(params.offset);
   return api.get('/events/metrics', queryParams);
+}
+
+async function handleEventsMetricsSummary(
+  params: Record<string, unknown>,
+  api: GatewazeApiClient,
+) {
+  const queryParams: Record<string, string | number | undefined> = {};
+  if (params.q) queryParams.q = String(params.q);
+  if (params.from) queryParams.from = String(params.from);
+  if (params.to) queryParams.to = String(params.to);
+  if (params.limit) queryParams.limit = Number(params.limit);
+  return api.get('/events/metrics/summary', queryParams);
+}
+
+async function handleEventsRegistrantBreakdown(
+  params: Record<string, unknown>,
+  api: GatewazeApiClient,
+) {
+  const queryParams: Record<string, string | number | undefined> = {};
+  if (params.q) queryParams.q = String(params.q);
+  if (params.id) queryParams.id = String(params.id);
+  if (params.limit) queryParams.limit = Number(params.limit);
+  return api.get('/events/registrant-breakdown', queryParams);
+}
+
+/**
+ * events_nearby: lat/lng → radius search; city only → city-filtered upcoming
+ * search; nothing → geolocate the caller's IP (ip-api.com, 3s bound) and
+ * radius-search around it. Private/unresolvable IPs return a clear ask for
+ * a location instead of guessing.
+ */
+async function handleEventsNearby(
+  params: Record<string, unknown>,
+  api: GatewazeApiClient,
+  callerIp?: string,
+) {
+  let lat = typeof params.lat === 'number' ? params.lat : undefined;
+  let lng = typeof params.lng === 'number' ? params.lng : undefined;
+  let located_via = 'coordinates';
+
+  if ((lat === undefined || lng === undefined) && params.city) {
+    const res = (await api.get('/events', {
+      city: String(params.city),
+      from: new Date().toISOString(),
+      limit: Number(params.limit) || 10,
+    })) as Record<string, unknown>;
+    return { ...res, located_via: 'city_filter', note: 'city-name match (no coordinates supplied)' };
+  }
+
+  if (lat === undefined || lng === undefined) {
+    if (!callerIp || callerIp === 'unknown') {
+      return { error: 'No location available — provide lat/lng or a city name.' };
+    }
+    try {
+      const geo = await fetch(`http://ip-api.com/json/${encodeURIComponent(callerIp)}?fields=status,lat,lon,city,country`, {
+        signal: AbortSignal.timeout(3000),
+      });
+      const g = (await geo.json()) as { status?: string; lat?: number; lon?: number; city?: string; country?: string };
+      if (g.status !== 'success' || typeof g.lat !== 'number' || typeof g.lon !== 'number') {
+        return { error: 'Could not geolocate your IP — provide lat/lng or a city name.' };
+      }
+      lat = g.lat;
+      lng = g.lon;
+      located_via = `ip_geolocation (${[g.city, g.country].filter(Boolean).join(', ')})`;
+    } catch {
+      return { error: 'Geolocation lookup failed — provide lat/lng or a city name.' };
+    }
+  }
+
+  const queryParams: Record<string, string | number | undefined> = { lat, lng };
+  if (params.radius_km) queryParams.radius_km = Number(params.radius_km);
+  if (params.limit) queryParams.limit = Number(params.limit);
+  const res = (await api.get('/events/nearby', queryParams)) as Record<string, unknown>;
+  return { ...res, located_via };
 }
 
 async function handleContentList(
@@ -753,6 +915,7 @@ const PUBLIC_PROFILE_TOOLS = new Set([
   'content_get',
   'calendars_list',
   'search',
+  'events_nearby',
 ]);
 
 /**
@@ -776,7 +939,11 @@ const OAUTH_TOOL_SCOPES: Record<string, string | null> = {
   content_get: null,
   calendars_list: null,
   search: null,
+  events_nearby: null,
+  my_registrations: null,
   events_metrics: 'events:metrics',
+  events_metrics_summary: 'events:metrics',
+  events_registrant_breakdown: 'events:metrics',
   resources_collections_list: 'resources:write',
   resources_collection_get: 'resources:write',
   resources_collection_create: 'resources:write',
@@ -971,6 +1138,22 @@ export function createGatewazeMcpServer(
           break;
         case 'events_metrics':
           result = await handleEventsMetrics(params, api);
+          break;
+        case 'events_metrics_summary':
+          result = await handleEventsMetricsSummary(params, api);
+          break;
+        case 'events_registrant_breakdown':
+          result = await handleEventsRegistrantBreakdown(params, api);
+          break;
+        case 'events_nearby':
+          result = await handleEventsNearby(params, api, (logMeta as { ip?: string } | undefined)?.ip);
+          break;
+        case 'my_registrations':
+          if (!identity) {
+            result = { error: 'my_registrations requires a signed-in session.' };
+          } else {
+            result = await api.get('/events/my-registrations', { person_id: identity.personId });
+          }
           break;
         case 'content_list':
           result = await handleContentList(params, api);
