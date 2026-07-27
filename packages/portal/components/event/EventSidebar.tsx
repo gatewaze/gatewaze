@@ -79,10 +79,22 @@ function useModuleNavItems(basePath: string, hasVirtualEvent: boolean) {
   const isAdmin = useIsAdmin()
 
   useEffect(() => {
-    // Dynamic import to avoid SSR issues with generated file
-    import('@/lib/modules/generated-event-pages').then(({ eventModulePages }) => {
+    let cancelled = false
+    // Dynamic import to avoid SSR issues with generated file. The generated
+    // registry is BUILD-time: it contains every module's event pages whether
+    // or not the module is enabled, so enablement must be checked at runtime —
+    // a disabled module's page (e.g. kiosk) otherwise still shows in the nav
+    // while its route correctly 404s.
+    Promise.all([
+      import('@/lib/modules/generated-event-pages'),
+      getSupabaseClient().from('installed_modules').select('id').eq('status', 'enabled'),
+    ]).then(([{ eventModulePages }, { data: enabledRows }]) => {
+      if (cancelled) return
+      const enabledIds = new Set((enabledRows ?? []).map((r: { id: string }) => r.id))
       const navItems: NavItem[] = []
       for (const page of eventModulePages) {
+        // Only enabled modules contribute nav items.
+        if (!enabledIds.has(page.moduleId)) continue
         // Check admin requirement
         if (page.requiresAdmin && !isAdmin) continue
         // Check localStorage requirement
@@ -109,6 +121,7 @@ function useModuleNavItems(basePath: string, hasVirtualEvent: boolean) {
       }
       setItems(navItems)
     }).catch(() => {})
+    return () => { cancelled = true }
   }, [basePath, hasVirtualEvent, isAdmin])
 
   return items
