@@ -18,6 +18,8 @@ export interface McpGroup {
   is_active: boolean;
   rules: McpGroupRule[];
   member_count: number;
+  /** Distinct signed-in people matched by this group's active rules (not explicit members). */
+  rule_matched_count?: number;
 }
 
 export interface McpGroupMember {
