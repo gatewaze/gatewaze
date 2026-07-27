@@ -2,7 +2,13 @@
 import { parseArgs } from 'node:util';
 import type { ApplyResult, ClientId, DetectedClient } from './types.js';
 import { CLIENT_IDS } from './types.js';
-import { DEFAULT_SERVER_URL, deriveName, fetchConnectorName, validateServerUrl } from './util.js';
+import {
+  DEFAULT_SERVER_URL,
+  checkForNewerVersion,
+  deriveName,
+  fetchConnectorName,
+  validateServerUrl,
+} from './util.js';
 import { detectClients } from './detect.js';
 import { confirm, selectClients } from './prompt.js';
 import { applyClaudeDesktopConfig, claudeDesktopConfigPath } from './clients/claude-desktop.js';
@@ -111,6 +117,11 @@ async function resolveConflict(
 }
 
 async function main(): Promise<void> {
+  // Fired before arg parsing so the ~2s-bounded registry check overlaps
+  // other startup work; npx caches aggressively, so without a hint users
+  // can sit on a stale installer indefinitely.
+  const newerVersion = checkForNewerVersion();
+
   let opts: Options;
   try {
     opts = parseCliArgs(process.argv.slice(2));
@@ -125,6 +136,12 @@ async function main(): Promise<void> {
   }
 
   console.log('gatewaze-connect');
+  const latest = await newerVersion;
+  if (latest) {
+    console.log(
+      `  Note: a newer installer (v${latest}) exists — re-run with: npx @gatewaze/connect@latest`
+    );
+  }
   console.log(`  Server: ${opts.serverUrl}`);
   console.log(`  Connector name: ${opts.name}`);
   if (opts.dryRun) console.log('  Mode: dry-run (nothing will be written)');

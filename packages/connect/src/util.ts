@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // /auth = the authentication-REQUIRED alias: clients only launch their
 // OAuth sign-in on a 401 challenge, and the connector's purpose is
@@ -46,6 +47,51 @@ export async function fetchConnectorName(serverUrl: string): Promise<string | nu
     // Same charset as client config keys, but case is preserved ("AAIF").
     const cleaned = name.replace(/[^A-Za-z0-9_-]/g, '');
     return cleaned || null;
+  } catch {
+    return null;
+  }
+}
+
+/** This package's own version, read from package.json (CI stamps the real one at publish). */
+export function ownVersion(): string | null {
+  try {
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    // dist/util.js -> ../package.json (same shape from src/ under tsx).
+    const pkg = JSON.parse(fs.readFileSync(path.join(here, '..', 'package.json'), 'utf8'));
+    return typeof pkg.version === 'string' ? pkg.version : null;
+  } catch {
+    return null;
+  }
+}
+
+/** True when semver `b` is strictly newer than `a` (numeric fields only; prerelease tags ignored). */
+export function isNewerVersion(a: string, b: string): boolean {
+  const parse = (v: string) => v.split('-')[0]!.split('.').map((n) => parseInt(n, 10) || 0);
+  const [pa, pb] = [parse(a), parse(b)];
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const [x, y] = [pa[i] ?? 0, pb[i] ?? 0];
+    if (y !== x) return y > x;
+  }
+  return false;
+}
+
+/**
+ * Compare our version against the npm registry's `latest`. Returns the newer
+ * version string when one exists, else null. Fail-silent by design (offline,
+ * registry hiccups, unparseable responses) and bounded to ~2s so the check
+ * never gets in the installer's way.
+ */
+export async function checkForNewerVersion(): Promise<string | null> {
+  const current = ownVersion();
+  if (!current) return null;
+  try {
+    const res = await fetch('https://registry.npmjs.org/@gatewaze%2fconnect/latest', {
+      signal: AbortSignal.timeout(2000),
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { version?: unknown };
+    const latest = typeof body.version === 'string' ? body.version : null;
+    return latest && isNewerVersion(current, latest) ? latest : null;
   } catch {
     return null;
   }
