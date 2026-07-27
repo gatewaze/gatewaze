@@ -24,6 +24,33 @@ export function deriveName(serverUrl: string): string {
   return cleaned || 'gatewaze';
 }
 
+/**
+ * Ask the server for its brand-configured connector name (GET /brand.json
+ * on the server origin, so it works for both the root and /auth URLs).
+ * Returns null on any failure — callers fall back to deriveName().
+ */
+export async function fetchConnectorName(serverUrl: string): Promise<string | null> {
+  let origin: string;
+  try {
+    origin = new URL(serverUrl).origin;
+  } catch {
+    return null;
+  }
+  try {
+    const res = await fetch(`${origin}/brand.json`, {
+      signal: AbortSignal.timeout(4000),
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { connector_name?: unknown };
+    const name = typeof body.connector_name === 'string' ? body.connector_name.trim() : '';
+    // Same charset as client config keys, but case is preserved ("AAIF").
+    const cleaned = name.replace(/[^A-Za-z0-9_-]/g, '');
+    return cleaned || null;
+  } catch {
+    return null;
+  }
+}
+
 export function validateServerUrl(raw: string): string {
   let url: URL;
   try {

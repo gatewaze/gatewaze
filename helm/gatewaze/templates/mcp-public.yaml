@@ -101,6 +101,12 @@ spec:
             - name: GATEWAZE_BRAND_DESCRIPTION
               value: {{ .Values.mcpPublic.brandDescription | quote }}
             {{- end }}
+            {{- if .Values.mcpPublic.connectorName }}
+            # Display name @gatewaze/connect uses for the client-config
+            # entry (served at GET /brand.json). Defaults to brandId.
+            - name: GATEWAZE_CONNECTOR_NAME
+              value: {{ .Values.mcpPublic.connectorName | quote }}
+            {{- end }}
             {{- if and .Values.mcpPublic.brandId .Values.mcpPublic.portalUrl }}
             # Portal AI-search backend for the semantic `search` tool
             # (embeddings-based, published-only). PUBLIC portal URL — the

@@ -622,6 +622,10 @@ mcpPublic:
   # -- Optional extra sentence(s) describing what the platform's content
   # covers, appended to the instructions.
   brandDescription: ""
+  # -- Display name @gatewaze/connect uses for the connector entry it
+  # writes into client configs (e.g. "AAIF"). Served at GET /brand.json;
+  # defaults to brandId when empty.
+  connectorName: ""
   # -- Brand id for the portal's /api/ai-search (e.g. "aaif"). Enables the
   # semantic `search` tool together with portalUrl; empty disables it.
   brandId: ""
