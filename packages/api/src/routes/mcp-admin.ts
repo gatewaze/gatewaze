@@ -77,16 +77,43 @@ mcpAdminRouter.get('/groups', async (_req, res) => {
       .select('id, name, label, scopes, is_default, is_active, mcp_group_rules(id, kind, match, is_active)')
       .order('created_at');
     if (error) throw new Error(error.message);
-    const counts = await supabase.from('mcp_group_members').select('group_id');
-    const byGroup = new Map<string, number>();
-    for (const m of counts.data ?? []) byGroup.set(m.group_id, (byGroup.get(m.group_id) ?? 0) + 1);
+    const counts = await supabase.from('mcp_group_members').select('group_id, person_id');
+    const membersByGroup = new Map<string, Set<string>>();
+    for (const m of counts.data ?? []) {
+      const set = membersByGroup.get(m.group_id) ?? new Set<string>();
+      set.add(m.person_id);
+      membersByGroup.set(m.group_id, set);
+    }
+    // Rules are evaluated at token issuance and never write membership rows,
+    // so "who does this rule cover" is only knowable from who has signed in:
+    // count distinct session-holders each group's active rules match.
+    const sessions = await supabase.from('mcp_sessions').select('person_id, email').not('person_id', 'is', null);
+    const emailByPerson = new Map<string, string>();
+    for (const s of sessions.data ?? []) {
+      emailByPerson.set(s.person_id as string, ((s.email as string | null) ?? '').toLowerCase());
+    }
     res.json({
-      data: (data ?? []).map((g) => ({
-        ...g,
-        rules: g.mcp_group_rules ?? [],
-        mcp_group_rules: undefined,
-        member_count: byGroup.get(g.id) ?? 0,
-      })),
+      data: (data ?? []).map((g) => {
+        const explicit = membersByGroup.get(g.id) ?? new Set<string>();
+        const rules = (g.mcp_group_rules ?? []).filter((r) => r.is_active);
+        let ruleMatched = 0;
+        for (const [personId, email] of emailByPerson) {
+          if (explicit.has(personId)) continue;
+          const hit = rules.some(
+            (r) =>
+              r.kind === 'all_authenticated' ||
+              (r.kind === 'email_domain' && email.endsWith(`@${String(r.match ?? '').toLowerCase()}`)),
+          );
+          if (hit) ruleMatched++;
+        }
+        return {
+          ...g,
+          rules: g.mcp_group_rules ?? [],
+          mcp_group_rules: undefined,
+          member_count: explicit.size,
+          rule_matched_count: ruleMatched,
+        };
+      }),
     });
   } catch (err) { fail(res, err, 'groups list'); }
 });

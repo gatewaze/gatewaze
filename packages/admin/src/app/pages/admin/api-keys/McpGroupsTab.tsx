@@ -137,15 +137,27 @@ export function McpGroupsTab() {
       }),
       columnHelper.accessor('member_count', {
         header: 'Members',
-        cell: (info) => (
-          <button
-            type="button"
-            onClick={() => setMembersTarget(info.row.original)}
-            className="text-sm text-[var(--accent-11)] hover:underline cursor-pointer"
-          >
-            {info.getValue()}
-          </button>
-        ),
+        cell: (info) => {
+          const group = info.row.original;
+          return (
+            <button
+              type="button"
+              onClick={() => setMembersTarget(group)}
+              className="text-sm text-[var(--accent-11)] hover:underline cursor-pointer"
+            >
+              {info.getValue()}
+              {(group.rule_matched_count ?? 0) > 0 && (
+                <span
+                  className="text-xs text-[var(--gray-11)]"
+                  title="Signed-in people matched by this group's rules — rules grant access at sign-in without creating explicit memberships"
+                >
+                  {' '}
+                  + {group.rule_matched_count} via rules
+                </span>
+              )}
+            </button>
+          );
+        },
       }),
       columnHelper.accessor('is_active', {
         header: 'Status',
