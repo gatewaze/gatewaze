@@ -628,6 +628,13 @@ mcpPublic:
   # -- PUBLIC portal base URL for /api/ai-search (e.g. "https://aaif.live").
   # Must be the canonical host — the portal 307s other Host headers.
   portalUrl: ""
+  # -- HS256 signing secret for MCP OAuth access tokens, shared between the
+  # API (authorization server) and this pod (resource server). Enables the
+  # LFID/magic-link sign-in tier. Generate: openssl rand -hex 32
+  tokenSecret: ""
+  # -- Shared token authenticating this pod's audit batches to the API's
+  # /api/internal/mcp-events ingest. Generate: openssl rand -hex 32
+  eventsToken: ""
   replicaCount: 1
   image:
     repository: ghcr.io/gatewaze/mcp-public

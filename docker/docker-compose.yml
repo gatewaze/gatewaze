@@ -557,6 +557,13 @@ services:
       - gatewaze-internal-git:/var/gatewaze/git
     environment:
       PORT: "3002"
+      # MCP authorization server (spec-mcp-lfid-access.md §3): token
+      # signing secret + audience, public base for issuer/redirects, and
+      # the shared ingest token for the pod's audit batches.
+      API_URL: http://${API_HOST:-api.gatewaze.localhost}
+      PUBLIC_MCP_URL: http://${MCP_HOST:-mcp.gatewaze.localhost}
+      MCP_TOKEN_SECRET: ${MCP_TOKEN_SECRET:-}
+      MCP_EVENTS_TOKEN: ${MCP_EVENTS_TOKEN:-}
       NODE_ENV: production
       # Umami admin API credentials for the analytics module's dashboard
       # queries (base URL defaults to http://umami:3000 in-module).
@@ -915,6 +922,12 @@ services:
       # requests whose Host header is an internal service name.
       GATEWAZE_PORTAL_URL: http://${PORTAL_HOST:-app.gatewaze.localhost}
       GATEWAZE_BRAND_ID: ${BRAND_ID:-default}
+      # OAuth resource server (spec-mcp-lfid-access.md): validates Bearer
+      # tokens minted by the platform AS; advertises it via RFC 9728 PRM.
+      PUBLIC_MCP_URL: http://${MCP_HOST:-mcp.gatewaze.localhost}
+      GATEWAZE_AUTH_SERVER_URL: http://${API_HOST:-api.gatewaze.localhost}
+      MCP_TOKEN_SECRET: ${MCP_TOKEN_SECRET:-}
+      MCP_EVENTS_TOKEN: ${MCP_EVENTS_TOKEN:-}
     # Resolve the portal's *.localhost hostname to the host's traefik —
     # same pattern as the api service's SUPABASE_HOST/FETCH_HOST mappings.
     extra_hosts:

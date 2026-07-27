@@ -756,6 +756,43 @@ const PUBLIC_PROFILE_TOOLS = new Set([
 ]);
 
 /**
+ * OAuth tool exposure (spec-mcp-lfid-access.md §2): which tools an
+ * authenticated (token-bearing) caller may see/call, and the scope each
+ * requires. `null` = available to any authenticated caller (same surface
+ * the anonymous public profile serves). Tools NOT in this map are never
+ * exposed over OAuth — they stay exclusive to keyed full-profile stdio
+ * deployments (e.g. the signals_* operator tools).
+ */
+const OAUTH_TOOL_SCOPES: Record<string, string | null> = {
+  events_search: null,
+  events_get: null,
+  events_speakers: null,
+  events_sponsors: null,
+  platform_health: null,
+  platform_stats: null,
+  content_schema: null,
+  content_list: null,
+  content_categories: null,
+  content_get: null,
+  calendars_list: null,
+  search: null,
+  events_metrics: 'events:metrics',
+  resources_collections_list: 'resources:write',
+  resources_collection_get: 'resources:write',
+  resources_collection_create: 'resources:write',
+  resources_collection_update: 'resources:write',
+  resources_category_create: 'resources:write',
+  resources_template_create: 'resources:write',
+  resources_items_list: 'resources:write',
+  resources_item_get: 'resources:write',
+  resources_item_create: 'resources:write',
+  resources_item_update: 'resources:write',
+  resources_item_sections_set: 'resources:write',
+  resources_section_blocks_set: 'resources:write',
+  resources_block_kinds: 'resources:write',
+};
+
+/**
  * One JSONL line per tool call on stderr (stdout is the stdio protocol
  * channel; stderr reaches docker/kubectl logs in http mode). The point is an
  * improvement loop for the public endpoint: `outcome:"unknown_tool"` shows
@@ -807,6 +844,16 @@ export function buildInstructions(brandName?: string, brandDescription?: string)
   return lines.join('\n\n');
 }
 
+export interface CallerIdentity {
+  subject: string;
+  email: string;
+  personId: string;
+  tier: string;
+  authMode: string;
+  clientId: string;
+  scopes: Set<string>;
+}
+
 export function createGatewazeMcpServer(
   api: GatewazeApiClient,
   opts: {
@@ -815,16 +862,39 @@ export function createGatewazeMcpServer(
     instructions?: string;
     /** Portal AI-search backend — the `search` tool is only registered when set. */
     search?: SearchBackend;
+    /** OAuth-authenticated caller: tools become the scope-gated OAuth surface. */
+    identity?: CallerIdentity;
+    /** Optional audit sink — receives every logCall entry (for batch ingest). */
+    audit?: (entry: Record<string, unknown>) => void;
   } = {},
 ): Server {
   const profile = opts.profile ?? 'full';
   const logMeta = opts.logMeta ?? {};
-  const tools = TOOLS.filter(
-    (t) =>
-      (profile !== 'public' || PUBLIC_PROFILE_TOOLS.has(t.name)) &&
-      (t.name !== 'search' || opts.search !== undefined),
-  );
+  const identity = opts.identity;
+  const tools = TOOLS.filter((t) => {
+    if (t.name === 'search' && opts.search === undefined) return false;
+    if (identity) {
+      const required = OAUTH_TOOL_SCOPES[t.name];
+      if (required === undefined) return false; // not on the OAuth surface
+      return required === null || identity.scopes.has(required);
+    }
+    return profile !== 'public' || PUBLIC_PROFILE_TOOLS.has(t.name);
+  });
   const allowedNames = new Set(tools.map((t) => t.name));
+  const emit = (entry: Record<string, unknown>) => {
+    const enriched = identity
+      ? {
+          ...entry,
+          identity_kind: 'oauth',
+          subject: identity.subject,
+          email: identity.email,
+          person_id: identity.personId,
+          tier: identity.tier,
+        }
+      : { ...entry, identity_kind: profile === 'public' ? 'anonymous' : 'api_key' };
+    logCall(enriched);
+    opts.audit?.(enriched);
+  };
 
   const server = new Server(
     { name: profile === 'public' ? 'gatewaze-mcp-public' : 'gatewaze-mcp', version: '0.3.0' },
@@ -857,9 +927,21 @@ export function createGatewazeMcpServer(
     // Profile gate — a public server must refuse full-profile tool names
     // even though they aren't advertised, not just hide them. Logged
     // distinctly: agents guessing tool names is the strongest signal for
-    // what the surface is missing.
+    // what the surface is missing. An OAuth caller whose token lacks the
+    // tool's scope gets a distinguishable insufficient_scope refusal naming
+    // the scope to request (2026-07-28 challenge semantics, in-band form).
     if (!allowedNames.has(name)) {
-      logCall({ ...base, outcome: 'unknown_tool', ms: Date.now() - startedAt });
+      const required = identity ? OAUTH_TOOL_SCOPES[name] : undefined;
+      if (identity && required) {
+        emit({ ...base, outcome: 'insufficient_scope', ms: Date.now() - startedAt });
+        return {
+          content: [
+            { type: 'text', text: JSON.stringify({ error: `insufficient_scope: '${name}' requires the '${required}' scope — your access does not include it. An administrator can grant it under MCP Access.` }) },
+          ],
+          isError: true,
+        };
+      }
+      emit({ ...base, outcome: 'unknown_tool', ms: Date.now() - startedAt });
       return {
         content: [
           { type: 'text', text: JSON.stringify({ error: `Unknown tool: ${name}` }) },
@@ -991,7 +1073,7 @@ export function createGatewazeMcpServer(
           result = await api.get('/signals/stats');
           break;
         default:
-          logCall({ ...base, outcome: 'unknown_tool', ms: Date.now() - startedAt });
+          emit({ ...base, outcome: 'unknown_tool', ms: Date.now() - startedAt });
           return {
             content: [
               { type: 'text', text: JSON.stringify({ error: `Unknown tool: ${name}` }) },
@@ -1001,7 +1083,7 @@ export function createGatewazeMcpServer(
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      logCall({ ...base, outcome: 'error', error: truncate(message, 300), ms: Date.now() - startedAt });
+      emit({ ...base, outcome: 'error', error: truncate(message, 300), ms: Date.now() - startedAt });
       return {
         content: [{ type: 'text', text: JSON.stringify({ error: message }) }],
         isError: true,
@@ -1010,7 +1092,7 @@ export function createGatewazeMcpServer(
 
     const text = JSON.stringify(result, null, 2);
     const rows = resultRows(result);
-    logCall({
+    emit({
       ...base,
       outcome: 'ok',
       ms: Date.now() - startedAt,
