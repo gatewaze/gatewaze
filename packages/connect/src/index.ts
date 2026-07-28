@@ -12,7 +12,14 @@ import {
 import { detectClients } from './detect.js';
 import { confirm, selectClients } from './prompt.js';
 import { applyClaudeDesktopConfig, claudeDesktopConfigPath } from './clients/claude-desktop.js';
-import { claudeCodeAddCommand, formatCommand, runClaudeCodeAdd } from './clients/claude-code.js';
+import {
+  applyClaudeUserConfig,
+  claudeBinaryPath,
+  claudeCodeAddCommand,
+  claudeUserConfigPath,
+  formatCommand,
+  runClaudeCodeAdd,
+} from './clients/claude-code.js';
 import { applyGooseConfig, gooseConfigPath, gooseDeepLink } from './clients/goose.js';
 import { chatgptInstructions } from './clients/chatgpt.js';
 
@@ -201,22 +208,50 @@ async function main(): Promise<void> {
       }
 
       case 'claude-code': {
-        if (opts.dryRun) {
-          console.log(
-            `  -> Would run: ${formatCommand(claudeCodeAddCommand(opts.name, opts.serverUrl))}`
-          );
-        } else {
-          const result = runClaudeCodeAdd(opts.name, opts.serverUrl);
+        const bin = claudeBinaryPath();
+        if (bin) {
+          if (opts.dryRun) {
+            console.log(
+              `  -> Would run: ${formatCommand(claudeCodeAddCommand(opts.name, opts.serverUrl))}`
+            );
+            break;
+          }
+          const result = runClaudeCodeAdd(opts.name, opts.serverUrl, bin);
           if (result.ok) {
             console.log(`  -> ${result.message}`);
             nextSteps.push(
               'Claude Code: run /mcp in any session to check the connection — first use opens your sign-in page.'
             );
-          } else {
-            hadError = true;
-            console.log(`  !! ${result.message}`);
-            console.log(`  -> Run this yourself to register the server:\n       ${result.command}`);
+            break;
           }
+          console.log(`  !! ${result.message}`);
+          // fall through to the direct-config path below
+        }
+        // No runnable binary (VS Code extension installs bundle their own):
+        // write the same user-scope entry `claude mcp add --scope user`
+        // creates, straight into ~/.claude.json.
+        const configPath = claudeUserConfigPath();
+        let result = applyClaudeUserConfig(configPath, opts.name, opts.serverUrl, {
+          overwrite: opts.force,
+          dryRun: opts.dryRun,
+        });
+        result = await resolveConflict(target.label, result, (overwrite) =>
+          applyClaudeUserConfig(configPath, opts.name, opts.serverUrl, {
+            overwrite,
+            dryRun: opts.dryRun,
+          })
+        );
+        reportApply(result);
+        if (result.status === 'error') {
+          hadError = true;
+          console.log(
+            `  -> Manual fallback — run this where claude works:\n       ${formatCommand(claudeCodeAddCommand(opts.name, opts.serverUrl))}`
+          );
+        }
+        if (result.status === 'added' || result.status === 'updated') {
+          nextSteps.push(
+            'Claude Code: restart VS Code (or your claude session), then run /mcp — first use opens your sign-in page.'
+          );
         }
         break;
       }
