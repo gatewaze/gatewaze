@@ -18,6 +18,30 @@ export function claudeDesktopConfigPath(): string {
 }
 
 /**
+ * Whether the Claude Desktop APP looks installed — the config file alone is
+ * a bad signal: Desktop never creates claude_desktop_config.json until
+ * something writes it, so "no config" happens on perfectly good installs.
+ */
+export function claudeDesktopAppInstalled(): boolean {
+  if (process.platform === 'win32') {
+    const local = process.env.LOCALAPPDATA ?? path.join(os.homedir(), 'AppData', 'Local');
+    const roaming = process.env.APPDATA ?? path.join(os.homedir(), 'AppData', 'Roaming');
+    return (
+      fs.existsSync(path.join(local, 'AnthropicClaude')) ||
+      fs.existsSync(path.join(roaming, 'Claude'))
+    );
+  }
+  if (process.platform === 'darwin') {
+    return (
+      fs.existsSync('/Applications/Claude.app') ||
+      fs.existsSync(path.join(os.homedir(), 'Applications', 'Claude.app')) ||
+      fs.existsSync(path.dirname(claudeDesktopConfigPath()))
+    );
+  }
+  return fs.existsSync(path.dirname(claudeDesktopConfigPath()));
+}
+
+/**
  * The entry we write. Claude Desktop's config cannot take a bare remote URL,
  * so we go through mcp-remote, which drives the OAuth sign-in in the browser.
  */
