@@ -97,7 +97,8 @@ export function RegisterContent() {
         setAutoRegState('registering')
         setAutoRegEmail(email)
 
-        const response = await fetch(`${config.supabaseUrl}/functions/v1/event-registration`, {
+        const config = getClientBrandConfig()
+        const response = await fetch(`${config.supabaseUrl}/functions/v1/events-registration`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
