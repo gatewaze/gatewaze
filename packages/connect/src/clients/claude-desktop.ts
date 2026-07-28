@@ -44,8 +44,14 @@ export function claudeDesktopAppInstalled(): boolean {
 /**
  * The entry we write. Claude Desktop's config cannot take a bare remote URL,
  * so we go through mcp-remote, which drives the OAuth sign-in in the browser.
+ * Windows: npx is a .cmd shim Desktop cannot spawn directly — the server
+ * silently fails to start and the connector never appears — so route
+ * through cmd /c there.
  */
 export function desktopServerEntry(serverUrl: string): { command: string; args: string[] } {
+  if (process.platform === 'win32') {
+    return { command: 'cmd', args: ['/c', 'npx', '-y', 'mcp-remote', serverUrl] };
+  }
   return { command: 'npx', args: ['-y', 'mcp-remote', serverUrl] };
 }
 

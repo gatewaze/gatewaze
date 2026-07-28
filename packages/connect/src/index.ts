@@ -201,7 +201,10 @@ async function main(): Promise<void> {
         if (result.status === 'error') hadError = true;
         if (result.status === 'added' || result.status === 'updated') {
           nextSteps.push(
-            'Claude Desktop: restart the app, then use the connector once — the first use opens your sign-in page in the browser (via mcp-remote).'
+            'Claude Desktop: quit fully (system tray on Windows) and relaunch, then use the connector once — the first use opens your sign-in page in the browser (via mcp-remote). Check Settings -> Developer to see the server status if it does not appear.'
+          );
+          nextSteps.push(
+            `Claude Desktop alternative (no npx): Settings -> Connectors -> Add custom connector -> paste ${opts.serverUrl}`
           );
         }
         break;
