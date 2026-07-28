@@ -49,9 +49,27 @@ spec:
             {{- with .Values.extraEnvFrom }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+          startupProbe:
+            # Cold start re-clones the module git sources into
+            # /app/.gatewaze-modules and loads ~100 modules before the HTTP
+            # server binds — this can take well over a minute on a fresh pod.
+            # Without a startupProbe the livenessProbe (initialDelay 10s) fires
+            # mid-clone and SIGTERMs the process, and since every restart
+            # re-clones from scratch the pod crash-loops until it happens to
+            # win the race. Gate liveness/readiness behind startup completion:
+            # /health/live is dependency-free, so this only passes once the
+            # server is actually serving. 10s + 30×10s ≈ 5min cold-start budget.
+            httpGet:
+              path: /api/health/live
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
           livenessProbe:
             # /health/live is dependency-free; only fails when the
-            # process is wedged. Per spec §5.6.
+            # process is wedged. Per spec §5.6. Does not begin until the
+            # startupProbe above has succeeded once.
             httpGet:
               path: /api/health/live
               port: http
