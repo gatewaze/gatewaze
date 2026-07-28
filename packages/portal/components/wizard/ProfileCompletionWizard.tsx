@@ -198,8 +198,11 @@ export function ProfileCompletionWizard({ brandConfig, listsEnabled = false }: P
       method: 'POST',
       // Bound the wait: during a backend outage an unbounded fetch left the
       // Complete button spinning forever. Timing out lets the wizard surface
-      // the failure and re-enable retry.
-      signal: AbortSignal.timeout(15000),
+      // the failure and re-enable retry. Kept comfortably above the edge
+      // function's own worst-case latency (external geo lookup is now capped
+      // at 2.5s server-side) so a slow-but-successful save isn't discarded and
+      // shown as an error — the write is idempotent, so a retry is harmless.
+      signal: AbortSignal.timeout(25000),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${session.access_token}`,

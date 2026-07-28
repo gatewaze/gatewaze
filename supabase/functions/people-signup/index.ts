@@ -562,7 +562,14 @@ async function getIpLocation(ipAddress: string | null): Promise<{
 
   try {
     const url = `http://ip-api.com/json/${encodeURIComponent(ipAddress)}?fields=status,message,city,country,countryCode,continentCode,lat,lon,timezone`
-    const response = await fetch(url)
+    // Bound this third-party call HARD. It runs on the critical path of every
+    // signup, and ip-api.com rate-limits by source IP — which here is Supabase's
+    // shared edge egress IP. Under a registration burst it throttles/stalls that
+    // IP, and an unbounded fetch then blocked the whole handler past the portal
+    // wizard's 15s client abort, surfacing "Couldn't save your profile" even
+    // though the DB write had committed. Geolocation is best-effort enrichment;
+    // it must never be able to slow a profile save. Timeout -> null, we proceed.
+    const response = await fetch(url, { signal: AbortSignal.timeout(2500) })
 
     if (!response.ok) {
       console.error(`IP geolocation API error: ${response.status}`)
