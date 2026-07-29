@@ -103,6 +103,56 @@ function setCors(res: ServerResponse): void {
   res.setHeader('Access-Control-Expose-Headers', 'Mcp-Session-Id');
 }
 
+/**
+ * The human onboarding page. Everything a non-technical user needs is
+ * copy-paste (no npx required): the connector URL for Claude/ChatGPT
+ * settings, a one-click deep link for Goose, and the CLI one-liner for
+ * technical users. Self-contained HTML, no external assets.
+ */
+function landingPage(): string {
+  const brand = process.env.GATEWAZE_BRAND_NAME ?? 'Gatewaze';
+  const connectorName = process.env.GATEWAZE_CONNECTOR_NAME || process.env.GATEWAZE_BRAND_ID || 'gatewaze';
+  const resource = (process.env.PUBLIC_MCP_URL ?? 'https://mcp.example.com').replace(/\/+$/, '');
+  const authUrl = `${resource}/auth`;
+  const gooseLink = `goose://extension?url=${encodeURIComponent(authUrl)}&name=${encodeURIComponent(connectorName)}`;
+  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connect your AI to ${esc(brand)}</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 16px/1.55 -apple-system, "Segoe UI", Roboto, sans-serif; max-width: 42rem; margin: 2.5rem auto; padding: 0 1.25rem; }
+  h1 { font-size: 1.6rem; } h2 { font-size: 1.15rem; margin-top: 2rem; }
+  code, .url { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .92em; }
+  .url { display: flex; gap: .5rem; align-items: center; padding: .6rem .8rem; border: 1px solid #8884; border-radius: .5rem; margin: .6rem 0; }
+  .url span { overflow-wrap: anywhere; flex: 1; }
+  button { font: inherit; padding: .35rem .8rem; border-radius: .4rem; border: 1px solid #8886; background: transparent; cursor: pointer; }
+  ol { padding-left: 1.3rem; } li { margin: .3rem 0; }
+  .muted { opacity: .75; font-size: .92em; }
+  a.big { display: inline-block; padding: .5rem 1rem; border: 1px solid #8886; border-radius: .5rem; text-decoration: none; }
+</style></head><body>
+<h1>Connect your AI assistant to ${esc(brand)}</h1>
+<p>This gives Claude, ChatGPT, or Goose live access to ${esc(brand)}'s events, newsletters, and content. You'll sign in with your usual account the first time — no password is stored by the assistant.</p>
+
+<p>Your connector URL (works in every assistant):</p>
+<div class="url"><span id="u">${esc(authUrl)}</span><button onclick="navigator.clipboard.writeText(document.getElementById('u').textContent)">Copy</button></div>
+
+<h2>Claude (claude.ai or Claude Desktop)</h2>
+<ol><li>Open <b>Settings &rarr; Connectors</b></li><li>Click <b>Add custom connector</b></li><li>Name it <b>${esc(connectorName)}</b> and paste the URL above</li><li>Save, then sign in when the browser window opens</li></ol>
+
+<h2>ChatGPT</h2>
+<ol><li>Open <b>Settings &rarr; Connectors</b></li><li>Click <b>Add</b> (custom connector), paste the URL above</li><li>Save and sign in</li></ol>
+
+<h2>Goose</h2>
+<p><a class="big" href="${gooseLink}">Add to Goose (one click)</a></p>
+
+<h2>Command line (technical users)</h2>
+<p><code>npx @gatewaze/connect@latest</code> &mdash; detects your installed clients and configures them (requires Node.js).</p>
+
+<p class="muted">Prefer anonymous browsing? Use <code>${esc(resource)}/</code> as the URL instead — public content only, no sign-in, fewer capabilities.</p>
+</body></html>`;
+}
+
 async function main() {
   if (transport === 'stdio') {
     // serveStdio pins one factory instance per connection; the opening
@@ -154,6 +204,19 @@ async function main() {
       if (req.method === 'GET' && req.url === '/healthz') {
         res.writeHead(200, { 'content-type': 'text/plain' });
         res.end('ok');
+        return;
+      }
+      // Browsers get a human onboarding page instead of a protocol error —
+      // "open mcp.<brand> in your browser" is the whole non-technical
+      // install story (MCP clients send Accept: application/json /
+      // text/event-stream, never text/html, so the protocol is unaffected).
+      if (
+        req.method === 'GET' &&
+        (req.url === '/' || req.url === '/connect') &&
+        (req.headers.accept ?? '').includes('text/html')
+      ) {
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+        res.end(landingPage());
         return;
       }
       // Brand identity for installers: @gatewaze/connect names the

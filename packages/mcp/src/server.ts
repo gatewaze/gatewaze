@@ -26,12 +26,27 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'events_get',
-    description: 'Get full details of a single event by UUID or short event_id.',
+    description:
+      "Get full details of a single event by UUID or short event_id. Pass include_content=true to also get page_text — the event page's full body as plain text, often the only place the schedule, topics, and tools/technologies covered are described in prose.",
     inputSchema: {
       type: 'object' as const,
       properties: {
         id: { type: 'string', description: 'Event UUID or short event_id' },
         fields: { type: 'string', description: 'Comma-separated field list' },
+        include_content: { type: 'boolean', description: "Include page_text — the event page's body as plain text" },
+      },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'events_talks',
+    description:
+      "The talk/agenda list for an event: title, synopsis, session type, and speakers per talk — the best source for 'what topics/tools will be covered at X'. Public callers see CONFIRMED talks of published events. include_pending=true (requires the events:metrics scope) adds unreviewed submissions and covers unpublished events.",
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        id: { type: 'string', description: 'Event UUID or short event_id' },
+        include_pending: { type: 'boolean', description: 'Include pending/unreviewed talk submissions (events:metrics only)' },
       },
       required: ['id'],
     },
@@ -603,6 +618,7 @@ async function handleEventsGet(
 ) {
   const queryParams: Record<string, string | number | undefined> = {};
   if (params.fields) queryParams.fields = mapEventFields(params.fields);
+  if (params.include_content === true) queryParams.include_content = 'true';
 
   return api.get(`/events/${params.id}`, queryParams);
 }
@@ -916,6 +932,7 @@ const PUBLIC_PROFILE_TOOLS = new Set([
   'calendars_list',
   'search',
   'events_nearby',
+  'events_talks',
 ]);
 
 /**
@@ -940,6 +957,7 @@ const OAUTH_TOOL_SCOPES: Record<string, string | null> = {
   calendars_list: null,
   search: null,
   events_nearby: null,
+  events_talks: null,
   my_registrations: null,
   events_metrics: 'events:metrics',
   events_metrics_summary: 'events:metrics',
@@ -1130,6 +1148,22 @@ export function createGatewazeMcpServer(
         case 'events_speakers':
           result = await handleEventsSpeakers(params, api);
           break;
+        case 'events_talks': {
+          const queryParams: Record<string, string> = {};
+          if (params.include_pending === true) {
+            // Per-parameter scope gate: pending submissions are operational
+            // data. Keyed full-profile deployments are trusted; OAuth callers
+            // need events:metrics on their token.
+            const allowed = identity ? identity.scopes.has('events:metrics') : profile === 'full';
+            if (!allowed) {
+              result = { error: "insufficient_scope: include_pending requires the 'events:metrics' scope — call without it for confirmed talks." };
+              break;
+            }
+            queryParams.include_pending = 'true';
+          }
+          result = await api.get(`/events/${params.id}/talks`, queryParams);
+          break;
+        }
         case 'events_sponsors':
           result = await handleEventsSponsors(params, api);
           break;
