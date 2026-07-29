@@ -10,6 +10,25 @@
 [extend]
 useDefault = true
 
+# --- Custom rules (default ruleset missed these in practice) ---
+
+# Hardcoded credential used as an env-var fallback:
+#   Deno.env.get('GW_API_BEARER') || 'literal-token'
+#   process.env.SOME_SECRET || "literal-token"
+# The literal is a working default, so it is a real credential. This exact
+# anti-pattern shipped a live bearer token into the public gatewaze-modules
+# repo (see docs/SECURITY-AUDIT.md), which the default ruleset did not catch.
+[[rules]]
+id = "env-fallback-secret"
+description = "Hardcoded secret used as an env-var fallback (process.env.X || '...')"
+regex = '''(?i)(?:Deno\.env\.get\(\s*['"][A-Z0-9_]*(?:KEY|TOKEN|SECRET|BEARER|PASSWORD|PASSWD|CREDENTIAL)[A-Z0-9_]*['"]\s*\)|process\.env\.[A-Z0-9_]*(?:KEY|TOKEN|SECRET|BEARER|PASSWORD|PASSWD|CREDENTIAL)[A-Z0-9_]*)\s*\|\|\s*['"][A-Za-z0-9._\-\/+=]{12,}['"]'''
+keywords = ["env", "||"]
+[rules.allowlist]
+# Placeholders are fine as fallbacks; only flag real-looking values.
+regexes = [
+  '''(?i)\|\|\s*['"](your[-_]|xxx|changeme|replace[-_]?me|example|placeholder|dummy|test[-_]?|fake|local|dev|changethis)''',
+]
+
 [allowlist]
 description = "Global allowlist for Gatewaze placeholders and fixtures"
 
