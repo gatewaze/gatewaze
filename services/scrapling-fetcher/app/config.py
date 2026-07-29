@@ -38,6 +38,19 @@ def _resolve_env_refs(value: Any) -> Any:
     return resolved
 
 
+def _parse_host_allowlist(raw: str | None) -> tuple[str, ...]:
+    """Parse SCRAPLING_EGRESS_HOST_ALLOWLIST (comma-separated host suffixes).
+
+    Empty/unset → empty tuple, which means /egress/lease denies every host
+    (nothing is explicitly allowed) per spec §8.4.
+    """
+    if not raw:
+        return ()
+    return tuple(
+        item.strip().lower() for item in raw.split(",") if item.strip()
+    )
+
+
 def _parse_proxy_config(raw: str | None) -> dict[str, Any]:
     if not raw:
         return {}
@@ -61,6 +74,8 @@ class Settings:
     per_domain_rps: int
     default_timeout_ms: int
     proxy_daily_gb_cap: float
+    egress_host_allowlist: tuple[str, ...]
+    egress_lease_byte_cap_bytes: int
     log_level: str
     supabase_url: str | None
     supabase_service_key: str | None
@@ -91,6 +106,12 @@ class Settings:
             ),
             proxy_daily_gb_cap=float(
                 os.environ.get("SCRAPLING_PROXY_DAILY_GB_CAP", "10")
+            ),
+            egress_host_allowlist=_parse_host_allowlist(
+                os.environ.get("SCRAPLING_EGRESS_HOST_ALLOWLIST")
+            ),
+            egress_lease_byte_cap_bytes=int(
+                os.environ.get("SCRAPLING_EGRESS_LEASE_BYTE_CAP_BYTES", "524288000")
             ),
             log_level=os.environ.get("LOG_LEVEL", "INFO"),
             supabase_url=os.environ.get("SUPABASE_URL"),
