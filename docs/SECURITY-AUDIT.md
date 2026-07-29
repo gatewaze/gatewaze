@@ -12,6 +12,21 @@ needs a human (credential rotation and GitHub org settings).
 
 ## 1. Top priorities (do these first)
 
+0. **ROTATE the `GW_API_BEARER` token now — it was live in public source.** A
+   single shared bearer secret (`YYv8…`, a real working default) was hardcoded
+   as an env fallback — `Deno.env.get('GW_API_BEARER') || '<token>'` — and used
+   to authenticate *incoming* requests to several edge functions. It was
+   committed and publicly visible in the open-source `gatewaze-modules` repo,
+   and present in this monorepo and `lf-gatewaze-modules` history. The default
+   gitleaks ruleset did not catch it; a custom `env-fallback-secret` rule now
+   does. **The hardcoded fallback has been removed from all current-tree files
+   and the auth checks now fail closed when the env var is unset** (see §6), but
+   the leaked value must still be rotated and `GW_API_BEARER` must be set in
+   every deployment before those functions are redeployed.
+   - Fixed in tree: `supabase/functions/people-enrichment/index.ts`;
+     `gatewaze-modules` people-enrichment, bigquery-proxy, customerio track-event.
+   - History only: `lf-gatewaze-modules` `modules/onboarding/api/sessions.ts`.
+
 1. **Rotate two credentials that reached git history.** The current tree is
    clean, but two real secrets were committed and later removed — they still
    live in history and must be treated as compromised. See §2.

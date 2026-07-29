@@ -5,8 +5,11 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const enrichlayerApiKey = Deno.env.get('ENRICHLAYER_API_KEY')!
 
-// API key for authenticating requests from the frontend
-const API_BEARER_TOKEN = Deno.env.get('GW_API_BEARER') || 'YYv8gvrl55fVPmJDQAWz8JLmhtpZpWF1MlqOrv8dfs7yPfMHPLHTdAlUeJcDiIUe'
+// Shared bearer secret for authenticating requests from the frontend.
+// Read from env only — no hardcoded fallback (a literal default is a real
+// leaked credential, and an empty-string fallback would open an auth bypass).
+// If GW_API_BEARER is unset the comparison below fails closed and rejects all.
+const API_BEARER_TOKEN = Deno.env.get('GW_API_BEARER')
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey, {
   auth: {
@@ -616,8 +619,9 @@ async function handler(req: Request) {
   const token = authHeader.split(' ')[1]
   let isAuthorized = false
 
-  // Check API bearer token first (backend/webhook calls)
-  if (token === API_BEARER_TOKEN) {
+  // Check API bearer token first (backend/webhook calls). Require the token to
+  // be configured — otherwise a missing/empty env must never authorize.
+  if (API_BEARER_TOKEN && token === API_BEARER_TOKEN) {
     isAuthorized = true
   } else {
     // Try validating as a Supabase JWT (frontend calls via supabase.functions.invoke)
