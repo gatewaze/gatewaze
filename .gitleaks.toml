@@ -49,14 +49,23 @@ paths = [
   '''(^|/)coverage/''',
   '''pnpm-lock\.yaml$''',
   '''(^|/)data/''',
+  # Test fixtures legitimately contain fake/sample keys and tokens (including
+  # deliberately truncated PEM blocks used to exercise secret detectors).
+  '''(^|/)__tests__/''',
+  '''(^|/)__mocks__/''',
+  '''(^|/)tests?/''',
+  '''(^|/)fixtures/''',
+  '''\.test\.[cm]?[jt]sx?$''',
+  '''\.spec\.[cm]?[jt]sx?$''',
 ]
 
 regexes = [
   # Local-dev seeded API key used across docker-compose / .mcp.json examples.
   # Deterministic all-zero suffix — never a live credential.
   '''gw_live_dev0+1''',
-  # Common non-secret placeholder tokens in docs and examples.
-  '''(?i)(your[-_]?(api[-_]?)?(key|token|secret)|xxx+|changeme|replace[-_]?me|example|placeholder)''',
+  # Common non-secret placeholder tokens in docs and examples, including
+  # YOUR_ANON_KEY / YOUR_SERVICE_ROLE_KEY / <your-token> style placeholders.
+  '''(?i)(your[-_][a-z0-9_]*(key|token|secret|password|bearer)|your[-_]?(api[-_]?)?(key|token|secret)|xxx+|changeme|replace[-_]?me|example|placeholder)''',
   # Well-known Supabase self-host DEMO keys (iss: supabase-demo). These are
   # published in Supabase's own docs and ship in docker-compose.ci.yml — they
   # only sign against a local demo instance and are not real credentials.
@@ -74,4 +83,7 @@ stopwords = [
   "validatelinkedinurlexists",
   "profiledetails",
   "detectedtimezone",
+  # plpgsql cache-key builder in a migration, not a credential:
+  #   v_key := 'bucket_minutes=' || ...
+  "bucket_minutes",
 ]
