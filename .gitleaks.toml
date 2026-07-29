@@ -1,0 +1,58 @@
+# gitleaks configuration.
+# Extends the built-in ruleset; adds project-specific allowlisting so known,
+# non-secret placeholders don't produce false positives that would erode
+# trust in the blocking pre-push hook.
+#
+# Used by:
+#   - scripts/security/gitleaks-scan.sh (pre-push hook + local runs)
+#   - .github/workflows/gitleaks.yml (CI)
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Global allowlist for Gatewaze placeholders and fixtures"
+
+paths = [
+  # Example env file ships intentionally with placeholder values.
+  '''\.env\.example$''',
+  # This config documents patterns; don't scan it against itself.
+  '''\.gitleaks\.toml$''',
+  # Vendored / generated / build output — not our source. Keeps ad-hoc
+  # `dir` scans meaningful (the pre-push hook scans git ranges, which are
+  # unaffected by on-disk vendored trees).
+  '''(^|/)node_modules/''',
+  '''(^|/)\.gatewaze-modules/''',
+  '''(^|/)\.pnpm-store/''',
+  '''(^|/)dist/''',
+  '''(^|/)\.next/''',
+  '''(^|/)\.turbo/''',
+  '''(^|/)coverage/''',
+  '''pnpm-lock\.yaml$''',
+  '''(^|/)data/''',
+]
+
+regexes = [
+  # Local-dev seeded API key used across docker-compose / .mcp.json examples.
+  # Deterministic all-zero suffix — never a live credential.
+  '''gw_live_dev0+1''',
+  # Common non-secret placeholder tokens in docs and examples.
+  '''(?i)(your[-_]?(api[-_]?)?(key|token|secret)|xxx+|changeme|replace[-_]?me|example|placeholder)''',
+  # Well-known Supabase self-host DEMO keys (iss: supabase-demo). These are
+  # published in Supabase's own docs and ship in docker-compose.ci.yml — they
+  # only sign against a local demo instance and are not real credentials.
+  '''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.eyJpc3MiOiJzdXBhYmFzZS1kZW1v[A-Za-z0-9._-]+''',
+]
+
+# Substring stopwords: if a flagged "secret" contains one of these, it is a
+# false positive from a loose rule matching an identifier, not a credential.
+# These silence the LinkedIn-rule false positives on our own symbol names
+# (e.g. `linkedinUrl`, `validateLinkedInUrlExists`) without path-allowlisting
+# whole files (which would hide real secrets in them).
+stopwords = [
+  "linkedinurl",
+  "linkedinhandle",
+  "validatelinkedinurlexists",
+  "profiledetails",
+  "detectedtimezone",
+]

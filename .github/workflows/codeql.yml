@@ -1,0 +1,42 @@
+name: CodeQL
+
+# Static analysis (SAST) for JavaScript/TypeScript across the monorepo.
+# Results surface in the repo Security tab under Code scanning.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly, so drift is caught even when nothing merges.
+    - cron: "27 3 * * 1"
+
+# Least privilege: only what CodeQL needs to upload results.
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (javascript-typescript)
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write   # upload SARIF to code scanning
+      actions: read
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@4187e74d05793876e9989daffde9c3e66b4acd07 # v3.37.3
+        with:
+          languages: javascript-typescript
+          # JS/TS needs no compilation; scan the source tree directly.
+          build-mode: none
+          queries: security-extended
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@4187e74d05793876e9989daffde9c3e66b4acd07 # v3.37.3
+        with:
+          category: "/language:javascript-typescript"

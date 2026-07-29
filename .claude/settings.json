@@ -8,6 +8,7 @@
     }
   },
   "enabledPlugins": {
-    "gatewaze-skills@gatewaze-skills": true
+    "gatewaze-skills@gatewaze-skills": true,
+    "pragma@gatewaze-skills": true
   }
 }
