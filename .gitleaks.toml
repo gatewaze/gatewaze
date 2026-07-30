@@ -60,6 +60,11 @@ paths = [
 ]
 
 regexes = [
+  # Retired GW_API_BEARER token: honored by no environment, removed from
+  # the working tree (edge fns fail closed). Allowlisted so the scheduled
+  # full-history gitleaks scan stays green without a history rewrite.
+  # See docs/SECURITY-AUDIT.md.
+  '''YYv8gvrl55fVPmJDQAWz8JLmhtpZpWF1MlqOrv8dfs7yPfMHPLHTdAlUeJcDiIUe''',
   # Local-dev seeded API key used across docker-compose / .mcp.json examples.
   # Deterministic all-zero suffix — never a live credential.
   '''gw_live_dev0+1''',
