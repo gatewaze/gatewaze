@@ -21,6 +21,50 @@ interface SendEmailParams {
   fromEmail?: string;
   fromName?: string;
   replyTo?: string;
+  /** Optional people.id (uuid) to link the send in email_send_log. */
+  personId?: string;
+}
+
+/**
+ * Best-effort write to email_send_log so transactional sends through this helper
+ * (magic links, signup/verify, inbound auto-replies, etc.) are visible in
+ * People > Emails + engagement views — same shape the email-send edge fn writes.
+ * Direct PostgREST insert (no supabase-js dependency); never throws.
+ */
+async function logEmailSend(
+  params: SendEmailParams,
+  fromAddress: string,
+  provider: string,
+  providerMessageId: string | null,
+): Promise<void> {
+  const url = Deno.env.get('SUPABASE_URL');
+  const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (!url || !key) return; // no service context available — skip silently
+  try {
+    await fetch(`${url}/rest/v1/email_send_log`, {
+      method: 'POST',
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify({
+        recipient_email: params.to,
+        recipient_customer_id: params.personId || null,
+        from_address: fromAddress,
+        reply_to: params.replyTo || null,
+        subject: params.subject,
+        content_html: params.html || null,
+        provider_message_id: providerMessageId,
+        provider,
+        status: 'sent',
+        sent_at: new Date().toISOString(),
+      }),
+    });
+  } catch (e) {
+    console.error('[_shared/email] email_send_log insert failed (non-fatal):', e);
+  }
 }
 
 /**
@@ -106,6 +150,8 @@ async function sendViaSendGrid(
     const body = await res.text();
     throw new Error(`SendGrid error (${res.status}): ${body}`);
   }
+
+  await logEmailSend(params, params.fromEmail || config.fromEmail, 'sendgrid', res.headers.get('x-message-id'));
 }
 
 async function sendViaSmtp(
@@ -147,6 +193,8 @@ async function sendViaSmtp(
       const body = await res.text();
       throw new Error(`Postmark error (${res.status}): ${body}`);
     }
+    const pm = await res.json().catch(() => null);
+    await logEmailSend(params, senderEmail, 'postmark', pm?.MessageID || null);
     return;
   }
 
@@ -180,6 +228,7 @@ async function sendViaSmtp(
       content: params.text || '',
       html: params.html,
     });
+    await logEmailSend(params, senderEmail, 'smtp', null);
   } finally {
     await client.close();
   }
