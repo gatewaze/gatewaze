@@ -49,12 +49,14 @@ jobs:
         run: pnpm --filter @gatewaze/api typecheck
       - name: Typecheck (shared)
         run: pnpm --filter @gatewaze/shared typecheck
+      # admin + portal both import module pages/services from the gatewaze-modules
+      # sibling repo, which CI does not clone — so a standalone typecheck reports
+      # TS2307 for those dynamic imports (and TS6305 until shared/dist exists).
+      # Non-blocking until CI clones the module sources + builds shared + runs
+      # `generate-modules`. Tracked as a CI follow-up. api + shared ARE blocking.
       - name: Typecheck (admin)
+        continue-on-error: true
         run: pnpm --filter @gatewaze/admin typecheck
-      # Portal imports module pages from the gatewaze-modules sibling repo, which
-      # is cloned only at build/deploy time — so a standalone typecheck reports
-      # TS2307 for those dynamic imports. Non-blocking until CI clones the module
-      # sources + runs `generate-modules`. Tracked as CI follow-up.
       - name: Typecheck (portal)
         continue-on-error: true
         run: pnpm --filter @gatewaze/portal typecheck
