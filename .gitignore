@@ -55,7 +55,6 @@ supabase/functions/_shared/*
 !supabase/functions/admin-send-magic-link/
 !supabase/functions/email-generate-encoded/
 !supabase/functions/email-send/
-!supabase/functions/email-send-push/
 !supabase/functions/email-send-reminders/
 !supabase/functions/email-sendgrid-webhook/
 !supabase/functions/events-speaker-submission/
