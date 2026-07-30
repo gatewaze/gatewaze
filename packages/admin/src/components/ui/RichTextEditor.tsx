@@ -661,7 +661,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   useEffect(() => {
     if (!editor || isHtmlMode) return;
     if (displayContent !== editor.getHTML()) {
-      editor.commands.setContent(displayContent || '', false);
+      editor.commands.setContent(displayContent || '', { emitUpdate: false });
     }
   }, [displayContent, editor, isHtmlMode]);
 
