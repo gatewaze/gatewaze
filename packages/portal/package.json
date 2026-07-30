@@ -9,7 +9,7 @@
     "dev": "tsx scripts/generate-module-registry.ts && next dev -p 3100 -H 0.0.0.0",
     "build": "tsx scripts/generate-module-registry.ts && next build",
     "start": "next start -p 3100",
-    "lint": "next lint",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf .next .open-next",
     "test": "vitest run",
@@ -67,6 +67,9 @@
     "tailwindcss": "^4.1.12",
     "tsx": "^4.19.0",
     "typescript": "5.9.3",
-    "wrangler": "^4.86.0"
+    "wrangler": "^4.86.0",
+    "eslint": "^9.18.0",
+    "eslint-config-next": "^15.5.18",
+    "@eslint/eslintrc": "^3.2.0"
   }
 }
