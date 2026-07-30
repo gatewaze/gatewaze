@@ -12,6 +12,7 @@ overrides:
   path-to-regexp@<0.1.13: ^0.1.13
   highlight.js@<10.4.1: ^11.10.0
   '@supabase/realtime-js': 2.98.0
+  '@react-email/render': 2.0.10
 
 importers:
 
@@ -539,8 +540,14 @@ importers:
         specifier: ^1.0.12
         version: 1.0.12(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@react-email/render':
-        specifier: ^2.0.8
-        version: 2.0.8(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+        specifier: 2.0.10
+        version: 2.0.10(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@supabase/supabase-js':
+        specifier: ^2.0.0
+        version: 2.108.1
+      bullmq:
+        specifier: ^5.0.0
+        version: 5.78.0
     devDependencies:
       '@types/babel__traverse':
         specifier: ^7.0.0
@@ -606,6 +613,21 @@ importers:
         specifier: '*'
         version: link:../../../gatewaze/packages/shared
 
+  ../gatewaze-modules/modules/redirects-umami: {}
+
+  ../gatewaze-modules/modules/residential-egress:
+    dependencies:
+      '@gatewaze/shared':
+        specifier: '*'
+        version: link:../../../gatewaze/packages/shared
+      '@supabase/supabase-js':
+        specifier: '*'
+        version: 2.108.1
+    devDependencies:
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(lightningcss@1.31.1)(terser@5.46.2)
+
   ../gatewaze-modules/modules/resources:
     dependencies:
       '@gatewaze/shared':
@@ -662,6 +684,18 @@ importers:
       '@gatewaze/shared':
         specifier: '*'
         version: link:../../../gatewaze/packages/shared
+
+  ../gatewaze-modules/modules/signals:
+    dependencies:
+      '@gatewaze/shared':
+        specifier: '*'
+        version: link:../../../gatewaze/packages/shared
+      '@supabase/supabase-js':
+        specifier: '*'
+        version: 2.108.1
+      react:
+        specifier: '*'
+        version: 19.2.6
 
   ../gatewaze-modules/modules/site-runtime:
     dependencies:
@@ -806,6 +840,34 @@ importers:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(lightningcss@1.31.1)(terser@5.46.2)
 
+  ../gatewaze-modules/modules/warehouse-sync:
+    dependencies:
+      '@gatewaze/shared':
+        specifier: '*'
+        version: link:../../../gatewaze/packages/shared
+      '@supabase/supabase-js':
+        specifier: '*'
+        version: 2.108.1
+      react:
+        specifier: ^18.0.0 || ^19.0.0
+        version: 19.2.6
+    devDependencies:
+      '@types/node':
+        specifier: ^22.19.19
+        version: 22.19.19
+      tsx:
+        specifier: ^4.19.2
+        version: 4.21.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.0
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@7.3.2(@types/node@22.19.19)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.2)(tsx@4.21.0)(yaml@2.8.3))
+      yaml:
+        specifier: ^2.5.1
+        version: 2.8.3
+
   ../gatewaze-modules/modules/webhooks:
     dependencies:
       '@gatewaze/shared':
@@ -888,8 +950,8 @@ importers:
         specifier: ^1.0.12
         version: 1.0.12(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@react-email/render':
-        specifier: ^2.0.8
-        version: 2.0.8(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+        specifier: 2.0.10
+        version: 2.0.10(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@react-three/fiber':
         specifier: ^9.1.2
         version: 9.5.0(@types/react@19.2.14)(immer@10.2.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(three@0.175.0)
@@ -1225,8 +1287,8 @@ importers:
         specifier: ^1.0.12
         version: 1.0.12(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@react-email/render':
-        specifier: ^2.0.8
-        version: 2.0.8(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+        specifier: 2.0.10
+        version: 2.0.10(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@sentry/node':
         specifier: ^10.51.0
         version: 10.51.0(@opentelemetry/exporter-trace-otlp-http@0.215.0(@opentelemetry/api@1.9.1))
@@ -1390,6 +1452,22 @@ importers:
         specifier: ^2.1.9
         version: 2.1.9(@types/node@22.19.19)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(lightningcss@1.31.1)(terser@5.46.2)
 
+  packages/connect:
+    dependencies:
+      yaml:
+        specifier: ^2.5.0
+        version: 2.8.3
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.19
+      tsx:
+        specifier: ^4.19.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
   packages/events-mcp:
     dependencies:
       '@modelcontextprotocol/sdk':
@@ -1414,9 +1492,18 @@ importers:
 
   packages/mcp:
     dependencies:
-      '@modelcontextprotocol/sdk':
-        specifier: ^1.12.0
-        version: 1.29.0(zod@4.3.6)
+      '@modelcontextprotocol/node':
+        specifier: ^2.0.0-beta.5
+        version: 2.0.0(@modelcontextprotocol/server@2.0.0)(hono@4.12.9)
+      '@modelcontextprotocol/server':
+        specifier: ^2.0.0-beta.5
+        version: 2.0.0
+      '@types/jsonwebtoken':
+        specifier: ^9.0.10
+        version: 9.0.10
+      jsonwebtoken:
+        specifier: ^9.0.3
+        version: 9.0.3
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -1452,8 +1539,8 @@ importers:
         specifier: ^1.0.12
         version: 1.0.12(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@react-email/render':
-        specifier: ^2.0.8
-        version: 2.0.8(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+        specifier: 2.0.10
+        version: 2.0.10(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@react-three/fiber':
         specifier: ^9.5.0
         version: 9.5.0(@types/react@19.2.14)(immer@10.2.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(three@0.182.0)
@@ -3165,6 +3252,20 @@ packages:
   '@mixmark-io/domino@2.2.0':
     resolution: {integrity: sha512-Y28PR25bHXUg88kCV7nivXrP2Nj2RueZ3/l/jdx6J9f8J4nsEGcgX0Qe6lt7Pa+J79+kPiJU3LguR6O/6zrLOw==}
 
+  '@modelcontextprotocol/core@2.0.0':
+    resolution: {integrity: sha512-pJCEwGG7Lfr/+PQp9ZTwKXNeO5wzbfKL7H3MYpCorM4oFBoQrdjnBgEoqG+RjhsvS1FKrDbKux+M1HhlnGWqcA==}
+    engines: {node: '>=20'}
+
+  '@modelcontextprotocol/node@2.0.0':
+    resolution: {integrity: sha512-Y4hAC2XdGDUdDOCbLDOCA4+aL3NUldjsOWlDL/YwpAxrPhRm1xHd7lZ+mLacvZ9t3PaH28wgNoaLQGrIk1P2pg==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      '@modelcontextprotocol/server': ^2.0.0
+      hono: ^4.11.4
+    peerDependenciesMeta:
+      hono:
+        optional: true
+
   '@modelcontextprotocol/sdk@1.29.0':
     resolution: {integrity: sha512-zo37mZA9hJWpULgkRpowewez1y6ML5GsXJPY8FI0tBBCd77HEvza4jDqRKOXgHNn867PVGCyTdzqpz0izu5ZjQ==}
     engines: {node: '>=18'}
@@ -3174,6 +3275,10 @@ packages:
     peerDependenciesMeta:
       '@cfworker/json-schema':
         optional: true
+
+  '@modelcontextprotocol/server@2.0.0':
+    resolution: {integrity: sha512-YhHWdHfpFMQfd0prsEnxKeS3Qz3ytIGmsS0sth4KDjnacIT7hxk6hXHkJ9KysxlkvTM+WZAtQbbcUhdoP4Hvtw==}
+    engines: {node: '>=20'}
 
   '@mozilla/readability@0.5.0':
     resolution: {integrity: sha512-Z+CZ3QaosfFaTqvhQsIktyGrjFjSC0Fa4EMph4mqKnWhmyoGICsV/8QK+8HpXut6zV7zwfWwqDmEjtk1Qf6EgQ==}
@@ -4958,15 +5063,8 @@ packages:
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
 
-  '@react-email/render@2.0.6':
-    resolution: {integrity: sha512-xOzaYkH3jLZKqN5MqrTXYnmqBYUnZSVbkxdb5PGGmDcK6sKDVMliaDiSwfXajRC9JtSHTcGc2tmGLHWuCgVpog==}
-    engines: {node: '>=20.0.0'}
-    peerDependencies:
-      react: ^18.0 || ^19.0 || ^19.0.0-rc
-      react-dom: ^18.0 || ^19.0 || ^19.0.0-rc
-
-  '@react-email/render@2.0.8':
-    resolution: {integrity: sha512-5udvVr3U/WuGJZfLdLBOhkzrqRWd2Q5ZYmF7ppcy7FzWcwgshdqLMNqJOXcVzAXJXg/2bm7D+WGJzTtZOZMQnQ==}
+  '@react-email/render@2.0.10':
+    resolution: {integrity: sha512-QbgVvXeYenVi0LqkO+upcZzbyrD5Tz2wwCV+6CSzgo6ZsvwHLjf0x5Sr1C7DepcMhjYo++maJWRbcSoKMXKr1g==}
     engines: {node: '>=20.0.0'}
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
@@ -13768,6 +13866,17 @@ snapshots:
 
   '@mixmark-io/domino@2.2.0': {}
 
+  '@modelcontextprotocol/core@2.0.0':
+    dependencies:
+      zod: 4.3.6
+
+  '@modelcontextprotocol/node@2.0.0(@modelcontextprotocol/server@2.0.0)(hono@4.12.9)':
+    dependencies:
+      '@hono/node-server': 1.19.12(hono@4.12.9)
+      '@modelcontextprotocol/server': 2.0.0
+    optionalDependencies:
+      hono: 4.12.9
+
   '@modelcontextprotocol/sdk@1.29.0(zod@3.25.76)':
     dependencies:
       '@hono/node-server': 1.19.12(hono@4.12.9)
@@ -13811,6 +13920,11 @@ snapshots:
       zod-to-json-schema: 3.25.2(zod@4.3.6)
     transitivePeerDependencies:
       - supports-color
+
+  '@modelcontextprotocol/server@2.0.0':
+    dependencies:
+      '@modelcontextprotocol/core': 2.0.0
+      zod: 4.3.6
 
   '@mozilla/readability@0.5.0': {}
 
@@ -16262,7 +16376,7 @@ snapshots:
       '@react-email/link': 0.0.13(react@19.2.4)
       '@react-email/markdown': 0.0.18(react@19.2.4)
       '@react-email/preview': 0.0.14(react@19.2.4)
-      '@react-email/render': 2.0.6(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@react-email/render': 2.0.10(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@react-email/row': 0.0.13(react@19.2.4)
       '@react-email/section': 0.0.17(react@19.2.4)
       '@react-email/tailwind': 2.0.7(@react-email/body@0.3.0(react@19.2.4))(@react-email/button@0.2.1(react@19.2.4))(@react-email/code-block@0.2.1(react@19.2.4))(@react-email/code-inline@0.0.6(react@19.2.4))(@react-email/container@0.0.16(react@19.2.4))(@react-email/heading@0.0.16(react@19.2.4))(@react-email/hr@0.0.12(react@19.2.4))(@react-email/img@0.0.12(react@19.2.4))(@react-email/link@0.0.13(react@19.2.4))(@react-email/preview@0.0.14(react@19.2.4))(@react-email/text@0.1.6(react@19.2.4))(react@19.2.4)
@@ -16288,7 +16402,7 @@ snapshots:
       '@react-email/link': 0.0.13(react@19.2.6)
       '@react-email/markdown': 0.0.18(react@19.2.6)
       '@react-email/preview': 0.0.14(react@19.2.6)
-      '@react-email/render': 2.0.6(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@react-email/render': 2.0.10(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@react-email/row': 0.0.13(react@19.2.6)
       '@react-email/section': 0.0.17(react@19.2.6)
       '@react-email/tailwind': 2.0.7(@react-email/body@0.3.0(react@19.2.6))(@react-email/button@0.2.1(react@19.2.6))(@react-email/code-block@0.2.1(react@19.2.6))(@react-email/code-inline@0.0.6(react@19.2.6))(@react-email/container@0.0.16(react@19.2.6))(@react-email/heading@0.0.16(react@19.2.6))(@react-email/hr@0.0.12(react@19.2.6))(@react-email/img@0.0.12(react@19.2.6))(@react-email/link@0.0.13(react@19.2.6))(@react-email/preview@0.0.14(react@19.2.6))(@react-email/text@0.1.6(react@19.2.6))(react@19.2.6)
@@ -16379,28 +16493,14 @@ snapshots:
     dependencies:
       react: 19.2.6
 
-  '@react-email/render@2.0.6(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
+  '@react-email/render@2.0.10(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
     dependencies:
       html-to-text: 9.0.5
       prettier: 3.8.3
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
 
-  '@react-email/render@2.0.6(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
-    dependencies:
-      html-to-text: 9.0.5
-      prettier: 3.8.3
-      react: 19.2.6
-      react-dom: 19.2.6(react@19.2.6)
-
-  '@react-email/render@2.0.8(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
-    dependencies:
-      html-to-text: 9.0.5
-      prettier: 3.8.3
-      react: 19.2.4
-      react-dom: 19.2.4(react@19.2.4)
-
-  '@react-email/render@2.0.8(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
+  '@react-email/render@2.0.10(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
     dependencies:
       html-to-text: 9.0.5
       prettier: 3.8.3
