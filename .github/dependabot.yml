@@ -1,0 +1,54 @@
+# Dependabot keeps dependencies and pinned actions current.
+# Docs: https://docs.github.com/code-security/dependabot
+version: 2
+updates:
+  # --- JavaScript/TypeScript (pnpm workspace, one ecosystem at the root) ---
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    groups:
+      # Batch low-risk dev/tooling bumps into one PR to cut review noise.
+      dev-dependencies:
+        dependency-type: development
+      # Batch patch/minor runtime bumps; majors still come as their own PRs.
+      production-minor-patch:
+        dependency-type: production
+        update-types: ["minor", "patch"]
+    labels: ["dependencies"]
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+
+  # --- GitHub Actions (keeps SHA-pinned actions current) ---
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    labels: ["dependencies", "ci"]
+    commit-message:
+      prefix: "chore(ci)"
+
+  # --- Container base images ---
+  - package-ecosystem: docker
+    directories:
+      - "/docker/admin"
+      - "/docker/api"
+      - "/docker/portal"
+      - "/docker/worker"
+      - "/docker/scheduler"
+      - "/packages/mcp"
+      - "/packages/browser-mcp"
+      - "/packages/events-mcp"
+      - "/services/scrapling-fetcher"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    labels: ["dependencies", "docker"]
+    commit-message:
+      prefix: "chore(docker)"
