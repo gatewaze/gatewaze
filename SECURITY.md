@@ -11,9 +11,7 @@ Report a vulnerability privately in one of these ways:
    [Security tab](https://github.com/gatewaze/gatewaze/security/advisories/new)
    of this repository and choose "Report a vulnerability". This creates a
    private advisory that only maintainers can see.
-2. **Email.** Send details to the security contact for the project.
-   <!-- MAINTAINERS: replace with the confirmed disclosure address, e.g.
-        security@gatewaze.io, before publishing this file. -->
+2. **Email.** Send details to the project security contact: me@danb.co
 
 Please include as much of the following as you can:
 
