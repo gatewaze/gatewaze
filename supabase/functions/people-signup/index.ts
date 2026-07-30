@@ -454,9 +454,6 @@ async function handler(req: Request) {
       console.log('Person record created in Supabase successfully')
     }
 
-    // Step 7: Trigger enrichment if people-enrichment module is enabled
-    await triggerEnrichmentIfEnabled(email)
-
     // Step 8: Determine missing fields based on people_attributes config
     const requiredFields = await getRequiredAttributeKeys()
     const missingFields: string[] = []
@@ -712,54 +709,14 @@ async function sendMagicLinkIfRequested(
   }
 }
 
-/**
- * Check if the people-enrichment module is enabled and has API keys configured,
- * then trigger enrichment for the given email address.
- * Runs as a fire-and-forget — does not block signup if enrichment fails.
- */
-async function triggerEnrichmentIfEnabled(email: string): Promise<void> {
-  try {
-    // Check if the people-enrichment module is enabled
-    const { data: mod } = await supabase
-      .from('installed_modules')
-      .select('status, config')
-      .eq('id', 'people-enrichment')
-      .maybeSingle()
-
-    if (!mod || mod.status !== 'enabled') return
-
-    const config = (mod.config ?? {}) as Record<string, string>
-
-    // Check if auto-enrich is enabled (default: true)
-    if (config.AUTO_ENRICH_ON_CREATE === 'false') return
-
-    // Check if at least one enrichment API key is configured
-    const hasClearbit = !!config.CLEARBIT_API_KEY
-    const hasEnrichLayer = !!config.ENRICHLAYER_API_KEY
-    if (!hasClearbit && !hasEnrichLayer) return
-
-    const enrichmentMode = config.ENRICHMENT_MODE || 'full'
-    console.log(`[enrichment] Triggering ${enrichmentMode} enrichment for ${email}`)
-
-    // Call the people-enrichment edge function (fire-and-forget)
-    const enrichmentUrl = `${supabaseUrl}/functions/v1/people-enrichment`
-    const bearerToken = Deno.env.get('GW_API_BEARER') || ''
-
-    fetch(enrichmentUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${bearerToken}`,
-      },
-      body: JSON.stringify({ email, mode: enrichmentMode }),
-    }).catch((err) => {
-      console.error('[enrichment] Failed to trigger enrichment:', err)
-    })
-  } catch (err) {
-    // Don't block signup if enrichment check fails
-    console.error('[enrichment] Error checking enrichment module:', err)
-  }
-}
+// NOTE: the former `triggerEnrichmentIfEnabled` fire-and-forget step was
+// removed. It POSTed to the people-enrichment edge function with
+// `Authorization: Bearer ${GW_API_BEARER}`, but GW_API_BEARER is configured in
+// no environment, so the call always sent an empty bearer and 401'd — auto
+// enrich-on-signup via this hop never actually ran. people-enrichment is still
+// invoked directly from the portal with the user's JWT. If server-side
+// enrich-on-create is wanted back, re-add it with a supported internal auth
+// mechanism (not a shared static bearer).
 
 export default handler;
 Deno.serve(handler);
