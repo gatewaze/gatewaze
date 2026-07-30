@@ -1,0 +1,89 @@
+# gitleaks configuration.
+# Extends the built-in ruleset; adds project-specific allowlisting so known,
+# non-secret placeholders don't produce false positives that would erode
+# trust in the blocking pre-push hook.
+#
+# Used by:
+#   - scripts/security/gitleaks-scan.sh (pre-push hook + local runs)
+#   - .github/workflows/gitleaks.yml (CI)
+
+[extend]
+useDefault = true
+
+# --- Custom rules (default ruleset missed these in practice) ---
+
+# Hardcoded credential used as an env-var fallback:
+#   Deno.env.get('GW_API_BEARER') || 'literal-token'
+#   process.env.SOME_SECRET || "literal-token"
+# The literal is a working default, so it is a real credential. This exact
+# anti-pattern shipped a live bearer token into the public gatewaze-modules
+# repo (see docs/SECURITY-AUDIT.md), which the default ruleset did not catch.
+[[rules]]
+id = "env-fallback-secret"
+description = "Hardcoded secret used as an env-var fallback (process.env.X || '...')"
+regex = '''(?i)(?:Deno\.env\.get\(\s*['"][A-Z0-9_]*(?:KEY|TOKEN|SECRET|BEARER|PASSWORD|PASSWD|CREDENTIAL)[A-Z0-9_]*['"]\s*\)|process\.env\.[A-Z0-9_]*(?:KEY|TOKEN|SECRET|BEARER|PASSWORD|PASSWD|CREDENTIAL)[A-Z0-9_]*)\s*\|\|\s*['"][A-Za-z0-9._\-\/+=]{12,}['"]'''
+keywords = ["env", "||"]
+[rules.allowlist]
+# Placeholders are fine as fallbacks; only flag real-looking values.
+regexes = [
+  '''(?i)\|\|\s*['"](your[-_]|xxx|changeme|replace[-_]?me|example|placeholder|dummy|test[-_]?|fake|local|dev|changethis)''',
+]
+
+[allowlist]
+description = "Global allowlist for Gatewaze placeholders and fixtures"
+
+paths = [
+  # Example env file ships intentionally with placeholder values.
+  '''\.env\.example$''',
+  # This config documents patterns; don't scan it against itself.
+  '''\.gitleaks\.toml$''',
+  # Vendored / generated / build output — not our source. Keeps ad-hoc
+  # `dir` scans meaningful (the pre-push hook scans git ranges, which are
+  # unaffected by on-disk vendored trees).
+  '''(^|/)node_modules/''',
+  '''(^|/)\.gatewaze-modules/''',
+  '''(^|/)\.pnpm-store/''',
+  '''(^|/)dist/''',
+  '''(^|/)\.next/''',
+  '''(^|/)\.turbo/''',
+  '''(^|/)coverage/''',
+  '''pnpm-lock\.yaml$''',
+  '''(^|/)data/''',
+  # Test fixtures legitimately contain fake/sample keys and tokens (including
+  # deliberately truncated PEM blocks used to exercise secret detectors).
+  '''(^|/)__tests__/''',
+  '''(^|/)__mocks__/''',
+  '''(^|/)tests?/''',
+  '''(^|/)fixtures/''',
+  '''\.test\.[cm]?[jt]sx?$''',
+  '''\.spec\.[cm]?[jt]sx?$''',
+]
+
+regexes = [
+  # Local-dev seeded API key used across docker-compose / .mcp.json examples.
+  # Deterministic all-zero suffix — never a live credential.
+  '''gw_live_dev0+1''',
+  # Common non-secret placeholder tokens in docs and examples, including
+  # YOUR_ANON_KEY / YOUR_SERVICE_ROLE_KEY / <your-token> style placeholders.
+  '''(?i)(your[-_][a-z0-9_]*(key|token|secret|password|bearer)|your[-_]?(api[-_]?)?(key|token|secret)|xxx+|changeme|replace[-_]?me|example|placeholder)''',
+  # Well-known Supabase self-host DEMO keys (iss: supabase-demo). These are
+  # published in Supabase's own docs and ship in docker-compose.ci.yml — they
+  # only sign against a local demo instance and are not real credentials.
+  '''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.eyJpc3MiOiJzdXBhYmFzZS1kZW1v[A-Za-z0-9._-]+''',
+]
+
+# Substring stopwords: if a flagged "secret" contains one of these, it is a
+# false positive from a loose rule matching an identifier, not a credential.
+# These silence the LinkedIn-rule false positives on our own symbol names
+# (e.g. `linkedinUrl`, `validateLinkedInUrlExists`) without path-allowlisting
+# whole files (which would hide real secrets in them).
+stopwords = [
+  "linkedinurl",
+  "linkedinhandle",
+  "validatelinkedinurlexists",
+  "profiledetails",
+  "detectedtimezone",
+  # plpgsql cache-key builder in a migration, not a credential:
+  #   v_key := 'bucket_minutes=' || ...
+  "bucket_minutes",
+]

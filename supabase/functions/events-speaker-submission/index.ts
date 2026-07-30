@@ -856,14 +856,14 @@ async function sendSpeakerSubmittedEmail(
     // Increment template usage (simple increment)
     const { data: currentTemplate } = await supabase
       .from('email_templates')
-      .select('times_used')
+      .select('usage_count')
       .eq('id', settings.speaker_submitted_email_template_id)
       .single()
 
     if (currentTemplate) {
       await supabase
         .from('email_templates')
-        .update({ times_used: (currentTemplate.times_used || 0) + 1 })
+        .update({ usage_count: (currentTemplate.usage_count || 0) + 1 })
         .eq('id', settings.speaker_submitted_email_template_id)
     }
 

@@ -1,0 +1,50 @@
+name: Secret scan
+
+# Deterministic secret scanning with gitleaks. Mirrors the blocking
+# pre-push hook so nothing that slips past a local push is missed on the
+# remote. Uses the pinned gitleaks binary (the gitleaks GitHub Action
+# requires a paid license for organization repos; the binary is free).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "43 5 * * 1"   # weekly full-history sweep
+
+permissions:
+  contents: read
+
+env:
+  GITLEAKS_VERSION: "8.30.1"
+
+jobs:
+  gitleaks:
+    name: gitleaks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          # Full history so range/scheduled scans see every commit.
+          fetch-depth: 0
+
+      - name: Install pinned gitleaks
+        run: |
+          set -euo pipefail
+          url="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -sSfL "$url" -o /tmp/gitleaks.tar.gz
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+          sudo install /tmp/gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
+      - name: Scan (pull request range)
+        if: github.event_name == 'pull_request'
+        run: |
+          scripts/security/gitleaks-scan.sh --range \
+            "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+
+      - name: Scan (full history)
+        if: github.event_name != 'pull_request'
+        run: scripts/security/gitleaks-scan.sh --all
