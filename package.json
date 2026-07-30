@@ -162,10 +162,8 @@
       "wrangler>undici": "7.27.0",
       "undici@<7.28.0": ">=7.28.0",
       "protobufjs@<8.6.6": ">=8.6.6",
-      "brace-expansion@>=1.0.0 <2.0.0": ">=1.1.12",
-      "brace-expansion@>=2.0.0 <3.0.0": ">=2.0.2",
-      "brace-expansion@>=3.0.0 <4.0.0": ">=3.0.1",
-      "brace-expansion@>=4.0.0": ">=4.0.1"
+      "brace-expansion": ">=5.0.8 <6.0.0",
+      "minimatch@3>brace-expansion": ">=1.1.12 <2.0.0"
     },
     "auditConfig": {
       "ignoreGhsas": [
