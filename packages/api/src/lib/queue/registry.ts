@@ -147,7 +147,20 @@ export function startWorker(queueName: string): Worker {
         }
       }
       try {
-        const result = await entry.handler(job);
+        // Give module worker handlers a minimal runtime ctx so they can chain follow-up jobs
+        // (phase pipelines) and open Redis pub/sub. Previously the worker passed nothing (only the
+        // API context had enqueueJob), so handlers that awaited ctx?.enqueueJob silently no-op'd.
+        // Existing single-arg handlers ignore the extra argument.
+        const handlerCtx = {
+          enqueueJob: async (qn: string, jn: string, data: Record<string, unknown>) => {
+            const e = queues.get(qn);
+            if (!e) return { id: undefined as string | undefined };
+            const j = await e.queue.add(jn, data);
+            return { id: j.id };
+          },
+          getRedisConnection,
+        };
+        const result = await (entry.handler as (j: Job, c: unknown) => Promise<unknown>)(job, handlerCtx);
         const durSec = Number(process.hrtime.bigint() - start) / 1e9;
         jobDurationSeconds
           .labels(queueName, job.name, 'completed', cfg.module)
