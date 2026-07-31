@@ -102,6 +102,9 @@ export interface ModuleRuntimeContext {
     queueName: string,
     jobName: string,
     data: Record<string, unknown>,
+    /** Optional BullMQ job options — e.g. a deterministic `jobId` for idempotent re-enqueue
+     *  (crash-recovery re-drives a run's phase without spawning a duplicate job). */
+    opts?: { jobId?: string; removeOnComplete?: boolean | number; [k: string]: unknown },
   ) => Promise<{ id: string | undefined }>;
   /**
    * Returns the platform's shared ioredis connection (the same pool BullMQ

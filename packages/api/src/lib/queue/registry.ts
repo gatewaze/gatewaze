@@ -152,10 +152,12 @@ export function startWorker(queueName: string): Worker {
         // API context had enqueueJob), so handlers that awaited ctx?.enqueueJob silently no-op'd.
         // Existing single-arg handlers ignore the extra argument.
         const handlerCtx = {
-          enqueueJob: async (qn: string, jn: string, data: Record<string, unknown>) => {
+          enqueueJob: async (qn: string, jn: string, data: Record<string, unknown>, opts?: JobsOptions) => {
             const e = queues.get(qn);
             if (!e) return { id: undefined as string | undefined };
-            const j = await e.queue.add(jn, data);
+            // opts (e.g. a deterministic jobId) let callers make re-enqueue idempotent — a recovery
+            // reconciler can safely re-drive a run's phase without spawning a duplicate job.
+            const j = await e.queue.add(jn, data, opts);
             return { id: j.id };
           },
           getRedisConnection,
@@ -178,6 +180,15 @@ export function startWorker(queueName: string): Worker {
       connection: getRedisConnection('bclient') as unknown as QueueConnection,
       prefix: bullPrefix,
       concurrency,
+      // Long-running handlers (e.g. the software-engineer agent sessions, 10–20 min) must not be
+      // falsely marked "stalled". BullMQ's default lockDuration is 30s: a handler that outlives it
+      // without a lock renewal is treated as dead and retried, wedging the pipeline. The lock is
+      // auto-renewed every lockDuration/2, so a generous duration (default 5 min → renew every 2.5
+      // min) tolerates event-loop pressure while keeping worker-death recovery bounded to that
+      // window. maxStalledCount>1 adds tolerance before a genuinely-stuck job is failed.
+      lockDuration: intEnv('WORKER_LOCK_DURATION_MS', 300_000),
+      stalledInterval: intEnv('WORKER_STALLED_INTERVAL_MS', 300_000),
+      maxStalledCount: intEnv('WORKER_MAX_STALLED_COUNT', 2),
       settings: backoffStrategy ? { backoffStrategy } : undefined,
     },
   );
