@@ -65,6 +65,21 @@ COPY packages/shared/package.json packages/shared/
 RUN --mount=type=cache,id=pnpm-api-dev,target=/root/.local/share/pnpm/store \
     pnpm install --no-frozen-lockfile
 
+# The software-engineer module imports @anthropic-ai/claude-agent-sdk from its
+# worker handlers (lib/agent-session.ts, in-process runner). It's a module dep,
+# not in the api/shared package.json, and the api dev image doesn't bake module
+# deps at build time — so without this the module's routes/handlers fail to load
+# with MODULE_NOT_FOUND (and the enable preflight blocks on MISSING_NPM_DEP).
+# npm can't run inside the pnpm workspace at /app ("Cannot read properties of
+# null (reading 'name')"), so install it in an isolated dir and copy it into
+# /app/node_modules. Baked here so it survives image rebuilds — a runtime
+# `npm install` is wiped by the next `make up --build`. Mirrors the SE-runner
+# image (docker/software-engineer-runner/Dockerfile).
+RUN mkdir -p /tmp/se-sdk && cd /tmp/se-sdk && npm init -y >/dev/null 2>&1 \
+    && npm install --no-save @anthropic-ai/claude-agent-sdk@^0.3.220 \
+    && cp -Rn /tmp/se-sdk/node_modules/. /app/node_modules/ \
+    && rm -rf /tmp/se-sdk
+
 # Mirror the prod api Dockerfile's /node_modules -> /app/node_modules
 # symlink so modules loaded from /tmp/module-repos/* / /gatewaze-modules/*
 # / /lf-gatewaze-modules/* can resolve their npm deps via Node's standard
