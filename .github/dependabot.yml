@@ -1,5 +1,10 @@
 # Dependabot keeps dependencies and pinned actions current.
 # Docs: https://docs.github.com/code-security/dependabot
+#
+# TEMPORARILY PAUSED: open-pull-requests-limit is 0 on every ecosystem, which
+# stops Dependabot opening new *version-update* PRs (existing ones stay open;
+# security-alert updates are unaffected). Paused deliberately while other work
+# is in flight — restore the limits (10) to resume. See PR that set this.
 version: 2
 updates:
   # --- JavaScript/TypeScript (pnpm workspace, one ecosystem at the root) ---
@@ -8,7 +13,7 @@ updates:
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 0 # paused (was 10)
     groups:
       # Batch low-risk dev/tooling bumps into one PR to cut review noise.
       dev-dependencies:
@@ -28,7 +33,7 @@ updates:
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 0 # paused (was 10)
     labels: ["dependencies", "ci"]
     commit-message:
       prefix: "chore(ci)"
@@ -48,7 +53,7 @@ updates:
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 0 # paused (was 10)
     labels: ["dependencies", "docker"]
     commit-message:
       prefix: "chore(docker)"
