@@ -26,11 +26,28 @@
 import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
-const MODULE_ROOT = '/app/.gatewaze-modules';
 const targetPath = process.argv[2] || '/app/packages/api/package.json';
 
-if (!existsSync(MODULE_ROOT)) {
-  console.log(`[aggregate-module-deps] No ${MODULE_ROOT}; nothing to aggregate.`);
+// Roots that may contain modules, in two possible layouts:
+//   - slug layout:   <root>/<slug>/modules/<name>/package.json   (git-clone cache)
+//   - direct layout: <root>/modules/<name>/package.json          (bind-mounted source)
+// Prod PREBUILD only has /app/.gatewaze-modules (slug layout); local dev
+// bind-mounts the sibling repos (direct layout). existsSync skips absent
+// roots, so this stays backward-compatible with the build-time callers.
+// Override with MODULE_DEP_SCAN_ROOTS (colon-separated) if needed.
+const DEFAULT_ROOTS = [
+  '/app/.gatewaze-modules',
+  '/gatewaze-modules',
+  '/lf-gatewaze-modules',
+  '/premium-gatewaze-modules',
+];
+const roots = (process.env.MODULE_DEP_SCAN_ROOTS
+  ? process.env.MODULE_DEP_SCAN_ROOTS.split(':')
+  : DEFAULT_ROOTS
+).filter((r) => r && existsSync(r));
+
+if (roots.length === 0) {
+  console.log('[aggregate-module-deps] No module roots present; nothing to aggregate.');
   process.exit(0);
 }
 
@@ -39,13 +56,27 @@ if (!existsSync(targetPath)) {
   process.exit(1);
 }
 
+// Every <name>/package.json under a root, covering both layouts.
+function moduleManifests(root) {
+  const modulesDirs = [];
+  if (existsSync(join(root, 'modules'))) modulesDirs.push(join(root, 'modules')); // direct
+  for (const entry of readdirSync(root)) {                                        // slug
+    const md = join(root, entry, 'modules');
+    if (existsSync(md)) modulesDirs.push(md);
+  }
+  const out = [];
+  for (const md of modulesDirs) {
+    for (const modName of readdirSync(md)) {
+      const pkgPath = join(md, modName, 'package.json');
+      if (existsSync(pkgPath)) out.push(pkgPath);
+    }
+  }
+  return out;
+}
+
 const deps = new Map();
-for (const slug of readdirSync(MODULE_ROOT)) {
-  const modulesPath = join(MODULE_ROOT, slug, 'modules');
-  if (!existsSync(modulesPath)) continue;
-  for (const modName of readdirSync(modulesPath)) {
-    const pkgPath = join(modulesPath, modName, 'package.json');
-    if (!existsSync(pkgPath)) continue;
+for (const root of roots) {
+  for (const pkgPath of moduleManifests(root)) {
     let pkg;
     try {
       pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
