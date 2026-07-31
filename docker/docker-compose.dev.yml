@@ -99,6 +99,8 @@ services:
     environment:
       NODE_ENV: development
       EDGE_FUNCTIONS_CONTAINER: ${COMPOSE_PROJECT_NAME:-gatewaze}-supabase-edge-functions
+      # Software Engineer module: GitHub webhook HMAC secret (value in git-ignored docker/.env).
+      SE_GITHUB_WEBHOOK_SECRET: ${SE_GITHUB_WEBHOOK_SECRET:-}
       # Dev: no supervisor runs inside admin/portal, and HMR handles
       # source changes. So mark rebuild status "ok" the moment we bump
       # the counter — this keeps UI polling fast without lying about
