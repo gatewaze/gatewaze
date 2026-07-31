@@ -910,7 +910,7 @@ services:
       # newsletters:read, resources:read, …). Create one in /admin/api-keys.
       # Never grant write scopes to this key: the profile hides write tools,
       # and a read-only key makes that a guarantee rather than a convention.
-      GATEWAZE_MCP_API_KEY: ${MCP_PUBLIC_API_KEY:-}
+      GATEWAZE_MCP_API_KEY: ${MCP_PUBLIC_API_KEY:-${GATEWAZE_MCP_API_KEY:-}}
       MCP_RATE_LIMIT_RPM: ${MCP_PUBLIC_RATE_LIMIT_RPM:-120}
       # Brand identity in the MCP initialize instructions, so agents treat
       # brand-name questions as platform-wide. Falls back to the app name.
