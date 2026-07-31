@@ -106,7 +106,13 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
   crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({
+  limit: '50mb',
+  // Capture the raw request body so webhook handlers can verify HMAC signatures (e.g. the
+  // software-engineer module's GitHub webhook). The global parser consumes the stream here, so
+  // raw bytes must be stashed at parse time — a downstream router can't re-read them.
+  verify: (req, _res, buf) => { (req as unknown as { rawBody?: Buffer }).rawBody = buf; },
+}));
 app.use(express.urlencoded({ extended: true }));
 app.use(requestLogger);
 app.use(attachRequestId);
