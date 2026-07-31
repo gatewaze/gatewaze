@@ -785,23 +785,69 @@ const MODULE_ROOTS = [
   '/app/.gatewaze-modules',            // loader.ts cache dir (clones nested per repo slug)
 ];
 
-function discoverModuleWorkers() {
+// Register handlers by the DECLARED job name from each module's index.ts
+// (`workers[].name` / `queues[].handlers[].name`) — the same source the
+// enqueue side uses. Deriving the name from the handler FILENAME broke any
+// module whose file stem didn't equal the job-name suffix (e.g.
+// 'run-writeup-handler.ts' registered as 'lunch-and-learn:run-writeup-handler'
+// but the job is enqueued as 'lunch-and-learn:run-writeup'), and it cannot
+// represent several job names sharing one handler file (sites/templates
+// 'cron-dispatchers.ts'). Falls back to the legacy filename derivation if a
+// module's index.ts can't be read.
+async function discoverModuleWorkers() {
   const map = new Map(); // job-name -> handler file path
-  const seenModule = new Set();
-  const visit = (modDir, moduleId) => {
-    if (seenModule.has(moduleId)) return;
+
+  const addFromDeclared = (modDir, cfg) => {
+    let added = 0;
+    const decls = [
+      ...(Array.isArray(cfg.workers) ? cfg.workers : []),
+      ...(Array.isArray(cfg.queues)
+        ? cfg.queues.flatMap((q) => (Array.isArray(q.handlers) ? q.handlers : []))
+        : []),
+    ];
+    for (const d of decls) {
+      if (!d || typeof d.name !== 'string' || typeof d.handler !== 'string') continue;
+      if (map.has(d.name)) continue;
+      map.set(d.name, path.resolve(modDir, d.handler));
+      added += 1;
+    }
+    return added;
+  };
+
+  const addFromFilenames = (modDir, moduleId) => {
     const workersDir = path.join(modDir, 'workers');
     if (!fsSync.existsSync(workersDir)) return;
-    seenModule.add(moduleId);
     for (const entry of fsSync.readdirSync(workersDir)) {
       if (!entry.endsWith('.ts') && !entry.endsWith('.js')) continue;
       if (entry.startsWith('_') || entry.endsWith('.d.ts')) continue;
-      const stem = entry.replace(/\.(ts|js)$/, '');
-      const name = `${moduleId}:${stem}`;
+      const name = `${moduleId}:${entry.replace(/\.(ts|js)$/, '')}`;
       if (map.has(name)) continue;
       map.set(name, path.join(workersDir, entry));
     }
   };
+
+  const seenModule = new Set();
+  const visit = async (modDir, moduleId) => {
+    if (seenModule.has(moduleId)) return;
+    seenModule.add(moduleId);
+    const indexPath = ['index.ts', 'index.js']
+      .map((f) => path.join(modDir, f))
+      .find((p) => fsSync.existsSync(p));
+    if (indexPath) {
+      try {
+        const mod = await import(pathToFileURL(indexPath).href);
+        const cfg = mod.default ?? mod;
+        if (cfg && typeof cfg === 'object' && (Array.isArray(cfg.workers) || Array.isArray(cfg.queues))) {
+          addFromDeclared(modDir, cfg);
+          return;
+        }
+      } catch (err) {
+        console.warn(`⚠️  Could not read declared handlers for '${moduleId}' (${err.message}); falling back to filename scan`);
+      }
+    }
+    addFromFilenames(modDir, moduleId);
+  };
+
   for (const root of MODULE_ROOTS) {
     if (!fsSync.existsSync(root)) continue;
     for (const entry of fsSync.readdirSync(root, { withFileTypes: true })) {
@@ -811,17 +857,17 @@ function discoverModuleWorkers() {
       const nested = path.join(dir, 'modules');
       if (fsSync.existsSync(nested)) {
         for (const sub of fsSync.readdirSync(nested, { withFileTypes: true })) {
-          if (sub.isDirectory()) visit(path.join(nested, sub.name), sub.name);
+          if (sub.isDirectory()) await visit(path.join(nested, sub.name), sub.name);
         }
       } else {
-        visit(dir, entry.name);
+        await visit(dir, entry.name);
       }
     }
   }
   return map;
 }
 
-const moduleHandlerFiles = discoverModuleWorkers();
+const moduleHandlerFiles = await discoverModuleWorkers();
 console.log(`🧩 Discovered ${moduleHandlerFiles.size} module job handlers`);
 if (moduleHandlerFiles.size > 0) {
   const sample = Array.from(moduleHandlerFiles.keys()).slice(0, 8).join(', ');
