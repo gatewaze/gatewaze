@@ -715,6 +715,9 @@ services:
       # when a recipe genuinely needs deeper thinking.
       OPENAI_REASONING_EFFORT: ${OPENAI_REASONING_EFFORT:-minimal}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      # vehicle-video promo generator: fal.ai (Kling image-to-video) key + engine.
+      FAL_KEY: ${FAL_KEY:-}
+      VEHICLE_VIDEO_VIDEO_PROVIDER: ${VEHICLE_VIDEO_VIDEO_PROVIDER:-kling}
       # spec-ai-mcp-extensions.md §6 — route chat through `goose session`
       # so MCP allowlists, runtime overrides + the Gatewaze-owned memory
       # backing store all apply the same way they do for recipe runs.
