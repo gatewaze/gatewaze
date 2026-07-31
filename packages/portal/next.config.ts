@@ -122,7 +122,7 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
 
   // Transpile shared workspace package and module portal components
-  transpilePackages: ['@gatewaze/shared'],
+  transpilePackages: ['@gatewaze/shared', '@gatewaze/tracking'],
 
   webpack: (config) => {
     // `@gatewaze-modules/<module>` resolves to the first matching module

@@ -53,4 +53,17 @@ spec:
                 name: {{ include "gatewaze.fullname" . }}-api
                 port:
                   number: 3002
+    {{- if and .Values.mcpPublic.enabled .Values.ingress.hosts.mcp }}
+    # Public keyless MCP endpoint (read-only tool profile)
+    - host: {{ .Values.ingress.hosts.mcp | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "gatewaze.fullname" . }}-mcp-public
+                port:
+                  number: 8080
+    {{- end }}
 {{- end }}

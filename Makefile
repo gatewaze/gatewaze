@@ -17,6 +17,16 @@
 ENV_FILE      := docker/.env
 TRAEFIK_FILE  := -f docker/docker-compose.traefik.yml
 
+# Docker context pin. All Gatewaze/AAIF containers run on the `desktop-linux`
+# context on this machine; the shell's default context (`orbstack`) hosts a
+# separate LFX/k8s stack that collides on host ports (54332, 80). Exporting it
+# here means every `docker`/`docker compose` invocation in `make up`/`down`/etc
+# targets the right VM regardless of the shell default — fixing the class of bug
+# where `make up` silently spins up a duplicate stack on the wrong context.
+# `?=` keeps it overridable: `DOCKER_CONTEXT=other make up`, or set it in your
+# shell/CI. Machine-specific — change the default if your context isn't desktop-linux.
+export DOCKER_CONTEXT ?= desktop-linux
+
 # Detect Supabase mode from the env file
 SUPABASE_MODE := $(shell grep -E '^SUPABASE_MODE=' "$(ENV_FILE)" 2>/dev/null | head -1 | cut -d= -f2-)
 
@@ -119,7 +129,8 @@ EDGE_FUNCTION_SECRETS := \
 	SENDGRID_FROM_EVENTS SENDGRID_FROM_PARTNERS SENDGRID_FROM_MEMBERS SENDGRID_FROM_ADMIN SENDGRID_FROM_DEFAULT \
 	OPENAI_API_KEY ENRICHLAYER_API_KEY GW_API_BEARER \
 	VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY VAPID_SUBJECT \
-	CUSTOMERIO_SITE_ID CUSTOMERIO_API_KEY CUSTOMERIO_APP_API_KEY
+	CUSTOMERIO_SITE_ID CUSTOMERIO_API_KEY CUSTOMERIO_APP_API_KEY \
+	NEWSLETTER_ACQUISITION_SOURCE
 
 _check-env:
 	@if [ ! -f "$(ENV_FILE)" ]; then \
@@ -145,16 +156,16 @@ endif
 _sync-secrets:
 ifeq ($(SUPABASE_MODE),cloud)
 	@echo "Syncing edge function secrets from $(ENV_FILE)..."
-	@SECRETS=""; \
+	@set --; \
 	for key in $(EDGE_FUNCTION_SECRETS); do \
 		val=$$(grep -E "^$$key=" "$(ENV_FILE)" 2>/dev/null | head -1 | cut -d= -f2-); \
 		if [ -n "$$val" ]; then \
-			SECRETS="$$SECRETS $$key=$$val"; \
+			set -- "$$@" "$$key=$$val"; \
 		fi; \
 	done; \
-	if [ -n "$$SECRETS" ]; then \
-		echo "  Setting: $$(echo $$SECRETS | sed 's/=[^ ]*/=***/g')"; \
-		npx supabase secrets set $$SECRETS; \
+	if [ "$$#" -gt 0 ]; then \
+		echo "  Setting $$# secret(s) (values hidden)"; \
+		npx supabase secrets set "$$@"; \
 	else \
 		echo "  No secrets to sync."; \
 	fi

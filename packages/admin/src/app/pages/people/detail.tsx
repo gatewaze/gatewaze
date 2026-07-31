@@ -20,6 +20,8 @@ import {
   BuildingOfficeIcon,
   BriefcaseIcon,
   Square3Stack3DIcon,
+  ClockIcon,
+  KeyIcon,
 } from '@heroicons/react/24/outline';
 import { toast } from 'sonner';
 import { Card, Button, Input, Badge, Avatar, Table, THead, TBody, Tr, Th, Td, Tabs } from '@/components/ui';
@@ -27,12 +29,16 @@ import type { Tab } from '@/components/ui/Tabs';
 import { Spinner } from '@/components/ui/Spinner';
 import { Page } from '@/components/shared/Page';
 import { PeopleService, Person } from '@/utils/peopleService';
+import { geocodeCityCountry } from '@/utils/geocode';
+import { StaticLocationMap } from '@/components/charts/StaticLocationMap';
 import { PeopleAvatarService } from '@/utils/peopleAvatarService';
 import { CompetitionWinner } from '@/utils/competitionWinnerService';
 import { supabase } from '@/lib/supabase';
 import { EmailHistorySection } from '@/components/emails/EmailHistorySection';
+import { PersonActivityTimeline } from '@/components/people/PersonActivityTimeline';
 import { useHasModule } from '@/hooks/useModuleFeature';
 import { ModuleSlot } from '@/components/ModuleSlot';
+import { PersonMcpAccessPanel } from '@/components/mcp/PersonMcpAccessPanel';
 
 // Helper function to get avatar URL with fallback
 function getAvatarUrl(person: Person, size: number = 80): string {
@@ -145,9 +151,9 @@ interface OfferActivity {
   event?: CompetitionEvent;
 }
 
-type TabType = 'profile' | 'attributes' | 'segments' | 'events' | 'wins' | 'emails' | 'competitions' | 'offers';
+type TabType = 'profile' | 'attributes' | 'segments' | 'events' | 'wins' | 'emails' | 'activity' | 'competitions' | 'offers' | 'mcp';
 
-const validTabs: TabType[] = ['profile', 'attributes', 'segments', 'events', 'wins', 'emails', 'competitions', 'offers'];
+const validTabs: TabType[] = ['profile', 'attributes', 'segments', 'events', 'wins', 'emails', 'activity', 'competitions', 'offers', 'mcp'];
 
 export default function MemberDetailPage() {
   const { id, tab: tabFromUrl } = useParams<{ id: string; tab?: string }>();
@@ -234,20 +240,47 @@ export default function MemberDetailPage() {
 
     setIsSaving(true);
     try {
+      const city = (editFormData.city || '').trim();
+      const country = (editFormData.country || '').trim();
+
+      const attributes: Record<string, unknown> = {
+        ...person.attributes,
+        first_name: editFormData.first_name,
+        last_name: editFormData.last_name,
+        job_title: editFormData.job_title,
+        company: editFormData.company,
+        linkedin_url: editFormData.linkedin_url,
+        city,
+        country,
+      };
+
+      // Keep the map coordinates in sync with the edited city/country. Only
+      // re-geocode when the location actually changed: clear coordinates if the
+      // location was removed, otherwise look them up and overwrite. On a failed
+      // lookup we leave the existing coordinates in place (inherited from the
+      // spread above) so a transient geocoder hiccup can't wipe good data.
+      const prevCity = (person.attributes?.city as string) || '';
+      const prevCountry = (person.attributes?.country as string) || '';
+      if (city !== prevCity || country !== prevCountry) {
+        if (!city && !country) {
+          delete attributes.coordinates;
+        } else {
+          const coordinates = await geocodeCityCountry(city, country);
+          if (coordinates) {
+            attributes.coordinates = coordinates;
+          } else {
+            toast.warning(
+              'Saved, but could not find map coordinates for that city/country — the map may be out of date.',
+            );
+          }
+        }
+      }
+
       const result = await PeopleService.updatePerson(
         person.id,
         {
           email: editFormData.email,
-          attributes: {
-            ...person.attributes,
-            first_name: editFormData.first_name,
-            last_name: editFormData.last_name,
-            job_title: editFormData.job_title,
-            company: editFormData.company,
-            linkedin_url: editFormData.linkedin_url,
-            city: editFormData.city,
-            country: editFormData.country,
-          },
+          attributes,
         }
       );
 
@@ -793,37 +826,29 @@ export default function MemberDetailPage() {
     );
   }
 
-  // Check if we have valid location coordinates for the map background
-  const hasMapLocation = (() => {
-    const location = person.attributes?.coordinates || person.attributes?.location;
-    if (location) {
-      const [lat, lng] = location.split(',').map((coord: string) => parseFloat(coord.trim()));
-      return !isNaN(lat) && !isNaN(lng);
-    }
-    return false;
+  // Parse the person's map coordinates for the hero background (prefer the
+  // explicit `coordinates`, fall back to the geocoder's `location`).
+  const heroCoords = (() => {
+    const raw = (person.attributes?.coordinates as string) || (person.attributes?.location as string);
+    if (!raw) return null;
+    const [lat, lng] = raw.split(',').map((coord: string) => parseFloat(coord.trim()));
+    return !isNaN(lat) && !isNaN(lng) ? { lat, lng } : null;
   })();
 
   return (
     <Page>
       {/* Hero Section */}
       <div className="relative h-48 md:h-56 lg:h-64 overflow-hidden bg-gray-900 -mx-(--margin-x) -mt-(--margin-x)">
-        {/* Background - map if location available, otherwise gradient */}
-        {hasMapLocation ? (
-          <iframe
+        {/* Background - map if location available, otherwise gradient.
+            Uses Leaflet tiles (plain <img>) rather than a cross-origin OSM
+            <iframe>, which production's COEP: credentialless policy blocks. */}
+        {heroCoords ? (
+          <div
             className="absolute inset-0 w-full h-full scale-110 pointer-events-none"
-            src={(() => {
-              const location = person.attributes?.coordinates || person.attributes?.location;
-              if (location) {
-                const [lat, lng] = location.split(',').map((coord: string) => parseFloat(coord.trim()));
-                // Use a wider bounding box for the hero background view, with marker
-                return `https://www.openstreetmap.org/export/embed.html?bbox=${lng - 0.15},${lat - 0.08},${lng + 0.15},${lat + 0.08}&layer=mapnik&marker=${lat},${lng}`;
-              }
-              return '';
-            })()}
-            style={{ border: 0, filter: 'saturate(0.7)' }}
-            scrolling="no"
-            frameBorder="0"
-          />
+            style={{ filter: 'saturate(0.7)' }}
+          >
+            <StaticLocationMap lat={heroCoords.lat} lng={heroCoords.lng} className="w-full h-full" />
+          </div>
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-primary-600 to-primary-800 dark:from-primary-800 dark:to-primary-950" />
         )}
@@ -947,6 +972,8 @@ export default function MemberDetailPage() {
             hasEvents && { id: 'events', label: 'Events', icon: <CalendarIcon className="size-4" /> },
             competitionWins.length > 0 && { id: 'wins', label: 'Wins', icon: <TrophyIcon className="size-4" />, count: competitionWins.length },
             { id: 'emails', label: 'Emails', icon: <EnvelopeIcon className="size-4" /> },
+            { id: 'activity', label: 'Activity', icon: <ClockIcon className="size-4" /> },
+            { id: 'mcp', label: 'MCP Access', icon: <KeyIcon className="size-4" /> },
           ].filter(Boolean) as Tab[]}
         />
       </div>
@@ -1614,6 +1641,32 @@ export default function MemberDetailPage() {
             <EmailHistorySection
               customerEmail={person.email || ''}
               personId={person.id}
+            />
+          </Card>
+        )}
+
+        {/* Activity Tab — unified timeline of everything the person has done */}
+        {activeTab === 'activity' && person && (
+          <Card variant="surface" className="p-6">
+            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <ClockIcon className="size-5" />
+              Activity
+            </h2>
+            <PersonActivityTimeline personId={person.id || ''} email={person.email || undefined} />
+          </Card>
+        )}
+
+        {/* MCP Access Tab — same panel as the API & MCP Access page's People tab */}
+        {activeTab === 'mcp' && person && (
+          <Card variant="surface" className="p-6">
+            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <KeyIcon className="size-5" />
+              MCP Access
+            </h2>
+            <PersonMcpAccessPanel
+              personId={person.id || ''}
+              personLabel={person.email || undefined}
+              activityTo={`/admin/api-keys?tab=activity&person_id=${person.id}`}
             />
           </Card>
         )}

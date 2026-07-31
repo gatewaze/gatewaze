@@ -66,6 +66,8 @@ export function TalksFormContent({ initialStatus = 'pending', confirmedDurationC
           .from('people')
           .select('id, email, attributes, avatar_storage_path')
           .eq('auth_user_id', session.user.id)
+          .order('created_at', { ascending: true })
+          .limit(1)
           .maybeSingle()
 
         if (!person) {
@@ -115,51 +117,42 @@ export function TalksFormContent({ initialStatus = 'pending', confirmedDurationC
           return
         }
 
-        const { data: speakerTalks } = await supabase
-          .from('events_talk_speakers')
-          .select(`
-            is_primary,
-            speaker:events_speakers!inner (
-              id,
-              event_uuid,
-              people_profile_id
-            ),
-            talk:events_talks!inner (
-              id,
-              title,
-              status,
-              edit_token
-            )
-          `)
-          .eq('speaker.event_uuid', eventData.id)
-          .in('speaker.people_profile_id', profileIds)
-          .eq('is_primary', true)
+        // Plain decomposed lookups (participation → bridge → talks). The
+        // previous embed resolved events_talk_speakers → events_speakers,
+        // but the bridge's speaker_id FK targets events_speaker_profiles —
+        // PostgREST rejected the query (PGRST200) and "existing submission"
+        // never showed for anyone.
+        const { data: mySpeakers } = await supabase
+          .from('events_speakers')
+          .select('speaker_id')
+          .eq('event_uuid', eventData.id)
+          .in('people_profile_id', profileIds)
+        const speakerProfileIds = (mySpeakers ?? [])
+          .map((s) => s.speaker_id)
+          .filter((v): v is string => Boolean(v))
 
-        if (speakerTalks && speakerTalks.length > 0) {
-          // Supabase types !inner joins as arrays even when the relation
-          // is structurally 1:1, so cast through unknown and unwrap arrays
-          // defensively at the boundary.
-          type RawSpeakerTalk = {
-            talk: {
-              id: string; status?: string | null; title?: string | null;
-              synopsis?: string | null; duration_minutes?: number | null;
-              rejection_reason?: string | null; edit_token?: string | null;
-            } | Array<{
-              id: string; status?: string | null; title?: string | null;
-              synopsis?: string | null; duration_minutes?: number | null;
-              rejection_reason?: string | null; edit_token?: string | null;
-            }>
-          }
-          const talks: ExistingTalk[] = (speakerTalks as unknown as RawSpeakerTalk[])
-            .map((st) => (Array.isArray(st.talk) ? st.talk[0] : st.talk))
-            .filter((t): t is NonNullable<typeof t> => Boolean(t))
-            .map((talk) => ({
+        if (speakerProfileIds.length > 0) {
+          const { data: bridgeRows } = await supabase
+            .from('events_talk_speakers')
+            .select('talk_id')
+            .in('speaker_id', speakerProfileIds)
+            .eq('is_primary', true)
+          const talkIds = (bridgeRows ?? []).map((b) => b.talk_id)
+
+          if (talkIds.length > 0) {
+            const { data: talkRows } = await supabase
+              .from('events_talks')
+              .select('id, title, status, edit_token')
+              .in('id', talkIds)
+              .eq('event_uuid', eventData.id)
+            const talks: ExistingTalk[] = (talkRows ?? []).map((talk) => ({
               id: talk.id,
               status: talk.status || 'pending',
               title: talk.title || '',
               edit_token: talk.edit_token ?? null,
             }))
-          setExistingTalks(talks)
+            if (talks.length > 0) setExistingTalks(talks)
+          }
         }
       } catch (err) {
         console.error('Error checking existing submission:', err)
@@ -302,7 +295,7 @@ export function TalksFormContent({ initialStatus = 'pending', confirmedDurationC
                             <PortalButton
                               variant="secondary"
                               size="small"
-                              href={`${basePath}/talks/edit?token=${talk.edit_token}`}
+                              href={`${basePath}/talks/edit${talk.edit_token ? `?token=${talk.edit_token}` : ""}`}
                             >
                               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />

@@ -31,6 +31,13 @@ export type ScheduleType = 'immediate' | 'scheduled';
 export type DeliveryStrategy = 'global' | 'tz_local' | 'personalised';
 
 /** What the operator picks in the composer for a new send. */
+/** One timezone cohort's delivery time for the pre-send confirmation. */
+export interface ScheduleBreakdownRow {
+  timezone: string;
+  recipients: number;
+  send_at: string;   // ISO instant this cohort will be dispatched
+}
+
 export interface SendComposerConfig {
   scheduleType: ScheduleType;
   scheduledAt: string | null;     // ISO instant when scheduled
@@ -46,6 +53,9 @@ export interface EmailDetails {
   fromAddress: string;
   fromName: string;
   replyTo: string;
+  /** Optional mailbox to forward human replies to. Rendered only when the
+   *  adapter provides it (broadcasts); omit to hide the field. */
+  forwardRepliesTo?: string;
 }
 
 /**
@@ -73,6 +83,20 @@ export interface RecipientsControl {
   editNode?: ReactNode;           // optional inline editor (broadcast/event audience)
 }
 
+/**
+ * Mandatory list a send is tied to for unsubscribe (broadcasts). Selected in the
+ * panel; recipients are cross-referenced against this list's subscribers, so
+ * changing it updates the deliverable count. `save` persists to the parent.
+ */
+export interface UnsubscribeListControl {
+  options: { id: string; name: string }[];
+  value: string | null;
+  required?: boolean;
+  label?: string;
+  helpText?: string;
+  save: (listId: string | null) => Promise<void>;
+}
+
 export interface SendingAdapter {
   domainKey: 'newsletter' | 'broadcast' | 'event';
   title: string;                  // panel heading, e.g. 'Send Newsletter'
@@ -94,15 +118,26 @@ export interface SendingAdapter {
 
   emailDetails: EmailDetailsControl;
   recipients: RecipientsControl;
+  /** Mandatory unsubscribe list picker, rendered in the panel (broadcasts). */
+  unsubscribeList?: UnsubscribeListControl;
 
   /** Base audience size, shown next to Send by default (before exclusions). */
   recipientCount?: number | null;
   /**
    * Exact deliverable count for the current exclusions (audience minus
    * already-sent), so the Send indicator reacts to the exclude checkboxes.
+   * Cross-references the selected unsubscribe list's subscribers when provided.
    * Falls back to recipientCount when omitted.
    */
-  countRecipients?: (excludeSentSendIds: string[]) => Promise<number>;
+  countRecipients?: (excludeSentSendIds: string[], unsubscribeListId?: string | null) => Promise<number>;
+
+  /**
+   * Preview per-timezone delivery times for a would-be scheduled send, using
+   * the same formula the server fan-out will apply — so the panel can show a
+   * confirmation ("who receives when") before committing. Omit to skip the
+   * breakdown confirmation (a plain confirm is shown instead).
+   */
+  previewSchedule?: (config: SendComposerConfig) => Promise<ScheduleBreakdownRow[]>;
 
   /** Create a new send instance from the composer config; returns its id. */
   createSend: (config: SendComposerConfig) => Promise<{ id: string }>;

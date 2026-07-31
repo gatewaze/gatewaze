@@ -61,16 +61,47 @@ function buildRouteObject(route: {
 
 function collectRoutes(guardFilter: string | undefined): RouteObject[] {
   const topLevel = new Map<string, RouteObject>();
+  // nav↔route invariant #2 (spec §5.3): two DIFFERENT modules must not resolve
+  // to the same composed route. Warn (never throw at runtime — a throw would
+  // break the whole admin; `enforce` is a CI concern). Reserved wins is handled
+  // upstream by composition; here we surface any residual collision loudly.
+  const claimedBy = new Map<string, string>();
 
   for (const mod of modules) {
     if (!mod.adminRoutes) continue;
+
+    // Build-time route namespace (spec-module-namespacing §5). Unreserved
+    // (non-first-party) modules are composed under `/m/<qualifiedId>` when
+    // ROUTE_COMPOSER_MODE=namespaced-new; first-party keep their vanity paths.
+    // routeBase is '' in the default `vanity-all` mode → no change.
+    const routeBase = (mod as { __identity?: { routeBase?: string } }).__identity?.routeBase ?? '';
 
     for (const route of mod.adminRoutes) {
       const guard = (route as { guard?: string }).guard;
       const effectiveGuard = guard === 'none' ? undefined : guard;
       if (effectiveGuard !== guardFilter) continue;
 
-      const routeObj = buildRouteObject(route as any);
+      // Only top-level (non-admin) routes are namespaced; guard:'admin' routes
+      // keep nesting under /admin as before.
+      const composed = routeBase && effectiveGuard !== 'admin'
+        ? { ...route, path: `${routeBase}/${route.path.replace(/^\//, '')}` }
+        : route;
+
+      // Invariant #2: flag cross-module collisions on the same composed path.
+      const fullPath = composed.path.replace(/^\//, '');
+      const priorOwner = claimedBy.get(fullPath);
+      const modId = (mod as { id?: string }).id ?? '(unknown)';
+      if (priorOwner && priorOwner !== modId) {
+         
+        console.warn(
+          `[modules] ROUTE_COLLISION: "${fullPath}" is claimed by both "${priorOwner}" and "${modId}". ` +
+          `Namespace one of them (spec-module-namespacing §5). Rendering the first-registered.`,
+        );
+      } else {
+        claimedBy.set(fullPath, modId);
+      }
+
+      const routeObj = buildRouteObject(composed as any);
       const topPath = routeObj.path!;
 
       // Merge children if we already have a route for this top-level path

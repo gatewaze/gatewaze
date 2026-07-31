@@ -67,14 +67,35 @@
 .gw-rail-item.on::before { content: ''; position: absolute; left: -12px; top: 50%; transform: translateY(-50%);
   width: 3px; height: 24px; border-radius: 0 3px 3px 0; background: var(--accent); }
 .gw-rail-item .rl { font-size: 9.5px; font-weight: 600; letter-spacing: .02em; }
+/* Draft nav badge — this item is only visible to authorised (admin) viewers. */
+.gw-rail-draft { font: 600 7.5px var(--font-sans); text-transform: uppercase; letter-spacing: .05em;
+  color: var(--warning-color, #f59e0b); border: 1px solid currentColor; border-radius: 999px;
+  padding: 1px 5px; margin-top: 2px; line-height: 1.3; }
 .gw-rail-sp { flex: 1; }
 .gw-rail-collapse { width: 40px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer;
   border: 1px solid var(--line); border-radius: 9px; background: var(--paper); color: var(--ink-3); margin-bottom: 8px; transition: all .15s ease; }
 .gw-rail-collapse:hover { color: var(--ink); border-color: var(--line-2); background: rgba(var(--ui-text), 0.08); }
 .gw-rail-av { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; padding: 0;
   color: var(--ink); font: 600 13px var(--font-sans); border: 1px solid var(--line-2); background: transparent;
-  cursor: pointer; margin-top: 6px; }
+  cursor: pointer; margin-top: 6px; overflow: hidden; text-decoration: none; }
 .gw-rail-av .gw-avatar { width: 100% !important; height: 100% !important; }
+
+/* Account button + hover/focus fly-out menu (edit profile / sign out). Anchored
+   to the bottom of the rail, opens to the right and expands upward. */
+.gw-rail-acct { position: relative; display: flex; }
+/* Portalled to <body> with position:fixed set inline from the avatar rect, so it
+   escapes the rail's backdrop-filter stacking context (the content area would
+   otherwise paint over it and eat pointer events). */
+.gw-rail-acct-menu { z-index: 300; animation: gwAcctIn .14s ease-out both; }
+@keyframes gwAcctIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+.gw-rail-acct-panel { min-width: 190px; padding: 6px; border-radius: 14px; background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid var(--line-2);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4); display: flex; flex-direction: column; gap: 2px; }
+.gw-rail-acct-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 12px; border-radius: 9px;
+  font: 500 14px var(--font-sans); color: rgba(255, 255, 255, 0.72); background: none; border: none; cursor: pointer;
+  text-align: left; text-decoration: none; }
+.gw-rail-acct-item:hover, .gw-rail-acct-item:focus-visible { background: rgba(255, 255, 255, 0.09); color: #fff; outline: none; }
+.gw-rail-acct-item svg { flex-shrink: 0; opacity: 0.85; }
 
 /* ---- Contextual app: sidebar + main, full-width header over the sidebar --- */
 .gw-app { display: flex; height: 100%; width: 100%; position: relative; }
@@ -153,7 +174,10 @@
 .pub-empty { padding: 52px; text-align: center; color: var(--ink-3); border: 1px solid var(--line); border-radius: 16px; margin-top: 24px; }
 .pub-viewall { background: none; border: 0; cursor: pointer; color: var(--ink); font: 600 14.5px var(--font-sans); white-space: nowrap; text-decoration: none; }
 
-.pub-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; margin-top: 24px; }
+/* minmax(0,…): bare 1fr tracks still respect item min-content, so one card
+   with a huge intrinsic-width image widens its whole column and the row
+   renders one "big card". Zero the minimum so columns stay equal. */
+.pub-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; margin-top: 24px; }
 .pub-card { text-align: left; background: var(--paper); border: 1px solid rgba(var(--ui-text), 0.10);
   border-radius: 16px; padding: 13px; cursor: pointer; text-decoration: none; display: block;
   transition: border-color .2s ease, transform .2s ease; }
@@ -163,9 +187,76 @@
   background: repeating-linear-gradient(45deg, rgba(var(--ui-text),0.04), rgba(var(--ui-text),0.04) 10px, rgba(var(--ui-text),0.07) 10px, rgba(var(--ui-text),0.07) 20px); }
 .pub-cover.lg { aspect-ratio: 21/9; margin: 14px 0 8px; }
 .pub-cover > img { width: 100%; height: 100%; object-fit: cover; }
+/* Natural-aspect cover (event posters keep their original ratio, no 16:10 crop). */
+.pub-cover.natural { aspect-ratio: auto; }
+.pub-cover.natural > img { height: auto; object-fit: contain; }
+/* Uniform cover: letterboxes (object-fit: contain) instead of cropping — the
+   whole image stays visible and every card in a row is the same size. The
+   letterbox area matches the card background (no cross-hatch): the hatch is
+   only for missing-cover placeholders. */
+.pub-cover.fit { background: none; }
+/* Radius on the image itself: the cover's overflow clipping only rounds an
+   image that fills the box — letterboxed (smaller) images would show square
+   corners without their own radius. */
+.pub-cover.fit > img { object-fit: contain; border-radius: 11px; }
+/* Per-row image height: each blog card subgrids the grid's [cover][body] row
+   pair, so a visual row's cover track is exactly as tall as its TALLEST image
+   — a row of short/wide images stays short, and shorter images in a taller
+   row centre on the plain card background. The grid's 22px row gap lands
+   between cover and body inside the card (so the body loses its top padding);
+   non-subgrid browsers keep the fixed 16:10 flex layout above. */
+@supports (grid-template-rows: subgrid) {
+  /* minmax(0,1fr) column: like the outer grid, the card's own column track
+     must ignore the image's intrinsic min-content width, or a large source
+     image lays out wider than the card and overflows it. */
+  .pub-grid > .pub-card-flex { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: subgrid; grid-row: span 2; height: auto; }
+  .pub-grid > .pub-card-flex .pub-card-body { padding-top: 0; }
+  .pub-grid > .pub-card-flex .pub-cover.fit { aspect-ratio: auto; }
+  .pub-grid > .pub-card-flex .pub-cover.fit > img { height: auto; }
+}
+/* Blog cards: flex column of equal height so the date row pins to the card's
+   bottom-left corner; white so it stands out against the card. */
+.pub-card-flex { display: flex; flex-direction: column; height: 100%; }
+.pub-card-flex .pub-card-body { display: flex; flex-direction: column; flex: 1; }
+.pub-card-flex .pub-card-body > h3, .pub-card-flex .pub-card-body > p { flex: 0 0 auto; }
+/* Pills are flex children here — stop them stretching to the card width. */
+.pub-card-flex .pub-card-body > .pub-cat { align-self: flex-start; }
+/* Clamp card excerpts to three lines so one long summary can't balloon a row. */
+.pub-card-flex .pub-card-body > p { display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+/* Whole-card click target: the title link stretches an invisible overlay over
+   the card (the card itself stays a non-anchor so inner links are valid HTML);
+   inner links (author) sit above the overlay. The glow ::after is z-index 2
+   pointer-events-none, so it never eats clicks. */
+.pub-card { position: relative; }
+.pub-card-title-link { color: inherit; text-decoration: none; }
+.pub-card-title-link::after { content: ''; position: absolute; inset: 0; }
+.pub-author-link { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 7px; color: inherit; text-decoration: none; }
+.pub-author-link:hover { text-decoration: underline; }
+.pub-author-avatar { width: 20px; height: 20px; border-radius: 50%; object-fit: cover; flex: 0 0 auto; }
+.pub-author-avatar-ph { display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(var(--ui-text), 0.14); color: var(--ink-2); font: 600 9px var(--font-sans); letter-spacing: 0.02em; }
+/* Generic theme button (matches the newsletter signup button look). */
+.pub-btn { display: inline-flex; align-items: center; gap: 8px; height: 42px; padding: 0 20px; border-radius: 10px;
+  border: 0; cursor: pointer; font: 600 14px var(--font-sans); background: var(--ink); color: var(--paper);
+  text-decoration: none; transition: opacity .15s ease; white-space: nowrap; }
+.pub-btn:hover { opacity: .9; }
+/* Author page hero: rounded-corner avatar with the name alongside; the
+   All-posts action sits on the right as a theme button. */
+.pub-author-h { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.pub-author-hero { display: flex; align-items: center; gap: 20px; min-width: 0; }
+.pub-author-hero-avatar { width: 84px; height: 84px; border-radius: 18px; object-fit: cover; flex: 0 0 auto; }
+.pub-author-hero .pub-author-avatar-ph { font-size: 26px; border-radius: 18px; }
+.pub-author-hero h1 { margin: 0; }
+.pub-author-bio { color: var(--ink-3); font-size: 14.5px; line-height: 1.5; margin: 5px 0 0; max-width: 640px; }
+.pub-author-count { color: var(--ink-4); font-size: 13.5px; margin-top: 6px; }
+@media (max-width: 760px) {
+  .pub-author-hero-avatar { width: 64px; height: 64px; border-radius: 14px; }
+}
+.pub-meta.pub-meta-pin { margin-top: auto; padding-top: 14px; color: #fff; }
 .pub-card-body { padding: 14px 6px 4px; }
 .pub-cat { display: inline-block; font: 600 12px var(--font-sans); color: var(--ink);
   background: rgba(var(--ui-text), 0.13); padding: 3px 11px; border-radius: 999px; }
+.pub-cat + .pub-cat { margin-left: 6px; }
 .pub-card h3, .pub-card-body h3 { font: 600 19px var(--font-display); color: var(--ink); margin: 13px 0 7px; letter-spacing: -0.01em; line-height: 1.2; }
 .pub-card p, .pub-card-body p { color: var(--ink-3); font-size: 14px; line-height: 1.55; margin: 0; }
 .pub-meta { color: var(--ink-4); font-size: 13px; margin-top: 14px; display: flex; align-items: center; gap: 10px; }
@@ -182,27 +273,45 @@
 .pub-nl-desc { color: var(--ink-3); font-size: 14px; margin: 2px 0 0; }
 
 /* Per-newsletter card — accent used tastefully (top edge + corner glow + featured-edition eyebrow),
-   never on buttons. `--nl-accent` is set inline per card. Signup uses neutral standard form styling. */
+   never on buttons. `--nl-accent` is set inline per card.
+   Layout: two columns on desktop — identity + boxed signup on the left, editions
+   on the right (divided by a hairline) — so the signup is a self-contained unit
+   and the editions read as their own labelled region. */
 .pub-nl { margin-top: 28px; }
-.pub-nl:first-of-type { margin-top: 6px; }
+.pub-nl:first-of-type { margin-top: 26px; }
 .pub-nl-card { position: relative; overflow: hidden; background: var(--paper); border: 1px solid var(--line);
-  border-radius: 18px; padding: 26px; }
+  border-radius: 18px; padding: 28px; display: grid; grid-template-columns: minmax(250px, 320px) minmax(0, 1fr);
+  gap: 24px 36px; }
 .pub-nl-card::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 3px;
   background: var(--nl-accent, var(--accent)); opacity: .9; }
 .pub-nl-card::after { content: ''; position: absolute; top: -70px; right: -70px; width: 240px; height: 240px; border-radius: 50%;
   background: radial-gradient(circle, var(--nl-accent, var(--accent)), transparent 70%); opacity: .13; pointer-events: none; }
-.pub-nl-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 22px; flex-wrap: wrap; position: relative; }
-.pub-nl-id { min-width: 0; flex: 1; }
+.pub-nl-top { position: relative; min-width: 0; }
+.pub-nl-id { min-width: 0; }
 .pub-nl-titlerow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .pub-nl-name { font: 600 24px var(--font-display); color: var(--ink); margin: 0; letter-spacing: -0.015em; }
 .pub-nl-badge { display: inline-flex; align-items: center; font: 600 10px var(--font-sans); text-transform: uppercase;
   letter-spacing: .08em; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line);
   background: rgba(var(--ui-text), 0.05); color: var(--ink-2); }
-.pub-nl-desc { color: var(--ink-3); font-size: 14px; margin: 8px 0 0; max-width: 58ch; }
+.pub-nl-desc { color: var(--ink-3); font-size: 14px; line-height: 1.55; margin: 8px 0 0; max-width: 58ch; }
 .pub-nl-note { color: var(--ink-3); font-size: 13px; margin-top: 14px; }
 
-/* signup — neutral standard form components (no accent colour) */
-.pub-nl-signup { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; max-width: 460px; }
+/* signup — its own boxed sub-panel so it never blends into surrounding content */
+.pub-nl-sub { margin-top: 18px; padding: 16px; border-radius: 14px; border: 1px solid var(--line);
+  background: rgba(var(--ui-text), 0.035); }
+.pub-nl-sub-h { font: 600 11px var(--font-sans); text-transform: uppercase; letter-spacing: .08em; color: var(--ink-2); }
+.pub-nl-sub-h::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 999px;
+  background: var(--nl-accent, var(--accent)); margin-right: 7px; vertical-align: 1px; }
+.pub-nl-signup { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; max-width: 460px; }
+/* Consent note under the signup — links read like the footer's: bright + underlined. */
+.pub-nl-consent a { color: var(--ink); text-decoration: underline; }
+.pub-nl-consent a:hover { color: var(--ink-2); }
+/* Inside the boxed sub-panel the column is narrow: let the input shrink, trim
+   the button, and tighten the gap so both sit comfortably on ONE row (the
+   status message still wraps below). */
+.pub-nl-sub .pub-nl-signup { gap: 6px; }
+.pub-nl-sub .pub-nl-signup-input { min-width: 0; flex: 1 1 140px; }
+.pub-nl-sub .pub-nl-signup-btn { padding: 0 14px; font-size: 13.5px; }
 .pub-nl-signup-input { flex: 1; min-width: 200px; height: 42px; padding: 0 14px; border-radius: 10px;
   background: rgba(var(--ui-text), 0.08); border: 1px solid rgba(var(--ui-text), 0.18); color: var(--ink);
   font-size: 14px; transition: border-color .15s ease; }
@@ -212,31 +321,72 @@
   font: 600 14px var(--font-sans); background: var(--ink); color: var(--paper); transition: opacity .15s ease; white-space: nowrap; }
 .pub-nl-signup-btn:hover { opacity: .9; }
 .pub-nl-signup-btn:disabled { opacity: .5; cursor: not-allowed; }
+/* Signed-in subscription state: quiet secondary unsubscribe action. */
+.pub-nl-unsub-btn { height: 34px; padding: 0 14px; border-radius: 9px; cursor: pointer;
+  font: 600 13px var(--font-sans); background: none; color: var(--ink-3);
+  border: 1px solid rgba(var(--ui-text), 0.22); transition: color .15s ease, border-color .15s ease; }
+.pub-nl-unsub-btn:hover { color: var(--ink); border-color: rgba(var(--ui-text), 0.4); }
+.pub-nl-unsub-btn:disabled { opacity: .5; cursor: not-allowed; }
+/* Brand-editable home intro (Settings → Branding → Portal → Home). */
+.pub-hero { margin: 6px 0 34px; max-width: 780px; }
+.pub-hero h1 { font: 600 clamp(28px, 4vw, 40px) var(--font-display); color: var(--ink);
+  letter-spacing: -0.02em; line-height: 1.12; margin: 0 0 14px; }
+.pub-hero-body { color: var(--ink-2); font-size: 17px; line-height: 1.7; }
+.pub-hero-body p { margin: 0 0 14px; }
+.pub-hero-body p:last-child { margin-bottom: 0; }
+.pub-hero-body a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px;
+  text-decoration-thickness: 1px; text-decoration-color: color-mix(in srgb, currentColor 55%, transparent); }
+.pub-hero-body a:hover { text-decoration-color: currentColor; }
+/* Inline spinner swapped in for the topbar sign-in icon while navigating. */
+.gw-signin-spin { display: inline-block; width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid currentColor; border-top-color: transparent; animation: gw-spin .7s linear infinite; }
+@keyframes gw-spin { to { transform: rotate(360deg) } }
+@media (prefers-reduced-motion: reduce) { .gw-signin-spin { animation-duration: 1.6s } }
 .pub-nl-signup-msg { flex-basis: 100%; font-size: 12.5px; margin: 2px 0 0; }
 .pub-nl-signup-msg.err { color: #f87171; }
 .pub-nl-signup-msg.ok { color: var(--ink-2); }
 
-/* editions — featured latest + compact 2-col list */
-.pub-nl-editions { margin-top: 22px; position: relative; }
-.pub-nl-feature { display: flex; align-items: center; gap: 16px; padding: 16px 18px; border-radius: 14px; text-decoration: none;
-  background: rgba(var(--ui-text), 0.04); border: 1px solid var(--line); transition: border-color .15s ease, background-color .15s ease; }
-.pub-nl-feature:hover { border-color: rgba(var(--ui-text), 0.22); background: rgba(var(--ui-text), 0.06); }
+/* editions column — featured latest (accent-tinted, clearly its own object) +
+   a labelled single-column list of past editions with their preheaders */
+.pub-nl-editions { position: relative; min-width: 0; border-left: 1px solid var(--line); padding-left: 36px; }
+.pub-nl-feature { display: flex; align-items: center; gap: 16px; padding: 18px 20px; border-radius: 14px; text-decoration: none;
+  background: rgba(var(--ui-text), 0.045); border: 1px solid var(--line);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--nl-accent, var(--accent)) 10%, transparent), rgba(var(--ui-text), 0.03));
+  border-color: color-mix(in srgb, var(--nl-accent, var(--accent)) 24%, var(--line));
+  transition: border-color .15s ease, background-color .15s ease, transform .15s ease; }
+.pub-nl-feature:hover { border-color: color-mix(in srgb, var(--nl-accent, var(--accent)) 45%, var(--line)); transform: translateY(-1px); }
 .pub-nl-feature .eyebrow { font: 600 10px var(--font-sans); text-transform: uppercase; letter-spacing: .1em; color: var(--nl-accent, var(--accent)); }
 .pub-nl-feature .date { color: var(--ink-3); font-size: 12.5px; margin-top: 4px; }
-.pub-nl-feature h3 { font: 600 18px var(--font-display); color: var(--ink); margin: 3px 0 0; }
-.pub-nl-feature p { color: var(--ink-3); font-size: 13.5px; margin: 4px 0 0;
+/* Edition subjects are email subject lines, not site headings — body font, bold + larger. */
+.pub-nl-feature h3 { font: 700 18px var(--font-sans); color: var(--ink); margin: 3px 0 0; letter-spacing: -0.01em; }
+.pub-nl-feature p { color: var(--ink-3); font-size: 13.5px; line-height: 1.5; margin: 5px 0 0;
   overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .pub-nl-feature .arrow { margin-left: auto; color: var(--ink-3); flex: none; font-size: 18px; }
-.pub-nl-rows { list-style: none; margin: 12px 0 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 2px 18px; }
-.pub-nl-row { display: flex; align-items: baseline; gap: 12px; padding: 8px 10px; border-radius: 8px; text-decoration: none;
+.pub-nl-eyebrow { font: 600 10px var(--font-sans); text-transform: uppercase; letter-spacing: .1em; color: var(--ink-3);
+  margin: 20px 0 4px; }
+.pub-nl-rows { list-style: none; margin: 0; padding: 0; }
+.pub-nl-rows li + li { border-top: 1px solid rgba(var(--ui-text), 0.07); }
+.pub-nl-row { display: flex; align-items: baseline; gap: 14px; padding: 10px; margin: 0 -10px; border-radius: 10px; text-decoration: none;
   transition: background-color .15s ease; }
 .pub-nl-row:hover { background: rgba(var(--ui-text), 0.05); }
-.pub-nl-row-date { flex: none; width: 78px; color: var(--ink-3); font-size: 12px; }
-.pub-nl-row-title { flex: 1; min-width: 0; color: var(--ink); font-size: 14px; font-weight: 500;
+.pub-nl-row:hover .pub-nl-row-title { color: var(--ink); }
+.pub-nl-row-date { flex: none; width: 82px; color: var(--ink-3); font-size: 12px; }
+.pub-nl-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.pub-nl-row-title { color: var(--ink); font-size: 14px; font-weight: 500;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pub-nl-viewall { display: inline-block; margin-top: 12px; color: var(--accent); font-size: 13px; font-weight: 600; text-decoration: none; }
+.pub-nl-row-pre { color: var(--ink-3); font-size: 12.5px; line-height: 1.45;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pub-nl-viewall { display: inline-block; margin-top: 14px; color: var(--accent); font-size: 13px; font-weight: 600; text-decoration: none; }
 .pub-nl-viewall:hover { text-decoration: underline; }
-@media (max-width: 820px) { .pub-nl-rows { grid-template-columns: 1fr; } .pub-nl-card { padding: 20px; } }
+@media (max-width: 900px) {
+  .pub-nl-card { grid-template-columns: 1fr; padding: 20px; gap: 20px; }
+  .pub-nl-editions { border-left: 0; padding-left: 0; border-top: 1px solid var(--line); padding-top: 20px; }
+}
+/* Home: one sub-section per event type (resources-style card grids). */
+.pub-typesec { margin-top: 26px; }
+.pub-typesec:first-of-type { margin-top: 4px; }
+.pub-typesec-h { font: 600 19px var(--font-display); color: var(--ink); letter-spacing: -0.01em; margin: 0 0 2px; }
+.pub-typesec .pub-grid { margin-top: 12px; }
 .pub-ev-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 24px; }
 .pub-ev { display: flex; overflow: hidden; min-height: 150px; background: var(--paper); border: 1px solid rgba(var(--ui-text), 0.10);
   border-radius: 12px; transition: border-color .2s ease, filter .2s ease; text-decoration: none; }
@@ -253,7 +403,11 @@
 .gw-card-glow { position: relative; }
 .gw-card-glow::after {
   content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 2px; z-index: 2; pointer-events: none;
-  background: conic-gradient(from var(--gw-glow-angle), transparent 0deg, rgba(var(--ui-text), 0.85) 55deg, transparent 130deg);
+  /* Two identical arcs 180° apart, so the sweep runs from opposite sides at
+     once instead of a single clockwise point. */
+  background: conic-gradient(from var(--gw-glow-angle),
+    transparent 0deg, rgba(var(--ui-text), 0.85) 55deg, transparent 130deg,
+    transparent 180deg, rgba(var(--ui-text), 0.85) 235deg, transparent 310deg);
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor; mask-composite: exclude;
   opacity: 0; transition: opacity .3s ease;
@@ -288,7 +442,22 @@
 .pub-body p { margin: 0 0 20px; }
 .pub-body h2 { color: var(--ink); font: 600 23px var(--font-display); margin: 32px 0 12px; letter-spacing: -0.01em; }
 .pub-body h3 { color: var(--ink); font: 600 18.5px var(--font-display); margin: 28px 0 10px; letter-spacing: -0.01em; }
-.pub-body a { color: var(--accent); }
+/* In-text links must be recognisable WITHOUT relying on colour: on brands
+   whose accent is white (AAIF) accent-coloured links are indistinguishable
+   from body text. Underline at half strength, solid on hover. */
+.pub-body a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px;
+  text-decoration-thickness: 1px; text-decoration-color: color-mix(in srgb, currentColor 55%, transparent);
+  transition: text-decoration-color .15s ease; }
+.pub-body a:hover { text-decoration-color: currentColor; }
+/* Authored content (structured resources etc.) often inline-styles anchors
+   with text-decoration:none, which beats the rule above. Force the underline
+   back for links in TEXT contexts only — links that are whole cards/buttons
+   (direct children of divs, e.g. "Watch recording" or section tiles) keep
+   their authored styling. */
+.pub-body :is(p, span, h2, h3, h4, li) > a { text-decoration-line: underline !important;
+  text-underline-offset: 3px !important; text-decoration-thickness: 1px !important;
+  text-decoration-color: color-mix(in srgb, currentColor 55%, transparent) !important; }
+.pub-body :is(p, span, h2, h3, h4, li) > a:hover { text-decoration-color: currentColor !important; }
 .pub-body strong { color: var(--ink); font-weight: 600; }
 .pub-body ul, .pub-body ol { margin: 0 0 20px; padding-left: 1.45em; }
 .pub-body li { margin: 0 0 11px; line-height: 1.72; padding-left: 4px; }
@@ -569,7 +738,7 @@
   .gw-top-search { display: none; }
   .pub-wrap, .pub-article-wrap { padding: 22px 16px 56px; }
   .pub-h h1 { font-size: 26px; }
-  .pub-grid { grid-template-columns: 1fr; gap: 16px; }
+  .pub-grid { grid-template-columns: minmax(0, 1fr); gap: 16px; }
   .pub-article-grid { grid-template-columns: 1fr; gap: 24px; }
   .pub-article-side { position: static; }
   .pub-prevnext { grid-template-columns: 1fr; }

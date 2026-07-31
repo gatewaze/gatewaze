@@ -23,6 +23,9 @@ import { slackRouter } from './routes/slack.js';
 import { calendarProxyRouter } from './routes/calendar-proxy.js';
 import { modulesRouter } from './routes/modules.js';
 import { apiKeysRouter } from './routes/api-keys.js';
+import { mcpAuthRouter } from './routes/mcp-auth.js';
+import { mcpAdminRouter } from './routes/mcp-admin.js';
+import { mcpEventsRouter } from './routes/mcp-events.js';
 import { adminNavLayoutRouter } from './routes/admin-nav-layout.js';
 import { internalRouter } from './routes/internal.js';
 import { portalEventsRouter } from './routes/portal-events.js';
@@ -103,7 +106,13 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
   crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({
+  limit: '50mb',
+  // Capture the raw request body so webhook handlers can verify HMAC signatures (e.g. the
+  // software-engineer module's GitHub webhook). The global parser consumes the stream here, so
+  // raw bytes must be stashed at parse time — a downstream router can't re-read them.
+  verify: (req, _res, buf) => { (req as unknown as { rawBody?: Buffer }).rawBody = buf; },
+}));
 app.use(express.urlencoded({ extended: true }));
 app.use(requestLogger);
 app.use(attachRequestId);
@@ -144,6 +153,16 @@ mountLabeled(app, '/api/slack', slackRouter);
 mountLabeled(app, '/api/calendar', calendarProxyRouter);
 mountLabeled(app, '/api/modules', modulesRouter);
 mountLabeled(app, '/api/api-keys', apiKeysRouter);
+// MCP authorization server (OAuth 2.1 + PKCE; login via LFID module or
+// magic link), admin access-model CRUD, and the pod's audit ingest.
+// mcpAuthRouter declares absolute paths (/.well-known/*, /api/mcp-auth/*),
+// so label those prefixes explicitly for the deny-by-default route check —
+// a '/' mount can't carry the label to absolute child paths.
+labelMountPrefix('/api/mcp-auth', 'public');
+labelDirectRoute('GET', '/.well-known/oauth-authorization-server', 'public');
+app.use(mcpAuthRouter);
+mountLabeled(app, '/api/mcp-admin', mcpAdminRouter);
+mountLabeled(app, '/api/internal/mcp-events', mcpEventsRouter);
 mountLabeled(app, '/api/admin/nav-layout', adminNavLayoutRouter);
 mountLabeled(app, '/api/internal', internalRouter);
 
@@ -241,6 +260,20 @@ async function registerModuleRoutes() {
             }
             const job = await queue.add(jobName, data);
             return { id: job.id };
+          },
+          // Expose the platform's shared Redis connection so modules can run a
+          // real Redis-backed rate limiter / lock (multi-replica safe) without
+          // resolving ioredis from their own bind-mounted dir. Lazy import for
+          // the same reason as enqueueJob; getRedisConnection throws when Redis
+          // isn't configured, so treat that as "no Redis" (module falls back).
+          getRedisConnection: async () => {
+            try {
+              const { getRedisConnection } = await import('./lib/queue/index.js');
+              return typeof getRedisConnection === 'function' ? getRedisConnection('client') : null;
+            } catch (err) {
+              moduleLogger.warn({ err: String(err) }, '[modules] getRedisConnection unavailable');
+              return null;
+            }
           },
         };
         try {

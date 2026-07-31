@@ -164,7 +164,7 @@ if [ -n "$MODULE_SOURCES" ]; then
     # aborts with ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY and the
     # whole install becomes a silent no-op. Show output in full
     # (no tail) so future failures surface clearly.
-    (cd /app && CI=true pnpm install --no-frozen-lockfile --prod --shamefully-hoist --config.dangerously-allow-all-builds=true 2>&1 | tail -10) \
+    (cd /app && CI=true pnpm install --no-frozen-lockfile --prod --shamefully-hoist 2>&1 | tail -10) \
       || echo "[api] Warning: pnpm install for aggregated module deps failed"
     echo "[api] Module deps aggregation complete."
   fi

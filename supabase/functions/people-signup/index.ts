@@ -2,6 +2,12 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { emitIntegrationEvent } from '../_shared/integrationEvents.ts'
 import { isEmailConfigured, sendEmail } from '../_shared/email.ts'
 
+// acquisition_source for newsletter signups is BRAND-SPECIFIC and must not be
+// hardcoded in core. Each brand supplies it via the NEWSLETTER_ACQUISITION_SOURCE
+// edge-function secret (value lives in that brand's env file). Unset -> null
+// (no attribution). Only applied on NEW person creation to preserve first-touch.
+const NEWSLETTER_ACQUISITION_SOURCE = Deno.env.get('NEWSLETTER_ACQUISITION_SOURCE') ?? null
+
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
@@ -33,6 +39,7 @@ interface SignupRequest {
   app?: string // Optional - app identifier (cohorts, app, etc.)
   redirect_to?: string // Optional - callback URL for magic link redirect
   geo_refresh?: boolean // Geo-only refresh (portal visit): update IP/location, nothing else
+  timezone?: string // Optional - browser IANA timezone, used as a fallback when IP geo yields none
 }
 
 interface SignupResponse {
@@ -88,6 +95,10 @@ async function handler(req: Request) {
     if (ipLocation?.city) {
       console.log(`📍 IP location detected: ${ipLocation.city}, ${ipLocation.country}`)
     }
+    // Browser-supplied IANA timezone (validated). Used ONLY as a fallback when
+    // IP geolocation resolves no timezone (localhost/private IPs, VPNs, proxies)
+    // and the user hasn't already set one — a real IP result always wins.
+    const browserTz = validTimezone(body.timezone)
 
     // Get auth user ID from request JWT token
     // NOTE: For admin_team_invite, we should NOT use the current user's auth ID
@@ -117,6 +128,8 @@ async function handler(req: Request) {
           .from('people')
           .select('id, attributes')
           .eq('auth_user_id', currentAuthUserId)
+          .order('created_at', { ascending: true })
+          .limit(1)
           .maybeSingle()
         if (gp) {
           const ex = (gp.attributes as Record<string, any>) || {}
@@ -127,6 +140,7 @@ async function handler(req: Request) {
           if (ipLocation?.continent) upd.continent = ipLocation.continent
           if (ipLocation?.location) upd.location = ipLocation.location
           if (ipLocation?.timezone && !ex.timezone) upd.timezone = ipLocation.timezone
+          else if (browserTz && !ex.timezone) upd.timezone = browserTz
           if (clientIp) upd.ip_address = clientIp
           upd.geo_updated_at = new Date().toISOString()
           await supabase.from('people').update({ attributes: upd }).eq('id', gp.id)
@@ -137,12 +151,23 @@ async function handler(req: Request) {
       })
     }
 
-    // Step 1: Check if person already exists in Supabase
-    const { data: existingPerson } = await supabase
+    // Step 1: Check if person already exists in Supabase.
+    // Duplicate rows for one human exist in the wild (case-variant emails from
+    // imports vs signups — 708 such pairs found in prod on 2026-07-07).
+    // maybeSingle() ERRORS on those, the error was destructured away, and the
+    // undefined result read as "no person" — so every sign-in for an affected
+    // user minted ANOTHER duplicate row. Fetch all matches and pick
+    // deterministically instead. Also escape ilike wildcards: an unescaped
+    // underscore (diego_ibarrola@…) matches any character and can hit a
+    // different person's row.
+    const emailPattern = email.replace(/[\\%_]/g, (ch) => `\\${ch}`)
+    const { data: personMatches } = await supabase
       .from('people')
       .select('id, cio_id, email, auth_user_id, attributes')
-      .ilike('email', email)
-      .maybeSingle()
+      .ilike('email', emailPattern)
+      .order('created_at', { ascending: true })
+    // Prefer a row already linked to an auth user, else the oldest.
+    const existingPerson = personMatches?.find((p) => p.auth_user_id) ?? personMatches?.[0] ?? null
 
     // Before trusting the people row's auth_user_id, verify it still points
     // at an auth user whose email matches the target. A stale row (e.g.
@@ -188,6 +213,8 @@ async function handler(req: Request) {
         // Timezone from IP only fills a gap — never override a user-set timezone.
         if (ipLocation?.timezone && !existingAttrs.timezone && !user_metadata.timezone) {
           updatedAttributes.timezone = ipLocation.timezone
+        } else if (browserTz && !existingAttrs.timezone && !user_metadata.timezone) {
+          updatedAttributes.timezone = browserTz
         }
         if (clientIp) updatedAttributes.ip_address = clientIp
         if (hasLocation) updatedAttributes.geo_updated_at = new Date().toISOString()
@@ -251,6 +278,7 @@ async function handler(req: Request) {
     if (ipLocation?.location) attributes.location = ipLocation.location
     // Timezone from IP only as a fallback — don't override a user-provided one.
     if (ipLocation?.timezone && !attributes.timezone) attributes.timezone = ipLocation.timezone
+    else if (browserTz && !attributes.timezone) attributes.timezone = browserTz
     if (clientIp) attributes.ip_address = clientIp
     if (ipLocation || clientIp) attributes.geo_updated_at = new Date().toISOString()
 
@@ -271,20 +299,27 @@ async function handler(req: Request) {
     // Step 5: Get the auth user ID
     let authUserId = currentAuthUserId
 
-    // If no auth user from JWT token, look up by email
-    if (!authUserId) {
-      console.log('No auth user from token, looking up by email...')
-      const { data: { users }, error: listError } = await supabase.auth.admin.listUsers()
-      if (!listError && users) {
-        const existingUser = users.find(u => u.email?.toLowerCase() === email.toLowerCase())
-        authUserId = existingUser?.id || null
-        console.log('Found auth user by email:', authUserId)
-      }
+    // NEVER link the CALLER's auth user to a person with a different email.
+    // When an admin invites a member (source admin_member_invite etc.), the JWT
+    // is the ADMIN's — blindly attaching it stamped the admin's auth_user_id
+    // onto invited people, so the admin's portal person-lookup then matched
+    // several rows and their profile/wizard broke (observed in prod 2026-07-07:
+    // dbaker's auth user owned rahul's + demetrios's people rows).
+    if (authUserId && !(await authUserMatchesEmail(authUserId, email))) {
+      console.log('JWT user email differs from person email — not linking caller auth user')
+      authUserId = null
     }
 
-    // If still no auth user, create one (for admin invites)
+    // No auth user from the JWT token: create one directly (the common case
+    // for admin invites / CSV imports is a brand-new email). We used to page
+    // the ENTIRE auth.users table first to find an existing user, but that
+    // scan is O(all users) and, as auth.users grew past ~100k, a new-email
+    // signup blew past the 150s edge idle-timeout (504 IDLE_TIMEOUT) — the
+    // person never got created. createUser fails fast when the email already
+    // exists, so we attempt it first and only page listUsers as a fallback to
+    // link the rare orphaned/unlinked auth user.
     if (!authUserId) {
-      console.log('No auth user found, creating new auth user...')
+      console.log('No auth user from token, creating new auth user...')
       try {
         // Auto-confirm so GoTrue never sends its own "Confirm your email"
         // template. Subsequent signInWithOtp() calls hit the magic_link
@@ -297,20 +332,36 @@ async function handler(req: Request) {
           user_metadata: user_metadata
         })
 
-        if (createError || !newAuthUser.user) {
-          console.error('Failed to create auth user:', createError)
-          return new Response(JSON.stringify({
-            success: false,
-            error: createError?.message || 'Failed to create auth user',
-            message: 'Could not create user account'
-          }), {
-            status: 500,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          })
-        }
+        if (newAuthUser?.user) {
+          authUserId = newAuthUser.user.id
+          console.log('Created new auth user with ID:', authUserId)
+        } else {
+          // createUser failed — almost always because the email already has an
+          // auth user (createError message includes "already been registered").
+          // Fall back to paging listUsers to find and link it. Bounded and
+          // rare; a genuinely new email never reaches here.
+          console.log('createUser failed, looking up existing auth user by email:', createError?.message)
+          const target = email.toLowerCase()
+          for (let page = 1; page <= 200 && !authUserId; page++) {
+            const { data: { users }, error: listError } = await supabase.auth.admin.listUsers({ page, perPage: 1000 })
+            if (listError || !users?.length) break
+            authUserId = users.find(u => u.email?.toLowerCase() === target)?.id || null
+            if (users.length < 1000) break
+          }
+          console.log('Found existing auth user by email:', authUserId)
 
-        authUserId = newAuthUser.user.id
-        console.log('Created new auth user with ID:', authUserId)
+          if (!authUserId) {
+            console.error('Failed to create auth user:', createError)
+            return new Response(JSON.stringify({
+              success: false,
+              error: createError?.message || 'Failed to create auth user',
+              message: 'Could not create user account'
+            }), {
+              status: 500,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            })
+          }
+        }
       } catch (error) {
         console.error('Error creating auth user:', error)
         return new Response(JSON.stringify({
@@ -325,12 +376,16 @@ async function handler(req: Request) {
     }
 
     // Step 6: Create or update person record in Supabase with the cio_id from Customer.io
-    // Check if person already exists (by email or cio_id)
-    const { data: existingPersonRecord } = await supabase
+    // Check if person already exists (by email or cio_id). Same duplicate-row
+    // hazard as Step 1: maybeSingle() errors when case-variant duplicates
+    // exist, which read as "no person" and inserted another duplicate. Fetch
+    // all matches and pick deterministically (auth-linked first, else oldest).
+    const { data: recordMatches } = await supabase
       .from('people')
       .select('id, cio_id, email, auth_user_id, attributes')
-      .or(`email.ilike.${email},cio_id.eq.${cioId}`)
-      .maybeSingle()
+      .or(`email.ilike.${emailPattern},cio_id.eq.${cioId}`)
+      .order('created_at', { ascending: true })
+    const existingPersonRecord = recordMatches?.find((p) => p.auth_user_id) ?? recordMatches?.[0] ?? null
 
     let person
 
@@ -376,6 +431,8 @@ async function handler(req: Request) {
           email: email,
           auth_user_id: authUserId,
           attributes: attributes,
+          contact_kind: 'member',
+          acquisition_source: source === 'newsletter-signup' ? NEWSLETTER_ACQUISITION_SOURCE : null,
           last_synced_at: new Date().toISOString()
         })
         .select('id, cio_id, email, auth_user_id, attributes')
@@ -396,9 +453,6 @@ async function handler(req: Request) {
       person = newPerson
       console.log('Person record created in Supabase successfully')
     }
-
-    // Step 7: Trigger enrichment if people-enrichment module is enabled
-    await triggerEnrichmentIfEnabled(email)
 
     // Step 8: Determine missing fields based on people_attributes config
     const requiredFields = await getRequiredAttributeKeys()
@@ -473,6 +527,22 @@ async function authUserMatchesEmail(authUserId: string, email: string): Promise<
  * Returns:
  * - city: City name (e.g., "San Francisco")
  * - country: Full country name (e.g., "United States")
+ * Validate a client-supplied IANA timezone string. Returns the zone when it's a
+ * real, resolvable timezone (checked via Intl), else null — so a bad/hostile
+ * value can never be written to a person's attributes.
+ */
+function validTimezone(tz: unknown): string | null {
+  if (typeof tz !== 'string' || tz.length === 0 || tz.length > 64) return null
+  try {
+    // Throws RangeError for an unknown timezone.
+    new Intl.DateTimeFormat('en-US', { timeZone: tz })
+    return tz
+  } catch {
+    return null
+  }
+}
+
+/**
  * - country_code: 2-letter uppercase code (e.g., "US")
  * - continent: 2-letter lowercase code (e.g., "na", "eu", "as")
  * - location: "latitude,longitude" string
@@ -489,7 +559,14 @@ async function getIpLocation(ipAddress: string | null): Promise<{
 
   try {
     const url = `http://ip-api.com/json/${encodeURIComponent(ipAddress)}?fields=status,message,city,country,countryCode,continentCode,lat,lon,timezone`
-    const response = await fetch(url)
+    // Bound this third-party call HARD. It runs on the critical path of every
+    // signup, and ip-api.com rate-limits by source IP — which here is Supabase's
+    // shared edge egress IP. Under a registration burst it throttles/stalls that
+    // IP, and an unbounded fetch then blocked the whole handler past the portal
+    // wizard's 15s client abort, surfacing "Couldn't save your profile" even
+    // though the DB write had committed. Geolocation is best-effort enrichment;
+    // it must never be able to slow a profile save. Timeout -> null, we proceed.
+    const response = await fetch(url, { signal: AbortSignal.timeout(2500) })
 
     if (!response.ok) {
       console.error(`IP geolocation API error: ${response.status}`)
@@ -632,54 +709,14 @@ async function sendMagicLinkIfRequested(
   }
 }
 
-/**
- * Check if the people-enrichment module is enabled and has API keys configured,
- * then trigger enrichment for the given email address.
- * Runs as a fire-and-forget — does not block signup if enrichment fails.
- */
-async function triggerEnrichmentIfEnabled(email: string): Promise<void> {
-  try {
-    // Check if the people-enrichment module is enabled
-    const { data: mod } = await supabase
-      .from('installed_modules')
-      .select('status, config')
-      .eq('id', 'people-enrichment')
-      .maybeSingle()
-
-    if (!mod || mod.status !== 'enabled') return
-
-    const config = (mod.config ?? {}) as Record<string, string>
-
-    // Check if auto-enrich is enabled (default: true)
-    if (config.AUTO_ENRICH_ON_CREATE === 'false') return
-
-    // Check if at least one enrichment API key is configured
-    const hasClearbit = !!config.CLEARBIT_API_KEY
-    const hasEnrichLayer = !!config.ENRICHLAYER_API_KEY
-    if (!hasClearbit && !hasEnrichLayer) return
-
-    const enrichmentMode = config.ENRICHMENT_MODE || 'full'
-    console.log(`[enrichment] Triggering ${enrichmentMode} enrichment for ${email}`)
-
-    // Call the people-enrichment edge function (fire-and-forget)
-    const enrichmentUrl = `${supabaseUrl}/functions/v1/people-enrichment`
-    const bearerToken = Deno.env.get('GW_API_BEARER') || ''
-
-    fetch(enrichmentUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${bearerToken}`,
-      },
-      body: JSON.stringify({ email, mode: enrichmentMode }),
-    }).catch((err) => {
-      console.error('[enrichment] Failed to trigger enrichment:', err)
-    })
-  } catch (err) {
-    // Don't block signup if enrichment check fails
-    console.error('[enrichment] Error checking enrichment module:', err)
-  }
-}
+// NOTE: the former `triggerEnrichmentIfEnabled` fire-and-forget step was
+// removed. It POSTed to the people-enrichment edge function with
+// `Authorization: Bearer ${GW_API_BEARER}`, but GW_API_BEARER is configured in
+// no environment, so the call always sent an empty bearer and 401'd — auto
+// enrich-on-signup via this hop never actually ran. people-enrichment is still
+// invoked directly from the portal with the user's JWT. If server-side
+// enrich-on-create is wanted back, re-add it with a supported internal auth
+// mechanism (not a shared static bearer).
 
 export default handler;
 Deno.serve(handler);

@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
@@ -649,6 +649,21 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
       },
     },
   });
+
+  // Sync external `content` changes into the editor. TipTap's useEditor only
+  // applies `content` at mount, so parent-driven updates (e.g. the event Comms
+  // "Load Template" populating the body from a saved template) change the prop
+  // but never reach the editor without this. Guarded on a value diff so normal
+  // typing — which round-trips through onChange → content → displayContent —
+  // doesn't disturb the cursor or loop. Skipped in HTML mode, where the
+  // textarea is the source of truth. setContent(..., false) suppresses the
+  // update emit so this load doesn't re-fire onChange.
+  useEffect(() => {
+    if (!editor || isHtmlMode) return;
+    if (displayContent !== editor.getHTML()) {
+      editor.commands.setContent(displayContent || '', { emitUpdate: false });
+    }
+  }, [displayContent, editor, isHtmlMode]);
 
   const handleInsertVariable = useCallback((variable: string) => {
     if (isHtmlMode) {

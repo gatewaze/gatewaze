@@ -1,0 +1,36 @@
+# CODEOWNERS — required reviewers by path.
+#
+# GitHub requests review from these owners automatically. To make review
+# BLOCKING, enable "Require review from Code Owners" in branch protection
+# for `main`. The teams referenced below must exist in the gatewaze org;
+# replace @gatewaze/maintainers and @gatewaze/security with the real teams
+# (or individual @handles) before relying on this file.
+
+# Default owner for everything not matched more specifically.
+*                                   @gatewaze/maintainers
+
+# --- Security-critical paths (add security reviewers) ---
+
+# CI/CD, release, and supply-chain surface.
+/.github/                           @gatewaze/maintainers @gatewaze/security
+/.github/workflows/                 @gatewaze/maintainers @gatewaze/security
+
+# Auth, API boundary, and public/unauthenticated routes.
+/packages/api/src/routes/           @gatewaze/maintainers @gatewaze/security
+/packages/api/src/lib/              @gatewaze/maintainers @gatewaze/security
+/packages/portal/app/api/           @gatewaze/maintainers @gatewaze/security
+/packages/portal/lib/rate-limit/    @gatewaze/maintainers @gatewaze/security
+
+# Database access control and migrations (RLS lives here).
+/supabase/migrations/               @gatewaze/maintainers @gatewaze/security
+/supabase/functions/               @gatewaze/maintainers @gatewaze/security
+
+# Container images, chart, and deploy config.
+/docker/                            @gatewaze/maintainers @gatewaze/security
+/helm/                              @gatewaze/maintainers @gatewaze/security
+
+# Agent guardrails and project rules — changing these changes how every
+# contributor's tooling reviews code, so they need owner sign-off.
+/CLAUDE.md                          @gatewaze/maintainers @gatewaze/security
+/.claude/                           @gatewaze/maintainers @gatewaze/security
+/SECURITY.md                        @gatewaze/maintainers @gatewaze/security

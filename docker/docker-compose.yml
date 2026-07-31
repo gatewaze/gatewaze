@@ -233,6 +233,9 @@ services:
       VERIFY_JWT: "${VERIFY_JWT:-true}"
       EMAIL_PROVIDER: ${EMAIL_PROVIDER:-none}
       SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      # people-enrichment edge fn reads these (LinkedIn/email enrichment).
+      ENRICHLAYER_API_KEY: ${ENRICHLAYER_API_KEY:-}
+      CLEARBIT_API_KEY: ${CLEARBIT_API_KEY:-}
       EMAIL_FROM: ${EMAIL_FROM:-noreply@localhost}
       EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-Gatewaze}
       # Central Sending Service canary: when 'true' the Edge newsletter-send fn
@@ -359,6 +362,16 @@ services:
         VITE_APP_NAME: ${GW_APP_NAME:-}
         VITE_SITES_CANVAS_ENGINE_DEFAULT: ${VITE_SITES_CANVAS_ENGINE_DEFAULT:-legacy}
         VITE_NEWSLETTERS_CANVAS_ENGINE_DEFAULT: ${VITE_NEWSLETTERS_CANVAS_ENGINE_DEFAULT:-legacy}
+        # Email sender identities for the Comms / broadcasts From dropdown.
+        # VITE_EMAIL_FROM mirrors the server EMAIL_FROM so there is always a
+        # valid default sender even when no per-audience address is configured;
+        # the VITE_SENDGRID_FROM_* override it per audience when set.
+        VITE_EMAIL_FROM: ${EMAIL_FROM:-}
+        VITE_SENDGRID_FROM_DEFAULT: ${VITE_SENDGRID_FROM_DEFAULT:-}
+        VITE_SENDGRID_FROM_EVENTS: ${VITE_SENDGRID_FROM_EVENTS:-}
+        VITE_SENDGRID_FROM_PARTNERS: ${VITE_SENDGRID_FROM_PARTNERS:-}
+        VITE_SENDGRID_FROM_MEMBERS: ${VITE_SENDGRID_FROM_MEMBERS:-}
+        VITE_SENDGRID_FROM_ADMIN: ${VITE_SENDGRID_FROM_ADMIN:-}
     container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-admin
     restart: unless-stopped
     ports:
@@ -382,6 +395,12 @@ services:
       # via Vite at build/dev time.
       VITE_SITES_CANVAS_ENGINE_DEFAULT: ${VITE_SITES_CANVAS_ENGINE_DEFAULT:-legacy}
       VITE_NEWSLETTERS_CANVAS_ENGINE_DEFAULT: ${VITE_NEWSLETTERS_CANVAS_ENGINE_DEFAULT:-legacy}
+      VITE_EMAIL_FROM: ${EMAIL_FROM:-}
+      VITE_SENDGRID_FROM_DEFAULT: ${VITE_SENDGRID_FROM_DEFAULT:-}
+      VITE_SENDGRID_FROM_EVENTS: ${VITE_SENDGRID_FROM_EVENTS:-}
+      VITE_SENDGRID_FROM_PARTNERS: ${VITE_SENDGRID_FROM_PARTNERS:-}
+      VITE_SENDGRID_FROM_MEMBERS: ${VITE_SENDGRID_FROM_MEMBERS:-}
+      VITE_SENDGRID_FROM_ADMIN: ${VITE_SENDGRID_FROM_ADMIN:-}
       MODULE_SOURCES: ${MODULE_SOURCES:-}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       GATEWAZE_DATA_DIR: /var/lib/gatewaze
@@ -423,6 +442,9 @@ services:
       NEXT_PUBLIC_APP_URL: ${PORTAL_URL:-http://${PORTAL_HOST}}
       SUPABASE_URL: ${SUPABASE_INTERNAL_URL:-http://supabase-kong:8000}
       SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
+      # Segment HTTP API write key for the server-side tracking relay
+      # (@gatewaze/tracking). Empty = Segment leg disabled.
+      SEGMENT_WRITE_KEY: ${SEGMENT_WRITE_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
@@ -535,7 +557,22 @@ services:
       - gatewaze-internal-git:/var/gatewaze/git
     environment:
       PORT: "3002"
+      # MCP authorization server (spec-mcp-lfid-access.md §3): token
+      # signing secret + audience, public base for issuer/redirects, and
+      # the shared ingest token for the pod's audit batches.
+      API_URL: http://${API_HOST:-api.gatewaze.localhost}
+      PUBLIC_MCP_URL: http://${MCP_HOST:-mcp.gatewaze.localhost}
+      MCP_TOKEN_SECRET: ${MCP_TOKEN_SECRET:-}
+      MCP_EVENTS_TOKEN: ${MCP_EVENTS_TOKEN:-}
       NODE_ENV: production
+      # Umami admin API credentials for the analytics module's dashboard
+      # queries (base URL defaults to http://umami:3000 in-module).
+      UMAMI_USERNAME: ${UMAMI_USERNAME:-admin}
+      UMAMI_PASSWORD: ${UMAMI_PASSWORD:-}
+      # Mirrors the portal relay's Segment key so /api/modules/analytics/
+      # relay-status reports the effective config (prod gets it via the
+      # shared envFrom secret automatically).
+      SEGMENT_WRITE_KEY: ${SEGMENT_WRITE_KEY:-}
       SUPABASE_URL: http://supabase-kong:8000
       # Browser-facing Supabase URL. Used by media adapters to build
       # cdn_url responses — internal SUPABASE_URL is the docker DNS
@@ -848,6 +885,71 @@ services:
           memory: 512M
         reservations:
           memory: 128M
+
+  mcp-public:
+    build:
+      context: ../packages/mcp
+      dockerfile: Dockerfile
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-mcp-public
+    restart: unless-stopped
+    # PUBLIC keyless MCP endpoint (streamable HTTP) with the read-only tool
+    # profile — events_*, content_*, platform_health. Clients authenticate
+    # with nothing; this container holds a read-scoped platform API key and
+    # proxies to the public REST API. Per-IP rate limiting + CORS happen
+    # in-process. Routed publicly by traefik at MCP_HOST, unlike events-mcp
+    # (which is internal-only and service-role-backed).
+    networks:
+      - gatewaze
+      - traefik
+    environment:
+      MCP_TRANSPORT: http
+      MCP_PROFILE: public
+      PORT: 8080
+      GATEWAZE_API_URL: http://api:3002
+      # A platform API key with ONLY read scopes (events:read, blog:read,
+      # newsletters:read, resources:read, …). Create one in /admin/api-keys.
+      # Never grant write scopes to this key: the profile hides write tools,
+      # and a read-only key makes that a guarantee rather than a convention.
+      GATEWAZE_MCP_API_KEY: ${MCP_PUBLIC_API_KEY:-${GATEWAZE_MCP_API_KEY:-}}
+      MCP_RATE_LIMIT_RPM: ${MCP_PUBLIC_RATE_LIMIT_RPM:-120}
+      # Brand identity in the MCP initialize instructions, so agents treat
+      # brand-name questions as platform-wide. Falls back to the app name.
+      GATEWAZE_BRAND_NAME: ${MCP_BRAND_NAME:-${GW_APP_NAME:-}}
+      GATEWAZE_BRAND_DESCRIPTION: ${MCP_BRAND_DESCRIPTION:-}
+      # Portal AI-search backend for the semantic `search` tool (embeddings,
+      # published-only). Tool is disabled when either is unset. Uses the
+      # PUBLIC portal URL: the portal's canonical-host middleware 307s
+      # requests whose Host header is an internal service name.
+      GATEWAZE_PORTAL_URL: http://${PORTAL_HOST:-app.gatewaze.localhost}
+      GATEWAZE_BRAND_ID: ${BRAND_ID:-default}
+      # OAuth resource server (spec-mcp-lfid-access.md): validates Bearer
+      # tokens minted by the platform AS; advertises it via RFC 9728 PRM.
+      PUBLIC_MCP_URL: http://${MCP_HOST:-mcp.gatewaze.localhost}
+      GATEWAZE_AUTH_SERVER_URL: http://${API_HOST:-api.gatewaze.localhost}
+      MCP_TOKEN_SECRET: ${MCP_TOKEN_SECRET:-}
+      MCP_EVENTS_TOKEN: ${MCP_EVENTS_TOKEN:-}
+    # Resolve the portal's *.localhost hostname to the host's traefik —
+    # same pattern as the api service's SUPABASE_HOST/FETCH_HOST mappings.
+    extra_hosts:
+      - "${PORTAL_HOST:-app.gatewaze.localhost}:host-gateway"
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8080/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    labels:
+      - "autoheal=true"
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-mcp-public.rule=Host(`${MCP_HOST:-mcp.gatewaze.localhost}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-mcp-public.entrypoints=web"
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME:-gatewaze}-mcp-public.loadbalancer.server.port=8080"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 64M
 
   scheduler:
     build:

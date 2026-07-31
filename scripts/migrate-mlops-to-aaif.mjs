@@ -43,11 +43,14 @@ const pg = require('pg');
 
 // ---------------------------------------------------------------- args + env
 function parseArgs(argv) {
-  const a = { commit: false, limit: null, eventsLimit: null, events: true, batch: 1000, eventsBatch: null, weeklyTopic: 'topic_1' };
+  const a = { commit: false, limit: null, eventsLimit: null, events: true, logs: true, batch: 1000, eventsBatch: null, weeklyTopic: 'topic_1', scopeFile: null };
   for (let i = 0; i < argv.length; i++) {
     const t = argv[i];
     if (t === '--commit') a.commit = true;
     else if (t === '--no-events') a.events = false;
+    else if (t === '--no-logs') a.logs = false;
+    else if (t === '--scope-file') a.scopeFile = argv[++i];
+    else if (t.startsWith('--scope-file=')) a.scopeFile = t.slice(13);
     else if (t === '--limit') a.limit = Number(argv[++i]);
     else if (t.startsWith('--limit=')) a.limit = Number(t.slice(8));
     else if (t === '--events-limit') a.eventsLimit = Number(argv[++i]);
@@ -466,6 +469,13 @@ async function main() {
     scope = s.rows.map((r) => r.le);
     console.log(`scoped sample: ${scope.length} emails`);
   }
+  // Explicit email allow-list (e.g. a curated delta of missing signups). Takes
+  // precedence over --limit. One lowercased email per line.
+  if (args.scopeFile) {
+    const fs = await import('fs');
+    scope = fs.readFileSync(args.scopeFile, 'utf8').split('\n').map((s) => s.trim().toLowerCase()).filter(Boolean);
+    console.log(`scope from file: ${scope.length} emails`);
+  }
 
   // Target people columns (for the people intersection).
   const tCols = new Set((await dst.query(
@@ -494,7 +504,7 @@ async function main() {
   }
   console.log(`auth email→id map: ${authEmailToId.size} entries`);
   report.people = await stagePeople(src, dst, args, scope, tCols, emailToId, authEmailToId);
-  report.sendLog = await stageSendLog(src, dst, args, scope, emailToId);
+  report.sendLog = args.logs ? await stageSendLog(src, dst, args, scope, emailToId) : { scanned: 0, written: 0 };
   report.subscriptions = await stageSubscriptions(src, dst, args, scope, emailToId, listId);
   report.events = await stageEvents(src, dst, args, scope);
 

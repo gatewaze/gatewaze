@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useUserEnrichment } from '@/hooks/useUserEnrichment'
 import { getClientBrandConfig } from '@/config/brand'
 import type { BrandConfig } from '@/config/brand'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import { ProfileWizard, WizardStep } from './ProfileWizard'
 import { ProfileDetailsStep, ProfileDetails, validateLinkedInUrlExists, detectedTimeZone } from './ProfileDetailsStep'
 import { PreferencesStep } from './PreferencesStep'
@@ -70,14 +71,11 @@ export function ProfileCompletionWizard({ brandConfig, listsEnabled = false }: P
       hasCheckedRef.current = true
 
       try {
-        const config = getClientBrandConfig()
-        const { createClient } = await import('@supabase/supabase-js')
-        const supabase = createClient(config.supabaseUrl, config.supabaseAnonKey, {
-          global: { headers: { Authorization: `Bearer ${session.access_token}` } }
-        })
+        // Singleton client — see Header.tsx for the leak story.
+        const supabase = getSupabaseClient()
 
         // Fetch people_attributes config and person data in parallel
-        const [{ data: attrSetting }, { data: person }] = await Promise.all([
+        const [{ data: attrSetting }, personRes] = await Promise.all([
           supabase
             .from('platform_settings')
             .select('value')
@@ -87,8 +85,20 @@ export function ProfileCompletionWizard({ brandConfig, listsEnabled = false }: P
             .from('people')
             .select('id, attributes')
             .eq('auth_user_id', user.id)
+            .order('created_at', { ascending: true })
+            .limit(1)
             .maybeSingle(),
         ])
+        // A FAILED lookup is not "no person". Treating errors as new-user made
+        // the wizard pop for existing members whenever this query broke (e.g.
+        // several people rows wrongly sharing one auth_user_id → maybeSingle
+        // errors) — and completing it could never clear the loop. Fail quiet.
+        if (personRes.error) {
+          console.error('Profile completion check failed:', personRes.error)
+          setIsLoading(false)
+          return
+        }
+        const person = personRes.data
 
         // Parse attribute config
         let attrConfig = DEFAULT_PEOPLE_ATTRIBUTES
@@ -186,6 +196,13 @@ export function ProfileCompletionWizard({ brandConfig, listsEnabled = false }: P
     const config = getClientBrandConfig()
     const response = await fetch(`${config.supabaseUrl}/functions/v1/people-signup`, {
       method: 'POST',
+      // Bound the wait: during a backend outage an unbounded fetch left the
+      // Complete button spinning forever. Timing out lets the wizard surface
+      // the failure and re-enable retry. Kept comfortably above the edge
+      // function's own worst-case latency (external geo lookup is now capped
+      // at 2.5s server-side) so a slow-but-successful save isn't discarded and
+      // shown as an error — the write is idempotent, so a retry is harmless.
+      signal: AbortSignal.timeout(25000),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${session.access_token}`,

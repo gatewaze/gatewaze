@@ -10,6 +10,7 @@ import { stripEmojis } from '@/lib/text'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { GlowInput, GlowTextarea } from '@/components/ui/GlowInput'
 import { PortalButton } from '@/components/ui/PortalButton'
+import { TermsModal } from './TermsModal'
 import { isOnCustomDomain } from '@/lib/customDomain'
 
 interface UserProfile {
@@ -66,6 +67,12 @@ interface FormErrors {
   talk_title?: string
   talk_synopsis?: string
   talk_duration_minutes?: string
+  consent_ack?: string
+  consent_agree?: string
+  consent_coc?: string
+  consent_inclusivity?: string
+  consent_privacy?: string
+  consent_quality?: string
 }
 
 export function SpeakerSubmissionForm({ event, brandConfig, onSuccess, onCancel, useDarkTheme = false, initialStatus = 'pending', userProfile, confirmedDurationCounts = {}, isAdditionalTalk = false }: Props) {
@@ -130,6 +137,63 @@ export function SpeakerSubmissionForm({ event, brandConfig, onSuccess, onCancel,
   const [profileImage, setProfileImage] = useState<File | null>(null)
   const [profileImagePreview, setProfileImagePreview] = useState<string | null>(null)
   const [isUploadingImage, setIsUploadingImage] = useState(false)
+
+  // Consent checkboxes — labels + terms body come from per-brand
+  // platform_settings (admin → Settings → Branding → Portal → Legal). A brand
+  // that configures nothing sees no checkboxes; when a label IS configured its
+  // checkbox is required. `{terms}` in the agree label becomes a link opening
+  // the Event Terms modal, whose Accept button checks the box (Luma-style).
+  const [consentAckHtml, setConsentAckHtml] = useState<string | null>(null)
+  const [consentAgreeHtml, setConsentAgreeHtml] = useState<string | null>(null)
+  const [eventTermsHtml, setEventTermsHtml] = useState<string | null>(null)
+  // CFP-specific consents (LF events team requirements): Code of Conduct,
+  // Commitment to Inclusivity and Privacy are separate REQUIRED checkboxes;
+  // Content Quality is optional. `{terms}` in any label links to the
+  // Speaker Terms pop-up (speaker_terms_html), which carries the full detail.
+  const [cocHtml, setCocHtml] = useState<string | null>(null)
+  const [inclusivityHtml, setInclusivityHtml] = useState<string | null>(null)
+  const [privacyHtml, setPrivacyHtml] = useState<string | null>(null)
+  const [qualityHtml, setQualityHtml] = useState<string | null>(null)
+  const [speakerTermsHtml, setSpeakerTermsHtml] = useState<string | null>(null)
+  const [cfpChecked, setCfpChecked] = useState<Record<string, boolean>>({})
+  // Which consent's label opened the Speaker Terms modal (Accept checks that box).
+  const [speakerTermsOpener, setSpeakerTermsOpener] = useState<string | null>(null)
+  const [ackChecked, setAckChecked] = useState(false)
+  const [agreeChecked, setAgreeChecked] = useState(false)
+  const [showTerms, setShowTerms] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const sb = getSupabaseClient()
+        const { data } = await sb
+          .from('platform_settings')
+          .select('key, value')
+          .in('key', [
+            'talk_consent_ack_html', 'talk_consent_agree_html', 'event_terms_html',
+            'talk_consent_coc_html', 'talk_consent_inclusivity_html',
+            'talk_consent_privacy_html', 'talk_consent_quality_html', 'speaker_terms_html',
+          ])
+        if (cancelled || !data) return
+        for (const row of data) {
+          const v = (row.value ?? '').trim()
+          if (!v) continue
+          if (row.key === 'talk_consent_ack_html') setConsentAckHtml(v)
+          if (row.key === 'talk_consent_agree_html') setConsentAgreeHtml(v)
+          if (row.key === 'event_terms_html') setEventTermsHtml(v)
+          if (row.key === 'talk_consent_coc_html') setCocHtml(v)
+          if (row.key === 'talk_consent_inclusivity_html') setInclusivityHtml(v)
+          if (row.key === 'talk_consent_privacy_html') setPrivacyHtml(v)
+          if (row.key === 'talk_consent_quality_html') setQualityHtml(v)
+          if (row.key === 'speaker_terms_html') setSpeakerTermsHtml(v)
+        }
+      } catch {
+        // No consent config reachable → no checkboxes (unconfigured-brand behaviour).
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Check if user profile has sufficient data (name and avatar at minimum)
@@ -205,6 +269,26 @@ export function SpeakerSubmissionForm({ event, brandConfig, onSuccess, onCancel,
     // Validate duration selection if options are available
     if (availableDurationOptions.length > 0 && !formData.talk_duration_minutes) {
       newErrors.talk_duration_minutes = 'Please select a talk duration'
+    }
+
+    // Configured consent checkboxes are required.
+    if (consentAckHtml && !ackChecked) {
+      newErrors.consent_ack = 'Please confirm the communication acknowledgement'
+    }
+    if (consentAgreeHtml && !agreeChecked) {
+      newErrors.consent_agree = 'Please agree to the event terms'
+    }
+    if (cocHtml && !cfpChecked.coc) {
+      newErrors.consent_coc = 'Please agree to the Code of Conduct'
+    }
+    if (inclusivityHtml && !cfpChecked.inclusivity) {
+      newErrors.consent_inclusivity = 'Please confirm the commitment to inclusivity'
+    }
+    if (privacyHtml && !cfpChecked.privacy) {
+      newErrors.consent_privacy = 'Please acknowledge the privacy notice'
+    }
+    if (qualityHtml && !cfpChecked.quality) {
+      newErrors.consent_quality = 'Please agree to the content quality agreement'
     }
 
     setErrors(newErrors)
@@ -816,6 +900,144 @@ export function SpeakerSubmissionForm({ event, brandConfig, onSuccess, onCancel,
               </div>
             </div>
           </div>
+
+          {/* Consent checkboxes (per-brand configured; nothing renders when unset) */}
+          {(consentAckHtml || consentAgreeHtml || cocHtml || inclusivityHtml || privacyHtml || qualityHtml) && (
+            <div className={`space-y-4 pt-2 border-t ${theme.sectionBorder}`}>
+              {consentAckHtml && (
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={ackChecked}
+                    disabled={isSubmitting}
+                    onChange={(e) => {
+                      setAckChecked(e.target.checked)
+                      if (errors.consent_ack) setErrors(prev => ({ ...prev, consent_ack: undefined }))
+                    }}
+                    className="mt-1 h-4 w-4 flex-shrink-0 accent-current cursor-pointer"
+                  />
+                  <span className={`text-sm leading-relaxed ${theme.footerText} [&_a]:underline [&_a]:text-white`}>
+                    <span dangerouslySetInnerHTML={{ __html: consentAckHtml }} />
+                    <span className={theme.requiredClass} style={{ backgroundColor: `${primaryColor}50` }}>required</span>
+                  </span>
+                </label>
+              )}
+              {errors.consent_ack && <p className={`text-sm ${theme.errorText} ml-7`}>{errors.consent_ack}</p>}
+
+              {consentAgreeHtml && (
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={agreeChecked}
+                    disabled={isSubmitting}
+                    onChange={(e) => {
+                      setAgreeChecked(e.target.checked)
+                      if (errors.consent_agree) setErrors(prev => ({ ...prev, consent_agree: undefined }))
+                    }}
+                    className="mt-1 h-4 w-4 flex-shrink-0 accent-current cursor-pointer"
+                  />
+                  <span className={`text-sm leading-relaxed ${theme.footerText} [&_a]:underline [&_a]:text-white`}>
+                    {/* `{terms}` in the configured label becomes the modal trigger */}
+                    {consentAgreeHtml.includes('{terms}') ? (
+                      <>
+                        <span dangerouslySetInnerHTML={{ __html: consentAgreeHtml.split('{terms}')[0] }} />
+                        {/* An anchor, not a <button>: buttons are atomic inline
+                            boxes, so trailing punctuation after them can orphan-wrap
+                            onto its own line. Text-level anchors wrap like words. */}
+                        <a
+                          href="#"
+                          role="button"
+                          className={`${theme.footerLink} font-medium cursor-pointer`}
+                          onClick={(e) => { e.preventDefault(); setShowTerms(true) }}
+                        >event terms</a>
+                        <span dangerouslySetInnerHTML={{ __html: consentAgreeHtml.split('{terms}')[1] ?? '' }} />
+                      </>
+                    ) : (
+                      <span dangerouslySetInnerHTML={{ __html: consentAgreeHtml }} />
+                    )}
+                    <span className={theme.requiredClass} style={{ backgroundColor: `${primaryColor}50` }}>required</span>
+                  </span>
+                </label>
+              )}
+              {errors.consent_agree && <p className={`text-sm ${theme.errorText} ml-7`}>{errors.consent_agree}</p>}
+
+              {/* CFP-specific consents. Each is its own checkbox (LF events
+                  team requirement); the full detail lives in the Speaker Terms
+                  pop-up, linked wherever a label carries `{terms}`. */}
+              {([
+                { k: 'coc', html: cocHtml, required: true, errKey: 'consent_coc' as const },
+                { k: 'inclusivity', html: inclusivityHtml, required: true, errKey: 'consent_inclusivity' as const },
+                { k: 'privacy', html: privacyHtml, required: true, errKey: 'consent_privacy' as const },
+                { k: 'quality', html: qualityHtml, required: true, errKey: 'consent_quality' as const },
+              ]).filter((it) => it.html).map((it) => (
+                <div key={it.k}>
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={!!cfpChecked[it.k]}
+                      disabled={isSubmitting}
+                      onChange={(e) => {
+                        const checked = e.target.checked
+                        setCfpChecked(prev => ({ ...prev, [it.k]: checked }))
+                        if (it.errKey && errors[it.errKey]) setErrors(prev => ({ ...prev, [it.errKey as string]: undefined }))
+                      }}
+                      className="mt-1 h-4 w-4 flex-shrink-0 accent-current cursor-pointer"
+                    />
+                    <span className={`text-sm leading-relaxed ${theme.footerText} [&_a]:underline [&_a]:text-white`}>
+                      {it.html!.includes('{terms}') ? (
+                        <>
+                          <span dangerouslySetInnerHTML={{ __html: it.html!.split('{terms}')[0] }} />
+                          <a
+                            href="#"
+                            role="button"
+                            className={`${theme.footerLink} font-medium cursor-pointer`}
+                            onClick={(e) => { e.preventDefault(); setSpeakerTermsOpener(it.k) }}
+                          >speaker terms</a>
+                          <span dangerouslySetInnerHTML={{ __html: it.html!.split('{terms}')[1] ?? '' }} />
+                        </>
+                      ) : (
+                        <span dangerouslySetInnerHTML={{ __html: it.html! }} />
+                      )}
+                      {it.required ? (
+                        <span className={theme.requiredClass} style={{ backgroundColor: `${primaryColor}50` }}>required</span>
+                      ) : (
+                        <span className={theme.requiredClass} style={{ backgroundColor: 'rgba(255,255,255,0.12)' }}>optional</span>
+                      )}
+                    </span>
+                  </label>
+                  {it.errKey && errors[it.errKey] && <p className={`text-sm ${theme.errorText} ml-7 mt-1`}>{errors[it.errKey]}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {showTerms && eventTermsHtml && (
+            <TermsModal
+              html={eventTermsHtml}
+              onClose={() => setShowTerms(false)}
+              onAccept={() => {
+                // Luma behaviour: accepting in the modal checks the box.
+                setAgreeChecked(true)
+                setErrors(prev => ({ ...prev, consent_agree: undefined }))
+                setShowTerms(false)
+              }}
+            />
+          )}
+
+          {speakerTermsOpener && speakerTermsHtml && (
+            <TermsModal
+              title="Speaker Terms"
+              html={speakerTermsHtml}
+              onClose={() => setSpeakerTermsOpener(null)}
+              onAccept={() => {
+                // Accepting checks the box whose label opened the modal.
+                const k = speakerTermsOpener
+                setCfpChecked(prev => ({ ...prev, [k]: true }))
+                setErrors(prev => ({ ...prev, ['consent_' + k]: undefined }))
+                setSpeakerTermsOpener(null)
+              }}
+            />
+          )}
 
           {/* Submit buttons */}
           <div className="flex flex-col sm:flex-row gap-3 pt-2">

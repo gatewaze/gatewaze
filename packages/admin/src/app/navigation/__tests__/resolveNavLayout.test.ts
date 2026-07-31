@@ -197,4 +197,48 @@ describe("resolveNavigation", () => {
     expect(unsorted.some((n) => n.id === "people")).toBe(false);
     expect(unsorted.some((n) => n.id === "inbox")).toBe(true);
   });
+
+  it("builds a collapsible group from a nested entry and excludes its children from unsorted", () => {
+    const layout: NavLayout = {
+      version: 1,
+      sidebar: [
+        {
+          id: "main",
+          items: [
+            {
+              key: "group:content",
+              label: "Content",
+              children: [{ key: "inbox" }, { key: "module.newsletter.admin.newsletter" }],
+            },
+          ],
+        },
+      ],
+      settings: [],
+      hidden: [],
+    };
+    const { sidebar, unsorted } = resolveNavigation(baseTree(), layout);
+    const group = sidebar[0];
+    expect(group.type).toBe("collapse");
+    expect(group.title).toBe("Content");
+    expect(group.childs?.map((c) => c.id)).toEqual([
+      "inbox",
+      "module.newsletter.admin.newsletter",
+    ]);
+    // Nested children are "used", so they don't reappear in unsorted.
+    expect(unsorted.some((n) => n.id === "inbox")).toBe(false);
+    expect(unsorted.some((n) => n.id === "module.newsletter.admin.newsletter")).toBe(false);
+  });
+
+  it("drops a group whose children are all uninstalled", () => {
+    const layout: NavLayout = {
+      version: 1,
+      sidebar: [
+        { id: "main", items: [{ key: "group:ghosts", label: "Ghosts", children: [{ key: "gone" }] }] },
+      ],
+      settings: [],
+      hidden: [],
+    };
+    const { sidebar } = resolveNavigation(baseTree(), layout);
+    expect(sidebar).toHaveLength(0);
+  });
 });

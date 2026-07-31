@@ -128,6 +128,15 @@ RUN ln -sfn /app/node_modules /node_modules
 # points at the worker entry. The --ignore globs prevent tsx from
 # triple-restarting every time a module file under the bind-mounts
 # changes (modules are hot-reloaded by the module loader, not tsx).
+#
+# Install bind-mounted modules' npm deps into /app/node_modules at container
+# start (the worker handlers require openai, cheerio,
+# @anthropic-ai/claude-agent-sdk, ...). Dev images don't bake module deps, so
+# without this the handlers fail to register with MODULE_NOT_FOUND. See the
+# script header for the full rationale.
+COPY docker/shared /docker/shared
+ENTRYPOINT ["sh", "/docker/shared/dev-install-module-deps.sh"]
+
 CMD ["pnpm", "exec", "tsx", "watch", \
      "--ignore", "/gatewaze-modules/**", \
      "--ignore", "/premium-gatewaze-modules/**", \

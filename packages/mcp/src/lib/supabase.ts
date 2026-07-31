@@ -29,15 +29,29 @@ export class GatewazeApiClient {
       headers: { 'X-API-Key': this.apiKey },
     });
     if (!res.ok) {
-      const body = await res.json().catch(() => ({ error: { message: res.statusText } }));
+      const body = (await res.json().catch(() => ({ error: { message: res.statusText } }))) as {
+        error?: { message?: string };
+      };
       throw new Error(body.error?.message ?? `API error ${res.status}`);
     }
     return res.json() as Promise<T>;
   }
 
   async post<T = unknown>(path: string, body: unknown): Promise<T> {
+    return this.send('POST', path, body);
+  }
+
+  async patch<T = unknown>(path: string, body: unknown): Promise<T> {
+    return this.send('PATCH', path, body);
+  }
+
+  async put<T = unknown>(path: string, body: unknown): Promise<T> {
+    return this.send('PUT', path, body);
+  }
+
+  private async send<T = unknown>(method: 'POST' | 'PATCH' | 'PUT', path: string, body: unknown): Promise<T> {
     const res = await fetch(`${this.baseUrl}${path}`, {
-      method: 'POST',
+      method,
       headers: {
         'X-API-Key': this.apiKey,
         'Content-Type': 'application/json',
@@ -45,7 +59,9 @@ export class GatewazeApiClient {
       body: JSON.stringify(body),
     });
     if (!res.ok) {
-      const respBody = await res.json().catch(() => ({ error: { message: res.statusText } }));
+      const respBody = (await res.json().catch(() => ({ error: { message: res.statusText } }))) as {
+        error?: { message?: string };
+      };
       throw new Error(respBody.error?.message ?? `API error ${res.status}`);
     }
     return res.json() as Promise<T>;

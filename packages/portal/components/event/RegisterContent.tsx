@@ -8,8 +8,8 @@ import { useEmailPrefill } from '@/hooks/useEmailPrefill'
 import { markSessionRedirected, createTrackingSession, captureTrackingParams } from '@/lib/tracking'
 import { CLICK_ID_PARAMS } from '@/config/platforms'
 import { getClientBrandConfig, isLightColor } from '@/config/brand'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import { stripEmojis } from '@/lib/text'
-import { createClient } from '@supabase/supabase-js'
 import { useEventContext } from './EventContext'
 import { RegistrationForm } from './RegistrationForm'
 import { GlowBorder } from '@/components/ui/GlowBorder'
@@ -62,16 +62,16 @@ export function RegisterContent() {
 
     const attemptAutoReg = async () => {
       try {
-        const config = getClientBrandConfig()
-        const supabase = createClient(config.supabaseUrl, config.supabaseAnonKey, {
-          global: { headers: { Authorization: `Bearer ${authSession.access_token}` } },
-        })
+        // Singleton client — see Header.tsx for the leak story.
+        const supabase = getSupabaseClient()
 
         // Fetch person profile
         const { data: person } = await supabase
           .from('people')
           .select('email, attributes')
           .eq('auth_user_id', user.id)
+          .order('created_at', { ascending: true })
+          .limit(1)
           .maybeSingle()
 
         if (!person) {
@@ -97,7 +97,8 @@ export function RegisterContent() {
         setAutoRegState('registering')
         setAutoRegEmail(email)
 
-        const response = await fetch(`${config.supabaseUrl}/functions/v1/event-registration`, {
+        const config = getClientBrandConfig()
+        const response = await fetch(`${config.supabaseUrl}/functions/v1/events-registration`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

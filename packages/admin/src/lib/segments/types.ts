@@ -13,12 +13,46 @@ export interface SegmentDefinition {
 export type SegmentCondition =
   | AttributeCondition
   | EventCondition
-  | GroupCondition;
+  | GroupCondition
+  | SourceCondition;
 
 export interface GroupCondition {
   type: 'group';
   match: 'all' | 'any';
   conditions: SegmentCondition[];
+}
+
+/**
+ * A module-contributed condition from the condition-source registry
+ * (segments_condition_sources) — e.g. geo_radius, event_registration,
+ * calendar_member. `type` is the source `kind`; the remaining keys are the
+ * source's params (place/radius_km, event_id/statuses, calendar_id, …). Kept
+ * open so the builder + copilot can carry whatever the source's params_schema
+ * defines without a bespoke interface per source.
+ */
+export interface SourceCondition {
+  type: string;
+  operator?: string;
+   
+  [param: string]: any;
+}
+
+/** A registry source, as returned by the segments_sources_catalog RPC. */
+export interface ConditionSourceParamSchema {
+  properties?: Record<string, { type?: string; enum?: string[]; 'x-entity-source'?: boolean }>;
+  required?: string[];
+}
+export interface ConditionSourceEntity { id: string; label: string; extra?: Record<string, unknown> }
+
+/** An aggregated location point for the audience map (one per city/country). */
+export interface SegmentGeoPoint { city: string; country: string; lat: number; lng: number; count: number }
+export interface ConditionSource {
+  kind: string;
+  label: string;
+  params_schema?: ConditionSourceParamSchema;
+  operators?: string[];
+  entities?: ConditionSourceEntity[];
+  entities_truncated?: boolean;
 }
 
 export interface AttributeCondition {
@@ -239,8 +273,10 @@ export const ATTRIBUTE_FIELDS: AttributeFieldOption[] = [
   { value: 'attributes.company', label: 'Company', type: 'string' },
   { value: 'attributes.job_title', label: 'Job Title', type: 'string' },
   { value: 'attributes.country', label: 'Country', type: 'string' },
+  { value: 'attributes.state', label: 'State / Province', type: 'string' },
   { value: 'attributes.city', label: 'City', type: 'string' },
-  { value: 'attributes.region', label: 'Region', type: 'string' },
+  { value: 'attributes.postal', label: 'Postal / ZIP code', type: 'string' },
+  { value: 'attributes.region', label: 'Region (continent)', type: 'string' },
   { value: 'attributes.linkedin_url', label: 'LinkedIn URL', type: 'string' },
   { value: 'attributes.twitter_handle', label: 'Twitter Handle', type: 'string' },
 ];
@@ -338,6 +374,19 @@ export function isGroupCondition(
   return condition.type === 'group';
 }
 
+const CORE_CONDITION_TYPES = ['attribute', 'event', 'group'];
+export function isSourceCondition(
+  condition: SegmentCondition
+): condition is SourceCondition {
+  return !CORE_CONDITION_TYPES.includes(condition.type);
+}
+
+export function createEmptySourceCondition(source: ConditionSource): SourceCondition {
+  const cond: SourceCondition = { type: source.kind };
+  if (source.operators?.length) cond.operator = source.operators[0];
+  return cond;
+}
+
 export function isValidSegmentDefinition(definition: SegmentDefinition): boolean {
   if (!definition.match || !['all', 'any'].includes(definition.match)) {
     return false;
@@ -362,6 +411,11 @@ function isValidCondition(condition: SegmentCondition): boolean {
       condition.conditions.length > 0 &&
       condition.conditions.every(isValidCondition)
     );
+  }
+  if (isSourceCondition(condition)) {
+    // A registry condition is valid once it has a type; per-source required
+    // params are enforced in the builder UI + validated server-side.
+    return Boolean(condition.type);
   }
   return false;
 }

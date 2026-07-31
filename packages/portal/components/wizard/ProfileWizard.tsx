@@ -35,6 +35,7 @@ export function ProfileWizard({ brandConfig, steps, onComplete, onClose }: Props
   const [currentStepIndex, setCurrentStepIndex] = useState(0)
   const [direction, setDirection] = useState(0) // -1 for prev, 1 for next
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [completeError, setCompleteError] = useState<string | null>(null)
 
   const currentStep = steps[currentStepIndex]
   const isFirstStep = currentStepIndex === 0
@@ -67,8 +68,13 @@ export function ProfileWizard({ brandConfig, steps, onComplete, onClose }: Props
 
     if (isLastStep) {
       setIsSubmitting(true)
+      setCompleteError(null)
       try {
         await onComplete()
+      } catch {
+        // Surface the failure (e.g. backend outage) instead of dying silently —
+        // the button re-enables and the user can retry.
+        setCompleteError("Couldn't save your profile right now. Please try again in a moment.")
       } finally {
         setIsSubmitting(false)
       }
@@ -109,8 +115,10 @@ export function ProfileWizard({ brandConfig, steps, onComplete, onClose }: Props
         onClick={onClose}
       />
 
-      {/* Wizard panel */}
-      <div className="relative w-full max-w-xl">
+      {/* Wizard panel — near-opaque: the glass tint stays theme-driven, but
+          --glass-opacity is raised locally so page content doesn't bleed
+          through the form (matches the Event Terms modal treatment). */}
+      <div className="relative w-full max-w-xl" style={{ '--glass-opacity': '0.88' } as React.CSSProperties}>
         <GlassPanel padding="p-0" className="overflow-hidden">
           {/* Progress bar */}
           <div className="px-6 pt-6">
@@ -147,6 +155,10 @@ export function ProfileWizard({ brandConfig, steps, onComplete, onClose }: Props
               </motion.div>
             </AnimatePresence>
           </div>
+
+          {completeError && (
+            <p className="px-6 pb-2 text-sm text-red-300 text-center" role="alert">{completeError}</p>
+          )}
 
           {/* Navigation buttons */}
           <div className="px-6 pb-6 flex items-center justify-between gap-4">

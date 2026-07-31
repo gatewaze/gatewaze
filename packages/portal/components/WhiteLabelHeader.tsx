@@ -3,8 +3,9 @@
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
-import { getClientBrandConfig, isLightColor } from '@/config/brand'
+import { isLightColor } from '@/config/brand'
 import type { BrandConfig } from '@/config/brand'
+import { getSupabaseClient } from '@/lib/supabase/client'
 
 interface WhiteLabelEvent {
   event_title: string
@@ -56,16 +57,15 @@ export function WhiteLabelHeader({ brandConfig }: Props) {
     let cancelled = false
     async function fetchUserProfile() {
       try {
-        const config = getClientBrandConfig()
-        const { createClient } = await import('@supabase/supabase-js')
-        const supabase = createClient(config.supabaseUrl, config.supabaseAnonKey, {
-          global: { headers: { Authorization: `Bearer ${session!.access_token}` } }
-        })
+        // Reuse the singleton client — see Header.tsx for the leak story.
+        const supabase = getSupabaseClient()
 
         const { data: person } = await supabase
           .from('people')
           .select('attributes, avatar_storage_path')
           .eq('auth_user_id', user!.id)
+          .order('created_at', { ascending: true })
+          .limit(1)
           .maybeSingle()
 
         if (!cancelled && person) {

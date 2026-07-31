@@ -460,6 +460,33 @@ export async function createPublicApiRouter(
     res.send(DOCS_HTML);
   });
 
+  // Content-type schema registry — public (schema only, no data), derived
+  // from each enabled module's publicContentSources declaration. Gives
+  // agents self-serve field discoverability for /content and the MCP
+  // content_list/content_get tools without opening arbitrary queries.
+  router.get('/content/schema', (_req: Request, res: Response) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'public, max-age=300');
+
+    const types: Array<Record<string, unknown>> = [];
+    for (const mod of enabledModules) {
+      for (const source of mod.config.publicContentSources ?? []) {
+        types.push({
+          type: source.type,
+          module: mod.config.id,
+          module_name: mod.config.name,
+          scope: source.scope,
+          // Normalized row shape every /content item carries.
+          summary_fields: ['type', 'id', 'title', 'date', 'summary', 'content_category'],
+          // Full public record (?expand=full / content_get / full=true).
+          full_fields: source.fullFields ?? null,
+        });
+      }
+    }
+
+    res.json({ data: types, _links: { self: '/api/v1/content/schema' } });
+  });
+
   // MCP tool registry — public, derived from module contributions
   router.get('/mcp/tools', (_req: Request, res: Response) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -471,6 +498,24 @@ export async function createPublicApiRouter(
       { name: 'events_speakers', description: 'Get speakers for a specific event.' },
       { name: 'events_sponsors', description: 'Get sponsors for a specific event.' },
       { name: 'platform_health', description: 'Check Gatewaze platform health and module count.' },
+      { name: 'content_list', description: 'Unified read-only feed of public content across all enabled modules.' },
+      { name: 'content_categories', description: 'List configured content categories.' },
+      { name: 'content_get', description: 'Full public record for one content item, including body where exposed.' },
+      { name: 'calendars_list', description: 'Public calendar directory with published-event counts (resolve names to calendar_id).' },
+      { name: 'platform_stats', description: 'Counts of published content: events, editions, resources, calendars.' },
+      { name: 'content_schema', description: 'Content types and the fields each exposes (summary + full record).' },
+      { name: 'search', description: 'AI semantic search over published events and blog posts (when configured).' },
+      { name: 'resources_collections_list', description: 'List structured-resource collections, drafts included (resources:write).' },
+      { name: 'resources_collection_get', description: 'Get a collection with its categories and section templates (resources:write).' },
+      { name: 'resources_collection_create', description: 'Create a structured-resource collection (resources:write).' },
+      { name: 'resources_collection_update', description: 'Update or publish a collection (resources:write).' },
+      { name: 'resources_category_create', description: 'Create a category in a collection (resources:write).' },
+      { name: 'resources_template_create', description: 'Create a section template in a collection (resources:write).' },
+      { name: 'resources_items_list', description: "List a collection's items across all statuses (resources:write)." },
+      { name: 'resources_item_get', description: 'Get a full item with sections, any status (resources:write).' },
+      { name: 'resources_item_create', description: 'Create a resource item, optionally with sections (resources:write).' },
+      { name: 'resources_item_update', description: 'Update or publish a resource item (resources:write).' },
+      { name: 'resources_item_sections_set', description: "Replace a resource item's section list (resources:write)." },
     ];
 
     const moduleTools: Array<{
@@ -520,8 +565,13 @@ export async function createPublicApiRouter(
       });
     }
 
+    const publicMcpUrl = process.env.PUBLIC_MCP_URL || null;
     res.json({
-      transport: { stdio: true, http: false },
+      transport: { stdio: true, http: Boolean(publicMcpUrl) },
+      // Keyless streamable-HTTP endpoint serving the read-only tool profile
+      // (events_*, content_*, platform_health). Set PUBLIC_MCP_URL when the
+      // mcp-public service is deployed, e.g. https://mcp.<brand-domain>/mcp.
+      public_endpoint: publicMcpUrl,
       core: { tools: coreTools },
       modules: moduleTools,
     });

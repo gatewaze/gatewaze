@@ -5,9 +5,6 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const enrichlayerApiKey = Deno.env.get('ENRICHLAYER_API_KEY')!
 
-// API key for authenticating requests from the frontend
-const API_BEARER_TOKEN = Deno.env.get('GW_API_BEARER') || 'YYv8gvrl55fVPmJDQAWz8JLmhtpZpWF1MlqOrv8dfs7yPfMHPLHTdAlUeJcDiIUe'
-
 const supabase = createClient(supabaseUrl, supabaseServiceKey, {
   auth: {
     autoRefreshToken: false,
@@ -54,8 +51,16 @@ interface PersonSummary {
   company_domain?: string
   occupation?: string
   summary?: string
+  headline?: string
+  industry?: string
   follower_count?: number
+  connections?: number
   skills?: string[]
+  interests?: string[]
+  // Recent LinkedIn activity/articles (title + link + status only), capped —
+  // for interest/affinity inference downstream.
+  activities?: Array<{ title?: string; link?: string; activity_status?: string }>
+  articles?: Array<{ title?: string; link?: string; published_date?: unknown }>
   enrichment_updated?: number
 }
 
@@ -269,14 +274,21 @@ async function enrichWithEnrichLayer(linkedinUrl: string, email: string): Promis
   summary?: Partial<PersonSummary>
 } | null> {
   try {
+    // extra=include surfaces interests/activities/articles/follower_count for
+    // downstream interest + project-affinity inference. Per-call timeout so a
+    // slow upstream can't hang the isolate.
+    const profileCtl = new AbortController()
+    const profileTimer = setTimeout(() => profileCtl.abort(), 12000)
     const response = await fetch(
-      `https://enrichlayer.com/api/v2/profile?url=${encodeURIComponent(linkedinUrl)}&extra=exclude&inferred_salary=exclude&skills=include`,
+      `https://enrichlayer.com/api/v2/profile?url=${encodeURIComponent(linkedinUrl)}&extra=include&inferred_salary=exclude&skills=include&use_cache=if-present`,
       {
         headers: {
           'Authorization': `Bearer ${enrichlayerApiKey}`,
         },
+        signal: profileCtl.signal,
       }
     )
+    clearTimeout(profileTimer)
 
     const responseText = await response.text()
 
@@ -308,14 +320,18 @@ async function enrichWithEnrichLayer(linkedinUrl: string, email: string): Promis
     let companyData: Record<string, any> | null = null
     if (currentCompany?.company_linkedin_profile_url) {
       try {
+        const coCtl = new AbortController()
+        const coTimer = setTimeout(() => coCtl.abort(), 6000)
         const companyResponse = await fetch(
           `https://enrichlayer.com/api/v2/company/profile?url=${encodeURIComponent(currentCompany.company_linkedin_profile_url)}&resolve_numeric_id=true&categories=exclude&funding_data=exclude&extra=exclude&exit_data=exclude&acquisitions=exclude&use_cache=if-present`,
           {
             headers: {
               'Authorization': `Bearer ${enrichlayerApiKey}`,
             },
+            signal: coCtl.signal,
           }
         )
+        clearTimeout(coTimer)
 
         if (companyResponse.ok) {
           companyData = await companyResponse.json()
@@ -351,8 +367,19 @@ async function enrichWithEnrichLayer(linkedinUrl: string, email: string): Promis
       company_domain: companyData?.website?.replace('https://', '').replace('http://', '').split('/')[0],
       occupation: profile.occupation,
       summary: profile.summary,
+      headline: profile.headline,
+      industry: profile.industry || companyData?.industry,
       follower_count: profile.follower_count,
+      connections: profile.connections,
       skills: profile.skills,
+      interests: Array.isArray(profile.interests) ? profile.interests.slice(0, 20) : undefined,
+      // Cap the activity/article feeds to recent items, title+link+status only.
+      activities: Array.isArray(profile.activities)
+        ? profile.activities.slice(0, 60).map((a: any) => ({ title: a?.title, link: a?.link, activity_status: a?.activity_status }))
+        : undefined,
+      articles: Array.isArray(profile.articles)
+        ? profile.articles.slice(0, 40).map((a: any) => ({ title: a?.title, link: a?.link, published_date: a?.published_date }))
+        : undefined,
     }
 
     return { profile, summary }
@@ -574,7 +601,9 @@ async function handler(req: Request) {
     })
   }
 
-  // Validate Authorization header — accept API bearer token OR valid Supabase JWT
+  // Validate Authorization header — require a valid Supabase JWT.
+  // (The legacy GW_API_BEARER service-to-service path was removed: it was
+  // configured in no environment and had no working caller.)
   const authHeader = req.headers.get('Authorization')
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return new Response(JSON.stringify({ status: { age: 'Error' }, message: 'Unauthorized' }), {
@@ -584,20 +613,8 @@ async function handler(req: Request) {
   }
 
   const token = authHeader.split(' ')[1]
-  let isAuthorized = false
-
-  // Check API bearer token first (backend/webhook calls)
-  if (token === API_BEARER_TOKEN) {
-    isAuthorized = true
-  } else {
-    // Try validating as a Supabase JWT (frontend calls via supabase.functions.invoke)
-    const { data: { user }, error } = await supabase.auth.getUser(token)
-    if (!error && user) {
-      isAuthorized = true
-    }
-  }
-
-  if (!isAuthorized) {
+  const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+  if (authError || !user) {
     return new Response(JSON.stringify({ status: { age: 'Error' }, message: 'Unauthorized' }), {
       status: 401,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

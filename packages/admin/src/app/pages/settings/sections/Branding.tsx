@@ -1101,6 +1101,7 @@ function BrandingCard({
           <RadixTabs.Trigger value="theme">Theme</RadixTabs.Trigger>
           <RadixTabs.Trigger value="navigation">Navigation</RadixTabs.Trigger>
           <RadixTabs.Trigger value="fonts">Fonts</RadixTabs.Trigger>
+          <RadixTabs.Trigger value="home">Home</RadixTabs.Trigger>
           <RadixTabs.Trigger value="pages">Pages</RadixTabs.Trigger>
         </RadixTabs.List>
 
@@ -1219,6 +1220,10 @@ function BrandingCard({
           </div>
         </RadixTabs.Content>
 
+        <RadixTabs.Content value="home">
+          <HomeIntroContent />
+        </RadixTabs.Content>
+
         <RadixTabs.Content value="pages">
           <LegalPagesContent />
         </RadixTabs.Content>
@@ -1235,6 +1240,26 @@ const LEGAL_KEYS = [
   "terms_of_service_html",
   "do_not_sell_html",
   "footer_legal_html",
+  // Event / consent texts. All optional per brand: the portal renders the
+  // matching surface only when the setting is non-empty.
+  //  - event_terms_html: body of the Event Terms modal on the talk form
+  //  - talk_consent_ack_html: first required checkbox label on talk submission
+  //  - talk_consent_agree_html: second checkbox label; use {terms} where the
+  //    "event terms" modal link should appear
+  //  - newsletter_consent_html: note under the newsletter signup field
+  "event_terms_html",
+  "talk_consent_ack_html",
+  "talk_consent_agree_html",
+  "newsletter_consent_html",
+  // CFP consents (LF events team requirements, 2026-07). Each non-empty label
+  // renders as its own checkbox on the Submit-a-talk form; CoC/Inclusivity/
+  // Privacy are required, Content Quality is optional. `{terms}` in a label
+  // links to the Speaker Terms pop-up (speaker_terms_html).
+  "talk_consent_coc_html",
+  "talk_consent_inclusivity_html",
+  "talk_consent_privacy_html",
+  "talk_consent_quality_html",
+  "speaker_terms_html",
 ] as const;
 type LegalKey = (typeof LEGAL_KEYS)[number];
 
@@ -1243,21 +1268,36 @@ const TAB_LABELS: Record<LegalKey, string> = {
   terms_of_service_html: "Terms of Service",
   do_not_sell_html: "Do Not Sell",
   footer_legal_html: "Footer Text",
+  event_terms_html: "Event Terms",
+  talk_consent_ack_html: "Talk Consent (Ack)",
+  talk_consent_agree_html: "Talk Consent (Agree)",
+  newsletter_consent_html: "Newsletter Consent",
+  talk_consent_coc_html: "CFP: Code of Conduct",
+  talk_consent_inclusivity_html: "CFP: Inclusivity",
+  talk_consent_privacy_html: "CFP: Privacy",
+  talk_consent_quality_html: "CFP: Content Quality",
+  speaker_terms_html: "Speaker Terms",
+};
+
+const EMPTY_LEGAL_CONTENT: Record<LegalKey, string> = {
+  privacy_policy_html: "",
+  terms_of_service_html: "",
+  do_not_sell_html: "",
+  footer_legal_html: "",
+  event_terms_html: "",
+  talk_consent_ack_html: "",
+  talk_consent_agree_html: "",
+  newsletter_consent_html: "",
+  talk_consent_coc_html: "",
+  talk_consent_inclusivity_html: "",
+  talk_consent_privacy_html: "",
+  talk_consent_quality_html: "",
+  speaker_terms_html: "",
 };
 
 function LegalPagesContent() {
-  const [content, setContent] = useState<Record<LegalKey, string>>({
-    privacy_policy_html: "",
-    terms_of_service_html: "",
-    do_not_sell_html: "",
-    footer_legal_html: "",
-  });
-  const [original, setOriginal] = useState<Record<LegalKey, string>>({
-    privacy_policy_html: "",
-    terms_of_service_html: "",
-    do_not_sell_html: "",
-    footer_legal_html: "",
-  });
+  const [content, setContent] = useState<Record<LegalKey, string>>({ ...EMPTY_LEGAL_CONTENT });
+  const [original, setOriginal] = useState<Record<LegalKey, string>>({ ...EMPTY_LEGAL_CONTENT });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -1401,6 +1441,112 @@ function LegalPagesContent() {
             Error: {saveError}
           </Text>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ── HomeIntroContent ──────────────────────────────────────────────
+//
+// Portal home-page intro: a heading + short paragraph rendered above the
+// content sections (events / latest posts). Both optional — the portal shows
+// the hero only when at least one is set.
+
+function HomeIntroContent() {
+  const [heading, setHeading] = useState("");
+  const [intro, setIntro] = useState("");
+  const [original, setOriginal] = useState({ heading: "", intro: "" });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("platform_settings")
+        .select("key, value")
+        .in("key", ["portal_home_heading", "portal_home_intro_html"]);
+      const h = data?.find((r) => r.key === "portal_home_heading")?.value ?? "";
+      const i = data?.find((r) => r.key === "portal_home_intro_html")?.value ?? "";
+      setHeading(h);
+      setIntro(i);
+      setOriginal({ heading: h, intro: i });
+      setLoading(false);
+    })();
+  }, []);
+
+  const hasChanges = heading !== original.heading || intro !== original.intro;
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaved(false);
+    setSaveError(null);
+    const { error } = await supabase.from("platform_settings").upsert(
+      [
+        { key: "portal_home_heading", value: heading },
+        { key: "portal_home_intro_html", value: intro },
+      ],
+      { onConflict: "key" },
+    );
+    if (error) {
+      setSaveError(`Failed to save: ${error.message}`);
+    } else {
+      setOriginal({ heading, intro });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    }
+    setSaving(false);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-6 w-6 animate-spin text-[var(--gray-9)]" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <Heading size="3" className="pb-1">Home page intro</Heading>
+        <Text as="p" size="1" color="gray" className="pb-4">
+          Shown at the top of the portal home page, above the content sections.
+          Leave both empty to hide the intro entirely.
+        </Text>
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Text as="label" size="2" weight="medium">Heading</Text>
+            <input
+              value={heading}
+              onChange={(e) => setHeading(e.target.value)}
+              placeholder="e.g. The home of the agentic AI community"
+              className="w-full rounded border border-[var(--gray-6)] bg-[var(--color-surface)] px-3 py-2 text-sm"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Text as="label" size="2" weight="medium">Intro paragraph</Text>
+            <div className="rounded-lg border border-[var(--gray-6)]">
+              <RichTextEditor
+                content={intro}
+                onChange={(html: string) => setIntro(html)}
+                placeholder="A short paragraph introducing the community and what visitors will find here…"
+              />
+            </div>
+            <Text as="p" size="1" color="gray">
+              Displayed on a dark background on the portal; text colours invert automatically.
+            </Text>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <Button onClick={handleSave} disabled={!hasChanges || saving} variant="solid">
+          {saving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</>) : saved ? (<><Check className="mr-2 h-4 w-4" /> Saved</>) : "Save Changes"}
+        </Button>
+        {hasChanges && !saving && !saveError && (<Text size="1" color="gray">You have unsaved changes</Text>)}
+        {saveError && (<Text size="1" color="red">Error: {saveError}</Text>)}
       </div>
     </div>
   );
@@ -1571,6 +1717,7 @@ const PORTAL_SUB_TABS = [
   { id: "theme",      label: "Theme" },
   { id: "navigation", label: "Navigation" },
   { id: "fonts",      label: "Fonts" },
+  { id: "home",       label: "Home" },
   { id: "pages",      label: "Pages" },
 ];
 

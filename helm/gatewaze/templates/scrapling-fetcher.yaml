@@ -71,10 +71,12 @@ spec:
               value: {{ .Values.scraplingFetcher.proxyDailyGbCap | default 10 | quote }}
             - name: SCRAPLING_BRAND_ID
               value: {{ .Values.instanceName | quote }}
+            # SUPABASE_URL is not a secret — it lives in the release configmap
+            # (values.supabase.url); the secret has no such key.
             - name: SUPABASE_URL
               valueFrom:
-                secretKeyRef:
-                  name: {{ include "gatewaze.fullname" . }}-secret
+                configMapKeyRef:
+                  name: {{ include "gatewaze.fullname" . }}-config
                   key: SUPABASE_URL
             - name: SUPABASE_SERVICE_KEY
               valueFrom:

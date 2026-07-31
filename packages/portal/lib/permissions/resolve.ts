@@ -35,6 +35,10 @@ export interface EventScopeEntry {
 export interface PortalAccess {
   isManager: boolean
   isSuperAdmin: boolean
+  /** Active admin account of ANY role (super_admin/admin/editor via is_admin()),
+   *  regardless of feature grants — used for read-only affordances like draft
+   *  nav previews, never for write authorization. */
+  hasAdminAccount: boolean
   /** Descriptive only — do NOT authorize on this (§13.2a). */
   role: PortalRole | null
   featureKeys: string[]
@@ -47,6 +51,7 @@ export interface PortalAccess {
 export const ZERO_ACCESS: PortalAccess = {
   isManager: false,
   isSuperAdmin: false,
+  hasAdminAccount: false,
   role: null,
   featureKeys: [],
   newsletterScope: [],
@@ -69,9 +74,10 @@ export async function resolvePortalAccess(
   if (!authUserId) return ZERO_ACCESS
 
   try {
-    const [featuresRes, superRes, nlRes, evRes] = await Promise.all([
+    const [featuresRes, superRes, adminRes, nlRes, evRes] = await Promise.all([
       supabase.rpc('admin_get_features', { p_admin_id: authUserId }),
       supabase.rpc('is_super_admin'),
+      supabase.rpc('is_admin'),
       supabase.rpc('admin_get_my_newsletters'),
       supabase.rpc('admin_get_my_assigned_events'),
     ])
@@ -87,6 +93,8 @@ export async function resolvePortalAccess(
       : []
 
     const isSuperAdmin = superRes.data === true
+    // Best-effort: an error here only loses a read-only affordance.
+    const hasAdminAccount = isSuperAdmin || adminRes.data === true
 
     // Row-scope RPCs are best-effort: the newsletters one may not exist yet (PGRST202 → error).
     const newsletterScope: NewsletterScopeEntry[] =
@@ -118,6 +126,7 @@ export async function resolvePortalAccess(
     return {
       isManager,
       isSuperAdmin,
+      hasAdminAccount,
       // descriptive only; we don't fetch the literal role (not load-bearing — §9.1)
       role: isSuperAdmin ? 'super_admin' : isManager ? 'portal_manager' : null,
       featureKeys,

@@ -36,55 +36,37 @@ async function getSpeakerInfo(editToken: string, brandId: string): Promise<Speak
 
   const supabase = await createServerSupabase(brandId)
 
-  // Query event_talks by edit_token - status is now on this table
-  // Then get speaker info via the junction table
+  // Plain decomposed lookups (talk → bridge → profile), no PostgREST embeds.
+  // The previous embed went events_talk_speakers → events_speakers, but the
+  // bridge's speaker_id FK points at events_speaker_profiles — PostgREST
+  // can't resolve a relationship with no FK, the whole query 400'd, and the
+  // page told a just-signed-in speaker their talk didn't exist.
   const { data: talk } = await supabase
     .from('events_talks')
-    .select(`
-      status,
-      title,
-      presentation_url,
-      presentation_storage_path,
-      presentation_type,
-      calendar_added_at,
-      tracking_link_copied_at,
-      event_talk_speakers!inner (
-        is_primary,
-        speaker:event_speakers!inner (
-          people_profiles!inner (
-            people!inner (
-              email,
-              avatar_storage_path
-            )
-          )
-        )
-      )
-    `)
+    .select('id, status, title, presentation_url, presentation_storage_path, presentation_type, calendar_added_at, tracking_link_copied_at')
     .eq('edit_token', editToken)
-    .eq('event_talk_speakers.is_primary', true)
     .maybeSingle()
 
   if (!talk) return { status: null, avatarUrl: null, talkTitle: null, presentationUrl: null, presentationStoragePath: null, presentationType: null, speakerEmail: null, calendarAddedAt: null, trackingLinkCopiedAt: null }
 
-  // Build avatar URL from storage path. Supabase types nested !inner
-  // joins as deeply-nested arrays even when the relation is structurally
-  // 1:1; cast through a narrow shape rather than `any`.
-  type TalkSpeakerJoin = {
-    speaker?: {
-      people_profiles?: {
-        people?: { email?: string | null; avatar_storage_path?: string | null } | null
-      } | null
-    } | null
+  // Primary speaker's profile (email + avatar). Best-effort: a missing
+  // bridge row (pre-fix submissions) must not hide the talk itself.
+  let profileNode: { email?: string | null; avatar_url?: string | null } | null = null
+  const { data: bridge } = await supabase
+    .from('events_talk_speakers')
+    .select('speaker_id')
+    .eq('talk_id', talk.id)
+    .eq('is_primary', true)
+    .maybeSingle()
+  if (bridge?.speaker_id) {
+    const { data: profile } = await supabase
+      .from('events_speaker_profiles')
+      .select('email, avatar_url')
+      .eq('id', bridge.speaker_id)
+      .maybeSingle()
+    profileNode = profile ?? null
   }
-  let avatarUrl: string | null = null
-  const talkSpeaker = (talk.event_talk_speakers as TalkSpeakerJoin[] | null | undefined)?.[0]
-  const avatarPath = talkSpeaker?.speaker?.people_profiles?.people?.avatar_storage_path
-  if (avatarPath) {
-    const { data: { publicUrl } } = supabase.storage
-      .from('media')
-      .getPublicUrl(avatarPath)
-    avatarUrl = publicUrl
-  }
+  const avatarUrl: string | null = profileNode?.avatar_url || null
 
   // Get presentation URL from storage if using storage
   let presentationUrl = talk.presentation_url
@@ -102,7 +84,7 @@ async function getSpeakerInfo(editToken: string, brandId: string): Promise<Speak
     presentationUrl,
     presentationStoragePath: talk.presentation_storage_path,
     presentationType: talk.presentation_type,
-    speakerEmail: talkSpeaker?.speaker?.people_profiles?.people?.email || null,
+    speakerEmail: profileNode?.email || null,
     calendarAddedAt: talk.calendar_added_at,
     trackingLinkCopiedAt: (talk as { tracking_link_copied_at?: string | null }).tracking_link_copied_at ?? null
   }

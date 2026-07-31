@@ -14,9 +14,12 @@ interface Props {
   brandConfig: BrandConfig
   enabledModuleIds?: string[]
   enabledFeatures?: string[]
+  /** Sole-SSO pass-through (?sso=1): render only the provider's minimal
+   *  processing surface — no logo, heading or card content. */
+  minimal?: boolean
 }
 
-export function SignInForm({ brandConfig, enabledModuleIds = [], enabledFeatures = [] }: Props) {
+export function SignInForm({ brandConfig, enabledModuleIds = [], enabledFeatures = [], minimal = false }: Props) {
   const { signInWithMagicLink, user, isLoading } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -91,12 +94,21 @@ export function SignInForm({ brandConfig, enabledModuleIds = [], enabledFeatures
     }
   }, [isProcessingToken, redirectTo, router])
 
-  // Redirect if already signed in
+  // Redirect if already signed in. Skipped while the hash flow is processing —
+  // setSession() flips `user` before that flow's window.location.replace() runs,
+  // and this effect would race it to `/`, losing the stored destination. Also
+  // honours auth_redirect_to (set by the LFID button before the Auth0 hop) so
+  // an already-live session still returns the user to where they came from.
   useEffect(() => {
+    if (isProcessingToken) return
     if (!isLoading && user) {
-      router.push(redirectTo)
+      const destination = redirectTo !== '/'
+        ? redirectTo
+        : localStorage.getItem('auth_redirect_to') || '/'
+      localStorage.removeItem('auth_redirect_to')
+      router.push(destination)
     }
-  }, [user, isLoading, router, redirectTo])
+  }, [user, isLoading, router, redirectTo, isProcessingToken])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -165,8 +177,20 @@ export function SignInForm({ brandConfig, enabledModuleIds = [], enabledFeatures
     setIsSubmitting(false)
   }
 
-  // Show loading while checking auth state or processing token
+  // Show loading while checking auth state or processing token. With an SSO
+  // provider, the provider renders this state (pulsing LF mark +
+  // "Processing sign in…") so both legs of the flow look the same.
   if (isLoading || isProcessingToken) {
+    if (hasSsoProvider) {
+      return (
+        <ModuleSlot
+          name="sign-in:providers"
+          enabledModuleIds={enabledModuleIds}
+          enabledFeatures={enabledFeatures}
+          props={{ redirectTo, primaryColor: brandConfig.primaryColor, soleProvider: true, minimal: true, processing: true }}
+        />
+      )
+    }
     return (
       <div className="flex justify-center py-8">
         <div
@@ -252,6 +276,25 @@ export function SignInForm({ brandConfig, enabledModuleIds = [], enabledFeatures
     )
   }
 
+  // Sole-SSO pass-through: no card content at all — just the provider's
+  // minimal surface while it kicks off the redirect.
+  if (minimal && hasSsoProvider) {
+    return (
+      <ModuleSlot
+        name="sign-in:providers"
+        enabledModuleIds={enabledModuleIds}
+        enabledFeatures={enabledFeatures}
+        props={{
+          redirectTo,
+          primaryColor: brandConfig.primaryColor,
+          soleProvider: true,
+          minimal: true,
+          autoStart: autoStartIntent && !isProcessingToken && !user && !isLoading,
+        }}
+      />
+    )
+  }
+
   return (
     <>
       {/* Logo and header - shown only in form state */}
@@ -278,9 +321,14 @@ export function SignInForm({ brandConfig, enabledModuleIds = [], enabledFeatures
           </div>
         )}
         <h1 className="text-2xl font-semibold text-white">Sign in</h1>
-        <p className="text-white/70 mt-2 text-sm sm:text-base whitespace-nowrap">
-          {hasSsoProvider ? 'Sign in to continue' : 'Enter your email to receive a magic link'}
-        </p>
+        {/* SSO flows redirect immediately — a "Sign in to continue" line is
+            just noise under the heading, so only the magic-link form keeps
+            its instruction. */}
+        {!hasSsoProvider && (
+          <p className="text-white/70 mt-2 text-sm sm:text-base whitespace-nowrap">
+            Enter your email to receive a magic link
+          </p>
+        )}
       </div>
 
       {!hasSsoProvider && (

@@ -10,14 +10,15 @@ FROM node:22-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git ca-certificates curl \
     && rm -rf /var/lib/apt/lists/*
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@10.31.0 --activate
 
 WORKDIR /app
 
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=3100 \
-    HOSTNAME=0.0.0.0
+    HOSTNAME=0.0.0.0 \
+    CI=true
 
 # Workspace root
 COPY package.json tsconfig.json gatewaze.config.ts ./
@@ -26,17 +27,18 @@ RUN printf 'packages:\n  - "packages/*"\n' > pnpm-workspace.yaml
 # Package manifests for dependency resolution
 COPY packages/portal/package.json packages/portal/
 COPY packages/shared/package.json packages/shared/
+COPY packages/tracking/package.json packages/tracking/
 
 # Install all deps — dev deps are needed for `next build` at runtime.
-# `--config.dangerously-allow-all-builds=true` is required on pnpm 10+:
-# without it `pnpm install` exits non-zero on ERR_PNPM_IGNORED_BUILDS
-# for sharp / esbuild / @sentry/cli native build scripts. CI trusts the
-# lockfile, so allow build scripts to run.
+# Native build scripts are governed by pnpm.onlyBuiltDependencies in the
+# root package.json (pnpm 10 reads it; the old dangerously-allow-all-builds
+# flag conflicts with it as ERR_PNPM_CONFIG_CONFLICT_BUILT_DEPENDENCIES).
 RUN --mount=type=cache,id=pnpm-portal,target=/root/.local/share/pnpm/store \
-    pnpm install --no-frozen-lockfile --config.dangerously-allow-all-builds=true
+    pnpm install --no-frozen-lockfile
 
 # Source
 COPY packages/shared/ packages/shared/
+COPY packages/tracking/ packages/tracking/
 COPY packages/portal/ packages/portal/
 
 # Shared lib is a compiled TS package that the portal imports
@@ -89,7 +91,7 @@ RUN if [ -n "$BUILD_TIME_GITHUB_TOKEN" ]; then \
     done; \
     unset IFS; \
     node /docker/shared/aggregate-module-deps.mjs /app/packages/portal/package.json; \
-    cd /app && pnpm install --no-frozen-lockfile --config.dangerously-allow-all-builds=true 2>&1 | tail -5 \
+    cd /app && pnpm install --no-frozen-lockfile 2>&1 | tail -5 \
       || echo "[portal-prebuild] Warning: pnpm install for aggregated module deps failed"
 
 EXPOSE 3100

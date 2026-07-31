@@ -10,7 +10,8 @@ import { CLICK_ID_PARAMS, UTM_PARAMS } from '@/config/platforms'
 import { trackEvent } from '@/lib/analytics'
 import { hasConsentFor } from '@/hooks/useConsent'
 import { EventHero } from './EventHero'
-import { EventSectionMenu } from './EventSectionMenu'
+import { EventSidebar } from './EventSidebar'
+import { EventMobileActions } from './EventSidebar'
 import { EventProvider, useEventContext } from './EventContext'
 import { PersistentBackground } from '@/components/ui/PersistentBackground'
 import type { RecommendedEvent } from '@/app/(main)/events/[identifier]/(portal)/layout'
@@ -138,6 +139,7 @@ export function EventLayoutClient({ event, brandConfig, eventIdentifier, speaker
           brandConfig={brandConfig}
           eventIdentifier={eventIdentifier}
           useDarkText={useDarkText}
+          primaryColor={primaryColor}
           speakerCount={speakerCount}
           sponsorCount={sponsorCount}
           competitionCount={competitionCount}
@@ -157,6 +159,7 @@ function EventLayoutInner({
   brandConfig,
   eventIdentifier,
   useDarkText,
+  primaryColor,
   speakerCount,
   sponsorCount,
   competitionCount,
@@ -169,6 +172,7 @@ function EventLayoutInner({
   brandConfig: BrandConfig
   eventIdentifier: string
   useDarkText: boolean
+  primaryColor: string
   speakerCount: number
   sponsorCount: number
   competitionCount: number
@@ -182,28 +186,51 @@ function EventLayoutInner({
 
   return (
     <main className="relative z-10">
+      {/* pub-wrap: unified page width across the portal, preserved through the
+          layout revert so event pages stay aligned with every other page. */}
       <div className="pub-wrap">
-        {/* Hero Section (now carries the Register + Add-to-calendar actions) */}
+        {/* Hero Section */}
         <EventHero event={event} brandConfig={brandConfig} useDarkText={useDarkText} heroRef={heroRef} />
 
         {/* Mobile: Competition panel portal target (rendered from AboutEventContent) */}
         <div id="mobile-competition-slot" className="lg:hidden" />
 
-        {/* Section menu + content. Menu is a sticky left column on desktop, a horizontal scroller on mobile. */}
-        <div className="grid grid-cols-1 lg:grid-cols-[210px_minmax(0,1fr)] gap-4 lg:gap-8 pb-12">
-          <EventSectionMenu
-            event={event}
-            eventIdentifier={eventIdentifier}
-            useDarkText={useDarkText}
-            speakerCount={speakerCount}
-            sponsorCount={sponsorCount}
-            competitionCount={competitionCount}
-            discountCount={discountCount}
-            mediaCount={mediaCount}
-            hasVirtualEvent={hasVirtualEvent}
-            userState={userState}
-          />
-          <div className="min-w-0">
+        {/* Mobile: Register button + hamburger menu (below hero, above content) */}
+        <EventMobileActions
+          event={event}
+          eventIdentifier={eventIdentifier}
+          useDarkText={useDarkText}
+          primaryColor={primaryColor}
+          speakerCount={speakerCount}
+          sponsorCount={sponsorCount}
+          competitionCount={competitionCount}
+          discountCount={discountCount}
+          mediaCount={mediaCount}
+          hasVirtualEvent={hasVirtualEvent}
+          userState={userState}
+        />
+
+        {/* Two-column layout: Sidebar + Content */}
+        <div className="flex flex-col lg:flex-row gap-6 lg:gap-12 pb-12">
+          {/* Left Sidebar - Navigation (desktop only) */}
+          <div className="hidden lg:block">
+            <EventSidebar
+              event={event}
+              eventIdentifier={eventIdentifier}
+              useDarkText={useDarkText}
+              primaryColor={primaryColor}
+              speakerCount={speakerCount}
+              sponsorCount={sponsorCount}
+              competitionCount={competitionCount}
+              discountCount={discountCount}
+              mediaCount={mediaCount}
+              hasVirtualEvent={hasVirtualEvent}
+              userState={userState}
+            />
+          </div>
+
+          {/* Right Content - Page Content */}
+          <div className="flex-1 min-w-0">
             {children}
           </div>
         </div>

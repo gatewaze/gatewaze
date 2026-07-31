@@ -154,6 +154,31 @@ email:
     password: ""
 
 # =============================================================================
+# Public API Configuration
+# =============================================================================
+publicApi:
+  # -- Pepper for HMAC-SHA256 hashing of /api/v1 API keys. REQUIRED for
+  #    the public REST API and MCP server: without it the platform can
+  #    neither create keys (admin /api/api-keys 500s) nor verify them
+  #    (every X-API-Key call fails). Must be stable — rotating it
+  #    invalidates every issued key. Base64-encoded random bytes;
+  #    generate with: openssl rand -base64 32
+  apiKeyPepper: ""
+
+# =============================================================================
+# Engagement Tracking (@gatewaze/tracking)
+# =============================================================================
+tracking:
+  # -- Segment write key for SERVER-side events (RSVP Submitted etc.),
+  #    posted to Segment's HTTP Tracking API from portal route handlers.
+  #    Use a dedicated "HTTP API" source in Segment (Connections →
+  #    Sources → Add Source → HTTP API) — one source per emitter; the
+  #    browser keeps its own JavaScript-source key via the admin
+  #    tracking-code settings. Empty = server-side Segment leg disabled
+  #    (the first-party analytics-module store still records events).
+  segmentWriteKey: ""
+
+# =============================================================================
 # Ingress Configuration
 # =============================================================================
 ingress:
@@ -173,6 +198,9 @@ ingress:
     admin: admin.example.com
     portal: events.example.com
     api: api.example.com
+    # -- Public keyless MCP endpoint host (only routed when
+    #    mcpPublic.enabled=true). Remember to add it to tls.hosts too.
+    mcp: ""
 
   # -- TLS configuration
   tls:
@@ -455,6 +483,15 @@ api:
 # Worker Service Configuration
 # =============================================================================
 worker:
+  # -- Optional image override for the worker container ONLY. The worker image
+  # ships Chromium + the browser scrapers, so it fails and gets fixed on a
+  # different cadence than the app images; pin `worker.image.tag` to release a
+  # worker-only fix without a full-platform bump, or to hold the worker on a
+  # browser-verified build while the platform moves ahead. Unset => the global
+  # `image.tag` is used (the common case). Registry is always `image.registry`.
+  image:
+    tag: ""
+
   # -- Pod-container securityContext for the worker container. The worker
   # image's entrypoint clones module repos and symlinks them at the
   # filesystem root, so it cannot run non-root. Keep {} to use the image
@@ -564,6 +601,56 @@ scraplingFetcher:
     limits:
       cpu: "2"
       memory: "3Gi"
+
+mcpPublic:
+  # -- Enable the PUBLIC keyless MCP endpoint (packages/mcp with
+  # MCP_PROFILE=public): read-only tools (events_*, content_*,
+  # platform_health) over streamable HTTP, no client auth. Exposed through
+  # the ingress at ingress.hosts.mcp — set that (plus a tls.hosts entry)
+  # alongside enabling this. Requires apiKey below.
+  enabled: false
+  # -- Read-scoped platform API key the pod uses to call the platform API
+  # (events:read, blog:read, newsletters:read, resources:read, …).
+  # Create via /admin/api-keys. NEVER grant write scopes to this key.
+  apiKey: ""
+  # -- Per-IP request limit per minute (in-process sliding window).
+  rateLimitRpm: 120
+  # -- Brand identity surfaced to agents via MCP initialize instructions,
+  # e.g. "AAIF (Agentic AI Foundation)". Prevents agents treating the
+  # brand name as a calendar/topic to search for within the platform.
+  brandName: ""
+  # -- Optional extra sentence(s) describing what the platform's content
+  # covers, appended to the instructions.
+  brandDescription: ""
+  # -- Display name @gatewaze/connect uses for the connector entry it
+  # writes into client configs (e.g. "AAIF"). Served at GET /brand.json;
+  # defaults to brandId when empty.
+  connectorName: ""
+  # -- Brand id for the portal's /api/ai-search (e.g. "aaif"). Enables the
+  # semantic `search` tool together with portalUrl; empty disables it.
+  brandId: ""
+  # -- PUBLIC portal base URL for /api/ai-search (e.g. "https://aaif.live").
+  # Must be the canonical host — the portal 307s other Host headers.
+  portalUrl: ""
+  # -- HS256 signing secret for MCP OAuth access tokens, shared between the
+  # API (authorization server) and this pod (resource server). Enables the
+  # LFID/magic-link sign-in tier. Generate: openssl rand -hex 32
+  tokenSecret: ""
+  # -- Shared token authenticating this pod's audit batches to the API's
+  # /api/internal/mcp-events ingest. Generate: openssl rand -hex 32
+  eventsToken: ""
+  replicaCount: 1
+  image:
+    repository: ghcr.io/gatewaze/mcp-public
+    tag: latest
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: "25m"
+      memory: "64Mi"
+    limits:
+      cpu: "250m"
+      memory: "256Mi"
 
 eventsMcp:
   # -- Enable the events-mcp Deployment + Service + NetworkPolicy. Serves the

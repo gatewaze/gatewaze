@@ -10,9 +10,12 @@ import { GlassPanel } from '@/components/ui/GlassPanel'
 import { GlowInput } from '@/components/ui/GlowInput'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { PortalButton } from '@/components/ui/PortalButton'
+import { ModuleSlot, hasPortalSlot } from '@/lib/modules/ModuleSlot'
 
 interface Props {
   brandConfig: BrandConfig
+  enabledModuleIds?: string[]
+  enabledFeatures?: string[]
 }
 
 interface ProfileData {
@@ -45,10 +48,13 @@ const TIMEZONES: string[] = (() => {
   return ['UTC', 'Europe/London', 'Europe/Paris', 'Europe/Berlin', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'Asia/Singapore', 'Asia/Tokyo', 'Australia/Sydney']
 })()
 
-export function ProfileContent({ brandConfig }: Props) {
+export function ProfileContent({ brandConfig, enabledModuleIds = [], enabledFeatures = [] }: Props) {
   const router = useRouter()
   const { user, session, isLoading: authLoading } = useAuth()
   const primaryColor = brandConfig.primaryColor
+  // When the onboarding module contributes the alias UI, it supersedes the
+  // single-email Subscriptions panel (it manages every owned email's lists).
+  const hasAliasUi = hasPortalSlot('app:profile-emails', new Set(enabledModuleIds), new Set(enabledFeatures))
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const secondaryColor = brandConfig.secondaryColor
 
@@ -97,17 +103,17 @@ export function ProfileContent({ brandConfig }: Props) {
       hasFetchedRef.current = true
 
       try {
-        const config = getClientBrandConfig()
-        const { createClient } = await import('@supabase/supabase-js')
-        const supabase = createClient(config.supabaseUrl, config.supabaseAnonKey, {
-          global: { headers: { Authorization: `Bearer ${session.access_token}` } }
-        })
+        // Reuse the singleton — this file imports `getSupabaseClient` above
+        // for the profile-save path already. See Header.tsx for the leak story.
+        const supabase = getSupabaseClient()
 
         // Get person for this auth user
         const { data: person, error: personError } = await supabase
           .from('people')
           .select('id, email, attributes, avatar_storage_path')
           .eq('auth_user_id', session.user.id)
+          .order('created_at', { ascending: true })
+          .limit(1)
           .maybeSingle()
 
         if (personError) {
@@ -723,7 +729,20 @@ export function ProfileContent({ brandConfig }: Props) {
             </form>
           </GlassPanel>
 
-          {/* Subscriptions */}
+          {/* Email aliases + per-alias subscriptions (onboarding module). When
+              enabled it supersedes the single-email Subscriptions panel below. */}
+          {hasAliasUi && (
+            <GlassPanel padding="p-6 sm:p-8" className="mt-6">
+              <ModuleSlot
+                name="app:profile-emails"
+                enabledModuleIds={enabledModuleIds}
+                enabledFeatures={enabledFeatures}
+              />
+            </GlassPanel>
+          )}
+
+          {/* Subscriptions (fallback when the alias UI isn't available) */}
+          {!hasAliasUi && (
           <GlassPanel padding="p-6 sm:p-8" className="mt-6">
             <h2 className="text-lg font-semibold text-white mb-4">Subscriptions</h2>
 
@@ -767,6 +786,7 @@ export function ProfileContent({ brandConfig }: Props) {
               </div>
             )}
           </GlassPanel>
+          )}
       </div>
     </main>
   )

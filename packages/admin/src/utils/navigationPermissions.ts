@@ -145,20 +145,12 @@ export function filterNavigationByPermissions(
         return item;
       }
 
-      // For non-super-admins, also check user permissions
-      if ('requiredFeature' in item && item.requiredFeature) {
-        const hasPermission = permissionsMap[item.requiredFeature as AdminFeature] === true;
-        if (!hasPermission) {
-          return null;
-        }
-      }
-      // Fallback to path-based check for items without requiredFeature
-      else if (item.path && item.type === 'item') {
-        const hasPermission = hasNavigationPermission(item.path, permissionsMap, isSuperAdmin);
-        if (!hasPermission) {
-          return null;
-        }
-      }
+      // NOTE: we intentionally do NOT hide items a non-super-admin lacks a
+      // grant for. The product decision is "show the menu, forbid on click":
+      // every item for an enabled module stays visible, and the route guard
+      // (FeatureGuard, keyed off each route's requiredFeature) sends the user
+      // to the Access Denied page if they click one they can't access. Only
+      // brand-off and disabled-module items (handled above) are removed here.
 
       // If item has children, filter them recursively
       if (item.childs && item.childs.length > 0) {

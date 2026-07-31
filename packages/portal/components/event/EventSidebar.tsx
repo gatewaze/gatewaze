@@ -16,7 +16,7 @@ import { getSupabaseClient } from '@/lib/supabase/client'
 import { isOnCustomDomain } from '@/lib/customDomain'
 import { isLightColor } from '@/config/brand'
 
-export interface NavItem {
+interface NavItem {
   label: string
   href: string
   icon: React.ReactNode
@@ -79,10 +79,22 @@ function useModuleNavItems(basePath: string, hasVirtualEvent: boolean) {
   const isAdmin = useIsAdmin()
 
   useEffect(() => {
-    // Dynamic import to avoid SSR issues with generated file
-    import('@/lib/modules/generated-event-pages').then(({ eventModulePages }) => {
+    let cancelled = false
+    // Dynamic import to avoid SSR issues with generated file. The generated
+    // registry is BUILD-time: it contains every module's event pages whether
+    // or not the module is enabled, so enablement must be checked at runtime —
+    // a disabled module's page (e.g. kiosk) otherwise still shows in the nav
+    // while its route correctly 404s.
+    Promise.all([
+      import('@/lib/modules/generated-event-pages'),
+      getSupabaseClient().from('installed_modules').select('id').eq('status', 'enabled'),
+    ]).then(([{ eventModulePages }, { data: enabledRows }]) => {
+      if (cancelled) return
+      const enabledIds = new Set((enabledRows ?? []).map((r: { id: string }) => r.id))
       const navItems: NavItem[] = []
       for (const page of eventModulePages) {
+        // Only enabled modules contribute nav items.
+        if (!enabledIds.has(page.moduleId)) continue
         // Check admin requirement
         if (page.requiresAdmin && !isAdmin) continue
         // Check localStorage requirement
@@ -109,13 +121,34 @@ function useModuleNavItems(basePath: string, hasVirtualEvent: boolean) {
       }
       setItems(navItems)
     }).catch(() => {})
+    return () => { cancelled = true }
   }, [basePath, hasVirtualEvent, isAdmin])
 
   return items
 }
 
-export function useNavItems(event: Event, basePath: string, speakerCount: number, sponsorCount: number, competitionCount: number, discountCount: number, mediaCount: number, hasVirtualEvent: boolean, userState?: EventUserState) {
+function useNavItems(event: Event, basePath: string, speakerCount: number, sponsorCount: number, competitionCount: number, discountCount: number, mediaCount: number, hasVirtualEvent: boolean, userState?: EventUserState) {
   const moduleNavItems = useModuleNavItems(basePath, hasVirtualEvent)
+
+  // A scraped speak action link can point BACK at this very portal — aaif.io's
+  // event pages link their Speak button to our /talks page, and the scraper
+  // faithfully records it. Treating that as an external CFP renders a
+  // new-tab link to the page the user is already on and loses the internal
+  // item's state ("Submit a talk"/"My talk"). Ignore speak links that resolve
+  // to this event's own talks path (checked on any host — custom domains
+  // serve the event at basePath '' while the recorded link uses the main
+  // portal host); genuinely external CFPs (e.g. LF events' /program/cfp/)
+  // keep the new-tab behaviour.
+  const externalSpeakLink = (() => {
+    const raw = event.source_details?.action_links?.speak
+    if (!raw) return null
+    try {
+      const path = new URL(raw).pathname.replace(/\/+$/, '')
+      if (path === `${basePath}/talks`) return null
+      if (event.event_slug && path === `/events/${event.event_slug}/talks`) return null
+    } catch { /* relative/malformed URL — keep the raw value */ }
+    return raw
+  })()
 
   const navItems: NavItem[] = [
     {
@@ -218,11 +251,11 @@ export function useNavItems(event: Event, basePath: string, speakerCount: number
       //     the wrong UX.
       //   - otherwise: existing CFP toggle drives the internal /talks
       //     route (with "My talk" label once the user has submitted).
-      label: event.source_details?.action_links?.speak
+      label: externalSpeakLink
         ? 'Speak'
         : (userState?.hasTalkSubmission ? 'My talk' : 'Submit a talk'),
-      href: event.source_details?.action_links?.speak ?? `${basePath}/talks`,
-      external: !!event.source_details?.action_links?.speak,
+      href: externalSpeakLink ?? `${basePath}/talks`,
+      external: !!externalSpeakLink,
       show: !!event.source_details?.action_links?.speak
         || (event.enable_call_for_speakers ?? false)
         || (userState?.hasTalkSubmission ?? false),
@@ -276,7 +309,7 @@ export function useNavItems(event: Event, basePath: string, speakerCount: number
   return navItems.filter(item => item.show)
 }
 
-export function useRegisterLink(event: Event, basePath: string) {
+function useRegisterLink(event: Event, basePath: string) {
   const now = new Date()
   const eventEndDate = event.event_end ? new Date(event.event_end) : new Date(event.event_start)
   const isPastEvent = eventEndDate < now
@@ -302,7 +335,7 @@ export function useRegisterLink(event: Event, basePath: string) {
  * Build a tracked external URL from stored sessionStorage tracking params.
  * Creates a tracking session and encodes the session ID into UTM params.
  */
-export function useExternalRegisterHandler(event: Event) {
+function useExternalRegisterHandler(event: Event) {
   return useCallback(async () => {
     if (!event.event_link) return
 

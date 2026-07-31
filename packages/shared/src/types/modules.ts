@@ -103,6 +103,14 @@ export interface ModuleRuntimeContext {
     jobName: string,
     data: Record<string, unknown>,
   ) => Promise<{ id: string | undefined }>;
+  /**
+   * Returns the platform's shared ioredis connection (the same pool BullMQ
+   * uses), or null when Redis isn't configured. The platform wires this at
+   * server bootstrap. Lets a module run a real Redis-backed rate limiter / lock
+   * (multi-replica safe) without taking a direct dep on @gatewaze/api or
+   * resolving `ioredis` from its own (often bind-mounted) directory.
+   */
+  getRedisConnection?: () => Promise<unknown>;
 }
 
 export interface GatewazeModule {
@@ -396,14 +404,24 @@ export interface NavLayoutSection {
   items: NavLayoutItem[];
 }
 
-/** A reference to a nav item by stable key, with optional per-item overrides. */
+/**
+ * An entry in a sidebar section or the settings list. Usually a reference to a
+ * real nav item by stable `key` (with optional per-item icon/label overrides).
+ *
+ * When `children` is present the entry is instead a **collapsible group** — a
+ * user-created expandable parent (chevron + label) whose `key` is synthetic
+ * (conventionally `group:<slug>`), not a pool item, and whose children are leaf
+ * references. Nesting is one level deep.
+ */
 export interface NavLayoutItem {
-  /** Stable key of the underlying item (matches the rendered NavigationTree.id). */
+  /** Stable key of the underlying item, or a synthetic `group:<slug>` for a group. */
   key: string;
-  /** Override the module-declared icon when rendered. */
+  /** Override the module-declared icon when rendered (or the group's icon). */
   icon?: string;
-  /** Override the module-declared label when rendered. */
+  /** Override the module-declared label when rendered (or the group's label). */
   label?: string;
+  /** Present → this entry is a collapsible parent containing these leaf items. */
+  children?: NavLayoutItem[];
 }
 
 export interface PortalRouteDefinition {
@@ -673,6 +691,17 @@ export interface LoadedModule {
   /** Human-readable label for the source this module was loaded from. */
   sourceLabel?: string;
   /**
+   * Identity resolution (spec-module-namespacing §3-4). `slug` is the module's
+   * config.id; `sourceSlug` is a stable id for its source; `qualifiedId` is
+   * `${sourceSlug}/${slug}`. `resolvedId` (bare slug if reserved, else qualifiedId)
+   * is filled in by reconcile once the reservation table is consulted — the
+   * loader leaves it undefined (it has no DB access).
+   */
+  slug?: string;
+  sourceSlug?: string;
+  qualifiedId?: string;
+  resolvedId?: string;
+  /**
    * ISO timestamp of the most-recently-modified source file inside the
    * module directory (index.ts, migrations, admin/, portal/, api/, …).
    * Used by the admin UI to show "Updated <relative>" in place of the
@@ -694,6 +723,10 @@ export interface ModuleSourceRow {
 
 export interface InstalledModuleRow {
   id: string;
+  /** Identity (spec-module-namespacing §3-4). `id` is the immutable PK; these are additive. */
+  slug?: string | null;
+  qualified_id?: string | null;
+  resolved_id?: string | null;
   name: string;
   version: string;
   features: string[];

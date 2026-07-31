@@ -23,16 +23,18 @@ interface Props {
   params: Promise<{ identifier: string }>
 }
 
-// All four event-detail reads now route through gatewazeFetch → CDN.
+// All four event-detail reads route through gatewazeFetch → CDN.
 // Per spec-portal-on-cloudflare-workers §4.2 — replaces ~9 direct
-// Supabase round-trips per page hit with 4 CDN-cacheable requests.
+// Supabase round-trips per page hit with 4 requests.
 // Authenticated per-viewer reads (RSVP status, talk-edit, etc.)
 // stay direct since they don't benefit from a shared cache.
 //
-// Cache tags live on the API side (packages/api/src/routes/portal-events.ts).
-// Mutations (admin edits) trigger revalidateTag(...) via the existing
-// webhook pipeline so the next portal read reaches a warm CDN within
-// seconds, not the 60s default revalidate window.
+// NOTE on freshness: the tag-purge ("revalidateTag via webhook") pipeline the
+// original design assumed was NEVER BUILT — nothing invalidates the Next data
+// cache on admin edits. Event + counts reads are therefore per-request
+// (revalidate: 0 in lib/portal-data.ts) so date/CFP/registration state is
+// always current; only the rarely-changing reads (ad-pixels, recommended)
+// keep a time-based cache.
 
 export default async function EventDetailLayout({ children, params }: Props) {
   const { identifier } = await params

@@ -6,6 +6,7 @@ import { getServerBrand, getBrandConfigById } from '@/config/brand'
 import { createServerSupabase } from '@/lib/supabase/server'
 import { resolveEventImagesList } from '@/lib/storage-resolve'
 import { TimelineContent } from '@/components/timeline/TimelineContent'
+import { getPublishedEventTypeValues } from '@/lib/events'
 import { PortalListingErrorBoundary } from '@/components/listing/PortalListingErrorBoundary'
 import { eventListingQueryFromUrl, parseEventUrl } from '@/lib/listing/event-url-filters'
 import type { Event } from '@/types/event'
@@ -20,17 +21,17 @@ export async function generateMetadata(): Promise<Metadata> {
   const brand = await getServerBrand()
   const brandConfig = await getBrandConfigById(brand)
   return {
-    title: `Upcoming Events - ${brandConfig.name}`,
+    title: 'Upcoming Events',
     description: `Discover and register for upcoming events from ${brandConfig.name}`,
     openGraph: {
-      title: `Upcoming Events - ${brandConfig.name}`,
+      title: 'Upcoming Events',
       description: `Discover and register for upcoming events from ${brandConfig.name}`,
       type: 'website',
       siteName: brandConfig.name,
     },
     twitter: {
       card: 'summary',
-      title: `Upcoming Events - ${brandConfig.name}`,
+      title: 'Upcoming Events',
       description: `Discover and register for upcoming events from ${brandConfig.name}`,
     },
   }
@@ -113,10 +114,14 @@ export default async function UpcomingEventsPage({ searchParams }: PageProps) {
     )
   }
 
+  // Unfiltered census for the type-filter pills (see TimelineContent).
+  const availableTypeValues = await getPublishedEventTypeValues(brand)
+
   return (
     <div className="pub-wrap">
       <TimelineContent
         brandConfig={brandConfig}
+        availableTypeValues={availableTypeValues}
         view="upcoming"
         initialPage={initialPage}
         query={query}

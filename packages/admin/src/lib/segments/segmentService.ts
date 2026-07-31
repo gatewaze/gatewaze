@@ -14,6 +14,8 @@ import type {
   SegmentListParams,
   SegmentMembersParams,
   PaginatedResult,
+  ConditionSource,
+  SegmentGeoPoint,
 } from './types';
 
 export class SegmentService {
@@ -184,6 +186,38 @@ export class SegmentService {
     const { data, error } = await this.supabase.rpc('segments_event_names');
     if (error) throw error;
     return (data as string[] | null) || [];
+  }
+
+  /**
+   * Module-contributed condition sources (registry) + their vocabulary, for the
+   * builder's registry-condition editors (geo_radius, event_registration, …).
+   * Best-effort: returns [] if the registry RPC isn't present.
+   */
+  async listConditionSources(search?: string): Promise<ConditionSource[]> {
+    const { data, error } = await this.supabase.rpc('segments_sources_catalog', {
+      p_search: search ?? null,
+      p_entity_limit: 200,
+    });
+    if (error) return [];
+    const sources = (data as { sources?: ConditionSource[] } | null)?.sources;
+    return Array.isArray(sources) ? sources : [];
+  }
+
+  /** Geocode a place name to a lat/lng centroid from our own data (for the
+   *  geo_radius condition). Returns null when we have no coordinates. */
+  async geocodePlace(place: string): Promise<{ lat: number; lng: number; n?: number } | null> {
+    const { data, error } = await this.supabase.rpc('segments_geocode_place', { p_place: place });
+    if (error || !data) return null;
+    const g = data as { lat?: number; lng?: number; n?: number };
+    return typeof g.lat === 'number' && typeof g.lng === 'number' ? { lat: g.lat, lng: g.lng, n: g.n } : null;
+  }
+
+  /** Aggregate the segment's members by city/country (avg lat/lng + count) for
+   *  the audience map preview — one point per location, not per person. */
+  async geoAggregate(definition: SegmentDefinition, limit = 500): Promise<SegmentGeoPoint[]> {
+    const { data, error } = await this.supabase.rpc('segments_geo_aggregate', { p_definition: definition, p_limit: limit });
+    if (error) throw error;
+    return ((data as SegmentGeoPoint[] | null) || []).filter((p) => typeof p.lat === 'number' && typeof p.lng === 'number');
   }
 
   /**

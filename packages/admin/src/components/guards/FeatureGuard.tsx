@@ -6,6 +6,7 @@
 import { ReactNode } from 'react';
 import { Navigate } from 'react-router';
 import { useFeaturePermissions } from '@/hooks/useFeaturePermissions';
+import { AccessDeniedRedirect } from '@/app/router/AccessDeniedRedirect';
 import type { AdminFeature } from '@/lib/permissions/types';
 
 interface FeatureGuardProps {
@@ -20,7 +21,9 @@ interface FeatureGuardProps {
   anyFeature?: AdminFeature[];
 
   /**
-   * Where to redirect if permission denied
+   * Where to redirect if permission denied. When omitted (the default), the
+   * user is sent to a page they *can* access via AccessDeniedRedirect rather
+   * than dead-ending on the Access Denied screen.
    */
   redirectTo?: string;
 
@@ -61,7 +64,7 @@ interface FeatureGuardProps {
 export function FeatureGuard({
   feature,
   anyFeature,
-  redirectTo = '/unauthorized',
+  redirectTo,
   fallback,
   accountId,
   children,
@@ -92,8 +95,9 @@ export function FeatureGuard({
       return <>{fallback}</>;
     }
 
-    // Otherwise redirect
-    return <Navigate to={redirectTo} replace />;
+    // Redirect to an explicit target, or (default) to a page the user can
+    // actually access instead of the Access Denied dead end.
+    return redirectTo ? <Navigate to={redirectTo} replace /> : <AccessDeniedRedirect />;
   }
 
   // Permission granted - render children

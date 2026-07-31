@@ -5,6 +5,7 @@ import ImageGallery from 'react-image-gallery'
 import 'react-image-gallery/styles/image-gallery.css'
 import Image from 'next/image'
 import { getClientBrandConfig, isLightColor } from '@/config/brand'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import { useEventContext } from './EventContext'
 import { GlowBorder } from '@/components/ui/GlowBorder'
 import { PhotoGrid } from './PhotoGrid'
@@ -138,11 +139,9 @@ export function MediaContent() {
 
   // ─── Supabase client helper ──────────────────────────────
 
-  const getSupabase = useCallback(async () => {
-    const config = getClientBrandConfig()
-    const { createClient } = await import('@supabase/supabase-js')
-    return createClient(config.supabaseUrl, config.supabaseAnonKey)
-  }, [])
+  // Async signature kept so existing `await getSupabase()` call sites don't
+  // change. Returns the singleton — see Header.tsx for the leak story.
+  const getSupabase = useCallback(async () => getSupabaseClient(), [])
 
   // ─── Media URL helper ────────────────────────────────────
 
@@ -331,18 +330,46 @@ export function MediaContent() {
 
       const { data: videoData } = await query
 
-      if (videoData && videoData.length > 0) {
-        const videos = videoData
-          .filter((v: EventMedia) => !!v.youtube_embed_url)
-          .map((v: EventMedia) => ({
-            youtube_embed_url: v.youtube_embed_url!,
-            file_name: v.file_name,
-            caption: v.caption,
-          }))
-        setVideoItems(videos)
-      } else {
-        setVideoItems([])
+      const merged: EventVideo[] = (videoData || [])
+        .filter((v: EventMedia) => !!v.youtube_embed_url)
+        .map((v: EventMedia) => ({
+          youtube_embed_url: v.youtube_embed_url!,
+          file_name: v.file_name,
+          caption: v.caption,
+        }))
+
+      // Merge canonical `videos` linked via `event_videos` (P4 video object).
+      // Skipped under a sponsor filter — linked videos aren't sponsor-tagged.
+      // Deduped against events_media videos by YouTube id so a recording that
+      // exists in both surfaces once. Guarded: tables may be absent per brand.
+      if (!eventSponsorId) {
+        const { data: linked, error: linkErr } = await supabase
+          .from('event_videos')
+          .select('sort_order, video:videos(url, title, caption:description, status, visibility)')
+          .eq('event_uuid', event.id)
+          .order('sort_order', { ascending: true })
+        if (!linkErr && linked) {
+          const seen = new Set(
+            merged.map((v) => getYouTubeVideoId(v.youtube_embed_url)).filter(Boolean) as string[]
+          )
+          for (const row of linked as Array<{ video: unknown }>) {
+            const v = (Array.isArray(row.video) ? row.video[0] : row.video) as
+              | { url?: string; title?: string; caption?: string; status?: string; visibility?: string }
+              | null
+            if (!v?.url || v.status !== 'published' || v.visibility !== 'public') continue
+            const id = getYouTubeVideoId(v.url)
+            if (id && seen.has(id)) continue
+            if (id) seen.add(id)
+            merged.push({
+              youtube_embed_url: v.url,
+              file_name: v.title || 'Video',
+              caption: v.caption,
+            })
+          }
+        }
       }
+
+      setVideoItems(merged)
     } catch (err) {
       console.error('Error loading videos:', err)
     }

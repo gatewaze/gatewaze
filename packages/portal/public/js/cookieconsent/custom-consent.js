@@ -143,6 +143,9 @@ class GatewazeCookieConsent {
         this.consentGiven = consent.consentGiven || false;
         this.consentDenied = consent.consentDenied || false;
         this.categories = { ...this.categories, ...consent.categories };
+        // Re-mirror on every load: existing visitors chose before the
+        // cookie existed, and the cookie can expire before localStorage.
+        this.mirrorConsentCookie();
 
       }
     } catch (error) {
@@ -160,8 +163,60 @@ class GatewazeCookieConsent {
         version: '1.0'
       };
       localStorage.setItem(this.storageKey, JSON.stringify(consent));
+      this.mirrorConsentCookie();
+      this.recordConsentAudit();
     } catch (error) {
       console.error('Error saving consent:', error);
+    }
+  }
+
+  /**
+   * Mirror the category map into the gw_consent cookie so SERVER-side
+   * code (the /api/t tracking relay, backend event emitters) can enforce
+   * the same consent — localStorage is invisible to the server.
+   */
+  mirrorConsentCookie() {
+    try {
+      const value = encodeURIComponent(JSON.stringify({
+        analytics: !!this.categories.analytics,
+        marketing: !!this.categories.marketing,
+        functional: !!this.categories.functional,
+      }));
+      // 400 days — Chrome's cookie-lifetime cap.
+      document.cookie = 'gw_consent=' + value + '; path=/; max-age=' + (400 * 24 * 60 * 60) + '; SameSite=Lax';
+    } catch (error) {
+      console.error('Error mirroring consent cookie:', error);
+    }
+  }
+
+  /**
+   * Record the decision in the compliance module's consent audit trail
+   * (compliance_consent_records). Fire-and-forget; deduped so reloads
+   * don't re-record an unchanged choice.
+   */
+  recordConsentAudit() {
+    try {
+      const snapshot = JSON.stringify({
+        consentGiven: this.consentGiven,
+        consentDenied: this.consentDenied,
+        categories: this.categories,
+      });
+      if (localStorage.getItem(this.storageKey + '-audited') === snapshot) return;
+      localStorage.setItem(this.storageKey + '-audited', snapshot);
+      fetch('/api/consent-record', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        keepalive: true,
+        body: JSON.stringify({
+          consentGiven: this.consentGiven,
+          consentDenied: this.consentDenied,
+          categories: this.categories,
+          source: 'cookie_banner',
+        }),
+      }).catch(() => {});
+    } catch (error) {
+      console.error('Error recording consent audit:', error);
     }
   }
 
@@ -186,12 +241,13 @@ class GatewazeCookieConsent {
       bottomPosition = hasBottomNav ? '100px' : '20px';
     }
 
-    // Create small bottom-left banner with glass effect
+    // Create small bottom-right banner with glass effect (matches the icon,
+    // which anchors right because the workspace rail owns the bottom-left).
     const bannerHTML = `
       <div id="cookie-consent-banner" style="
         position: fixed;
         bottom: ${bottomPosition};
-        left: 20px;
+        right: 20px;
         max-width: 350px;
         background: rgba(255, 255, 255, 0.7);
         backdrop-filter: blur(24px);
@@ -621,7 +677,7 @@ class GatewazeCookieConsent {
               <input type="checkbox" id="analytics-consent-detailed" ${this.categories.analytics ? 'checked' : ''} style="margin-right: 10px;">
               <div>
                 <div><strong>Analytics Cookies</strong></div>
-                <div style="font-size: 12px; color: #9ca3af; margin-top: 2px;">Help us improve our service by analyzing usage</div>
+                <div style="font-size: 12px; color: #9ca3af; margin-top: 2px;">Help us improve our service by analyzing usage — collected first-party only, no third-party trackers</div>
               </div>
             </label>
           </div>
@@ -720,14 +776,16 @@ class GatewazeCookieConsent {
     // Calculate proper position above navigation bar
     // Navigation has: py-4 (32px) + button height (~40px) + border (2px) = ~74px
     // Add 20px spacing above nav = 94px from bottom
-    let bottomPosition, leftPosition;
+    // Anchored bottom-RIGHT: the signed-in workspace rail occupies the
+    // bottom-left corner, so the cookie icon lives on the right instead.
+    let bottomPosition, rightPosition;
     
     if (hasBottomNav) {
       bottomPosition = '100px'; // Above navigation with spacing
-      leftPosition = isMobile ? '0px' : '15px'; // Attached to left edge on mobile
+      rightPosition = isMobile ? '0px' : '15px'; // Attached to right edge on mobile
     } else {
       bottomPosition = '20px';
-      leftPosition = '15px';
+      rightPosition = '15px';
     }
     
 
@@ -736,11 +794,11 @@ class GatewazeCookieConsent {
       <div id="cookie-preferences-icon" style="
         position: fixed;
         bottom: ${bottomPosition};
-        left: ${leftPosition};
+        right: ${rightPosition};
         width: 32px;
         height: 32px;
         background: #1e2837;
-        border-radius: ${isMobile ? '0 8px 8px 0' : '8px'};
+        border-radius: ${isMobile ? '8px 0 0 8px' : '8px'};
         display: flex;
         align-items: center;
         justify-content: center;
@@ -794,15 +852,17 @@ class GatewazeCookieConsent {
       mobileStyles.textContent = `
         @media (max-width: 820px) {
           #cookie-preferences-icon {
-            left: 0px !important;
-            border-radius: 0 8px 8px 0 !important;
+            right: 0px !important;
+            left: auto !important;
+            border-radius: 8px 0 0 8px !important;
             bottom: calc(96px + env(safe-area-inset-bottom)) !important;
           }
         }
 
         @media (min-width: 821px) {
           #cookie-preferences-icon {
-            left: 15px !important;
+            right: 15px !important;
+            left: auto !important;
             border-radius: 8px !important;
           }
         }

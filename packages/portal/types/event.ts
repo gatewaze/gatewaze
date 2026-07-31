@@ -21,6 +21,8 @@ export interface Event {
   event_description: string | null
   listing_intro: string | null
   event_link: string | null
+  /** 'scraper' when imported from an external source (Luma etc.); 'manual' for native events. */
+  source_type?: string | null
   event_logo: string | null
   screenshot_url: string | null
   enable_registration: boolean | null

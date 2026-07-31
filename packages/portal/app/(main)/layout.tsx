@@ -20,6 +20,7 @@ import { WhiteLabelFooter } from '@/components/ui/WhiteLabelFooter'
 import { PersistentBackground } from '@/components/ui/PersistentBackground'
 import { WorkspaceShell } from '@/components/shell/WorkspaceShell'
 import { resolvePortalAccess, ZERO_ACCESS } from '@/lib/permissions/resolve'
+import { permittedDraftRailItems } from '@/lib/modules/draftAccess'
 import { getModuleAccess } from '@/lib/modules/access'
 import { ProfileCompletionWrapper } from '@/components/wizard'
 import { ModuleSlot } from '@/lib/modules/ModuleSlot'
@@ -127,10 +128,13 @@ export async function generateMetadata(): Promise<Metadata> {
 
   return {
     title: {
-      default: `Event Portal | ${brandConfig.name}`,
+      // Pages set their own leaf titles via the template; the default is the
+      // bare brand name (what the home page shows). "Event Portal" was a relic
+      // from when the portal was events-only.
+      default: brandConfig.name,
       template: `%s | ${brandConfig.name}`,
     },
-    description: `Discover and register for events from ${brandConfig.name}`,
+    description: `${brandConfig.name} — events, news and resources from the community.`,
     icons: faviconIcons,
   }
 }
@@ -144,9 +148,12 @@ export default async function MainLayout({
   const brand = brandConfig.id
   const modules = await getEnabledModules()
   const complianceEnabled = isModuleEnabled(modules, 'compliance')
-  // When compliance is disabled, the footer shows a single configurable line (set in admin →
-  // Settings → Branding → Legal). Sanitised server-side so the shell can render it directly.
-  const rawFooterLegal = complianceEnabled ? null : await getAppSetting('footer_legal_html')
+  // Footer precedence: the configurable legal line (admin → Settings → Branding →
+  // Legal) always wins when set — even with compliance enabled, so a tenant can
+  // use compliance purely for cookie consent without the Privacy/Terms/Do-Not-Sell
+  // links. Those links are the fallback for compliance tenants with no custom
+  // text. Sanitised server-side so the shell can render it directly.
+  const rawFooterLegal = await getAppSetting('footer_legal_html')
   const footerLegalHtml = rawFooterLegal ? sanitizeHtml(rawFooterLegal, 'marketing-page') : null
   const fontsUrl = buildGoogleFontsUrl(brandConfig)
   const fontStack = buildFontStack(brandConfig)
@@ -175,7 +182,8 @@ export default async function MainLayout({
   // §9.2a anonymous fast-path: only validate the session when a Supabase auth cookie is present,
   // so anonymous public traffic incurs no auth round-trip or RBAC RPCs.
   let portalAccess = ZERO_ACCESS
-  let accessMap = getModuleAccess(modules.railItems, portalAccess, false)
+  let railItems = modules.railItems
+  let accessMap = getModuleAccess(railItems, portalAccess, false)
   let isSignedIn = false
   if (!isCustomDomain) {
     const cookieStore = await cookies()
@@ -186,7 +194,19 @@ export default async function MainLayout({
       const userId = data.user?.id ?? null
       isSignedIn = Boolean(userId)
       portalAccess = await resolvePortalAccess(supabase, userId)
-      accessMap = getModuleAccess(modules.railItems, portalAccess, Boolean(userId))
+      // Draft nav items (Settings → Portal navigation) surface only for
+      // authorised viewers: super admins and holders of that module's
+      // feature grant. The public railItems set never contains them.
+      const drafts = permittedDraftRailItems(modules.draftRailItems, portalAccess)
+      if (drafts.length > 0) {
+        railItems = [...modules.railItems, ...drafts].sort((a, b) => a.order - b.order)
+      }
+      // The portal has no admin editing surfaces yet, so signed-in users —
+      // admins included — get the PUBLIC experience, just authenticated
+      // (draft previews above are the one admin affordance). Resolving the
+      // access map at member level keeps the rail on public hrefs and the
+      // contextual nav on publicNav instead of routing admins to /admin/*.
+      accessMap = getModuleAccess(railItems, ZERO_ACCESS, Boolean(userId))
     }
   }
 
@@ -273,10 +293,12 @@ export default async function MainLayout({
               ) : (
                 <div className="relative z-10 flex-1 flex">
                   <WorkspaceShell
-                    railItems={modules.railItems}
+                    railItems={railItems}
                     access={accessMap}
-                    featureKeys={portalAccess.featureKeys}
-                    isSuperAdmin={portalAccess.isSuperAdmin}
+                    // Member-level on purpose (see the access-map note above):
+                    // admin feature grants must not alter the rendered portal.
+                    featureKeys={[]}
+                    isSuperAdmin={false}
                     isSignedIn={isSignedIn}
                     brandName={brandConfig.name}
                     logoUrl={brandConfig.logoUrl || undefined}

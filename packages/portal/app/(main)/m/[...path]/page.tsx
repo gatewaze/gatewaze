@@ -2,6 +2,8 @@ import { notFound, redirect } from 'next/navigation'
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { getEnabledModules, isModuleEnabled } from '@/lib/modules/enabledModules'
+import { getNavVisibleModuleIds } from '@/lib/modules/navVisible'
+import { getViewableDraftModuleIds } from '@/lib/modules/draftAccess'
 import { findModulePage, extractParams } from '@/lib/modules/generated-portal-modules'
 import { createServerSupabase } from '@/lib/supabase/server'
 import { getServerBrandConfig } from '@/config/brand'
@@ -42,6 +44,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     return newsletterCollectionMetadata(newsletterCollectionMatch[1])
   }
 
+  // /resources/{collectionSlug}/{itemSlug}/{anchorSlug} — deep link to one
+  // block inside an item (e.g. a talk card in a conference recap); previews
+  // should describe THAT talk, not the whole item.
+  const resourceAnchorMatch = pathname.match(/^\/resources\/([^/]+)\/([^/]+)\/([^/]+)$/)
+  if (resourceAnchorMatch) {
+    return resourceAnchorMetadata(resourceAnchorMatch[1], resourceAnchorMatch[2], resourceAnchorMatch[3])
+  }
+
   // /resources/{collectionSlug}/{itemSlug}
   const resourceItemMatch = pathname.match(/^\/resources\/([^/]+)\/([^/]+)$/)
   if (resourceItemMatch) {
@@ -60,6 +70,21 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     return blogPostMetadata(blogPostMatch[1])
   }
 
+  // Generic fallback: title module pages by their nav label so /newsletters,
+  // /resources, /calendars, /blog etc. read as themselves instead of
+  // inheriting the layout's bare-brand default. Sub-pages that need richer
+  // metadata get their own matcher above.
+  try {
+    const modules = await getEnabledModules()
+    const seg = '/' + (path[0] || '')
+    const railItem = modules.railItems.find((it) => it.moduleId !== 'home' && it.href.split('?')[0].startsWith(seg))
+    if (railItem) {
+      return { title: railItem.full || railItem.label }
+    }
+  } catch {
+    /* fall through to the layout default */
+  }
+
   return {}
 }
 
@@ -68,6 +93,24 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
  * canonical_url) when set, else derives from title/excerpt. Canonical falls back
  * to the brand-domain self URL; a text/markdown alternate points at /md.
  */
+interface BlogPostMetaRow {
+  title: string
+  slug: string
+  excerpt: string | null
+  featured_image: string | null
+  published_at: string | null
+  updated_at: string | null
+  meta_title: string | null
+  meta_description: string | null
+  canonical_url: string | null
+  og_title: string | null
+  og_description: string | null
+  og_image: string | null
+  twitter_title: string | null
+  twitter_description: string | null
+  twitter_image: string | null
+}
+
 async function blogPostMetadata(slug: string): Promise<Metadata> {
   try {
     const brand = await getServerBrandConfig()
@@ -84,6 +127,7 @@ async function blogPostMetadata(slug: string): Promise<Metadata> {
       .eq('status', 'published')
       .eq('visibility', 'public')
       .maybeSingle()
+      .then((r) => ({ ...r, data: r.data as BlogPostMetaRow | null }))
     if (!post) return {}
 
     const path = `/blog/${post.slug}`
@@ -112,7 +156,10 @@ async function blogPostMetadata(slug: string): Promise<Metadata> {
         card: 'summary_large_image',
         title: post.twitter_title || title,
         description: post.twitter_description || description,
-        images: post.twitter_image || ogImage ? [post.twitter_image || ogImage] : undefined,
+        images: (() => {
+          const img = post.twitter_image || ogImage
+          return img ? [img] : undefined
+        })(),
       },
     }
   } catch (err) {
@@ -189,6 +236,161 @@ async function resourceItemMetadata(collectionSlug: string, itemSlug: string): P
   }
 }
 
+/** Strip tags + decode the entities our content pipeline emits. */
+function htmlToPlain(html: string): string {
+  return html
+    .replace(/<[^>]+>/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/**
+ * Deep-link (anchor) metadata for a single block inside a resource item.
+ * The block is an HTML fragment authored into a section with a stable
+ * `id` (e.g. `talk-...` cards in conference recaps): title comes from its
+ * first <h3>, description from the paragraph after a "Worth noting" label
+ * (fallback: first paragraph), and the image from an embedded YouTube
+ * thumbnail when present. Falls back to the parent item's metadata when
+ * the anchor can't be found.
+ */
+async function resourceAnchorMetadata(collectionSlug: string, itemSlug: string, anchorSlug: string): Promise<Metadata> {
+  try {
+    const brand = await getServerBrandConfig()
+    const supabase = await createServerSupabase(brand.id)
+    const baseUrl = `https://${brand.domain}`
+
+    const { data: collection } = await supabase
+      .from('sr_collections')
+      .select('id, name')
+      .eq('slug', collectionSlug)
+      .eq('status', 'published')
+      .maybeSingle()
+    if (!collection) return {}
+
+    const { data: item } = await supabase
+      .from('sr_items')
+      .select('id, title, featured_image_url, created_at, updated_at, sections:sr_sections(content, blocks:sr_blocks(id, kind, sort_order, data))')
+      .eq('collection_id', collection.id)
+      .eq('slug', itemSlug)
+      .eq('status', 'published')
+      .maybeSingle()
+    if (!item) return {}
+
+    // Per-kind extraction: a promoted anchor is an sr_blocks row and typed
+    // kinds carry their metadata as structured fields — no HTML parsing.
+    const { data: anchorBlock } = await supabase
+      .from('sr_blocks')
+      .select('kind, data')
+      .eq('item_id', item.id)
+      .eq('slug', anchorSlug)
+      .maybeSingle()
+
+    let block: string | null = null
+    if (anchorBlock?.kind === 'talk') {
+      const d = (anchorBlock.data ?? {}) as Record<string, any>
+      const talkTitle = typeof d.title === 'string' ? d.title : null
+      const description =
+        (typeof d.worth_noting === 'string' && d.worth_noting) ||
+        (typeof d.quote === 'string' && d.quote) ||
+        `${item.title} — ${collection.name}`
+      const ogImage = typeof d.youtube_id === 'string'
+        ? `https://i.ytimg.com/vi/${d.youtube_id}/hqdefault.jpg`
+        : item.featured_image_url || brand.logoUrl || brand.faviconUrl || undefined
+      return anchorMetadataResponse({ brand, collection, item, collectionSlug, itemSlug, anchorSlug, talkTitle, description, ogImage })
+    }
+    if (anchorBlock && typeof (anchorBlock.data as any)?.html === 'string') {
+      // html-kind (or unknown-kind compat payload): legacy regex extraction
+      // over the block's own payload — fallback symmetry with the scan path.
+      block = (anchorBlock.data as any).html as string
+    }
+
+    // Fallback scan for anchors never promoted to a slug: html-kind block
+    // payloads first (fresher than a stale content mirror), then legacy
+    // section content, isolating the fragment from its id to the next id.
+    const needle = `id="${anchorSlug}"`
+    if (!block) {
+      for (const s of item.sections || []) {
+        const blocks = ((s as any).blocks || []).sort((a: any, b: any) => a.sort_order - b.sort_order || (a.id < b.id ? -1 : 1))
+        for (const b of blocks) {
+          if (b.kind === 'html' && typeof b.data?.html === 'string' && b.data.html.includes(needle)) { block = b.data.html; break }
+        }
+        if (!block && (s.content || '').includes(needle)) block = s.content as string
+        if (block) break
+      }
+    }
+    if (!block) return resourceItemMetadata(collectionSlug, itemSlug)
+    if (block.includes(needle)) {
+      const start = block.indexOf(needle)
+      const rest = block.slice(start)
+      const nextId = rest.slice(needle.length).search(/ id="/)
+      block = nextId > 0 ? rest.slice(0, needle.length + nextId) : rest
+    }
+
+    const h3 = block.match(/<h3[^>]*>([\s\S]*?)<\/h3>/)
+    const talkTitle = h3 ? htmlToPlain(h3[1]) : null
+    const noting = block.match(/>\s*Worth noting\s*<\/p>\s*<p[^>]*>([\s\S]*?)<\/p>/)
+    const firstP = block.match(/<p[^>]*>([\s\S]*?)<\/p>/)
+    const description = htmlToPlain((noting?.[1] || firstP?.[1] || '')) || `${item.title} — ${collection.name}`
+    const yt = block.match(/i\.ytimg\.com\/vi\/([\w-]+)\//) || block.match(/youtu\.be\/([\w-]+)/)
+    const blockImg = block.match(/<img[^>]*src="([^"]+)"/)
+    const ogImage = yt
+      ? `https://i.ytimg.com/vi/${yt[1]}/hqdefault.jpg`
+      : blockImg?.[1] || item.featured_image_url || brand.logoUrl || brand.faviconUrl || undefined
+
+    return anchorMetadataResponse({ brand, collection, item, collectionSlug, itemSlug, anchorSlug, talkTitle, description, ogImage })
+  } catch (err) {
+    console.warn('[resource-anchor-metadata] failed to build:', err)
+    return {}
+  }
+}
+
+function anchorMetadataResponse(args: {
+  brand: { domain: string; name: string }
+  collection: { name: string }
+  item: { title: string; created_at?: string | null; updated_at?: string | null }
+  collectionSlug: string
+  itemSlug: string
+  anchorSlug: string
+  talkTitle: string | null
+  description: string
+  ogImage: string | undefined
+}): Metadata {
+  const { brand, collection, item, collectionSlug, itemSlug, anchorSlug, talkTitle, description, ogImage } = args
+  const baseUrl = `https://${brand.domain}`
+  const path = `/resources/${collectionSlug}/${itemSlug}/${anchorSlug}`
+  const title = talkTitle ? `${talkTitle} — ${item.title}` : `${item.title} — ${collection.name}`
+
+  return {
+    title,
+    description,
+    alternates: {
+      // the anchor page repeats the item's content; the item is canonical
+      canonical: `${baseUrl}/resources/${collectionSlug}/${itemSlug}`,
+    },
+    openGraph: {
+      title,
+      description,
+      type: 'article',
+      url: `${baseUrl}${path}`,
+      siteName: brand.name,
+      images: ogImage ? [{ url: ogImage }] : undefined,
+      publishedTime: item.created_at ?? undefined,
+      modifiedTime: item.updated_at ?? undefined,
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: ogImage ? [ogImage] : undefined,
+    },
+  }
+}
+
 /** Resource collection (archive) metadata. */
 async function resourceCollectionMetadata(collectionSlug: string): Promise<Metadata> {
   try {
@@ -205,7 +407,7 @@ async function resourceCollectionMetadata(collectionSlug: string): Promise<Metad
     if (!collection) return {}
 
     const path = `/resources/${collectionSlug}`
-    const title = collection.meta_title || `${collection.name} — ${brand.name}`
+    const title = collection.meta_title || collection.name
     const description =
       collection.meta_description ||
       collection.description ||
@@ -318,7 +520,7 @@ async function newsletterCollectionMetadata(collectionSlug: string): Promise<Met
     if (!collection) return {}
 
     const path = `/newsletters/${collectionSlug}`
-    const title = `${collection.name} — ${brand.name}`
+    const title = collection.name
     const description = collection.description || `${collection.name} newsletter archive from ${brand.name}.`
     const ogImage = brand.logoUrl ?? brand.faviconUrl ?? undefined
 
@@ -461,10 +663,22 @@ export default async function ModulePage({ params, searchParams }: Props) {
     notFound()
   }
 
-  // Check that the module is enabled
+  // Check that the module is enabled AND shown in the public navigation.
+  // Hiding a module's menu item is how an operator marks its content "not
+  // ready for public consumption", so its pages must not be reachable by
+  // direct URL either (same rule as the sitemap/feeds//md gates).
   const modules = await getEnabledModules()
   if (!isModuleEnabled(modules, page.moduleId)) {
     redirect('/')
+  }
+  const navVisible = await getNavVisibleModuleIds()
+  if (!navVisible.has(page.moduleId)) {
+    // Draft modules stay reachable for authorised viewers (super admins /
+    // module feature grants) so unreleased content can be reviewed in place.
+    const draftViewable = await getViewableDraftModuleIds()
+    if (!draftViewable.has(page.moduleId)) {
+      redirect('/')
+    }
   }
 
   // Extract dynamic params from route pattern (e.g., /forms/[slug] → { slug: 'meetup-organizer' })

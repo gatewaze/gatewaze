@@ -90,6 +90,10 @@ interface ModuleCardData {
   minPlatformVersion?: string;
   guide?: string;
   lastModifiedAt?: string;
+  /** Namespacing (spec-module-namespacing): scoped = bare name reserved elsewhere → routes under /m/<qualifiedId>. */
+  scoped?: boolean;
+  qualifiedId?: string;
+  routeBase?: string;
 }
 
 const ALL_SOURCES_TAB = "__all__";
@@ -203,6 +207,12 @@ export default function ModulesPage() {
         minPlatformVersion: update?.minPlatformVersion,
         guide: mod.guide,
         lastModifiedAt: mod.lastModifiedAt,
+        // Namespacing: scoped when the DB-resolved id differs from the bare id
+        // (bare name reserved to another source). qualifiedId/routeBase are the
+        // build-time preview from /available.
+        scoped: !!(installed?.resolved_id && installed.resolved_id !== mod.id),
+        qualifiedId: (mod as { qualifiedId?: string }).qualifiedId,
+        routeBase: (mod as { routeBase?: string }).routeBase || undefined,
       };
     });
 
@@ -485,6 +495,7 @@ export default function ModulesPage() {
           updating: updatingId === mod.id,
           onUpdate: () => handleUpdate(mod.id),
         } : undefined}
+        namespace={mod.scoped ? { scoped: true, qualifiedId: mod.qualifiedId, routeBase: mod.routeBase } : undefined}
       />
     );
   };

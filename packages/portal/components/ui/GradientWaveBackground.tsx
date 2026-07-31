@@ -131,6 +131,88 @@ export function GradientWaveBackground({
     }
   }, [mounted])
 
+  // Idle/blur pause: the shader renders full-viewport at 60fps forever, which
+  // is constant CPU/GPU on completely idle portal tabs (fan noise on laptops).
+  // Reach into the R3F store (same __r3f access the clock patch above uses)
+  // and stop the frameloop when the tab is hidden, the window loses focus, or
+  // the user has produced no input for a while; resume instantly on activity.
+  // The patched clock caps getDelta at MAX_DELTA, so resuming never jumps the
+  // animation. prefers-reduced-motion renders the first frames then freezes.
+  useEffect(() => {
+    if (!mounted) return
+    if (typeof window === 'undefined') return
+
+    const IDLE_MS = 60_000
+    let idleTimer: ReturnType<typeof setTimeout> | undefined
+    let paused = false
+    let lastArm = 0
+
+    type R3fState = {
+      set?: (s: { frameloop: 'always' | 'demand' | 'never' }) => void
+      invalidate?: () => void
+    }
+    const setLoop = (mode: 'always' | 'never') => {
+      const canvas = containerRef.current?.querySelector('canvas')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const store = (canvas as any)?.__r3f?.store
+      if (!store) return
+      const state: R3fState = store.getState()
+      state.set?.({ frameloop: mode })
+      if (mode === 'always') state.invalidate?.()
+    }
+
+    // Reduced motion: let the gradient paint, then freeze it permanently.
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      const t = setTimeout(() => setLoop('never'), 1500)
+      return () => clearTimeout(t)
+    }
+
+    const armIdle = () => {
+      lastArm = Date.now()
+      clearTimeout(idleTimer)
+      idleTimer = setTimeout(pause, IDLE_MS)
+    }
+    const pause = () => {
+      if (!paused) {
+        paused = true
+        setLoop('never')
+      }
+      clearTimeout(idleTimer)
+    }
+    const resume = () => {
+      if (paused) {
+        paused = false
+        setLoop('always')
+      }
+      armIdle()
+    }
+    // pointermove fires continuously — only re-arm the idle timer every few
+    // seconds instead of clearing/re-setting a timeout per event.
+    const onActivity = () => {
+      if (paused) { resume(); return }
+      if (Date.now() - lastArm > 5000) armIdle()
+    }
+    const onVisibility = () => (document.hidden ? pause() : resume())
+
+    armIdle()
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('blur', pause)
+    window.addEventListener('focus', resume)
+    const activityEvents: (keyof WindowEventMap)[] = ['pointermove', 'pointerdown', 'keydown', 'wheel', 'touchstart', 'scroll']
+    activityEvents.forEach((e) => window.addEventListener(e, onActivity, { passive: true, capture: true }))
+
+    return () => {
+      clearTimeout(idleTimer)
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('blur', pause)
+      window.removeEventListener('focus', resume)
+      activityEvents.forEach((e) => window.removeEventListener(e, onActivity, { capture: true } as EventListenerOptions))
+      // Leave the loop running if the component unmounts while paused —
+      // another instance may reuse the canvas.
+      setLoop('always')
+    }
+  }, [mounted])
+
   // Mobile accelerometer: map device tilt to camera position (replaces mouse interaction)
   useEffect(() => {
     if (!mounted) return

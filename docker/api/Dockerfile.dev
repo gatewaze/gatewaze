@@ -96,4 +96,12 @@ COPY packages/api/ packages/api/
 
 EXPOSE 3002
 
+# Install bind-mounted modules' npm deps into /app/node_modules at container
+# start (openai, cheerio, @anthropic-ai/claude-agent-sdk, ...). Dev images
+# don't bake module deps (mounted sources aren't in the build context), so
+# without this every module that requires a non-core dep fails with
+# MODULE_NOT_FOUND. See the script header for the full rationale.
+COPY docker/shared /docker/shared
+ENTRYPOINT ["sh", "/docker/shared/dev-install-module-deps.sh"]
+
 CMD ["pnpm", "--filter", "api", "dev"]
