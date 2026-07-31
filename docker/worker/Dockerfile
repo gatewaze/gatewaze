@@ -9,7 +9,7 @@
 # and the dispatcher logs a silent no-op. Mirror the api image's pattern:
 # build packages/shared/dist in a builder stage, copy + symlink into the
 # runtime image so Node's resolver finds it from cloned module code.
-FROM node:22-slim AS builder
+FROM node:25-slim AS builder
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@10.31.0 --activate
 WORKDIR /app
@@ -23,7 +23,7 @@ COPY packages/shared/ packages/shared/
 RUN pnpm --filter @gatewaze/shared build
 
 # ---- Stage 2: Runtime ----
-FROM node:22-slim
+FROM node:25-slim
 
 # Goose CLI version. Pinned for build reproducibility — Renovate watches
 # block/goose releases and opens a PR when a new tag lands. Bump
