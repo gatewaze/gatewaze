@@ -1,5 +1,5 @@
 # ---- Stage 1: Build ----
-FROM node:22-slim AS builder
+FROM node:25-slim AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@10.31.0 --activate
@@ -41,7 +41,7 @@ RUN pnpm --filter shared build
 RUN pnpm --filter api build
 
 # ---- Stage 2: Run ----
-FROM node:22-slim
+FROM node:25-slim
 
 # openssh-client is required by the sites module's graduate-to-external
 # flow (Source tab → "Move to my own git repo"): it spawns `ssh-keygen`
