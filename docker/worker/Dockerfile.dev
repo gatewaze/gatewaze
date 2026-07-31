@@ -100,6 +100,19 @@ COPY packages/shared/package.json packages/shared/
 RUN --mount=type=cache,id=pnpm-worker-dev,target=/root/.local/share/pnpm/store \
     pnpm install --no-frozen-lockfile
 
+# The software-engineer module's worker handlers (implement/review/verify/spec)
+# import @anthropic-ai/claude-agent-sdk via lib/phase-runner -> agent-session
+# (the in-process runner). It's a module dep, not in api/shared package.json,
+# and the worker dev image doesn't bake module deps at build time — so without
+# this those handlers fail to register with MODULE_NOT_FOUND. npm can't run in
+# the pnpm workspace at /app, so install isolated and copy into
+# /app/node_modules. Baked so it survives `make up --build` rebuilds. Mirrors
+# the SE-runner image (docker/software-engineer-runner/Dockerfile).
+RUN mkdir -p /tmp/se-sdk && cd /tmp/se-sdk && npm init -y >/dev/null 2>&1 \
+    && npm install --no-save @anthropic-ai/claude-agent-sdk@^0.3.220 \
+    && cp -Rn /tmp/se-sdk/node_modules/. /app/node_modules/ \
+    && rm -rf /tmp/se-sdk
+
 # gatewaze.config.ts via the same CJS→ESM shim trick api uses.
 COPY gatewaze.config.ts ./
 RUN printf 'const m = require("./gatewaze.config.ts");\nconst c = m.default || m;\nObject.defineProperty(c, "__esModule", { value: true });\nmodule.exports = c;\nmodule.exports.default = c;\n' > gatewaze.config.js
