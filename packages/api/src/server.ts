@@ -245,7 +245,7 @@ async function registerModuleRoutes() {
           // routes silently no-op'd. Wiring the real call here unblocks
           // module-side job dispatch (skill-source sync, etc.) without
           // requiring modules to take a direct dep on @gatewaze/api.
-          enqueueJob: async (queueName, jobName, data) => {
+          enqueueJob: async (queueName, jobName, data, opts) => {
             // Lazy require so this file doesn't take a top-level cycle
             // on lib/queue (which itself imports server-bootstrap-y
             // helpers in some places).
@@ -258,7 +258,8 @@ async function registerModuleRoutes() {
               );
               return { id: undefined };
             }
-            const job = await queue.add(jobName, data);
+            // opts (e.g. a deterministic jobId) allow idempotent re-enqueue for crash recovery.
+            const job = await queue.add(jobName, data, opts);
             return { id: job.id };
           },
           // Expose the platform's shared Redis connection so modules can run a
