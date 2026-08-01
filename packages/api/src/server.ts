@@ -63,6 +63,14 @@ installCrashHandlers({
 });
 
 const app = express();
+// Trust the reverse proxies in front of us (k8s ingress / Traefik, on private
+// IPs) so `req.ip` and `req.protocol` reflect the real client — NOT the proxy —
+// while an X-Forwarded-For sent by a public client is ignored. Without this,
+// req.ip is the proxy IP (rate limits collapse to one bucket) and any code that
+// reads X-Forwarded-For directly is spoofable. Default trusts loopback +
+// link-local + unique-local (RFC1918/ULA) hops; override with TRUST_PROXY (a
+// hop count, an IP/subnet list, or 'true') for other topologies.
+app.set('trust proxy', process.env.TRUST_PROXY ?? 'loopback, linklocal, uniquelocal');
 const PORT = parseInt(process.env.PORT ?? '3002', 10);
 
 // Register built-in queues so enqueue()/health have something to reach.
