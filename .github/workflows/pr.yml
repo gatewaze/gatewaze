@@ -93,14 +93,7 @@ jobs:
         run: pnpm --filter @gatewaze/api test
       - name: shared tests
         run: pnpm --filter @gatewaze/shared test
-      # Pre-existing failure: lib/__tests__/host-parser.test.ts >
-      # 'legacy mismatch on brand returns suffix-mismatch (no leak)' resolves a
-      # legacy portal match instead of the expected suffix-mismatch. It fails on
-      # main independently of this workflow change (portal source is unchanged).
-      # Non-blocking until that test is fixed so the api/shared/admin suites
-      # stay meaningful; tracked as a portal follow-up.
       - name: portal tests
-        continue-on-error: true
         run: pnpm --filter @gatewaze/portal test
       - name: admin tests
         run: pnpm --filter @gatewaze/admin test
