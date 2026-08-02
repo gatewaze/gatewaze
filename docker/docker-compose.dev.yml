@@ -146,12 +146,14 @@ services:
       # authed). spec-ai-memory-wiki.md §5.1.
       GATEWAZE_INTERNAL_API_URL: ${GATEWAZE_INTERNAL_API_URL:-http://api:3002}
 
-  # Dev se-runner: same hot-reload image/mounts as the worker, scoped to the
-  # software-engineer module + its 'se' queue (see base compose for rationale).
+  # Dev se-runner: prod-fidelity runtime (same lean base as docker/se-runner/
+  # Dockerfile — no Chromium/Goose) with the worker-style hot-reload workflow
+  # (bind mounts + tsx watch). MODULE_DEPS_ONLY scopes the container-start dep
+  # install to the SE module, matching the prod image's bake.
   se-runner:
     build:
       context: ..
-      dockerfile: docker/worker/Dockerfile.dev
+      dockerfile: docker/se-runner/Dockerfile.dev
     volumes:
       - ../scripts:/app/scripts
       - ../packages/api/src:/app/packages/api/src
@@ -166,6 +168,7 @@ services:
     environment:
       NODE_ENV: development
       GATEWAZE_INTERNAL_API_URL: ${GATEWAZE_INTERNAL_API_URL:-http://api:3002}
+      MODULE_DEPS_ONLY: software-engineer
 
   scheduler:
     build:

@@ -1,0 +1,63 @@
+# SE-runner Dev Dockerfile — hot-reload variant of docker/se-runner/Dockerfile.
+#
+# PROD-FIDELITY: mirrors the prod runner's runtime exactly — same node:22-slim
+# base, same apt set (git + ca-certificates + curl; NO Chromium, NO Goose, NO
+# Python) — so dev exercises the same environment the agent gets in production
+# (the dev *worker* image, by contrast, carries the full scraper/recipe
+# toolchain). What differs is only the dev workflow: sources are bind-mounted
+# and run under `tsx watch` (same pattern as docker/worker/Dockerfile.dev),
+# and module deps install at container start via dev-install-module-deps.sh —
+# scoped to the software-engineer module with MODULE_DEPS_ONLY (set in
+# compose), matching the prod image's MODULE_DEPS_ONLY bake.
+
+FROM node:22-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    ca-certificates \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN corepack enable && corepack prepare pnpm@10.31.0 --activate
+
+WORKDIR /app
+
+COPY package.json ./
+COPY tsconfig.json ./
+RUN printf 'packages:\n  - "packages/*"\n' > pnpm-workspace.yaml
+
+COPY packages/api/package.json packages/api/
+COPY packages/shared/package.json packages/shared/
+
+RUN --mount=type=cache,id=pnpm-se-runner-dev,target=/root/.local/share/pnpm/store \
+    pnpm install --no-frozen-lockfile
+
+# gatewaze.config.ts via the same CJS→ESM shim trick the api/worker dev images use.
+COPY gatewaze.config.ts ./
+RUN printf 'const m = require("./gatewaze.config.ts");\nconst c = m.default || m;\nObject.defineProperty(c, "__esModule", { value: true });\nmodule.exports = c;\nmodule.exports.default = c;\n' > gatewaze.config.js
+
+# Shared must be built so its exports map ./dist/* paths resolve. Force a clean
+# emit — the repo tracks tsconfig.tsbuildinfo and a stale one makes tsc a no-op.
+COPY packages/shared/ packages/shared/
+RUN rm -f packages/shared/tsconfig.tsbuildinfo && pnpm --filter @gatewaze/shared build && test -d packages/shared/dist
+
+# Api source (overridden by the compose bind mount for hot reload).
+COPY packages/api/ packages/api/
+
+# ESM resolution for bind-mounted module code at /gatewaze-modules etc.
+RUN ln -sfn /app/node_modules /node_modules
+
+# Install the bind-mounted SE module's npm deps at container start (compose
+# sets MODULE_DEPS_ONLY=software-engineer so only its deps install), then run
+# the modern worker under tsx watch — identical CMD shape to the dev worker.
+COPY docker/shared /docker/shared
+ENTRYPOINT ["sh", "/docker/shared/dev-install-module-deps.sh"]
+
+CMD ["pnpm", "exec", "tsx", "watch", \
+     "--ignore", "/gatewaze-modules/**", \
+     "--ignore", "/premium-gatewaze-modules/**", \
+     "--ignore", "/lf-gatewaze-modules/**", \
+     "--ignore", "/app/.gatewaze-modules/**", \
+     "--ignore", "/app/supabase/**", \
+     "--ignore", "/app/data/**", \
+     "packages/api/src/workers/job-worker.ts"]
