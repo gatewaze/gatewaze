@@ -22,10 +22,16 @@ services:
       - ../packages/admin/tsconfig.json:/app/packages/admin/tsconfig.json
       - ../packages/shared/src:/app/packages/shared/src
       - ../packages/tracking/src:/app/packages/tracking/src
-      # Module system: config + external module sources
+      # Module system: config + external module sources.
+      # GATEWAZE_MODULES_PATH / LF_GATEWAZE_MODULES_PATH let you point the dev
+      # stack at a git WORKTREE instead of the primary checkout, so main stays
+      # pristine while you test a feature branch. Set the path (relative to this
+      # docker/ dir) in docker/.env, e.g. GATEWAZE_MODULES_PATH=../../gm-wt-memory,
+      # then `./dev.sh restart api worker`. Defaults to the sibling primary checkout.
+      # (Matches the parameterised mount already in the base docker-compose.yml.)
       - ../gatewaze.config.ts:/app/gatewaze.config.ts
-      - ../../gatewaze-modules:/gatewaze-modules
-      - ../../lf-gatewaze-modules:/lf-gatewaze-modules
+      - ${GATEWAZE_MODULES_PATH:-../../gatewaze-modules}:/gatewaze-modules
+      - ${LF_GATEWAZE_MODULES_PATH:-../../lf-gatewaze-modules}:/lf-gatewaze-modules
     environment:
       NODE_ENV: development
       API_PROXY_TARGET: http://api:3002
@@ -63,8 +69,8 @@ services:
       - ../packages/tracking/src:/app/packages/tracking/src
       # Module system: config + external module sources
       - ../gatewaze.config.ts:/app/gatewaze.config.ts
-      - ../../gatewaze-modules:/gatewaze-modules
-      - ../../lf-gatewaze-modules:/lf-gatewaze-modules
+      - ${GATEWAZE_MODULES_PATH:-../../gatewaze-modules}:/gatewaze-modules
+      - ${LF_GATEWAZE_MODULES_PATH:-../../lf-gatewaze-modules}:/lf-gatewaze-modules
     environment:
       NODE_ENV: development
       NEXT_PUBLIC_API_URL: ${API_URL:-http://api.gatewaze.localhost}
@@ -87,8 +93,8 @@ services:
       - ../packages/tracking/src:/app/packages/tracking/src
       # Module system: config + external module sources
       - ../gatewaze.config.ts:/app/gatewaze.config.ts
-      - ../../gatewaze-modules:/gatewaze-modules
-      - ../../lf-gatewaze-modules:/lf-gatewaze-modules
+      - ${GATEWAZE_MODULES_PATH:-../../gatewaze-modules}:/gatewaze-modules
+      - ${LF_GATEWAZE_MODULES_PATH:-../../lf-gatewaze-modules}:/lf-gatewaze-modules
       # Git module source cache + uploaded modules (persist across restarts)
       - ../.gatewaze-modules:/app/.gatewaze-modules
       - ../data:/app/data
@@ -122,8 +128,8 @@ services:
       - ../packages/shared/src:/app/packages/shared/src
       - ../packages/tracking/src:/app/packages/tracking/src
       - ../gatewaze.config.ts:/app/gatewaze.config.ts
-      - ../../gatewaze-modules:/gatewaze-modules
-      - ../../lf-gatewaze-modules:/lf-gatewaze-modules
+      - ${GATEWAZE_MODULES_PATH:-../../gatewaze-modules}:/gatewaze-modules
+      - ${LF_GATEWAZE_MODULES_PATH:-../../lf-gatewaze-modules}:/lf-gatewaze-modules
       - ../.gatewaze-modules:/app/.gatewaze-modules
       - ../data:/app/data
     environment:
@@ -172,7 +178,7 @@ services:
       - ../packages/shared/src:/app/packages/shared/src
       - ../packages/tracking/src:/app/packages/tracking/src
       - ../gatewaze.config.ts:/app/gatewaze.config.ts
-      - ../../gatewaze-modules:/gatewaze-modules
-      - ../../lf-gatewaze-modules:/lf-gatewaze-modules
+      - ${GATEWAZE_MODULES_PATH:-../../gatewaze-modules}:/gatewaze-modules
+      - ${LF_GATEWAZE_MODULES_PATH:-../../lf-gatewaze-modules}:/lf-gatewaze-modules
     environment:
       NODE_ENV: development
