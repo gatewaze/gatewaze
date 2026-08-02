@@ -1,0 +1,99 @@
+{{- if .Values.seRunner.enabled }}
+# SE-runner (SE-runner split): dedicated deployment for the software-engineer
+# module's agent phases. Lean image (Node + git + Agent SDK — no Chromium/
+# Goose), loads ONLY the software-engineer module and consumes ONLY its 'se'
+# queue, so long agent runs never share a process, image, or concurrency pool
+# with the standard worker's scrapers/newsletters. Opt-in per brand.
+# Scale agent parallelism: replicas × WORKER_CONCURRENCY_SOFTWARE_ENGINEER_SE.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "gatewaze.fullname" . }}-se-runner
+  labels:
+    {{- include "gatewaze.labels" . | nindent 4 }}
+    app.kubernetes.io/component: se-runner
+spec:
+  replicas: {{ .Values.seRunner.replicas | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "gatewaze.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: se-runner
+  template:
+    metadata:
+      labels:
+        {{- include "gatewaze.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: se-runner
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "gatewaze.serviceAccountName" . }}
+      containers:
+        - name: se-runner
+          # Same independent-pin pattern as the worker: seRunner.image.tag lets a
+          # brand roll the runner separately; falls back to the global imageTag.
+          image: "{{ .Values.image.registry }}/se-runner:{{ dig "image" "tag" "" .Values.seRunner | default (include "gatewaze.imageTag" .) }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.seRunner.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.seRunner.metricsPort | default 9090 }}
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "gatewaze.fullname" . }}-config
+            - secretRef:
+                name: {{ include "gatewaze.fullname" . }}-secret
+            {{- with .Values.extraEnvFrom }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          env:
+            - name: WORKER_MODULES
+              value: software-engineer
+            - name: WORKER_MODULES_EXCLUDE
+              value: ""
+            - name: WORKER_BUILTIN_QUEUES
+              value: ""
+          # The runner always runs the modern TS worker, which exposes /ready
+          # on the metrics port — probes are safe by default here (unlike the
+          # standard worker's legacy-CMD caveat).
+          startupProbe:
+            httpGet:
+              path: /ready
+              port: metrics
+            failureThreshold: 60
+            periodSeconds: 2
+            timeoutSeconds: 1
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: metrics
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: metrics
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.seRunner.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
