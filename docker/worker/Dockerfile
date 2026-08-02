@@ -175,6 +175,10 @@ RUN chmod +x /docker-entrypoint.sh && mkdir -p /tmp/module-repos
 # matches the api behaviour and is loud rather than silent.
 ARG BUILD_TIME_MODULE_SOURCES="https://github.com/gatewaze/gatewaze-modules.git#branch=main&path=modules,https://github.com/gatewaze/lf-gatewaze-modules.git#branch=main&path=modules"
 ARG BUILD_TIME_GITHUB_TOKEN=""
+# SE-runner split: the STANDARD worker image never bakes the software-engineer module's deps
+# (Agent SDK etc.) — those live only in the dedicated se-runner image (docker/se-runner/Dockerfile).
+# This keeps the worker image's dependency manifest equivalent to its pre-SE state.
+ARG MODULE_DEPS_EXCLUDE="software-engineer"
 ENV BUILD_TIME_MODULE_SOURCES=$BUILD_TIME_MODULE_SOURCES
 RUN if [ -n "$BUILD_TIME_GITHUB_TOKEN" ]; then \
       git config --global url."https://x-token:${BUILD_TIME_GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"; \
@@ -202,7 +206,7 @@ RUN if [ -n "$BUILD_TIME_GITHUB_TOKEN" ]; then \
         || echo "[worker-prebuild] Warning: failed to clone $url"; \
     done; \
     unset IFS; \
-    node /docker/shared/aggregate-module-deps.mjs /app/package.json; \
+    MODULE_DEPS_EXCLUDE="$MODULE_DEPS_EXCLUDE" node /docker/shared/aggregate-module-deps.mjs /app/package.json; \
     cd /app && npm install --omit=dev 2>&1 | tail -5 \
       || echo "[worker-prebuild] Warning: npm install for aggregated module deps failed"
 

@@ -679,8 +679,11 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-worker
     restart: unless-stopped
     shm_size: '1gb'
-    environment:
+    environment: &worker-env
       NODE_ENV: production
+      # SE-runner split: the standard worker never loads the software-engineer module — its agent
+      # phases run in the dedicated se-runner service below (dedicated 'se' queue + own image).
+      WORKER_MODULES_EXCLUDE: ${WORKER_MODULES_EXCLUDE:-software-engineer}
       BRAND: ${BRAND:-default}
       SUPABASE_URL: http://supabase-kong:8000
       SUPABASE_PUBLIC_URL: ${API_EXTERNAL_URL:-http://supabase.gatewaze.localhost}
@@ -759,6 +762,38 @@ services:
       # Open-source modules (where analytics now lives) — needed so the
       # /var/lib/gatewaze/modules/<id> symlinks the api supervisor writes
       # actually resolve inside the worker container.
+      - ${GATEWAZE_MODULES_PATH:-../../gatewaze-modules}:/gatewaze-modules
+      - gatewaze-module-sources:/var/lib/gatewaze/sources:ro
+      - gatewaze-module-live:/var/lib/gatewaze/modules:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+      supabase-db:
+        condition: service_healthy
+    networks:
+      - gatewaze
+
+  # ---------------------------------------------------------------------------
+  # se-runner — dedicated runner for the software-engineer module's agent
+  # phases (its own lean image: Node + git + Agent SDK, no Chromium/Goose).
+  # Loads ONLY the software-engineer module and consumes ONLY its 'se' queue,
+  # so long agent runs never compete with (or crash) scrapers/newsletters on
+  # the standard worker — and the standard worker image stays provably free
+  # of the agent toolchain. Scale agent parallelism here (or via
+  # WORKER_CONCURRENCY_SOFTWARE_ENGINEER_SE) without touching the worker.
+  # ---------------------------------------------------------------------------
+  se-runner:
+    build:
+      context: ..
+      dockerfile: docker/se-runner/Dockerfile
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-se-runner
+    restart: unless-stopped
+    environment:
+      <<: *worker-env
+      WORKER_MODULES: software-engineer
+      WORKER_MODULES_EXCLUDE: ""
+      WORKER_BUILTIN_QUEUES: ""
+    volumes:
       - ${GATEWAZE_MODULES_PATH:-../../gatewaze-modules}:/gatewaze-modules
       - gatewaze-module-sources:/var/lib/gatewaze/sources:ro
       - gatewaze-module-live:/var/lib/gatewaze/modules:ro

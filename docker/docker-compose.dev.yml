@@ -140,6 +140,27 @@ services:
       # authed). spec-ai-memory-wiki.md §5.1.
       GATEWAZE_INTERNAL_API_URL: ${GATEWAZE_INTERNAL_API_URL:-http://api:3002}
 
+  # Dev se-runner: same hot-reload image/mounts as the worker, scoped to the
+  # software-engineer module + its 'se' queue (see base compose for rationale).
+  se-runner:
+    build:
+      context: ..
+      dockerfile: docker/worker/Dockerfile.dev
+    volumes:
+      - ../scripts:/app/scripts
+      - ../packages/api/src:/app/packages/api/src
+      - ../packages/api/tsconfig.json:/app/packages/api/tsconfig.json
+      - ../packages/shared/src:/app/packages/shared/src
+      - ../packages/tracking/src:/app/packages/tracking/src
+      - ../gatewaze.config.ts:/app/gatewaze.config.ts
+      - ../../gatewaze-modules:/gatewaze-modules
+      - ../../lf-gatewaze-modules:/lf-gatewaze-modules
+      - ../.gatewaze-modules:/app/.gatewaze-modules
+      - ../data:/app/data
+    environment:
+      NODE_ENV: development
+      GATEWAZE_INTERNAL_API_URL: ${GATEWAZE_INTERNAL_API_URL:-http://api:3002}
+
   scheduler:
     build:
       context: ..

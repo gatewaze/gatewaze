@@ -292,13 +292,40 @@ async function main(): Promise<void> {
       logger.warn('[modules] module_sources table not available — using config sources only');
     }
   }
-  const modules = await loadModulesWithDbSources(config as never, dbSources as never[], PROJECT_ROOT);
+  let modules = await loadModulesWithDbSources(config as never, dbSources as never[], PROJECT_ROOT);
+
+  // Per-worker module scoping (§ SE-runner split). A worker process can be limited to a subset of
+  // modules so heavy/isolated workloads (e.g. the software-engineer agent runner) get their own
+  // deployment while the standard worker provably excludes them. Both unset → identical behaviour
+  // to before (load everything).
+  //   WORKER_MODULES          — comma-separated allowlist of module ids (unset = all)
+  //   WORKER_MODULES_EXCLUDE  — comma-separated denylist, applied after the allowlist
+  const csv = (v: string | undefined) => (v ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  const only = csv(process.env.WORKER_MODULES);
+  const excluded = csv(process.env.WORKER_MODULES_EXCLUDE);
+  if (only.length || excluded.length) {
+    const before = modules.map((m) => m.config.id);
+    modules = modules.filter(
+      (m) => (!only.length || only.includes(m.config.id)) && !excluded.includes(m.config.id),
+    );
+    const after = new Set(modules.map((m) => m.config.id));
+    logger.info(
+      { only, excluded, loaded: [...after], skipped: before.filter((id) => !after.has(id)) },
+      'worker module scope applied',
+    );
+  }
   const moduleHandles = await loadModuleQueues(modules);
 
   // Start workers for built-in queues after all handlers are registered.
-  startWorker('jobs');
-  startWorker('email');
-  startWorker('image');
+  // WORKER_BUILTIN_QUEUES scopes which built-ins THIS process consumes (unset = all three, as
+  // before). A dedicated module runner sets it empty so it only consumes its module's own queues.
+  const builtins = process.env.WORKER_BUILTIN_QUEUES === undefined
+    ? ['jobs', 'email', 'image']
+    : csv(process.env.WORKER_BUILTIN_QUEUES);
+  for (const q of builtins) {
+    if (q === 'jobs' || q === 'email' || q === 'image') startWorker(q);
+    else logger.warn({ queue: q }, 'WORKER_BUILTIN_QUEUES: unknown built-in queue ignored');
+  }
 
   const stopDepthSampler = startDepthSampler();
   markReady();

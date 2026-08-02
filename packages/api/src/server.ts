@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import {
   registerBuiltInQueues,
+  registerQueue,
   metricsHandler,
   closeAllQueues,
   closeAllConnections,
@@ -221,6 +222,26 @@ async function registerModuleRoutes() {
       if (enabledModuleIds.size > 0 && !enabledModuleIds.has(mod.config.id)) {
         appLogger.info({ module: mod.config.id }, '[modules] skipping disabled module');
         continue;
+      }
+      // Register module-declared queues[] as PRODUCERS in the API process, so a module's routes can
+      // enqueueJob() to its own dedicated queue (e.g. the software-engineer 'se' queue) — the API
+      // previously only knew the built-ins, so those enqueues warned + no-op'd. No Worker is started
+      // here; consumption stays with the worker/runner deployments. Same no-Redis guard as built-ins.
+      for (const qdef of (mod.config as { queues?: Array<{ name: string; defaultJobOptions?: unknown; defaultConcurrency?: number }> }).queues ?? []) {
+        try {
+          registerQueue({
+            name: qdef.name,
+            module: mod.config.id,
+            defaultJobOptions: qdef.defaultJobOptions as never,
+            defaultConcurrency: qdef.defaultConcurrency,
+          });
+          appLogger.info({ module: mod.config.id, queue: qdef.name }, '[modules] queue producer registered');
+        } catch (err) {
+          queueLogger.warn(
+            { module: mod.config.id, queue: qdef.name, err: (err as Error).message },
+            '[modules] queue producer not registered (Redis not configured?)',
+          );
+        }
       }
       if (mod.config.apiRoutes) {
         // Pre-label the module's mount prefix so its routes are
