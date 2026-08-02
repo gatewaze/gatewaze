@@ -129,6 +129,25 @@ jobs:
           build-args: |
             BUILD_TIME_GITHUB_TOKEN=${{ secrets.GH_PAT_MODULES }}
 
+      - name: Build and push se-runner image
+        id: img-se-runner
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: .
+          file: docker/se-runner/Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ghcr.io/gatewaze/se-runner:${{ steps.version.outputs.VERSION }}
+            ghcr.io/gatewaze/se-runner:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # Lean software-engineer runner (SE-runner split): bakes ONLY the
+          # software-engineer module's deps. Needs the PAT for the same
+          # module-clone reason as the worker image.
+          build-args: |
+            BUILD_TIME_GITHUB_TOKEN=${{ secrets.GH_PAT_MODULES }}
+
       - name: Build and push mcp-public image
         id: img-mcp-public
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
