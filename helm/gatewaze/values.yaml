@@ -516,6 +516,38 @@ worker:
     enabled: true
 
 # =============================================================================
+# SE-runner Service Configuration (SE-runner split)
+# =============================================================================
+seRunner:
+  # -- Deploy the dedicated software-engineer runner: a lean image (Node + git
+  # + Agent SDK, no Chromium/Goose) that loads ONLY the software-engineer
+  # module and consumes ONLY its 'se' queue. Opt-in per brand; when disabled,
+  # nothing consumes 'se' and SE runs stay queued (the standard worker
+  # excludes the module either way).
+  enabled: false
+
+  # -- Agent parallelism = replicas × in-pod concurrency (env
+  # WORKER_CONCURRENCY_SOFTWARE_ENGINEER_SE via extraEnvFrom/config; default 2).
+  # Cluster sizing note (LKE g6-standard-4 pool): ~8 concurrent sessions fit
+  # comfortably today; budget ~512Mi + 250m per session.
+  replicas: 1
+
+  # -- Optional image override (same independent-pin pattern as worker.image.tag).
+  image:
+    tag: ""
+
+  securityContext: {}
+  metricsPort: 9090
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 4Gi
+
+# =============================================================================
 # Scheduler Service Configuration
 # =============================================================================
 scheduler:
