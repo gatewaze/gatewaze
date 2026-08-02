@@ -827,9 +827,24 @@ async function discoverModuleWorkers() {
   };
 
   const seenModule = new Set();
+  // Per-worker module scoping — same env contract as the modern worker
+  // (packages/api/src/workers/job-worker.ts): WORKER_MODULES allowlist /
+  // WORKER_MODULES_EXCLUDE denylist by module id. Lets the standard worker
+  // provably skip e.g. software-engineer (its jobs live on the dedicated
+  // 'se' queue consumed by the se-runner deployment). Both unset → all.
+  const csvIds = (v) => (v ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  const onlyModules = csvIds(process.env.WORKER_MODULES);
+  const excludeModules = csvIds(process.env.WORKER_MODULES_EXCLUDE);
+  const moduleInScope = (id) =>
+    (!onlyModules.length || onlyModules.includes(id)) && !excludeModules.includes(id);
+
   const visit = async (modDir, moduleId) => {
     if (seenModule.has(moduleId)) return;
     seenModule.add(moduleId);
+    if (!moduleInScope(moduleId)) {
+      console.log(`🚫 [modules] '${moduleId}' out of worker scope (WORKER_MODULES/_EXCLUDE) — skipped`);
+      return;
+    }
     const indexPath = ['index.ts', 'index.js']
       .map((f) => path.join(modDir, f))
       .find((p) => fsSync.existsSync(p));

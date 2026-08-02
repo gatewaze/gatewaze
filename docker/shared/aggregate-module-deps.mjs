@@ -46,6 +46,18 @@ const roots = (process.env.MODULE_DEP_SCAN_ROOTS
   : DEFAULT_ROOTS
 ).filter((r) => r && existsSync(r));
 
+// Module-id scoping (SE-runner split): images that must NOT carry a module's deps exclude it
+// (standard worker: MODULE_DEPS_EXCLUDE=software-engineer keeps the agent toolchain out — the
+// pre-SE parity guarantee); a dedicated runner bakes only its own module (MODULE_DEPS_ONLY).
+// Ids are the module DIRECTORY names under <root>/modules/. Both unset → aggregate everything.
+const csvIds = (v) => (v ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+const ONLY_MODULES = csvIds(process.env.MODULE_DEPS_ONLY);
+const EXCLUDE_MODULES = csvIds(process.env.MODULE_DEPS_EXCLUDE);
+function moduleIncluded(modName) {
+  if (ONLY_MODULES.length && !ONLY_MODULES.includes(modName)) return false;
+  return !EXCLUDE_MODULES.includes(modName);
+}
+
 if (roots.length === 0) {
   console.log('[aggregate-module-deps] No module roots present; nothing to aggregate.');
   process.exit(0);
@@ -67,6 +79,10 @@ function moduleManifests(root) {
   const out = [];
   for (const md of modulesDirs) {
     for (const modName of readdirSync(md)) {
+      if (!moduleIncluded(modName)) {
+        console.log(`[aggregate-module-deps] Skipping module "${modName}" (MODULE_DEPS_ONLY/EXCLUDE scope)`);
+        continue;
+      }
       const pkgPath = join(md, modName, 'package.json');
       if (existsSync(pkgPath)) out.push(pkgPath);
     }
