@@ -2,4 +2,15 @@
 # pre-commit hook installed by husky. Runs lint-staged so only the
 # files in the commit are checked. CI runs the full lint + typecheck
 # + test matrix on the PR per .github/workflows/pr.yml.
+
+# Soft guard (non-blocking): the dev flow keeps `main` pristine and does feature
+# work in git worktrees (docs/worktree-dev-flow.md), so the local Docker stack —
+# which bind-mounts the primary checkout — stays reproducible and uncommitted
+# work can't leak between working copies. Warn, but never block, when a commit
+# lands directly on the default branch. Set WT_ALLOW_MAIN=1 for a deliberate one.
+branch="$(git branch --show-current 2>/dev/null || true)"
+if { [ "$branch" = "main" ] || [ "$branch" = "master" ]; } && [ "${WT_ALLOW_MAIN:-}" != "1" ]; then
+  printf '\033[33m⚠  committing directly on %s\033[0m — this flow keeps main pristine; prefer a worktree (scripts/wt.sh new <name>). Proceeding anyway; set WT_ALLOW_MAIN=1 to silence.\n' "$branch" >&2
+fi
+
 pnpm exec lint-staged
