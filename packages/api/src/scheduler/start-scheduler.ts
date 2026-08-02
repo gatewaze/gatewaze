@@ -6,6 +6,7 @@ import config from '../../../../gatewaze.config.js';
 
 import {
   registerBuiltInQueues,
+  registerQueue,
   upsertCrons,
   pruneCrons,
   closeAllQueues,
@@ -80,7 +81,26 @@ async function main(): Promise<void> {
   const modules = await loadModulesWithDbSources(config as never, dbSources as never[], PROJECT_ROOT);
   const moduleCrons: LoadedCron[] = [];
   for (const mod of modules) {
-    const cfg = mod.config as GatewazeModule & { crons?: CronDefinition[] };
+    const cfg = mod.config as GatewazeModule & { crons?: CronDefinition[]; queues?: Array<{ name: string; defaultJobOptions?: unknown; defaultConcurrency?: number }> };
+    // Register module-declared queues[] as PRODUCERS so upsertCrons can schedule a module's crons
+    // onto its own queue (e.g. software-engineer's 'se', host-media's). Without this the scheduler
+    // only knows the built-ins and logs "cron references unknown queue — skipping". No Worker is
+    // started here; consumption stays with the worker/runner deployments.
+    for (const qdef of cfg.queues ?? []) {
+      try {
+        registerQueue({
+          name: qdef.name,
+          module: cfg.id,
+          defaultJobOptions: qdef.defaultJobOptions as never,
+          defaultConcurrency: qdef.defaultConcurrency,
+        });
+      } catch (err) {
+        logger.warn(
+          { module: cfg.id, queue: qdef.name, err: (err as Error).message },
+          '[modules] queue producer not registered',
+        );
+      }
+    }
     for (const def of cfg.crons ?? []) {
       moduleCrons.push({ module: cfg.id, def });
     }
