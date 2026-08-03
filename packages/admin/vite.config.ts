@@ -92,6 +92,17 @@ export default defineConfig(({ command }) => ({
       // `Class extends value undefined` because Vite stubs node:events
       // and jsdom tries to `class VirtualConsole extends EventEmitter`.
       "jsdom": path.resolve(__dirname, "src/stubs/jsdom-empty.ts"),
+      // Force @react-email/render to its ESM build. The package's .cjs
+      // files contain a (legal) dynamic import("react-dom/server"), which
+      // rolldown's CJS conversion rejects with a misleading
+      // "Cannot use import statement outside a module" PARSE_ERROR at 1:1
+      // — breaking `vite build` whenever module sources (newsletters
+      // email-blocks) pull the package into the bundle. The ESM entry
+      // sidesteps the CJS converter entirely.
+      "@react-email/render": path.resolve(
+        __dirname,
+        "node_modules/@react-email/render/dist/browser/index.mjs",
+      ),
     },
     // Ensure bare imports from external module sources (gatewaze-modules) resolve
     // from the admin app's node_modules, not from the module's filesystem location
