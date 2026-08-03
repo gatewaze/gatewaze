@@ -38,7 +38,7 @@ jobs:
 
       - name: Build and push admin image
         id: img-admin
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
           file: docker/admin/Dockerfile
@@ -65,7 +65,7 @@ jobs:
 
       - name: Build and push portal image
         id: img-portal
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
           file: docker/portal/Dockerfile
@@ -89,7 +89,7 @@ jobs:
 
       - name: Build and push api image
         id: img-api
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
           file: docker/api/Dockerfile
@@ -110,7 +110,7 @@ jobs:
 
       - name: Build and push worker image
         id: img-worker
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
           file: docker/worker/Dockerfile
@@ -131,7 +131,7 @@ jobs:
 
       - name: Build and push se-runner image
         id: img-se-runner
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
           file: docker/se-runner/Dockerfile
@@ -150,7 +150,7 @@ jobs:
 
       - name: Build and push mcp-public image
         id: img-mcp-public
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: packages/mcp
           file: packages/mcp/Dockerfile
@@ -166,7 +166,7 @@ jobs:
 
       - name: Build and push scheduler image
         id: img-scheduler
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
           file: docker/scheduler/Dockerfile
@@ -185,7 +185,7 @@ jobs:
 
       - name: Build and push scrapling-fetcher image
         id: img-scrapling-fetcher
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: services/scrapling-fetcher
           file: services/scrapling-fetcher/Dockerfile
