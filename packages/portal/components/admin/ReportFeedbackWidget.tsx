@@ -13,8 +13,12 @@
  * components — module portal contributions are page-scoped via the generated registry. If such a
  * contribution point lands later, this file moves into the module unchanged.
  */
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { getSupabaseClient } from '@/lib/supabase/client';
+import {
+  attachmentsPayload, droppedAttachmentsWarning, extFromMime, feedbackImagePath, validateImageFile,
+  type PendingAttachment,
+} from './feedback-attachments';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? '';
 const API = `${API_BASE}/api/modules/software-engineer/admin`;
@@ -41,8 +45,11 @@ export default function ReportFeedbackWidget() {
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<{ title: string; body: string; assign: boolean } | null>(null);
-  const [created, setCreated] = useState<{ number?: number; url?: string; runId?: string } | null>(null);
+  const [created, setCreated] = useState<{ number?: number; url?: string; runId?: string; attachmentsDropped?: number } | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // Pasted/dropped screenshots → uploaded to the public `media` bucket. Declared with the other
+  // hooks (above the `if (!projects) return null` guard) so hook order stays stable across renders.
+  const [atts, setAtts] = useState<PendingAttachment[]>([]);
 
   useEffect(() => {
     api('/projects')
@@ -76,14 +83,44 @@ export default function ReportFeedbackWidget() {
     finally { setBusy(false); }
   };
 
+  // Paste/drop/pick a screenshot → upload to the public `media` bucket, then send its URL with the
+  // issue so the agent downloads + Reads it (same contract as the Issues tab; see feedback-attachments.ts).
+  const uploadImage = async (file: File) => {
+    const v = validateImageFile(file);
+    if (!v.ok) { if (v.error) setErr(v.error); return; }
+    const key = crypto.randomUUID();
+    const ext = extFromMime(file.type);
+    const path = feedbackImagePath(projectId, key, ext);
+    setAtts((a) => [...a, { key, name: file.name || `${key}.${ext}`, url: '', uploading: true }]);
+    try {
+      const { error } = await getSupabaseClient().storage.from('media').upload(path, file, { upsert: false, cacheControl: '3600', contentType: file.type });
+      if (error) throw error;
+      const { data } = getSupabaseClient().storage.from('media').getPublicUrl(path);
+      setAtts((a) => a.map((x) => (x.key === key ? { ...x, uploading: false, url: data.publicUrl } : x)));
+    } catch (e) { setErr(`image upload failed: ${String((e as Error)?.message ?? e)}`); setAtts((a) => a.filter((x) => x.key !== key)); }
+  };
+  const onPaste = (e: React.ClipboardEvent) => {
+    const imgs = Array.from(e.clipboardData?.items ?? []).filter((it) => it.type.startsWith('image/'));
+    if (!imgs.length) return;
+    e.preventDefault();
+    imgs.forEach((it) => { const f = it.getAsFile(); if (f) uploadImage(f); });
+  };
+  const onDrop = (e: React.DragEvent) => { e.preventDefault(); Array.from(e.dataTransfer?.files ?? []).forEach(uploadImage); };
+  const onPick = (e: React.ChangeEvent<HTMLInputElement>) => { Array.from(e.target.files ?? []).forEach(uploadImage); e.target.value = ''; };
+  const removeAtt = (key: string) => setAtts((a) => a.filter((x) => x.key !== key));
+  const uploading = atts.some((a) => a.uploading);
+
   const create = async () => {
-    if (!draft?.title.trim() || busy) return;
+    if (!draft?.title.trim() || busy || uploading) return;
     setBusy(true); setErr(null);
     try {
       const res = await api('/issues', { method: 'POST', body: JSON.stringify({
         project_id: projectId, title: draft.title.trim(), body: draft.body, assign_to_agent: draft.assign,
+        attachments: attachmentsPayload(atts),
       }) });
-      setCreated(res); setDraft(null); setMessages([]);
+      // The server drops any attachment URL its SSRF allowlist rejects (e.g. an http://…localhost
+      // storage URL in dev). We surface that in the success box rather than a silent success.
+      setCreated(res); setDraft(null); setMessages([]); setAtts([]);
     } catch (e) { setErr(String((e as Error)?.message ?? e)); }
     finally { setBusy(false); }
   };
@@ -106,6 +143,9 @@ export default function ReportFeedbackWidget() {
               Issue #{created.number} created{created.runId ? ' — an agent is on it' : ''}.{' '}
               {created.url && <a href={created.url} target="_blank" rel="noreferrer" className="underline">View</a>}
               <button onClick={() => setCreated(null)} className="ml-2 text-xs underline">Report another</button>
+              {droppedAttachmentsWarning(created.attachmentsDropped) && (
+                <div className="mt-1.5 text-xs font-normal text-amber-700">{droppedAttachmentsWarning(created.attachmentsDropped)}</div>
+              )}
             </div>
           ) : (
             <>
@@ -127,13 +167,33 @@ export default function ReportFeedbackWidget() {
               {draft && (
                 <div className="space-y-1.5 rounded-md border p-2 dark:border-gray-700">
                   <input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} className="w-full rounded-md border px-2 py-1 text-sm dark:bg-gray-800" />
-                  <textarea value={draft.body} onChange={(e) => setDraft({ ...draft, body: e.target.value })} rows={5} className="w-full rounded-md border px-2 py-1 font-mono text-xs dark:bg-gray-800" />
-                  <label className="flex items-center gap-1.5 text-xs text-gray-500">
-                    <input type="checkbox" checked={draft.assign} onChange={(e) => setDraft({ ...draft, assign: e.target.checked })} />
-                    Hand to a software engineer agent
-                  </label>
-                  <button onClick={create} disabled={busy || !draft.title.trim()} className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50">
-                    {busy ? 'Creating…' : 'Create issue'}
+                  <textarea value={draft.body} onChange={(e) => setDraft({ ...draft, body: e.target.value })}
+                    onPaste={onPaste} onDrop={onDrop} onDragOver={(e) => e.preventDefault()}
+                    rows={5} placeholder="Describe the problem…  (paste or drop a screenshot to attach)" className="w-full rounded-md border px-2 py-1 font-mono text-xs dark:bg-gray-800" />
+                  {atts.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {atts.map((a) => (
+                        <div key={a.key} className="group relative">
+                          {a.url
+                            /* eslint-disable-next-line @next/next/no-img-element -- transient client-side thumbnail of a just-pasted screenshot; no SEO/layout budget and the media host isn't in next images.remotePatterns */
+                            ? <img src={a.url} alt={a.name} className="h-14 w-14 rounded border object-cover" />
+                            : <div className="flex h-14 w-14 items-center justify-center rounded border bg-gray-100 text-[10px] text-gray-500 dark:bg-gray-800">…</div>}
+                          <button type="button" onClick={() => removeAtt(a.key)} className="absolute -right-1.5 -top-1.5 size-4 rounded-full bg-gray-900 text-[11px] leading-none text-white opacity-0 group-hover:opacity-100 dark:bg-gray-100 dark:text-gray-900" aria-label="Remove">×</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-1.5 text-xs text-gray-500">
+                      <input type="checkbox" checked={draft.assign} onChange={(e) => setDraft({ ...draft, assign: e.target.checked })} />
+                      Hand to a software engineer agent
+                    </label>
+                    <label className="cursor-pointer text-xs text-gray-500 underline hover:text-gray-700 dark:hover:text-gray-300">
+                      Attach image<input type="file" accept="image/*" multiple onChange={onPick} className="hidden" />
+                    </label>
+                  </div>
+                  <button onClick={create} disabled={busy || uploading || !draft.title.trim()} className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50">
+                    {busy ? 'Creating…' : uploading ? 'Uploading…' : 'Create issue'}
                   </button>
                 </div>
               )}
