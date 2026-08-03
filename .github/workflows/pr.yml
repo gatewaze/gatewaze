@@ -159,6 +159,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium
+      # shared is a composite project referenced by admin; its dist/*.d.ts must
+      # exist or the admin build fails with TS6305 (same as the setup job).
+      - name: Build shared (project references)
+        run: pnpm --filter @gatewaze/shared build
       - name: Build admin
         run: pnpm --filter @gatewaze/admin build
       - name: Run E2E
