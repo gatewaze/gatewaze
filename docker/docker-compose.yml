@@ -893,6 +893,51 @@ services:
         reservations:
           memory: 512M
 
+  arcade-serve:
+    build:
+      context: ../packages/arcade-serve
+      dockerfile: Dockerfile
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-arcade-serve
+    restart: unless-stopped
+    # The games origin (PLAY_ORIGIN, e.g. play.gatewaze.localhost). The ONLY
+    # application behind that host: /g/* game serving, /sdk/*, and the three
+    # cluster-internal endpoints /healthz, /readyz, /metrics. Reads the arcade
+    # tables and the private `arcade` storage bucket; it has no write path and
+    # never sees ARCADE_TOKEN_SECRET (that belongs to the module API).
+    # Local dev keeps it off traefik — reach it directly on ARCADE_SERVE_PORT.
+    ports:
+      - "${ARCADE_SERVE_PORT:-8090}:8080"
+    networks:
+      - gatewaze
+    environment:
+      PORT: 8080
+      # Explicit per-brand origins — never inferred from the Host header.
+      ARCADE_PLAY_ORIGIN: ${ARCADE_PLAY_ORIGIN:-http://localhost:8090}
+      ARCADE_PORTAL_ORIGIN: ${ARCADE_PORTAL_ORIGIN:-http://portal.gatewaze.localhost}
+      # Validates admin preview links for draft/archived versions. Minted by the
+      # module API with the same secret; _PREVIOUS covers the rotation window.
+      ARCADE_PREVIEW_HMAC_SECRET: ${ARCADE_PREVIEW_HMAC_SECRET:-}
+      ARCADE_PREVIEW_HMAC_SECRET_PREVIOUS: ${ARCADE_PREVIEW_HMAC_SECRET_PREVIOUS:-}
+      ARCADE_STORAGE_BUCKET: ${ARCADE_STORAGE_BUCKET:-arcade}
+      SUPABASE_URL: http://supabase-kong:8000
+      # Prefer a dedicated SELECT-only credential; the service-role key is the
+      # documented fallback (spec §13).
+      ARCADE_SUPABASE_KEY: ${ARCADE_SUPABASE_KEY:-${SERVICE_ROLE_KEY}}
+    depends_on:
+      supabase-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8080/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+
   events-mcp:
     build:
       context: ../packages/events-mcp
