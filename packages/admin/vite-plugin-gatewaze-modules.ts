@@ -397,6 +397,14 @@ export function gatewazeModulesPlugin(): Plugin {
       // Return empty module for stubbed packages — MUST be first check
       if (id.startsWith('\0stub:')) {
         if (id.endsWith('.css')) return '';
+        // rolldown (vite 8) ignores rollup's syntheticNamedExports, so any
+        // named import from an ESM stub is a fatal MISSING_EXPORT at build.
+        // A CommonJS stub gets named-export synthesis via CJS interop
+        // instead — named imports resolve to undefined at runtime, matching
+        // rollup's longstanding behavior for these stubs. Dev keeps the ESM
+        // form: the dev server ships the stub to the browser verbatim, where
+        // bare `module.exports` would throw "module is not defined".
+        if (isBuild) return { code: 'module.exports = {};' };
         return { code: 'export default {};', syntheticNamedExports: true };
       }
       // Virtual module for gatewaze-modules
