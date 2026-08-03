@@ -32,6 +32,7 @@ import { OrganizationJsonLd } from '@/components/structured-data'
 import { createServerSupabase, createAuthenticatedServerSupabase } from '@/lib/supabase/server'
 // ChatWidgetLoader currently disabled — see comment near the JSX use site.
 // import { ChatWidgetLoader } from '@/components/chat/ChatWidgetLoader'
+import ReportFeedbackWidget from '@/components/admin/ReportFeedbackWidget'
 import '@/styles/globals.css'
 import '@/styles/shell.css'
 
@@ -310,6 +311,9 @@ export default async function MainLayout({
                   </WorkspaceShell>
                 </div>
               )}
+              {/* SE §10.5 phase 3: floating "Report feedback" for signed-in ADMINS only — the
+                  client component probes the SE admin API and renders nothing for everyone else. */}
+              {!isCustomDomain && isSignedIn && <ReportFeedbackWidget />}
               {!isCustomDomain && (
                 // The AI onboarding module (lf-gatewaze-modules/onboarding) replaces the
                 // step-form wizard when enabled: render its 'app:profile-gate' slot. The
