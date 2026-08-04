@@ -133,6 +133,19 @@ async function registerModuleSchedulers() {
     const cfg = mod.default ?? mod;
     const moduleName = cfg?.name ?? cfg?.id ?? path.basename(path.dirname(indexFile));
 
+    // Per-deployment cron scoping — same env contract as the modern scheduler
+    // (SCHEDULER_MODULES allowlist / SCHEDULER_MODULES_EXCLUDE denylist by
+    // module id). Lets e.g. prod skip software-engineer crons whose 'se'
+    // queue only staging consumes. Both unset → schedule everything.
+    const modId = cfg?.id ?? path.basename(path.dirname(indexFile));
+    const schedCsv = (v) => (v ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+    const schedOnly = schedCsv(process.env.SCHEDULER_MODULES);
+    const schedExclude = schedCsv(process.env.SCHEDULER_MODULES_EXCLUDE);
+    if ((schedOnly.length && !schedOnly.includes(modId)) || schedExclude.includes(modId)) {
+      console.log(`[modules] '${modId}' out of scheduler scope (SCHEDULER_MODULES/_EXCLUDE) — crons skipped`);
+      continue;
+    }
+
     // Modern crons[]: cron tick enqueues a BullMQ job; a worker
     // consumes. Each entry shape:
     //   { name, queue, schedule: { pattern }, data }            (cron-style)
