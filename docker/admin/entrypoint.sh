@@ -49,7 +49,7 @@ write_runtime_config() {
 #
 # Disabled when PREBUILD=1 (we're inside the image-build step and there
 # is nothing pre-built yet to compare against).
-if [ -z "$PREBUILD" ] && [ -d /usr/share/nginx/html-prebuilt ] && [ -n "$BUILD_TIME_MODULE_SOURCES" ]; then
+if [ -z "$PREBUILD" ] && [ -z "$ADMIN_REFRESH_CHILD" ] && [ -d /usr/share/nginx/html-prebuilt ] && [ -n "$BUILD_TIME_MODULE_SOURCES" ]; then
   fast_path=1
   if [ -z "$MODULE_SOURCES" ]; then
     # No runtime override — the image's defaults are exactly right.
@@ -71,6 +71,16 @@ if [ -z "$PREBUILD" ] && [ -d /usr/share/nginx/html-prebuilt ] && [ -n "$BUILD_T
     echo "[admin] Fast path: copying pre-built bundle to nginx html"
     cp -r /usr/share/nginx/html-prebuilt/* /usr/share/nginx/html/
     write_runtime_config /usr/share/nginx/html/runtime-config.js
+    # The baked bundle is a SNAPSHOT from image-build time. Without a refresh, module
+    # updates NEVER reach a fast-path admin (restarts just re-serve the snapshot — the
+    # frozen-at-bake bug behind the 2026-08-04 prod SE incident). Serve the snapshot for
+    # instant availability, then re-clone + rebuild in the background and hot-swap via
+    # nginx reload, so every pod converges to the live branch tip within minutes of boot.
+    # Opt out with ADMIN_BOOT_REFRESH=0 (e.g. air-gapped installs pinned to the bake).
+    if [ "${ADMIN_BOOT_REFRESH:-1}" != "0" ]; then
+      echo "[admin] Fast path: scheduling background refresh to live branch tip"
+      ( sleep 5; ADMIN_REFRESH_CHILD=1 sh "$0" ) >/proc/1/fd/1 2>&1 &
+    fi
     echo "[admin] Pre-built bundle served. Starting nginx..."
     exec nginx -g "daemon off;"
   fi
@@ -227,6 +237,12 @@ write_runtime_config /usr/share/nginx/html/runtime-config.js
 
 if [ -n "$PREBUILD" ]; then
   echo "[admin] PREBUILD=1 — build complete, exiting without starting nginx (Dockerfile will snapshot the dist)"
+  exit 0
+fi
+
+if [ -n "$ADMIN_REFRESH_CHILD" ]; then
+  echo "[admin] Boot refresh complete — reloading nginx with the fresh bundle"
+  nginx -s reload 2>/dev/null || true
   exit 0
 fi
 
