@@ -30,6 +30,12 @@ import { Spinner } from '@/components/ui/Spinner';
 import { Page } from '@/components/shared/Page';
 import { PeopleService, Person } from '@/utils/peopleService';
 import { geocodeCityCountry } from '@/utils/geocode';
+import {
+  resolvePersonMapCoords,
+  parseCoordString,
+  locationLabelKey,
+  type PersonMapCoords,
+} from '@/utils/person-location';
 import { StaticLocationMap } from '@/components/charts/StaticLocationMap';
 import { PeopleAvatarService } from '@/utils/peopleAvatarService';
 import { CompetitionWinner } from '@/utils/competitionWinnerService';
@@ -177,6 +183,9 @@ export default function MemberDetailPage() {
   const [unsubscribingAll, setUnsubscribingAll] = useState(false);
   const [loading, setLoading] = useState(true);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  // Coordinates the profile map (hero + Location card) should plot. Resolved to
+  // stay in agreement with the city/country label — see @/utils/person-location.
+  const [mapCoords, setMapCoords] = useState<PersonMapCoords | null>(null);
 
   // Edit mode state
   const [isEditMode, setIsEditMode] = useState(false);
@@ -214,6 +223,58 @@ export default function MemberDetailPage() {
         country: person.attributes?.country || '',
       });
     }
+  }, [person]);
+
+  // Keep the profile map in agreement with the city/country label. Prefer
+  // coordinates provably derived from the displayed label; never let an
+  // IP-derived `location` override an explicit city/country. When we hold a
+  // label but no trustworthy coordinates, geocode the label to self-heal (and
+  // persist the result + provenance marker so later loads stay consistent and
+  // we don't re-hit Nominatim on every view).
+  useEffect(() => {
+    if (!person) {
+      setMapCoords(null);
+      return;
+    }
+    const attrs = person.attributes ?? {};
+    const resolved = resolvePersonMapCoords(attrs);
+    if (resolved) {
+      setMapCoords(resolved.coords);
+      return;
+    }
+
+    const city = typeof attrs.city === 'string' ? attrs.city.trim() : '';
+    const country = typeof attrs.country === 'string' ? attrs.country.trim() : '';
+    if (!city && !country) {
+      setMapCoords(null);
+      return;
+    }
+
+    let cancelled = false;
+    setMapCoords(null);
+    (async () => {
+      const raw = await geocodeCityCountry(city, country);
+      if (cancelled) return;
+      const coords = parseCoordString(raw);
+      setMapCoords(coords);
+      if (raw && coords && person.id) {
+        // Persist only the two fields we own here, merged over the existing
+        // attributes, so the reconciled coordinates carry a provenance marker.
+        const nextAttributes = {
+          ...attrs,
+          coordinates: raw,
+          _coordinates_for: locationLabelKey(city, country),
+        };
+        try {
+          await PeopleService.updatePerson(person.id, { attributes: nextAttributes });
+        } catch {
+          // Best-effort backfill; the map already renders from local state.
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [person]);
 
   const handleEditToggle = () => {
@@ -254,20 +315,27 @@ export default function MemberDetailPage() {
         country,
       };
 
-      // Keep the map coordinates in sync with the edited city/country. Only
-      // re-geocode when the location actually changed: clear coordinates if the
-      // location was removed, otherwise look them up and overwrite. On a failed
-      // lookup we leave the existing coordinates in place (inherited from the
-      // spread above) so a transient geocoder hiccup can't wipe good data.
-      const prevCity = (person.attributes?.city as string) || '';
-      const prevCountry = (person.attributes?.country as string) || '';
-      if (city !== prevCity || country !== prevCountry) {
-        if (!city && !country) {
-          delete attributes.coordinates;
-        } else {
+      // Keep the map coordinates in agreement with the edited city/country.
+      // Clear coordinates (and their provenance marker) when the location is
+      // removed. Otherwise re-geocode whenever the coordinates we hold aren't
+      // provably derived from this exact city/country — that covers a changed
+      // label AND self-heals legacy rows whose coordinates (or IP-derived
+      // `location`) disagree with the label. On a failed lookup we leave the
+      // existing coordinates in place so a transient geocoder hiccup can't wipe
+      // good data.
+      if (!city && !country) {
+        delete attributes.coordinates;
+        delete attributes._coordinates_for;
+      } else {
+        const desiredKey = locationLabelKey(city, country);
+        const existingCoords = parseCoordString(attributes.coordinates);
+        const existingKey =
+          typeof attributes._coordinates_for === 'string' ? attributes._coordinates_for : '';
+        if (!existingCoords || existingKey !== desiredKey) {
           const coordinates = await geocodeCityCountry(city, country);
           if (coordinates) {
             attributes.coordinates = coordinates;
+            attributes._coordinates_for = desiredKey;
           } else {
             toast.warning(
               'Saved, but could not find map coordinates for that city/country — the map may be out of date.',
@@ -826,14 +894,9 @@ export default function MemberDetailPage() {
     );
   }
 
-  // Parse the person's map coordinates for the hero background (prefer the
-  // explicit `coordinates`, fall back to the geocoder's `location`).
-  const heroCoords = (() => {
-    const raw = (person.attributes?.coordinates as string) || (person.attributes?.location as string);
-    if (!raw) return null;
-    const [lat, lng] = raw.split(',').map((coord: string) => parseFloat(coord.trim()));
-    return !isNaN(lat) && !isNaN(lng) ? { lat, lng } : null;
-  })();
+  // Hero-background coordinates come from the same reconciled source as the
+  // Location card, so the map can't disagree with the city/country label.
+  const heroCoords = mapCoords;
 
   return (
     <Page>
@@ -1222,41 +1285,41 @@ export default function MemberDetailPage() {
                   </div>
                 ) : (
                   (() => {
-                    const location = person.attributes?.coordinates || person.attributes?.location;
+                    // Map coordinates come from the reconciled `mapCoords`, which
+                    // is derived from — and kept in agreement with — the city/
+                    // country label below (see @/utils/person-location).
                     const city = person.attributes?.city;
                     const country = person.attributes?.country;
 
-                    if (location) {
-                      const [lat, lng] = location.split(',').map((coord: string) => parseFloat(coord.trim()));
-                      if (!isNaN(lat) && !isNaN(lng)) {
-                        const mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${lng - 0.5},${lat - 0.5},${lng + 0.5},${lat + 0.5}&layer=mapnik&marker=${lat},${lng}`;
-                        return (
-                          <div className="space-y-3">
-                            {(city || country) && (
-                              <div className="text-sm text-[var(--gray-11)]">
-                                {city && <span className="font-medium">{city}</span>}
-                                {city && country && <span>, </span>}
-                                {country && <span>{country}</span>}
-                              </div>
-                            )}
-                            <div className="w-full h-64 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
-                              <iframe
-                                width="100%"
-                                height="100%"
-                                frameBorder="0"
-                                scrolling="no"
-                                marginHeight={0}
-                                marginWidth={0}
-                                src={mapUrl}
-                                style={{ border: 0 }}
-                              ></iframe>
+                    if (mapCoords) {
+                      const { lat, lng } = mapCoords;
+                      const mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${lng - 0.5},${lat - 0.5},${lng + 0.5},${lat + 0.5}&layer=mapnik&marker=${lat},${lng}`;
+                      return (
+                        <div className="space-y-3">
+                          {(city || country) && (
+                            <div className="text-sm text-[var(--gray-11)]">
+                              {city && <span className="font-medium">{city}</span>}
+                              {city && country && <span>, </span>}
+                              {country && <span>{country}</span>}
                             </div>
-                            <div className="text-xs text-[var(--gray-11)]">
-                              Coordinates: {lat.toFixed(4)}, {lng.toFixed(4)}
-                            </div>
+                          )}
+                          <div className="w-full h-64 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+                            <iframe
+                              width="100%"
+                              height="100%"
+                              frameBorder="0"
+                              scrolling="no"
+                              marginHeight={0}
+                              marginWidth={0}
+                              src={mapUrl}
+                              style={{ border: 0 }}
+                            ></iframe>
                           </div>
-                        );
-                      }
+                          <div className="text-xs text-[var(--gray-11)]">
+                            Coordinates: {lat.toFixed(4)}, {lng.toFixed(4)}
+                          </div>
+                        </div>
+                      );
                     }
 
                     // Fallback if no location data
