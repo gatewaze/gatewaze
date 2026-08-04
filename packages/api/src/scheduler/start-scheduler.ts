@@ -78,7 +78,27 @@ async function main(): Promise<void> {
       logger.warn('[modules] module_sources table not available — using config sources only');
     }
   }
-  const modules = await loadModulesWithDbSources(config as never, dbSources as never[], PROJECT_ROOT);
+  let modules = await loadModulesWithDbSources(config as never, dbSources as never[], PROJECT_ROOT);
+  // Per-deployment cron scoping — same contract as the worker's WORKER_MODULES*: a brand whose
+  // module queues are consumed elsewhere (e.g. prod files software-engineer issues but STAGING runs
+  // the agents) excludes that module here so its crons aren't scheduled onto a queue nothing
+  // consumes. Both unset → schedule everything, exactly as before.
+  //   SCHEDULER_MODULES          — comma-separated allowlist of module ids
+  //   SCHEDULER_MODULES_EXCLUDE  — comma-separated denylist, applied after the allowlist
+  const csv = (v: string | undefined) => (v ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  const only = csv(process.env.SCHEDULER_MODULES);
+  const excluded = csv(process.env.SCHEDULER_MODULES_EXCLUDE);
+  if (only.length || excluded.length) {
+    const before = modules.map((m) => m.config.id);
+    modules = modules.filter(
+      (m) => (!only.length || only.includes(m.config.id)) && !excluded.includes(m.config.id),
+    );
+    const after = new Set(modules.map((m) => m.config.id));
+    logger.info(
+      { only, excluded, skipped: before.filter((id) => !after.has(id)) },
+      'scheduler module scope applied',
+    );
+  }
   const moduleCrons: LoadedCron[] = [];
   for (const mod of modules) {
     const cfg = mod.config as GatewazeModule & { crons?: CronDefinition[]; queues?: Array<{ name: string; defaultJobOptions?: unknown; defaultConcurrency?: number }> };
