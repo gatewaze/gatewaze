@@ -13,17 +13,33 @@ import { stripEmojis } from '@/lib/text'
 import { useEventContext } from './EventContext'
 import { RegistrationForm } from './RegistrationForm'
 import { GlowBorder } from '@/components/ui/GlowBorder'
+import { ModuleSlot, hasPortalSlot } from '@/lib/modules'
 
-type AutoRegState = 'checking' | 'registering' | 'done' | 'none'
+type AutoRegState = 'checking' | 'registering' | 'done' | 'none' | 'needs_completion'
 
 interface PersonData {
   email?: string
   first_name?: string
   last_name?: string
+  company?: string
+  job_title?: string
 }
 
-export function RegisterContent() {
+interface RegisterContentProps {
+  enabledModuleIds?: string[]
+  enabledFeatures?: string[]
+}
+
+export function RegisterContent({ enabledModuleIds = [], enabledFeatures = [] }: RegisterContentProps = {}) {
   const { event, brandConfig, useDarkText, primaryColor, userState, eventIdentifier } = useEventContext()
+  // An SSO provider module (LFID) is enabled when it contributes the
+  // sign-in:providers slot. When present, native registration is gated behind
+  // sign-in so the registrant is a known LFID account.
+  const hasSsoProvider = hasPortalSlot(
+    'sign-in:providers',
+    new Set(enabledModuleIds),
+    new Set(enabledFeatures),
+  )
   const { categories } = useConsent()
   const { user, session: authSession, isLoading: authLoading } = useAuth()
   const { prefillProfile } = useEmailPrefill(eventIdentifier)
@@ -83,13 +99,23 @@ export function RegisterContent() {
         const email = person.email || user.email || ''
         const firstName = attrs.first_name || ''
         const lastName = attrs.last_name || ''
+        const company = attrs.company || ''
+        const jobTitle = attrs.job_title || ''
 
-        // Store person data for form pre-fill fallback
-        setPersonData({ email, first_name: firstName, last_name: lastName })
+        // Store person data for form pre-fill / completion.
+        setPersonData({ email, first_name: firstName, last_name: lastName, company, job_title: jobTitle })
 
         if (!email || !firstName || !lastName) {
-          // Missing required fields — fall back to form (pre-filled)
+          // Missing name/email — fall back to the full form (pre-filled).
           setAutoRegState('none')
+          return
+        }
+
+        // We have their identity (e.g. from LFID) but still need company +
+        // job title — show the short "complete your details" step instead of
+        // silently registering with blanks.
+        if (!company.trim() || !jobTitle.trim()) {
+          setAutoRegState('needs_completion')
           return
         }
 
@@ -318,6 +344,60 @@ export function RegisterContent() {
               Check back later or contact the organizer for more information.
             </p>
           </div>
+        </div>
+      </GlowBorder>
+    )
+  }
+
+  // LFID gate — an SSO provider (LFID) is enabled and the visitor isn't signed
+  // in. Require sign-in to register rather than showing the raw email form, and
+  // make it clear they can create an LF ID here if they don't have one.
+  if (event.enable_native_registration && event.enable_registration && hasSsoProvider && !authLoading && !user) {
+    return (
+      <GlowBorder useDarkTheme={useDarkText}>
+        <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8`}>
+          <div className="text-center">
+            <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: `${primaryColor}30` }}>
+              <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: primaryColor }}>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+            </div>
+            <h2 className={`text-xl font-semibold ${panelTheme.textColor} mb-2`}>
+              Sign in to register
+            </h2>
+            <p className={`${panelTheme.textMuted} mb-6`}>
+              Registration for {stripEmojis(event.event_title)} uses your Linux Foundation ID (LF ID). Sign in to continue.
+            </p>
+            <ModuleSlot
+              name="sign-in:providers"
+              enabledModuleIds={enabledModuleIds}
+              enabledFeatures={enabledFeatures}
+              props={{ redirectTo: `/events/${eventIdentifier}/register`, primaryColor, soleProvider: true }}
+            />
+            <p className={`text-sm ${panelTheme.textMuted} mt-4`}>
+              Don&apos;t have an LF ID? You can <strong>create one for free</strong> in the next step — it only takes a moment.
+            </p>
+          </div>
+        </div>
+      </GlowBorder>
+    )
+  }
+
+  // Completion step — a signed-in user (e.g. via LFID) whose profile has a name
+  // but is missing company / job title. Ask only for what's missing.
+  if (autoRegState === 'needs_completion') {
+    return (
+      <GlowBorder useDarkTheme={useDarkText}>
+        <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8`}>
+          <RegistrationForm
+            event={event}
+            brandConfig={brandConfig}
+            onSuccess={handleRegistrationSuccess}
+            trackingSessionId={session?.sessionId}
+            useDarkTheme={useDarkText}
+            initialData={personData || undefined}
+            completionMode
+          />
         </div>
       </GlowBorder>
     )

@@ -14,6 +14,17 @@ import { useAuth } from '@/hooks/useAuth'
 import type { PeopleAttributeConfig } from '@gatewaze/shared/types/people'
 import { DEFAULT_PEOPLE_ATTRIBUTES } from '@gatewaze/shared/types/people'
 
+// Full IANA time-zone list for the timezone dropdown (computed once). Falls
+// back to empty on very old runtimes without Intl.supportedValuesOf — the
+// detected zone is still injected as an option so the field stays usable.
+const IANA_TIMEZONES: string[] = (() => {
+  try {
+    const intl = Intl as unknown as { supportedValuesOf?: (k: string) => string[] }
+    if (typeof intl.supportedValuesOf === 'function') return intl.supportedValuesOf('timeZone')
+  } catch { /* ignore */ }
+  return []
+})()
+
 interface Props {
   event: Event
   brandConfig: BrandConfig
@@ -28,6 +39,12 @@ interface Props {
     company?: string
     job_title?: string
   }
+  /**
+   * "Complete your details" mode for an already signed-in user: hide the
+   * identity fields we already have (email, first/last name) and only ask for
+   * what's missing, with company + job title made required.
+   */
+  completionMode?: boolean
 }
 
 interface RegistrationResponse {
@@ -47,8 +64,11 @@ interface FormErrors {
   [key: string]: string | undefined
 }
 
-export function RegistrationForm({ event, brandConfig, onSuccess, onCancel, trackingSessionId, useDarkTheme = false, initialData }: Props) {
+export function RegistrationForm({ event, brandConfig, onSuccess, onCancel, trackingSessionId, useDarkTheme = false, initialData, completionMode = false }: Props) {
   const primaryColor = brandConfig.primaryColor
+  // In completion mode we hide the fields we already have from the signed-in
+  // user's profile — email and name.
+  const hiddenKeys = completionMode ? new Set(['first_name', 'last_name']) : new Set<string>()
 
   // Theme styles - matching SpeakerSubmissionForm glassmorphic style
   const theme = {
@@ -127,8 +147,26 @@ export function RegistrationForm({ event, brandConfig, onSuccess, onCancel, trac
   }
   const isAttrRequired = (key: string) => {
     const attr = attrConfig.find(a => a.key === key)
-    return attr ? (attr.enabled && attr.required) : false
+    if (!attr || !attr.enabled) return false
+    // Completion mode explicitly asks the signed-in user for company + job title.
+    if (completionMode && (key === 'company' || key === 'job_title')) return true
+    return attr.required
   }
+
+  // Auto-select the visitor's detected time zone once the field is enabled and
+  // still empty (browser zone reflects their actual location; they can change it).
+  useEffect(() => {
+    if (!isAttrEnabled('timezone')) return
+    setFormData(prev => {
+      if (prev.timezone) return prev
+      try {
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+        if (tz) return { ...prev, timezone: tz }
+      } catch { /* ignore */ }
+      return prev
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-run only when config loads
+  }, [attrConfig])
 
   const validateEmail = (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -138,15 +176,19 @@ export function RegistrationForm({ event, brandConfig, onSuccess, onCancel, trac
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {}
 
-    if (!formData.email.trim()) {
-      newErrors.email = 'Email is required'
-    } else if (!validateEmail(formData.email)) {
-      newErrors.email = 'Please enter a valid email address'
+    // In completion mode the email comes from the signed-in profile (hidden).
+    if (!completionMode) {
+      if (!formData.email.trim()) {
+        newErrors.email = 'Email is required'
+      } else if (!validateEmail(formData.email)) {
+        newErrors.email = 'Please enter a valid email address'
+      }
     }
 
-    // Validate fields based on people_attributes config
+    // Validate fields based on people_attributes config (+ completion-mode reqs).
     for (const attr of attrConfig) {
-      if (attr.enabled && attr.required && !formData[attr.key]?.trim()) {
+      if (!attr.enabled || hiddenKeys.has(attr.key)) continue
+      if (isAttrRequired(attr.key) && !formData[attr.key]?.trim()) {
         const label = attr.label || attr.key.replace(/_/g, ' ')
         newErrors[attr.key] = `${label} is required`
       }
@@ -368,7 +410,14 @@ export function RegistrationForm({ event, brandConfig, onSuccess, onCancel, trac
   return (
     <div className={theme.containerBg}>
       <div>
-        <h2 className={`text-2xl sm:text-3xl font-bold ${theme.heading} mb-6`}>Register for this event</h2>
+        <h2 className={`text-2xl sm:text-3xl font-bold ${theme.heading} mb-2`}>
+          {completionMode ? 'Complete your details' : 'Register for this event'}
+        </h2>
+        {completionMode && (
+          <p className={`${theme.subtext} mb-6`}>
+            You&apos;re signed in — we just need a couple more details to register you.
+          </p>
+        )}
 
         {submitError && (
           <div className={`mb-4 p-3 ${theme.errorBg} border ${theme.errorBorder} rounded-lg ${theme.errorText} text-sm`}>
@@ -377,7 +426,8 @@ export function RegistrationForm({ event, brandConfig, onSuccess, onCancel, trac
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Email */}
+          {/* Email — hidden in completion mode (taken from the signed-in profile) */}
+          {!completionMode && (
           <div>
             <label htmlFor="email" className={`block text-base font-medium ${theme.label} mb-2`}>
               Email <span className={theme.requiredClass} style={{ backgroundColor: `${primaryColor}50` }}>required</span>
@@ -400,10 +450,11 @@ export function RegistrationForm({ event, brandConfig, onSuccess, onCancel, trac
             />
             {errors.email && <p className={`mt-1 text-sm ${theme.errorText}`}>{errors.email}</p>}
           </div>
+          )}
 
           {/* Dynamic attribute fields */}
           {(() => {
-            const enabledAttrs = attrConfig.filter(a => a.enabled)
+            const enabledAttrs = attrConfig.filter(a => a.enabled && !hiddenKeys.has(a.key))
             const inputClass = (key: string) => `w-full text-base px-4 py-2.5 border rounded-lg ${theme.inputBg} ${theme.inputText} ${theme.inputPlaceholder} focus:outline-none transition-colors ${
               errors[key] ? theme.errorInputBorder : theme.inputBorder
             }`
@@ -430,10 +481,41 @@ export function RegistrationForm({ event, brandConfig, onSuccess, onCancel, trac
 
               const fieldLabel = (
                 <label htmlFor={attr.key} className={`block text-base font-medium ${theme.label} mb-2`}>
-                  {attr.label} {attr.required && <span className={theme.requiredClass} style={{ backgroundColor: `${primaryColor}50` }}>required</span>}
+                  {attr.label} {isAttrRequired(attr.key) && <span className={theme.requiredClass} style={{ backgroundColor: `${primaryColor}50` }}>required</span>}
                 </label>
               )
               const fieldError = errors[attr.key] && <p className={`mt-1 text-sm ${theme.errorText}`}>{errors[attr.key]}</p>
+
+              // Time zone: a searchable-ish IANA dropdown, pre-selected to the
+              // visitor's detected zone (set by the effect above).
+              if (attr.key === 'timezone') {
+                const current = formData.timezone || ''
+                const base = IANA_TIMEZONES.length > 0 ? IANA_TIMEZONES : (current ? [current] : [])
+                const zones = current && !base.includes(current) ? [current, ...base] : base
+                return (
+                  <div key={attr.key}>
+                    {fieldLabel}
+                    <select
+                      id={attr.key}
+                      name={attr.key}
+                      value={current}
+                      onChange={(e) => {
+                        setFormData(prev => ({ ...prev, timezone: e.target.value }))
+                        if (errors.timezone) setErrors(prev => ({ ...prev, timezone: undefined }))
+                      }}
+                      className={`${inputClass(attr.key)} appearance-none cursor-pointer`}
+                      style={{ borderRadius: '0.5rem' }}
+                      disabled={isSubmitting}
+                    >
+                      <option value="">Select your time zone...</option>
+                      {zones.map(tz => (
+                        <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>
+                      ))}
+                    </select>
+                    {fieldError}
+                  </div>
+                )
+              }
 
               if (attrType === 'text') {
                 return (
