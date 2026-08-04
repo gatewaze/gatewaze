@@ -21,9 +21,8 @@ interface SendGridEmailLog {
   bounce_reason?: string;
   unsubscribed_at?: string;
   spam_reported_at?: string;
-  // The exact rendered email body, when the sender retained it.
-  content_html?: string | null;
   // Which sending path produced this row (only one is set).
+  // campaign_send_id exists only where the campaigns module's migrations ran.
   newsletter_send_id?: string | null;
   broadcast_send_id?: string | null;
   campaign_send_id?: string | null;
@@ -80,8 +79,6 @@ interface UnifiedEmail {
   }[];
   // Sending path label (Newsletter / Broadcast / Bulk / Campaign / Transactional)
   sendType?: string;
-  // Exact rendered HTML that was sent, when retained.
-  contentHtml?: string | null;
 }
 
 interface EmailHistorySectionProps {
@@ -91,11 +88,16 @@ interface EmailHistorySectionProps {
 
 export function EmailHistorySection({ customerEmail, personId }: EmailHistorySectionProps) {
   const hasCIO = useHasModule('customerio');
+  const hasCampaigns = useHasModule('campaigns');
   const [emails, setEmails] = useState<UnifiedEmail[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [activeSource, setActiveSource] = useState<'all' | 'sendgrid' | 'customerio'>('all');
   // Which email's exact content is expanded (lazy-render the iframe only then).
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // Rendered HTML per expanded send-log row, fetched on demand.
+  // undefined = not fetched, null = fetched but not retained.
+  const [contentById, setContentById] = useState<Record<string, string | null>>({});
   const [stats, setStats] = useState({
     total: 0,
     delivered: 0,
@@ -108,10 +110,12 @@ export function EmailHistorySection({ customerEmail, personId }: EmailHistorySec
 
   useEffect(() => {
     fetchEmails();
-  }, [customerEmail, personId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch on identity or module-availability change
+  }, [customerEmail, personId, hasCIO, hasCampaigns]);
 
   const fetchEmails = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       // Fetch from the send log by recipient_email. NOTE: we deliberately do
       // NOT filter by recipient_customer_id — that column is currently never
@@ -122,13 +126,19 @@ export function EmailHistorySection({ customerEmail, personId }: EmailHistorySec
       const emailVariants = Array.from(
         new Set([customerEmail, customerEmail.toLowerCase()].filter(Boolean)),
       );
+      // content_html is deliberately NOT selected here — at up to 300 rows of
+      // full rendered newsletters it can be tens of MB; it's lazy-fetched per
+      // row on expand instead. campaign_send_id only exists where the campaigns
+      // module's migrations ran — selecting it elsewhere is a 42703 error that
+      // used to blank the whole tab.
       const sendgridQuery = supabase
         .from('email_send_log')
         .select(
           'id, recipient_email, from_address, subject, status, created_at, sent_at, ' +
           'delivered_at, first_opened_at, first_clicked_at, bounced_at, bounce_reason, ' +
-          'unsubscribed_at, spam_reported_at, content_html, ' +
-          'newsletter_send_id, broadcast_send_id, campaign_send_id, bulk_send_id',
+          'unsubscribed_at, spam_reported_at, ' +
+          'newsletter_send_id, broadcast_send_id, bulk_send_id' +
+          (hasCampaigns ? ', campaign_send_id' : ''),
         )
         .in('recipient_email', emailVariants)
         .order('sent_at', { ascending: false, nullsFirst: false })
@@ -148,6 +158,11 @@ export function EmailHistorySection({ customerEmail, personId }: EmailHistorySec
         cioQueryPromise,
       ]);
 
+      // Don't swallow query failures — an error here used to render as
+      // "No emails sent to this member yet", which hid a broken query.
+      if (sendgridResult.error) throw sendgridResult.error;
+      if ('error' in cioResult && cioResult.error) throw cioResult.error;
+
       // Process SendGrid emails
       const sendgridEmails: UnifiedEmail[] = ((sendgridResult.data || []) as unknown as SendGridEmailLog[]).map((log) => ({
         id: `sg-${log.id}`,
@@ -164,7 +179,6 @@ export function EmailHistorySection({ customerEmail, personId }: EmailHistorySec
         unsubscribedAt: log.unsubscribed_at,
         spamReportedAt: log.spam_reported_at,
         sendType: deriveSendType(log),
-        contentHtml: log.content_html,
       }));
 
       // Process Customer.io events - group by email_id to create unified email records
@@ -234,9 +248,35 @@ export function EmailHistorySection({ customerEmail, personId }: EmailHistorySec
       setStats({ total, delivered, opened, clicked, bounced, sendgridCount, cioCount });
     } catch (error) {
       console.error('Error fetching emails:', error);
+      setLoadError(error instanceof Error ? error.message : 'Failed to load email history.');
     } finally {
       setLoading(false);
     }
+  };
+
+  // Expand/collapse a row; on first expand of a SendGrid row, fetch its
+  // rendered content_html (kept out of the list query for payload size).
+  const toggleExpanded = (email: UnifiedEmail) => {
+    const opening = expandedId !== email.id;
+    setExpandedId(opening ? email.id : null);
+    if (!opening || email.source !== 'sendgrid' || email.id in contentById) return;
+    const rowId = email.id.replace(/^sg-/, '');
+    supabase
+      .from('email_send_log')
+      .select('content_html')
+      .eq('id', rowId)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('Error fetching email content:', error);
+          setContentById((prev) => ({ ...prev, [email.id]: null }));
+          return;
+        }
+        setContentById((prev) => ({
+          ...prev,
+          [email.id]: (data as { content_html?: string | null } | null)?.content_html ?? null,
+        }));
+      });
   };
 
   const formatDate = (dateString?: string) => {
@@ -281,6 +321,16 @@ export function EmailHistorySection({ customerEmail, personId }: EmailHistorySec
     return (
       <div className="flex items-center justify-center py-12">
         <LoadingSpinner size="medium" />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="text-center py-12">
+        <EnvelopeIcon className="size-12 mx-auto mb-4 text-red-300 dark:text-red-700" />
+        <p className="text-red-600 dark:text-red-400 font-medium">Couldn’t load email history</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{loadError}</p>
       </div>
     );
   }
@@ -376,7 +426,7 @@ export function EmailHistorySection({ customerEmail, personId }: EmailHistorySec
                 {/* Summary row — click to expand */}
                 <button
                   type="button"
-                  onClick={() => setExpandedId(isOpen ? null : email.id)}
+                  onClick={() => toggleExpanded(email)}
                   className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                 >
                   <ChevronRightIcon className={`size-4 shrink-0 text-gray-400 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
@@ -458,13 +508,18 @@ export function EmailHistorySection({ customerEmail, personId }: EmailHistorySec
                       </div>
                     )}
 
-                    {/* The exact rendered email, in a sandboxed iframe (no scripts). */}
+                    {/* The exact rendered email, in a sandboxed iframe (no scripts).
+                        content_html is fetched on expand; undefined = still loading. */}
                     {email.source === 'sendgrid' && (
-                      email.contentHtml ? (
+                      contentById[email.id] === undefined ? (
+                        <div className="flex items-center justify-center py-6">
+                          <LoadingSpinner size="small" />
+                        </div>
+                      ) : contentById[email.id] ? (
                         <iframe
                           title={`Email content: ${email.subject}`}
                           sandbox=""
-                          srcDoc={email.contentHtml}
+                          srcDoc={contentById[email.id] as string}
                           className="w-full h-[32rem] rounded border border-gray-200 dark:border-gray-700 bg-white"
                         />
                       ) : (
