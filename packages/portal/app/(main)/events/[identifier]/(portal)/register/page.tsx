@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { getServerBrand, getBrandConfigById } from '@/config/brand'
 import { getEvent } from '@/lib/portal-data'
 import { RegisterContent } from '@/components/event/RegisterContent'
+import { getEnabledModules } from '@/lib/modules/enabledModules'
 import { stripEmojis } from '@/lib/text'
 import { resolveEventImages } from '@/lib/storage-resolve'
 
@@ -49,6 +50,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 }
 
-export default function RegisterPage() {
-  return <RegisterContent />
+export default async function RegisterPage() {
+  // Pass the enabled modules/features so RegisterContent can detect an SSO
+  // provider (e.g. LFID) and gate registration behind sign-in when present.
+  const modules = await getEnabledModules()
+  return (
+    <RegisterContent
+      enabledModuleIds={[...modules.enabledIds]}
+      enabledFeatures={[...modules.enabledFeatures]}
+    />
+  )
 }
