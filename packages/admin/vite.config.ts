@@ -128,6 +128,16 @@ export default defineConfig(({ command }) => ({
       // find the package under admin/node_modules and stubs it with
       // `export default {}`, breaking `AssistantRuntimeProvider`.
       "@assistant-ui/react",
+      // ProseMirror singleton for module-file tiptap extensions. The
+      // newsletters editor imports `Plugin` from `@tiptap/pm/state`
+      // (paste-time colour stripping, gatewaze-modules#34). @tiptap/pm
+      // must be a direct admin dep AND deduped: without the direct dep
+      // the gatewaze-modules plugin can't find it under admin/
+      // node_modules and stubs it to `{}` in prod builds — the editions
+      // editor then crashes with "Plugin is not a constructor". Dedupe
+      // keeps module files on the same ProseMirror instance as the
+      // admin's own @tiptap/react editor.
+      "@tiptap/pm",
     ],
   },
   server: {
