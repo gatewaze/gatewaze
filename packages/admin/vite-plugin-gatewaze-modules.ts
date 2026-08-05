@@ -480,7 +480,17 @@ export function gatewazeModulesPlugin(): Plugin {
               // itself isn't read anywhere; it just serves as a
               // tree-shake-proof anchor.
               const slotName = `admBoot_${i}`;
-              imports.push(`import * as ${slotName} from '${moduleId}/admin';`);
+              // moduleId may be a bare slug (explicit `modules:` list in
+              // gatewaze.config.ts) rather than a package name. A bare
+              // `<slug>/admin` specifier is unresolvable and gets stubbed —
+              // silently dropping every module's admin-boot side effects.
+              // Normalize to the namespaced form; resolveId matches the slug
+              // against ALL sources regardless of which namespace prefix is
+              // used, so @gatewaze-modules/ works for lf modules too.
+              const bootSpecifier = moduleId.startsWith('@')
+                ? `${moduleId}/admin`
+                : `@gatewaze-modules/${moduleId}/admin`;
+              imports.push(`import * as ${slotName} from '${bootSpecifier}';`);
               adminBootRefs.push(slotName);
               // eslint-disable-next-line no-console
               console.log(`[gatewaze-modules] +admin side-effect import for ${moduleId}`);
