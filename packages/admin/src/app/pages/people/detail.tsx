@@ -25,7 +25,9 @@ import {
 } from '@heroicons/react/24/outline';
 import { toast } from 'sonner';
 import { Card, Button, Input, Badge, Avatar, Table, THead, TBody, Tr, Th, Td, Tabs } from '@/components/ui';
+import { Select } from '@/components/ui/Form/Select';
 import type { Tab } from '@/components/ui/Tabs';
+import { COUNTRY_OPTIONS, getCountryNameByCode, resolveCountryCode } from '@/utils/country';
 import { Spinner } from '@/components/ui/Spinner';
 import { Page } from '@/components/shared/Page';
 import { PeopleService, Person } from '@/utils/peopleService';
@@ -198,7 +200,7 @@ export default function MemberDetailPage() {
     company: '',
     linkedin_url: '',
     city: '',
-    country: '',
+    countryCode: '',
   });
 
   // Determine active tab from URL path or default to 'profile'
@@ -220,7 +222,10 @@ export default function MemberDetailPage() {
         company: person.attributes?.company || '',
         linkedin_url: person.attributes?.linkedin_url || '',
         city: person.attributes?.city || '',
-        country: person.attributes?.country || '',
+        countryCode: resolveCountryCode(
+          person.attributes?.country_code as string | undefined,
+          person.attributes?.country as string | undefined,
+        ),
       });
     }
   }, [person]);
@@ -289,7 +294,10 @@ export default function MemberDetailPage() {
           company: person.attributes?.company || '',
           linkedin_url: person.attributes?.linkedin_url || '',
           city: person.attributes?.city || '',
-          country: person.attributes?.country || '',
+          countryCode: resolveCountryCode(
+            person.attributes?.country_code as string | undefined,
+            person.attributes?.country as string | undefined,
+          ),
         });
       }
     }
@@ -302,7 +310,8 @@ export default function MemberDetailPage() {
     setIsSaving(true);
     try {
       const city = (editFormData.city || '').trim();
-      const country = (editFormData.country || '').trim();
+      const countryCode = editFormData.countryCode || '';
+      const country = getCountryNameByCode(countryCode);
 
       const attributes: Record<string, unknown> = {
         ...person.attributes,
@@ -313,6 +322,7 @@ export default function MemberDetailPage() {
         linkedin_url: editFormData.linkedin_url,
         city,
         country,
+        country_code: countryCode,
       };
 
       // Keep the map coordinates in agreement with the edited city/country.
@@ -1276,10 +1286,11 @@ export default function MemberDetailPage() {
                         value={editFormData.city}
                         onChange={(e) => setEditFormData({ ...editFormData, city: e.target.value })}
                       />
-                      <Input
+                      <Select
                         label="Country"
-                        value={editFormData.country}
-                        onChange={(e) => setEditFormData({ ...editFormData, country: e.target.value })}
+                        data={COUNTRY_OPTIONS}
+                        value={editFormData.countryCode}
+                        onChange={(e) => setEditFormData({ ...editFormData, countryCode: e.target.value })}
                       />
                     </div>
                   </div>
