@@ -1,0 +1,37 @@
+# gitleaks history baseline — reviewed 2026-08-05.
+#
+# These 20 fingerprints are historical findings predating the Secret scan
+# workflow (added 2026-07-29); full-history scans have failed since the first
+# push-triggered run on 2026-07-31. Each was triaged before being baselined:
+#   - Supabase JWTs (10): the anon (public-by-design) key of the retired
+#     scraper project; not a credential leak.
+#   - SECRET_KEY_BASE in docker/.env.* (6): the well-known Supabase self-host
+#     template default, identical across the .example files; placeholder.
+#   - Browserless API key (1) + VAPID private keys (2): real values in files
+#     deleted long ago but visible in public history — flagged for rotation;
+#     tracked outside this repo. Baselining does not un-expose them.
+#   - calendar-secret-2024 (1): weak fallback in code deleted with the old
+#     calendar service; no current code references it.
+#
+# Fingerprints are commit-scoped, so they suppress ONLY these historical
+# occurrences — any new leak, including re-adding the same values, still fails.
+26b4fd02d3298d47b223421ef830b4f1c3dca615:scripts/scrapers/DatabaseIntegrator.js:jwt:15
+26b4fd02d3298d47b223421ef830b4f1c3dca615:scripts/workers/scraper-worker.js:env-fallback-secret:337
+26b4fd02d3298d47b223421ef830b4f1c3dca615:scripts/workers/scraper-worker.js:jwt:337
+45267e01850b275eadb53ee7347f4aa416948edb:scripts/scrapers/DatabaseIntegrator.js:jwt:15
+45267e01850b275eadb53ee7347f4aa416948edb:scripts/workers/scraper-worker.js:env-fallback-secret:337
+45267e01850b275eadb53ee7347f4aa416948edb:scripts/workers/scraper-worker.js:jwt:337
+0e9515cdf090f8c354d3cb1d462d4942143e245d:scripts/browserless-service.js:env-fallback-secret:4
+8e0ea6b1746f0589ddde2d17ddd9001d0bdf8bd2:supabase/functions/email-send-push/README.md:generic-api-key:21
+8e0ea6b1746f0589ddde2d17ddd9001d0bdf8bd2:supabase/functions/email-send-push/README.md:generic-api-key:29
+1c0f23a058a0f2ea400a3ef15e4e95491f6ec7a3:docker/.env.aaif:generic-api-key:76
+1c0f23a058a0f2ea400a3ef15e4e95491f6ec7a3:docker/.env.mlops:generic-api-key:75
+1c0f23a058a0f2ea400a3ef15e4e95491f6ec7a3:docker/.env.techtickets.example:generic-api-key:75
+1c0f23a058a0f2ea400a3ef15e4e95491f6ec7a3:docker/.env.aaif.example:generic-api-key:76
+1c0f23a058a0f2ea400a3ef15e4e95491f6ec7a3:docker/.env.techtickets:generic-api-key:74
+1c0f23a058a0f2ea400a3ef15e4e95491f6ec7a3:docker/.env.mlops.example:generic-api-key:76
+1c0f23a058a0f2ea400a3ef15e4e95491f6ec7a3:packages/admin/src/lib/services/encodedCalendarService.ts:env-fallback-secret:32
+1c0f23a058a0f2ea400a3ef15e4e95491f6ec7a3:scripts/scrapers/scrapers-config.json:jwt:75
+1c0f23a058a0f2ea400a3ef15e4e95491f6ec7a3:scripts/scrapers/DatabaseIntegrator.js:jwt:15
+1c0f23a058a0f2ea400a3ef15e4e95491f6ec7a3:scripts/workers/scraper-worker.js:env-fallback-secret:337
+1c0f23a058a0f2ea400a3ef15e4e95491f6ec7a3:scripts/workers/scraper-worker.js:jwt:337
