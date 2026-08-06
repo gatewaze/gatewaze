@@ -222,6 +222,25 @@ const TOOLS: Tool[] = [
     },
   },
   {
+    name: 'events_registrants',
+    description:
+      "Registrant-level rows — names and emails — across events. Filter by event (q/id), registration source prefix (e.g. source='luma' for Luma-sourced registrations), status, and date range; group_by='person' collapses to distinct people with registration counts. PII surface: requires the events:registrants scope (granted to LF staff or per person by an admin); every call is identity-audited.",
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        q: { type: 'string', description: 'Event title filter (partial match)' },
+        id: { type: 'string', description: 'Event UUID or short event_id' },
+        source: { type: 'string', description: "Registration source prefix, e.g. 'luma'" },
+        status: { type: 'string', description: "Registration status filter (e.g. 'confirmed')" },
+        from: { type: 'string', description: 'Registered after (ISO 8601)' },
+        to: { type: 'string', description: 'Registered before (ISO 8601)' },
+        group_by: { type: 'string', description: "'person' for distinct people with counts" },
+        limit: { type: 'number', description: 'Max rows (default 100, max 500)' },
+        offset: { type: 'number', description: 'Skip N rows' },
+      },
+    },
+  },
+  {
     name: 'events_nearby',
     description:
       "Upcoming PUBLISHED events near a location, soonest first with distance_km. Provide lat/lng, or a city name (falls back to a city-filtered search), or NOTHING — with no location the server geolocates the caller's IP address. Answers 'when is the next event in my area?'.",
@@ -962,6 +981,7 @@ const OAUTH_TOOL_SCOPES: Record<string, string | null> = {
   events_metrics: 'events:metrics',
   events_metrics_summary: 'events:metrics',
   events_registrant_breakdown: 'events:metrics',
+  events_registrants: 'events:registrants',
   resources_collections_list: 'resources:write',
   resources_collection_get: 'resources:write',
   resources_collection_create: 'resources:write',
@@ -1179,6 +1199,16 @@ export function createGatewazeMcpServer(
         case 'events_registrant_breakdown':
           result = await handleEventsRegistrantBreakdown(params, api);
           break;
+        case 'events_registrants': {
+          const queryParams: Record<string, string | number | undefined> = {};
+          for (const k of ['q', 'id', 'source', 'status', 'from', 'to', 'group_by'] as const) {
+            if (params[k]) queryParams[k] = String(params[k]);
+          }
+          if (params.limit) queryParams.limit = Number(params.limit);
+          if (params.offset) queryParams.offset = Number(params.offset);
+          result = await api.get('/events/registrants', queryParams);
+          break;
+        }
         case 'events_nearby':
           result = await handleEventsNearby(params, api, (logMeta as { ip?: string } | undefined)?.ip);
           break;
