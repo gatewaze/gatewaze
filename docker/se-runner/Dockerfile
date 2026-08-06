@@ -42,6 +42,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
+# gitleaks: target repos whose .husky/pre-push hook scans for secrets before a push (e.g.
+# gatewaze/gatewaze) require gitleaks on PATH — without it the hook fails and the agent cannot push its
+# branch, so the run fails at the pr phase with "no PRs to open". Install the pinned release binary,
+# arch-aware (amd64 -> x64, arm64 -> arm64, matching gitleaks' release asset names).
+ARG GITLEAKS_VERSION=8.30.1
+RUN set -eux; \
+    arch="$(dpkg --print-architecture)"; \
+    case "$arch" in amd64) gl_arch=x64 ;; arm64) gl_arch=arm64 ;; *) gl_arch="$arch" ;; esac; \
+    curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_${gl_arch}.tar.gz" -o /tmp/gitleaks.tar.gz; \
+    tar -xzf /tmp/gitleaks.tar.gz -C /usr/local/bin gitleaks; \
+    rm /tmp/gitleaks.tar.gz; \
+    gitleaks version
+
 RUN corepack enable && corepack prepare pnpm@10.31.0 --activate
 
 WORKDIR /app

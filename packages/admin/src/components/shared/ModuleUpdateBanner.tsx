@@ -19,6 +19,15 @@ export function ModuleUpdateBanner() {
   const compatibleUpdates = availableUpdates.filter((u) => u.platformCompatible);
   const blockedUpdates = availableUpdates.filter((u) => !u.platformCompatible);
 
+  // Deployment-level off switch (runtime config / env). Git-source-served instances (staging) track
+  // module code continuously, so "an update is available" is the permanent steady state there and
+  // the banner is pure noise — updates remain visible on the Modules page itself.
+  // NOTE: exact non-optional member access — Vite's static define replacement (and the runtime-config
+  // rewrite) only match this form.
+  if (import.meta.env.VITE_HIDE_MODULE_UPDATE_BANNER === "1") {
+    return null;
+  }
+
   if (!isAdmin || availableUpdates.length === 0 || dismissed) {
     return null;
   }
