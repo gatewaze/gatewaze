@@ -239,7 +239,7 @@ const TOOLS: Tool[] = [
         to: { type: 'string', description: 'Registered before (ISO 8601)' },
         answers_contain: { type: 'string', description: "Free-text match over registration-form answers, e.g. 'engineer'" },
         group_by: { type: 'string', description: "'person' for distinct people with counts" },
-        limit: { type: 'number', description: 'Max rows (default 100, max 500)' },
+        limit: { type: 'number', description: 'Max rows (default 50, max 500 — page with offset for bulk pulls; check pagination.total first)' },
         offset: { type: 'number', description: 'Skip N rows' },
       },
     },
@@ -1015,6 +1015,20 @@ function truncate(s: string, max = 600): string {
   return s.length > max ? `${s.slice(0, max)}…(${s.length})` : s;
 }
 
+/** Recursively remove `_links` keys (HAL navigation the REST API injects). */
+function stripLinks(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stripLinks);
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (k === '_links') continue;
+      out[k] = stripLinks(v);
+    }
+    return out;
+  }
+  return value;
+}
+
 /** Best-effort row count for list-shaped API responses ({data: [...]}) */
 function resultRows(result: unknown): number | undefined {
   if (result && typeof result === 'object' && Array.isArray((result as { data?: unknown }).data)) {
@@ -1208,7 +1222,10 @@ export function createGatewazeMcpServer(
           for (const k of ['q', 'id', 'city', 'event_from', 'event_to', 'source', 'status', 'from', 'to', 'answers_contain', 'group_by'] as const) {
             if (params[k]) queryParams[k] = String(params[k]);
           }
-          if (params.limit) queryParams.limit = Number(params.limit);
+          // Chat-sized default: registrant rows are heavy (answers arrays);
+          // 500-row pages have blown client token caps. Callers page
+          // explicitly for bulk pulls.
+          queryParams.limit = params.limit ? Number(params.limit) : 50;
           if (params.offset) queryParams.offset = Number(params.offset);
           result = await api.get('/events/registrants', queryParams);
           break;
@@ -1341,7 +1358,14 @@ export function createGatewazeMcpServer(
       };
     }
 
-    const text = JSON.stringify(result, null, 2);
+    // Token diet for chat clients: drop the REST layer's HAL _links noise
+    // (agents never follow them; on row-shaped results it's one block per
+    // row), and switch to compact JSON once results outgrow chat size —
+    // pretty-printing turns each row into ~14 lines and has blown clients'
+    // per-result token caps on registrant exports.
+    result = stripLinks(result);
+    const pretty = JSON.stringify(result, null, 2);
+    const text = pretty.length > 8_000 ? JSON.stringify(result) : pretty;
     const rows = resultRows(result);
     emit({
       ...base,
