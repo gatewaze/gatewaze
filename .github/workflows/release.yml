@@ -209,49 +209,49 @@ jobs:
       # this workflow. Consumers verify with:
       #   gh attestation verify oci://ghcr.io/gatewaze/<image>:<tag> --owner gatewaze
       - name: Attest admin provenance
-        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
         with:
           subject-name: ghcr.io/gatewaze/admin
           subject-digest: ${{ steps.img-admin.outputs.digest }}
           push-to-registry: true
 
       - name: Attest portal provenance
-        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
         with:
           subject-name: ghcr.io/gatewaze/portal
           subject-digest: ${{ steps.img-portal.outputs.digest }}
           push-to-registry: true
 
       - name: Attest api provenance
-        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
         with:
           subject-name: ghcr.io/gatewaze/api
           subject-digest: ${{ steps.img-api.outputs.digest }}
           push-to-registry: true
 
       - name: Attest worker provenance
-        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
         with:
           subject-name: ghcr.io/gatewaze/worker
           subject-digest: ${{ steps.img-worker.outputs.digest }}
           push-to-registry: true
 
       - name: Attest mcp-public provenance
-        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
         with:
           subject-name: ghcr.io/gatewaze/mcp-public
           subject-digest: ${{ steps.img-mcp-public.outputs.digest }}
           push-to-registry: true
 
       - name: Attest scheduler provenance
-        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
         with:
           subject-name: ghcr.io/gatewaze/scheduler
           subject-digest: ${{ steps.img-scheduler.outputs.digest }}
           push-to-registry: true
 
       - name: Attest scrapling-fetcher provenance
-        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
         with:
           subject-name: ghcr.io/gatewaze/scrapling-fetcher
           subject-digest: ${{ steps.img-scrapling-fetcher.outputs.digest }}
