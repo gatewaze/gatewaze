@@ -224,16 +224,20 @@ const TOOLS: Tool[] = [
   {
     name: 'events_registrants',
     description:
-      "Registrant-level rows — names and emails — across events. Filter by event (q/id), registration source prefix (e.g. source='luma' for Luma-sourced registrations), status, and date range; group_by='person' collapses to distinct people with registration counts. PII surface: requires the events:registrants scope (granted to LF staff or per person by an admin); every call is identity-audited.",
+      "Registrant-level rows — names, emails, and their registration-form answers — across events. Filter by event (q/id), event city, event date (event_from/event_to), registration source prefix (source='luma'), registration date (from/to), status, and answers_contain (free-text over form answers — 'everyone registered for an event in New York who is an engineer' = city:'New York' + answers_contain:'engineer'). group_by='person' collapses to distinct people with counts. PII surface: requires the events:registrants scope (LF staff / per-person grant); every call is identity-audited.",
     inputSchema: {
       type: 'object' as const,
       properties: {
         q: { type: 'string', description: 'Event title filter (partial match)' },
         id: { type: 'string', description: 'Event UUID or short event_id' },
+        city: { type: 'string', description: 'Event city filter (partial match)' },
+        event_from: { type: 'string', description: 'Event starts after (ISO 8601)' },
+        event_to: { type: 'string', description: 'Event starts before (ISO 8601)' },
         source: { type: 'string', description: "Registration source prefix, e.g. 'luma'" },
         status: { type: 'string', description: "Registration status filter (e.g. 'confirmed')" },
         from: { type: 'string', description: 'Registered after (ISO 8601)' },
         to: { type: 'string', description: 'Registered before (ISO 8601)' },
+        answers_contain: { type: 'string', description: "Free-text match over registration-form answers, e.g. 'engineer'" },
         group_by: { type: 'string', description: "'person' for distinct people with counts" },
         limit: { type: 'number', description: 'Max rows (default 100, max 500)' },
         offset: { type: 'number', description: 'Skip N rows' },
@@ -1201,7 +1205,7 @@ export function createGatewazeMcpServer(
           break;
         case 'events_registrants': {
           const queryParams: Record<string, string | number | undefined> = {};
-          for (const k of ['q', 'id', 'source', 'status', 'from', 'to', 'group_by'] as const) {
+          for (const k of ['q', 'id', 'city', 'event_from', 'event_to', 'source', 'status', 'from', 'to', 'answers_contain', 'group_by'] as const) {
             if (params[k]) queryParams[k] = String(params[k]);
           }
           if (params.limit) queryParams.limit = Number(params.limit);
