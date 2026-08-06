@@ -395,6 +395,9 @@ services:
       # via Vite at build/dev time.
       VITE_SITES_CANVAS_ENGINE_DEFAULT: ${VITE_SITES_CANVAS_ENGINE_DEFAULT:-legacy}
       VITE_NEWSLETTERS_CANVAS_ENGINE_DEFAULT: ${VITE_NEWSLETTERS_CANVAS_ENGINE_DEFAULT:-legacy}
+      # Suppress the global module-update banner (git-source-served deployments where "update
+      # available" is the permanent steady state). Updates stay visible on the Modules page.
+      VITE_HIDE_MODULE_UPDATE_BANNER: ${VITE_HIDE_MODULE_UPDATE_BANNER:-}
       VITE_EMAIL_FROM: ${EMAIL_FROM:-}
       VITE_SENDGRID_FROM_DEFAULT: ${VITE_SENDGRID_FROM_DEFAULT:-}
       VITE_SENDGRID_FROM_EVENTS: ${VITE_SENDGRID_FROM_EVENTS:-}
