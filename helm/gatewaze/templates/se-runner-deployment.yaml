@@ -58,6 +58,12 @@ spec:
               value: ""
             - name: WORKER_BUILTIN_QUEUES
               value: ""
+            {{- with .Values.seRunner.queues }}
+            # Scope which of the SE module's queues THIS runner consumes (e.g. "se-triage" for a
+            # prod triage-only runner that must never execute agent-phase jobs).
+            - name: WORKER_QUEUES
+              value: {{ . | quote }}
+            {{- end }}
           # The runner always runs the modern TS worker, which exposes /ready
           # on the metrics port — probes are safe by default here (unlike the
           # standard worker's legacy-CMD caveat).
