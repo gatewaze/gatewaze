@@ -4,6 +4,10 @@ on:
   push:
     tags:
       - 'v*'
+  # Manual escape hatch: dispatch against a TAG ref (gh workflow run
+  # Release --ref vX.Y.Z) when a tag-push event fails to fire — observed
+  # 2026-08-06 (tags v1.3.111/112 created no runs while other pushes did).
+  workflow_dispatch:
 
 # Least privilege at the top; each job grants only what it needs.
 permissions:
