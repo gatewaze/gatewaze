@@ -99,6 +99,17 @@ export async function loadModuleQueues(modules: LoadedModule[]): Promise<LoadedW
     }
   }
 
+  // Per-deployment QUEUE scoping (SE-runner split follow-up). A process that loads a module can
+  // still consume a SUBSET of its queues — e.g. a prod triage-only runner sets
+  // WORKER_QUEUES=se-triage so it never consumes the agent-phase 'se' queue (prod files issues;
+  // staging runs the agents). Handlers stay registered either way; only Worker startup is scoped.
+  // Both unset → consume every declared queue, exactly as before.
+  const csvQ = (v: string | undefined) => (v ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  const onlyQueues = csvQ(process.env.WORKER_QUEUES);
+  const excludedQueues = csvQ(process.env.WORKER_QUEUES_EXCLUDE);
+  const queueInScope = (name: string) =>
+    (!onlyQueues.length || onlyQueues.includes(name)) && !excludedQueues.includes(name);
+
   // Third pass: start workers. Only now — after every handler is registered.
   const allQueueNames = new Set<string>();
   for (const mod of modules) {
@@ -113,6 +124,10 @@ export async function loadModuleQueues(modules: LoadedModule[]): Promise<LoadedW
     if ((modCfg.workers ?? []).length > 0) allQueueNames.add('jobs');
   }
   for (const name of allQueueNames) {
+    if (!queueInScope(name)) {
+      logger.info({ queue: name }, 'module queue out of worker scope (WORKER_QUEUES/_EXCLUDE) — not consuming');
+      continue;
+    }
     startWorker(name);
   }
 
@@ -120,7 +135,7 @@ export async function loadModuleQueues(modules: LoadedModule[]): Promise<LoadedW
   for (const mod of modules) {
     const modCfg = mod.config as ModuleWithQueues;
     for (const qdef of modCfg.queues ?? []) {
-      if (!qdef.listen) continue;
+      if (!qdef.listen || !queueInScope(qdef.name)) continue;
       try {
         const handle = await startListener({
           channel: qdef.listen.channel,
