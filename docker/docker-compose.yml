@@ -755,6 +755,9 @@ services:
       # (event-speakers promo-kit tracking links).
       PORTAL_HOST: ${PORTAL_HOST:-app.gatewaze.localhost}
       PORTAL_URL: ${PORTAL_URL:-http://${PORTAL_HOST:-app.gatewaze.localhost}}
+      # Git repo for speaker promo-card templates/brands (event-speakers);
+      # unset = templates vendored with the module.
+      SPEAKER_CARDS_TEMPLATE_REPO: ${SPEAKER_CARDS_TEMPLATE_REPO:-}
       # Goose CLI debug logging. Inherited by `goose run` child processes
       # via process.env in run-recipe-goose.ts. Off by default; set
       # `RUST_LOG=goose=debug` in .env to diagnose subagent turn-limit
