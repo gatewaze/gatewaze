@@ -549,6 +549,7 @@ export function ConfirmedSpeakerTasks({
             <div className="mt-3">
               <SpeakerPromoKit
                 editToken={editToken}
+                editHref={`/events/${eventId}/talks/edit?token=${encodeURIComponent(editToken)}`}
                 primaryColor={primaryColor}
                 theme={theme}
                 onShared={handleKitShared}

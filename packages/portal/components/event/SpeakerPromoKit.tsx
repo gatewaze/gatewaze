@@ -33,6 +33,8 @@ interface PromoKit {
 
 interface Props {
   editToken: string
+  /** Link to the speaker's own edit form — photo/name/role changes rebuild the kit. */
+  editHref?: string
   primaryColor: string
   theme: {
     panelText: string
@@ -51,7 +53,7 @@ const CARD_LABELS: Record<string, string> = {
 const POLL_INTERVAL_MS = 10_000
 const MAX_POLLS = 60
 
-export function SpeakerPromoKit({ editToken, primaryColor, theme, onShared }: Props) {
+export function SpeakerPromoKit({ editToken, editHref, primaryColor, theme, onShared }: Props) {
   const [kit, setKit] = useState<PromoKit | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
@@ -266,6 +268,18 @@ export function SpeakerPromoKit({ editToken, primaryColor, theme, onShared }: Pr
             </PortalButton>
           </a>
         </div>
+      )}
+
+      {/* Your photo and details are printed onto the cards and the deck, so
+          make the rebuild path obvious rather than leaving a stale kit. */}
+      {editHref && (
+        <p className={`text-xs ${theme.panelTextMuted} pt-1`}>
+          Changed your photo, name, role or company?{' '}
+          <a href={editHref} className="underline">
+            Update your details
+          </a>{' '}
+          and we&apos;ll rebuild your kit automatically — it takes a couple of minutes.
+        </p>
       )}
     </div>
   )
