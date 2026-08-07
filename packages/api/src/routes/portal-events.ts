@@ -498,10 +498,13 @@ portalEventsRouter.get('/:identifier/talks', async (req, res) => {
     if (!event) return res.status(404).json({ error: 'Event not found' });
     const eventId = event.event_id as string;
 
+    // events_talks_with_speakers keys on event_uuid — it has no event_id
+    // column, so filtering by the short id 42703'd and this endpoint
+    // returned 500 for every event.
     const { data, error } = await supabase
       .from('events_talks_with_speakers')
       .select('*')
-      .eq('event_id', eventId);
+      .eq('event_uuid', event.id as string);
     if (error) throw error;
 
     setCacheHeaders(res, [`event:${eventId}:talks`]);
