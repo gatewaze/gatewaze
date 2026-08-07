@@ -7,6 +7,10 @@ dist/
 .next/
 .turbo/
 out/
+# Incremental build cache. When this is committed, `tsc -b` reads it on a fresh
+# clone, decides the project is already up to date, and emits no dist/. Subpath
+# imports such as '@gatewaze/shared/modules' then fail with ERR_MODULE_NOT_FOUND.
+*.tsbuildinfo
 
 # Environment
 .env
