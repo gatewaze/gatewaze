@@ -536,6 +536,10 @@ seRunner:
   image:
     tag: ""
 
+  # -- Optional comma-separated subset of the module's queues to consume (unset = all).
+  # "se-triage" = triage-only runner (never executes agent-phase jobs).
+  queues: ""
+
   securityContext: {}
   metricsPort: 9090
 

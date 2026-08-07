@@ -158,6 +158,38 @@ function compactSelect(s: string): string {
   return s.replace(/\s+/g, '');
 }
 
+// The speaker/talk views carry fields that must never leave an
+// unauthenticated endpoint:
+//   - edit_token / confirmation_token — capability tokens that authenticate
+//     the speaker checklist and the slot-confirmation link
+//   - email — the speaker's address
+//   - presentation_url / presentation_storage_path — pointers to the
+//     speaker's deck. The `media` bucket is public-read, so the storage key
+//     IS the only thing keeping an unreleased deck private; handing it out
+//     is equivalent to publishing the file. This endpoint has no status
+//     filter either, so it covers pending and declined talks too.
+//
+// Both routes below select('*') from those views and return the rows
+// verbatim. This is a denylist over an additive view, which is fragile —
+// adding a column to events_talks_with_speakers exposes it here by default.
+// Anything sensitive added to those views MUST be added here as well.
+const SPEAKER_PRIVATE_FIELDS = [
+  'edit_token',
+  'confirmation_token',
+  'email',
+  'presentation_url',
+  'presentation_storage_path',
+] as const;
+
+function stripPrivateSpeakerFields<T>(rows: T[] | null | undefined): T[] {
+  return (rows ?? []).map((row) => {
+    if (!row || typeof row !== 'object') return row;
+    const copy = { ...(row as Record<string, unknown>) };
+    for (const field of SPEAKER_PRIVATE_FIELDS) delete copy[field];
+    return copy as T;
+  });
+}
+
 // Slug-aware identifier match. Mirrors getEvent() in the portal layout
 // so routes accept any of: full slug, raw event_id, slug-with-trailing-id.
 async function fetchEventByIdentifier(
@@ -436,7 +468,7 @@ portalEventsRouter.get('/:identifier/speakers', async (req, res) => {
     if (error) throw error;
 
     setCacheHeaders(res, [`event:${eventId}:speakers`]);
-    res.json({ data: data ?? [] });
+    res.json({ data: stripPrivateSpeakerFields(data) });
   } catch (err) {
     logger.error({ err, identifier: req.params.identifier }, 'portal-events: failed to fetch speakers');
     res.status(500).json({ error: 'Failed to fetch speakers' });
@@ -481,14 +513,17 @@ portalEventsRouter.get('/:identifier/talks', async (req, res) => {
     if (!event) return res.status(404).json({ error: 'Event not found' });
     const eventId = event.event_id as string;
 
+    // events_talks_with_speakers keys on event_uuid — it has no event_id
+    // column, so filtering by the short id 42703'd and this endpoint
+    // returned 500 for every event.
     const { data, error } = await supabase
       .from('events_talks_with_speakers')
       .select('*')
-      .eq('event_id', eventId);
+      .eq('event_uuid', event.id as string);
     if (error) throw error;
 
     setCacheHeaders(res, [`event:${eventId}:talks`]);
-    res.json({ data: data ?? [] });
+    res.json({ data: stripPrivateSpeakerFields(data) });
   } catch (err) {
     logger.error({ err, identifier: req.params.identifier }, 'portal-events: failed to fetch talks');
     res.status(500).json({ error: 'Failed to fetch talks' });

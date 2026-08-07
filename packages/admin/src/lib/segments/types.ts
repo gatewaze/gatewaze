@@ -268,6 +268,9 @@ export interface OperatorOption {
 // Predefined field options for the UI
 export const ATTRIBUTE_FIELDS: AttributeFieldOption[] = [
   { value: 'email', label: 'Email', type: 'string' },
+  // Virtual: first + last (fallback full_name attribute), resolved by the
+  // SQL engine — "Full Name contains" works like any other condition.
+  { value: 'full_name', label: 'Full Name', type: 'string' },
   { value: 'attributes.first_name', label: 'First Name', type: 'string' },
   { value: 'attributes.last_name', label: 'Last Name', type: 'string' },
   { value: 'attributes.company', label: 'Company', type: 'string' },

@@ -52,7 +52,7 @@ export const templateVariableScopes: TemplateVariableScope[] = [
       { field: 'talk_synopsis', label: 'Talk Synopsis', description: 'Synopsis of the speaker\'s talk', example: 'In this talk, we will explore...' },
       { field: 'company', label: 'Company', description: 'Speaker\'s company name', example: 'Tech Corp' },
       { field: 'job_title', label: 'Job Title', description: 'Speaker\'s job title', example: 'Senior Engineer' },
-      { field: 'confirmation_link', label: 'Confirmation Link', description: 'Link for speaker to confirm attendance. Use {{speaker.confirmation_link}} for current event, or {{speaker.confirmation_link:EVENT_ID}} to confirm for a different event (e.g., offering rejected speakers a slot at another event)', example: 'https://app.gatewaze.io/speaker-confirm?token=abc123' },
+      { field: 'confirmation_link', label: 'Confirmation Link', description: 'Link for speaker to confirm attendance. Use {{speaker.confirmation_link}} for current event, or {{speaker.confirmation_link:EVENT_ID}} to confirm for a different event (e.g., offering rejected speakers a slot at another event)', example: 'https://<project>.supabase.co/functions/v1/events-speaker-confirm?token=abc123' },
       { field: 'edit_link', label: 'Edit Link', description: 'Relative link to the speaker dashboard where confirmed speakers can view their status, upload presentations, and edit their talk. Prepend your portal domain when using in emails.', example: '/events/abc123/talks/success/xyz789' },
     ],
   },
@@ -357,7 +357,7 @@ export function replaceVariables(template: string, context: TemplateContext): st
       const speakerData = scopeData as SpeakerContext;
       if (speakerData._confirmation_token && speakerData._confirmation_base_url) {
         // Generate confirmation link for the specified event ID
-        value = `${speakerData._confirmation_base_url}/functions/v1/speaker-confirm?token=${speakerData._confirmation_token}&event_id=${variable.param}`;
+        value = `${speakerData._confirmation_base_url}/functions/v1/events-speaker-confirm?token=${speakerData._confirmation_token}&event_id=${variable.param}`;
       }
     } else {
       value = scopeData ? (scopeData as Record<string, string | undefined>)[variable.field] : undefined;
