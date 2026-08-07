@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
 /**
- * Speaker promo kit — portal read endpoint.
+ * Speaker speaker kit — portal read endpoint.
  *
  * Authenticated by the talk's edit_token (the same capability token as the
  * rest of the confirmed-speaker checklist). Generation itself happens in the
@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Talk not found or invalid token' }, { status: 404 })
     }
     if (talk.status !== 'confirmed') {
-      return NextResponse.json({ success: false, error: 'Promo kits are available once your talk is confirmed' }, { status: 403 })
+      return NextResponse.json({ success: false, error: 'Speaker kits are available once your talk is confirmed' }, { status: 403 })
     }
 
     const { data: kit } = await supabase
@@ -107,7 +107,7 @@ export async function GET(req: NextRequest) {
       generated_at: kit.generated_at,
     })
   } catch (error) {
-    console.error('Speaker promo kit error:', error)
+    console.error('Speaker speaker kit error:', error)
     return NextResponse.json({ success: false, error: 'Unknown error' }, { status: 500 })
   }
 }
