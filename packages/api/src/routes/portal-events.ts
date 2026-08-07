@@ -159,12 +159,27 @@ function compactSelect(s: string): string {
 }
 
 // The speaker/talk views carry fields that must never leave an
-// unauthenticated endpoint: the capability tokens that authenticate the
-// speaker checklist (edit_token) and the slot-confirmation link
-// (confirmation_token), plus the speaker's email address. Both routes below
-// select('*') from those views and return the rows verbatim, so filter here
-// rather than relying on every future view column being safe.
-const SPEAKER_PRIVATE_FIELDS = ['edit_token', 'confirmation_token', 'email'] as const;
+// unauthenticated endpoint:
+//   - edit_token / confirmation_token — capability tokens that authenticate
+//     the speaker checklist and the slot-confirmation link
+//   - email — the speaker's address
+//   - presentation_url / presentation_storage_path — pointers to the
+//     speaker's deck. The `media` bucket is public-read, so the storage key
+//     IS the only thing keeping an unreleased deck private; handing it out
+//     is equivalent to publishing the file. This endpoint has no status
+//     filter either, so it covers pending and declined talks too.
+//
+// Both routes below select('*') from those views and return the rows
+// verbatim. This is a denylist over an additive view, which is fragile —
+// adding a column to events_talks_with_speakers exposes it here by default.
+// Anything sensitive added to those views MUST be added here as well.
+const SPEAKER_PRIVATE_FIELDS = [
+  'edit_token',
+  'confirmation_token',
+  'email',
+  'presentation_url',
+  'presentation_storage_path',
+] as const;
 
 function stripPrivateSpeakerFields<T>(rows: T[] | null | undefined): T[] {
   return (rows ?? []).map((row) => {
