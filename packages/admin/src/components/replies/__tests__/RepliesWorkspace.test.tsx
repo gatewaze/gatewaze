@@ -56,14 +56,20 @@ describe('RepliesWorkspace', () => {
   });
 
   it('rolls back the optimistic star toggle when the write is rejected', async () => {
-    updateMock.mockResolvedValue({ error: { message: 'permission denied for table newsletter_replies' } });
+    // Hold the write pending so the optimistic state is observable before it
+    // resolves — mockResolvedValue settles immediately, which lets the
+    // rollback run before the assertion below even sees the optimistic state.
+    let resolveUpdate: (value: { error: { message: string } | null }) => void;
+    updateMock.mockReturnValue(new Promise((resolve) => { resolveUpdate = resolve; }));
     renderWorkspace([makeReply()]);
 
     const starButton = screen.getByTitle('Star');
     await userEvent.click(starButton);
 
-    // Optimistic update applies immediately.
+    // Optimistic update applies immediately, before the write resolves.
     expect(screen.queryByTitle('Unstar')).not.toBeNull();
+
+    resolveUpdate!({ error: { message: 'permission denied for table newsletter_replies' } });
 
     // Once the rejected write resolves, the override is rolled back.
     await waitFor(() => expect(screen.queryByTitle('Star')).not.toBeNull());
