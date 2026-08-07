@@ -2,8 +2,8 @@ import { MapContainer, TileLayer, CircleMarker } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 
 /**
- * A non-interactive Leaflet map centered on a single point, used as the profile
- * hero background.
+ * A Leaflet map centered on a single point. Used both as the profile hero
+ * background (non-interactive) and the Location card map (interactive).
  *
  * This replaces an <iframe> embed of openstreetmap.org/export/embed.html. That
  * iframe renders on localhost but is BLOCKED in production: the admin app is
@@ -21,27 +21,36 @@ export function StaticLocationMap({
   lng,
   zoom = 11,
   className,
+  interactive = false,
+  zoomControl,
+  attributionControl,
 }: {
   lat: number;
   lng: number;
   zoom?: number;
   className?: string;
+  /** Enables dragging/scroll-zoom/etc. Defaults to false (hero-safe, static background). */
+  interactive?: boolean;
+  /** Defaults to `interactive` when omitted. */
+  zoomControl?: boolean;
+  /** Defaults to `interactive` when omitted. */
+  attributionControl?: boolean;
 }) {
   return (
     <MapContainer
       center={[lat, lng]}
       zoom={zoom}
       className={className}
-      zoomControl={false}
-      attributionControl={false}
-      dragging={false}
-      scrollWheelZoom={false}
-      doubleClickZoom={false}
-      touchZoom={false}
-      keyboard={false}
-      boxZoom={false}
-      // Non-interactive background; pointer handling is owned by the parent.
-      style={{ pointerEvents: 'none' }}
+      zoomControl={zoomControl ?? interactive}
+      attributionControl={attributionControl ?? interactive}
+      dragging={interactive}
+      scrollWheelZoom={interactive}
+      doubleClickZoom={interactive}
+      touchZoom={interactive}
+      keyboard={interactive}
+      boxZoom={interactive}
+      // Non-interactive maps are a static background; pointer handling is owned by the parent.
+      style={interactive ? undefined : { pointerEvents: 'none' }}
     >
       <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
       <CircleMarker
