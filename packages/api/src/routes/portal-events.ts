@@ -158,6 +158,23 @@ function compactSelect(s: string): string {
   return s.replace(/\s+/g, '');
 }
 
+// The speaker/talk views carry fields that must never leave an
+// unauthenticated endpoint: the capability tokens that authenticate the
+// speaker checklist (edit_token) and the slot-confirmation link
+// (confirmation_token), plus the speaker's email address. Both routes below
+// select('*') from those views and return the rows verbatim, so filter here
+// rather than relying on every future view column being safe.
+const SPEAKER_PRIVATE_FIELDS = ['edit_token', 'confirmation_token', 'email'] as const;
+
+function stripPrivateSpeakerFields<T>(rows: T[] | null | undefined): T[] {
+  return (rows ?? []).map((row) => {
+    if (!row || typeof row !== 'object') return row;
+    const copy = { ...(row as Record<string, unknown>) };
+    for (const field of SPEAKER_PRIVATE_FIELDS) delete copy[field];
+    return copy as T;
+  });
+}
+
 // Slug-aware identifier match. Mirrors getEvent() in the portal layout
 // so routes accept any of: full slug, raw event_id, slug-with-trailing-id.
 async function fetchEventByIdentifier(
@@ -436,7 +453,7 @@ portalEventsRouter.get('/:identifier/speakers', async (req, res) => {
     if (error) throw error;
 
     setCacheHeaders(res, [`event:${eventId}:speakers`]);
-    res.json({ data: data ?? [] });
+    res.json({ data: stripPrivateSpeakerFields(data) });
   } catch (err) {
     logger.error({ err, identifier: req.params.identifier }, 'portal-events: failed to fetch speakers');
     res.status(500).json({ error: 'Failed to fetch speakers' });
@@ -488,7 +505,7 @@ portalEventsRouter.get('/:identifier/talks', async (req, res) => {
     if (error) throw error;
 
     setCacheHeaders(res, [`event:${eventId}:talks`]);
-    res.json({ data: data ?? [] });
+    res.json({ data: stripPrivateSpeakerFields(data) });
   } catch (err) {
     logger.error({ err, identifier: req.params.identifier }, 'portal-events: failed to fetch talks');
     res.status(500).json({ error: 'Failed to fetch talks' });
