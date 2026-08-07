@@ -26,8 +26,9 @@ COPY packages/shared/package.json packages/shared/
 RUN --mount=type=cache,id=pnpm-se-runner,target=/root/.local/share/pnpm/store \
     pnpm install --no-frozen-lockfile
 COPY packages/shared/ packages/shared/
-# The repo tracks tsconfig.tsbuildinfo; a stale one copied into the context makes `tsc -b` a no-op
-# (no dist emitted → the runtime COPY fails). Force a clean emit.
+# tsconfig.tsbuildinfo is gitignored, but an untracked local copy can still reach the
+# build context, and a stale one makes `tsc -b` a no-op (no dist emitted, so the runtime
+# COPY fails). Drop it first so the emit always happens.
 RUN rm -f packages/shared/tsconfig.tsbuildinfo && pnpm --filter @gatewaze/shared build && test -d packages/shared/dist
 
 # ---- Stage 2: runtime ----
