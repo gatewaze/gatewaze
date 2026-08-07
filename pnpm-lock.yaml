@@ -1338,8 +1338,8 @@ importers:
         specifier: ^1.17.1
         version: 1.17.1
       pdfjs-dist:
-        specifier: ^5.6.205
-        version: 5.6.205
+        specifier: ^6.2.108
+        version: 6.2.108
       qr-code-styling:
         specifier: ^1.9.2
         version: 1.9.2
