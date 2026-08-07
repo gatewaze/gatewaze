@@ -6,7 +6,7 @@ import { PortalButton } from '@/components/ui/PortalButton'
 
 /**
  * The expanded "Promote your talk" panel: a confirmed speaker's generated
- * promo kit — share images, ready-to-post text variants with copy buttons,
+ * speaker kit — share images, ready-to-post text variants with copy buttons,
  * their personal tracking link, and a download-everything zip.
  *
  * Data comes from /api/speaker-promo-kit (edit_token capability auth); the
@@ -81,7 +81,7 @@ export function SpeakerPromoKit({ editToken, editHref, primaryColor, theme, onSh
         const data = await res.json()
         if (cancelled) return
         if (!res.ok || !data.success) {
-          setError(data.error || 'Failed to load your promo kit')
+          setError(data.error || 'Failed to load your speaker kit')
           return
         }
         setError(null)
@@ -91,7 +91,7 @@ export function SpeakerPromoKit({ editToken, editHref, primaryColor, theme, onSh
           timer = setTimeout(fetchKit, POLL_INTERVAL_MS)
         }
       } catch {
-        if (!cancelled) setError('Failed to load your promo kit')
+        if (!cancelled) setError('Failed to load your speaker kit')
       }
     }
 
@@ -134,7 +134,7 @@ export function SpeakerPromoKit({ editToken, editHref, primaryColor, theme, onSh
           style={{ '--primary-color': '#fff', '--secondary-color': primaryColor } as React.CSSProperties}
         />
         <span className={`text-sm ${theme.panelTextMuted}`}>
-          We&apos;re preparing your promo kit — share images, ready-to-post text, and your personal link.
+          We&apos;re preparing your speaker kit — share images, ready-to-post text, and your personal link.
           This can take a couple of minutes.
         </span>
       </div>
@@ -144,7 +144,7 @@ export function SpeakerPromoKit({ editToken, editHref, primaryColor, theme, onSh
   if (kit.status === 'failed') {
     return (
       <p className="text-sm text-red-300">
-        We couldn&apos;t generate your promo kit. The organizers have been notified — please check back later.
+        We couldn&apos;t generate your speaker kit. The organizers have been notified — please check back later.
       </p>
     )
   }
@@ -262,9 +262,9 @@ export function SpeakerPromoKit({ editToken, editHref, primaryColor, theme, onSh
       {/* Download everything */}
       {kit.zip_storage_path && (
         <div>
-          <a href={publicUrl(kit.zip_storage_path, kit.generated_at)} download onClick={markShared}>
+          <a href={publicUrl(kit.zip_storage_path, kit.generated_at)} download="speaker-kit.zip" onClick={markShared}>
             <PortalButton variant="primary" primaryColor={primaryColor} size="small">
-              Download promo kit (.zip)
+              Download speaker kit (.zip)
             </PortalButton>
           </a>
         </div>
