@@ -253,7 +253,7 @@ function useNavItems(event: Event, basePath: string, speakerCount: number, spons
       //     route (with "My talk" label once the user has submitted).
       label: externalSpeakLink
         ? 'Speak'
-        : (userState?.hasTalkSubmission ? 'My talk' : 'Submit a talk'),
+        : (userState?.hasTalkSubmission ? 'Your talk' : 'Submit a talk'),
       href: externalSpeakLink ?? `${basePath}/talks`,
       external: !!externalSpeakLink,
       show: !!event.source_details?.action_links?.speak
