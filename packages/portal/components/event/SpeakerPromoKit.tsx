@@ -28,6 +28,7 @@ interface PromoKit {
   cards?: Array<{ format: string; storage_path: string; width: number; height: number }>
   zip_storage_path?: string | null
   deck_storage_path?: string | null
+  generated_at?: string | null
 }
 
 interface Props {
@@ -57,10 +58,16 @@ export function SpeakerPromoKit({ editToken, primaryColor, theme, onShared }: Pr
   const pollCount = useRef(0)
   const sharedRef = useRef(false)
 
-  const publicUrl = useCallback((path: string) => {
-    const supabase = getSupabaseClient()
-    return supabase.storage.from('media').getPublicUrl(path).data.publicUrl
-  }, [])
+  const publicUrl = useCallback(
+    (path: string, version?: string | null) => {
+      const supabase = getSupabaseClient()
+      const base = supabase.storage.from('media').getPublicUrl(path).data.publicUrl
+      // Kit artifacts are re-uploaded at stable paths on regenerate —
+      // version-bust so browsers never serve a stale kit.
+      return version ? `${base}?v=${encodeURIComponent(version)}` : base
+    },
+    [],
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -151,7 +158,7 @@ export function SpeakerPromoKit({ editToken, primaryColor, theme, onShared }: Pr
           <p className={`text-sm font-medium ${theme.panelText} mb-2`}>Share images</p>
           <div className="flex flex-wrap gap-3">
             {cards.map((card) => {
-              const url = publicUrl(card.storage_path)
+              const url = publicUrl(card.storage_path, kit.generated_at)
               return (
                 <div key={card.format} className="w-28">
                   <a href={url} target="_blank" rel="noopener noreferrer" onClick={markShared}>
@@ -242,7 +249,7 @@ export function SpeakerPromoKit({ editToken, primaryColor, theme, onShared }: Pr
             Your slide deck starter with a branded title slide — build your talk in it. Opens in
             PowerPoint, or upload it to Google Drive and open with Google Slides.
           </p>
-          <a href={publicUrl(kit.deck_storage_path)} download onClick={markShared}>
+          <a href={publicUrl(kit.deck_storage_path, kit.generated_at)} download onClick={markShared}>
             <PortalButton variant="secondary" size="small">
               Download slide template (.pptx)
             </PortalButton>
@@ -253,7 +260,7 @@ export function SpeakerPromoKit({ editToken, primaryColor, theme, onShared }: Pr
       {/* Download everything */}
       {kit.zip_storage_path && (
         <div>
-          <a href={publicUrl(kit.zip_storage_path)} download onClick={markShared}>
+          <a href={publicUrl(kit.zip_storage_path, kit.generated_at)} download onClick={markShared}>
             <PortalButton variant="primary" primaryColor={primaryColor} size="small">
               Download promo kit (.zip)
             </PortalButton>
