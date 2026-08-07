@@ -5,6 +5,7 @@ import { getClientBrandConfig, isLightColor } from '@/config/brand'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { encodeEmail } from '@/lib/emailEncoding'
 import { PortalButton } from '@/components/ui/PortalButton'
+import { SpeakerPromoKit } from '@/components/event/SpeakerPromoKit'
 import type { Event } from '@/types/event'
 
 interface Props {
@@ -51,11 +52,8 @@ export function ConfirmedSpeakerTasks({
   const [uploadError, setUploadError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Promote your talk state
+  // Promote your talk state (the expanded panel is the generated promo kit)
   const [showPromoteSection, setShowPromoteSection] = useState(false)
-  const [trackingLink, setTrackingLink] = useState<string | null>(null)
-  const [isGeneratingLink, setIsGeneratingLink] = useState(false)
-  const [promoteLinkError, setPromoteLinkError] = useState<string | null>(null)
   const [linkCopied, setLinkCopied] = useState(!!trackingLinkCopiedAt)
 
   const config = getClientBrandConfig()
@@ -208,71 +206,28 @@ export function ConfirmedSpeakerTasks({
     }
   }
 
-  // Generate tracking link
-  const handleGenerateTrackingLink = useCallback(async () => {
-    if (!editToken || trackingLink) return
-
-    setIsGeneratingLink(true)
-    setPromoteLinkError(null)
-
+  // First share action inside the promo kit (copying a post/link, opening or
+  // downloading an asset) marks the task complete — same completion signal
+  // (tracking_link_copied_at) the old copy-the-link flow persisted.
+  const handleKitShared = useCallback(async () => {
+    setLinkCopied(true)
+    if (trackingLinkCopiedAt || !editToken) return
     try {
-      const response = await fetch('/api/speaker-tracking-link', {
-        method: 'POST',
+      await fetch(`${config.supabaseUrl}/functions/v1/events-speaker-submissions`, {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
+          apikey: config.supabaseAnonKey,
         },
-        body: JSON.stringify({ edit_token: editToken }),
+        body: JSON.stringify({
+          edit_token: editToken,
+          tracking_link_copied_at: new Date().toISOString(),
+        }),
       })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to generate tracking link')
-      }
-
-      const data = await response.json()
-      if (data.success && data.short_url) {
-        setTrackingLink(data.short_url)
-      } else {
-        throw new Error(data.error || 'Failed to generate tracking link')
-      }
-    } catch (error) {
-      console.error('Error generating tracking link:', error)
-      setPromoteLinkError((error instanceof Error ? error.message : String(error)) || 'Failed to generate tracking link')
-    } finally {
-      setIsGeneratingLink(false)
+    } catch (err) {
+      console.error('Error persisting promo kit share:', err)
     }
-  }, [editToken, trackingLink])
-
-  // Copy tracking link to clipboard and persist to database
-  const handleCopyLink = useCallback(async () => {
-    if (!trackingLink) return
-
-    try {
-      await navigator.clipboard.writeText(trackingLink)
-      setLinkCopied(true)
-
-      // Persist the copy event to the database (only if not already persisted)
-      if (!trackingLinkCopiedAt && editToken) {
-        try {
-          await fetch(`${config.supabaseUrl}/functions/v1/events-speaker-submissions`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              apikey: config.supabaseAnonKey,
-            },
-            body: JSON.stringify({
-              edit_token: editToken,
-              tracking_link_copied_at: new Date().toISOString(),
-            }),
-          })
-        } catch (err) {
-          console.error('Error persisting tracking link copy:', err)
-        }
-      }
-    } catch (error) {
-      console.error('Failed to copy:', error)
-    }
-  }, [trackingLink, trackingLinkCopiedAt, editToken, config.supabaseUrl, config.supabaseAnonKey])
+  }, [trackingLinkCopiedAt, editToken, config.supabaseUrl, config.supabaseAnonKey])
 
   // Completed check icon
   const CheckIcon = () => (
@@ -552,22 +507,15 @@ export function ConfirmedSpeakerTasks({
         </div>
       </div>
 
-      {/* Task 4: Promote your talk */}
+      {/* Task 4: Promote your talk — the generated promo kit (images, post
+          text, tracking link, zip). Stays expandable after completion so
+          speakers can come back for more assets. */}
       <div className="flex items-start gap-3">
         {linkCopied ? (
           <CompletedCircle />
         ) : (
           <button
-            onClick={() => {
-              if (!showPromoteSection) {
-                setShowPromoteSection(true)
-                if (!trackingLink) {
-                  handleGenerateTrackingLink()
-                }
-              } else {
-                setShowPromoteSection(false)
-              }
-            }}
+            onClick={() => setShowPromoteSection(!showPromoteSection)}
             className={`cursor-pointer flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center mt-0.5 transition-colors ${
               showPromoteSection ? 'border-white/50 bg-white/20' : 'border-white/30 hover:border-white/50'
             }`}
@@ -586,70 +534,25 @@ export function ConfirmedSpeakerTasks({
         )}
         <div className="flex-1">
           <button
-            onClick={() => {
-              if (!linkCopied) {
-                setShowPromoteSection(!showPromoteSection)
-                if (!showPromoteSection && !trackingLink) {
-                  handleGenerateTrackingLink()
-                }
-              }
-            }}
-            className={`cursor-pointer font-medium ${theme.panelText} text-left hover:opacity-80 transition-opacity ${linkCopied ? 'cursor-default' : ''}`}
-            disabled={linkCopied}
+            onClick={() => setShowPromoteSection(!showPromoteSection)}
+            className={`cursor-pointer font-medium ${theme.panelText} text-left hover:opacity-80 transition-opacity`}
           >
             Promote your talk
           </button>
           <p className={`text-sm ${theme.panelTextMuted}`}>
             {linkCopied
-              ? 'Tracking link shared'
-              : 'Share your unique tracking link to drive registrations'}
+              ? 'Promo kit shared — reopen it any time for more assets'
+              : 'Your promo kit: share images, ready-to-post text, and your personal tracking link'}
           </p>
 
-          {showPromoteSection && (
+          {showPromoteSection && editToken && (
             <div className="mt-3">
-              {isGeneratingLink ? (
-                <div className="flex items-center gap-2">
-                  <div
-                    className="loader w-4 h-4"
-                    style={{
-                      '--primary-color': '#fff',
-                      '--secondary-color': primaryColor,
-                    } as React.CSSProperties}
-                  />
-                  <span className={`text-sm ${theme.panelTextMuted}`}>Generating your tracking link...</span>
-                </div>
-              ) : promoteLinkError ? (
-                <div className="space-y-2">
-                  <p className="text-sm text-red-300">{promoteLinkError}</p>
-                  <button
-                    onClick={handleGenerateTrackingLink}
-                    className="cursor-pointer text-sm text-white underline hover:opacity-80 transition-opacity"
-                  >
-                    Try again
-                  </button>
-                </div>
-              ) : trackingLink ? (
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={trackingLink}
-                    readOnly
-                    className="flex-1 px-3 py-2 text-sm rounded-lg bg-white/10 text-white border border-white/20 focus:outline-none select-all"
-                    onClick={(e) => (e.target as HTMLInputElement).select()}
-                  />
-                  <PortalButton
-                    variant="secondary"
-                    size="small"
-                    onClick={handleCopyLink}
-                    className="py-2"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
-                    </svg>
-                    Copy
-                  </PortalButton>
-                </div>
-              ) : null}
+              <SpeakerPromoKit
+                editToken={editToken}
+                primaryColor={primaryColor}
+                theme={theme}
+                onShared={handleKitShared}
+              />
             </div>
           )}
         </div>

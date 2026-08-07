@@ -80,7 +80,7 @@
     "lucide-react": "^0.554.0",
     "md5": "^2.3.0",
     "pdf-lib": "^1.17.1",
-    "pdfjs-dist": "^5.6.205",
+    "pdfjs-dist": "^6.2.108",
     "qr-code-styling": "^1.9.2",
     "react": "^19.1.1",
     "react-apexcharts": "^1.7.0",
