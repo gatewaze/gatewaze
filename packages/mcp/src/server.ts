@@ -222,6 +222,29 @@ const TOOLS: Tool[] = [
     },
   },
   {
+    name: 'events_registrants',
+    description:
+      "Registrant-level rows — names, emails, and their registration-form answers — across events. Filter by event (q/id), event city, event date (event_from/event_to), registration source prefix (source='luma'), registration date (from/to), status, and answers_contain (free-text over form answers — 'everyone registered for an event in New York who is an engineer' = city:'New York' + answers_contain:'engineer'). group_by='person' collapses to distinct people with counts. PII surface: requires the events:registrants scope (LF staff / per-person grant); every call is identity-audited.",
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        q: { type: 'string', description: 'Event title filter (partial match)' },
+        id: { type: 'string', description: 'Event UUID or short event_id' },
+        city: { type: 'string', description: 'Event city filter (partial match)' },
+        event_from: { type: 'string', description: 'Event starts after (ISO 8601)' },
+        event_to: { type: 'string', description: 'Event starts before (ISO 8601)' },
+        source: { type: 'string', description: "Registration source prefix, e.g. 'luma'" },
+        status: { type: 'string', description: "Registration status filter (e.g. 'confirmed')" },
+        from: { type: 'string', description: 'Registered after (ISO 8601)' },
+        to: { type: 'string', description: 'Registered before (ISO 8601)' },
+        answers_contain: { type: 'string', description: "Free-text match over registration-form answers, e.g. 'engineer'" },
+        group_by: { type: 'string', description: "'person' for distinct people with counts" },
+        limit: { type: 'number', description: 'Max rows (default 50, max 500 — page with offset for bulk pulls; check pagination.total first)' },
+        offset: { type: 'number', description: 'Skip N rows' },
+      },
+    },
+  },
+  {
     name: 'events_nearby',
     description:
       "Upcoming PUBLISHED events near a location, soonest first with distance_km. Provide lat/lng, or a city name (falls back to a city-filtered search), or NOTHING — with no location the server geolocates the caller's IP address. Answers 'when is the next event in my area?'.",
@@ -962,6 +985,7 @@ const OAUTH_TOOL_SCOPES: Record<string, string | null> = {
   events_metrics: 'events:metrics',
   events_metrics_summary: 'events:metrics',
   events_registrant_breakdown: 'events:metrics',
+  events_registrants: 'events:registrants',
   resources_collections_list: 'resources:write',
   resources_collection_get: 'resources:write',
   resources_collection_create: 'resources:write',
@@ -989,6 +1013,20 @@ const LOG_REQUESTS = process.env.MCP_LOG_REQUESTS !== '0';
 
 function truncate(s: string, max = 600): string {
   return s.length > max ? `${s.slice(0, max)}…(${s.length})` : s;
+}
+
+/** Recursively remove `_links` keys (HAL navigation the REST API injects). */
+function stripLinks(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stripLinks);
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (k === '_links') continue;
+      out[k] = stripLinks(v);
+    }
+    return out;
+  }
+  return value;
 }
 
 /** Best-effort row count for list-shaped API responses ({data: [...]}) */
@@ -1179,6 +1217,19 @@ export function createGatewazeMcpServer(
         case 'events_registrant_breakdown':
           result = await handleEventsRegistrantBreakdown(params, api);
           break;
+        case 'events_registrants': {
+          const queryParams: Record<string, string | number | undefined> = {};
+          for (const k of ['q', 'id', 'city', 'event_from', 'event_to', 'source', 'status', 'from', 'to', 'answers_contain', 'group_by'] as const) {
+            if (params[k]) queryParams[k] = String(params[k]);
+          }
+          // Chat-sized default: registrant rows are heavy (answers arrays);
+          // 500-row pages have blown client token caps. Callers page
+          // explicitly for bulk pulls.
+          queryParams.limit = params.limit ? Number(params.limit) : 50;
+          if (params.offset) queryParams.offset = Number(params.offset);
+          result = await api.get('/events/registrants', queryParams);
+          break;
+        }
         case 'events_nearby':
           result = await handleEventsNearby(params, api, (logMeta as { ip?: string } | undefined)?.ip);
           break;
@@ -1307,7 +1358,14 @@ export function createGatewazeMcpServer(
       };
     }
 
-    const text = JSON.stringify(result, null, 2);
+    // Token diet for chat clients: drop the REST layer's HAL _links noise
+    // (agents never follow them; on row-shaped results it's one block per
+    // row), and switch to compact JSON once results outgrow chat size —
+    // pretty-printing turns each row into ~14 lines and has blown clients'
+    // per-result token caps on registrant exports.
+    result = stripLinks(result);
+    const pretty = JSON.stringify(result, null, 2);
+    const text = pretty.length > 8_000 ? JSON.stringify(result) : pretty;
     const rows = resultRows(result);
     emit({
       ...base,
