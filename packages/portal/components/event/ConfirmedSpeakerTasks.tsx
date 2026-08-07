@@ -52,7 +52,7 @@ export function ConfirmedSpeakerTasks({
   const [uploadError, setUploadError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Promote your talk state (the expanded panel is the generated promo kit)
+  // Promote your talk state (the expanded panel is the generated speaker kit)
   const [showPromoteSection, setShowPromoteSection] = useState(false)
   const [linkCopied, setLinkCopied] = useState(!!trackingLinkCopiedAt)
 
@@ -206,7 +206,7 @@ export function ConfirmedSpeakerTasks({
     }
   }
 
-  // First share action inside the promo kit (copying a post/link, opening or
+  // First share action inside the speaker kit (copying a post/link, opening or
   // downloading an asset) marks the task complete — same completion signal
   // (tracking_link_copied_at) the old copy-the-link flow persisted.
   const handleKitShared = useCallback(async () => {
@@ -225,7 +225,7 @@ export function ConfirmedSpeakerTasks({
         }),
       })
     } catch (err) {
-      console.error('Error persisting promo kit share:', err)
+      console.error('Error persisting speaker kit share:', err)
     }
   }, [trackingLinkCopiedAt, editToken, config.supabaseUrl, config.supabaseAnonKey])
 
@@ -507,7 +507,7 @@ export function ConfirmedSpeakerTasks({
         </div>
       </div>
 
-      {/* Task 4: Promote your talk — the generated promo kit (images, post
+      {/* Task 4: Promote your talk — the generated speaker kit (images, post
           text, tracking link, zip). Stays expandable after completion so
           speakers can come back for more assets. */}
       <div className="flex items-start gap-3">
@@ -541,8 +541,8 @@ export function ConfirmedSpeakerTasks({
           </button>
           <p className={`text-sm ${theme.panelTextMuted}`}>
             {linkCopied
-              ? 'Promo kit shared — reopen it any time for more assets'
-              : 'Your promo kit: share images, ready-to-post text, and your personal tracking link'}
+              ? 'Speaker kit shared — reopen it any time for more assets'
+              : 'Your speaker kit: share images, ready-to-post text, and your personal tracking link'}
           </p>
 
           {showPromoteSection && editToken && (
