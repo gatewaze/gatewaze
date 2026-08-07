@@ -27,6 +27,7 @@ interface PromoKit {
   promo_text_status?: string
   cards?: Array<{ format: string; storage_path: string; width: number; height: number }>
   zip_storage_path?: string | null
+  deck_storage_path?: string | null
 }
 
 interface Props {
@@ -230,6 +231,22 @@ export function SpeakerPromoKit({ editToken, primaryColor, theme, onShared }: Pr
               {copiedKey === 'tracking-link' ? 'Copied!' : 'Copy'}
             </PortalButton>
           </div>
+        </div>
+      )}
+
+      {/* Presentation template */}
+      {kit.deck_storage_path && (
+        <div>
+          <p className={`text-sm font-medium ${theme.panelText} mb-1`}>Talk template</p>
+          <p className={`text-xs ${theme.panelTextMuted} mb-2`}>
+            Your slide deck starter with a branded title slide — build your talk in it. Opens in
+            PowerPoint, or upload it to Google Drive and open with Google Slides.
+          </p>
+          <a href={publicUrl(kit.deck_storage_path)} download onClick={markShared}>
+            <PortalButton variant="secondary" size="small">
+              Download slide template (.pptx)
+            </PortalButton>
+          </a>
         </div>
       )}
 

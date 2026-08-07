@@ -14,7 +14,10 @@ import { createClient } from '@supabase/supabase-js'
  * link is now an umami redirect link (https://<host>/go/<slug>).
  */
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || ''
+// Server-side: prefer the cluster/compose-internal URL — the public URL may
+// not resolve from inside the portal container (local dev).
+const supabaseUrl =
+  process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || ''
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 
 // Small in-memory per-IP limiter — the token is unguessable and is the real
@@ -76,7 +79,7 @@ export async function GET(req: NextRequest) {
     const { data: kit } = await supabase
       .from('speaker_promo_kits')
       .select(
-        'status, tracking_short_url, promo_text, promo_text_status, cards, zip_storage_path, generated_at',
+        'status, tracking_short_url, promo_text, promo_text_status, cards, zip_storage_path, deck_storage_path, generated_at',
       )
       .eq('talk_id', talk.id)
       .maybeSingle()
@@ -100,6 +103,7 @@ export async function GET(req: NextRequest) {
       promo_text_status: kit.promo_text_status,
       cards: kit.cards ?? [],
       zip_storage_path: kit.zip_storage_path,
+      deck_storage_path: kit.deck_storage_path,
       generated_at: kit.generated_at,
     })
   } catch (error) {
