@@ -3,7 +3,7 @@
 # client. Registered in ai_mcp_servers as type=streamable_http and reached by
 # the recipe executor at http://events-mcp:8080/mcp on the internal network.
 # Self-contained npm build (events-mcp has only external deps).
-FROM node:22-slim
+FROM node:25-slim
 
 ENV NODE_ENV=production \
     MCP_TRANSPORT=http \
