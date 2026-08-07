@@ -1304,7 +1304,6 @@ export default function MemberDetailPage() {
 
                     if (mapCoords) {
                       const { lat, lng } = mapCoords;
-                      const mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${lng - 0.5},${lat - 0.5},${lng + 0.5},${lat + 0.5}&layer=mapnik&marker=${lat},${lng}`;
                       return (
                         <div className="space-y-3">
                           {(city || country) && (
@@ -1315,16 +1314,7 @@ export default function MemberDetailPage() {
                             </div>
                           )}
                           <div className="w-full h-64 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
-                            <iframe
-                              width="100%"
-                              height="100%"
-                              frameBorder="0"
-                              scrolling="no"
-                              marginHeight={0}
-                              marginWidth={0}
-                              src={mapUrl}
-                              style={{ border: 0 }}
-                            ></iframe>
+                            <StaticLocationMap lat={lat} lng={lng} interactive className="w-full h-full" />
                           </div>
                           <div className="text-xs text-[var(--gray-11)]">
                             Coordinates: {lat.toFixed(4)}, {lng.toFixed(4)}
