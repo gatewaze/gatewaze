@@ -161,6 +161,11 @@ export function startWorker(queueName: string): Worker {
             return { id: j.id };
           },
           getRedisConnection,
+          // Scoped to THIS handler's own queue, not an arbitrary name-based lookup — a handler can
+          // inspect its own in-flight jobs (e.g. a recovery reconciler distinguishing a live job from
+          // an orphaned Redis hash before re-enqueuing) without gaining visibility into other modules'
+          // queues.
+          getQueue: () => qe.queue,
         };
         const result = await (entry.handler as (j: Job, c: unknown) => Promise<unknown>)(job, handlerCtx);
         const durSec = Number(process.hrtime.bigint() - start) / 1e9;
