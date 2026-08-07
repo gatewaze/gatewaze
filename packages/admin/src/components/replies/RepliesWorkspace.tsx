@@ -33,7 +33,7 @@ export interface WorkspaceReply {
 type SentMessage = SentReplyMessage & { reply_id: string };
 
 interface RepliesWorkspaceProps {
-  kind: 'broadcast' | 'newsletter';
+  kind: 'broadcast' | 'newsletter' | 'event';
   replies: WorkspaceReply[];
   sent: SentMessage[];
   personByEmail: Record<string, string>;
@@ -86,7 +86,10 @@ export function RepliesWorkspace({ kind, replies, sent, personByEmail, onReload,
   // DB write happens in parallel and the parent poll reconciles.
   const [overrides, setOverrides] = useState<Record<string, Partial<WorkspaceReply>>>({});
 
-  const table = kind === 'broadcast' ? 'broadcast_replies' : 'newsletter_replies';
+  const table =
+    kind === 'broadcast' ? 'broadcast_replies'
+    : kind === 'event' ? 'event_replies'
+    : 'newsletter_replies';
 
   const rows = useMemo(
     () => replies.map((r) => (overrides[r.id] ? { ...r, ...overrides[r.id] } : r)),
