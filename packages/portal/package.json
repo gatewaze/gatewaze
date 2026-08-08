@@ -50,26 +50,26 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@opennextjs/cloudflare": "^1.0.0",
-    "@tailwindcss/postcss": "^4.1.12",
-    "@testing-library/jest-dom": "^6.9.1",
+    "@opennextjs/cloudflare": "^1.20.2",
+    "@tailwindcss/postcss": "^4.3.3",
+    "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.3.2",
     "@types/dompurify": "^3.0.5",
     "@types/html-to-text": "^9.0.4",
-    "@types/node": "^22.0.0",
+    "@types/node": "^26.1.2",
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",
     "@types/react-image-gallery": "^1.2.4",
     "@types/three": "^0.182.0",
-    "jest-axe": "^9.0.0",
+    "jest-axe": "^11.0.0",
     "@types/jest-axe": "^3.5.9",
-    "jsdom": "^29.0.0",
-    "tailwindcss": "^4.1.12",
+    "jsdom": "^30.0.1",
+    "tailwindcss": "^4.3.3",
     "tsx": "^4.19.0",
-    "typescript": "5.9.3",
-    "wrangler": "^4.86.0",
-    "eslint": "^9.18.0",
-    "eslint-config-next": "^15.5.18",
-    "@eslint/eslintrc": "^3.2.0"
+    "typescript": "7.0.2",
+    "wrangler": "^4.118.0",
+    "eslint": "^10.8.0",
+    "eslint-config-next": "^16.3.0",
+    "@eslint/eslintrc": "^3.3.6"
   }
 }
