@@ -1,4 +1,4 @@
-FROM node:20-slim
+FROM node:25-slim
 
 # Pin pnpm to 10.31.0. `pnpm@latest` (now 11.x) requires Node v22.13+,
 # and this image is on node:20-slim — corepack succeeds at fetch but the
