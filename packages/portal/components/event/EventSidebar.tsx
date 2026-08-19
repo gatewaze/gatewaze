@@ -15,6 +15,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { isOnCustomDomain } from '@/lib/customDomain'
 import { isLightColor } from '@/config/brand'
+import { useEventContext } from './EventContext'
 
 interface NavItem {
   label: string
@@ -410,6 +411,7 @@ function EventMobileActionsInner({ event, eventIdentifier, useDarkText, primaryC
   const visibleItems = useNavItems(event, basePath, speakerCount, sponsorCount, competitionCount, discountCount, mediaCount, hasVirtualEvent, userState)
   const { showRegisterButton, useExternalLink, registerHref } = useRegisterLink(event, basePath)
   const handleExternalRegister = useExternalRegisterHandler(event)
+  const { requestRegister, registrationMembersOnly } = useEventContext()
   const { isRegistered: realIsRegistered } = useRegistrationStatus(event)
   const isConfirmedSpeaker = userState?.isConfirmedSpeaker ?? false
   const isLive = userState?.timeline === 'live'
@@ -475,8 +477,8 @@ function EventMobileActionsInner({ event, eventIdentifier, useDarkText, primaryC
           <PortalButton
             variant="primary"
             primaryColor={primaryColor}
-            href={useExternalLink ? undefined : registerHref!}
-            onClick={useExternalLink ? handleExternalRegister : undefined}
+            href={registrationMembersOnly ? undefined : (useExternalLink ? undefined : registerHref!)}
+            onClick={registrationMembersOnly ? () => void requestRegister() : (useExternalLink ? handleExternalRegister : undefined)}
             glow
             className="flex-1 justify-center"
           >
@@ -681,6 +683,7 @@ function EventSidebarInner({ event, eventIdentifier, useDarkText, primaryColor, 
   const visibleItems = useNavItems(event, basePath, speakerCount, sponsorCount, competitionCount, discountCount, mediaCount, hasVirtualEvent, userState)
   const { showRegisterButton, useExternalLink, registerHref } = useRegisterLink(event, basePath)
   const handleExternalRegister = useExternalRegisterHandler(event)
+  const { requestRegister, registrationMembersOnly } = useEventContext()
   const { isRegistered: realIsRegistered } = useRegistrationStatus(event)
   const isConfirmedSpeaker = userState?.isConfirmedSpeaker ?? false
   const isLive = userState?.timeline === 'live'
@@ -716,8 +719,8 @@ function EventSidebarInner({ event, eventIdentifier, useDarkText, primaryColor, 
         <PortalButton
           variant="primary"
           primaryColor={primaryColor}
-          href={useExternalLink ? undefined : registerHref!}
-          onClick={useExternalLink ? handleExternalRegister : undefined}
+          href={registrationMembersOnly ? undefined : (useExternalLink ? undefined : registerHref!)}
+          onClick={registrationMembersOnly ? () => void requestRegister() : (useExternalLink ? handleExternalRegister : undefined)}
           glow
           className="w-full justify-center"
         >

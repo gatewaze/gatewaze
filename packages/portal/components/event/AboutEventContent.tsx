@@ -38,7 +38,7 @@ interface Competition {
 }
 
 function AboutEventContentInner() {
-  const { event, useDarkText, recommendedEvent, primaryColor, eventIdentifier, basePath, userState, theme, speakerCount, competitionCount, discountCount } = useEventContext()
+  const { event, useDarkText, recommendedEvent, primaryColor, eventIdentifier, basePath, userState, theme, speakerCount, competitionCount, discountCount, requestRegister, registrationMembersOnly } = useEventContext()
   const [mounted, setMounted] = useState(false)
   const [showAttendeeCalendar, setShowAttendeeCalendar] = useState(false)
   const [attendeeCalendarAdded, setAttendeeCalendarAdded] = useState(false)
@@ -235,7 +235,8 @@ function AboutEventContentInner() {
                           variant="primary"
                           primaryColor={primaryColor}
                           glow
-                          href={`${basePath}/register`}
+                          href={registrationMembersOnly ? undefined : `${basePath}/register`}
+                          onClick={registrationMembersOnly ? () => void requestRegister() : undefined}
                         >
                           Register now
                         </PortalButton>
