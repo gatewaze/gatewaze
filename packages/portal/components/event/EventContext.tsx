@@ -8,6 +8,7 @@ import { useEventUserState } from '@/hooks/useEventUserState'
 import type { EventUserState } from '@/hooks/useEventUserState'
 import { useAuth } from '@/hooks/useAuth'
 import { isOnCustomDomain } from '@/lib/customDomain'
+import { trackEvent } from '@/lib/analytics'
 import { computeRegisterTarget, useExternalRegisterHandler, checkCurrentPersonIsMember } from './useEventRegister'
 import { MembersOnlyRegisterModal } from './MembersOnlyRegisterModal'
 
@@ -91,14 +92,30 @@ export function EventProvider({ event, brandConfig, eventIdentifier, speakerCoun
     }
   }, [registerTarget, externalRegister])
 
+  // Fires when a NON-member hits the members-only registration gate — the sales
+  // signal. For a signed-in non-member this flows through the /api/t relay into
+  // people_events (person-attributed → email → company domain), which the sales
+  // module aggregates into the member-interest lead list. Anonymous hits are
+  // Umami-only (funnel volume). Best-effort; never blocks the gate.
+  const emitInterest = useCallback(() => {
+    try {
+      trackEvent('members_only_interest', {
+        event_id: event.id,
+        event_slug: eventIdentifier,
+        event_title: event.event_title,
+        signed_in: !!user,
+      })
+    } catch { /* analytics is best-effort */ }
+  }, [event.id, event.event_title, eventIdentifier, user])
+
   const requestRegister = useCallback(async () => {
     if (!registrationMembersOnly) { proceedToRegister(); return }
-    if (!user) { setMembersModalOpen(true); return }
+    if (!user) { emitInterest(); setMembersModalOpen(true); return }
     // Signed in — allow through only if they're actually a member.
     const isMember = await checkCurrentPersonIsMember()
     if (isMember) proceedToRegister()
-    else setMembersModalOpen(true)
-  }, [registrationMembersOnly, user, proceedToRegister])
+    else { emitInterest(); setMembersModalOpen(true) }
+  }, [registrationMembersOnly, user, proceedToRegister, emitInterest])
 
   // Resume after the LFID sign-in flow returns to the event page with
   // ?register=1. Runs once, client-side; reads window.location directly (rather

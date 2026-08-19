@@ -7,7 +7,7 @@
  *
  * Two-panel layout mirroring the onboarding modal shell (frosted glass +
  * GlowBorder over a blurred backdrop, portalled to document.body):
- *   - Left:  sign in with LFX ID (the `sign-in:providers` module slot). After
+ *   - Left:  sign in with LFID (the `sign-in:providers` module slot). After
  *            sign-in the LFID flow returns to the event page with `?register=1`,
  *            which EventContext resumes automatically.
  *   - Right: "Become a member" CTA linking to the brand's configurable
