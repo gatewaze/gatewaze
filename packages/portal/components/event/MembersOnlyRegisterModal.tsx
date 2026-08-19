@@ -74,8 +74,8 @@ export function MembersOnlyRegisterModal({
       href={safeMembershipUrl}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex w-full items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold transition-transform hover:scale-[1.02]"
-      style={{ backgroundColor: primaryColor, color: '#fff' }}
+      className="inline-flex w-full items-center justify-center gap-2.5 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors"
+      style={{ backgroundColor: '#fff', color: '#000' }}
     >
       Become a member
     </a>
@@ -111,14 +111,27 @@ export function MembersOnlyRegisterModal({
               </button>
             </div>
 
+            {/* Scope: force the sign-in:providers slot button to a solid white
+                button with black text. The LFID mark uses fill="currentColor",
+                so a black text colour also renders the LF logo in black —
+                matching the "Become a member" button. */}
+            <style>{`
+.mor-signin-solid button {
+  background: #fff !important;
+  color: #000 !important;
+  border: 1px solid rgba(0,0,0,0.12) !important;
+  backdrop-filter: none !important;
+}
+.mor-signin-solid button:hover { background: #f2f2f2 !important; }
+`}</style>
+
             <p className="px-6 pb-4 pt-1 text-sm text-white/70">
               Registration for <span className="text-white/90 font-medium">{eventTitle}</span> is
-              open to members{isSignedIn ? ', and your account isn’t a member yet.' : '.'} Sign in
-              to register, or become a member.
+              open to members{isSignedIn ? ', and your account isn’t a member yet.' : '.'}
             </p>
 
             <div className="flex flex-col gap-5 px-6 pb-6 sm:flex-row sm:gap-4">
-              {/* Left: sign in with LFX ID */}
+              {/* Left: sign in with LFID */}
               <div className="flex-1 rounded-2xl border border-white/10 bg-white/[0.03] p-5">
                 <h3 className="text-sm font-semibold text-white/90">
                   {isSignedIn ? 'Signed in' : 'Already a member?'}
@@ -126,15 +139,17 @@ export function MembersOnlyRegisterModal({
                 <p className="mt-1 mb-4 text-xs text-white/60">
                   {isSignedIn
                     ? 'You’re signed in, but this account isn’t linked to a member organization. Register with a member email, or join below.'
-                    : 'Sign in with your LFX ID to register with your member email.'}
+                    : 'Sign in with your LFID to register with your member email.'}
                 </p>
                 {!isSignedIn && (
-                  <ModuleSlot
-                    name="sign-in:providers"
-                    enabledModuleIds={enabledModuleIds}
-                    enabledFeatures={enabledFeatures}
-                    props={{ redirectTo, primaryColor, soleProvider: true }}
-                  />
+                  <div className="mor-signin-solid">
+                    <ModuleSlot
+                      name="sign-in:providers"
+                      enabledModuleIds={enabledModuleIds}
+                      enabledFeatures={enabledFeatures}
+                      props={{ redirectTo, primaryColor, soleProvider: true }}
+                    />
+                  </div>
                 )}
               </div>
 
