@@ -334,6 +334,24 @@ portalEventsRouter.get('/:identifier', async (req, res) => {
 
     const eventId = (event.event_id as string) || identifier;
     const eventUuid = (event.id as string) || identifier;
+
+    // Members-only registration flag for the portal CTA. Mirrors the keys the
+    // events-registration edge fn gates on (content_type='event',
+    // action='register'). Evaluated with the anon client (no auth.uid()), so
+    // content_access_action_allowed returns false exactly when a register-gate
+    // policy applies → registration is members-only. Fail-open: any error (incl.
+    // a non-uuid identifier) leaves the flag false, i.e. registration open.
+    try {
+      const { data: allowed, error: gateErr } = await supabase.rpc('content_access_action_allowed', {
+        p_content_type: 'event',
+        p_entity_id: eventUuid,
+        p_action: 'register',
+      });
+      (event as Record<string, unknown>).registration_members_only = !gateErr && allowed === false;
+    } catch {
+      // gating infra absent/unreachable — treat registration as open
+    }
+
     setCacheHeaders(res, [`event:${eventId}`, `event:uuid:${eventUuid}`]);
     res.json(event);
   } catch (err) {
