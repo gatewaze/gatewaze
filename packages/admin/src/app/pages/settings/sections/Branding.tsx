@@ -87,6 +87,7 @@ interface BrandingSettings {
   favicon_url: string;
   storage_bucket_url: string;
   contact_email: string;
+  membership_url: string;
   tracking_head: string;
   tracking_body: string;
 }
@@ -109,6 +110,7 @@ const BRANDING_DEFAULTS: BrandingSettings = {
   favicon_url: "",
   storage_bucket_url: "",
   contact_email: "",
+  membership_url: "",
   tracking_head: "",
   tracking_body: "",
 };
@@ -600,6 +602,24 @@ function BrandingCard({
                     value={settings.contact_email}
                     onChange={(e) => updateSetting("contact_email", e.target.value)}
                     placeholder="privacy@example.com"
+                    className="w-full rounded border border-[var(--gray-6)] bg-[var(--color-surface)] px-3 py-2 text-sm"
+                  />
+                </div>
+
+                {/* Membership URL */}
+                <div>
+                  <Text as="label" size="2" weight="medium">
+                    Membership URL
+                  </Text>
+                  <Text as="p" size="1" color="gray" className="pb-2">
+                    Join/become-a-member page. Shown as the "Become a member" CTA on
+                    members-only event registration. Leave empty to hide that link.
+                  </Text>
+                  <input
+                    type="url"
+                    value={settings.membership_url}
+                    onChange={(e) => updateSetting("membership_url", e.target.value)}
+                    placeholder="https://example.org/members"
                     className="w-full rounded border border-[var(--gray-6)] bg-[var(--color-surface)] px-3 py-2 text-sm"
                   />
                 </div>

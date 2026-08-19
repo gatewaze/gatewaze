@@ -32,6 +32,9 @@ interface Props {
    */
   hasVirtualEvent?: boolean
   recommendedEvent?: RecommendedEvent | null
+  /** Enabled module ids/features — forwarded to EventContext for the sign-in slot. */
+  enabledModuleIds?: string[]
+  enabledFeatures?: string[]
   children: React.ReactNode
 }
 
@@ -70,7 +73,7 @@ function TrackingParamsCapture() {
   return null
 }
 
-export function EventLayoutClient({ event, brandConfig, eventIdentifier, speakerCount, sponsorCount, competitionCount, discountCount, mediaCount, hasVirtualEvent = false, recommendedEvent, children }: Props) {
+export function EventLayoutClient({ event, brandConfig, eventIdentifier, speakerCount, sponsorCount, competitionCount, discountCount, mediaCount, hasVirtualEvent = false, recommendedEvent, enabledModuleIds = [], enabledFeatures = [], children }: Props) {
   // Resolve theme from event overrides or brand defaults
   const resolved = useMemo(() => resolveEventTheme(event, brandConfig), [event, brandConfig])
   const { theme, colors, primaryColor, secondaryColor } = resolved
@@ -133,6 +136,8 @@ export function EventLayoutClient({ event, brandConfig, eventIdentifier, speaker
         mediaCount={mediaCount}
         recommendedEvent={recommendedEvent}
         useDarkText={useDarkText}
+        enabledModuleIds={enabledModuleIds}
+        enabledFeatures={enabledFeatures}
       >
         <EventLayoutInner
           event={event}

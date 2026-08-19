@@ -27,6 +27,12 @@ export interface Event {
   screenshot_url: string | null
   enable_registration: boolean | null
   enable_native_registration: boolean | null
+  /**
+   * True when an admin has gated this event's registration to members
+   * (content_access policy, action='register'). The event stays publicly visible;
+   * only signing up is members-only. Computed server-side in the events public-api.
+   */
+  registration_members_only?: boolean | null
   enable_call_for_speakers: boolean | null
   enable_agenda: boolean | null
   /**

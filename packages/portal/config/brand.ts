@@ -161,6 +161,12 @@ export interface BrandConfig {
   faviconUrl: string
   domain: string
   contactEmail: string
+  /**
+   * External membership/join page URL (e.g. https://aaif.io/members). Shown as the
+   * "Become a member" CTA on members-only event registration. Empty = no CTA link
+   * (the gate still applies; the become-a-member button is simply hidden).
+   */
+  membershipUrl: string
   trackingHead: string
   trackingBody: string
   eventTypes: EventTypeOption[]
@@ -257,6 +263,7 @@ const defaults: BrandConfig = {
   faviconUrl: '',
   domain: '',
   contactEmail: '',
+  membershipUrl: '',
   trackingHead: '',
   trackingBody: '',
   eventTypes: DEFAULT_EVENT_TYPES,
@@ -292,6 +299,7 @@ const settingsMap: Record<string, { field: keyof BrandConfig; defaultValue: stri
   storage_bucket_url: { field: 'storageBucketUrlRaw', defaultValue: defaults.storageBucketUrlRaw },
   domain: { field: 'domain', defaultValue: defaults.domain },
   contact_email: { field: 'contactEmail', defaultValue: defaults.contactEmail },
+  membership_url: { field: 'membershipUrl', defaultValue: defaults.membershipUrl },
   tracking_head: { field: 'trackingHead', defaultValue: defaults.trackingHead },
   tracking_body: { field: 'trackingBody', defaultValue: defaults.trackingBody },
 }
