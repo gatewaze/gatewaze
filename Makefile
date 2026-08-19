@@ -99,7 +99,13 @@ ps: _check-env ## Show running containers
 deploy-functions: _check-env _link-cloud _sync-secrets ## Deploy all edge functions to Supabase Cloud
 ifeq ($(SUPABASE_MODE),cloud)
 	@echo "Deploying edge functions..."
-	npx supabase functions deploy
+	# --no-verify-jwt: EVERY Gatewaze edge function runs verify_jwt=false (they
+	# authenticate internally — service-role / HMAC / admin checks — and many are
+	# anonymous public forms). config.toml only pins a handful, and most functions
+	# are module-synced (not committed) so they CAN'T be pinned there. Without this
+	# flag a blanket deploy defaults them to verify_jwt=true and breaks every
+	# anonymous caller. Pass it for all-function deploys.
+	npx supabase functions deploy --no-verify-jwt
 else
 	@echo "Error: deploy-functions is only supported in cloud mode (SUPABASE_MODE=cloud)"
 	@echo "For self-hosted, edge functions are served automatically from supabase/functions/."
@@ -259,7 +265,7 @@ _cloud-reset: _link-cloud
 	echo "    Deleted $$TOTAL auth users."
 	@echo "  [5/5] Re-deploying edge functions & secrets..."
 	@$(MAKE) _sync-secrets
-	@npx supabase functions deploy
+	@npx supabase functions deploy --no-verify-jwt   # all fns run verify_jwt=false (see deploy-functions)
 	@echo ""
 	@echo "Cloud reset complete."
 
