@@ -8,6 +8,8 @@ export interface ContentAccessPolicy {
   entity_id: string | null;      // null = per-type default; else per-item override
   audience: 'public' | 'members';
   min_tier_rank: number;         // 0 = any member; else >= this membership_tier_ranks.rank
+  /** Exact tier set (names). When non-empty it takes precedence over min_tier_rank. */
+  allowed_tiers: string[] | null;
   embargo_days: number | null;   // recent-content window (members-only for N days, then public)
   gated_actions: string[];       // e.g. ['register'] for events
   placeholder: Record<string, unknown> | null;
@@ -53,6 +55,8 @@ export interface SetPolicyArgs {
   entity_id?: string | null;
   audience: 'public' | 'members';
   min_tier_rank?: number;
+  /** Exact tier set (names). Non-empty overrides min_tier_rank; empty/absent = threshold. */
+  allowed_tiers?: string[] | null;
   embargo_days?: number | null;
   gated_actions?: string[];
   placeholder?: Record<string, unknown> | null;
