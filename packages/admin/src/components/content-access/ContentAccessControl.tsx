@@ -50,6 +50,9 @@ export function ContentAccessControl({
   const [tiers, setTiers] = useState<AccessTier[]>([]);
   const [mode, setMode] = useState<Mode>('everyone');
   const [tierRank, setTierRank] = useState(0);
+  // 'minimum' => min_tier_rank threshold; 'specific' => an exact set of tiers.
+  const [tierMode, setTierMode] = useState<'minimum' | 'specific'>('minimum');
+  const [selectedTiers, setSelectedTiers] = useState<string[]>([]);
   const [embargoDays, setEmbargoDays] = useState(30);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -77,7 +80,10 @@ export function ContentAccessControl({
   }, [contentType, entityId]);
 
   function applyPolicy(pol: ContentAccessPolicy | null) {
-    if (!pol) { setMode('everyone'); setTierRank(0); return; }
+    if (!pol) {
+      setMode('everyone'); setTierRank(0); setTierMode('minimum'); setSelectedTiers([]);
+      return;
+    }
     if (isEvent) {
       setMode(pol.gated_actions?.includes('register') ? 'members' : 'everyone');
     } else if (pol.embargo_days) {
@@ -86,6 +92,11 @@ export function ContentAccessControl({
       setMode(pol.audience === 'members' ? 'members' : 'everyone');
     }
     setTierRank(pol.min_tier_rank ?? 0);
+    if (pol.allowed_tiers && pol.allowed_tiers.length > 0) {
+      setTierMode('specific'); setSelectedTiers(pol.allowed_tiers);
+    } else {
+      setTierMode('minimum'); setSelectedTiers([]);
+    }
   }
 
   const tierOptions = useMemo(
@@ -97,26 +108,30 @@ export function ContentAccessControl({
   );
 
   // Persist the current selection to the registry (or clear it when fully open).
-  async function save(next: { mode: Mode; tierRank: number; embargoDays: number }) {
+  async function save(next: { mode: Mode; tierRank: number; embargoDays: number; tierMode: 'minimum' | 'specific'; selectedTiers: string[] }) {
     setSaveState('saving'); setErrorMsg(null);
+    // Exact tier set overrides the rank threshold; the API normalises [] -> null.
+    const tierFields = next.tierMode === 'specific'
+      ? { min_tier_rank: 0, allowed_tiers: next.selectedTiers }
+      : { min_tier_rank: next.tierRank, allowed_tiers: null };
     try {
       if (next.mode === 'everyone') {
         await contentAccessService.clearPolicy(contentType, entityId);
       } else if (isEvent) {
         await contentAccessService.setPolicy({
           content_type: contentType, entity_id: entityId,
-          audience: 'public', min_tier_rank: next.tierRank, gated_actions: ['register'],
+          audience: 'public', ...tierFields, gated_actions: ['register'],
           note: 'Members-only registration',
         });
       } else if (next.mode === 'embargo') {
         await contentAccessService.setPolicy({
           content_type: contentType, entity_id: entityId,
-          audience: 'public', min_tier_rank: next.tierRank, embargo_days: next.embargoDays,
+          audience: 'public', ...tierFields, embargo_days: next.embargoDays,
         });
       } else {
         await contentAccessService.setPolicy({
           content_type: contentType, entity_id: entityId,
-          audience: 'members', min_tier_rank: next.tierRank,
+          audience: 'members', ...tierFields,
         });
       }
       setSaveState('saved');
@@ -126,9 +141,10 @@ export function ContentAccessControl({
     }
   }
 
-  const update = (patch: Partial<{ mode: Mode; tierRank: number; embargoDays: number }>) => {
-    const next = { mode, tierRank, embargoDays, ...patch };
+  const update = (patch: Partial<{ mode: Mode; tierRank: number; embargoDays: number; tierMode: 'minimum' | 'specific'; selectedTiers: string[] }>) => {
+    const next = { mode, tierRank, embargoDays, tierMode, selectedTiers, ...patch };
     setMode(next.mode); setTierRank(next.tierRank); setEmbargoDays(next.embargoDays);
+    setTierMode(next.tierMode); setSelectedTiers(next.selectedTiers);
     void save(next);
   };
 
@@ -183,10 +199,41 @@ export function ContentAccessControl({
           </div>
 
           {showTier && (
-            <div className="mt-2 pl-6">
-              <Select label="Minimum tier" value={tierRank}
-                data={tierOptions}
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => update({ tierRank: Number(e.target.value) })} />
+            <div className="mt-2 pl-6 space-y-2">
+              <Select label="Tier requirement" value={tierMode}
+                data={[{ value: 'minimum', label: 'Minimum tier' }, { value: 'specific', label: 'Specific tiers' }]}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => update({ tierMode: e.target.value === 'specific' ? 'specific' : 'minimum' })} />
+              {tierMode === 'minimum' ? (
+                <Select label="Minimum tier" value={tierRank}
+                  data={tierOptions}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => update({ tierRank: Number(e.target.value) })} />
+              ) : (
+                <div>
+                  <div className="text-xs font-medium text-[var(--gray-11)] mb-1">Allowed tiers</div>
+                  {tiers.length === 0 ? (
+                    <p className="text-xs text-[var(--gray-a10)]">No tiers available.</p>
+                  ) : (
+                    <div className="flex flex-col gap-1">
+                      {tiers.map((t) => (
+                        <label key={t.tier} className="flex items-center gap-2 text-sm text-[var(--gray-11)]">
+                          <input
+                            type="checkbox"
+                            checked={selectedTiers.includes(t.tier)}
+                            onChange={(e) => {
+                              const nextTiers = e.target.checked
+                                ? [...selectedTiers, t.tier]
+                                : selectedTiers.filter((x) => x !== t.tier);
+                              update({ selectedTiers: nextTiers });
+                            }}
+                          />
+                          {t.display_label}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-xs text-[var(--gray-a10)] mt-1">Only members in the checked tiers can access.</p>
+                </div>
+              )}
             </div>
           )}
           {mode === 'embargo' && (
