@@ -75,6 +75,16 @@ export function validateModule(mod: unknown, packageName: string): asserts mod i
     }
   }
 
+  // The id composes filesystem paths (live tree, source dir, snapshot
+  // metadata) and, on apply-update, an import specifier that executes code.
+  // Kebab-case only — reject anything path- or URL-shaped before it can be
+  // used that way anywhere downstream.
+  if (!/^[a-z0-9][a-z0-9-]{0,127}$/.test(m.id as string)) {
+    throw new Error(
+      `Module "${packageName}" has an invalid id "${m.id}": ids must be kebab-case (a-z, 0-9, hyphens)`,
+    );
+  }
+
   if (!Array.isArray(m.features)) {
     throw new Error(`Module "${packageName}" is missing required array field: features`);
   }

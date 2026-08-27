@@ -379,6 +379,14 @@ export default function ModulesPage() {
       if (result.edgeFunctionsDeployed?.length) {
         toast.info(`Deployed ${result.edgeFunctionsDeployed.length} edge function(s)`);
       }
+      if (result.skipped?.length) {
+        toast.info(`Skipped ${result.skipped.length} module(s): ${result.skipped.map((s) => s.id).join(", ")}`);
+      }
+      if (result.failed?.length) {
+        for (const f of result.failed) {
+          toast.error(`${f.id}: ${f.code} — ${f.reason}`);
+        }
+      }
       await Promise.all([loadInstalledModules(), checkForUpdates(), refreshModulesContext()]);
     } else {
       toast.error(result.error ?? "Update failed");
