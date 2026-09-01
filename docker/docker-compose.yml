@@ -886,7 +886,12 @@ services:
     environment:
       MCP_TRANSPORT: http
       PORT: 8080
-      BROWSER_MCP_BACKEND: ${BROWSER_MCP_BACKEND:-browserbase}
+      # Default to the Chromium baked into this image. browserbase is a paid
+      # third-party service, and defaulting to it meant a fresh install
+      # crash-looped this container on "requires BROWSERBASE_API_KEY". The
+      # service's own default is 'local' (see its backend test); this now
+      # agrees with it.
+      BROWSER_MCP_BACKEND: ${BROWSER_MCP_BACKEND:-local}
       BROWSERBASE_API_KEY: ${BROWSERBASE_API_KEY:-}
       BROWSERBASE_PROJECT_ID: ${BROWSERBASE_PROJECT_ID:-}
       BROWSERBASE_REGION: ${BROWSERBASE_REGION:-}
