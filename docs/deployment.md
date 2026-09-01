@@ -17,59 +17,53 @@ This guide covers deploying Gatewaze in various environments, from local Docker 
 
 ## Architecture Overview
 
-A full Gatewaze deployment consists of the following components:
+The full local stack is drawn in
+[Architecture](./architecture.md#the-full-stack), which also explains what each
+service is for. This is the summary.
 
-```
-                          +---------------------+
-                          |       Traefik        |
-                          |   Reverse Proxy      |
-                          |  (Apache 2.0)        |
-                          |  Dashboard: :8080    |
-                          +----------+----------+
-                                     |
-           admin.gatewaze.localhost  |  app.gatewaze.localhost
-           api.gatewaze.localhost    |  supabase.gatewaze.localhost
-           studio.gatewaze.localhost |
-                                     |
-                  +------------------+------------------+
-                  |                  |                  |
-           +------v------+   +------v------+   +------v------+
-           | Admin App   |   |   Portal    |   | API Server  |
-           | (React/Vite)|   | (Next.js)   |   | (Express)   |
-           +------+------+   +------+------+   +--+-------+--+
-                  |                  |             |       |
-                  +------------------+-------------+       |
-                                     |                     |
-                           +---------v---------+   +-------v-------+
-                           |     Supabase      |   |     Redis     |
-                           |  (PostgreSQL +    |   |   + BullMQ    |
-                           |   Auth + Storage  |   |   (Jobs)      |
-                           |   + Edge Funcs)   |   +-------+-------+
-                           +---------+---------+           |
-                                     |               +-----v-----+
-                                     |               |  Worker   |
-                                     |               | (BullMQ)  |
-                                     |               +-----------+
-                                     |
-                                     |               +-----------+
-                                     +---------------+ Scheduler |
-                                                     | (Cron)    |
-                                                     +-----------+
-```
+`docker compose up` starts every service in the table below. There are no
+compose profiles, so a fresh `make up` brings up around 23 containers and wants
+roughly 8 GB of memory available to Docker. If your machine is smaller than
+that, stop the services you do not need after the first start.
 
-**Services:**
+**Application services:**
 
-| Service     | Image / Build              | URL / Port                           | Description                                    |
-|-------------|----------------------------|--------------------------------------|------------------------------------------------|
-| Traefik     | `traefik:v3`               | Dashboard: http://localhost:8080     | Reverse proxy (Apache 2.0 licensed)            |
-| Admin       | `docker/admin/Dockerfile`  | http://admin.gatewaze.localhost      | React admin UI served by NGINX                 |
-| Portal      | `docker/portal/Dockerfile` | http://app.gatewaze.localhost        | Next.js public event portal                    |
-| API         | `docker/api/Dockerfile`    | http://api.gatewaze.localhost        | Express API server                             |
-| Worker      | `docker/worker/Dockerfile` | --                                   | BullMQ job worker (no exposed port)            |
-| Scheduler   | `docker/api/Dockerfile`    | --                                   | Cron-based job scheduler (no exposed port)     |
-| Supabase    | Multiple official images   | http://supabase.gatewaze.localhost   | Full Supabase stack (Kong gateway)             |
-| Supabase UI | Official studio image      | http://studio.gatewaze.localhost     | Supabase Studio database management UI         |
-| Redis       | `redis:7-alpine`           | 6379 (internal)                      | Job queue backend                              |
+| Service | Image or build | Where you reach it | What it is |
+|---|---|---|---|
+| Traefik | `traefik:v3` | Dashboard on http://localhost:8080 | Reverse proxy that routes the `.localhost` names. Shared across brands. |
+| admin | `docker/admin/Dockerfile` | http://admin.gatewaze.localhost | The administrator interface, React built with Vite and served by NGINX. |
+| portal | `docker/portal/Dockerfile` | http://app.gatewaze.localhost | The public website, Next.js rendered on the server. |
+| api | `docker/api/Dockerfile` | http://api.gatewaze.localhost | The Express API server. Holds the service role key. |
+| worker | `docker/worker/Dockerfile` | no port | Runs background jobs from the Redis queue. Carries Chromium for the scrapers. |
+| scheduler | `docker/scheduler/Dockerfile` | no port | Puts jobs on the queue on a schedule. Runs no work itself. |
+| se-runner | `docker/se-runner/Dockerfile` | no port | A leaner worker that runs only the software-engineer module's queue. |
+| redis | `redis:7-alpine` | 6379 internally | Backs the BullMQ job queue. |
+
+**Supporting services:**
+
+| Service | Image or build | Where you reach it | What it is |
+|---|---|---|---|
+| scrapling-fetcher | `packages/../scrapling-fetcher` | http://fetch.gatewaze.localhost | Python fetching service the scrapers call. Manages a browser pool and optional residential proxies. |
+| mcp-public | `packages/mcp` | routed at `MCP_HOST` | Public, keyless MCP endpoint with read-only tools, for AI agents. |
+| events-mcp | `packages/events-mcp` | internal only | MCP service for the `events_*` tools, including Luma writeback. |
+| browser-mcp | `packages/browser-mcp` | internal only | MCP service that gives agents a headless browser. |
+| arcade-serve | `packages/arcade-serve` | `ARCADE_SERVE_PORT`, 8090 | Serves creator-built games from storage snapshots. |
+| umami | `umamisoftware/umami:3.1.0` | via the analytics module | Self-hosted web analytics. |
+| autoheal | `willfarrell/autoheal:1.2.0` | no port | Restarts any container that reports itself unhealthy. |
+
+**Supabase, when self-hosted:**
+
+| Service | Image | Where you reach it |
+|---|---|---|
+| supabase-kong | `kong:2.8.1` | http://supabase.gatewaze.localhost |
+| supabase-db | `supabase/postgres` | localhost:54322 |
+| supabase-auth | `supabase/gotrue` | through Kong |
+| supabase-rest | `postgrest/postgrest` | through Kong |
+| supabase-storage | `supabase/storage-api` | through Kong |
+| supabase-realtime | `supabase/realtime` | through Kong |
+| supabase-edge-functions | `supabase/edge-runtime` | through Kong |
+| supabase-meta | `supabase/postgres-meta` | internal only |
+| supabase-studio | `supabase/studio` | http://studio.gatewaze.localhost |
 
 ---
 
@@ -80,13 +74,22 @@ The default `docker/docker-compose.yml` is designed for development and includes
 ### Prerequisites
 
 - Docker and Docker Compose installed
-- `.env` file configured (copy from `.env.example`)
+- `docker/.env` configured. Run `make init` to create it from
+  `docker/.env.example`.
 
 ### Starting the stack
 
 ```bash
+make up
+```
+
+`make up` starts the shared Traefik proxy, picks the right compose files for
+your `SUPABASE_MODE`, and adds the development overrides that give you hot
+reload. To drive compose directly instead:
+
+```bash
 cd docker
-docker compose up -d
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 ```
 
 This builds all application services from source and starts the full infrastructure. On first run, database migrations are applied automatically.
@@ -288,16 +291,26 @@ server {
 
 ### Production checklist
 
-- [ ] Set strong, unique values for `POSTGRES_PASSWORD`, `JWT_SECRET`, `REDIS_PASSWORD`, and `SECRET_KEY_BASE`
+- [ ] Set strong, unique values for `POSTGRES_PASSWORD`, `JWT_SECRET`, `REDIS_PASSWORD`, and `SECRET_KEY_BASE`. The values in `.env.example` are Supabase's published demo keys and are safe only on a laptop.
+- [ ] Generate `API_KEY_PEPPER` and `UNSUBSCRIBE_HMAC_SECRET`, and never rotate them afterwards. Rotating the first invalidates every API key you have issued. Rotating the second breaks the unsubscribe link in every email you have already sent.
 - [ ] Set `NODE_ENV=production` for all application services
 - [ ] Configure TLS termination with valid certificates
 - [ ] Set `SITE_URL` and `API_EXTERNAL_URL` to your public URLs
-- [ ] Restrict `DISABLE_SIGNUP=true` if you do not want public sign-ups
-- [ ] Set `VERIFY_JWT=true` for edge functions
-- [ ] Configure email delivery (SendGrid or SMTP) for magic links and transactional email
+- [ ] Set `DISABLE_SIGNUP=true` if you do not want public sign-ups
+- [ ] Complete the first-time setup wizard. The edge functions behind it are unauthenticated by necessity, and they stop accepting requests once an administrator exists, so finishing the wizard is what closes that window.
+- [ ] Configure email delivery, SendGrid or SMTP, before you run the setup wizard. The wizard emails you the sign-in link.
 - [ ] Set up log aggregation and monitoring
 - [ ] Enable Redis persistence (AOF is enabled by default in the compose file)
 - [ ] Set up database backups for the PostgreSQL volume
+
+A note on `VERIFY_JWT`. The compose file defaults it to `true`, but
+`docker/.env.example` sets it to `false`, so a stack started with `make init`
+and `make up` runs with it off. Gatewaze edge functions authenticate
+internally, using the service role key, an HMAC signature, or an admin check,
+and several of them serve anonymous public forms. Turning platform-wide JWT
+verification on will break those public forms. Deploy edge functions to
+Supabase Cloud with `--no-verify-jwt`, which is what `make deploy-functions`
+does.
 
 ---
 
@@ -305,128 +318,36 @@ server {
 
 If you are using [Supabase Cloud](https://supabase.com) instead of self-hosting, use a simplified Docker Compose that omits the Supabase containers.
 
-### docker-compose.cloud.yml
+### Using the bundled cloud compose file
 
-```yaml
-services:
-  traefik:
-    image: traefik:v3
-    restart: unless-stopped
-    command:
-      - "--api.insecure=true"
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.web.address=:80"
-    ports:
-      - "80:80"
-      - "8080:8080"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+`docker/docker-compose.cloud.yml` is already in the repository. It starts the
+application services and Redis, and leaves the database to your Supabase
+project. Set `SUPABASE_MODE=cloud` in `docker/.env` and `make up` selects it
+for you.
 
-  admin:
-    build:
-      context: ..
-      dockerfile: docker/admin/Dockerfile
-    restart: unless-stopped
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.admin.rule=Host(`${ADMIN_HOST:-admin.gatewaze.localhost}`)"
-      - "traefik.http.routers.admin.entrypoints=web"
-      - "traefik.http.services.admin.loadbalancer.server.port=80"
-    environment:
-      VITE_SUPABASE_URL: ${SUPABASE_URL}
-      VITE_SUPABASE_ANON_KEY: ${ANON_KEY}
-      VITE_API_URL: ${API_URL:-http://api.gatewaze.localhost}
-
-  portal:
-    build:
-      context: ..
-      dockerfile: docker/portal/Dockerfile
-    restart: unless-stopped
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.portal.rule=Host(`${PORTAL_HOST:-app.gatewaze.localhost}`)"
-      - "traefik.http.routers.portal.entrypoints=web"
-      - "traefik.http.services.portal.loadbalancer.server.port=3100"
-    environment:
-      NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_URL}
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${ANON_KEY}
-      SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
-      NODE_ENV: production
-
-  api:
-    build:
-      context: ..
-      dockerfile: docker/api/Dockerfile
-    restart: unless-stopped
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.api.rule=Host(`${API_HOST:-api.gatewaze.localhost}`)"
-      - "traefik.http.routers.api.entrypoints=web"
-      - "traefik.http.services.api.loadbalancer.server.port=3002"
-    environment:
-      PORT: "3002"
-      NODE_ENV: production
-      SUPABASE_URL: ${SUPABASE_URL}
-      SUPABASE_ANON_KEY: ${ANON_KEY}
-      SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
-      REDIS_URL: redis://:${REDIS_PASSWORD:-gatewaze}@redis:6379
-      DATABASE_URL: ${DATABASE_URL}
-      JWT_SECRET: ${JWT_SECRET}
-      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
-      EMAIL_FROM: ${EMAIL_FROM:-noreply@localhost}
-    depends_on:
-      redis:
-        condition: service_healthy
-
-  worker:
-    build:
-      context: ..
-      dockerfile: docker/worker/Dockerfile
-    restart: unless-stopped
-    environment:
-      NODE_ENV: production
-      SUPABASE_URL: ${SUPABASE_URL}
-      SUPABASE_ANON_KEY: ${ANON_KEY}
-      SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
-      REDIS_URL: redis://:${REDIS_PASSWORD:-gatewaze}@redis:6379
-      DATABASE_URL: ${DATABASE_URL}
-      JWT_SECRET: ${JWT_SECRET}
-      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
-      EMAIL_FROM: ${EMAIL_FROM:-noreply@localhost}
-    depends_on:
-      redis:
-        condition: service_healthy
-
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-gatewaze}
-    volumes:
-      - redis-data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-gatewaze}", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-volumes:
-  redis-data:
-    driver: local
-```
-
-### Usage
+Set these in `docker/.env`:
 
 ```bash
-# Set Supabase Cloud credentials in .env
+SUPABASE_MODE=cloud
+SUPABASE_PROJECT_REF=xyzcompany
 SUPABASE_URL=https://xyzcompany.supabase.co
+SUPABASE_INTERNAL_URL=https://xyzcompany.supabase.co
 ANON_KEY=eyJhbGci...
 SERVICE_ROLE_KEY=eyJhbGci...
 DATABASE_URL=postgresql://postgres:password@db.xyzcompany.supabase.co:5432/postgres
-
-# Start
-docker compose -f docker/docker-compose.cloud.yml up -d
 ```
+
+Then:
+
+```bash
+make up                  # starts the application services only
+make migrate             # pushes migrations to the linked project
+make deploy-functions    # deploys edge functions and syncs their secrets
+```
+
+`make migrate` and `make deploy-functions` work only in cloud mode. In
+self-hosted mode migrations run automatically when the database container
+starts, and edge functions are served straight from `supabase/functions/`.
 
 ---
 
@@ -437,330 +358,61 @@ For the fastest deployment without building from source, use the quickstart comp
 ```bash
 git clone https://github.com/gatewaze/gatewaze.git
 cd gatewaze
-cp .env.example .env
+cp docker/.env.example docker/.env
+# edit docker/.env
+
 docker compose -f docker/docker-compose.quickstart.yml up -d
 ```
 
-This uses images published to the GitHub Container Registry:
+Every release publishes these images to the GitHub Container Registry, tagged
+with both the version and `latest`.
 
-| Service   | Image                               |
-|-----------|-------------------------------------|
-| Admin     | `ghcr.io/gatewaze/admin:latest`     |
-| Portal    | `ghcr.io/gatewaze/portal:latest`    |
-| API       | `ghcr.io/gatewaze/api:latest`       |
-| Worker    | `ghcr.io/gatewaze/worker:latest`    |
+| Image | What it is |
+|---|---|
+| `ghcr.io/gatewaze/admin` | The administrator interface, React served by NGINX. |
+| `ghcr.io/gatewaze/portal` | The public website, Next.js rendered on the server. |
+| `ghcr.io/gatewaze/api` | The Express API server. |
+| `ghcr.io/gatewaze/worker` | The background job runner. Carries Chromium for the scrapers, so it is the largest image. |
+| `ghcr.io/gatewaze/scheduler` | The cron process that puts jobs on the queue. |
+| `ghcr.io/gatewaze/se-runner` | A leaner worker for the software-engineer module only. |
+| `ghcr.io/gatewaze/mcp-public` | The public, keyless MCP endpoint for AI agents. |
+| `ghcr.io/gatewaze/scrapling-fetcher` | The Python fetching service the scrapers call. |
 
-Pin specific versions for production:
+[Running Gatewaze on Kubernetes](./kubernetes.md#what-each-image-does)
+describes what each one does in more detail, including the four services that
+have deployment templates but no published image yet.
+
+Pin a version for anything you intend to keep, so that a rollback lands on the
+same image every time:
 
 ```yaml
 admin:
-  image: ghcr.io/gatewaze/admin:1.2.0
+  image: ghcr.io/gatewaze/admin:1.3.129
 ```
 
 ---
 
 ## Kubernetes with Helm
 
-For production deployments at scale, Gatewaze provides a Helm chart for Kubernetes.
+Kubernetes has its own guide, because there is more to say about it than fits
+here: [Running Gatewaze on Kubernetes](./kubernetes.md).
 
-### Prerequisites
+That guide covers what the chart installs and what it deliberately leaves to
+you, three worked example values files in
+[`helm/examples/`](../helm/examples/), resource sizing for Supabase Cloud
+against a self-hosted Supabase, what every published image does, secret
+handling, upgrades, and the problems people hit on a first install.
 
-- A Kubernetes cluster (1.27+)
-- [Helm](https://helm.sh/) 3.x installed
-- [NGINX Ingress Controller](https://kubernetes.github.io/ingress-nginx/) deployed
-- [cert-manager](https://cert-manager.io/) deployed (for automatic TLS certificates)
-- A PostgreSQL database (Supabase Cloud or self-managed)
-- A Redis instance (managed or self-hosted)
-
-### Installing the Helm Chart
-
-#### 1. Add the Gatewaze Helm repository
+The short version:
 
 ```bash
-helm repo add gatewaze https://charts.gatewaze.io
+helm repo add gatewaze https://gatewaze.github.io/gatewaze
 helm repo update
+
+cp helm/examples/values-supabase-cloud.yaml my-values.yaml
+# edit my-values.yaml and replace every CHANGE ME
+
+helm install gatewaze gatewaze/gatewaze \
+  --namespace gatewaze --create-namespace \
+  -f my-values.yaml
 ```
-
-Or install directly from the local chart in the repository:
-
-```bash
-cd helm/gatewaze
-```
-
-#### 2. Create a values file
-
-Create a `values.yaml` file with your configuration:
-
-```yaml
-# values.yaml
-global:
-  domain: yourdomain.com
-
-admin:
-  replicaCount: 1
-  image:
-    repository: ghcr.io/gatewaze/admin
-    tag: "1.0.0"
-  ingress:
-    enabled: true
-    host: admin.yourdomain.com
-    tls:
-      enabled: true
-      secretName: admin-tls
-  env:
-    VITE_SUPABASE_URL: "https://xyzcompany.supabase.co"
-    VITE_SUPABASE_ANON_KEY: "your-anon-key"
-    VITE_API_URL: "https://api.yourdomain.com"
-
-portal:
-  replicaCount: 2
-  image:
-    repository: ghcr.io/gatewaze/portal
-    tag: "1.0.0"
-  ingress:
-    enabled: true
-    host: events.yourdomain.com
-    tls:
-      enabled: true
-      secretName: portal-tls
-  env:
-    NEXT_PUBLIC_SUPABASE_URL: "https://xyzcompany.supabase.co"
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: "your-anon-key"
-  secretEnv:
-    SUPABASE_SERVICE_ROLE_KEY: "your-service-role-key"
-
-api:
-  replicaCount: 2
-  image:
-    repository: ghcr.io/gatewaze/api
-    tag: "1.0.0"
-  ingress:
-    enabled: true
-    host: api.yourdomain.com
-    tls:
-      enabled: true
-      secretName: api-tls
-  env:
-    NODE_ENV: production
-    SUPABASE_URL: "https://xyzcompany.supabase.co"
-  secretEnv:
-    SUPABASE_SERVICE_ROLE_KEY: "your-service-role-key"
-    DATABASE_URL: "postgresql://postgres:password@db-host:5432/postgres"
-    REDIS_URL: "redis://:password@redis-host:6379"
-    JWT_SECRET: "your-jwt-secret"
-    SENDGRID_API_KEY: "SG.your-key"
-
-worker:
-  replicaCount: 2
-  image:
-    repository: ghcr.io/gatewaze/worker
-    tag: "1.0.0"
-  env:
-    NODE_ENV: production
-  secretEnv:
-    SUPABASE_SERVICE_ROLE_KEY: "your-service-role-key"
-    DATABASE_URL: "postgresql://postgres:password@db-host:5432/postgres"
-    REDIS_URL: "redis://:password@redis-host:6379"
-    JWT_SECRET: "your-jwt-secret"
-
-scheduler:
-  replicaCount: 1
-  image:
-    repository: ghcr.io/gatewaze/api
-    tag: "1.0.0"
-```
-
-#### 3. Install the chart
-
-```bash
-helm install gatewaze helm/gatewaze/ \
-  --namespace gatewaze \
-  --create-namespace \
-  -f values.yaml
-```
-
-#### 4. Verify the deployment
-
-```bash
-kubectl get pods -n gatewaze
-kubectl get ingress -n gatewaze
-```
-
-### Running Multiple Instances
-
-Gatewaze supports multi-brand deployments where each brand runs as a separate instance in its own Kubernetes namespace.
-
-#### Example: Deploying a second brand
-
-Create a brand-specific values file:
-
-```yaml
-# values-brand2.yaml
-global:
-  domain: brand2.example.com
-
-admin:
-  ingress:
-    host: admin.brand2.example.com
-  env:
-    VITE_SUPABASE_URL: "https://brand2-project.supabase.co"
-    VITE_SUPABASE_ANON_KEY: "brand2-anon-key"
-    VITE_API_URL: "https://api.brand2.example.com"
-
-portal:
-  ingress:
-    host: brand2.example.com
-  env:
-    NEXT_PUBLIC_SUPABASE_URL: "https://brand2-project.supabase.co"
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: "brand2-anon-key"
-
-api:
-  ingress:
-    host: api.brand2.example.com
-  secretEnv:
-    DATABASE_URL: "postgresql://postgres:password@brand2-db:5432/postgres"
-    REDIS_URL: "redis://:password@brand2-redis:6379"
-    # ... other secrets
-```
-
-Install into a separate namespace:
-
-```bash
-helm install brand2 helm/gatewaze/ \
-  --namespace brand2 \
-  --create-namespace \
-  -f values-brand2.yaml
-```
-
-Each namespace is fully isolated with its own database, Redis instance, and configuration.
-
-### Scaling and Resource Tuning
-
-#### Horizontal scaling
-
-Adjust `replicaCount` for each service based on load:
-
-```yaml
-portal:
-  replicaCount: 4    # Scale portal for high traffic
-
-api:
-  replicaCount: 3    # Scale API for heavy backend load
-
-worker:
-  replicaCount: 4    # Scale workers for large job queues
-```
-
-The scheduler should always run with exactly 1 replica to avoid duplicate cron executions.
-
-#### Resource limits
-
-Set CPU and memory limits to prevent resource contention:
-
-```yaml
-api:
-  resources:
-    requests:
-      cpu: "250m"
-      memory: "256Mi"
-    limits:
-      cpu: "1000m"
-      memory: "512Mi"
-
-worker:
-  resources:
-    requests:
-      cpu: "250m"
-      memory: "256Mi"
-    limits:
-      cpu: "1000m"
-      memory: "512Mi"
-
-portal:
-  resources:
-    requests:
-      cpu: "250m"
-      memory: "256Mi"
-    limits:
-      cpu: "500m"
-      memory: "512Mi"
-
-admin:
-  resources:
-    requests:
-      cpu: "100m"
-      memory: "64Mi"
-    limits:
-      cpu: "250m"
-      memory: "128Mi"
-```
-
-#### Autoscaling
-
-Enable Horizontal Pod Autoscaler (HPA) for traffic-facing services:
-
-```yaml
-portal:
-  autoscaling:
-    enabled: true
-    minReplicas: 2
-    maxReplicas: 10
-    targetCPUUtilizationPercentage: 70
-
-api:
-  autoscaling:
-    enabled: true
-    minReplicas: 2
-    maxReplicas: 8
-    targetCPUUtilizationPercentage: 70
-```
-
-### Monitoring and Health Checks
-
-#### Liveness and readiness probes
-
-The Helm chart configures health check endpoints for each service:
-
-| Service   | Liveness Probe          | Readiness Probe         |
-|-----------|-------------------------|-------------------------|
-| Admin     | `GET /` (HTTP 200)      | `GET /` (HTTP 200)      |
-| Portal    | `GET /api/health`       | `GET /api/health`       |
-| API       | `GET /health`           | `GET /health`           |
-| Worker    | Process check           | Process check           |
-
-#### Prometheus metrics
-
-The API server exposes a `/metrics` endpoint compatible with Prometheus. Add a ServiceMonitor if you are using the Prometheus Operator:
-
-```yaml
-api:
-  serviceMonitor:
-    enabled: true
-    interval: 30s
-    path: /metrics
-```
-
-#### Logging
-
-All services output structured JSON logs to stdout. Use your cluster's log aggregation solution (e.g., Loki, Elasticsearch, CloudWatch) to collect and search logs.
-
-### Upgrading
-
-To upgrade an existing Helm deployment:
-
-```bash
-helm upgrade gatewaze helm/gatewaze/ \
-  --namespace gatewaze \
-  -f values.yaml
-```
-
-For zero-downtime upgrades, the chart uses rolling update strategy by default. The portal and API services maintain at least one ready pod during the rollout.
-
-### Uninstalling
-
-```bash
-helm uninstall gatewaze --namespace gatewaze
-kubectl delete namespace gatewaze
-```
-
-This removes all Kubernetes resources but does not delete persistent data in external databases or Redis.
