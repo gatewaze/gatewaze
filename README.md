@@ -93,7 +93,7 @@ You can also create your own modules and load them from local paths, git repos, 
                                          +---------+ +-----+------+
                                                            |
    optional:  se-runner . scrapling-fetcher . events-mcp . browser-mcp
-              arcade-serve . umami analytics
+              umami analytics
 ```
 
 The scheduler puts jobs on the queue and does no work itself. The worker takes
@@ -274,7 +274,6 @@ gatewaze/
     api-mcp/          # MCP server proxying whitelisted platform API calls
     events-mcp/       # Internal MCP server for the events tools
     browser-mcp/      # Internal MCP server giving agents a headless browser
-    arcade-serve/     # Games origin, serving creator-built games
     connect/          # CLI that connects a user's AI clients to your MCP server
   supabase/
     migrations/       # Database migrations, applied on first startup

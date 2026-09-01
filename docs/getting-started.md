@@ -126,11 +126,6 @@ docker compose logs admin          # Admin app logs
 - **The stack came up on the wrong Docker VM.** If you run more than one
   context, set `DOCKER_CONTEXT` in `docker/.env` to the one Gatewaze belongs to.
   Run `docker context ls` to see them.
-- **`arcade-serve` restarts over and over.** It requires
-  `ARCADE_PREVIEW_HMAC_SECRET`, which is not in `.env.example`, so it refuses to
-  start on a fresh install. Nothing else depends on it. Either ignore it, stop
-  it with `docker compose stop arcade-serve`, or set the variable in
-  `docker/.env` to any value from `openssl rand -hex 32`.
 - **Two empty directories appeared next to your clone.** The development compose
   file bind-mounts sibling module checkouts, and Docker creates the directories
   if they are missing. `gatewaze-modules` and `lf-gatewaze-modules` next to your

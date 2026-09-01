@@ -282,12 +282,6 @@ them yourself from `packages/` before you enable them.
 | `browser-mcp` | An internal MCP service that gives agents a headless browser, either Chromium in the pod or a hosted browser through Browserbase. Also not reachable from outside the cluster. | `browserMcp.enabled` |
 | `custom-domain-controller` | Watches for custom domains added in the admin, and creates the Ingress and certificate resources for them. | `customDomains.enabled` |
 
-The `arcade-serve` image, which serves creator-built games from storage
-snapshots, has a chart template and no published image either. It needs
-`arcadeServe.playOrigin`, `arcadeServe.portalOrigin`,
-`arcadeServe.previewHmacSecret`, and `arcadeServe.ingress.host` set, and the
-chart will refuse to render if you enable it without them.
-
 Two images in the compose stack are third party and are not part of the chart.
 Umami is a self-hosted analytics service, which the analytics module installs
 through its own chart. Traefik is the reverse proxy used for local development,
@@ -398,8 +392,8 @@ hand the hostnames out.
 **Pods will not start with `ImagePullBackOff`.** Check that you pinned
 `image.tag` to a version that exists in
 [the releases](https://github.com/gatewaze/gatewaze/releases). If it is one of
-`events-mcp`, `browser-mcp`, `arcade-serve`, or `custom-domain-controller`,
-that image is not published and you have to build it yourself.
+`events-mcp`, `browser-mcp`, or `custom-domain-controller`, that image is not
+published and you have to build it yourself.
 
 **Helm refuses to render, saying `image.tag=latest is forbidden`.** That is
 deliberate. Pin a version or a git commit, so that a rollback is repeatable.
