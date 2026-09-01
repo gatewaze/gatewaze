@@ -1,6 +1,6 @@
 # Backups & Restore Runbook
 
-**Spec ref:** [§5.5](../../../gatewaze-environments/specs/spec-production-readiness-hardening.md)
+**Spec ref:** §5.5 of the production readiness hardening spec, which is kept in a private repository.
 **RPO target:** 5 min (k8s) / best-effort (Docker compose)
 **RTO target:** 4 h
 

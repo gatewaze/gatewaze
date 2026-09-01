@@ -3,7 +3,7 @@
 # scrapling-fetcher — Python service exposing Scrapling's Fetcher /
 # StealthyFetcher / DynamicFetcher behind one HTTP endpoint. Used by the
 # *Fast Luma scraper variants for per-event-page fetches that don't need
-# a browser. See gatewaze-environments/specs/spec-scrapling-fetcher-service.md
+# a browser.
 #
 # Toggle: set `scraplingFetcher.enabled: true` in values-{brand}.yaml.
 ###############################################################################

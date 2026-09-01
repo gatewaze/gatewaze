@@ -1,0 +1,245 @@
+###############################################################################
+# Gatewaze on Kubernetes — Supabase Cloud
+#
+# This is the recommended starting point. Supabase runs as a managed service,
+# and the cluster runs only the Gatewaze application pods.
+#
+# Copy this file, fill in every value marked CHANGE ME, then:
+#
+#   helm repo add gatewaze https://gatewaze.github.io/gatewaze
+#   helm repo update
+#   helm install gatewaze gatewaze/gatewaze \
+#     --namespace gatewaze --create-namespace \
+#     -f my-values.yaml
+#
+# Do not commit this file with secrets filled in. See docs/kubernetes.md for
+# how to keep the secret values out of the file.
+###############################################################################
+
+instanceName: gatewaze
+
+# =============================================================================
+# Images
+# =============================================================================
+# The chart rejects the tag "latest" on purpose, so that a rollback always
+# lands on the same image it landed on last time. Pin a released version.
+# Released versions are listed at
+# https://github.com/gatewaze/gatewaze/releases
+image:
+  registry: ghcr.io/gatewaze
+  tag: "1.3.129"   # CHANGE ME to the version you want to run
+  pullPolicy: IfNotPresent
+
+# =============================================================================
+# Supabase (managed)
+# =============================================================================
+# Create a project at https://supabase.com, then take these four values from
+# Project Settings. The chart never deploys Supabase itself. See
+# docs/kubernetes.md for how to apply the Gatewaze migrations to the project
+# before the first install.
+supabase:
+  mode: cloud
+  url: "https://YOUR-PROJECT-REF.supabase.co"           # CHANGE ME
+  anonKey: "eyJhbGciOi..."                              # CHANGE ME
+  serviceRoleKey: "eyJhbGciOi..."                       # CHANGE ME
+  jwtSecret: "your-project-jwt-secret"                  # CHANGE ME
+  # Use the session-mode pooler connection string from the Supabase dashboard,
+  # not the direct connection. Port 5432 is the pooler in session mode.
+  databaseUrl: "postgresql://postgres.YOUR-PROJECT-REF:PASSWORD@aws-0-REGION.pooler.supabase.com:5432/postgres"  # CHANGE ME
+
+# =============================================================================
+# Redis
+# =============================================================================
+# The chart deploys a single Redis pod with a persistent volume. That is enough
+# for most installs. Point externalUrl at a managed Redis and set enabled=false
+# if you would rather not run it yourself.
+redis:
+  enabled: true
+  # REQUIRED. The chart refuses to render without it. Generate one with:
+  #   openssl rand -base64 32
+  password: ""                                          # CHANGE ME
+  storageSize: 2Gi
+  # Set this if your cluster default StorageClass uses a Retain reclaim policy.
+  # Redis here is a cache, so a Delete policy avoids leaving orphaned volumes
+  # behind every time the release is reinstalled.
+  storageClass: ""
+
+# =============================================================================
+# Modules
+# =============================================================================
+# Comma-separated list of git sources, each in the form url[@branch][#path].
+# The API and worker pods clone these at startup. Add your own repositories
+# here to ship modules you wrote yourself.
+moduleSources: "https://github.com/gatewaze/gatewaze-modules.git@main#modules"
+
+# =============================================================================
+# Ingress
+# =============================================================================
+# These hostnames are not only routing. The chart also builds the public URLs
+# the applications use (NEXT_PUBLIC_APP_URL, VITE_API_URL, and the rest) from
+# them, and it always builds those as https. Set them correctly even if you
+# terminate TLS on a load balancer in front of the cluster.
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+  hosts:
+    admin: admin.example.com                            # CHANGE ME
+    portal: www.example.com                             # CHANGE ME
+    api: api.example.com                                # CHANGE ME
+    mcp: ""    # only used when mcpPublic.enabled is true
+  tls:
+    enabled: true
+    secretName: gatewaze-tls
+    hosts:
+      - admin.example.com                               # CHANGE ME
+      - www.example.com                                 # CHANGE ME
+      - api.example.com                                 # CHANGE ME
+
+# =============================================================================
+# Email
+# =============================================================================
+# Magic link sign-in for the admin will not work until this is set, so set it
+# before you run the first-time setup wizard.
+email:
+  provider: sendgrid    # "sendgrid" or "smtp"
+  from: "noreply@example.com"                           # CHANGE ME
+  sendgridApiKey: ""                                    # CHANGE ME
+  # Signing secret for one-click unsubscribe links in bulk email (RFC 8058).
+  # This must stay the same forever. Rotating it breaks the unsubscribe link
+  # in every email you have already sent. Generate with:
+  #   openssl rand -base64 48
+  unsubscribeHmacSecret: ""                             # CHANGE ME
+  smtp:
+    host: ""
+    port: 587
+    user: ""
+    password: ""
+
+# =============================================================================
+# Public REST API and MCP keys
+# =============================================================================
+# Required before you can create or use an API key. Without it the admin API
+# key page returns a 500 and every X-API-Key request fails. This must also stay
+# the same forever, because rotating it invalidates every key you have issued.
+#   openssl rand -base64 32
+publicApi:
+  apiKeyPepper: ""                                      # CHANGE ME
+
+# =============================================================================
+# Replicas and resources
+# =============================================================================
+# These are the chart defaults, repeated here so they are easy to find and
+# change. See docs/kubernetes.md for the sizing guidance behind them.
+replicaCount:
+  admin: 2
+  portal: 2
+  api: 2
+  worker: 1
+  scheduler: 1   # keep at 1; more than one duplicates every cron run
+
+resources:
+  admin:
+    requests: { cpu: 500m, memory: 1Gi }
+    limits:   { cpu: "2",  memory: 3Gi }
+  portal:
+    # The portal runs `next build` when the pod starts, so the first minute
+    # needs far more memory than the steady state. Lower the limit once you
+    # have watched your own build.
+    requests: { cpu: 500m, memory: 1Gi }
+    limits:   { cpu: "2",  memory: 3Gi }
+  api:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits:   { cpu: 500m, memory: 512Mi }
+  worker:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits:   { cpu: 1000m, memory: 1Gi }
+  scheduler:
+    requests: { cpu: 50m,  memory: 128Mi }
+    limits:   { cpu: 200m, memory: 256Mi }
+
+# =============================================================================
+# Background job concurrency
+# =============================================================================
+queue:
+  concurrency:
+    jobs: 2
+    email: 5
+    image: 5
+
+logLevel: info
+
+# =============================================================================
+# Database migrations
+# =============================================================================
+# When enabled, a Helm pre-upgrade Job applies migrations before the new pods
+# roll out, under a Postgres advisory lock. If the Job fails the rollout stops
+# and the old pods keep serving. Turn this on once you are confident in your
+# backups.
+migrations:
+  preUpgradeJob:
+    enabled: false
+
+# =============================================================================
+# Storage for the API pod
+# =============================================================================
+api:
+  env:
+    # Uploading a module as a zip file is a code-execution path. Leave this
+    # off in production and install modules from git sources instead.
+    DISABLE_MODULE_UPLOAD: "true"
+    GATEWAZE_DATA_DIR: "/var/lib/gatewaze"
+    BULLMQ_PREFIX: "gatewaze"
+    AUDIT_LOG_RETENTION_DAYS: "90"
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+    mountPath: /app/data
+
+# =============================================================================
+# Availability
+# =============================================================================
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+autoscaling:
+  enabled: false
+  components:
+    api:
+      enabled: false
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilization: 75
+    worker:
+      enabled: false
+      minReplicas: 1
+      maxReplicas: 5
+      targetCPUUtilization: 75
+
+# =============================================================================
+# Optional services, all off by default
+# =============================================================================
+# Read docs/kubernetes.md before turning any of these on. Some of them need a
+# container image that the release pipeline does not currently publish.
+monitoring:
+  enabled: false     # PodMonitor resources; needs the Prometheus Operator CRDs
+  sentry:
+    dsn: ""
+  otel:
+    endpoint: ""
+
+# Backups. Supabase Cloud already takes its own backups, so leave this off
+# unless you want a second copy in your own object storage.
+backup:
+  enabled: false
+
+# Connection pooling. Supabase Cloud provides Supavisor, so you do not need
+# PgBouncer as well.
+database:
+  poolingEnabled: false
