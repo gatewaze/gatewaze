@@ -21,12 +21,11 @@ own.
 | `packages/api-mcp` | An MCP server that proxies a whitelisted set of platform API calls. |
 | `packages/events-mcp` | An MCP server for the `events_*` tools, including writing changes back to Luma. |
 | `packages/browser-mcp` | An MCP server that gives agents a headless browser, either local Chromium or Browserbase. |
-| `packages/arcade-serve` | Serves creator-built games from versioned storage snapshots. |
 | `packages/connect` | A command-line tool that connects a user's AI clients to a Gatewaze MCP server. |
 
-The last four are deliberately outside the workspace dependency graph. They
-have their own Dockerfiles and almost no dependencies, so a change to the
-platform does not force them to be rebuilt.
+`events-mcp` and `browser-mcp` are deliberately outside the workspace
+dependency graph. They have their own Dockerfiles and almost no dependencies,
+so a change to the platform does not force them to be rebuilt.
 
 The database, authentication, storage, and edge functions come from
 [Supabase](https://supabase.com), either self-hosted or managed. Background
@@ -88,11 +87,11 @@ are optional and off unless you turn them on.
              +---------------------+     +---------------------+
               - - - optional - - -        - - - optional - - -
 
-             +---------------------+     +---------------------+
-             |    arcade-serve     |     |       umami         |
-             |   games origin      |     |  web analytics      |
-             +---------------------+     +---------------------+
-              - - - optional - - -        - - - optional - - -
+             +---------------------+
+             |       umami         |
+             |  web analytics      |
+             +---------------------+
+              - - - optional - - -
 ```
 
 Reading it in words:
@@ -196,16 +195,15 @@ more than one copy of it runs every job twice.
 
 ### The small services
 
-Four packages are deliberately outside the workspace dependency graph. Each has
-its own Dockerfile, almost no dependencies, and can be deployed or rolled back
-without touching the platform.
+These serve AI agents rather than people. The two internal ones each have their
+own Dockerfile and almost no dependencies, so they can be deployed or rolled
+back without touching the platform.
 
 | Package | What it does |
 |---|---|
 | `packages/mcp` | The Model Context Protocol server. In its public profile it serves read-only tools with no client authentication, so agents can read your events and content. |
 | `packages/events-mcp` | An internal MCP service for the `events_*` tools, including writing changes back to Luma. Service role backed and never routed publicly. |
 | `packages/browser-mcp` | An internal MCP service that gives agents a headless browser, either Chromium in the container or a hosted browser through Browserbase. |
-| `packages/arcade-serve` | The games origin. Serves creator-built single-page games out of versioned storage snapshots, and ships the browser SDK those games use. |
 
 Two more support the rest. `packages/tracking` is the engagement tracking
 library the portal and admin share. `packages/connect` is a command-line tool
@@ -490,10 +488,9 @@ ghcr.io/gatewaze/scrapling-fetcher
 describes what each image does. The Helm chart rejects the tag `latest` on
 purpose, so that a rollback lands on the same image every time.
 
-The Helm chart also has templates for `events-mcp`, `browser-mcp`,
-`arcade-serve`, and `custom-domain-controller`. The release pipeline does not
-publish those images yet, so build and push them yourself before enabling
-them.
+The Helm chart also has templates for `events-mcp`, `browser-mcp`, and
+`custom-domain-controller`. The release pipeline does not publish those images
+yet, so build and push them yourself before enabling them.
 
 ---
 
