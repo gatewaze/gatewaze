@@ -20,6 +20,18 @@ set -e
 
 WORK=/tmp/module-deps
 AGG=/docker/shared/aggregate-module-deps.mjs
+PREFETCH=/docker/shared/prefetch-module-sources.mjs
+
+# Clone git module sources before aggregating. On a first boot
+# /app/.gatewaze-modules is an empty volume, so without this the aggregation
+# below finds no modules, installs nothing, and the app then clones 80+ modules
+# whose deps are missing — every module importing openai / cheerio /
+# @supabase/supabase-js fails with MODULE_NOT_FOUND while the container still
+# reports healthy. Best effort: on failure we simply get today's behaviour.
+if [ -f "$PREFETCH" ]; then
+  node "$PREFETCH" || echo "[dev-module-deps] prefetch step failed (continuing)"
+fi
+
 mkdir -p "$WORK"
 echo '{"name":"gatewaze-module-deps","version":"1.0.0","private":true,"dependencies":{}}' > "$WORK/package.json"
 
