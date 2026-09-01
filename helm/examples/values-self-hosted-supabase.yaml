@@ -1,0 +1,198 @@
+###############################################################################
+# Gatewaze on Kubernetes — self-hosted Supabase
+#
+# Read this first: the Gatewaze chart does NOT install Supabase. There are no
+# Postgres, GoTrue, PostgREST, Storage, or Edge Function templates in it. The
+# `supabase.mode` value is a label only; no template reads it.
+#
+# So this file assumes you have already installed Supabase somewhere the
+# cluster can reach, and it points Gatewaze at that installation. Two ways
+# people do that:
+#
+#   1. The community Supabase chart, in the same cluster:
+#      https://github.com/supabase-community/supabase-kubernetes
+#   2. A Supabase stack on a VM next to the cluster, reached over the network.
+#
+# Compared with Supabase Cloud you are taking on Postgres upgrades, backups,
+# point-in-time recovery, and connection pooling yourself. See
+# docs/kubernetes.md for what that costs in cluster resources.
+#
+# Copy this file, fill in every value marked CHANGE ME, then:
+#
+#   helm install gatewaze gatewaze/gatewaze \
+#     --namespace gatewaze --create-namespace \
+#     -f my-values.yaml
+###############################################################################
+
+instanceName: gatewaze
+
+image:
+  registry: ghcr.io/gatewaze
+  tag: "1.3.129"   # CHANGE ME. The tag "latest" is rejected by the chart.
+  pullPolicy: IfNotPresent
+
+# =============================================================================
+# Supabase (your own installation)
+# =============================================================================
+supabase:
+  mode: self-hosted
+
+  # The URL browsers use to reach the Supabase API gateway (Kong). This value
+  # is baked into the admin and portal bundles, so it has to be the public
+  # address, not an in-cluster service name.
+  url: "https://supabase.example.com"                   # CHANGE ME
+
+  # These three come from your Supabase installation. The anon and service role
+  # keys are JWTs signed with the same jwtSecret below, so all three have to
+  # agree. Generate the keys with the tool at
+  # https://supabase.com/docs/guides/self-hosting#api-keys
+  anonKey: "eyJhbGciOi..."                              # CHANGE ME
+  serviceRoleKey: "eyJhbGciOi..."                       # CHANGE ME
+  jwtSecret: "at-least-32-characters-of-random"         # CHANGE ME
+
+  # Direct Postgres connection for the API, worker, and migration Job. An
+  # in-cluster service name is correct here, because only pods use it.
+  databaseUrl: "postgresql://postgres:PASSWORD@supabase-db.supabase.svc.cluster.local:5432/postgres"  # CHANGE ME
+
+redis:
+  enabled: true
+  password: ""                                          # CHANGE ME: openssl rand -base64 32
+  storageSize: 4Gi
+  storageClass: ""
+
+moduleSources: "https://github.com/gatewaze/gatewaze-modules.git@main#modules"
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+  hosts:
+    admin: admin.example.com                            # CHANGE ME
+    portal: www.example.com                             # CHANGE ME
+    api: api.example.com                                # CHANGE ME
+    mcp: ""
+  tls:
+    enabled: true
+    secretName: gatewaze-tls
+    hosts:
+      - admin.example.com                               # CHANGE ME
+      - www.example.com                                 # CHANGE ME
+      - api.example.com                                 # CHANGE ME
+
+email:
+  provider: smtp
+  from: "noreply@example.com"                           # CHANGE ME
+  unsubscribeHmacSecret: ""                             # CHANGE ME: openssl rand -base64 48
+  smtp:
+    host: "smtp.example.com"                            # CHANGE ME
+    port: 587
+    user: ""                                            # CHANGE ME
+    password: ""                                        # CHANGE ME
+
+publicApi:
+  apiKeyPepper: ""                                      # CHANGE ME: openssl rand -base64 32
+
+replicaCount:
+  admin: 2
+  portal: 2
+  api: 2
+  worker: 1
+  scheduler: 1
+
+resources:
+  admin:
+    requests: { cpu: 500m, memory: 1Gi }
+    limits:   { cpu: "2",  memory: 3Gi }
+  portal:
+    requests: { cpu: 500m, memory: 1Gi }
+    limits:   { cpu: "2",  memory: 3Gi }
+  api:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits:   { cpu: 500m, memory: 512Mi }
+  worker:
+    requests: { cpu: 200m, memory: 512Mi }
+    limits:   { cpu: 1000m, memory: 1Gi }
+  scheduler:
+    requests: { cpu: 50m,  memory: 128Mi }
+    limits:   { cpu: 200m, memory: 256Mi }
+
+queue:
+  concurrency:
+    jobs: 2
+    email: 5
+    image: 5
+
+logLevel: info
+
+migrations:
+  preUpgradeJob:
+    enabled: false
+
+api:
+  env:
+    DISABLE_MODULE_UPLOAD: "true"
+    GATEWAZE_DATA_DIR: "/var/lib/gatewaze"
+    BULLMQ_PREFIX: "gatewaze"
+  persistence:
+    enabled: true
+    size: 10Gi
+    accessModes:
+      - ReadWriteOnce
+    mountPath: /app/data
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# =============================================================================
+# Connection pooling
+# =============================================================================
+# Supabase Cloud gives you Supavisor. A self-hosted Supabase usually does not,
+# and two API replicas plus a worker will open more connections than a small
+# Postgres is configured to accept. Turn PgBouncer on once you run more than
+# one API replica under real load.
+database:
+  poolingEnabled: false
+  host: "supabase-db.supabase.svc.cluster.local"        # CHANGE ME
+  port: "5432"
+  secretName: ""   # a Secret holding keys `user` and `password`
+  pgbouncer:
+    image: "edoburu/pgbouncer:1.23"
+    replicas: 2
+    poolMode: "transaction"
+    maxClientConn: "1000"
+    defaultPoolSize: "20"
+
+# =============================================================================
+# Backups
+# =============================================================================
+# Nobody else is backing this database up for you. Turn this on, point it at
+# S3-compatible storage, and check that the weekly restore validation Job
+# passes. Daily full backup plus write-ahead log shipping.
+backup:
+  enabled: false
+  schedule: "0 2 * * *"
+  image: "pgbackrest/pgbackrest:latest"
+  postgres:
+    host: "supabase-db.supabase.svc.cluster.local"      # CHANGE ME
+    port: "5432"
+    user: "postgres"
+    database: "postgres"
+    secretName: ""   # a Secret holding key `password`
+  s3:
+    bucket: ""                                          # CHANGE ME
+    endpoint: "s3.amazonaws.com"
+    region: "us-east-1"
+    secretName: ""   # a Secret holding keys `access_key` and `secret_key`
+  validation:
+    enabled: true
+    schedule: "0 3 * * 0"
+
+monitoring:
+  enabled: false
+  sentry:
+    dsn: ""
+  otel:
+    endpoint: ""
