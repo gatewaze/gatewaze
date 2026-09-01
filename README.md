@@ -132,15 +132,9 @@ database applies every migration as it starts. Check on it with:
 make ps
 ```
 
-Two things worth knowing before you run this.
-
-It starts about 23 containers: the Gatewaze services, a complete self-hosted
-Supabase, Redis, and the supporting services. Give Docker roughly 8 GB of
-memory.
-
-The Makefile pins `DOCKER_CONTEXT` to `desktop-linux`, which is a Docker
-Desktop context name. If your Docker context is called something else, run
-`docker context ls` and pass yours: `DOCKER_CONTEXT=default make up`.
+One thing worth knowing before you run this. It starts about 23 containers:
+the Gatewaze services, a complete self-hosted Supabase, Redis, and the
+supporting services. Give Docker roughly 8 GB of memory.
 
 ### Everyday Commands
 
