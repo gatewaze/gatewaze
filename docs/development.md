@@ -111,32 +111,37 @@ cd gatewaze
 # Install all dependencies
 pnpm install
 
-# Copy environment configuration
-cp .env.example .env
+# Create docker/.env from the example
+make init
 
-# Start infrastructure (Supabase + Redis)
-docker compose up -d
+# Start Supabase and Redis in Docker
+cd docker
+docker compose up -d supabase-db supabase-auth supabase-rest supabase-kong \
+  supabase-storage supabase-realtime supabase-edge-functions \
+  supabase-meta supabase-studio redis
+cd ..
 
-# Wait for services to be healthy
-docker compose ps
+# Wait for the database to report healthy
+docker compose -f docker/docker-compose.yml ps supabase-db
 
-# Run database migrations
-pnpm db:migrate
-
-# Start all development servers
+# Start the development servers
 pnpm dev
 ```
+
+Migrations are applied by the database container as it starts, so there is no
+separate migration step for a self-hosted Supabase. Against Supabase Cloud, run
+`make migrate` instead.
 
 ### Development URLs
 
 When running via `pnpm dev` (without Docker), services use their native ports:
 
-| Service         | URL                       |
-|-----------------|---------------------------|
-| Admin App       | http://localhost:5173      |
-| Public Portal   | http://localhost:3000      |
-| API Server      | http://localhost:4000      |
-| Inbucket (Email)| http://localhost:54324     |
+| Service | URL |
+|---|---|
+| Admin app | http://localhost:5173 |
+| Public portal | http://localhost:3100 |
+| API server | http://localhost:3002 |
+| Supabase Studio | http://localhost:54323 |
 
 When running via Docker Compose (with Traefik), services are available at `.localhost` domains:
 

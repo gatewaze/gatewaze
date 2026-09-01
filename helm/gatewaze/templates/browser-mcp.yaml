@@ -1,11 +1,10 @@
-{{- if .Values.browserMcp.enabled }}
+{{- if (.Values.browserMcp).enabled }}
 ###############################################################################
 # browser-mcp — Node service exposing the browser_* tools + browserbase_fetch/
 # search over streamable HTTP (MCP). Registered in ai_mcp_servers as
 # type=streamable_http and reached by the worker/api at
-# http://<release>-browser-mcp:8080/mcp. Backend (local Chromium | Browserbase
-# cloud) is chosen service-side via BROWSER_MCP_BACKEND.
-# See gatewaze-environments/specs/spec-browserbase-browser-backend.md
+# http://<release>-browser-mcp:8080/mcp. The backend is either local Chromium in
+# the pod or a hosted Browserbase browser, chosen via BROWSER_MCP_BACKEND.
 #
 # NOTE: the worker/api must run with AI_MCP_HTTP_ALLOW_PRIVATE=true to connect
 # to this internal http:// service past the streamable_http SSRF guard, and the

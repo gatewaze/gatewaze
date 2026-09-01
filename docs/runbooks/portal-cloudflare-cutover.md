@@ -227,8 +227,9 @@ warm pages, etc. are fine.
 Total time: ~15 minutes (most of it Vite-build-at-startup).
 
 ```bash
-# 1. Scale the K8s portal deployment back up. In gatewaze-environments:
-cd /Users/dan/Git/gatewaze/gatewaze-environments
+# 1. Scale the K8s portal deployment back up, from wherever you keep your
+#    per-brand Helm values.
+cd /path/to/your-environments-repo
 yq e '.replicaCount.portal = 1' -i values-example.yaml
 git add values-example.yaml && git commit -m "ops(example): rollback portal to k8s"
 
@@ -254,7 +255,7 @@ wrangler deploy --dry-run  # confirms current production config
 After 7 consecutive days of clean operation on Cloudflare:
 
 ```bash
-cd /Users/dan/Git/gatewaze/gatewaze-environments
+cd /path/to/your-environments-repo
 yq e '.replicaCount.portal = 0' -i values-example.yaml
 git commit -am "ops(example): scale k8s portal to 0 (cutover complete)"
 helm upgrade example ./charts/gatewaze -f values-example.yaml --namespace example
