@@ -161,7 +161,13 @@ export default function MembersPage() {
   // Prospects = legitimate-interest outreach contacts (contact_kind='prospect',
   // no auth account) — stored for CFP/sponsorship outreach, excluded from bulk
   // email, and invisible to the members RPC, so they get their own query.
-  const [kindFilter, setKindFilter] = useState<'members' | 'prospects'>('members');
+  // Test = synthetic rows created by a test-data module (attributes.is_test),
+  // e.g. send-testing's rehearsal population. They are contact_kind='member'
+  // with no auth account, so the members RPC and the prospects query both miss
+  // them — which is the wanted default, but leaves no way to inspect them.
+  // This tab is that way in, and it is why the exclusion below is explicit
+  // rather than relying on those two accidents of the schema.
+  const [kindFilter, setKindFilter] = useState<'members' | 'prospects' | 'test'>('members');
   const [peopleWithGravatar, setPeopleWithGravatar] = useState<Person[]>([]);
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -235,13 +241,25 @@ export default function MembersPage() {
       const sortBy = sorting.length > 0 ? sorting[0].id : 'created_at';
       const sortOrder = sorting.length > 0 ? (sorting[0].desc ? 'desc' : 'asc') : 'desc';
 
-      // Prospects view: direct query (the members RPC filters to authenticated
-      // people, which prospects never are).
-      if (kindFilter === 'prospects') {
+      // Prospects and Test views: direct queries (the members RPC filters to
+      // authenticated people, which neither ever are).
+      if (kindFilter === 'prospects' || kindFilter === 'test') {
         let query = supabase
           .from('people')
-          .select('id, cio_id, email, created_at, attributes, avatar_storage_path, avatar_source, contact_kind, acquisition_source', { count: 'exact' })
-          .eq('contact_kind', 'prospect');
+          .select('id, cio_id, email, created_at, attributes, avatar_storage_path, avatar_source, contact_kind, acquisition_source', { count: 'exact' });
+
+        if (kindFilter === 'test') {
+          query = query.eq('attributes->>is_test', 'true');
+        } else {
+          query = query
+            .eq('contact_kind', 'prospect')
+            // Test rows are contact_kind='member' so they cannot match anyway,
+            // but a test module is free to mint prospects too. Written as an
+            // or() because `not.eq` would drop every row whose attributes have
+            // no is_test key at all: NOT (NULL = 'true') is NULL, not true.
+            .or('attributes->>is_test.is.null,attributes->>is_test.neq.true');
+        }
+
         const term = (globalFilter || '').trim().replace(/[%_\\,()]/g, '');
         if (term) {
           query = query.or(
@@ -537,9 +555,10 @@ export default function MembersPage() {
           );
         },
       }),
-      // Provenance column, shown only in the Prospects view (GDPR Art. 14:
-      // you must be able to say where a contact came from).
-      ...(kindFilter === 'prospects'
+      // Provenance column, shown in the Prospects view (GDPR Art. 14: you must
+      // be able to say where a contact came from) and in the Test view, where
+      // it is what distinguishes one test module's rows from another's.
+      ...(kindFilter === 'prospects' || kindFilter === 'test'
         ? [
             columnHelper.accessor((row) => row.acquisition_source, {
               id: 'acquisitionSource',
@@ -1272,23 +1291,25 @@ export default function MembersPage() {
                   <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-5 text-[var(--gray-a8)]" />
                   <input
                     type="text"
-                    placeholder={kindFilter === 'prospects' ? 'Search prospects by name, email, company, or source...' : 'Search people... (e.g., company:microsoft or john)'}
+                    placeholder={kindFilter === 'prospects' ? 'Search prospects by name, email, company, or source...' : kindFilter === 'test' ? 'Search test people by name, email, or source...' : 'Search people... (e.g., company:microsoft or john)'}
                     value={globalFilter ?? ''}
                     onChange={(e) => setGlobalFilter(e.target.value)}
                     className="w-full pl-10 pr-4 py-2 bg-[var(--color-background)] border border-[var(--gray-a6)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent-9)] text-[var(--gray-12)]"
                   />
                 </div>
                 {/* Members = consented community; Prospects = legitimate-interest
-                    outreach contacts (excluded from bulk email). */}
+                    outreach contacts (excluded from bulk email); Test =
+                    synthetic rows from a test-data module, hidden from the
+                    other two views. */}
                 <div className="inline-flex rounded-lg border border-[var(--gray-a6)] overflow-hidden self-stretch">
-                  {(['members', 'prospects'] as const).map((k) => (
+                  {(['members', 'prospects', 'test'] as const).map((k) => (
                     <button
                       key={k}
                       type="button"
                       onClick={() => { setKindFilter(k); setCurrentPage(0); setSelectedPersonIds(new Set()); setSelectAllMode(false); }}
                       className={`px-3 text-sm font-medium ${kindFilter === k ? 'bg-[var(--accent-9)] text-white' : 'text-[var(--gray-11)] hover:bg-[var(--gray-a3)]'}`}
                     >
-                      {k === 'members' ? 'Members' : 'Prospects'}
+                      {k === 'members' ? 'Members' : k === 'prospects' ? 'Prospects' : 'Test'}
                     </button>
                   ))}
                 </div>
