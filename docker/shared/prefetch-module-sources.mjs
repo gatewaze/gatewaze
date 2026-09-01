@@ -20,7 +20,16 @@
 // itself a moment later.
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  rmdirSync,
+  statSync,
+} from 'node:fs';
 import { resolve } from 'node:path';
 
 const PROJECT_ROOT = process.env.GATEWAZE_PROJECT_ROOT || '/app';
@@ -127,6 +136,101 @@ function fromConfig() {
   return out;
 }
 
+// The api, worker and se-runner dev containers run this entrypoint at the same
+// time and share one bind-mounted cache directory, so they race. Testing the
+// final path for a .git directory is not enough: git creates .git early, so a
+// second container sees it mid-clone, assumes the clone is finished, and then
+// aggregates against a tree that has no module package.json files in it yet.
+//
+// So: clone into a private temp directory and rename it into place, which is
+// atomic, meaning the final path only ever appears complete. A lock directory
+// (mkdir is atomic) picks one winner, and the losers wait for it rather than
+// racing. A stale lock times out instead of hanging startup forever.
+const LOCK_TIMEOUT_MS = 240_000;
+const POLL_MS = 1000;
+
+function looksComplete(dir) {
+  try {
+    if (!existsSync(resolve(dir, '.git'))) return false;
+    // A finished clone has the repo's own files, not just .git.
+    return readdirSync(dir).some((e) => e !== '.git');
+  } catch {
+    return false;
+  }
+}
+
+function waitForPeer(dir, lockDir, slug) {
+  const deadline = Date.now() + LOCK_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    if (!existsSync(lockDir) && looksComplete(dir)) {
+      log(`another container finished cloning ${slug}`);
+      return;
+    }
+    try {
+      // Stale lock from a container that died mid-clone.
+      if (existsSync(lockDir) && Date.now() - statSync(lockDir).mtimeMs > LOCK_TIMEOUT_MS) {
+        log(`stale lock for ${slug}; continuing without it`);
+        return;
+      }
+    } catch { /* lock vanished between the check and the stat */ }
+    // Synchronous sleep without shelling out to a `sleep` binary, which is not
+    // guaranteed to exist in every base image.
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, POLL_MS);
+  }
+  log(`timed out waiting for ${slug}; continuing (the app will clone it)`);
+}
+
+function fetchSource(url, branch) {
+  const slug = repoSlug(url);
+  const dir = resolve(CACHE_DIR, slug);
+  const lockDir = resolve(CACHE_DIR, `.lock-${slug}`);
+
+  if (looksComplete(dir)) {
+    log(`already cloned: ${slug}`);
+    return;
+  }
+
+  if (branch && !BRANCH_RE.test(branch)) {
+    log(`refusing to clone with invalid branch: ${branch}`);
+    return;
+  }
+
+  let holdsLock = false;
+  try {
+    mkdirSync(lockDir); // atomic: exactly one container wins
+    holdsLock = true;
+  } catch {
+    waitForPeer(dir, lockDir, slug);
+    return;
+  }
+
+  const tmp = resolve(CACHE_DIR, `.tmp-${slug}-${process.pid}`);
+  try {
+    rmSync(tmp, { recursive: true, force: true });
+
+    // A private source needs a token this container does not hold. That is a
+    // normal outcome, not an error: skip it and let the app try.
+    const args = ['clone', '--depth', '1'];
+    if (branch) args.push('--branch', branch);
+    args.push(url, tmp);
+
+    log(`cloning ${url}${branch ? ` (${branch})` : ''} -> ${slug}`);
+    execFileSync('git', args, { stdio: 'pipe', timeout: 180_000 });
+
+    // Publish atomically, so no other container ever sees a partial tree.
+    renameSync(tmp, dir);
+    log(`cloned ${slug}`);
+  } catch (err) {
+    const detail = (err?.stderr?.toString?.() || err?.message || '').trim().split('\n')[0];
+    log(`could not clone ${url} (continuing): ${detail}`);
+    rmSync(tmp, { recursive: true, force: true });
+  } finally {
+    if (holdsLock) {
+      try { rmdirSync(lockDir); } catch { /* already gone */ }
+    }
+  }
+}
+
 function main() {
   const sources = [...fromEnv(), ...fromConfig()].filter((s) => s.url && isGitUrl(s.url));
   if (sources.length === 0) {
@@ -141,32 +245,7 @@ function main() {
     const slug = repoSlug(url);
     if (seen.has(slug)) continue;
     seen.add(slug);
-
-    const dir = resolve(CACHE_DIR, slug);
-    if (existsSync(resolve(dir, '.git'))) {
-      log(`already cloned: ${slug}`);
-      continue;
-    }
-
-    if (branch && !BRANCH_RE.test(branch)) {
-      log(`refusing to clone with invalid branch: ${branch}`);
-      continue;
-    }
-
-    // A private source needs a token this container does not hold. That is a
-    // normal outcome, not an error: skip it and let the app try.
-    const args = ['clone', '--depth', '1'];
-    if (branch) args.push('--branch', branch);
-    args.push(url, dir);
-
-    try {
-      log(`cloning ${url}${branch ? ` (${branch})` : ''} -> ${slug}`);
-      execFileSync('git', args, { stdio: 'pipe', timeout: 180_000 });
-      log(`cloned ${slug}`);
-    } catch (err) {
-      const detail = (err?.stderr?.toString?.() || err?.message || '').trim().split('\n')[0];
-      log(`could not clone ${url} (continuing): ${detail}`);
-    }
+    fetchSource(url, branch);
   }
 }
 
