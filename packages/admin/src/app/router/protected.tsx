@@ -2,6 +2,7 @@ import { RouteObject } from "react-router";
 
 import AuthGuard from "@/middleware/AuthGuard";
 import AdminGuard from "@/middleware/AdminGuard";
+import SuperAdminGuard from "@/middleware/SuperAdminGuard";
 import { FeatureGuard } from "@/middleware/FeatureGuard";
 import { OnboardingGuard } from "@/middleware/OnboardingGuard";
 import { UnauthorizedPage } from "@/components/guards/FeatureGuard";
@@ -160,7 +161,11 @@ const protectedRoutes: RouteObject = {
               },
             },
             {
+              // Module management installs and runs code from configured
+              // sources, so the whole subtree is super_admin only, matching
+              // the gate on /api/modules.
               path: "modules",
+              Component: SuperAdminGuard,
               children: [
                 {
                   index: true,
