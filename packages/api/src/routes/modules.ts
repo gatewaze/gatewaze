@@ -1634,10 +1634,20 @@ modulesRouter.post('/:id/update', async (req, res) => {
       });
     }
 
-    // 1. Apply pending migrations (only if version changed)
-    if (hasVersionUpdate) {
-      await applyModuleMigrations(mod, supabase as never);
+    // 1. Apply pending migrations.
+    //
+    // This used to run only when the version changed, which meant a module
+    // that added a migration without bumping its version had that migration
+    // silently skipped. Most modules never bump: 65 of the 86 open-source
+    // modules are still on 1.0.0, and newsletters has 298 commits against a
+    // single change to its version line. applyModuleMigrations already reads
+    // module_migrations and skips anything applied, matching on filename and
+    // checksum, so running it unconditionally costs one query and removes the
+    // failure mode. We only reach this point when the module is being updated
+    // at all, since the no-change case returned above.
+    await applyModuleMigrations(mod, supabase as never);
 
+    if (hasVersionUpdate) {
       // Update version and features in DB
       await supabase
         .from('installed_modules')
@@ -1744,10 +1754,10 @@ modulesRouter.post('/update-all', async (_req, res) => {
 
       const previousVersion = row.version;
 
-      // Apply migrations (only if version changed)
-      if (hasVersionUpdate) {
-        await applyModuleMigrations(mod, supabase as never);
-      }
+      // Apply migrations. Unconditional for the same reason as /:id/update:
+      // gating on a version bump silently skipped migrations from modules that
+      // never bump, and applyModuleMigrations is already idempotent.
+      await applyModuleMigrations(mod, supabase as never);
 
       // Update DB
       const dbUpdate: Record<string, unknown> = {
@@ -1761,6 +1771,32 @@ modulesRouter.post('/update-all', async (_req, res) => {
       if (currentHash) {
         dbUpdate.edge_functions_hash = currentHash;
       }
+
+      // Record the source hash too. This endpoint used to update a module and
+      // leave source_snapshot_hash untouched, so /sources/refresh went on
+      // comparing upstream against a value from whenever the module was last
+      // enabled and kept re-raising the same update. Only record it when the
+      // live tree genuinely matches upstream — a real pending source change
+      // still needs the snapshot install that /apply-update performs, and
+      // marking it applied here would hide code that was never deployed.
+      const upstreamDir = await resolveSourceDirForModule(mod.config.id, supabase);
+      if (upstreamDir) {
+        try {
+          const { computeModuleHashFromPath } = await import('@gatewaze/shared/modules');
+          const upstreamHash = computeModuleHashFromPath(upstreamDir);
+          const liveHash = computeModuleHashFromPath(liveModuleDir(mod.config.id));
+          if (upstreamHash === liveHash) {
+            dbUpdate.source_snapshot_hash = upstreamHash;
+            await supabase
+              .from('module_updates_available')
+              .delete()
+              .eq('module_id', mod.config.id);
+          }
+        } catch {
+          // Hashing is best effort; a miss just leaves the row for the next refresh.
+        }
+      }
+
       await supabase
         .from('installed_modules')
         .update(dbUpdate)
@@ -2101,25 +2137,47 @@ modulesRouter.post('/sources/refresh', async (_req, res) => {
       if (!upstreamHash) continue;
 
       const snapshotHash = row.source_snapshot_hash as string | null;
-      if (upstreamHash !== snapshotHash) {
-        const platformCompatible = !mod.config.minPlatformVersion ||
-          !config.platformVersion ||
-          compareSemver(config.platformVersion, mod.config.minPlatformVersion) >= 0;
+      const liveHash = (() => {
+        try { return computeModuleHashFromPath(liveModuleDir(row.id)); }
+        catch { return null; }
+      })();
 
-        await supabase.from('module_updates_available').upsert({
-          module_id: row.id,
-          source_id: row.source_id,
-          upstream_hash: upstreamHash,
-          upstream_version: mod.config.version,
-          detected_at: now,
-          platform_compatible: platformCompatible,
-          min_platform_version: mod.config.minPlatformVersion ?? null,
-        });
-        updatesAvailable++;
-      } else {
+      const state = decideUpdateState({ upstreamHash, snapshotHash, liveHash });
+
+      if (state === 'none') {
         // Clear any stale update row.
         await supabase.from('module_updates_available').delete().eq('module_id', row.id);
+        continue;
       }
+
+      if (state === 'repair') {
+        // Deployed code already matches upstream; only the record was stale.
+        await supabase
+          .from('installed_modules')
+          .update({ source_snapshot_hash: upstreamHash })
+          .eq('id', row.id);
+        await supabase.from('module_updates_available').delete().eq('module_id', row.id);
+        logger.info(
+          { module: row.id },
+          '[modules] live tree already matches upstream — repaired stale source_snapshot_hash',
+        );
+        continue;
+      }
+
+      const platformCompatible = !mod.config.minPlatformVersion ||
+        !config.platformVersion ||
+        compareSemver(config.platformVersion, mod.config.minPlatformVersion) >= 0;
+
+      await supabase.from('module_updates_available').upsert({
+        module_id: row.id,
+        source_id: row.source_id,
+        upstream_hash: upstreamHash,
+        upstream_version: mod.config.version,
+        detected_at: now,
+        platform_compatible: platformCompatible,
+        min_platform_version: mod.config.minPlatformVersion ?? null,
+      });
+      updatesAvailable++;
     }
 
     return res.json({
@@ -2135,6 +2193,36 @@ modulesRouter.post('/sources/refresh', async (_req, res) => {
     });
   }
 });
+
+/**
+ * Decide whether a module genuinely has an upstream update pending.
+ *
+ * `source_snapshot_hash` records what was installed, but only /enable and
+ * /apply-update ever write it. Anything installed before the dual-tree flow
+ * landed has none, and anything put through /update-all kept whatever value
+ * it had. Comparing upstream against that record alone therefore reports an
+ * update for modules whose deployed code is already identical to upstream,
+ * and applying it changes no files, so the record stays wrong and the banner
+ * returns on the next refresh.
+ *
+ * Deciding on the live tree instead makes the question the one the operator
+ * is actually asking: does the code running here differ from upstream?
+ *
+ *   'none'      recorded hash agrees with upstream; nothing to do
+ *   'repair'    record is stale but the live tree already matches upstream,
+ *               so rewrite the record and clear the banner
+ *   'available' the live tree really does differ; a genuine update
+ */
+export function decideUpdateState(input: {
+  upstreamHash: string;
+  snapshotHash: string | null;
+  liveHash: string | null;
+}): 'none' | 'repair' | 'available' {
+  const { upstreamHash, snapshotHash, liveHash } = input;
+  if (snapshotHash && upstreamHash === snapshotHash) return 'none';
+  if (liveHash && liveHash === upstreamHash) return 'repair';
+  return 'available';
+}
 
 /**
  * Resolve the current upstream source directory for a given installed
