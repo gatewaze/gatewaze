@@ -763,6 +763,13 @@ export interface InstalledModuleRow {
    * whether an update is available (see api/src/routes/modules.ts update-check).
    */
   source_snapshot_hash?: string | null;
+  /**
+   * When the live snapshot was installed. Written alongside
+   * source_snapshot_hash by /enable and /apply-update, so a row with neither
+   * was never materialised into the live tree — a rename tombstone rather than
+   * an installed module.
+   */
+  snapshot_taken_at?: string | null;
   on_install_ran_at?: string | null;
   install_completed_at?: string | null;
   ui_contributions_ignored?: string[];
