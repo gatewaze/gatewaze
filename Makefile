@@ -31,7 +31,42 @@ TRAEFIK_FILE  := -f docker/docker-compose.traefik.yml
 # brand lives in its own environments repository with its own env file, and is
 # started from there. This repo has no brand targets, and adding one would put
 # a specific deployment's name into an open-source tree.
-export COMPOSE_PROJECT_NAME := gatewaze
+#
+# The hostnames are pinned for the same reason. Pinning only the project name
+# produced a half-branded stack: containers called gatewaze-* answering on
+# another deployment's hostnames, because Compose still read those from
+# docker/.env.
+#
+# `?=` so a shell variable still wins. That keeps the legitimate override
+# working, e.g. two vanilla checkouts on one machine:
+#   ADMIN_HOST=admin.two.localhost COMPOSE_PROJECT_NAME=gatewaze2 make up
+# What it will not do is inherit an identity from a docker/.env left behind by
+# another deployment.
+export COMPOSE_PROJECT_NAME ?= gatewaze
+export INSTANCE_NAME    ?= gatewaze
+export ADMIN_HOST       ?= admin.gatewaze.localhost
+export PORTAL_HOST      ?= app.gatewaze.localhost
+export API_HOST         ?= api.gatewaze.localhost
+export SUPABASE_HOST    ?= supabase.gatewaze.localhost
+export STUDIO_HOST      ?= studio.gatewaze.localhost
+export ANALYTICS_HOST   ?= analytics.gatewaze.localhost
+export FETCH_HOST       ?= fetch.gatewaze.localhost
+export MCP_HOST         ?= mcp.gatewaze.localhost
+export API_URL          ?= http://api.gatewaze.localhost
+# The portal's router rule has its own override, used by deployments that also
+# serve wildcard site subdomains. Left empty here so the rule falls back to a
+# plain Host() on PORTAL_HOST above; without this a leftover rule in
+# docker/.env kept the portal on another deployment's hostname even once every
+# other host was pinned.
+export PORTAL_TRAEFIK_RULE ?=
+# The URLs derived from those hosts. Auth redirects in particular: GoTrue
+# rejects a sign-in that comes back to a host outside SITE_URL /
+# ADDITIONAL_REDIRECT_URLS, so leaving these pointing at another deployment
+# breaks login on a stack that otherwise looks vanilla.
+export SUPABASE_URL     ?= http://supabase.gatewaze.localhost
+export API_EXTERNAL_URL ?= http://supabase.gatewaze.localhost
+export SITE_URL         ?= http://admin.gatewaze.localhost
+export ADDITIONAL_REDIRECT_URLS ?= http://app.gatewaze.localhost
 
 # Optional Docker context pin.
 #
@@ -101,10 +136,13 @@ up: _check-env _ensure-traefik _generate-mcp ## Start services
 	docker compose $(COMPOSE_FILES) up -d --build
 	@echo ""
 	@echo "Services starting (dev mode with hot reload). Visit:"
-	@grep -E '^ADMIN_HOST=' "$(ENV_FILE)" 2>/dev/null | sed 's/ADMIN_HOST=/  Admin:    http:\/\//'
-	@grep -E '^PORTAL_HOST=' "$(ENV_FILE)" 2>/dev/null | sed 's/PORTAL_HOST=/  Portal:   http:\/\//'
-	@grep -E '^API_HOST=' "$(ENV_FILE)" 2>/dev/null | sed 's/API_HOST=/  API:      http:\/\//'
-	@grep -E '^STUDIO_HOST=' "$(ENV_FILE)" 2>/dev/null | sed 's/STUDIO_HOST=/  Studio:   http:\/\//'
+	@# Print the hostnames the stack actually came up on. These used to be
+	@# grepped out of docker/.env, which reported that file's values even when
+	@# the stack was started with different ones.
+	@echo "  Admin:    http://$(ADMIN_HOST)"
+	@echo "  Portal:   http://$(PORTAL_HOST)"
+	@echo "  API:      http://$(API_HOST)"
+	@echo "  Studio:   http://$(STUDIO_HOST)"
 
 down: _check-env ## Stop services
 	docker compose $(COMPOSE_FILES) down
