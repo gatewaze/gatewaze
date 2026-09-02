@@ -97,3 +97,7 @@ packages/portal/lib/modules/generated-*
 CLAUDE.local.md
 
 .agents/
+
+# Python bytecode. A compiled .pyc was committed under scripts/ once.
+__pycache__/
+*.pyc
