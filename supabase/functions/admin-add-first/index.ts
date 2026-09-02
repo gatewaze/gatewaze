@@ -39,6 +39,34 @@ async function handler(req: Request) {
       );
     }
 
+    // This function mints a super_admin and runs unauthenticated, because it
+    // has to work before any account exists. It is therefore only safe while
+    // the instance is still un-onboarded. The temp setup admin created by
+    // platform-setup is the one profile allowed to be present at this point;
+    // any other admin profile means onboarding already finished, and this
+    // endpoint must refuse. Without this check, anyone who can reach the
+    // function on a deployed instance can create themselves an administrator.
+    const { data: realAdmins, error: adminCheckError } = await supabase
+      .from('admin_profiles')
+      .select('id')
+      .not('user_id', 'is', null)
+      .neq('email', SETUP_EMAIL)
+      .limit(1);
+
+    if (adminCheckError) {
+      return new Response(
+        JSON.stringify({ error: 'Could not verify setup state' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
+    if (realAdmins && realAdmins.length > 0) {
+      return new Response(
+        JSON.stringify({ error: 'This instance has already been configured.' }),
+        { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
     // Check if email is configured
     const emailReady = isEmailConfigured();
 

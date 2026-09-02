@@ -603,7 +603,7 @@ customDomains:
 
 # =============================================================================
 # scrapling-fetcher service
-# spec: gatewaze-environments/specs/spec-scrapling-fetcher-service.md
+# The scrapers call this service instead of fetching pages themselves.
 # =============================================================================
 scraplingFetcher:
   # -- Enable the scrapling-fetcher Deployment + Service + NetworkPolicy + Secret
@@ -687,6 +687,36 @@ mcpPublic:
     limits:
       cpu: "250m"
       memory: "256Mi"
+
+browserMcp:
+  # -- Enable the browser-mcp Deployment + Service + NetworkPolicy. Serves the
+  # browser_* and browserbase_fetch/search MCP tools over streamable HTTP, so
+  # agents can drive a headless browser. Internal only, with no ingress route:
+  # the api and worker reach it at http://<release>-browser-mcp:8080/mcp and
+  # need AI_MCP_HTTP_ALLOW_PRIVATE=true to connect over the private network.
+  # Register it in ai_mcp_servers as type=streamable_http.
+  #
+  # NOTE: the release pipeline does not publish this image yet. Build and push
+  # it yourself from packages/browser-mcp before enabling this.
+  enabled: false
+  replicaCount: 1
+  image:
+    repository: ghcr.io/gatewaze/browser-mcp
+    tag: latest
+    pullPolicy: IfNotPresent
+  # -- 'browserbase' drives a hosted browser; 'local' drives Chromium in the pod.
+  backend: browserbase
+  browserbaseApiKey: ""
+  browserbaseProjectId: ""
+  browserbaseRegion: ""
+  browserbaseContextId: ""
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "512Mi"
+    limits:
+      cpu: "1"
+      memory: "2Gi"
 
 eventsMcp:
   # -- Enable the events-mcp Deployment + Service + NetworkPolicy. Serves the

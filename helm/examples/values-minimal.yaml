@@ -1,0 +1,61 @@
+###############################################################################
+# Gatewaze on Kubernetes — smallest working install
+#
+# The shortest values file that produces a running Gatewaze. Every value here
+# is one the chart cannot supply for you. Use it to prove the cluster works,
+# then move to values-supabase-cloud.yaml for anything you intend to keep.
+#
+#   helm install gatewaze gatewaze/gatewaze \
+#     --namespace gatewaze --create-namespace \
+#     -f my-values.yaml
+#
+# It runs one replica of each service and asks for about 1.5 CPU and 3 GB of
+# memory in requests, so it fits on a single 4 vCPU node.
+###############################################################################
+
+image:
+  # The chart rejects "latest". Pick a version from
+  # https://github.com/gatewaze/gatewaze/releases
+  tag: "1.3.129"                                        # CHANGE ME
+
+supabase:
+  url: "https://YOUR-PROJECT-REF.supabase.co"           # CHANGE ME
+  anonKey: "eyJhbGciOi..."                              # CHANGE ME
+  serviceRoleKey: "eyJhbGciOi..."                       # CHANGE ME
+  jwtSecret: "your-project-jwt-secret"                  # CHANGE ME
+  databaseUrl: "postgresql://postgres.REF:PASSWORD@aws-0-REGION.pooler.supabase.com:5432/postgres"  # CHANGE ME
+
+redis:
+  # The chart refuses to render without this. openssl rand -base64 32
+  password: ""                                          # CHANGE ME
+
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    admin: admin.example.com                            # CHANGE ME
+    portal: www.example.com                             # CHANGE ME
+    api: api.example.com                                # CHANGE ME
+  tls:
+    enabled: false
+
+# Magic link sign-in needs a working email provider. Without one you cannot
+# finish the first-time setup wizard on a cluster you reach over the internet.
+email:
+  provider: sendgrid
+  from: "noreply@example.com"                           # CHANGE ME
+  sendgridApiKey: ""                                    # CHANGE ME
+
+# Needed before the admin can create an API key. openssl rand -base64 32
+publicApi:
+  apiKeyPepper: ""                                      # CHANGE ME
+
+replicaCount:
+  admin: 1
+  portal: 1
+  api: 1
+  worker: 1
+  scheduler: 1
+
+podDisruptionBudget:
+  enabled: false

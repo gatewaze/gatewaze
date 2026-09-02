@@ -1,6 +1,6 @@
 # Sentry Configuration Runbook
 
-**Spec ref:** [§5.6](../../../gatewaze-environments/specs/spec-production-readiness-hardening.md)
+**Spec ref:** §5.6 of the production readiness hardening spec, which is kept in a private repository.
 **Status:** opt-in, off by default
 
 ## Three SDKs, two configuration paths

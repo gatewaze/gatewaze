@@ -1636,10 +1636,20 @@ modulesRouter.post('/:id/update', async (req, res) => {
       });
     }
 
-    // 1. Apply pending migrations (only if version changed)
-    if (hasVersionUpdate) {
-      await applyModuleMigrations(mod, supabase as never);
+    // 1. Apply pending migrations.
+    //
+    // This used to run only when the version changed, which meant a module
+    // that added a migration without bumping its version had that migration
+    // silently skipped. Most modules never bump: 65 of the 86 open-source
+    // modules are still on 1.0.0, and newsletters has 298 commits against a
+    // single change to its version line. applyModuleMigrations already reads
+    // module_migrations and skips anything applied, matching on filename and
+    // checksum, so running it unconditionally costs one query and removes the
+    // failure mode. We only reach this point when the module is being updated
+    // at all, since the no-change case returned above.
+    await applyModuleMigrations(mod, supabase as never);
 
+    if (hasVersionUpdate) {
       // Update version and features in DB
       await supabase
         .from('installed_modules')
@@ -2088,7 +2098,35 @@ async function refreshModuleSources(
     if (!upstreamHash) continue;
 
     const snapshotHash = row.source_snapshot_hash as string | null;
-    if (upstreamHash !== snapshotHash) {
+
+    // source_snapshot_hash records what was installed, but only /enable and
+    // /apply-update write it, so it is absent for anything installed before
+    // the dual-tree flow and stale for anything updated by older code. On its
+    // own it reports an update for modules whose deployed code is already
+    // identical to upstream. Hash the live tree too, and decide on what is
+    // actually deployed.
+    const liveHash = (() => {
+      try { return computeModuleHashFromPath(liveModuleDir(row.id)); }
+      catch { return null; }
+    })();
+
+    const state = decideUpdateState({ upstreamHash, snapshotHash, liveHash });
+
+    if (state === 'repair') {
+      // Deployed code already matches upstream; only the record was stale.
+      await supabase
+        .from('installed_modules')
+        .update({ source_snapshot_hash: upstreamHash })
+        .eq('id', row.id);
+      await supabase.from('module_updates_available').delete().eq('module_id', row.id);
+      logger.info(
+        { module: row.id },
+        '[modules] live tree already matches upstream — repaired stale source_snapshot_hash',
+      );
+      continue;
+    }
+
+    if (state === 'available') {
       // module_updates_available.source_id is NOT NULL, but installed rows
       // created before the source registry existed carry no source_id — the
       // upsert used to fail silently for every one of them, leaving the
@@ -2149,6 +2187,39 @@ modulesRouter.post('/sources/refresh', async (_req, res) => {
 });
 
 /**
+ * Decide whether a module genuinely has an upstream update pending.
+ *
+ * `source_snapshot_hash` records what was installed, but only /enable and
+ * /apply-update ever write it. Anything installed before the dual-tree flow
+ * landed has none, and anything put through /update-all kept whatever value
+ * it had. Comparing upstream against that record alone therefore reports an
+ * update for modules whose deployed code is already identical to upstream,
+ * and applying it changes no files, so the record stays wrong and the banner
+ * returns on the next refresh.
+ *
+ * Deciding on the live tree instead makes the question the one the operator
+ * is actually asking: does the code running here differ from upstream?
+ *
+ *   'none'      recorded hash agrees with upstream; nothing to do
+ *   'repair'    record is stale but the live tree already matches upstream,
+ *               so rewrite the record and clear the banner
+ *   'available' the live tree really does differ; a genuine update
+ */
+export function decideUpdateState(input: {
+  upstreamHash: string;
+  snapshotHash: string | null;
+  liveHash: string | null;
+}): 'none' | 'repair' | 'available' {
+  const { upstreamHash, snapshotHash, liveHash } = input;
+  if (snapshotHash && upstreamHash === snapshotHash) return 'none';
+  if (liveHash && liveHash === upstreamHash) return 'repair';
+  return 'available';
+}
+
+/**
+ * Resolve the current upstream source directory for a given installed
+ * module. Walks the active sources in priority order and returns the
+ * first dir containing `<source>/<module>/index.ts`.
  * Resolve the current upstream source (directory + module_sources id) for
  * a given installed module. Walks the active sources in priority order and
  * returns the first one containing `<source>/<module>/index.ts`.

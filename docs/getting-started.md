@@ -42,30 +42,55 @@ The full stack starts with a single command. Database migrations are applied aut
 git clone https://github.com/gatewaze/gatewaze.git
 cd gatewaze
 
-# Copy the Docker environment file
-cp docker/.env.example docker/.env
+make init
 ```
 
-Open `docker/.env` in your editor and set the required values:
+`make init` copies `docker/.env.example` to `docker/.env`. The defaults work as
+they are on a laptop, so you can go straight to step 2 if you only want to look
+around.
 
-- **`JWT_SECRET`** -- A secret string of at least 32 characters for signing JWTs. Generate with: `openssl rand -base64 32`
-- **`ANON_KEY`** and **`SERVICE_ROLE_KEY`** -- Supabase API keys. For self-hosted, generate these from your `JWT_SECRET` using the [Supabase key generator](https://supabase.com/docs/guides/self-hosting#api-keys). The demo keys in `.env.example` work for local development.
-- **`POSTGRES_PASSWORD`** -- A strong password for the PostgreSQL database.
+Before you put this anywhere other people can reach, change these:
+
+- `JWT_SECRET`, at least 32 characters. Generate one with `openssl rand -base64 32`.
+- `ANON_KEY` and `SERVICE_ROLE_KEY`. The values in `.env.example` are Supabase's
+  published demo keys, which everyone has. Generate your own from your
+  `JWT_SECRET` with the
+  [Supabase key generator](https://supabase.com/docs/guides/self-hosting#api-keys).
+- `POSTGRES_PASSWORD`.
 
 ### 2. Start everything
 
 ```bash
-cd docker
-docker compose up -d
+make up
 ```
 
-First startup takes approximately 2 minutes. The database container runs all Supabase init-scripts and Gatewaze migrations automatically. Wait for all containers to report healthy:
+`make up` starts the shared Traefik proxy, builds the application images, and
+brings up the stack with hot reload. The first run takes several minutes,
+because it builds the images and the database container applies every migration
+as it starts.
 
 ```bash
-docker compose ps
+make ps
 ```
 
-You should see all services with status `Up` or `Up (healthy)`.
+Wait for the services to report `Up` or `Up (healthy)`.
+
+**What you are starting.** There are no compose profiles, so this brings up
+around 23 containers: the Gatewaze services, a complete self-hosted Supabase,
+Redis, and the supporting services. Give Docker about 8 GB of memory. On a
+smaller machine, start it once and then stop the services you do not need.
+
+**If you run more than one Docker VM.** By default every docker call uses
+whichever context your Docker CLI already targets, which is what you want on a
+normal machine. If you have several and Gatewaze belongs to a specific one, pin
+it, either for one command or for good:
+
+```bash
+DOCKER_CONTEXT=desktop-linux make up            # one-off
+echo 'DOCKER_CONTEXT=desktop-linux' >> docker/.env   # persistent
+```
+
+Run `docker context ls` to see what you have.
 
 ### 3. Access the services
 
@@ -93,9 +118,20 @@ docker compose logs admin          # Admin app logs
 
 **Common issues:**
 
-- **Database not ready yet** -- The database takes up to 2 minutes to initialize on first run. Dependent services (auth, storage, rest) will restart automatically until the database is healthy.
-- **Port conflicts** -- If ports 80, 5274, 3100, or 3002 are in use, change them in `docker/.env` (e.g., `ADMIN_PORT=5275`).
-- **Volume data from previous runs** -- If you need a clean start, stop everything and remove volumes: `docker compose down -v`, then `docker compose up -d`.
+- **The database is not ready yet.** It takes up to two minutes to initialise on
+  the first run. Auth, storage, and rest restart on their own until it is
+  healthy.
+- **Ports are already in use.** If something else is on 80, 5274, 3100, or 3002,
+  change them in `docker/.env`, e.g. `ADMIN_PORT=5275`.
+- **The stack came up on the wrong Docker VM.** If you run more than one
+  context, set `DOCKER_CONTEXT` in `docker/.env` to the one Gatewaze belongs to.
+  Run `docker context ls` to see them.
+- **Two empty directories appeared next to your clone.** The development compose
+  file bind-mounts sibling module checkouts, and Docker creates the directories
+  if they are missing. `gatewaze-modules` and `lf-gatewaze-modules` next to your
+  clone are harmless and safe to delete.
+- **You want a clean start.** `make reset` stops everything, removes the volumes,
+  clears the cached modules, and starts again.
 
 ---
 
@@ -106,11 +142,10 @@ Skip the build step entirely by using pre-built Docker images:
 ```bash
 git clone https://github.com/gatewaze/gatewaze.git
 cd gatewaze
-cp docker/.env.example docker/.env
-# Edit docker/.env with your values
+make init
+# edit docker/.env if you want to change anything
 
-cd docker
-docker compose -f docker-compose.quickstart.yml up -d
+docker compose -f docker/docker-compose.quickstart.yml up -d
 ```
 
 Same access URLs as Option A above.
@@ -131,11 +166,16 @@ pnpm install
 
 ### 2. Start infrastructure
 
-Start the Supabase stack and Redis via Docker:
+Start Supabase and Redis in Docker, and leave the application services to run
+on your machine:
 
 ```bash
+make init
+
 cd docker
-docker compose up -d
+docker compose up -d supabase-db supabase-auth supabase-rest supabase-kong \
+  supabase-storage supabase-realtime supabase-edge-functions \
+  supabase-meta supabase-studio redis
 cd ..
 ```
 
@@ -151,52 +191,102 @@ docker compose -f docker/docker-compose.yml ps supabase-db
 pnpm dev
 ```
 
-This starts all three application services with hot-reload:
+This starts the application services with hot reload:
 
-| Service         | URL                        | Description               |
-|-----------------|----------------------------|---------------------------|
-| Admin App       | http://localhost:5173       | React + Vite admin UI     |
-| Public Portal   | http://localhost:3000       | Next.js public site       |
-| API Server      | http://localhost:4000       | Express API backend       |
-| Supabase Studio | http://localhost:54323      | Database management UI    |
+| Service | URL | What it is |
+|---|---|---|
+| Admin app | http://localhost:5173 | React and Vite |
+| Public portal | http://localhost:3100 | Next.js |
+| API server | http://localhost:3002 | Express |
+| Supabase Studio | http://localhost:54323 | Database management |
 
-You can also start individual services:
+You can also start them one at a time:
 
 ```bash
-pnpm dev:admin    # Admin app only
-pnpm dev:portal   # Public portal only
-pnpm dev:api      # API server only
+pnpm dev:admin    # admin only
+pnpm dev:portal   # portal only
+pnpm dev:api      # API only
 ```
+
+One thing to know about this mode. The API imports `gatewaze.config.js`, a
+compiled copy of `gatewaze.config.ts` that is checked into the repository and
+can lag behind the TypeScript file. The Docker images regenerate it during the
+build, so Docker always reads the current config. If you change
+`gatewaze.config.ts` and run from source, expect the API to keep using the old
+module sources until that file is regenerated.
 
 ---
 
-## First Login
+## First run: setting up your instance
 
-### 1. Navigate to the admin app
+There is no default administrator account. The first time you open the admin,
+Gatewaze notices that no administrator exists and walks you through a setup
+wizard.
 
-Open the admin application in your browser:
+### 1. Open the admin
 
-- **Docker:** http://admin.gatewaze.localhost or http://localhost:5274
-- **From source:** http://localhost:5173
+- Docker: http://admin.gatewaze.localhost or http://localhost:5274
+- From source: http://localhost:5173
 
-### 2. Sign in with the default admin account
+### 2. Name your platform
 
-Gatewaze uses magic link authentication by default. On first launch, a default admin account is created:
+The wizard asks for a name. It is shown in the sidebar and the browser title,
+and you can change it later in settings. Behind the scenes this creates a
+temporary setup account so that the rest of the wizard has something to run as.
 
-- **Email:** `admin@example.com`
+### 3. Create your administrator account
 
-Enter this email on the login page and click "Send Magic Link."
+Enter your name and your email address. This creates your real administrator
+account as a super admin, adds you to the People list, and deletes the
+temporary setup account.
 
-### 3. Retrieve the magic link
+What happens next depends on whether email is configured.
 
-When running locally with the default Supabase configuration, emails are captured by Supabase's built-in email testing tool:
+- **Email is configured.** A sign-in link is emailed to the address you gave.
+  Open it to sign in.
+- **Email is not configured.** The wizard tells you so and signs you in
+  directly. This is fine on a laptop. It is not fine on a machine other people
+  can reach, so configure email first if this instance is going to be public.
 
-1. Open Supabase Studio at http://studio.gatewaze.localhost or http://localhost:54323
-2. Navigate to **Authentication** in the sidebar
-3. Find the magic link in the email logs
-4. Click the magic link to complete sign-in
+### 4. Choose your modules
 
-You will be redirected to the admin dashboard.
+Modules are how you decide what your Gatewaze does. The wizard lists everything
+it found in the module sources, which by default is the 86 open-source modules
+in
+[gatewaze-modules](https://github.com/gatewaze/gatewaze-modules). Pick the ones
+you want.
+
+You are not locked in. Every module can be turned on and off later from the
+Modules page in the admin, and turning one off preserves its data.
+
+### 5. Configure the modules you picked
+
+Some modules need a value before they work, e.g. an API key. The wizard asks
+for those now, and you can fill them in later instead.
+
+### 6. Pick a theme
+
+Choose how the admin and the public portal look. This is also changeable later.
+
+---
+
+### If email is not set up yet
+
+You can still sign in. The self-hosted Supabase stack captures outgoing email
+rather than sending it.
+
+1. Open Supabase Studio at http://studio.gatewaze.localhost or
+   http://localhost:54323
+2. Go to **Authentication** and find the sign-in link in the email log
+3. Open the link
+
+### How the setup wizard is protected
+
+The wizard runs through two Supabase edge functions that have to work before
+any account exists, so they run without authentication. Both refuse to do
+anything once an administrator exists, which closes the window as soon as you
+finish step 3. If you deploy an older build, complete the wizard before you
+point a public hostname at the instance.
 
 ---
 
@@ -236,16 +326,31 @@ SERVICE_ROLE_KEY=eyJhbGci...your-service-role-key
 
 ### 4. Start only the application services
 
+Set `SUPABASE_MODE=cloud` in `docker/.env`, along with
+`SUPABASE_PROJECT_REF`. Then `make up` selects the cloud compose file for you
+and leaves the Supabase containers out.
+
 ```bash
-cd docker
-docker compose -f docker-compose.cloud.yml up -d
+make up
+make deploy-functions   # deploys edge functions and syncs their secrets
 ```
+
+Deploy the edge functions before you use the instance. Gatewaze edge functions
+authenticate internally, and several serve anonymous public forms, so
+`make deploy-functions` passes `--no-verify-jwt`. Without that flag Supabase
+defaults them to rejecting anonymous callers and the public forms stop
+working.
 
 ---
 
 ## Creating Your First Event
 
-Once you are signed in to the admin app, follow these steps to create your first event:
+This assumes you turned on the `events` module during setup. If you did not,
+open the Modules page in the admin and enable it now. Events is the module most
+of the other event modules build on, e.g. calendars, speakers, and sponsors.
+
+Once you are signed in to the admin app, follow these steps to create your
+first event:
 
 ### 1. Navigate to Events
 
@@ -296,7 +401,8 @@ Calendar pages are accessible on the public portal at `/calendars/<slug>`.
 Now that you have Gatewaze running and your first event created, explore these guides:
 
 - **[Configuration](./configuration.md)** -- Full reference for all configuration options and environment variables.
-- **[Deployment](./deployment.md)** -- Deploy Gatewaze to production with Docker Compose, Kubernetes, or Helm.
+- **[Deployment](./deployment.md)** -- Deploy Gatewaze to production with Docker Compose.
+- **[Kubernetes](./kubernetes.md)** -- Install on a cluster with the Helm chart, with example values files and resource sizing.
 - **[Modules](./modules.md)** -- Extend Gatewaze with paid modules or build your own.
 - **[Authentication](./auth.md)** -- Configure Supabase Auth, OIDC providers, and the permissions system.
 - **[Development](./development.md)** -- Set up a development environment and learn the codebase patterns.
