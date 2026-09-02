@@ -80,14 +80,17 @@ around 23 containers: the Gatewaze services, a complete self-hosted Supabase,
 Redis, and the supporting services. Give Docker about 8 GB of memory. On a
 smaller machine, start it once and then stop the services you do not need.
 
-**On Linux, or anywhere without Docker Desktop.** The Makefile pins
-`DOCKER_CONTEXT` to `desktop-linux`, which is a Docker Desktop context name. If
-your Docker context is called something else, `make up` fails with an error
-about a missing context. Check with `docker context ls` and pass yours:
+**If you run more than one Docker VM.** By default every docker call uses
+whichever context your Docker CLI already targets, which is what you want on a
+normal machine. If you have several and Gatewaze belongs to a specific one, pin
+it, either for one command or for good:
 
 ```bash
-DOCKER_CONTEXT=default make up
+DOCKER_CONTEXT=desktop-linux make up            # one-off
+echo 'DOCKER_CONTEXT=desktop-linux' >> docker/.env   # persistent
 ```
+
+Run `docker context ls` to see what you have.
 
 ### 3. Access the services
 
@@ -120,14 +123,9 @@ docker compose logs admin          # Admin app logs
   healthy.
 - **Ports are already in use.** If something else is on 80, 5274, 3100, or 3002,
   change them in `docker/.env`, e.g. `ADMIN_PORT=5275`.
-- **`make up` fails with an error about a Docker context.** The Makefile pins
-  `DOCKER_CONTEXT` to `desktop-linux`. Run `docker context ls` and pass yours,
-  e.g. `DOCKER_CONTEXT=default make up`.
-- **`arcade-serve` restarts over and over.** It requires
-  `ARCADE_PREVIEW_HMAC_SECRET`, which is not in `.env.example`, so it refuses to
-  start on a fresh install. Nothing else depends on it. Either ignore it, stop
-  it with `docker compose stop arcade-serve`, or set the variable in
-  `docker/.env` to any value from `openssl rand -hex 32`.
+- **The stack came up on the wrong Docker VM.** If you run more than one
+  context, set `DOCKER_CONTEXT` in `docker/.env` to the one Gatewaze belongs to.
+  Run `docker context ls` to see them.
 - **Two empty directories appeared next to your clone.** The development compose
   file bind-mounts sibling module checkouts, and Docker creates the directories
   if they are missing. `gatewaze-modules` and `lf-gatewaze-modules` next to your

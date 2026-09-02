@@ -17,15 +17,29 @@
 ENV_FILE      := docker/.env
 TRAEFIK_FILE  := -f docker/docker-compose.traefik.yml
 
-# Docker context pin. All Gatewaze/AAIF containers run on the `desktop-linux`
-# context on this machine; the shell's default context (`orbstack`) hosts a
-# separate LFX/k8s stack that collides on host ports (54332, 80). Exporting it
-# here means every `docker`/`docker compose` invocation in `make up`/`down`/etc
-# targets the right VM regardless of the shell default — fixing the class of bug
-# where `make up` silently spins up a duplicate stack on the wrong context.
-# `?=` keeps it overridable: `DOCKER_CONTEXT=other make up`, or set it in your
-# shell/CI. Machine-specific — change the default if your context isn't desktop-linux.
-export DOCKER_CONTEXT ?= desktop-linux
+# Optional Docker context pin.
+#
+# Leave this unset and every `docker` call uses whichever context your Docker
+# CLI already targets. That is what you want on a normal machine, and it is the
+# default here.
+#
+# Set it only if you run more than one Docker VM and Gatewaze belongs to a
+# specific one. For example, a machine whose default context hosts a separate
+# k8s stack that collides on ports 80 and 54322 needs the pin, or `make up`
+# quietly starts a duplicate stack on the wrong VM. Run `docker context ls` to
+# see what you have.
+#
+# Precedence: the shell environment wins, then DOCKER_CONTEXT in docker/.env,
+# and otherwise nothing is exported at all.
+#
+#   DOCKER_CONTEXT=desktop-linux make up   # one-off
+#   echo 'DOCKER_CONTEXT=desktop-linux' >> docker/.env   # persistent, per machine
+ifndef DOCKER_CONTEXT
+DOCKER_CONTEXT := $(shell grep -E '^DOCKER_CONTEXT=' "$(ENV_FILE)" 2>/dev/null | head -1 | cut -d= -f2-)
+endif
+ifneq ($(strip $(DOCKER_CONTEXT)),)
+export DOCKER_CONTEXT
+endif
 
 # Detect Supabase mode from the env file
 SUPABASE_MODE := $(shell grep -E '^SUPABASE_MODE=' "$(ENV_FILE)" 2>/dev/null | head -1 | cut -d= -f2-)

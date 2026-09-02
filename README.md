@@ -93,7 +93,7 @@ You can also create your own modules and load them from local paths, git repos, 
                                          +---------+ +-----+------+
                                                            |
    optional:  se-runner . scrapling-fetcher . events-mcp . browser-mcp
-              arcade-serve . umami analytics
+              umami analytics
 ```
 
 The scheduler puts jobs on the queue and does no work itself. The worker takes
@@ -132,15 +132,9 @@ database applies every migration as it starts. Check on it with:
 make ps
 ```
 
-Two things worth knowing before you run this.
-
-It starts about 23 containers: the Gatewaze services, a complete self-hosted
-Supabase, Redis, and the supporting services. Give Docker roughly 8 GB of
-memory.
-
-The Makefile pins `DOCKER_CONTEXT` to `desktop-linux`, which is a Docker
-Desktop context name. If your Docker context is called something else, run
-`docker context ls` and pass yours: `DOCKER_CONTEXT=default make up`.
+One thing worth knowing before you run this. It starts about 23 containers:
+the Gatewaze services, a complete self-hosted Supabase, Redis, and the
+supporting services. Give Docker roughly 8 GB of memory.
 
 ### Everyday Commands
 
@@ -280,7 +274,6 @@ gatewaze/
     api-mcp/          # MCP server proxying whitelisted platform API calls
     events-mcp/       # Internal MCP server for the events tools
     browser-mcp/      # Internal MCP server giving agents a headless browser
-    arcade-serve/     # Games origin, serving creator-built games
     connect/          # CLI that connects a user's AI clients to your MCP server
   supabase/
     migrations/       # Database migrations, applied on first startup
