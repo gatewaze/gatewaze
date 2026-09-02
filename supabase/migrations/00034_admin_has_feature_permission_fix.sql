@@ -11,8 +11,8 @@
 -- The deployed RPC's signature was admin_has_feature_permission(uuid, text)
 -- — two args, no p_account_id. PostgREST returned PGRST202 "function not
 -- found" for every call, hasPermission silently became false, and every
--- guarded route bounced the operator to /unauthorized. On AAIF for
--- skearns@linuxfoundation.org: the home page briefly rendered the
+-- guarded route bounced the operator to /unauthorized. Seen in production for
+-- one admin user: the home page briefly rendered the
 -- newsletters menu item (via the working admin_get_features) and then
 -- the FeatureGuard around /newsletters redirected to /unauthorized.
 --

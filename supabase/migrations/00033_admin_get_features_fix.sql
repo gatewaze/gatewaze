@@ -21,7 +21,7 @@
 --    undefined, …]`. The permissions map was always empty for non-super-
 --    admins.
 --
--- Hit live on AAIF 2026-06-04 for skearns@linuxfoundation.org. They had a
+-- Hit live in production 2026-06-04 for an admin user. They had a
 -- valid `admin_permissions` row for `newsletters` after the 00032 schema
 -- fixes but still saw no newsletter menu.
 --
