@@ -8,8 +8,8 @@
 --           { onConflict: 'admin_id,feature,account_id' })
 -- but no migration ever shipped the column. PostgREST rejected every save
 -- with `PGRST204 Could not find the 'account_id' column of 'admin_permissions'`
--- and operators saw "permission isn't being saved" (skearns@linuxfoundation.org
--- on AAIF, 2026-06-04).
+-- and operators saw "permission isn't being saved" (reported by an admin user
+-- on a production deployment, 2026-06-04).
 --
 -- Add the column nullable so existing rows (single-account installs) keep
 -- working with NULL = "all accounts".
@@ -51,7 +51,7 @@ COMMENT ON COLUMN public.admin_permissions.account_id IS
 -- admin_permission_group_assignments -----------------------------------------
 -- service.ts also upserts admin_permission_group_assignments with
 -- onConflict: 'admin_id,group_id,account_id', plus expires_at + is_active.
--- The deployed schema on AAIF only had (admin_id, group_id, assigned_by,
+-- The deployed schema only had (admin_id, group_id, assigned_by,
 -- assigned_at) — three columns short.
 --
 -- Note: this is the assignment / join table. admin_permission_groups (the
@@ -88,7 +88,7 @@ END $$;
 -- and a CHECK (action IN ('grant', 'revoke')) — present-tense, no 'expired'.
 -- Every audit insert PGRST204'd or 23514'd silently inside the try/catch
 -- in createAuditLog, so grants happened but no audit row was ever written
--- (hit on AAIF 2026-06-04).
+-- (hit in production 2026-06-04).
 --
 -- Add the missing columns + repoint the CHECK to the past-tense values
 -- the code actually uses.
