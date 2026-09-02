@@ -36,7 +36,9 @@ Gatewaze is a modular, open-source platform for managing communities and the peo
 
 Gatewaze's module system lets you pick the capabilities you need. Modules are selected during onboarding and can be enabled or disabled at any time.
 
-The official open-source module collection lives in the [gatewaze-modules](https://github.com/gatewaze/gatewaze-modules) repository: **76 modules** (all Apache-2.0) spanning events, content, people & community, sites & web, marketing, communications, integrations, and platform infrastructure. Examples include event registrations, calendars, speakers, newsletters, blog, multi-site web builder, forms, surveys, Stripe payments, Slack/SMS/WhatsApp messaging, analytics, AI, and compliance.
+The official open-source module collection lives in the [gatewaze-modules](https://github.com/gatewaze/gatewaze-modules) repository: **86 modules**, all Apache-2.0, spanning events, content, people and community, sites and web, marketing, communications, integrations, and platform infrastructure. Examples include event registrations, calendars, speakers, newsletters, blog, a multi-site web builder, forms, surveys, Stripe payments, Slack, SMS and WhatsApp messaging, analytics, AI, and compliance.
+
+A fresh install points at that repository already, so all 86 show up on the Modules page the first time you open the admin. You choose which ones to turn on during setup, and you can change your mind at any time.
 
 You can also create your own modules and load them from local paths, git repos, or uploaded packages. See the [Module System Guide](./docs/modules.md) for full documentation on creating and managing modules.
 
@@ -63,33 +65,40 @@ You can also create your own modules and load them from local paths, git repos, 
 ## Architecture
 
 ```
-                    +------------------+
-                    |     Traefik      |
-                    |  Reverse Proxy   |
-                    +--------+---------+
-                             |
-              +--------------+--------------+
-              |                             |
-    +---------v---------+       +-----------v-----------+
-    |   Public Portal   |       |      Admin App        |
-    |   (Next.js)       |       |   (React + Vite)      |
-    +---------+---------+       +-----------+-----------+
-              |                             |
-              +--------------+--------------+
-                             |
-                   +---------v---------+
-                   |    API Server     |
-                   |    (Express)      |
-                   +---------+---------+
-                             |
-              +--------------+--------------+
-              |              |              |
-    +---------v---+   +------v------+  +----v--------+
-    |  Supabase   |   |    Redis    |  |  Supabase   |
-    | (PostgreSQL |   |  + BullMQ   |  |  Storage    |
-    |  + Auth)    |   |  (Jobs)     |  |  (Files)    |
-    +-------------+   +-------------+  +-------------+
+                       Browsers, and AI agents
+                                 |
+                +----------------+-----------------+
+                |  Traefik (local) or your         |
+                |  ingress controller (Kubernetes) |
+                +--+--------+---------+--------+---+
+                   |        |         |        |
+            +------v---+ +--v-------+ |  +-----v--------+
+            |  admin   | |  portal  | |  |  mcp-public  |
+            |  React   | | Next.js  | |  |  read-only   |
+            +----+-----+ +----+-----+ |  |  MCP for     |
+                 |            |       |  |  AI agents   |
+                 |            |  +----v--+--+  +--------+
+                 |            |  |   api    |
+                 |            |  | Express  |
+                 |            |  +--+----+--+
+                 |            |     |    |
+       +---------v------------v-----v-+  |  +--------------+
+       |          Supabase            |  +->|    redis     |
+       |  Postgres . Auth . Storage   |     |  job queues  |
+       |  PostgREST . Realtime        |     +--+--------+--+
+       |  Edge Functions . Kong       |        |        |
+       +------------------------------+  +-----v---+ +--v---------+
+                                         |scheduler| |   worker   |
+                                         |  cron   | | + Chromium |
+                                         +---------+ +-----+------+
+                                                           |
+   optional:  se-runner . scrapling-fetcher . events-mcp . browser-mcp
+              umami analytics
 ```
+
+The scheduler puts jobs on the queue and does no work itself. The worker takes
+them off and runs them. [Architecture](./docs/architecture.md) draws the full
+stack and explains what each service is for.
 
 ## Quick Start
 
@@ -116,11 +125,16 @@ make init
 make up
 ```
 
-That's it. The first startup takes ~2 minutes while the database initializes. Check status with:
+The first run takes several minutes, because it builds the images and the
+database applies every migration as it starts. Check on it with:
 
 ```bash
 make ps
 ```
+
+One thing worth knowing before you run this. It starts about 23 containers:
+the Gatewaze services, a complete self-hosted Supabase, Redis, and the
+supporting services. Give Docker roughly 8 GB of memory.
 
 ### Everyday Commands
 
@@ -135,15 +149,19 @@ make ps
 
 ### Multi-Brand Setup
 
-If you manage multiple brands, place brand configs in a sibling `gatewaze-environments` repo:
+If you run more than one brand from the same checkout, keep the per-brand env
+files in a sibling directory called `gatewaze-environments`. The Makefile looks
+for them there.
 
 ```
 parent-directory/
-  gatewaze/               # This repo
-  gatewaze-environments/  # Brand-specific .env files
+  gatewaze/               # this repo
+  gatewaze-environments/  # your own repo, holding one env file per brand
     brand1.local.env
     brand2.local.env
 ```
+
+That sibling directory is yours to create. It is not a repository we publish.
 
 Then pass the brand name before the command:
 
@@ -168,28 +186,48 @@ Services are accessible via Traefik `.localhost` domains (resolve automatically 
 | PostgreSQL       | --                                  | localhost:54322            |
 | Traefik Dashboard| --                                  | http://localhost:8080      |
 
-### First Login
+### First run
 
-1. Open the admin app at http://admin.gatewaze.localhost (or http://localhost:5274)
-2. Enter the default admin email: `admin@example.com`
-3. Click "Send Magic Link"
-4. Open Supabase Studio at http://studio.gatewaze.localhost (or http://localhost:54323)
-5. Navigate to **Authentication** to find the magic link in email logs
-6. Click the magic link to complete sign-in
+There is no default administrator account. Open the admin at
+http://admin.gatewaze.localhost or http://localhost:5274 and Gatewaze walks you
+through a setup wizard: name your platform, create your administrator account,
+choose which modules to turn on, and pick a theme.
+
+If email is not configured yet, the wizard signs you in directly. If it is, it
+emails you a sign-in link, and on a self-hosted Supabase you can read that link
+in Supabase Studio at http://studio.gatewaze.localhost under **Authentication**.
+
+Before you point a public hostname at an instance, read the security note in
+[Getting Started](./docs/getting-started.md#a-security-note-before-you-expose-this).
 
 ### Supabase Cloud
 
-To use [Supabase Cloud](https://supabase.com) instead of self-hosted:
+To use [Supabase Cloud](https://supabase.com) instead of self-hosted, set
+`SUPABASE_MODE=cloud` in `docker/.env` along with `SUPABASE_PROJECT_REF`,
+`SUPABASE_URL`, `ANON_KEY`, `SERVICE_ROLE_KEY`, and `DATABASE_URL`. Then:
 
 ```bash
-make init
-# Edit docker/.env to set SUPABASE_URL, ANON_KEY, SERVICE_ROLE_KEY to your cloud project values
-
-cd docker
-docker compose -f docker-compose.cloud.yml up -d
+make up                  # starts the application services only
+make migrate             # pushes migrations to the linked project
+make deploy-functions    # deploys edge functions and syncs their secrets
 ```
 
-See [docs/deployment.md](./docs/deployment.md) for full deployment options including Kubernetes/Helm.
+### Kubernetes
+
+```bash
+helm repo add gatewaze https://gatewaze.github.io/gatewaze
+helm repo update
+
+cp helm/examples/values-supabase-cloud.yaml my-values.yaml
+# edit my-values.yaml and replace every CHANGE ME
+
+helm install gatewaze gatewaze/gatewaze \
+  --namespace gatewaze --create-namespace \
+  -f my-values.yaml
+```
+
+See [docs/kubernetes.md](./docs/kubernetes.md) for the full guide, three worked
+example values files, resource sizing, and what each image does.
 
 ---
 
@@ -210,11 +248,11 @@ cd ..
 pnpm dev
 ```
 
-| Service         | URL                        |
-|-----------------|----------------------------|
-| Admin App       | http://localhost:5173       |
-| Public Portal   | http://localhost:3000       |
-| API Server      | http://localhost:4000       |
+| Service | URL |
+|---|---|
+| Admin app | http://localhost:5173 |
+| Public portal | http://localhost:3100 |
+| API server | http://localhost:3002 |
 
 See [docs/development.md](./docs/development.md) for the full development setup guide.
 
@@ -224,21 +262,31 @@ See [docs/development.md](./docs/development.md) for the full development setup 
 
 ```
 gatewaze/
-  Makefile            # Development commands (make up, make down, etc.)
+  Makefile            # Everyday commands: make up, make down, make reset
+  gatewaze.config.ts  # Instance config: module sources, auth, email
   packages/
     admin/            # React + Vite admin application
-    portal/           # Next.js public event portal
-    api/              # Express API server + BullMQ worker + scheduler
-    shared/           # Shared types, utilities, and constants
+    portal/           # Next.js public portal
+    api/              # Express API server, BullMQ worker, and scheduler
+    shared/           # Shared types, module loader, module lifecycle
+    tracking/         # Engagement tracking used by portal and admin
+    mcp/              # MCP server for AI agents (public and keyed profiles)
+    api-mcp/          # MCP server proxying whitelisted platform API calls
+    events-mcp/       # Internal MCP server for the events tools
+    browser-mcp/      # Internal MCP server giving agents a headless browser
+    connect/          # CLI that connects a user's AI clients to your MCP server
   supabase/
-    migrations/       # Database migrations (auto-applied on first startup)
+    migrations/       # Database migrations, applied on first startup
     functions/        # Supabase Edge Functions (Deno)
   docker/
-    docker-compose.yml            # Full stack (self-hosted Supabase)
-    docker-compose.cloud.yml      # App services only (Supabase Cloud)
-    docker-compose.quickstart.yml # Pre-built images (no build step)
+    docker-compose.yml            # Full stack, self-hosted Supabase
+    docker-compose.cloud.yml      # App services only, Supabase Cloud
+    docker-compose.quickstart.yml # Pre-built images, no build step
+    docker-compose.dev.yml        # Hot-reload overrides, added by make up
     .env.example                  # Docker environment configuration
-  helm/               # Kubernetes Helm chart
+  helm/
+    gatewaze/         # Kubernetes Helm chart
+    examples/         # Worked values files to copy and edit
   docs/               # Project documentation
 ```
 
@@ -246,13 +294,14 @@ gatewaze/
 
 Detailed documentation is available in the [`docs/`](./docs) directory:
 
-- [Getting Started](./docs/getting-started.md)
-- [Architecture Overview](./docs/architecture.md)
-- [Configuration Guide](./docs/configuration.md)
-- [Deployment Guide](./docs/deployment.md)
-- [Module Development](./docs/modules.md)
-- [Authentication](./docs/auth.md)
-- [Development](./docs/development.md)
+- [Getting Started](./docs/getting-started.md) -- install it and set it up
+- [Architecture Overview](./docs/architecture.md) -- what runs where, and why
+- [Configuration Guide](./docs/configuration.md) -- every setting and environment variable
+- [Deployment Guide](./docs/deployment.md) -- Docker Compose in production
+- [Kubernetes](./docs/kubernetes.md) -- the Helm chart, example values, and sizing
+- [Module Development](./docs/modules.md) -- use the modules, or write your own
+- [Authentication](./docs/auth.md) -- Supabase Auth, OIDC, and permissions
+- [Development](./docs/development.md) -- work on Gatewaze itself
 
 ## Contributing
 

@@ -113,7 +113,12 @@ class Settings:
             egress_lease_byte_cap_bytes=int(
                 os.environ.get("SCRAPLING_EGRESS_LEASE_BYTE_CAP_BYTES", "524288000")
             ),
-            log_level=os.environ.get("LOG_LEVEL", "INFO"),
+            # LOG_LEVEL is shared with the Node services, where pino wants it
+            # lowercase ("info"). Python's logging module only accepts the
+            # uppercase names and raises ValueError: Unknown level: 'info'
+            # otherwise, which killed this service at startup on any stack
+            # using the stock docker/.env.
+            log_level=os.environ.get("LOG_LEVEL", "INFO").upper(),
             supabase_url=os.environ.get("SUPABASE_URL"),
             supabase_service_key=os.environ.get("SUPABASE_SERVICE_KEY"),
         )

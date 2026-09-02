@@ -6,80 +6,113 @@ This document describes the architecture of Gatewaze, the modular open-source pl
 
 ## System Overview
 
-Gatewaze is structured as a **pnpm monorepo** containing four packages:
+Gatewaze is a pnpm monorepo. Four packages make up the platform itself, and the
+rest are small services that can be deployed, scaled, and rolled back on their
+own.
 
 | Package | Role |
-|---------|------|
-| `packages/shared` | Types, constants, and utilities shared across all packages |
-| `packages/admin` | React SPA for event organizers and administrators |
-| `packages/portal` | Next.js public-facing site for attendees |
-| `packages/api` | Express server for data import/export and background jobs |
+|---|---|
+| `packages/shared` | Types, constants, the module loader, and the module lifecycle code. Every other package depends on it. |
+| `packages/admin` | The administrator interface. A React single-page application built with Vite. |
+| `packages/portal` | The public website. A Next.js application rendered on the server. |
+| `packages/api` | The Express API server, the BullMQ worker, and the scheduler. All three are built from this package. |
+| `packages/tracking` | Engagement tracking used by the portal and the admin. |
+| `packages/mcp` | The Model Context Protocol server. Runs in a public, keyless read-only profile, or with an API key. |
+| `packages/api-mcp` | An MCP server that proxies a whitelisted set of platform API calls. |
+| `packages/events-mcp` | An MCP server for the `events_*` tools, including writing changes back to Luma. |
+| `packages/browser-mcp` | An MCP server that gives agents a headless browser, either local Chromium or Browserbase. |
+| `packages/connect` | A command-line tool that connects a user's AI clients to a Gatewaze MCP server. |
 
-The backend is powered by **Supabase** (PostgreSQL, Auth, Storage, Edge Functions, Realtime) with **Redis** and **BullMQ** handling background job processing.
+`events-mcp` and `browser-mcp` are deliberately outside the workspace
+dependency graph. They have their own Dockerfiles and almost no dependencies,
+so a change to the platform does not force them to be rebuilt.
+
+The database, authentication, storage, and edge functions come from
+[Supabase](https://supabase.com), either self-hosted or managed. Background
+work runs on [Redis](https://redis.io) with [BullMQ](https://bullmq.io).
 
 ---
 
-## Architecture Diagram
+## The full stack
+
+Everything below the proxy is a container. Services drawn with a dashed edge
+are optional and off unless you turn them on.
 
 ```
-                          ┌─────────────────────────────────────┐
-                          │             Browsers                │
-                          └──────────────────┬──────────────────┘
-                                             │
-                          ┌──────────────────▼──────────────────┐
-                          │     Traefik Reverse Proxy           │
-                          │          (Apache 2.0)               │
-                          │  admin.gatewaze.localhost    → admin │
-                          │  app.gatewaze.localhost      → portal│
-                          │  api.gatewaze.localhost      → api   │
-                          │  supabase.gatewaze.localhost → kong  │
-                          │  studio.gatewaze.localhost   → studio│
-                          │  Dashboard: http://localhost:8080    │
-                          └──────┬──────────────┬───────────────┘
-                                 │              │
-                        ┌────────▼───────┐ ┌────▼──────────────┐
-                        │  Admin (React) │ │  Portal (Next.js) │
-                        │  (Vite build)  │ │  (SSR)             │
-                        └────────┬───────┘ └────┬──────────────┘
-                                 │              │
-                  ┌──────────────▼──────────────▼──────────────┐
-                  │              Supabase                       │
-                  │  ┌────────────────────────────────────┐    │
-                  │  │  PostgREST API (RLS-enforced)      │    │
-                  │  ├────────────────────────────────────┤    │
-                  │  │  PostgreSQL 17                      │    │
-                  │  ├────────────────────────────────────┤    │
-                  │  │  Auth (GoTrue)                      │    │
-                  │  ├────────────────────────────────────┤    │
-                  │  │  Storage (S3-compatible)            │    │
-                  │  ├────────────────────────────────────┤    │
-                  │  │  Realtime (WebSocket)               │    │
-                  │  ├────────────────────────────────────┤    │
-                  │  │  Edge Functions (Deno)              │    │
-                  │  │  - Registration handling            │    │
-                  │  │  - Email dispatch                   │    │
-                  │  │  - Webhook processing               │    │
-                  │  └────────────────────────────────────┘    │
-                  └──────────────────▲─────────────────────────┘
-                                     │
-                          ┌──────────┴──────────┐
-                          │  API Server (Express)│
-                          │  - CSV import/export │
-                          │  - Health checks     │
-                          │  - Job scheduling    │
-                          └──────────┬──────────┘
-                                     │
-                          ┌──────────▼──────────┐
-                          │       Redis          │
-                          └───┬─────────────┬───┘
-                              │             │
-                    ┌─────────▼───┐   ┌─────▼─────────┐
-                    │  BullMQ     │   │  Scheduler     │
-                    │  Workers    │   │  (cron jobs)   │
-                    │  - Email    │   │                │
-                    │  - Images   │   │                │
-                    └─────────────┘   └───────────────┘
+                            Browsers, and AI agents
+                                      |
+                    +-----------------+------------------+
+                    |     Traefik (local) or your        |
+                    |     ingress controller (k8s)       |
+                    +--+-------+--------+-------+--------+
+                       |       |        |       |
+        +--------------+       |        |       +----------------+
+        |                      |        |                        |
+ +------v------+      +--------v-----+  |               +--------v-------+
+ |   admin     |      |   portal     |  |               |  mcp-public    |
+ | React/Vite  |      |  Next.js     |  |               |  read-only     |
+ |  via NGINX  |      |    SSR       |  |               |  MCP, keyless  |
+ +------+------+      +------+-------+  |               +--------+-------+
+        |                    |          |                        |
+        |                    |   +------v------+                 |
+        +--------------------+---+     api     +<----------------+
+        |                    |   |   Express   |
+        |                    |   +--+-------+--+
+        |                    |      |       |
+        |                    |      |       +-------------------+
+        |                    |      |                           |
+ +------v--------------------v------v-----+          +----------v---------+
+ |              Supabase                  |          |       redis        |
+ |  Postgres  .  Auth (GoTrue)            |          |   BullMQ queues    |
+ |  PostgREST .  Storage  .  Realtime     |          +--+--------------+--+
+ |  Edge Functions (Deno) .  Kong .  Studio|            |              |
+ +----------------------------------------+     +------v-----+  +-----v------+
+        ^          ^            ^                | scheduler  |  |   worker   |
+        |          |            |                |   cron     |  |  + Chromium|
+        |          |            |                +------------+  +--+------+--+
+        |          |            |                                   |      |
+        |          |            +-----------------------------------+      |
+        |          |                                                       |
+        |    +-----+---------------+     +---------------------+           |
+        |    |    se-runner        |     | scrapling-fetcher   |<----------+
+        |    | software-engineer   |     |  browser pool +     |
+        |    | module queue only   |     |  residential proxy  |
+        |    +---------------------+     +----------+----------+
+        |     - - - optional - - -        - - - optional - - -            |
+        |                                                                 |
+        |    +---------------------+     +---------------------+          |
+        +----+     events-mcp      |     |    browser-mcp      |<---------+
+             |  internal MCP over  |     |  internal MCP over  |
+             |  streamable HTTP    |     |  streamable HTTP    |
+             +---------------------+     +---------------------+
+              - - - optional - - -        - - - optional - - -
+
+             +---------------------+
+             |       umami         |
+             |  web analytics      |
+             +---------------------+
+              - - - optional - - -
 ```
+
+Reading it in words:
+
+- Browsers reach the admin, the portal, and the public MCP endpoint through the
+  proxy. So do AI agents, which talk to `mcp-public`.
+- The admin and the portal both talk to Supabase directly with the anonymous
+  key, so row level security decides what they can see. They also call the API
+  for the things that need more than that.
+- The API holds the service role key, so it can read and write past row level
+  security. It puts background work on Redis.
+- The scheduler puts jobs on Redis on a schedule and does no work itself. The
+  worker takes jobs off Redis and does the work. That split is why the
+  scheduler must never run more than one replica.
+- The worker carries a Chromium browser for the scrapers, and calls
+  `scrapling-fetcher` when a page needs a browser pool or a residential proxy.
+- `se-runner` is a second, leaner worker that consumes only the
+  software-engineer module's queue. When it is off, nothing consumes that queue
+  and those jobs stay queued.
+- `events-mcp` and `browser-mcp` are internal only. The API and the worker
+  reach them over the private network, and they are never routed publicly.
 
 ---
 
@@ -89,10 +122,12 @@ The backend is powered by **Supabase** (PostgreSQL, Auth, Storage, Edge Function
 
 The shared package provides the foundation that all other packages depend on.
 
-- **TypeScript types** for database entities (events, speakers, registrations, etc.)
-- **Constants** such as category lists, status enums, and configuration defaults
-- **Utility functions** for date formatting, slug generation, and data transformation
-- Published as a workspace dependency (`workspace:*`) consumed by admin, portal, and api
+- TypeScript types for database entities, e.g. events, speakers, and registrations
+- Constants such as category lists, status enums, and configuration defaults
+- Utility functions for date formatting, slug generation, and data transformation
+- The module loader, which resolves module sources and imports each module
+- The module lifecycle code, which applies migrations and runs install hooks
+- Consumed as a workspace dependency (`workspace:*`) by admin, portal, and api
 
 ### `packages/admin`
 
@@ -146,10 +181,34 @@ A lightweight Express server handling operations that do not fit into client-sid
 | Jobs | BullMQ workers + Redis |
 
 Key responsibilities:
-- CSV import and export of events, speakers, and registrations
-- Background job processing (email sending, image optimization)
+- Import and export, e.g. CSV import of people and events
+- The public REST API at `/api/v1`, authenticated with an API key
+- Module installation, reconciliation, and migration
+- The API routes that each enabled module registers
 - Health check endpoints for orchestration
-- Scheduled tasks via BullMQ scheduler (cron-based)
+
+This package also builds two other processes. The **worker** takes jobs off the
+Redis queue and runs them, e.g. sending bulk email, processing images, and
+running scrapers. The **scheduler** puts jobs on the queue on a schedule and
+runs no work itself. Because the scheduler is what enqueues cron jobs, running
+more than one copy of it runs every job twice.
+
+### The small services
+
+These serve AI agents rather than people. The two internal ones each have their
+own Dockerfile and almost no dependencies, so they can be deployed or rolled
+back without touching the platform.
+
+| Package | What it does |
+|---|---|
+| `packages/mcp` | The Model Context Protocol server. In its public profile it serves read-only tools with no client authentication, so agents can read your events and content. |
+| `packages/events-mcp` | An internal MCP service for the `events_*` tools, including writing changes back to Luma. Service role backed and never routed publicly. |
+| `packages/browser-mcp` | An internal MCP service that gives agents a headless browser, either Chromium in the container or a hosted browser through Browserbase. |
+
+Two more support the rest. `packages/tracking` is the engagement tracking
+library the portal and admin share. `packages/connect` is a command-line tool
+your users run, which finds the AI clients on their machine and writes the
+connector entry for your MCP server into each one.
 
 ---
 
@@ -376,61 +435,62 @@ Complex queries that cannot be expressed as simple PostgREST calls are implement
 
 ### Docker Compose
 
-Two Docker Compose profiles are available:
+Two compose stacks, selected by `SUPABASE_MODE` in `docker/.env`. `make up`
+picks the right one for you.
 
-#### Self-Hosted (Full Stack)
+**`SUPABASE_MODE=local`** uses `docker/docker-compose.yml`, which runs the
+Gatewaze services and a complete self-hosted Supabase: Postgres, GoTrue,
+PostgREST, Storage, Realtime, the Deno edge function runtime, the Kong
+gateway, postgres-meta, and Studio. Migrations are applied when the database
+container starts, and edge functions are served straight from
+`supabase/functions/`.
 
-Runs the complete Supabase stack alongside the Gatewaze services:
+**`SUPABASE_MODE=cloud`** uses `docker/docker-compose.cloud.yml`, which runs
+the Gatewaze services and Redis and leaves the database to your Supabase
+project. You apply migrations with `make migrate` and deploy edge functions
+with `make deploy-functions`.
 
-```yaml
-services:
-  admin:        # React SPA served by Nginx
-  portal:       # Next.js with SSR
-  api:          # Express server + BullMQ workers
-  redis:        # Job queue backend
-  # Full Supabase stack:
-  postgres:     # PostgreSQL 17
-  supabase-auth:     # GoTrue
-  supabase-rest:     # PostgREST
-  supabase-storage:  # Storage API
-  supabase-realtime: # Realtime server
-  supabase-edge:     # Edge Functions runtime
-```
+There are no compose profiles, so both stacks start every service they define.
+A fresh `make up` on the local stack brings up around 23 containers and wants
+roughly 8 GB of memory available to Docker.
 
-#### Cloud (External Supabase)
-
-Connects to a hosted Supabase instance (supabase.com or self-managed):
-
-```yaml
-services:
-  admin:   # React SPA served by Nginx
-  portal:  # Next.js with SSR
-  api:     # Express server + BullMQ workers
-  redis:   # Job queue backend
-  # Supabase is external -- configured via environment variables
-```
+A third file, `docker/docker-compose.quickstart.yml`, pulls pre-built images
+from the registry instead of building from source.
 
 ### Kubernetes
 
-A Helm chart supports namespaced releases for multi-instance deployments:
+The Helm chart in `helm/gatewaze` installs the admin, portal, API, worker,
+scheduler, and Redis, plus the optional services, each release in its own
+namespace. It does not install Supabase. You point it at a Supabase project or
+at a Supabase you installed yourself.
 
-- Each release gets its own namespace
-- ConfigMaps and Secrets manage per-instance configuration
-- Horizontal pod autoscaling for portal and API services
-- Persistent volume claims for Redis (if not using managed Redis)
-- Ingress configuration for routing traffic to admin and portal services
+Worked example values files are in `helm/examples/`, and
+[Running Gatewaze on Kubernetes](./kubernetes.md) covers the install, resource
+sizing, secret handling, and upgrades.
 
 ### Container Images
 
-Pre-built images are published to GitHub Container Registry:
+Every release publishes these to the GitHub Container Registry, tagged with
+both the version and `latest`:
 
 ```
-ghcr.io/gatewaze/admin:latest
-ghcr.io/gatewaze/portal:latest
-ghcr.io/gatewaze/api:latest
+ghcr.io/gatewaze/admin
+ghcr.io/gatewaze/portal
+ghcr.io/gatewaze/api
+ghcr.io/gatewaze/worker
+ghcr.io/gatewaze/scheduler
+ghcr.io/gatewaze/se-runner
+ghcr.io/gatewaze/mcp-public
+ghcr.io/gatewaze/scrapling-fetcher
 ```
 
-Images are built on every release and tagged with both `latest` and the semantic version.
+[Running Gatewaze on Kubernetes](./kubernetes.md#what-each-image-does)
+describes what each image does. The Helm chart rejects the tag `latest` on
+purpose, so that a rollback lands on the same image every time.
+
+The Helm chart also has templates for `events-mcp`, `browser-mcp`, and
+`custom-domain-controller`. The release pipeline does not publish those images
+yet, so build and push them yourself before enabling them.
 
 ---
 
@@ -461,3 +521,11 @@ Images are built on every release and tagged with both `latest` and the semantic
 | **Orchestration** | Docker Compose / Kubernetes | Deployment and scaling |
 | **CI/CD** | GitHub Actions | Build, test, and publish pipeline |
 | **Registry** | ghcr.io | Container image hosting |
+| **AI** | OpenAI, Anthropic, Gemini | One provider router, with model allow-lists and a per-call cost ledger |
+| **Agents** | [Goose](https://github.com/aaif-goose/goose) | Block's agent runtime, run as a server-side command-line tool |
+| **Agent protocol** | [MCP](https://modelcontextprotocol.io) | Public, internal, and browser MCP servers |
+| **Scraping** | [Scrapling](https://github.com/D4Vinci/Scrapling) | The fetch service behind the scrapers, with residential proxy support |
+| **Analytics** | [Umami](https://umami.is) | Self-hosted, installed by the analytics module |
+| **Metrics** | Prometheus | Worker and scheduler expose `/metrics`; PodMonitors are optional |
+| **Tracing** | OpenTelemetry | Optional, over OTLP and HTTP |
+| **Errors** | Sentry | Optional, and can point at a self-hosted GlitchTip |
