@@ -3,7 +3,7 @@ import { parseArgs } from 'node:util';
 import type { ApplyResult, ClientId, DetectedClient } from './types.js';
 import { CLIENT_IDS } from './types.js';
 import {
-  DEFAULT_SERVER_URL,
+  SERVER_URL_EXAMPLE,
   checkForNewerVersion,
   deriveName,
   fetchConnectorName,
@@ -29,7 +29,7 @@ Usage:
   npx @gatewaze/connect [options]
 
 Options:
-  --server <url>    MCP server URL (default: ${DEFAULT_SERVER_URL})
+  --server <url>    MCP server URL (required), e.g. ${SERVER_URL_EXAMPLE}
   --name <label>    Connector name (default: derived from the server hostname)
   --all             Configure every detected client, no prompts
   --client <id>     Configure a specific client (repeatable). One of:
@@ -39,9 +39,9 @@ Options:
   -h, --help        Show this help
 
 Examples:
-  npx @gatewaze/connect
-  npx @gatewaze/connect --server https://mcp.aaif.live --all
-  npx @gatewaze/connect --client claude-desktop --client goose --dry-run
+  npx @gatewaze/connect --server https://mcp.example.com/auth
+  npx @gatewaze/connect --server https://mcp.example.com --all
+  npx @gatewaze/connect --server https://mcp.example.com --client claude-desktop --dry-run
 `;
 
 interface Options {
@@ -72,7 +72,13 @@ function parseCliArgs(argv: string[]): Options {
     process.exit(0);
   }
 
-  const serverUrl = validateServerUrl(values.server ?? DEFAULT_SERVER_URL);
+  // Required: see SERVER_URL_EXAMPLE in util.ts for why there is no default.
+  if (!values.server?.trim()) {
+    throw new Error(
+      `--server is required. Pass your Gatewaze MCP server URL, e.g. ${SERVER_URL_EXAMPLE}`,
+    );
+  }
+  const serverUrl = validateServerUrl(values.server);
   // Placeholder — main() resolves the final name (brand-configured via the
   // server's /brand.json, falling back to hostname derivation) because
   // that lookup is async.
