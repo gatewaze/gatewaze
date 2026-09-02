@@ -2,14 +2,21 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// /auth = the authentication-REQUIRED alias: clients only launch their
-// OAuth sign-in on a 401 challenge, and the connector's purpose is
-// signed-in (tiered) access. Pass --server .../ for anonymous read-only.
-export const DEFAULT_SERVER_URL = 'https://mcp.aaif.live/auth';
+// The `/auth` suffix is the authentication-REQUIRED alias: clients only launch
+// their OAuth sign-in on a 401 challenge, and the connector's purpose is
+// signed-in (tiered) access. Point --server at the bare origin instead for
+// anonymous read-only.
+//
+// There is deliberately no default. Gatewaze is self-hosted, so every install
+// has its own MCP host and there is no correct value to guess. This package is
+// published to npm, and a default meant `npx @gatewaze/connect` with no
+// arguments silently configured the running brand's production endpoint on a
+// stranger's machine.
+export const SERVER_URL_EXAMPLE = 'https://mcp.example.com/auth';
 
 /**
  * Derive a short connector name from the server URL's hostname.
- * e.g. https://mcp.aaif.live/ -> "aaif", https://mcp.example.test/ -> "example".
+ * e.g. https://mcp.example.com/ -> "example", https://mcp.acme.test/ -> "acme".
  */
 export function deriveName(serverUrl: string): string {
   let hostname: string;

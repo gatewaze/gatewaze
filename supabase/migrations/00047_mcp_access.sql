@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS public.mcp_group_rules (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   group_id uuid NOT NULL REFERENCES public.mcp_access_groups(id) ON DELETE CASCADE,
   kind text NOT NULL CHECK (kind IN ('email_domain', 'all_authenticated')),
-  -- email_domain: the bare domain, lowercased ('linuxfoundation.org').
+  -- email_domain: the bare domain, lowercased ('example.org').
   -- all_authenticated: match is ignored (store '').
   match text NOT NULL DEFAULT '',
   is_active boolean NOT NULL DEFAULT true,
@@ -124,8 +124,8 @@ DO $$ BEGIN
   END IF;
 END $$;
 
--- Seed the default group. Brand-specific groups (e.g. AAIF's "LF Staff"
--- with an email_domain rule for linuxfoundation.org) are created through
+-- Seed the default group. Deployment-specific groups (e.g. a "Staff"
+-- with an email_domain rule for a staff domain) are created through
 -- the admin UI or a brand rollout step — NOT in the shared core migration.
 INSERT INTO public.mcp_access_groups (name, label, scopes, is_default)
 VALUES (
