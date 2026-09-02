@@ -47,7 +47,6 @@ that, stop the services you do not need after the first start.
 | mcp-public | `packages/mcp` | routed at `MCP_HOST` | Public, keyless MCP endpoint with read-only tools, for AI agents. |
 | events-mcp | `packages/events-mcp` | internal only | MCP service for the `events_*` tools, including Luma writeback. |
 | browser-mcp | `packages/browser-mcp` | internal only | MCP service that gives agents a headless browser. |
-| arcade-serve | `packages/arcade-serve` | `ARCADE_SERVE_PORT`, 8090 | Serves creator-built games from storage snapshots. |
 | umami | `umamisoftware/umami:3.1.0` | via the analytics module | Self-hosted web analytics. |
 | autoheal | `willfarrell/autoheal:1.2.0` | no port | Restarts any container that reports itself unhealthy. |
 
