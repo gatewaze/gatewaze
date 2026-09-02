@@ -10,6 +10,12 @@ export interface NavigationTree {
   childs?: NavigationTree[];
   requiredFeature?: string;
   /**
+   * Hide this item from anyone below super_admin. For destructive platform
+   * surfaces whose API is gated the same way, so the nav does not offer a
+   * page that would only answer with 403s.
+   */
+  superAdminOnly?: boolean;
+  /**
    * Module/core-declared default sidebar section title (e.g. "Content").
    * Used to seed the categorized default layout; a saved layout overrides it.
    */
