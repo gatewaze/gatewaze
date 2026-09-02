@@ -17,6 +17,22 @@
 ENV_FILE      := docker/.env
 TRAEFIK_FILE  := -f docker/docker-compose.traefik.yml
 
+# This repository brings up exactly one stack, and it is always called
+# `gatewaze`. Compose derives container, network and volume names from the
+# project name, so this is what makes `make up` here predictable.
+#
+# It is exported rather than read from docker/.env on purpose. A shell variable
+# beats the env file in Compose's precedence, so a docker/.env left over from
+# working on a branded deployment cannot silently retarget this repo's stack:
+# `make up` would build that brand's containers, and `make down` would then
+# stop the wrong ones.
+#
+# Running several brands on one machine is supported, but not from here. Each
+# brand lives in its own environments repository with its own env file, and is
+# started from there. This repo has no brand targets, and adding one would put
+# a specific deployment's name into an open-source tree.
+export COMPOSE_PROJECT_NAME := gatewaze
+
 # Optional Docker context pin.
 #
 # Leave this unset and every `docker` call uses whichever context your Docker

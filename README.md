@@ -147,30 +147,16 @@ supporting services. Give Docker roughly 8 GB of memory.
 | `make ps`      | Show running containers                              |
 | `make help`    | Show all available commands                          |
 
-### Multi-Brand Setup
+### Running more than one deployment
 
-If you run more than one brand from the same checkout, keep the per-brand env
-files in a sibling directory called `gatewaze-environments`. The Makefile looks
-for them there.
+This repository brings up exactly one stack, always named `gatewaze`. There are
+no brand targets here, and `make up` ignores any project name left in
+`docker/.env`, so a config from another deployment cannot retarget it.
 
-```
-parent-directory/
-  gatewaze/               # this repo
-  gatewaze-environments/  # your own repo, holding one env file per brand
-    brand1.local.env
-    brand2.local.env
-```
-
-That sibling directory is yours to create. It is not a repository we publish.
-
-Then pass the brand name before the command:
-
-```bash
-make brand1 up        # Start the "brand1" brand
-make brand1 down      # Stop the "brand1" brand
-make brand1 reset     # Reset the "brand1" brand
-make brand2 up        # Start a different brand
-```
+To run several deployments on one machine, give each one its own environments
+repository holding its own env file, and start it from there. Keeping those
+names out of this tree is deliberate: this repository is open source, and a
+specific deployment's hostnames do not belong in it.
 
 ### Access the Services
 

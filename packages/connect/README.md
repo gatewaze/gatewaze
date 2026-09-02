@@ -14,8 +14,8 @@ The tool finds the AI clients installed on your machine, asks which ones you wan
 npx @gatewaze/connect [options]
 
 Options:
-  --server <url>    MCP server URL (default: https://mcp.aaif.live/)
-  --name <label>    Connector name (default: derived from the server hostname, e.g. "aaif")
+  --server <url>    MCP server URL (required), e.g. https://mcp.example.com/auth
+  --name <label>    Connector name (default: derived from the server hostname, e.g. "example")
   --all             Configure every detected client, no prompts
   --client <id>     Configure a specific client (repeatable):
                     claude-desktop, claude-code, goose, chatgpt
@@ -43,7 +43,7 @@ npx @gatewaze/connect --server https://mcp.example.org --client claude-desktop -
 
 ```json
 "mcpServers": {
-  "aaif": { "command": "npx", "args": ["-y", "mcp-remote", "https://mcp.aaif.live/"] }
+  "example": { "command": "npx", "args": ["-y", "mcp-remote", "https://mcp.example.com/"] }
 }
 ```
 
@@ -55,11 +55,11 @@ Claude Desktop's config cannot take a bare remote URL, so the entry goes through
 
 ```yaml
 extensions:
-  aaif:
+  example:
     enabled: true
-    name: aaif
+    name: example
     type: streamable_http
-    uri: https://mcp.aaif.live/
+    uri: https://mcp.example.com/
     timeout: 300
 ```
 
