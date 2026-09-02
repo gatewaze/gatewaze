@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { labeledRouter } from '../lib/router-registry.js';
 import { requireJwt } from '../lib/auth/require-jwt.js';
+import { requireSuperAdmin } from '../lib/auth/require-super-admin.js';
 import {
   loadModulesWithDbSources,
   reconcileModules,
@@ -73,6 +74,23 @@ const _moduleJwt = requireJwt();
 modulesRouter.use((req, res, next) => {
   if (/\/internal\//.test(req.originalUrl)) return next();
   return _moduleJwt(req, res, next);
+});
+
+// Module management is super_admin only. These routes install and enable code
+// from configured sources, swap the live tree, run migrations, deploy edge
+// functions and rotate secrets, so the platform role that governs them is the
+// highest one rather than the general admin role. Applied to reads as well as
+// writes: the Modules page is hidden from anyone below super_admin, so its
+// endpoints should not answer them either.
+//
+// `/internal/*` is skipped for the same reason as the JWT gate above — those
+// routes are service-to-service and carry a per-route internal key instead of
+// a user identity, so there is no role to check. Every one of them MUST run
+// its own internalAuth().
+const _moduleSuperAdmin = requireSuperAdmin();
+modulesRouter.use((req, res, next) => {
+  if (/\/internal\//.test(req.originalUrl)) return next();
+  return _moduleSuperAdmin(req, res, next);
 });
 
 /** Middleware: require leadership for all mutating operations */
