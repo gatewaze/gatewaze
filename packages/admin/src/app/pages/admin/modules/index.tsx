@@ -33,9 +33,21 @@ const SECTION_LABELS: Record<string, string> = {
   analytics: "Analytics",
   integrations: "Integrations",
   platform: "Platform",
+  productivity: "Productivity",
+  editor: "Editor",
   // Catch-all for modules that haven't been migrated to the new groups yet.
   feature: "Other",
 };
+
+/**
+ * Heading for a group key. Unmapped keys used to render raw, so a module
+ * declaring `group: 'editor'` produced a lowercase "editor" heading next to
+ * the capitalised ones. Title-case the fallback so a new group added by a
+ * module author never looks broken before SECTION_LABELS catches up.
+ */
+function sectionLabel(section: string): string {
+  return SECTION_LABELS[section] ?? section.charAt(0).toUpperCase() + section.slice(1);
+}
 
 const SECTION_ORDER = [
   "events",
@@ -48,6 +60,8 @@ const SECTION_ORDER = [
   "analytics",
   "integrations",
   "platform",
+  "productivity",
+  "editor",
   "feature",
 ];
 
@@ -217,8 +231,21 @@ export default function ModulesPage() {
     });
 
     // Also show installed modules not found in current sources
-    // (e.g. from a source that was removed but module still installed)
+    // (e.g. from a source that was removed but module still installed).
+    //
+    // Skip tombstones: rows left behind when a module was renamed, e.g.
+    // slack-integration -> slack or structured-resources -> resources. The
+    // reconcile that adopted the new id never removed the old row, so it
+    // lingers with no source_id and no snapshot, and rendered here as a
+    // duplicate card under "Other" alongside the real module. A module that
+    // genuinely came from a since-removed source still has a snapshot, so it
+    // is unaffected by this and keeps showing.
     for (const installed of installedModules) {
+      const isTombstone =
+        !installed.source_id &&
+        !installed.snapshot_taken_at &&
+        installed.status !== 'enabled';
+      if (isTombstone) continue;
       if (!availableSet.has(installed.id)) {
         cards.push({
           id: installed.id,
@@ -765,7 +792,7 @@ export default function ModulesPage() {
             {sortedSections.map((section) => (
               <section key={section}>
                 <h2 className="text-lg font-semibold text-[var(--gray-12)] mb-4">
-                  {SECTION_LABELS[section] ?? section}
+                  {sectionLabel(section)}
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                   {grouped[section].map(renderModuleCard)}
