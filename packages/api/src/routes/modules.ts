@@ -1634,10 +1634,20 @@ modulesRouter.post('/:id/update', async (req, res) => {
       });
     }
 
-    // 1. Apply pending migrations (only if version changed)
-    if (hasVersionUpdate) {
-      await applyModuleMigrations(mod, supabase as never);
+    // 1. Apply pending migrations.
+    //
+    // This used to run only when the version changed, which meant a module
+    // that added a migration without bumping its version had that migration
+    // silently skipped. Most modules never bump: 65 of the 86 open-source
+    // modules are still on 1.0.0, and newsletters has 298 commits against a
+    // single change to its version line. applyModuleMigrations already reads
+    // module_migrations and skips anything applied, matching on filename and
+    // checksum, so running it unconditionally costs one query and removes the
+    // failure mode. We only reach this point when the module is being updated
+    // at all, since the no-change case returned above.
+    await applyModuleMigrations(mod, supabase as never);
 
+    if (hasVersionUpdate) {
       // Update version and features in DB
       await supabase
         .from('installed_modules')
@@ -1744,10 +1754,10 @@ modulesRouter.post('/update-all', async (_req, res) => {
 
       const previousVersion = row.version;
 
-      // Apply migrations (only if version changed)
-      if (hasVersionUpdate) {
-        await applyModuleMigrations(mod, supabase as never);
-      }
+      // Apply migrations. Unconditional for the same reason as /:id/update:
+      // gating on a version bump silently skipped migrations from modules that
+      // never bump, and applyModuleMigrations is already idempotent.
+      await applyModuleMigrations(mod, supabase as never);
 
       // Update DB
       const dbUpdate: Record<string, unknown> = {
