@@ -307,6 +307,8 @@ export class ModuleService {
   static async updateAllModules(): Promise<{
     success: boolean;
     updated?: { id: string; name: string; previousVersion: string; newVersion: string }[];
+    skipped?: { id: string; name: string; reason: string }[];
+    failed?: { id: string; code: string; reason: string }[];
     edgeFunctionsDeployed?: string[];
     error?: string;
   }> {
@@ -325,6 +327,8 @@ export class ModuleService {
       return {
         success: true,
         updated: body.updated,
+        skipped: body.skipped,
+        failed: body.failed,
         edgeFunctionsDeployed: body.edgeFunctionsDeployed,
       };
     } catch (error) {
