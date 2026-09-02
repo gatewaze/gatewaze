@@ -261,11 +261,27 @@ export class SegmentService {
    * Trigger segment recalculation
    */
   async recalculateSegment(id: string): Promise<void> {
-    const { error } = await this.supabase.rpc('segments_calculate_members', {
-      p_segment_id: id,
-    });
-
-    if (error) throw error;
+    // Materialise membership in keyset-paginated batches. A single-shot
+    // calculation of a large audience (~160k) exceeds the 8s PostgREST
+    // statement_timeout (57014) — and a mid-statement SET LOCAL does not re-arm
+    // it — so we loop segments_calculate_members_batch (each call inserts one
+    // bounded page of ~25k, well under 8s) until nothing remains. The first
+    // call clears the previous calculation; a failed call rolls back that page
+    // only, leaving prior membership intact.
+    let after: string | null = null;
+    for (let guard = 0; guard < 10000; guard++) {
+      const { data, error } = await this.supabase.rpc('segments_calculate_members_batch', {
+        p_segment_id: id,
+        p_after: after,
+        p_limit: 25000,
+      });
+      if (error) throw error;
+      const res = (data ?? {}) as { remaining?: boolean; last_person_id?: string | null };
+      if (!res.remaining) return;
+      after = res.last_person_id ?? null;
+      if (after === null) return;
+    }
+    throw new Error('Segment recalculation did not converge');
   }
 
   /**
