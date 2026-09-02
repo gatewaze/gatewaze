@@ -14,6 +14,7 @@ import {
   applyCoreMigrations,
   detectEnvironment,
   computeShadowedSourceIds,
+  validateModule,
   installLiveSnapshot,
   removeLiveSnapshot,
   triggerRebuild,
@@ -23,6 +24,7 @@ import {
 } from '@gatewaze/shared/modules';
 import type { InstalledModuleRow, LoadedModule } from '@gatewaze/shared/modules';
 import { resolve } from 'path';
+import { pathToFileURL } from 'url';
 import { existsSync, mkdirSync, readdirSync, rmSync, renameSync, unlinkSync, readFileSync } from 'fs';
 import crypto from 'crypto';
 import multer from 'multer';
@@ -1711,127 +1713,75 @@ modulesRouter.post('/:id/update', async (req, res) => {
 /**
  * POST /api/modules/update-all
  *
- * Update all modules that have newer versions available.
+ * Apply every pending snapshot update — the module_updates_available rows,
+ * i.e. exactly what the Modules page lists — through the same flow as
+ * POST /:id/apply-update, then trigger ONE admin/portal rebuild.
+ *
+ * Replaces the pre-dual-tree implementation, which compared declared
+ * semver versions and edge-function hashes and so reported "0 updated"
+ * while the page showed dozens pending (module authors here don't bump
+ * `version:` per change; the update signal is the source hash).
+ *
+ * Refreshes sources first: the clone cache is pod-local, so after an API
+ * restart nothing resolves until a refresh re-clones, and this also brings
+ * the pending list up to date. Failures are per-module and reported in
+ * `failed`; the sweep continues past them.
  */
 modulesRouter.post('/update-all', async (_req, res) => {
   try {
     const supabase = getServiceClient();
-    const modules = await loadAllModules();
+    const refresh = await refreshModuleSources(supabase);
 
-    const { data: installed } = await supabase
-      .from('installed_modules')
-      .select('id, version, status, edge_functions_hash');
-
-    const installedMap = new Map(
-      (installed ?? []).map((r: Record<string, unknown>) => [r.id as string, r])
-    );
+    const { data: pending } = await supabase
+      .from('module_updates_available')
+      .select('module_id, platform_compatible, min_platform_version')
+      .order('module_id');
 
     const updated: { id: string; name: string; previousVersion: string; newVersion: string; reason: string }[] = [];
     const skipped: { id: string; name: string; reason: string }[] = [];
-    const modulesToDeploy: LoadedModule[] = [];
+    const failed: { id: string; code: string; reason: string }[] = [];
+    const edgeFunctionsDeployed: string[] = [];
 
-    for (const mod of modules) {
-      const row = installedMap.get(mod.config.id) as InstalledModuleRow | undefined;
-      if (!row) continue;
-
-      const hasVersionUpdate = isNewerVersion(mod.config.version, row.version);
-      const currentHash = computeEdgeFunctionsHash(mod);
-      const hasSourceChanges = currentHash !== null && currentHash !== row.edge_functions_hash;
-
-      if (!hasVersionUpdate && !hasSourceChanges) continue;
-
-      // Skip modules that require a newer platform version
-      if (hasVersionUpdate && mod.config.minPlatformVersion && config.platformVersion) {
-        if (compareSemver(config.platformVersion, mod.config.minPlatformVersion) < 0) {
-          skipped.push({
-            id: mod.config.id,
-            name: mod.config.name,
-            reason: `Requires platform v${mod.config.minPlatformVersion}`,
-          });
-          continue;
-        }
+    for (const row of (pending ?? []) as Record<string, unknown>[]) {
+      const id = row.module_id as string;
+      if (row.platform_compatible === false) {
+        skipped.push({ id, name: id, reason: `Requires platform v${row.min_platform_version ?? '?'}` });
+        continue;
       }
-
-      const previousVersion = row.version;
-
-      // Apply migrations. Unconditional for the same reason as /:id/update:
-      // gating on a version bump silently skipped migrations from modules that
-      // never bump, and applyModuleMigrations is already idempotent.
-      await applyModuleMigrations(mod, supabase as never);
-
-      // Update DB
-      const dbUpdate: Record<string, unknown> = {
-        name: mod.config.name,
-        description: mod.config.description,
-      };
-      if (hasVersionUpdate) {
-        dbUpdate.version = mod.config.version;
-        dbUpdate.features = mod.config.features;
-      }
-      if (currentHash) {
-        dbUpdate.edge_functions_hash = currentHash;
-      }
-
-      // Record the source hash too. This endpoint used to update a module and
-      // leave source_snapshot_hash untouched, so /sources/refresh went on
-      // comparing upstream against a value from whenever the module was last
-      // enabled and kept re-raising the same update. Only record it when the
-      // live tree genuinely matches upstream — a real pending source change
-      // still needs the snapshot install that /apply-update performs, and
-      // marking it applied here would hide code that was never deployed.
-      const upstreamDir = await resolveSourceDirForModule(mod.config.id, supabase);
-      if (upstreamDir) {
-        try {
-          const { computeModuleHashFromPath } = await import('@gatewaze/shared/modules');
-          const upstreamHash = computeModuleHashFromPath(upstreamDir);
-          const liveHash = computeModuleHashFromPath(liveModuleDir(mod.config.id));
-          if (upstreamHash === liveHash) {
-            dbUpdate.source_snapshot_hash = upstreamHash;
-            await supabase
-              .from('module_updates_available')
-              .delete()
-              .eq('module_id', mod.config.id);
-          }
-        } catch {
-          // Hashing is best effort; a miss just leaves the row for the next refresh.
-        }
-      }
-
-      await supabase
-        .from('installed_modules')
-        .update(dbUpdate)
-        .eq('id', mod.config.id);
-
-      const reason = hasVersionUpdate ? 'version' : 'source_changed';
-      updated.push({
-        id: mod.config.id,
-        name: mod.config.name,
-        previousVersion,
-        newVersion: mod.config.version,
-        reason,
-      });
-
-      if (row.status === 'enabled' && mod.config.edgeFunctions?.length) {
-        modulesToDeploy.push(mod);
+      try {
+        const result = await applySnapshotUpdate(id, supabase);
+        updated.push({
+          id,
+          name: result.name,
+          previousVersion: result.fromVersion ?? '',
+          newVersion: result.toVersion,
+          reason: 'snapshot',
+        });
+        edgeFunctionsDeployed.push(...result.edgeFunctionsDeployed);
+      } catch (err) {
+        const code = err instanceof ApplyUpdateError ? err.code : 'INTERNAL_ERROR';
+        failed.push({ id, code, reason: err instanceof Error ? err.message : String(err) });
+        logger.error({ err, moduleId: id }, '[modules] update-all: module update failed');
       }
     }
 
-    // Deploy edge functions for all updated+enabled modules at once
-    let edgeFunctionsDeployed: string[] = [];
-    if (modulesToDeploy.length > 0) {
-      const deployResult = await deployEdgeFunctions({
-        projectRoot: PROJECT_ROOT,
-        modules: modulesToDeploy,
-        allModules: modules,
+    let rebuildCounter: Awaited<ReturnType<typeof triggerRebuild>> | null = null;
+    if (updated.length > 0) {
+      rebuildCounter = await triggerRebuild(supabase as never, {
+        components: ['admin', 'portal'],
+        reason: `update-all:${updated.length}`,
       });
-      edgeFunctionsDeployed = [...deployResult.copied, ...deployResult.deployed].map((r) => r.functionName);
     }
 
     return res.json({
       success: true,
       updated,
       skipped,
+      failed,
       edgeFunctionsDeployed,
+      rebuildCounter,
+      sourcesRefreshed: refresh.sourcesRefreshed,
+      sourceErrors: refresh.errors,
     });
   } catch (err) {
     logger.error({ err }, '[modules] Update all failed:');
@@ -2057,135 +2007,177 @@ modulesRouter.delete('/sources/:id', async (req, res) => {
 // Dual-tree endpoints (spec-module-deployment-overhaul §10)
 // ---------------------------------------------------------------------------
 
+interface SourceRefreshOutcome {
+  refreshedAt: string;
+  sourcesRefreshed: number;
+  updatesAvailable: number;
+  errors: { sourceId: string; url: string; code: string; message: string }[];
+}
+
 /**
- * POST /api/modules/sources/refresh
+ * Pull every git source into .gatewaze-sources/ and recompute the upstream
+ * hash of each installed module against its live snapshot, writing the
+ * differences into module_updates_available. Shared by POST /sources/refresh
+ * and POST /update-all (which must refresh first: the clone cache is
+ * pod-local, so after an API restart nothing resolves until this runs).
  *
- * Manually pull all git sources into .gatewaze-sources/ and recompute
- * upstream hashes for each installed module. Writes results into
- * module_updates_available. Local-path sources are re-hashed in place;
- * upload-origin sources are skipped (immutable per §17).
+ * Local-path sources are re-hashed in place; upload-origin sources are
+ * skipped (immutable per §17).
  */
-modulesRouter.post('/sources/refresh', async (_req, res) => {
-  try {
-    const supabase = getServiceClient();
-    const { data: sources } = await supabase.from('module_sources').select('*');
-    const now = new Date().toISOString();
-    const errors: { sourceId: string; url: string; code: string; message: string }[] = [];
+async function refreshModuleSources(
+  supabase: ReturnType<typeof getServiceClient>
+): Promise<SourceRefreshOutcome> {
+  const { data: sources } = await supabase.from('module_sources').select('*');
+  const now = new Date().toISOString();
+  const errors: SourceRefreshOutcome['errors'] = [];
 
-    for (const row of (sources ?? []) as Record<string, unknown>[]) {
-      const url = row.url as string;
-      const sourceId = row.id as string;
-      const branch = (row.branch as string | null) ?? 'main';
+  for (const row of (sources ?? []) as Record<string, unknown>[]) {
+    const url = row.url as string;
+    const sourceId = row.id as string;
+    const branch = (row.branch as string | null) ?? 'main';
 
-      const isGit =
-        url.startsWith('https://') ||
-        url.startsWith('git://') ||
-        url.startsWith('git@') ||
-        url.endsWith('.git');
+    // Transport-secure remotes only (https / ssh / git protocol) — a plain
+    // http:// remote could be MITM'd into serving module code that this
+    // flow then imports and whose migrations it runs.
+    const isGit =
+      url.startsWith('https://') ||
+      url.startsWith('git://') ||
+      url.startsWith('git@') ||
+      url.endsWith('.git');
+    if (!isGit) continue;
 
-      if (!isGit) continue;
-
-      const { sourcesRoot: srcRoot, repoSlug: slugFn } = await import('@gatewaze/shared/modules');
-      const repoDir = resolve(srcRoot(), slugFn(url));
-      try {
-        // Defense-in-depth: revalidate branch from the DB before passing to git.
-        // BRANCH_RE was applied at write time, but if a row was inserted before
-        // this gate landed, refuse to act.
-        validateBranch(branch);
-        if (existsSync(resolve(repoDir, '.git'))) {
-          safeExec('git', ['-C', repoDir, 'fetch', '--depth', '1', 'origin', branch]);
-          safeExec('git', ['-C', repoDir, 'reset', '--hard', `origin/${branch}`]);
-        } else {
-          mkdirSync(srcRoot(), { recursive: true });
-          safeExec('git', ['clone', '--depth', '1', '--branch', branch, url, repoDir]);
-        }
-      } catch (cloneErr) {
-        const message = cloneErr instanceof Error ? cloneErr.message : String(cloneErr);
-        const code = /not possible to fast-forward|non-fast-forward/i.test(message)
-          ? 'HISTORY_REWRITTEN'
-          : 'FETCH_FAILED';
-        errors.push({ sourceId, url, code, message });
+    const { sourcesRoot: srcRoot, repoSlug: slugFn } = await import('@gatewaze/shared/modules');
+    const repoDir = resolve(srcRoot(), slugFn(url));
+    try {
+      // Defense-in-depth: revalidate branch from the DB before passing to git.
+      // BRANCH_RE was applied at write time, but if a row was inserted before
+      // this gate landed, refuse to act.
+      validateBranch(branch);
+      if (existsSync(resolve(repoDir, '.git'))) {
+        safeExec('git', ['-C', repoDir, 'fetch', '--depth', '1', 'origin', branch]);
+        safeExec('git', ['-C', repoDir, 'reset', '--hard', `origin/${branch}`]);
+      } else {
+        mkdirSync(srcRoot(), { recursive: true });
+        safeExec('git', ['clone', '--depth', '1', '--branch', branch, url, repoDir]);
       }
+    } catch (cloneErr) {
+      const message = cloneErr instanceof Error ? cloneErr.message : String(cloneErr);
+      const code = /not possible to fast-forward|non-fast-forward/i.test(message)
+        ? 'HISTORY_REWRITTEN'
+        : 'FETCH_FAILED';
+      errors.push({ sourceId, url, code, message });
+    }
+  }
+
+  // After refresh, recompute update-available rows by reloading modules
+  // and comparing each module's upstream hash against the installed
+  // source_snapshot_hash.
+  const modules = await loadAllModules();
+  const { data: installed } = await supabase
+    .from('installed_modules')
+    .select('id, status, source_id, source_snapshot_hash, version')
+    .in('status', ['enabled', 'bundle_pending']);
+
+  const { computeModuleHashFromPath } = await import('@gatewaze/shared/modules');
+  let updatesAvailable = 0;
+
+  for (const row of (installed ?? []) as unknown as InstalledModuleRow[]) {
+    const mod = modules.find((m) => m.config.id === row.id);
+    if (!mod || !mod.resolvedDir) continue;
+
+    // For the upstream comparison we must hash the SOURCE dir, not the
+    // live tree. Since the loader now prefers live → source, walk back
+    // to the source directory for this module via its package name.
+    const source = await resolveSourceForModule(mod.config.id, supabase);
+    if (!source) continue;
+
+    const upstreamHash = (() => {
+      try { return computeModuleHashFromPath(source.dir); }
+      catch { return null; }
+    })();
+    if (!upstreamHash) continue;
+
+    const snapshotHash = row.source_snapshot_hash as string | null;
+
+    // source_snapshot_hash records what was installed, but only /enable and
+    // /apply-update write it, so it is absent for anything installed before
+    // the dual-tree flow and stale for anything updated by older code. On its
+    // own it reports an update for modules whose deployed code is already
+    // identical to upstream. Hash the live tree too, and decide on what is
+    // actually deployed.
+    const liveHash = (() => {
+      try { return computeModuleHashFromPath(liveModuleDir(row.id)); }
+      catch { return null; }
+    })();
+
+    const state = decideUpdateState({ upstreamHash, snapshotHash, liveHash });
+
+    if (state === 'repair') {
+      // Deployed code already matches upstream; only the record was stale.
+      await supabase
+        .from('installed_modules')
+        .update({ source_snapshot_hash: upstreamHash })
+        .eq('id', row.id);
+      await supabase.from('module_updates_available').delete().eq('module_id', row.id);
+      logger.info(
+        { module: row.id },
+        '[modules] live tree already matches upstream — repaired stale source_snapshot_hash',
+      );
+      continue;
     }
 
-    // After refresh, recompute update-available rows by reloading modules
-    // and comparing each module's upstream hash against the installed
-    // source_snapshot_hash.
-    const modules = await loadAllModules();
-    const { data: installed } = await supabase
-      .from('installed_modules')
-      .select('id, status, source_id, source_snapshot_hash, version')
-      .in('status', ['enabled', 'bundle_pending']);
-
-    const { computeModuleHashFromPath } = await import('@gatewaze/shared/modules');
-    let updatesAvailable = 0;
-
-    for (const row of (installed ?? []) as unknown as InstalledModuleRow[]) {
-      const mod = modules.find((m) => m.config.id === row.id);
-      if (!mod || !mod.resolvedDir) continue;
-
-      // For the upstream comparison we must hash the SOURCE dir, not the
-      // live tree. Since the loader now prefers live → source, walk back
-      // to the source directory for this module via its package name.
-      const sourceMatch = await resolveSourceDirForModule(mod.config.id, supabase);
-      if (!sourceMatch) continue;
-
-      const upstreamHash = (() => {
-        try { return computeModuleHashFromPath(sourceMatch); }
-        catch { return null; }
-      })();
-      if (!upstreamHash) continue;
-
-      const snapshotHash = row.source_snapshot_hash as string | null;
-      const liveHash = (() => {
-        try { return computeModuleHashFromPath(liveModuleDir(row.id)); }
-        catch { return null; }
-      })();
-
-      const state = decideUpdateState({ upstreamHash, snapshotHash, liveHash });
-
-      if (state === 'none') {
-        // Clear any stale update row.
-        await supabase.from('module_updates_available').delete().eq('module_id', row.id);
-        continue;
-      }
-
-      if (state === 'repair') {
-        // Deployed code already matches upstream; only the record was stale.
-        await supabase
-          .from('installed_modules')
-          .update({ source_snapshot_hash: upstreamHash })
-          .eq('id', row.id);
-        await supabase.from('module_updates_available').delete().eq('module_id', row.id);
-        logger.info(
-          { module: row.id },
-          '[modules] live tree already matches upstream — repaired stale source_snapshot_hash',
-        );
-        continue;
+    if (state === 'available') {
+      // module_updates_available.source_id is NOT NULL, but installed rows
+      // created before the source registry existed carry no source_id — the
+      // upsert used to fail silently for every one of them, leaving the
+      // Modules page permanently empty. Fall back to the source that actually
+      // resolved, and write it back so the row is self-describing next time.
+      const sourceId = (row.source_id as string | null) ?? source.sourceId;
+      if (!row.source_id) {
+        await supabase.from('installed_modules').update({ source_id: sourceId }).eq('id', row.id);
       }
 
       const platformCompatible = !mod.config.minPlatformVersion ||
         !config.platformVersion ||
         compareSemver(config.platformVersion, mod.config.minPlatformVersion) >= 0;
 
-      await supabase.from('module_updates_available').upsert({
+      const { error: upsertErr } = await supabase.from('module_updates_available').upsert({
         module_id: row.id,
-        source_id: row.source_id,
+        source_id: sourceId,
         upstream_hash: upstreamHash,
         upstream_version: mod.config.version,
         detected_at: now,
         platform_compatible: platformCompatible,
         min_platform_version: mod.config.minPlatformVersion ?? null,
       });
+      if (upsertErr) {
+        errors.push({ sourceId, url: `module:${row.id}`, code: 'UPDATE_ROW_WRITE_FAILED', message: upsertErr.message });
+        continue;
+      }
       updatesAvailable++;
+    } else {
+      // Clear any stale update row.
+      const { error: delErr } = await supabase.from('module_updates_available').delete().eq('module_id', row.id);
+      if (delErr) {
+        errors.push({ sourceId: (row.source_id as string | null) ?? source.sourceId, url: `module:${row.id}`, code: 'UPDATE_ROW_CLEAR_FAILED', message: delErr.message });
+      }
     }
+  }
 
-    return res.json({
-      refreshedAt: now,
-      sourcesRefreshed: (sources ?? []).length,
-      updatesAvailable,
-      errors,
-    });
+  return { refreshedAt: now, sourcesRefreshed: (sources ?? []).length, updatesAvailable, errors };
+}
+
+/**
+ * POST /api/modules/sources/refresh
+ *
+ * Manually pull all git sources into .gatewaze-sources/ and recompute
+ * upstream hashes for each installed module. Writes results into
+ * module_updates_available. See refreshModuleSources().
+ */
+modulesRouter.post('/sources/refresh', async (_req, res) => {
+  try {
+    const supabase = getServiceClient();
+    return res.json(await refreshModuleSources(supabase));
   } catch (err) {
     logger.error({ err }, '[modules] Sources refresh failed:');
     return res.status(500).json({
@@ -2228,11 +2220,14 @@ export function decideUpdateState(input: {
  * Resolve the current upstream source directory for a given installed
  * module. Walks the active sources in priority order and returns the
  * first dir containing `<source>/<module>/index.ts`.
+ * Resolve the current upstream source (directory + module_sources id) for
+ * a given installed module. Walks the active sources in priority order and
+ * returns the first one containing `<source>/<module>/index.ts`.
  */
-async function resolveSourceDirForModule(
+async function resolveSourceForModule(
   moduleId: string,
   supabase: ReturnType<typeof getServiceClient>
-): Promise<string | null> {
+): Promise<{ dir: string; sourceId: string } | null> {
   const { data: sources } = await supabase.from('module_sources').select('*');
   const { sourcesRoot: srcRoot, repoSlug: slugFn } = await import('@gatewaze/shared/modules');
   for (const row of (sources ?? []) as Record<string, unknown>[]) {
@@ -2249,121 +2244,228 @@ async function resolveSourceDirForModule(
     if (subPath) base = resolve(base, subPath);
     const candidate = resolve(base, moduleId, 'index.ts');
     if (existsSync(candidate)) {
-      return resolve(base, moduleId);
+      return { dir: resolve(base, moduleId), sourceId: row.id as string };
     }
   }
   return null;
 }
 
 /**
+ * Module ids compose filesystem paths (source dir, live tree) and — since the
+ * post-swap config re-import — an import specifier that executes code. Every
+ * real module id is kebab-case; refuse anything else before it reaches a path.
+ */
+const SAFE_MODULE_ID_RE = /^[a-z0-9][a-z0-9-]{0,127}$/;
+
+/** A failed apply-update with the HTTP status + error code the route should surface. */
+class ApplyUpdateError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly code: string,
+    message: string,
+    public readonly details?: Record<string, unknown>,
+  ) {
+    super(message);
+    this.name = 'ApplyUpdateError';
+  }
+}
+
+interface ApplySnapshotUpdateResult {
+  moduleId: string;
+  name: string;
+  fromVersion: string | null;
+  toVersion: string;
+  fromSha: string | null;
+  toSha: string | null;
+  startedAt: string;
+  edgeFunctionsDeployed: string[];
+  /** false when the post-swap config re-import failed and the pre-swap config was used. */
+  configRefreshed: boolean;
+  migrationsApplied: string[];
+}
+
+/**
+ * Re-import a module's index.ts from its freshly installed live tree.
+ *
+ * loadAllModules() imported the module BEFORE the snapshot swap, and Node's
+ * ESM cache pins that import for the life of the process — so without this,
+ * any migrations or edge functions the new snapshot registers stay invisible
+ * until the next API restart (the update "applies" but its migrations don't).
+ * The query string is the standard cache-buster; the snapshot hash makes it
+ * deterministic per install.
+ */
+async function refreshModuleConfigFromLiveTree(mod: LoadedModule, snapshotHash: string): Promise<boolean> {
+  // The id comes from module-author-declared config; never let a non-kebab id
+  // compose an import specifier.
+  if (!SAFE_MODULE_ID_RE.test(mod.config.id) || !/^[0-9a-f]{16,128}$/i.test(snapshotHash)) return false;
+  const liveIndex = resolve(liveModuleDir(mod.config.id), 'index.ts');
+  if (!existsSync(liveIndex)) return false;
+  try {
+    const fresh = (await import(
+      `${pathToFileURL(liveIndex).href}?snapshot=${encodeURIComponent(snapshotHash)}`
+    )) as Record<string, unknown>;
+    const cfg = fresh.default ?? fresh;
+    validateModule(cfg, mod.packageName);
+    mod.config = cfg as LoadedModule['config'];
+    return true;
+  } catch (err) {
+    logger.warn(
+      { err, moduleId: mod.config.id },
+      '[modules] could not re-import module config after snapshot swap; continuing with the pre-swap config',
+    );
+    return false;
+  }
+}
+
+/**
+ * Install the pending upstream snapshot for one installed module: atomic
+ * .new → .prev → live swap (spec §5.2), then migrations + edge-function
+ * deploy against the new live tree, then bookkeeping. Does NOT trigger a
+ * rebuild — callers do (once per request, so a bulk sweep rebuilds once).
+ *
+ * Throws ApplyUpdateError with the status/code the route should return.
+ */
+async function applySnapshotUpdate(
+  moduleId: string,
+  supabase: ReturnType<typeof getServiceClient>
+): Promise<ApplySnapshotUpdateResult> {
+  if (!SAFE_MODULE_ID_RE.test(moduleId)) {
+    throw new ApplyUpdateError(400, 'INVALID_MODULE_ID', 'Module id must be kebab-case (a-z, 0-9, hyphens).');
+  }
+
+  const { data: updateRow } = await supabase
+    .from('module_updates_available')
+    .select('*')
+    .eq('module_id', moduleId)
+    .maybeSingle();
+
+  if (!updateRow) {
+    throw new ApplyUpdateError(404, 'UPDATE_NOT_AVAILABLE', `No pending update for module "${moduleId}"`);
+  }
+  const update = updateRow as Record<string, unknown>;
+
+  if (update.platform_compatible === false) {
+    throw new ApplyUpdateError(409, 'PLATFORM_INCOMPATIBLE', `Module "${moduleId}" update requires a newer platform.`, {
+      minPlatformVersion: update.min_platform_version,
+      currentVersion: config.platformVersion,
+    });
+  }
+
+  const source = await resolveSourceForModule(moduleId, supabase);
+  if (!source) {
+    throw new ApplyUpdateError(
+      500,
+      'SOURCE_NOT_FOUND',
+      `Upstream source for module "${moduleId}" not resolvable — refresh sources and retry.`,
+    );
+  }
+
+  const modules = await loadAllModules();
+  const mod = modules.find((m) => m.config.id === moduleId);
+  if (!mod) {
+    throw new ApplyUpdateError(404, 'MODULE_NOT_FOUND', `Module "${moduleId}" not loaded`);
+  }
+
+  const { data: installed } = await supabase
+    .from('installed_modules')
+    .select('version, source_snapshot_sha')
+    .eq('id', moduleId)
+    .maybeSingle();
+  const fromVersion = ((installed as Record<string, unknown> | null)?.version as string | undefined) ?? null;
+  const fromSha = ((installed as Record<string, unknown> | null)?.source_snapshot_sha as string | undefined) ?? null;
+
+  const isSymlinkSource = isLocalPathSource(source.dir, config.moduleSources ?? []);
+  const sourceId = (update.source_id as string | undefined) ?? source.sourceId;
+
+  const snap = installLiveSnapshot({
+    moduleId,
+    sourceId,
+    sourceDir: source.dir,
+    symlink: isSymlinkSource,
+  });
+
+  mod.resolvedDir = liveModuleDir(moduleId);
+  const configRefreshed = await refreshModuleConfigFromLiveTree(mod, snap.snapshotHash);
+
+  // Migrations + edge-function deploy against the new live tree. A failed
+  // migration is surfaced (previously ignored): the snapshot is already
+  // swapped, but the bookkeeping below is skipped so the update row stays
+  // pending and the operator can fix + retry.
+  const migrations = await applyModuleMigrations(mod, supabase as never);
+  if (migrations.failed) {
+    // Full detail (paths, raw Postgres error) goes to the server log; the
+    // client gets the module/filename plus a path-stripped, length-capped
+    // message — enough to act on, no filesystem layout.
+    logger.error({ moduleId, failed: migrations.failed }, '[modules] apply-update: migration failed');
+    // Any absolute path token (single- or multi-segment), up to the next
+    // whitespace/quote/bracket — so "/tmp" and "/a/b c" don't leak fragments.
+    const safeMessage = migrations.failed.message
+      .replace(/(^|[\s"'`(=:])\/[^\s"'`)]+/g, '$1<path>')
+      .slice(0, 240);
+    throw new ApplyUpdateError(
+      500,
+      migrations.failed.code ?? 'MIGRATION_FAILED',
+      `${moduleId}/${migrations.failed.filename}: ${safeMessage}`,
+    );
+  }
+
+  let edgeFunctionsDeployed: string[] = [];
+  if (mod.config.edgeFunctions?.length || mod.config.functionFiles?.length) {
+    const deployResult = await deployEdgeFunctions({
+      projectRoot: PROJECT_ROOT,
+      modules: [mod],
+      allModules: modules,
+    });
+    edgeFunctionsDeployed = [...deployResult.copied, ...deployResult.deployed].map((r) => r.functionName);
+  }
+
+  const edgeHash = computeEdgeFunctionsHash(mod);
+  await supabase.from('installed_modules').update({
+    version: mod.config.version,
+    source_id: sourceId,
+    source_snapshot_hash: snap.snapshotHash,
+    edge_functions_hash: edgeHash,
+    snapshot_taken_at: snap.installedAt,
+    last_rebuild_error: null,
+  }).eq('id', moduleId);
+
+  await supabase.from('module_updates_available').delete().eq('module_id', moduleId);
+
+  return {
+    moduleId,
+    name: mod.config.name,
+    fromVersion,
+    toVersion: mod.config.version,
+    fromSha,
+    toSha: (update.upstream_sha as string | undefined) ?? null,
+    startedAt: snap.installedAt,
+    edgeFunctionsDeployed,
+    configRefreshed,
+    migrationsApplied: migrations.applied,
+  };
+}
+
+/**
  * POST /api/modules/:id/apply-update
  *
- * Install the upstream snapshot for an installed module. Atomic .new →
- * .prev → live swap per spec §5.2.
+ * Install the upstream snapshot for an installed module, then trigger an
+ * admin/portal rebuild. See applySnapshotUpdate().
  */
 modulesRouter.post('/:id/apply-update', async (req, res) => {
   try {
     const supabase = getServiceClient();
-    const moduleId = req.params.id;
-
-    const { data: updateRow } = await supabase
-      .from('module_updates_available')
-      .select('*')
-      .eq('module_id', moduleId)
-      .single();
-
-    if (!updateRow) {
-      return res.status(404).json({
-        error: { code: 'UPDATE_NOT_AVAILABLE', message: `No pending update for module "${moduleId}"` },
-      });
-    }
-
-    if ((updateRow as Record<string, unknown>).platform_compatible === false) {
-      return res.status(409).json({
-        error: {
-          code: 'PLATFORM_INCOMPATIBLE',
-          message: `Module "${moduleId}" update requires a newer platform.`,
-          details: {
-            minPlatformVersion: (updateRow as Record<string, unknown>).min_platform_version,
-            currentVersion: config.platformVersion,
-          },
-        },
-      });
-    }
-
-    // Resolve source dir and install as a fresh live snapshot. The same
-    // copy-to-.new → rename-to-live logic as /enable, invoked here
-    // against the upstream tree.
-    const sourceDir = await resolveSourceDirForModule(moduleId, supabase);
-    if (!sourceDir) {
-      return res.status(500).json({
-        error: { code: 'SOURCE_NOT_FOUND', message: `Upstream source for module "${moduleId}" not resolvable.` },
-      });
-    }
-
-    const modules = await loadAllModules();
-    const mod = modules.find((m) => m.config.id === moduleId);
-    if (!mod) {
-      return res.status(404).json({ error: { code: 'MODULE_NOT_FOUND', message: `Module "${moduleId}" not loaded` } });
-    }
-
-    const { data: installed } = await supabase
-      .from('installed_modules')
-      .select('version, source_snapshot_sha')
-      .eq('id', moduleId)
-      .single();
-    const fromVersion = (installed as Record<string, unknown>)?.version as string | undefined;
-    const fromSha = (installed as Record<string, unknown>)?.source_snapshot_sha as string | undefined;
-
-    const isSymlinkSource = isLocalPathSource(sourceDir, config.moduleSources ?? []);
-    const sourceId = (updateRow as Record<string, unknown>).source_id as string | undefined;
-
-    const snap = installLiveSnapshot({
-      moduleId,
-      sourceId,
-      sourceDir,
-      symlink: isSymlinkSource,
-    });
-
-    mod.resolvedDir = liveModuleDir(moduleId);
-
-    // Migrations + edge-function deploy against the new live tree.
-    await applyModuleMigrations(mod, supabase as never);
-    if (mod.config.edgeFunctions?.length || mod.config.functionFiles?.length) {
-      await deployEdgeFunctions({
-        projectRoot: PROJECT_ROOT,
-        modules: [mod],
-        allModules: modules,
-      });
-    }
-
-    const edgeHash = computeEdgeFunctionsHash(mod);
-    await supabase.from('installed_modules').update({
-      version: mod.config.version,
-      source_id: sourceId ?? null,
-      source_snapshot_hash: snap.snapshotHash,
-      edge_functions_hash: edgeHash,
-      snapshot_taken_at: snap.installedAt,
-      last_rebuild_error: null,
-    }).eq('id', moduleId);
-
-    await supabase.from('module_updates_available').delete().eq('module_id', moduleId);
-
+    const result = await applySnapshotUpdate(req.params.id, supabase);
     const rebuildCounter = await triggerRebuild(supabase as never, {
       components: ['admin', 'portal'],
-      reason: `apply-update:${moduleId}`,
+      reason: `apply-update:${result.moduleId}`,
     });
-
-    return res.status(202).json({
-      moduleId,
-      fromVersion,
-      toVersion: mod.config.version,
-      fromSha,
-      toSha: (updateRow as Record<string, unknown>).upstream_sha ?? null,
-      rebuildCounter,
-      startedAt: snap.installedAt,
-    });
+    return res.status(202).json({ ...result, rebuildCounter });
   } catch (err) {
+    if (err instanceof ApplyUpdateError) {
+      return res.status(err.status).json({
+        error: { code: err.code, message: err.message, ...(err.details ? { details: err.details } : {}) },
+      });
+    }
     logger.error({ err }, '[modules] apply-update failed:');
     return res.status(500).json({
       error: { code: 'INTERNAL_ERROR', message: err instanceof Error ? err.message : 'Failed to apply update' },
