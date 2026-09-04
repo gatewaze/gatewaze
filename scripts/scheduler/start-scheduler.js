@@ -72,6 +72,16 @@ function discoverModuleIndexFiles() {
     path.resolve(__dirname, '../../../gatewaze-modules'),
     path.resolve(__dirname, '../../../premium-gatewaze-modules'),
     path.resolve(__dirname, '../../../lf-gatewaze-modules'),
+    // Local paths from MODULE_SOURCES (comma-separated, optional #fragment):
+    // a mounted repo beyond the hardcoded fallbacks (e.g. a private third
+    // source) registers its crons like any other. Entries name the modules
+    // dir directly, so strip a trailing /modules — the walker re-appends it.
+    // Git URLs are skipped (the clone-cache roots above cover those).
+    ...(process.env.MODULE_SOURCES ?? '')
+      .split(',')
+      .map((s) => s.split('#')[0].trim())
+      .filter((s) => s.startsWith('/'))
+      .map((s) => s.replace(/\/modules\/?$/, '')),
   ];
   const found = [];
   for (const root of roots) {
