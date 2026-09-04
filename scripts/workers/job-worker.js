@@ -783,6 +783,16 @@ const MODULE_ROOTS = [
   '/var/lib/gatewaze/modules',         // live snapshot installed by api
   '/gatewaze-modules/modules',         // baked-in / runtime symlink
   '/app/.gatewaze-modules',            // loader.ts cache dir (clones nested per repo slug)
+  // Local paths from MODULE_SOURCES (comma-separated, optional #fragment) —
+  // deployments that mount extra module repos (a third source beyond the two
+  // hardcoded ones) otherwise have no way to get their handlers registered:
+  // the live tree holds SYMLINKS, and readdir dirents report those as
+  // non-directories, so only real scan roots count. Git URLs are skipped
+  // (the loader's clone cache above covers those).
+  ...(process.env.MODULE_SOURCES ?? '')
+    .split(',')
+    .map((s) => s.split('#')[0].trim())
+    .filter((s) => s.startsWith('/')),
 ];
 
 // Register handlers by the DECLARED job name from each module's index.ts
