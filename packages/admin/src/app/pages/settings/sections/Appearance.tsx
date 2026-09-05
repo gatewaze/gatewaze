@@ -1,4 +1,5 @@
 // Import Dependencies
+import { useEffect, useState } from "react";
 import { Label, Radio, RadioGroup } from "@headlessui/react";
 import clsx from "clsx";
 import { toast } from "sonner";
@@ -11,6 +12,8 @@ import { colors } from "@/constants/colors";
 import { Listbox } from "@/components/shared/form/StyledListbox";
 import { useDidUpdate } from "@/hooks";
 import { Button, Switch } from "@/components/ui";
+import { getSupabase } from "@/lib/supabase";
+import { useAuthContext } from "@/app/contexts/auth/context";
 import {
   PrimaryColor,
   LightColor,
@@ -124,6 +127,10 @@ export default function Appearance() {
           </Callout.Text>
         </Callout.Root>
       )}
+
+      <div className="my-5 h-px bg-[var(--gray-a4)]" />
+
+      <ModuleUpdateBannerSetting />
 
       <div className="my-5 h-px bg-[var(--gray-a4)]" />
 
@@ -609,6 +616,72 @@ export default function Appearance() {
           Reset Theme
         </Button>
       </div>
+    </div>
+  );
+}
+
+
+/**
+ * Instance-wide override for the module-update banner (Settings → Appearance).
+ * The banner already only renders for super_admins (the role that can action
+ * updates); this switch turns it off for the whole instance — useful where
+ * module code is git-tracked and "update available" is the permanent state.
+ * Only super_admins can change it (it is an instance-level control).
+ */
+function ModuleUpdateBannerSetting() {
+  const { user } = useAuthContext();
+  const [hidden, setHidden] = useState<boolean | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const supabase = getSupabase();
+        const { data } = await supabase
+          .from("platform_settings")
+          .select("value")
+          .eq("key", "hide_module_update_banner")
+          .maybeSingle();
+        setHidden(data?.value === "1" || data?.value === "on");
+      } catch {
+        setHidden(false);
+      }
+    })();
+  }, []);
+
+  if (user?.role !== "super_admin") return null;
+
+  const onToggle = async (value: boolean) => {
+    setHidden(value);
+    setSaving(true);
+    try {
+      const supabase = getSupabase();
+      await supabase
+        .from("platform_settings")
+        .upsert({ key: "hide_module_update_banner", value: value ? "1" : "0" }, { onConflict: "key" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-between gap-6">
+      <div>
+        <p className="text-base font-medium text-[var(--gray-12)]">
+          Module update banner
+        </p>
+        <p className="mt-0.5 text-sm text-[var(--gray-11)]">
+          Shown to super admins when module updates are available. Turn off for
+          this whole instance — e.g. where module code is deployed straight to
+          the machine and the banner would always be on.
+        </p>
+      </div>
+      <Switch
+        checked={hidden === false}
+        onChange={(v: boolean) => void onToggle(!v)}
+        disabled={hidden === null || saving}
+        aria-label="Show module update banner"
+      />
     </div>
   );
 }
