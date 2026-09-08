@@ -2,143 +2,28 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import svgr from "vite-plugin-svgr";
 import path from "path";
-import { execSync } from "node:child_process";
 import tailwindcss from "@tailwindcss/vite";
 import { gatewazeModulesPlugin } from "./vite-plugin-gatewaze-modules";
-
-// Runtime-config substitution for VITE_* env vars.
-// ----------------------------------------------------------------------
-// Vite's default behaviour inlines `import.meta.env.VITE_X` as a string
-// literal at build time. That breaks the prebuild pipeline (one image
-// shared across brands): VITE_SUPABASE_URL etc. are per-brand values
-// that only exist at pod startup, but the prebuild has already baked
-// in `undefined`. The pod then throws `Missing VITE_SUPABASE_URL` from
-// the supabase client constructor on first render.
-//
-// Fix: rewrite every `import.meta.env.VITE_X` reference at build time
-// to read `globalThis.__GATEWAZE_CONFIG__?.VITE_X` instead. The pod's
-// entrypoint generates `/usr/share/nginx/html/runtime-config.js` from
-// the runtime env vars, and `index.html` loads that script before the
-// main module bundle (ordinary `<script>` tags execute before any
-// `<script type="module">`). Per-brand values arrive at runtime.
-//
-// Only applied in build mode — dev / test continue to use Vite's
-// default `.env` file resolution since pods aren't involved there.
-//
-// We discover the VITE_* names by scanning the actual source rather
-// than maintaining a manifest. Modules' code (under .gatewaze-modules-
-// resolved + cloned module-repos) is also scanned so module-side
-// references get rewritten too.
-function discoverViteEnvNames(rootDir: string): string[] {
-  const grepCmd = `grep -rhoE 'import\\.meta\\.env\\.VITE_[A-Z0-9_]+' ${rootDir}/src ${rootDir}/../shared/src ${rootDir}/.gatewaze-modules ${rootDir}/../../../gatewaze-modules ${rootDir}/../../../gatewaze-modules ${rootDir}/../../../lf-gatewaze-modules /tmp/module-repos 2>/dev/null | sort -u || true`;
-  let out = "";
-  try {
-    out = execSync(grepCmd, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
-  } catch {
-    /* grep with `|| true` shouldn't throw, but be defensive */
-  }
-  const names = new Set<string>();
-  for (const line of out.split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed.startsWith("import.meta.env.VITE_")) continue;
-    const name = trimmed.replace(/^import\.meta\.env\./, "");
-    if (/^VITE_[A-Z0-9_]+$/.test(name)) names.add(name);
-  }
-  return Array.from(names).sort();
-}
-
-function buildRuntimeConfigDefine(): Record<string, string> {
-  const names = discoverViteEnvNames(__dirname);
-  const defines: Record<string, string> = {};
-  for (const n of names) {
-    // esbuild's `define` accepts only JS literals or identifier paths
-    // (foo.bar.baz). A ternary like `((typeof globalThis...)?...)` is
-    // rejected with "Invalid define value (must be an entity name or
-    // JS literal)" — so we use a bare property-access path. The
-    // index.html inline-script bootstraps `window.__GATEWAZE_CONFIG__`
-    // to `{}` BEFORE /runtime-config.js loads, so this access is
-    // always safe even if /runtime-config.js is missing (local
-    // preview): the value is `undefined`, identical to Vite's default
-    // behaviour for unset env vars.
-    defines[`import.meta.env.${n}`] = `globalThis.__GATEWAZE_CONFIG__.${n}`;
-  }
-  console.log(`[vite-config] runtime-config define: rewrote ${names.length} VITE_* references`);
-  return defines;
-}
+import {
+  SHARED_DEDUPE,
+  SHARED_OPTIMIZE_DEPS_INCLUDE,
+  buildRuntimeConfigDefine,
+  buildSharedAlias,
+} from "./vite-shared-config";
 
 export default defineConfig(({ command }) => ({
   // Only swap to the runtime-config global on `vite build`. `vite dev`
   // and vitest keep Vite's default .env resolution so local development
-  // is unaffected.
-  define: command === "build" ? buildRuntimeConfigDefine() : {},
+  // is unaffected. See vite-shared-config.ts's buildRuntimeConfigDefine
+  // for the full rationale (one prebuilt image shared across brands).
+  define: command === "build" ? buildRuntimeConfigDefine(__dirname, "vite-config") : {},
   plugins: [react(), svgr(), tailwindcss(), gatewazeModulesPlugin()],
   resolve: {
-    alias: {
-      "@": path.join(__dirname, "src"),
-      "@gatewaze/shared": path.resolve(__dirname, "../shared/src"),
-      // Stub undici — a Node-only HTTP client that a transitive dep
-      // drags into the admin bundle (event-invites tab crash). Tried
-      // polyfilling `process.versions.node` (worked) but then undici
-      // calls `util.debuglog` and the polyfill chain keeps growing.
-      // Easier to alias the package to an empty stub since the admin
-      // never legitimately invokes undici at runtime (uses fetch()
-      // directly). See src/stubs/undici-empty.ts.
-      "undici": path.resolve(__dirname, "src/stubs/undici-empty.ts"),
-      // Stub jsdom — Node-only DOM simulator pulled in via
-      // isomorphic-dompurify's Node branch (and possibly other libs
-      // doing SSR-on-server detection). Admin runs in a real browser
-      // with a native DOM; jsdom is dead weight. Without this stub,
-      // jsdom's VirtualConsole crashes at module init with
-      // `Class extends value undefined` because Vite stubs node:events
-      // and jsdom tries to `class VirtualConsole extends EventEmitter`.
-      "jsdom": path.resolve(__dirname, "src/stubs/jsdom-empty.ts"),
-      // Force @react-email/render to its ESM build. The package's .cjs
-      // files contain a (legal) dynamic import("react-dom/server"), which
-      // rolldown's CJS conversion rejects with a misleading
-      // "Cannot use import statement outside a module" PARSE_ERROR at 1:1
-      // — breaking `vite build` whenever module sources (newsletters
-      // email-blocks) pull the package into the bundle. The ESM entry
-      // sidesteps the CJS converter entirely.
-      "@react-email/render": path.resolve(
-        __dirname,
-        "node_modules/@react-email/render/dist/browser/index.mjs",
-      ),
-    },
-    // Ensure bare imports from external module sources (gatewaze-modules) resolve
-    // from the admin app's node_modules, not from the module's filesystem location
-    dedupe: [
-      "jszip", "react", "react-dom", "react-router", "react-router-dom",
-      "sonner", "@heroicons/react", "@headlessui/react", "@dnd-kit/core",
-      "@dnd-kit/sortable", "@dnd-kit/utilities", "@supabase/supabase-js",
-      "@tanstack/react-table", "react-hook-form", "@hookform/resolvers",
-      "@radix-ui/themes", "yup", "apexcharts", "react-apexcharts",
-      "pdfjs-dist",
-      // Canvas / WYSIWYG editor deps imported from gatewaze-modules
-      // module files. dedupe forces Vite to resolve from admin/node_modules
-      // and routes through optimizeDeps so the pre-bundled (ESM) version
-      // is served — not the raw CJS file (which would crash the browser
-      // with `module is not defined`).
-      "@puckeditor/core", "isomorphic-dompurify",
-      // react-email used by the newsletter email-blocks registry —
-      // same dedupe rationale as @puckeditor/core.
-      "@react-email/components", "@react-email/render",
-      // assistant-ui primitives imported by AiChatWidget (in the
-      // @gatewaze-modules/ai module, outside admin's tree). Without
-      // dedupe + pre-bundle, the gatewaze-modules vite plugin can't
-      // find the package under admin/node_modules and stubs it with
-      // `export default {}`, breaking `AssistantRuntimeProvider`.
-      "@assistant-ui/react",
-      // ProseMirror singleton for module-file tiptap extensions. The
-      // newsletters editor imports `Plugin` from `@tiptap/pm/state`
-      // (paste-time colour stripping, gatewaze-modules#34). @tiptap/pm
-      // must be a direct admin dep AND deduped: without the direct dep
-      // the gatewaze-modules plugin can't find it under admin/
-      // node_modules and stubs it to `{}` in prod builds — the editions
-      // editor then crashes with "Plugin is not a constructor". Dedupe
-      // keeps module files on the same ProseMirror instance as the
-      // admin's own @tiptap/react editor.
-      "@tiptap/pm",
-    ],
+    // See vite-shared-config.ts for the rationale behind each alias/dedupe
+    // entry — shared verbatim with vite.embed.config.ts so both builds
+    // resolve external module-repo sources identically.
+    alias: buildSharedAlias(__dirname),
+    dedupe: SHARED_DEDUPE,
   },
   server: {
     port: 5274,
@@ -183,40 +68,8 @@ export default defineConfig(({ command }) => ({
     },
   },
   optimizeDeps: {
-    // Ensure deps from external module sources are resolved from admin's node_modules.
-    // `cookie` and `leaflet` are CJS modules that break Vite's automatic CJS→ESM
-    // interop (named exports like `parse`, `DomUtil` come through as undefined).
-    // Listing them here forces esbuild to pre-bundle with proper named-export
-    // re-exports so consumer imports work in dev mode.
-    include: [
-      "jszip", "qr-code-styling", "pdf-lib", "@pdf-lib/fontkit", "pdfjs-dist",
-      "cookie", "set-cookie-parser", "turbo-stream", "leaflet", "react-leaflet",
-      "@heroicons/react/24/outline", "@heroicons/react/24/solid", "@heroicons/react/20/solid",
-      // react-router-dom v7 imports `cookie`, `set-cookie-parser`, `turbo-stream`
-      // with named-export syntax; without pre-bundling the importer chain,
-      // module-file imports from outside the project root can land on the raw
-      // CJS file and lose named exports.
-      "react-router-dom", "react-router",
-      // @puckeditor/core ships dual-format with `require → ./dist/index.js`
-      // (CJS). Module files imported from /gatewaze-modules paths resolve
-      // through Node's require chain and land on the CJS file, which then
-      // crashes the browser with `module is not defined`. Pre-bundling
-      // forces esbuild's CJS→ESM interop with proper named-export
-      // re-exports for `Puck`, `Render`, `Frame`, etc.
-      "@puckeditor/core",
-      // isomorphic-dompurify is CJS-first; same fix applies for the Puck
-      // RichText sanitiser when imported from module files.
-      "isomorphic-dompurify",
-      // @react-email/components and @react-email/render — same CJS-main
-      // pattern. Newsletter email-blocks (gatewaze-modules/newsletters/
-      // admin/components/puck/email-blocks/) import these from outside
-      // the workspace root, so without explicit pre-bundling Vite serves
-      // the raw .cjs file and import-analysis fails to resolve the
-      // bare specifier. Per spec-builder-evaluation §3.6 (extended).
-      "@react-email/components",
-      "@react-email/render",
-      "@assistant-ui/react",
-    ],
+    // See vite-shared-config.ts for the rationale behind each entry.
+    include: SHARED_OPTIMIZE_DEPS_INCLUDE,
   },
   build: {
     rollupOptions: {
