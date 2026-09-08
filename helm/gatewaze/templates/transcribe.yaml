@@ -52,6 +52,11 @@ spec:
               containerPort: 8000
               protocol: TCP
           env:
+            # Never idle-unload the model: a cold reload takes longer than the
+            # api's 12 s local-call timeout, so the first tap after a quiet
+            # spell would 503 (observed on staging).
+            - name: WHISPER__TTL
+              value: "-1"
             - name: API_KEY
               valueFrom:
                 secretKeyRef:
