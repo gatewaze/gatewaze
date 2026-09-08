@@ -7,11 +7,15 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:embed": "tsc -b && vite build -c vite.embed.config.ts",
     "preview": "vite preview",
     "lint": "eslint src/",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist",
+    "clean": "rm -rf dist dist-embed",
     "test": "vitest run"
+  },
+  "exports": {
+    "./embed": "./dist-embed/admin-embed.js"
   },
   "dependencies": {
     "@assistant-ui/react": "^0.10.0",
