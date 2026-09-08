@@ -1,0 +1,156 @@
+{{- if .Values.transcribe.enabled }}
+###############################################################################
+# transcribe — self-hosted Whisper (speaches) speaking the OpenAI-compatible
+# /v1/audio/transcriptions API. Serves the ai module's aiTranscribe runner
+# (spec-ai-voice-transcription.md): mic-button dictation in member/admin chat
+# inputs. CPU inference; audio stays inside the cluster.
+#
+# Toggle: `transcribe.enabled: true` in values-{brand}.yaml, plus on the api
+# deployment env (via extraEnv/secret): AI_TRANSCRIBE_BASE_URL =
+# http://{fullname}-transcribe:8000/v1 and AI_TRANSCRIBE_SHARED_SECRET
+# matching `transcribe.apiKey` below.
+#
+# ONE-TIME per fresh model volume (persists in the PVC afterwards):
+#   kubectl exec deploy/{fullname}-api -- curl -X POST \
+#     'http://{fullname}-transcribe:8000/v1/models/Systran%2Ffaster-whisper-small' \
+#     -H "Authorization: Bearer $AI_TRANSCRIBE_SHARED_SECRET"
+#
+# GPU (P3, optional): schedule onto a GPU node pool and swap the image tag
+# for the CUDA build; nothing else changes — the API surface is identical.
+###############################################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "gatewaze.fullname" . }}-transcribe
+  labels:
+    {{- include "gatewaze.labels" . | nindent 4 }}
+    app.kubernetes.io/component: transcribe
+spec:
+  replicas: {{ .Values.transcribe.replicaCount | default 1 }}
+  strategy:
+    type: Recreate   # the model cache PVC is RWO; two pods can't share it
+  selector:
+    matchLabels:
+      {{- include "gatewaze.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: transcribe
+  template:
+    metadata:
+      labels:
+        {{- include "gatewaze.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: transcribe
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: transcribe
+          image: "{{ .Values.transcribe.image.repository }}:{{ .Values.transcribe.image.tag }}"
+          imagePullPolicy: {{ .Values.transcribe.image.pullPolicy | default "IfNotPresent" }}
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          env:
+            - name: API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "gatewaze.fullname" . }}-transcribe-secrets
+                  key: apiKey
+          volumeMounts:
+            - name: models
+              mountPath: /home/ubuntu/.cache/huggingface
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: {{ .Values.transcribe.resources.requests.cpu | default "500m" }}
+              memory: {{ .Values.transcribe.resources.requests.memory | default "1Gi" }}
+            limits:
+              cpu: {{ .Values.transcribe.resources.limits.cpu | default "2" }}
+              memory: {{ .Values.transcribe.resources.limits.memory | default "2Gi" }}
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: {{ include "gatewaze.fullname" . }}-transcribe-models
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "gatewaze.fullname" . }}-transcribe
+  labels:
+    {{- include "gatewaze.labels" . | nindent 4 }}
+    app.kubernetes.io/component: transcribe
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8000
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "gatewaze.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: transcribe
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "gatewaze.fullname" . }}-transcribe-models
+  labels:
+    {{- include "gatewaze.labels" . | nindent 4 }}
+    app.kubernetes.io/component: transcribe
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: {{ .Values.transcribe.modelCacheSize | default "5Gi" }}
+  {{- with .Values.transcribe.storageClassName }}
+  storageClassName: {{ . }}
+  {{- end }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "gatewaze.fullname" . }}-transcribe-secrets
+  labels:
+    {{- include "gatewaze.labels" . | nindent 4 }}
+    app.kubernetes.io/component: transcribe
+type: Opaque
+stringData:
+  apiKey: {{ required "transcribe.apiKey is required when transcribe.enabled (no unauthenticated shim)" .Values.transcribe.apiKey | quote }}
+---
+# Only the api pods may reach the shim: member audio goes nowhere else, and
+# nothing else gets free transcription compute.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "gatewaze.fullname" . }}-transcribe
+  labels:
+    {{- include "gatewaze.labels" . | nindent 4 }}
+    app.kubernetes.io/component: transcribe
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "gatewaze.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: transcribe
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "gatewaze.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: api
+      ports:
+        - port: 8000
+          protocol: TCP
+{{- end }}

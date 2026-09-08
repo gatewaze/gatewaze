@@ -605,6 +605,28 @@ customDomains:
 # scrapling-fetcher service
 # The scrapers call this service instead of fetching pages themselves.
 # =============================================================================
+# -- Self-hosted Whisper transcription shim (spec-ai-voice-transcription).
+# Serves the ai module's mic-button dictation; audio never leaves the cluster.
+transcribe:
+  # -- Enable the transcribe Deployment + Service + PVC + Secret + NetworkPolicy
+  enabled: false
+  replicaCount: 1
+  image:
+    repository: ghcr.io/speaches-ai/speaches
+    tag: latest-cpu
+    pullPolicy: IfNotPresent
+  # -- REQUIRED when enabled: bearer the api authenticates with; mirror it to
+  # the api env as AI_TRANSCRIBE_SHARED_SECRET (and set AI_TRANSCRIBE_BASE_URL
+  # to http://<fullname>-transcribe:8000/v1).
+  apiKey: ""
+  # -- HuggingFace model cache (survives restarts; see template header for the
+  # one-time model install).
+  modelCacheSize: 5Gi
+  storageClassName: ""
+  resources:
+    requests: { cpu: 500m, memory: 1Gi }
+    limits: { cpu: "2", memory: 2Gi }
+
 scraplingFetcher:
   # -- Enable the scrapling-fetcher Deployment + Service + NetworkPolicy + Secret
   enabled: false
