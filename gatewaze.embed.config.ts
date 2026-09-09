@@ -1,8 +1,8 @@
 import type { GatewazeConfig } from './packages/shared/src/types/modules';
 import baseConfig from './gatewaze.config';
 
-// Module allow-list for the @gatewaze/admin-embed library build (spec:
-// "Gatewaze admin modules embedded in LFX One"). This build compiles in
+// Module allow-list for the @gatewaze/admin-embed library build (the
+// embeddable admin library for host applications). This build compiles in
 // only the newsletters pilot module and its declared dependencies — NOT
 // the full module set the main admin app ships. Runtime enablement is
 // still gated per-request by GwHostContext.enabled.moduleIds/features

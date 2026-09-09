@@ -24,13 +24,13 @@ vi.mock('@/embed/EmbedApp', () => ({
 
 function makeCtx(overrides: Partial<GwHostContext> = {}): GwHostContext {
   return {
-    basename: '/foundation/gw',
+    basename: '/apps/gw',
     supabase: { url: 'https://project.supabase.co', anonKey: 'anon-key' },
     apiBaseUrl: '',
     enabled: { moduleIds: [], features: [] },
     signIn: {
-      lfidStartUrl: 'https://lfx.example.org/auth/lfid/start',
-      returnUrl: 'https://lfx.example.org/foundation/gw',
+      lfidStartUrl: 'https://host.example.org/auth/lfid/start',
+      returnUrl: 'https://host.example.org/apps/gw',
     },
     ...overrides,
   };

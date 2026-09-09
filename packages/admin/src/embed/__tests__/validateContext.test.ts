@@ -4,13 +4,13 @@ import type { GwHostContext } from '../types';
 
 function validCtx(overrides: Partial<GwHostContext> = {}): GwHostContext {
   return {
-    basename: '/foundation/gw',
+    basename: '/apps/gw',
     supabase: { url: 'https://project.supabase.co', anonKey: 'anon-key' },
     apiBaseUrl: '',
     enabled: { moduleIds: ['newsletters'], features: ['newsletters.editions'] },
     signIn: {
-      lfidStartUrl: 'https://lfx.example.org/auth/lfid/start',
-      returnUrl: 'https://lfx.example.org/foundation/gw/newsletters',
+      lfidStartUrl: 'https://host.example.org/auth/lfid/start',
+      returnUrl: 'https://host.example.org/apps/gw/newsletters',
     },
     ...overrides,
   };
@@ -30,11 +30,11 @@ describe('validateGwHostContext', () => {
 
   describe('basename', () => {
     it.each([
-      ['missing leading slash', 'foundation/gw'],
-      ['trailing slash', '/foundation/gw/'],
+      ['missing leading slash', 'apps/gw'],
+      ['trailing slash', '/apps/gw/'],
       ['empty segment', '/foundation//gw'],
       ['empty string', ''],
-      ['disallowed characters', '/foundation/gw?x=1'],
+      ['disallowed characters', '/apps/gw?x=1'],
     ])('rejects %s (%s)', (_label, basename) => {
       const result = validateGwHostContext(validCtx({ basename }));
       expect(result.ok).toBe(false);
