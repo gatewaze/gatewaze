@@ -55,7 +55,7 @@ function reportFatal(ctx: Pick<GwHostContext, 'onFatal'> | undefined, error: GwE
  * tree (error boundary -> provider stack -> router). See src/embed/*.tsx
  * for the pieces; this file just wires them together and owns the
  * mount/unmount lifecycle contract described in GwHostContext's doc
- * comments (spec: "Gatewaze admin modules embedded in LFX One").
+ * comments (the embeddable admin-library build).
  *
  * Never throws — every failure path reports through onFatal (and
  * console.warn as a floor) and returns a safe handle instead.

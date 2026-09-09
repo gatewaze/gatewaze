@@ -1,14 +1,14 @@
 /**
- * Public contract for @gatewaze/admin-embed, per spec "Gatewaze admin
- * modules embedded in LFX One". The host (an Angular route outlet) is
- * the only intended caller of mount()/unmount(); this file has no
- * dependency on any host framework.
+ * Public contract for @gatewaze/admin-embed, the embeddable admin
+ * library. The host application's outlet component is the only intended
+ * caller of mount()/unmount(); this file has no dependency on any host
+ * framework.
  */
 
 export interface GwHostContext {
   /**
    * Leading '/', no trailing slash, URL-path-safe segments only, and
-   * must equal the Angular route prefix exactly (e.g. '/foundation/gw').
+   * must equal the host route prefix exactly (e.g. '/apps/gw').
    */
   basename: string;
   supabase: { url: string; anonKey: string };
@@ -29,7 +29,7 @@ export interface GwHostContext {
    */
   enabled: { moduleIds: string[]; features: string[] };
   signIn: { lfidStartUrl: string; returnUrl: string };
-  /** Session isolation; embed defaults to 'lfx_embed' if omitted. */
+  /** Session isolation; embed defaults to 'host_embed' if omitted. */
   storageKeySuffix?: string;
   /**
    * Where Radix portals render. Host-owned; must outlive the mount, and

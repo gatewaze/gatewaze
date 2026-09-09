@@ -16,8 +16,8 @@ import {
 // Must be set before the plugin resolves its config path.
 process.env.GATEWAZE_CONFIG_FILE = "gatewaze.embed.config.ts";
 
-// Library build for @gatewaze/admin-embed (spec: "Gatewaze admin modules
-// embedded in LFX One"). Reuses the same plugin pipeline, aliasing, and
+// Library build for @gatewaze/admin-embed, the embeddable admin library
+// for host applications. Reuses the same plugin pipeline, aliasing, and
 // dedupe list as the main app build (vite-shared-config.ts) so external
 // module-repo sources resolve identically in both builds — the one
 // thing this build does differently is the entry point, the module

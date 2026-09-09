@@ -18,7 +18,7 @@ function fail(field: string, message: string): ValidationResult {
 }
 
 // One segment per '/', each [A-Za-z0-9_-]+, no trailing slash, no empty
-// segments — matches an Angular route prefix like '/foundation/gw'.
+// segments — matches a host route prefix like '/apps/gw'.
 const BASENAME_RE = /^\/[A-Za-z0-9_-]+(\/[A-Za-z0-9_-]+)*$/;
 
 function isNonEmptyString(v: unknown): v is string {
@@ -72,7 +72,7 @@ export function validateGwHostContext(ctx: unknown): ValidationResult {
   if (!isNonEmptyString(c.basename) || !BASENAME_RE.test(c.basename)) {
     return fail(
       'basename',
-      "basename must be a leading-slash, no-trailing-slash, URL-path-safe string (e.g. '/foundation/gw')",
+      "basename must be a leading-slash, no-trailing-slash, URL-path-safe string (e.g. '/apps/gw')",
     );
   }
 

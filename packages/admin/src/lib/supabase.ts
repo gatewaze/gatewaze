@@ -51,7 +51,7 @@ export function configureEmbedSupabase(options: {
   embedOverride = {
     url: options.url,
     anonKey: options.anonKey,
-    storageKey: `gatewaze-admin-auth-token-${options.storageKeySuffix || 'lfx_embed'}`,
+    storageKey: `gatewaze-admin-auth-token-${options.storageKeySuffix || 'host_embed'}`,
   }
 }
 
