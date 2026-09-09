@@ -4,7 +4,17 @@ import { useDisclosure, useDidUpdate, useLocalStorage } from "@/hooks";
 import { useBreakpointsContext } from "../breakpoint/context";
 import { SidebarContext } from "./context";
 
-export function SidebarProvider({ children }: { children: ReactNode }) {
+export interface SidebarProviderProps {
+  children: ReactNode;
+  /**
+   * Scope the sidebar-state classes to this element instead of
+   * `document.body`. Used by the embed entry point (containment
+   * requirement) — omit for the normal app.
+   */
+  container?: HTMLElement | null;
+}
+
+export function SidebarProvider({ children, container }: SidebarProviderProps) {
   const { xlAndUp, lgAndDown, name } = useBreakpointsContext();
 
   const [isExpanded, { open, close, toggle }] = useDisclosure(xlAndUp);
@@ -25,26 +35,26 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
   }, [name]);
 
   useLayoutEffect(() => {
-    const documentBody = document?.body;
-    if (documentBody) {
+    const target = container ?? document?.body;
+    if (target) {
       if (isExpanded) {
-        documentBody.classList.add("is-sidebar-open");
+        target.classList.add("is-sidebar-open");
       } else {
-        documentBody.classList.remove("is-sidebar-open");
+        target.classList.remove("is-sidebar-open");
       }
     }
-  }, [isExpanded]);
+  }, [isExpanded, container]);
 
   useLayoutEffect(() => {
-    const documentBody = document?.body;
-    if (documentBody) {
+    const target = container ?? document?.body;
+    if (target) {
       if (isCollapsed) {
-        documentBody.classList.add("is-sidebar-collapsed");
+        target.classList.add("is-sidebar-collapsed");
       } else {
-        documentBody.classList.remove("is-sidebar-collapsed");
+        target.classList.remove("is-sidebar-collapsed");
       }
     }
-  }, [isCollapsed]);
+  }, [isCollapsed, container]);
 
   if (!children) {
     return null;

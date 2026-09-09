@@ -49,9 +49,23 @@ const COLOR_SCHEME_QUERY = "(prefers-color-scheme: dark)";
 
 const _html = document?.documentElement;
 
-export function ThemeProvider({ children }: { children: ReactNode }) {
+export interface ThemeProviderProps {
+  children: ReactNode;
+  /**
+   * Scope theme class/dataset/CSS-variable mutations to this element
+   * instead of `document.documentElement`/`document.body`. Used by the
+   * embed entry point so a mounted instance never mutates the host
+   * page's `<html>`/`<body>` (containment requirement). Omit for the
+   * normal app, which keeps mutating the real document root/body.
+   */
+  container?: HTMLElement | null;
+}
+
+export function ThemeProvider({ children, container }: ThemeProviderProps) {
   const isDarkOS = useMediaQuery(COLOR_SCHEME_QUERY);
   const activeTheme = useActiveThemeModule();
+  const root = container ?? _html;
+  const bodyTarget = container ?? document.body;
 
   const [settings, setSettings] = useLocalStorage<ThemeConfig>("settings", {
     themeMode: initialState.themeMode,
@@ -257,32 +271,32 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   };
 
   useLayoutEffect(() => {
-    if (isDark) _html?.classList.add("dark");
-    else _html?.classList.remove("dark");
-  }, [isDark]);
+    if (isDark) root?.classList.add("dark");
+    else root?.classList.remove("dark");
+  }, [isDark, root]);
 
   useLayoutEffect(() => {
-    if (settings.isMonochrome) document.body.classList.add("is-monochrome");
-    else document.body.classList.remove("is-monochrome");
-  }, [settings.isMonochrome]);
+    if (settings.isMonochrome) bodyTarget.classList.add("is-monochrome");
+    else bodyTarget.classList.remove("is-monochrome");
+  }, [settings.isMonochrome, bodyTarget]);
 
   useLayoutEffect(() => {
     if (settings.lightColorScheme?.name) {
-      _html!.dataset.themeLight = settings.lightColorScheme.name;
+      root!.dataset.themeLight = settings.lightColorScheme.name;
     }
-  }, [settings.lightColorScheme]);
+  }, [settings.lightColorScheme, root]);
 
   useLayoutEffect(() => {
     if (settings.darkColorScheme?.name) {
-      _html!.dataset.themeDark = settings.darkColorScheme.name;
+      root!.dataset.themeDark = settings.darkColorScheme.name;
     }
-  }, [settings.darkColorScheme]);
+  }, [settings.darkColorScheme, root]);
 
   useLayoutEffect(() => {
     if (settings.primaryColorScheme?.name) {
-      _html!.dataset.themePrimary = settings.primaryColorScheme.name;
+      root!.dataset.themePrimary = settings.primaryColorScheme.name;
     }
-  }, [settings.primaryColorScheme]);
+  }, [settings.primaryColorScheme, root]);
 
   // Alias --secondary-9 to the chosen secondary colour's Radix scale (which
   // adapts to light/dark on its own). Falls back to the primary when no
@@ -290,26 +304,26 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   // Radix has no "rose" scale — it maps to "pink".
   useLayoutEffect(() => {
     const name = settings.secondaryColor ?? settings.primaryColorScheme?.name;
-    if (name && _html) {
+    if (name && root) {
       const scale = name === "rose" ? "pink" : name;
       // -1 = the faintest tint (app-background level); -2 = a subtle tint;
       // -9 = the saturated colour (flag fill, underlines); -11 = the readable
       // text shade. Mirrors how the primary uses --accent-1/-2/-9/-11.
-      _html.style.setProperty("--secondary-1", `var(--${scale}-1)`);
-      _html.style.setProperty("--secondary-2", `var(--${scale}-2)`);
-      _html.style.setProperty("--secondary-9", `var(--${scale}-9)`);
-      _html.style.setProperty("--secondary-11", `var(--${scale}-11)`);
-      _html.dataset.themeSecondary = name;
+      root.style.setProperty("--secondary-1", `var(--${scale}-1)`);
+      root.style.setProperty("--secondary-2", `var(--${scale}-2)`);
+      root.style.setProperty("--secondary-9", `var(--${scale}-9)`);
+      root.style.setProperty("--secondary-11", `var(--${scale}-11)`);
+      root.dataset.themeSecondary = name;
     }
-  }, [settings.secondaryColor, settings.primaryColorScheme]);
+  }, [settings.secondaryColor, settings.primaryColorScheme, root]);
 
   useLayoutEffect(() => {
-    _html!.dataset.cardSkin = settings.cardSkin;
-  }, [settings.cardSkin]);
+    root!.dataset.cardSkin = settings.cardSkin;
+  }, [settings.cardSkin, root]);
 
   useLayoutEffect(() => {
-    if (document) document.body.dataset.layout = settings.themeLayout;
-  }, [settings.themeLayout]);
+    bodyTarget.dataset.layout = settings.themeLayout;
+  }, [settings.themeLayout, bodyTarget]);
 
   if (!children) {
     return null;
