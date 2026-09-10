@@ -100,10 +100,42 @@ if (build.attributes.usesNonExemptEncryption === null) {
   console.log('export compliance answered');
 }
 
-const groups = await api(`/v1/apps/${appId}/betaGroups?limit=50`);
-const group = (groups.data || []).find((g) => g.attributes.name === groupName);
+/**
+ * Find the beta group, retrying an empty answer.
+ *
+ * This runs after a successful upload, so giving up here strands a build in
+ * App Store Connect that then has to be attached by hand. Apple has answered
+ * this call with an empty list at least once while the group plainly existed,
+ * and the old message told the operator to create a group they already had,
+ * which sent them looking in the wrong place.
+ *
+ * An empty list is treated as possibly transient and retried. A list that
+ * comes back populated WITHOUT the wanted name is a real configuration
+ * problem, so it fails immediately and says what it did find.
+ */
+let group;
+for (let attempt = 0; attempt < 5; attempt += 1) {
+  const groups = await api(`/v1/apps/${appId}/betaGroups?limit=50`);
+  const found = groups.data || [];
+  group = found.find((g) => g.attributes.name === groupName);
+  if (group) break;
+  if (found.length > 0) {
+    console.error(
+      `beta group "${groupName}" not found. This app has: ` +
+        found.map((g) => `"${g.attributes.name}"`).join(', ')
+    );
+    process.exit(1);
+  }
+  if (attempt < 4) {
+    console.log('  no beta groups returned, retrying…');
+    await sleep(4000);
+  }
+}
 if (!group) {
-  console.error(`beta group "${groupName}" not found — create it once in App Store Connect`);
+  console.error(
+    `beta group "${groupName}" not found after 5 attempts, and App Store Connect ` +
+      'returned no groups at all. If this app really has none, create it once there.'
+  );
   process.exit(1);
 }
 
