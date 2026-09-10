@@ -12,6 +12,7 @@ import type {
   MobileComposerMode,
   MobileComponentThunk,
   MobileCoachProvider,
+  MobileDaySummaryContribution,
 } from '@gatewaze/shared';
 import { mobileModules } from '../generated/mobile-modules';
 import deletionCopy from '../generated/deletion-copy.json';
@@ -30,6 +31,21 @@ export function allTabs(): Array<MobileTabContribution & { moduleId: string }> {
   return mobileModules
     .flatMap((m) => (m.tabs ?? []).map((t) => ({ ...t, moduleId: m.id })))
     .sort((a, b) => a.order - b.order);
+}
+
+/**
+ * Panels for the day summary drawer, in the order they should be shown.
+ *
+ * Only modules the member is entitled to appear. Entitlement is not checked
+ * here: the drawer renders what the tab set already proved available, the same
+ * way the composer's mode track does.
+ */
+export function daySummaryPanels(): Array<
+  MobileDaySummaryContribution & { moduleId: string }
+> {
+  return mobileModules
+    .flatMap((m) => (m.daySummary ?? []).map((d) => ({ ...d, moduleId: m.id })))
+    .sort((a, b) => (a.order ?? 100) - (b.order ?? 100) || a.key.localeCompare(b.key));
 }
 
 /**

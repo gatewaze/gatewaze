@@ -26,6 +26,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Icon } from './Icon';
 import { GlassPanel } from './GlassPanel';
 import { useHeaderHeight } from '@react-navigation/elements';
+import { useChromeInsets } from '../core/chrome';
+import { AmbientBackground } from './AmbientBackground';
 import { useTheme, radius, spacing, type } from '../theme/tokens';
 
 // ---------------------------------------------------------------------------
@@ -101,20 +103,42 @@ export function Screen({
   // still letting the rest scroll underneath and fade. With no header (a
   // drawer destination) this is 0 and the safe-area edge applies instead.
   const headerHeight = useHeaderHeight();
-  const edges: Array<'top'> = headerHeight > 0 ? [] : ['top'];
+  const chrome = useChromeInsets();
+  // Two kinds of chrome, never both. A pushed route has a native header; a
+  // drawer destination has the app's floating one, whose height arrives
+  // through the chrome context. Either way the padding goes on the SCROLL
+  // CONTENT, so content passes under the chrome and fades, instead of being
+  // clipped at the edge of a padded container.
+  const topInset = headerHeight > 0 ? headerHeight : chrome.top;
+  // The composer bar floats over drawer destinations, so the last row of a
+  // list has to be able to scroll clear of it.
+  const bottomInset = chrome.bottom;
+  const edges: Array<'top'> = topInset > 0 ? [] : ['top'];
   const inner = padded ? [styles.padded, style] : style;
+  // `styles.padded` sets `padding`, so an inset placed before it is silently
+  // overridden. These go last, and carry the padded value forward so the
+  // content still has its own breathing room.
+  const insetStyle = {
+    paddingTop: topInset + (padded ? spacing.lg : 0),
+    paddingBottom: bottomInset + (padded ? spacing.lg : 0),
+  };
+  // A pushed route paints its own ground, since the stack is opaque and the
+  // gradient would otherwise stop at the coach route.
+  const ambient = headerHeight > 0 ? <AmbientBackground /> : null;
   if (!scroll) {
     return (
       <SafeAreaView style={styles.fill} edges={edges}>
-        <View style={[styles.fill, { paddingTop: headerHeight }, inner]}>{children}</View>
+        {ambient}
+        <View style={[styles.fill, inner, insetStyle]}>{children}</View>
       </SafeAreaView>
     );
   }
   return (
     <SafeAreaView style={styles.fill} edges={edges}>
+      {ambient}
       <ScrollView
         style={styles.fill}
-        contentContainerStyle={[{ paddingTop: headerHeight }, inner]}
+        contentContainerStyle={[inner, insetStyle]}
         refreshControl={
           onRefresh ? (
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.textMuted} />
@@ -251,12 +275,18 @@ export function ListItem({
   subtitle,
   below,
   right,
+  leading,
   icon,
   onPress,
   destructive = false,
 }: {
   title: string;
   subtitle?: string;
+  /**
+   * Rendered before the text, in place of `icon`. For a picture rather than a
+   * glyph, such as an exercise thumbnail.
+   */
+  leading?: React.ReactNode;
   /**
    * Rendered under the subtitle, for detail a string cannot carry, such as a
    * row of coloured value indicators.
@@ -278,9 +308,10 @@ export function ListItem({
         pressed && styles.pressed,
       ]}
     >
-      {icon ? (
-        <Icon name={icon} size={22} color={destructive ? theme.danger : theme.textSecondary} />
-      ) : null}
+      {leading ??
+        (icon ? (
+          <Icon name={icon} size={22} color={destructive ? theme.danger : theme.textSecondary} />
+        ) : null)}
       <View style={styles.fill}>
         <RNText style={[type.body, { color: destructive ? theme.danger : theme.text }]}>{title}</RNText>
         {subtitle ? <Caption>{subtitle}</Caption> : null}

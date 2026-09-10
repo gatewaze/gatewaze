@@ -84,6 +84,10 @@ export {
   type RecordEvent,
   type RecordKind,
 } from './core/records';
+// Re-exported so a module can refresh when its screen comes back into view
+// without depending on the navigation library directly. Modules resolve
+// `@gatewaze/mobile` and nothing else at build time.
+export { useFocusEffect } from 'expo-router';
 
 // Theme
 export {

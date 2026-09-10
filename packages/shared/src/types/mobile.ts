@@ -282,6 +282,18 @@ export interface MobileFetchInit {
  */
 export type MobileSessionReadyResult = 'ready' | 'blocked';
 
+/** One panel in the day summary drawer. */
+export interface MobileDaySummaryContribution {
+  /** Stable key, used for the React key and for ordering ties. */
+  key: string;
+  /**
+   * Lower sorts higher up the drawer. The intent is that what the member
+   * looks at most often is nearest the top, so food sits above workouts.
+   */
+  order?: number;
+  component: MobileComponentThunk;
+}
+
 /** The manifest a module's `mobile/index.ts` exports. */
 export interface GatewazeMobileModule {
   /** Module id — must match the module's manifest id. */
@@ -313,6 +325,17 @@ export interface GatewazeMobileModule {
    * own module's API.
    */
   threadCards?: Record<string, MobileComponentThunk>;
+  /**
+   * Panels this module contributes to the day summary drawer, the surface
+   * that opens with a swipe in from the right edge.
+   *
+   * The drawer is a quick read of the day: what has been eaten, what has been
+   * trained, what is left against the member's targets. The core owns the
+   * drawer and knows nothing about food or workouts, so each module renders
+   * its own panel and talks only to its own API, exactly as thread cards do.
+   * A build without a given module simply has one fewer panel.
+   */
+  daySummary?: MobileDaySummaryContribution[];
   /**
    * Declared by the single module that owns the coach conversation.
    * See MobileCoachProvider.

@@ -31,6 +31,7 @@ import { Caps, Caption, Greeting, LoadingState, withAlpha } from '../components/
 import { coachProvider, composerModes, threadCardRenderer } from './registry';
 import { getModuleContext } from './context';
 import { ChromeInsetsProvider } from './chrome';
+import { consumeCoachHandoff } from './coachHandoff';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -95,6 +96,23 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
     setModeProps({});
     if (key !== null) Keyboard.dismiss();
   }, []);
+
+  /**
+   * Pick up a message or a mode left by the composer bar on another
+   * destination.
+   *
+   * Runs on every render pass where `coach` is ready rather than on mount:
+   * moving here does not remount this surface, and a handover left while the
+   * provider was still loading would otherwise be dropped. `consume` clears
+   * the handover, so this cannot send the same message twice.
+   */
+  useEffect(() => {
+    if (!coach) return;
+    const handoff = consumeCoachHandoff();
+    if (!handoff) return;
+    if (handoff.mode) selectMode(handoff.mode);
+    if (handoff.text) void send(handoff.text);
+  });
 
   const followIfAtEnd = useCallback(
     (animated: boolean) => {
@@ -313,7 +331,12 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
           onScroll={onScroll}
           scrollEventThrottle={16}
           onContentSizeChange={() => followIfAtEnd(true)}
-          keyboardDismissMode="interactive"
+          // "on-drag", not "interactive". Interactive dismissal drags the
+          // keyboard with the finger without reporting height as it moves, so
+          // the composer stayed where it was and only jumped to the bottom on
+          // release. A drag dismissal is a normal animated one, which the
+          // keyboard height does follow, so the composer travels with it.
+          keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
         >
           {messages.length === 0 ? (
@@ -531,7 +554,7 @@ function CircleButton({
  * label expands, animated with the shared easing token (design: mode
  * switch, .3s, label max-width 0 to 64px plus opacity).
  */
-function ModePill({
+export function ModePill({
   icon,
   label,
   active,

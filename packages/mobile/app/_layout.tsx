@@ -1,5 +1,5 @@
 import React from 'react';
-import { Stack, router, usePathname } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { Pressable, StatusBar, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -8,7 +8,6 @@ import {
   BricolageGrotesque_700Bold,
 } from '@expo-google-fonts/bricolage-grotesque';
 import { SessionProvider } from '../src/core/auth/session';
-import { AmbientBackground } from '../src/components/AmbientBackground';
 import { Icon } from '../src/components/Icon';
 import { requestOpenDrawer } from '../src/core/drawerSignal';
 import { LoadingState, withAlpha } from '../src/components/primitives';
@@ -16,10 +15,6 @@ import { useTheme, layout } from '../src/theme/tokens';
 
 export default function RootLayout() {
   const theme = useTheme();
-  // The coach route draws its own copy inside the drawer's moving surface,
-  // so the orbs travel with it and the menu behind stays a flat ground.
-  // Rendering this one there too would animate a second field nobody sees.
-  const onCoach = usePathname() === '/';
   // The display face is part of the brand, so hold the first paint until
   // it is ready rather than showing the fallback and reflowing.
   const [fontsLoaded] = useFonts({ BricolageGrotesque_700Bold });
@@ -34,7 +29,6 @@ export default function RootLayout() {
           // module screen reached from the drawer then looks like the same
           // app as the coach, rather than a flat sheet pushed on top of it.
           <View style={{ flex: 1, backgroundColor: theme.background }}>
-            {onCoach ? null : <AmbientBackground />}
             <Stack
               screenOptions={{
                 headerTransparent: true,
@@ -53,7 +47,10 @@ export default function RootLayout() {
                     style={{ flex: 1 }}
                   />
                 ),
-                contentStyle: { backgroundColor: 'transparent' },
+                // Opaque. Transparent let the route underneath show through,
+                // so a pushed screen showed the coach's hamburger behind its
+                // own. Screen draws the living gradient itself.
+                contentStyle: { backgroundColor: theme.background },
                 // The default back control renders the previous route's name,
                 // which is the file name 'index'. A module screen is part of
                 // this app rather than a sheet on top of it, so it carries the

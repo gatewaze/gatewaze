@@ -11,7 +11,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { PanResponder, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -26,10 +26,14 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { Icon } from '../components/Icon';
 import { LazyThunk } from '../components/LazyThunk';
 import { AmbientBackground } from '../components/AmbientBackground';
+import { SummaryDrawer, SUMMARY_WIDTH } from './SummaryDrawer';
+import { CoachBar } from './CoachBar';
 import { Button, Caps, EmptyState } from '../components/primitives';
 import { coachProvider, drawerSections } from './registry';
 import { onOutboxChange, outboxCounts } from './outbox';
 import { consumeOpenDrawerRequest } from './drawerSignal';
+import { hasPendingHandoff } from './coachHandoff';
+import { ChromeInsetsProvider } from './chrome';
 import { useSession } from './auth/session';
 import { CoachHome } from './CoachHome';
 import { config } from './config';
@@ -76,6 +80,9 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
     __DEV__ && process.env.EXPO_PUBLIC_DEV_OPEN_DRAWER === '1'
   );
   const [bugNotice, setBugNotice] = useState(false);
+  // Measured, not assumed: the bar's height depends on the mode track, which
+  // depends on which modules the member has.
+  const [coachBarHeight, setCoachBarHeight] = useState(0);
   const [failedCount, setFailedCount] = useState(() => outboxCounts().failed);
 
   const insets = useSafeAreaInsets();
@@ -94,8 +101,86 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
   useFocusEffect(
     useCallback(() => {
       if (consumeOpenDrawerRequest()) setOpen(true);
+      // A pushed screen's composer bar left a message on its way back here.
+      // The coach consumes it; this only has to be showing the coach when it
+      // does. Peeked rather than consumed, for that reason.
+      if (hasPendingHandoff()) setDestination({ kind: 'coach' });
     }, [])
   );
+
+  // The day summary lives on the right. Its own progress value so the two
+  // drawers animate independently, and a guard so they can never both be
+  // open: opening one closes the other.
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const summary = useSharedValue(0);
+  useEffect(() => {
+    summary.value = withTiming(summaryOpen ? 1 : 0, { duration: motion.drawer, easing: EASE });
+  }, [summaryOpen, summary]);
+
+  const { width: screenWidth } = useWindowDimensions();
+
+  /**
+   * Edge swipes, on every screen.
+   *
+   * PanResponder rather than a gesture-handler pan. react-native-gesture-
+   * handler is not installed here (it is an optional peer of expo-router),
+   * and adding a native module for this would mean a new prebuild on the
+   * morning of a gym test. PanResponder needs no native code and is
+   * comfortably smooth for a drawer.
+   *
+   * The responder only claims a touch that STARTS within the edge strip and
+   * is already more horizontal than vertical. Anything else is left alone,
+   * so lists still scroll and the composer still drags.
+   */
+  const EDGE = 24;
+  const gestures = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (evt, g) => {
+          const x = evt.nativeEvent.pageX - g.dx;
+          const horizontal = Math.abs(g.dx) > Math.abs(g.dy) * 1.5 && Math.abs(g.dx) > 8;
+          if (!horizontal) return false;
+          if (open || summaryOpen) return true;
+          if (x <= EDGE && g.dx > 0) return true;
+          if (x >= screenWidth - EDGE && g.dx < 0) return true;
+          return false;
+        },
+        onPanResponderMove: (_evt, g) => {
+          if (summaryOpen || (g.dx < 0 && !open)) {
+            // Dragging the right-hand drawer, in or out.
+            const from = summaryOpen ? 1 : 0;
+            const next = from + -g.dx / SUMMARY_WIDTH;
+            summary.value = Math.min(1, Math.max(0, next));
+            return;
+          }
+          const from = open ? 1 : 0;
+          const next = from + g.dx / drawerTokens.slide;
+          progress.value = Math.min(1, Math.max(0, next));
+        },
+        onPanResponderRelease: (_evt, g) => {
+          const flung = Math.abs(g.vx) > 0.35;
+          if (summaryOpen || (g.dx < 0 && !open)) {
+            const shouldOpen = flung ? g.vx < 0 : summary.value > 0.5;
+            setSummaryOpen(shouldOpen);
+            // The effect only fires when the boolean actually changes, so
+            // settle the value here too or a half-drag that ends where it
+            // started would stay half-open.
+            summary.value = withTiming(shouldOpen ? 1 : 0, { duration: motion.drawer, easing: EASE });
+            return;
+          }
+          const shouldOpen = flung ? g.vx > 0 : progress.value > 0.5;
+          setOpen(shouldOpen);
+          progress.value = withTiming(shouldOpen ? 1 : 0, { duration: motion.drawer, easing: EASE });
+        },
+        onPanResponderTerminationRequest: () => false,
+      }),
+    [open, summaryOpen, screenWidth, progress, summary]
+  );
+
+  // Two drawers open at once would be two scrims over one screen.
+  useEffect(() => {
+    if (open && summaryOpen) setSummaryOpen(false);
+  }, [open]);
 
   const surfaceStyle = useAnimatedStyle(() => ({
     transform: [
@@ -138,7 +223,7 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
   }
 
   return (
-    <View style={[styles.fill, { backgroundColor: theme.void }]}>
+    <View style={[styles.fill, { backgroundColor: theme.void }]} {...gestures.panHandlers}>
 
       {/* The menu underneath: a flat list of destinations with Settings
           last, then Recents, then the New chat pill — per the design. */}
@@ -240,28 +325,40 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
           </Pressable>
         </LinearGradient>
 
-        <View
-          style={[
-            styles.fill,
-            // The coach thread scrolls under the floating header and fades
-            // out. Module screens are not built for that, so they start
-            // below it.
-            destination.kind === 'coach'
-              ? null
-              : { paddingTop: headerHeight(insets.top) },
-          ]}
+        {/* The header floats over everything, so its height is published
+            rather than padded around. A destination's Screen applies it to
+            its scroll content, which lets content pass under the header and
+            fade instead of being clipped at a padded edge. */}
+        <ChromeInsetsProvider
+          top={destination.kind === 'coach' ? 0 : headerHeight(insets.top)}
+          // The coach draws its own composer inside its content area. Every
+          // other destination has the bar floating over it, so it publishes
+          // the bar's height and screens keep their last row clear of it.
+          bottom={destination.kind === 'coach' ? 0 : coachBarHeight}
         >
           {destination.kind === 'coach' ? (
             <CoachHome enabled={enabled} />
           ) : activeScreen ? (
             <LazyThunk key={destination.moduleId + ':' + destination.entryId} thunk={activeScreen.screen} />
           ) : null}
-        </View>
+        </ChromeInsetsProvider>
+
+        {/* The coach is reachable from every destination, not only its own. */}
+        {destination.kind === 'coach' ? null : (
+          <CoachBar
+            enabled={enabled}
+            onHandoff={() => setDestination({ kind: 'coach' })}
+            onHeight={setCoachBarHeight}
+          />
+        )}
 
         {open ? (
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setOpen(false)} />
         ) : null}
       </Animated.View>
+
+      {/* Above the app surface, so it covers whatever screen is showing. */}
+      <SummaryDrawer progress={summary} onClose={() => setSummaryOpen(false)} />
     </View>
   );
 }
