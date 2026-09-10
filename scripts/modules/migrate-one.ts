@@ -51,8 +51,37 @@ if (!dryRun && (!supabaseUrl || !supabaseKey)) {
   process.exit(1);
 }
 
+/**
+ * `loadModules` reads only `config.moduleSources`. It does NOT consult
+ * MODULE_SOURCES, unlike the DB-aware loader the running app uses, so a
+ * module mounted from a local path was invisible here however the env var
+ * was set. Merging it in is what makes this script usable for a module that
+ * lives outside the configured git source, which is the whole reason to
+ * migrate one module by hand.
+ */
+function withEnvSources(cfg: typeof config) {
+  const raw = process.env.MODULE_SOURCES;
+  if (!raw) return cfg;
+  const envSources = raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((entry) => {
+      const [url, fragment] = entry.split('#');
+      if (!fragment) return { url };
+      const params = new URLSearchParams(fragment);
+      return {
+        url,
+        path: params.get('path') ?? undefined,
+        branch: params.get('branch') ?? undefined,
+        label: params.get('label') ?? undefined,
+      };
+    });
+  return { ...cfg, moduleSources: [...(cfg.moduleSources ?? []), ...envSources] };
+}
+
 async function main() {
-  const modules = await loadModules(config, PROJECT_ROOT);
+  const modules = await loadModules(withEnvSources(config), PROJECT_ROOT);
   const mod = modules.find((m) => m.config.id === moduleId);
   if (!mod) {
     console.error(
