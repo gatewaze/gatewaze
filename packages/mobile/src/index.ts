@@ -78,6 +78,12 @@ export {
 export { useModuleContext, newClientRef, useCachedQuery, isApiFailure } from './hooks';
 export { useSession } from './core/auth/session';
 export { useChromeInsets, type ChromeInsets } from './core/chrome';
+export {
+  onRecordChange,
+  announceRecord,
+  type RecordEvent,
+  type RecordKind,
+} from './core/records';
 
 // Theme
 export {
