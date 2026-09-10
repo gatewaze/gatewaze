@@ -325,23 +325,56 @@ export function formatDateInZone(at: Date, timeZone: string): string {
 }
 
 /**
+ * The zone's offset from UTC at a given instant, in milliseconds.
+ *
+ * Read from what the wall clock says there rather than hardcoded, so daylight
+ * saving and the half-hour and quarter-hour zones all come out right.
+ */
+function zoneOffsetMs(at: Date, timeZone: string): number {
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hour12: false,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+      .formatToParts(at)
+      .map((x) => [x.type, x.value])
+  ) as Record<string, string>;
+  const asUTC = Date.UTC(
+    Number(p.year),
+    Number(p.month) - 1,
+    Number(p.day),
+    Number(p.hour) % 24,
+    Number(p.minute),
+    Number(p.second)
+  );
+  return asUTC - at.getTime();
+}
+
+/**
  * Midnight, in a given zone, of the day containing `at`.
  *
- * Built by asking what the wall clock reads in that zone and subtracting it,
- * which avoids hardcoding any offset and so survives daylight saving.
+ * Subtracting the local wall clock from the instant looks like it should work
+ * and is wrong on the two days a year the clocks change: the offset before
+ * midnight differs from the offset after it, so the result lands an hour out,
+ * on the wrong date. Since this anchors the statistics query's day buckets,
+ * an hour out shifts every bucket for that day.
+ *
+ * So the local date is resolved first, then the instant of its midnight, with
+ * the offset applied twice: once against the wall time read as UTC, then
+ * again against the instant that produced.
  */
 export function startOfDayInZone(at: Date, timeZone: string): Date {
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone,
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  }).formatToParts(at);
-  const num = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? '0');
-  const ms =
-    num('hour') * 3_600_000 + num('minute') * 60_000 + num('second') * 1000 + at.getMilliseconds();
-  return new Date(at.getTime() - ms);
+  const [y, m, d] = formatDateInZone(at, timeZone).split('-').map(Number);
+  const wall = Date.UTC(y, m - 1, d, 0, 0, 0);
+  let instant = wall - zoneOffsetMs(new Date(wall), timeZone);
+  instant = wall - zoneOffsetMs(new Date(instant), timeZone);
+  return new Date(instant);
 }
 
 /** The zone the device is in. Only for a first guess when nothing is stored. */
