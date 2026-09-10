@@ -1,0 +1,21 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "skipLibCheck": true,
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "paths": {
+      "@/*": ["./src/*"],
+      "@gatewaze/shared": ["../shared/src/types/index.ts"],
+      "@gatewaze/shared/*": ["../shared/src/types/*"]
+    }
+  },
+  "include": ["app", "src", "index.ts", "../shared/src/types"],
+  "exclude": ["node_modules"]
+}

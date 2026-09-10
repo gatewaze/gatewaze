@@ -1,0 +1,29 @@
+{
+  "comment": "The allowed dependency surface for module mobile code (spec-mobile-app.md, capability kit). Module code may import only these packages plus relative paths and @/ core aliases. Packages under capabilityGated additionally require the capability to be declared in the module's requiredCapabilities. Adding a package here is a core platform decision.",
+  "allowed": [
+    "react",
+    "react-native",
+    "react-native-svg",
+    "react-native-safe-area-context",
+    "expo-router",
+    "expo-linking",
+    "expo-status-bar",
+    "@expo/vector-icons",
+    "@gatewaze/shared",
+    "@gatewaze/mobile"
+  ],
+  "capabilityGated": {
+    "expo-camera": [
+      "camera",
+      "barcode"
+    ],
+    "expo-image-picker": [
+      "image-picker"
+    ],
+    "expo-local-authentication": [],
+    "expo-image-manipulator": [
+      "camera",
+      "image-picker"
+    ]
+  }
+}

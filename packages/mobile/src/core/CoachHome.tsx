@@ -1,0 +1,545 @@
+/**
+ * The coach home: greeting, thread, and the docked composer
+ * (spec-mobile-coach-rebrand.md).
+ *
+ * The core owns this surface but knows nothing about any module's data.
+ * One module drives the conversation through `coachProvider`, and rich
+ * cards are rendered by whichever module registered the card's kind, so
+ * food cards and workout drafts appear in the same thread without the
+ * core calling either module's API.
+ */
+
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Keyboard,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Icon } from '../components/Icon';
+import { GlassPanel } from '../components/GlassPanel';
+import { ChatBubble, SuggestionChip } from '../components/ChatBubble';
+import { LazyThunk } from '../components/LazyThunk';
+import { Caps, Caption, Greeting, LoadingState } from '../components/primitives';
+import { coachProvider, composerModes, threadCardRenderer } from './registry';
+import { getModuleContext } from './context';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  useAnimatedKeyboard,
+  useAnimatedReaction,
+  runOnJS,
+  withTiming,
+  Easing,
+} from 'react-native-reanimated';
+import {
+  useTheme,
+  radius,
+  spacing,
+  type,
+  motion,
+  easing as easingToken,
+  layout,
+  headerHeight,
+} from '../theme/tokens';
+import type { MobileCoachMessage, MobileCoachGreeting } from '@gatewaze/shared';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
+  const theme = useTheme();
+  const insets = useSafeAreaInsets();
+  const coach = useMemo(() => coachProvider(), []);
+  const modes = useMemo(() => composerModes(enabled), [enabled]);
+
+  const [threadId, setThreadId] = useState<string | undefined>(undefined);
+  const [messages, setMessages] = useState<MobileCoachMessage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [draft, setDraft] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [activeMode, setActiveMode] = useState<string | null>(null);
+  const [greeting, setGreeting] = useState<MobileCoachGreeting | undefined>();
+  const [error, setError] = useState<string | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
+
+  // Opening a capture mode hands the screen to the camera or scanner, so
+  // the keyboard has nothing left to type into and would cover the controls.
+  const selectMode = useCallback((key: string | null) => {
+    setActiveMode(key);
+    if (key !== null) Keyboard.dismiss();
+  }, []);
+
+  const scrollToEnd = useCallback((animated: boolean) => {
+    scrollRef.current?.scrollToEnd({ animated });
+  }, []);
+
+  // KeyboardAvoidingView positions itself by measuring its own frame on
+  // screen, and this surface sits inside the drawer's animated translate and
+  // scale, which makes that measurement wrong: the composer stayed put and
+  // the keyboard covered it. Reading the keyboard height from the platform
+  // instead is immune to any ancestor transform.
+  const keyboard = useAnimatedKeyboard();
+  const keyboardShift = useAnimatedStyle(() => ({
+    // There is no bottom safe-area padding to discount here: the composer is
+    // docked to the physical bottom edge with its own small margin.
+    paddingBottom: keyboard.height.value,
+  }));
+
+  // Shrinking the content area does not change the thread's content size, so
+  // the ScrollView will not scroll itself. Follow the keyboard so the newest
+  // message stays in view as it opens.
+  useAnimatedReaction(
+    () => keyboard.height.value,
+    (height, previous) => {
+      if (previous !== null && height !== previous) runOnJS(scrollToEnd)(false);
+    }
+  );
+
+  // The app has exactly one coach conversation. Open the member's existing
+  // thread, or start it the first time.
+  useEffect(() => {
+    if (!coach) return;
+    let alive = true;
+    (async () => {
+      const ctx = getModuleContext();
+      try {
+        const threads = await coach.threads(ctx);
+        const existing = threads[0]?.id;
+        if (!alive) return;
+        if (existing) {
+          setThreadId(existing);
+          const m = await coach.thread(ctx, existing);
+          if (alive) setMessages(m);
+        }
+      } catch {
+        if (alive) setError('That conversation could not be loaded.');
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [coach]);
+
+  useEffect(() => {
+    if (!coach?.greeting || messages.length > 0) return;
+    let alive = true;
+    coach
+      .greeting(getModuleContext())
+      .then((g) => alive && setGreeting(g))
+      .catch(() => {
+        /* The greeting is decoration; a failure just leaves the default. */
+      });
+    return () => {
+      alive = false;
+    };
+  }, [coach, messages.length]);
+
+  const send = useCallback(
+    async (text: string) => {
+      if (!coach || !text.trim() || busy) return;
+      const ctx = getModuleContext();
+      setBusy(true);
+      setError(null);
+      setDraft('');
+      // Sending is a chat action, so leave any capture mode and show the
+      // thread: otherwise the camera stays up and the member cannot see
+      // what they sent or the reply to it.
+      setActiveMode(null);
+
+      const optimistic: MobileCoachMessage = {
+        id: 'local-' + Date.now(),
+        role: 'member',
+        text: text.trim(),
+        createdAt: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, optimistic]);
+
+      try {
+        let id = threadId;
+        if (!id) {
+          id = await coach.createThread(ctx);
+          setThreadId(id);
+        }
+        await coach.send(ctx, id, text.trim());
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: 'pending-' + Date.now(),
+            role: 'coach',
+            createdAt: new Date().toISOString(),
+            pending: true,
+          },
+        ]);
+        const updated = await coach.generate(ctx, id);
+        setMessages(updated);
+      } catch (err) {
+        setMessages((prev) => prev.filter((m) => !m.pending));
+        setError(
+          err instanceof Error ? err.message : 'That message could not be sent. Try again.'
+        );
+      } finally {
+        setBusy(false);
+      }
+    },
+    [coach, threadId, busy]
+  );
+
+  if (!coach) {
+    return (
+      <View style={[styles.fill, styles.centered]}>
+        <Caption>No coach is configured for this app.</Caption>
+      </View>
+    );
+  }
+  if (loading) return <LoadingState />;
+
+  // Mode ids are only unique within a module, so the active mode is
+  // tracked by the same '<moduleId>:<id>' key the registry uses.
+  const modeKey = (m: { moduleId: string; id: string }) => `${m.moduleId}:${m.id}`;
+  const mode = modes.find((m) => modeKey(m) === activeMode);
+
+  return (
+    <Animated.View style={[styles.fill, keyboardShift]}>
+      {/* The content area. A mode surface (camera, scanner, search) fills
+          it, so the composer below stays docked and visible — the design
+          puts the camera layer above the composer, never under it. */}
+      {mode ? (
+        <View style={styles.fill}>
+          <LazyThunk
+            key={modeKey(mode)}
+            thunk={mode.surface}
+            props={{ onDismiss: () => setActiveMode(null), threadId }}
+          />
+        </View>
+      ) : (
+        <ScrollView
+          ref={scrollRef}
+          style={styles.fill}
+          contentContainerStyle={[styles.thread, { paddingTop: headerHeight(insets.top) }]}
+          onContentSizeChange={() => scrollToEnd(true)}
+          keyboardDismissMode="interactive"
+          keyboardShouldPersistTaps="handled"
+        >
+          {messages.length === 0 ? (
+            <View style={styles.intro}>
+              <Greeting>{greeting?.title ?? 'How can I help?'}</Greeting>
+              {greeting?.subtitle ? (
+                <Text style={[type.body, styles.subtitle, { color: theme.textSecondary }]}>
+                  {greeting.subtitle}
+                </Text>
+              ) : (
+                <Caption>Ask a question, log a meal, or start a workout.</Caption>
+              )}
+              {greeting?.starters?.length ? (
+                <View style={styles.starters}>
+                  <Caps>For you</Caps>
+                  {greeting.starters.map((starter) => (
+                    <Pressable
+                      key={starter}
+                      onPress={() => void send(starter)}
+                      style={({ pressed }) => [
+                        styles.starter,
+                        {
+                          backgroundColor: theme.surface,
+                          borderColor: theme.border,
+                          opacity: pressed ? 0.7 : 1,
+                        },
+                      ]}
+                    >
+                      <View style={[styles.starterDot, { backgroundColor: theme.accent }]} />
+                      <Text style={[type.body, { color: theme.text, flex: 1 }]}>{starter}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+
+          {messages.map((message, i) => {
+            const isLatestCoach =
+              message.role === 'coach' && i === messages.length - 1 && !message.pending;
+            return (
+              <View key={message.id} style={{ gap: spacing.sm }}>
+                {message.text || message.pending ? (
+                  <ChatBubble
+                    role={message.role}
+                    latestCoach={isLatestCoach}
+                    pending={message.pending}
+                  >
+                    {message.text ?? ''}
+                  </ChatBubble>
+                ) : null}
+
+                {(message.cards ?? []).map((card, ci) => (
+                  <ThreadCard key={ci} kind={card.kind} payload={card.payload} threadId={threadId} />
+                ))}
+
+                {isLatestCoach && message.choices?.length ? (
+                  <View style={styles.chips}>
+                    {message.choices.map((choice) => (
+                      <SuggestionChip key={choice} label={choice} onPress={() => void send(choice)} />
+                    ))}
+                  </View>
+                ) : null}
+              </View>
+            );
+          })}
+
+          {error ? <Caption style={{ color: theme.danger }}>{error}</Caption> : null}
+        </ScrollView>
+      )}
+
+      <View style={styles.composerWrap}>
+        {/* One radius on all four corners. Matching the bottom pair to the
+            display's own curve left them much rounder than the top pair,
+            which read as lopsided; an even shape looks better than a
+            concentric one here. */}
+        <GlassPanel radius={radius.composer} style={styles.composer}>
+          <View style={styles.inputRow}>
+            <TextInput
+              // Development affordance: focus on mount so keyboard-avoidance
+              // can be inspected without driving the simulator by hand.
+              autoFocus={__DEV__ && process.env.EXPO_PUBLIC_DEV_FOCUS_COMPOSER === '1'}
+              value={draft}
+              onChangeText={setDraft}
+              placeholder={mode?.id === 'search' ? 'Search the food database' : 'Ask me anything...'}
+              placeholderTextColor={theme.textMuted}
+              multiline
+              style={[type.chat, styles.input, { color: theme.text }]}
+            />
+          </View>
+
+          <View style={styles.toolbar}>
+            {modes.length > 0 ? (
+              <View style={[styles.track, { backgroundColor: theme.controlFill, borderColor: 'rgba(255,255,255,0.12)' }]}>
+                <ModePill
+                  icon="message-outline"
+                  label="Chat"
+                  active={activeMode === null}
+                  onPress={() => selectMode(null)}
+                />
+                {modes.map((m) => (
+                  <ModePill
+                    key={modeKey(m)}
+                    icon={m.icon}
+                    label={m.label}
+                    active={activeMode === modeKey(m)}
+                    onPress={() => selectMode(activeMode === modeKey(m) ? null : modeKey(m))}
+                  />
+                ))}
+              </View>
+            ) : null}
+
+            <CircleButton icon="microphone" onPress={() => {}} disabled prominent />
+            <Pressable
+              onPress={() => void send(draft)}
+              disabled={!draft.trim() || busy}
+              style={[
+                styles.sendButton,
+                { backgroundColor: theme.accent, opacity: draft.trim() && !busy ? 1 : 0.4 },
+              ]}
+            >
+              <Icon name="arrow-up" size={18} color={theme.onAccent} />
+            </Pressable>
+          </View>
+        </GlassPanel>
+      </View>
+    </Animated.View>
+  );
+}
+
+/** Dispatches a rich card to the module that registered its kind. */
+function ThreadCard({
+  kind,
+  payload,
+  threadId,
+}: {
+  kind: string;
+  payload: unknown;
+  threadId?: string;
+}) {
+  const theme = useTheme();
+  const renderer = useMemo(() => threadCardRenderer(kind), [kind]);
+  if (!renderer) {
+    return (
+      <GlassPanel style={{ padding: spacing.lg }}>
+        <Caption>This card needs an app update to display.</Caption>
+      </GlassPanel>
+    );
+  }
+  return <LazyThunk thunk={renderer} props={{ payload, threadId }} />;
+}
+
+function CircleButton({
+  icon,
+  onPress,
+  active = false,
+  disabled = false,
+  prominent = false,
+}: {
+  icon: string;
+  onPress: () => void;
+  active?: boolean;
+  disabled?: boolean;
+  /**
+   * Draws the button filled rather than as a faint control. Used for voice
+   * input, which we want people to reach for rather than overlook.
+   */
+  prominent?: boolean;
+}) {
+  const theme = useTheme();
+  const filled = active || prominent;
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      style={[
+        styles.circle,
+        {
+          backgroundColor: filled ? theme.invert : theme.controlFill,
+          borderColor: filled ? theme.invert : theme.controlBorder,
+          // A prominent control keeps its weight: dimming it to 35% would
+          // defeat the point of making it stand out.
+          opacity: disabled && !prominent ? 0.35 : 1,
+        },
+      ]}
+    >
+      <Icon name={icon} size={16} color={filled ? theme.onInvert : theme.text} />
+    </Pressable>
+  );
+}
+
+/**
+ * A mode pill. Inactive pills are icon-only; the active pill fills and its
+ * label expands, animated with the shared easing token (design: mode
+ * switch, .3s, label max-width 0 to 64px plus opacity).
+ */
+function ModePill({
+  icon,
+  label,
+  active,
+  onPress,
+}: {
+  icon: string;
+  label: string;
+  active: boolean;
+  onPress: () => void;
+}) {
+  const theme = useTheme();
+  const progress = useSharedValue(active ? 1 : 0);
+
+  useEffect(() => {
+    progress.value = withTiming(active ? 1 : 0, {
+      duration: motion.quick,
+      easing: Easing.bezier(easingToken.x1, easingToken.y1, easingToken.x2, easingToken.y2),
+    });
+  }, [active, progress]);
+
+  const labelStyle = useAnimatedStyle(() => ({
+    maxWidth: progress.value * 90,
+    opacity: progress.value,
+    marginLeft: progress.value * 6,
+  }));
+
+  const pillStyle = useAnimatedStyle(() => ({
+    paddingHorizontal: 10 + progress.value * 4,
+  }));
+
+  return (
+    <AnimatedPressable
+      onPress={onPress}
+      style={[
+        styles.pill,
+        active ? styles.pillActive : null,
+        { backgroundColor: active ? theme.invert : 'transparent' },
+        pillStyle,
+      ]}
+    >
+      <Icon name={icon} size={15} color={active ? theme.onInvert : theme.textMuted} />
+      <Animated.View style={[styles.pillLabel, labelStyle]}>
+        <Text
+          numberOfLines={1}
+          style={{ fontSize: 13, fontWeight: '700', color: theme.onInvert }}
+        >
+          {label}
+        </Text>
+      </Animated.View>
+    </AnimatedPressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  fill: { flex: 1 },
+  centered: { alignItems: 'center', justifyContent: 'center' },
+  thread: { padding: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.md },
+  intro: { paddingTop: spacing.xl, gap: spacing.sm },
+  subtitle: { fontStyle: 'italic' },
+  starters: { marginTop: spacing.xl, gap: spacing.sm, alignItems: 'flex-start' },
+  starter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    paddingVertical: 12,
+    paddingHorizontal: spacing.lg,
+  },
+  starterDot: { width: 7, height: 7, borderRadius: 4 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  composerWrap: {
+    paddingHorizontal: layout.composerMargin,
+    paddingBottom: layout.composerMargin,
+  },
+  composer: {},
+  // Roomier than the original: the prompt needs air above and below.
+  inputRow: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg, paddingBottom: spacing.xs },
+  input: { minHeight: 40, maxHeight: 120, paddingVertical: 8 },
+  toolbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.lg,
+    paddingTop: spacing.sm,
+  },
+  spacer: { flex: 1 },
+  track: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    padding: 3,
+  },
+  circle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sendButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: radius.full,
+    height: 30,
+    justifyContent: 'center',
+  },
+  pillActive: { flex: 1 },
+  pillLabel: { overflow: 'hidden' },
+});
