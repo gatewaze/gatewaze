@@ -74,9 +74,62 @@ export interface MobileComposerMode {
   order: number;
   /**
    * The mode's surface, rendered behind the composer while the mode is
-   * active (camera preview, scanner, search results). Receives
-   * `{ onDismiss }` and reports results by enqueuing/creating through its
-   * own module's API.
+   * active (camera preview, scanner, search results). Reports results by
+   * enqueuing or creating through its own module's API.
+   *
+   * Receives `{ onDismiss, threadId, switchMode }`. `switchMode` hands
+   * control to another mode of the SAME module by its bare id, with
+   * optional props for the surface it opens. A surface that renders a
+   * sibling mode itself would leave the core's mode pill pointing at the
+   * one it replaced, because the core owns that state.
+   */
+  surface: MobileComponentThunk;
+}
+
+/**
+ * What the core's on-device detection saw in a captured photo.
+ *
+ * Detection runs on the device, never on a server. The whole point of the
+ * progress-photo privacy work is that the exposure window is a plaintext
+ * photo sitting on someone else's computer, so a photo must not be uploaded
+ * merely to work out where it should go.
+ */
+export interface MobilePhotoDetection {
+  /** Whether a person was found, and how sure the detector is (0 to 1). */
+  person: boolean;
+  confidence: number;
+  /**
+   * Which way the person is facing, when that could be told apart. Inferred
+   * from face visibility and shoulder separation, so it is a suggestion the
+   * receiving surface may override, not a fact.
+   */
+  facing?: 'front' | 'side' | 'back';
+}
+
+/** The subject a photo target handles. */
+export type MobilePhotoSubject = 'person' | 'other';
+
+/**
+ * Somewhere a captured photo can go. The core owns the camera and the
+ * routing; a module owns what happens to the image.
+ *
+ * The core routes silently when detection is confident. When it is not, the
+ * member is asked to confirm, and `label` is what they see. Modules do not
+ * get to draw a chooser of their own.
+ */
+export interface MobilePhotoTarget {
+  /** Stable id, unique within the module. */
+  id: string;
+  /** Which subject routes here. */
+  subject: MobilePhotoSubject;
+  /** Shown only when the member is asked to confirm, e.g. 'Progress photo'. */
+  label: string;
+  icon: string;
+  /** Ascending; the lowest order wins when two targets claim one subject. */
+  order: number;
+  /**
+   * Receives `{ photoUri, detection, onDismiss }`. It must not re-open the
+   * camera: the photo has already been taken.
    */
   surface: MobileComponentThunk;
 }

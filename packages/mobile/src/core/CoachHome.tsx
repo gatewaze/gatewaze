@@ -13,6 +13,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Keyboard,
   Pressable,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   ScrollView,
   StyleSheet,
   Text,
@@ -20,13 +22,15 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Icon } from '../components/Icon';
 import { GlassPanel } from '../components/GlassPanel';
 import { ChatBubble, SuggestionChip } from '../components/ChatBubble';
 import { LazyThunk } from '../components/LazyThunk';
-import { Caps, Caption, Greeting, LoadingState } from '../components/primitives';
+import { Caps, Caption, Greeting, LoadingState, withAlpha } from '../components/primitives';
 import { coachProvider, composerModes, threadCardRenderer } from './registry';
 import { getModuleContext } from './context';
+import { ChromeInsetsProvider } from './chrome';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -62,20 +66,37 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [activeMode, setActiveMode] = useState<string | null>(null);
+  // Props a mode was handed off with, cleared whenever the member picks a
+  // mode themselves so a pill press always opens that mode's plain surface.
+  const [modeProps, setModeProps] = useState<Record<string, unknown>>({});
   const [greeting, setGreeting] = useState<MobileCoachGreeting | undefined>();
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
+  const [composerHeight, setComposerHeight] = useState(0);
+
+  // Auto-scrolling unconditionally fought the member: any content change
+  // while they were reading further up yanked them back down. Follow the
+  // thread only when they are already at the end of it.
+  const atBottom = useRef(true);
+  const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+    atBottom.current = contentSize.height - (contentOffset.y + layoutMeasurement.height) < 80;
+  }, []);
 
   // Opening a capture mode hands the screen to the camera or scanner, so
   // the keyboard has nothing left to type into and would cover the controls.
   const selectMode = useCallback((key: string | null) => {
     setActiveMode(key);
+    setModeProps({});
     if (key !== null) Keyboard.dismiss();
   }, []);
 
-  const scrollToEnd = useCallback((animated: boolean) => {
-    scrollRef.current?.scrollToEnd({ animated });
-  }, []);
+  const followIfAtEnd = useCallback(
+    (animated: boolean) => {
+      if (atBottom.current) scrollRef.current?.scrollToEnd({ animated });
+    },
+    []
+  );
 
   // KeyboardAvoidingView positions itself by measuring its own frame on
   // screen, and this surface sits inside the drawer's animated translate and
@@ -95,7 +116,7 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
   useAnimatedReaction(
     () => keyboard.height.value,
     (height, previous) => {
-      if (previous !== null && height !== previous) runOnJS(scrollToEnd)(false);
+      if (previous !== null && height !== previous) runOnJS(followIfAtEnd)(false);
     }
   );
 
@@ -147,6 +168,7 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
       setBusy(true);
       setError(null);
       setDraft('');
+      setModeProps({});
       // Sending is a chat action, so leave any capture mode and show the
       // thread: otherwise the camera stays up and the member cannot see
       // what they sent or the reply to it.
@@ -210,19 +232,39 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
           it, so the composer below stays docked and visible — the design
           puts the camera layer above the composer, never under it. */}
       {mode ? (
-        <View style={styles.fill}>
+        <ChromeInsetsProvider top={headerHeight(insets.top)} bottom={composerHeight}>
           <LazyThunk
             key={modeKey(mode)}
             thunk={mode.surface}
-            props={{ onDismiss: () => setActiveMode(null), threadId }}
+            props={{
+              onDismiss: () => selectMode(null),
+              threadId,
+              // Handing off keeps the mode pill in step with what is on
+              // screen. The id is bare, so a module never has to know the
+              // '<moduleId>:<id>' key the core uses.
+              switchMode: (id: string, props?: Record<string, unknown>) => {
+                setActiveMode(`${mode.moduleId}:${id}`);
+                setModeProps(props ?? {});
+              },
+              ...modeProps,
+            }}
           />
-        </View>
+        </ChromeInsetsProvider>
       ) : (
         <ScrollView
           ref={scrollRef}
           style={styles.fill}
-          contentContainerStyle={[styles.thread, { paddingTop: headerHeight(insets.top) }]}
-          onContentSizeChange={() => scrollToEnd(true)}
+          contentContainerStyle={[
+            styles.thread,
+            {
+              paddingTop: headerHeight(insets.top),
+              // Clear the floating composer so the last message can be read.
+              paddingBottom: composerHeight + spacing.lg,
+            },
+          ]}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+          onContentSizeChange={() => followIfAtEnd(true)}
           keyboardDismissMode="interactive"
           keyboardShouldPersistTaps="handled"
         >
@@ -234,7 +276,11 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
                   {greeting.subtitle}
                 </Text>
               ) : (
-                <Caption>Ask a question, log a meal, or start a workout.</Caption>
+                // Deliberately generic: this is the fallback for when the
+                // coach module supplies no greeting, and the core has no idea
+                // what the app it is running is for. Anything specific here
+                // would be wrong in a build with different modules.
+                <Caption>Ask me anything to get started.</Caption>
               )}
               {greeting?.starters?.length ? (
                 <View style={styles.starters}>
@@ -295,7 +341,23 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
         </ScrollView>
       )}
 
-      <View style={styles.composerWrap}>
+      {/* The composer floats over the thread rather than sitting below it:
+          as a sibling it cut the canvas off on a hard edge. Its fade is the
+          mirror of the header's, so messages dissolve at both ends. */}
+      <LinearGradient
+        colors={[
+          withAlpha(theme.background, layout.composerFadeStops[0]),
+          withAlpha(theme.background, layout.composerFadeStops[1]),
+          withAlpha(theme.background, layout.composerFadeStops[2]),
+        ]}
+        locations={[
+          layout.composerFadeLocations[0],
+          layout.composerFadeLocations[1],
+          layout.composerFadeLocations[2],
+        ]}
+        style={styles.composerWrap}
+        onLayout={(e) => setComposerHeight(e.nativeEvent.layout.height)}
+      >
         {/* One radius on all four corners. Matching the bottom pair to the
             display's own curve left them much rounder than the top pair,
             which read as lopsided; an even shape looks better than a
@@ -349,7 +411,7 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
             </Pressable>
           </View>
         </GlassPanel>
-      </View>
+      </LinearGradient>
     </Animated.View>
   );
 }
@@ -493,8 +555,14 @@ const styles = StyleSheet.create({
   starterDot: { width: 7, height: 7, borderRadius: 4 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   composerWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 5,
+    paddingTop: layout.composerPadTop,
     paddingHorizontal: layout.composerMargin,
-    paddingBottom: layout.composerMargin,
+    paddingBottom: layout.composerPadBottom,
   },
   composer: {},
   // Roomier than the original: the prompt needs air above and below.

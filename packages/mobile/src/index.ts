@@ -30,6 +30,8 @@ export {
 } from './components/primitives';
 export { Icon } from './components/Icon';
 export { GlassPanel } from './components/GlassPanel';
+export { ModeSurface, type ModeSurfaceProps } from './components/ModeSurface';
+export { ImageCarousel, type ImageCarouselProps } from './components/ImageCarousel';
 export { ChatBubble, SuggestionChip } from './components/ChatBubble';
 export { AmbientBackground } from './components/AmbientBackground';
 export { Ring, type RingSegment } from './components/Ring';
@@ -56,6 +58,7 @@ export {
 // Hooks + helpers
 export { useModuleContext, newClientRef, useCachedQuery, isApiFailure } from './hooks';
 export { useSession } from './core/auth/session';
+export { useChromeInsets, type ChromeInsets } from './core/chrome';
 
 // Theme
 export {

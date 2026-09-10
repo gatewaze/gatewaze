@@ -25,6 +25,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Icon } from './Icon';
 import { GlassPanel } from './GlassPanel';
+import { useHeaderHeight } from '@react-navigation/elements';
 import { useTheme, radius, spacing, type } from '../theme/tokens';
 
 // ---------------------------------------------------------------------------
@@ -92,19 +93,28 @@ export function Screen({
   style?: StyleProp<ViewStyle>;
 }) {
   const theme = useTheme();
+  // The screen is transparent so the app's living gradient, which is drawn
+  // once behind the whole stack, shows through every screen.
+  //
+  // A transparent header does not inset its screen, so content starts under
+  // it. Padding by the header's height puts the first item below it while
+  // still letting the rest scroll underneath and fade. With no header (a
+  // drawer destination) this is 0 and the safe-area edge applies instead.
+  const headerHeight = useHeaderHeight();
+  const edges: Array<'top'> = headerHeight > 0 ? [] : ['top'];
   const inner = padded ? [styles.padded, style] : style;
   if (!scroll) {
     return (
-      <SafeAreaView style={[styles.fill, { backgroundColor: theme.background }]} edges={['top']}>
-        <View style={[styles.fill, inner]}>{children}</View>
+      <SafeAreaView style={styles.fill} edges={edges}>
+        <View style={[styles.fill, { paddingTop: headerHeight }, inner]}>{children}</View>
       </SafeAreaView>
     );
   }
   return (
-    <SafeAreaView style={[styles.fill, { backgroundColor: theme.background }]} edges={['top']}>
+    <SafeAreaView style={styles.fill} edges={edges}>
       <ScrollView
         style={styles.fill}
-        contentContainerStyle={inner}
+        contentContainerStyle={[{ paddingTop: headerHeight }, inner]}
         refreshControl={
           onRefresh ? (
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.textMuted} />
@@ -239,6 +249,7 @@ export function Input(props: TextInputProps & { label?: string }) {
 export function ListItem({
   title,
   subtitle,
+  below,
   right,
   icon,
   onPress,
@@ -246,6 +257,11 @@ export function ListItem({
 }: {
   title: string;
   subtitle?: string;
+  /**
+   * Rendered under the subtitle, for detail a string cannot carry, such as a
+   * row of coloured value indicators.
+   */
+  below?: React.ReactNode;
   right?: React.ReactNode;
   icon?: string;
   onPress?: () => void;
@@ -268,6 +284,7 @@ export function ListItem({
       <View style={styles.fill}>
         <RNText style={[type.body, { color: destructive ? theme.danger : theme.text }]}>{title}</RNText>
         {subtitle ? <Caption>{subtitle}</Caption> : null}
+        {below}
       </View>
       {right ?? (onPress ? <Icon name="chevron-right" size={20} color={theme.textMuted} /> : null)}
     </Pressable>

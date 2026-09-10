@@ -33,13 +33,13 @@ export interface Palette {
   accentCaps: string;
   /** The coach's voice, success, an active session ("Vital Teal"). */
   coach: string;
-  /** Ambient only, plus the fat macro ("Calm Purple"). */
+  /** Ambient washes, and the second chart series ("Calm Purple"). */
   ambient: string;
   /** Recording, alerts, destructive ("Signal Coral"). */
   danger: string;
   success: string;
   warning: string;
-  /** Macro series: carbs, fat, protein. */
+  /** Chart series, in order. A module decides what each one means. */
   series1: string;
   series2: string;
   series3: string;
@@ -214,9 +214,10 @@ export const motion = {
 };
 
 /**
- * Space a composer-mode surface must leave clear at the bottom so the
- * docked composer does not cover its controls. Exported so module modes
- * do not hardcode it.
+ * Fixed layout geometry. Anything that depends on the chrome's MEASURED size
+ * is not here: a surface asks `useChromeInsets()` for that, because a fixed
+ * guess went stale the moment the composer became a floating panel whose
+ * height follows its content.
  */
 export const layout = {
   /**
@@ -236,9 +237,19 @@ export const layout = {
   headerSolidFraction: 1 / 3,
   headerPaddingH: 22,
   headerFadeStops: [0.97, 0.85, 0] as const,
-  composerInset: 150,
   /** Gap between the composer and the screen edges. */
   composerMargin: 12,
+  /**
+   * The composer floats over the thread with its own fade, mirroring the
+   * header. From the design's `padding: 26px 12px 10px` over
+   * `linear-gradient(0deg, rgba(9,12,20,.97) 0%, .8 55%, 0 100%)`. CSS 0deg
+   * runs bottom to top, so read against the top-down order used here the
+   * stops are 0 at the top and .97 at the bottom.
+   */
+  composerPadTop: 26,
+  composerPadBottom: 10,
+  composerFadeStops: [0, 0.8, 0.97] as const,
+  composerFadeLocations: [0, 0.45, 1] as const,
 };
 
 /**

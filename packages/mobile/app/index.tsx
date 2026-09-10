@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { router } from 'expo-router';
 import { useSession } from '../src/core/auth/session';
 import { SignInFlow } from '../src/core/SignInFlow';
 import { DrawerHost } from '../src/core/DrawerHost';
@@ -8,6 +9,16 @@ import { moduleById } from '../src/core/registry';
 
 export default function Index() {
   const { status, refresh } = useSession();
+
+  // Development affordance: open a pushed route on launch, so a module
+  // screen can be inspected without tapping through the drawer to reach it.
+  // Set in .env.development only, e.g. EXPO_PUBLIC_DEV_ROUTE=/m/health-diet/meals
+  const devRoute = __DEV__ ? process.env.EXPO_PUBLIC_DEV_ROUTE : undefined;
+  useEffect(() => {
+    if (!devRoute || status.phase !== 'ready') return;
+    const t = setTimeout(() => router.push(devRoute as never), 400);
+    return () => clearTimeout(t);
+  }, [devRoute, status.phase]);
 
   switch (status.phase) {
     case 'loading':

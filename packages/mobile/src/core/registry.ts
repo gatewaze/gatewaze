@@ -32,6 +32,13 @@ export function allTabs(): Array<MobileTabContribution & { moduleId: string }> {
     .sort((a, b) => a.order - b.order);
 }
 
+/**
+ * A module's pushable screen by name.
+ *
+ * Reached through `/m/<moduleId>/<view>`. The route's dynamic segment is
+ * `[view]` rather than `[screen]` because React Navigation reserves `screen`
+ * as a navigation param and swallows it.
+ */
 export function findScreen(
   moduleId: string,
   name: string

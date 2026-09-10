@@ -22,13 +22,14 @@ import Animated, {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { withAlpha } from '../components/primitives';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Icon } from '../components/Icon';
 import { LazyThunk } from '../components/LazyThunk';
 import { AmbientBackground } from '../components/AmbientBackground';
 import { Button, Caps, EmptyState } from '../components/primitives';
 import { coachProvider, drawerSections } from './registry';
 import { onOutboxChange, outboxCounts } from './outbox';
+import { consumeOpenDrawerRequest } from './drawerSignal';
 import { useSession } from './auth/session';
 import { CoachHome } from './CoachHome';
 import { config } from './config';
@@ -84,6 +85,17 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
   }, [open, progress]);
 
   useEffect(() => onOutboxChange(() => setFailedCount(outboxCounts().failed)), []);
+
+  // A module screen's header asks for the drawer as it navigates back here,
+  // because it cannot reach this state from above in the stack. Acting on
+  // focus rather than on the call itself is what makes one press enough: the
+  // request arrives while this route is still being restored, so anything
+  // done immediately is undone by the render that follows.
+  useFocusEffect(
+    useCallback(() => {
+      if (consumeOpenDrawerRequest()) setOpen(true);
+    }, [])
+  );
 
   const surfaceStyle = useAnimatedStyle(() => ({
     transform: [
