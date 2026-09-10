@@ -48,6 +48,25 @@ export {
 } from './capabilities/camera';
 export { BarcodeScannerView } from './capabilities/barcode';
 export {
+  isAvailable as isHealthDataAvailable,
+  requestPermissions as requestHealthPermissions,
+  ownSourceBundleId,
+  readChanged as readHealthChanged,
+  readChangedCategory as readHealthChangedCategory,
+  readDailyTotals as readHealthDailyTotals,
+  observe as observeHealth,
+  stopObserving as stopObservingHealth,
+  writeSample as writeHealthSample,
+  writeWorkout as writeHealthWorkout,
+  deleteWritten as deleteHealthWritten,
+  formatDateInZone,
+  startOfDayInZone,
+  deviceTimeZone,
+  type HealthSample,
+  type HealthDailyTotal,
+  type AnchoredResult,
+} from './capabilities/health';
+export {
   pickFromLibrary,
   captureWithSystemCamera,
   normalisePhoto,

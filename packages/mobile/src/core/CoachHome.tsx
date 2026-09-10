@@ -53,6 +53,9 @@ import {
 import type { MobileCoachMessage, MobileCoachGreeting } from '@gatewaze/shared';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+// The composer's fade is moved by an animated transform, so the gradient
+// itself has to be an animated component.
+const AnimatedLinearGradient = Animated.createAnimatedComponent(LinearGradient);
 
 export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
   const theme = useTheme();
@@ -73,6 +76,8 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
   const [composerHeight, setComposerHeight] = useState(0);
+  /** Messages sent while the coach was mid-reply, waiting their turn. */
+  const [queued, setQueued] = useState<string[]>([]);
 
   // Auto-scrolling unconditionally fought the member: any content change
   // while they were reading further up yanked them back down. Follow the
@@ -104,11 +109,20 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
   // the keyboard covered it. Reading the keyboard height from the platform
   // instead is immune to any ancestor transform.
   const keyboard = useAnimatedKeyboard();
-  const keyboardShift = useAnimatedStyle(() => ({
-    // There is no bottom safe-area padding to discount here: the composer is
-    // docked to the physical bottom edge with its own small margin.
-    paddingBottom: keyboard.height.value,
+
+  // The composer is moved by a transform, not by padding on its parent.
+  // Reanimated applies a padding change on the UI thread without a fresh
+  // Yoga pass, and an absolutely positioned child keeps the position layout
+  // already gave it, so the composer stayed under the keyboard on device.
+  // A transform is applied directly to the view and cannot miss.
+  const composerShift = useAnimatedStyle(() => ({
+    transform: [{ translateY: -keyboard.height.value }],
   }));
+
+  // Room for the keyboard at the end of the thread, so the newest message can
+  // still be scrolled clear of it. A spacer rather than animated padding:
+  // contentContainerStyle is not an animatable prop on Animated.ScrollView.
+  const keyboardSpacer = useAnimatedStyle(() => ({ height: keyboard.height.value }));
 
   // Shrinking the content area does not change the thread's content size, so
   // the ScrollView will not scroll itself. Follow the keyboard so the newest
@@ -162,8 +176,26 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
   }, [coach, messages.length]);
 
   const send = useCallback(
-    async (text: string) => {
-      if (!coach || !text.trim() || busy) return;
+    async (text: string, alreadyShown = false) => {
+      if (!coach || !text.trim()) return;
+      // A second message while the coach is still answering is QUEUED, not
+      // dropped. Returning early here used to lose it silently: the member
+      // watched their words vanish from the box with nothing added to the
+      // thread. It is sent as soon as the current exchange finishes.
+      if (busy) {
+        setDraft('');
+        setQueued((prev) => [...prev, text.trim()]);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: 'queued-' + Date.now(),
+            role: 'member',
+            text: text.trim(),
+            createdAt: new Date().toISOString(),
+          },
+        ]);
+        return;
+      }
       const ctx = getModuleContext();
       setBusy(true);
       setError(null);
@@ -174,13 +206,19 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
       // what they sent or the reply to it.
       setActiveMode(null);
 
-      const optimistic: MobileCoachMessage = {
-        id: 'local-' + Date.now(),
-        role: 'member',
-        text: text.trim(),
-        createdAt: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, optimistic]);
+      // A queued message is already in the thread from when it was typed, so
+      // painting another bubble would show it twice until generate() returns.
+      if (!alreadyShown) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: 'local-' + Date.now(),
+            role: 'member',
+            text: text.trim(),
+            createdAt: new Date().toISOString(),
+          },
+        ]);
+      }
 
       try {
         let id = threadId;
@@ -212,6 +250,16 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
     [coach, threadId, busy]
   );
 
+  // Drain one queued message per idle turn. The optimistic bubble for it is
+  // already in the thread, and generate() returns the authoritative list, so
+  // it is not painted twice.
+  useEffect(() => {
+    if (busy || queued.length === 0) return;
+    const [next, ...rest] = queued;
+    setQueued(rest);
+    void send(next, true);
+  }, [busy, queued, send]);
+
   if (!coach) {
     return (
       <View style={[styles.fill, styles.centered]}>
@@ -227,7 +275,7 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
   const mode = modes.find((m) => modeKey(m) === activeMode);
 
   return (
-    <Animated.View style={[styles.fill, keyboardShift]}>
+    <Animated.View style={styles.fill}>
       {/* The content area. A mode surface (camera, scanner, search) fills
           it, so the composer below stays docked and visible — the design
           puts the camera layer above the composer, never under it. */}
@@ -251,7 +299,7 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
           />
         </ChromeInsetsProvider>
       ) : (
-        <ScrollView
+        <Animated.ScrollView
           ref={scrollRef}
           style={styles.fill}
           contentContainerStyle={[
@@ -338,13 +386,14 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
           })}
 
           {error ? <Caption style={{ color: theme.danger }}>{error}</Caption> : null}
-        </ScrollView>
+          <Animated.View style={keyboardSpacer} />
+        </Animated.ScrollView>
       )}
 
       {/* The composer floats over the thread rather than sitting below it:
           as a sibling it cut the canvas off on a hard edge. Its fade is the
           mirror of the header's, so messages dissolve at both ends. */}
-      <LinearGradient
+      <AnimatedLinearGradient
         colors={[
           withAlpha(theme.background, layout.composerFadeStops[0]),
           withAlpha(theme.background, layout.composerFadeStops[1]),
@@ -355,7 +404,7 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
           layout.composerFadeLocations[1],
           layout.composerFadeLocations[2],
         ]}
-        style={styles.composerWrap}
+        style={[styles.composerWrap, composerShift]}
         onLayout={(e) => setComposerHeight(e.nativeEvent.layout.height)}
       >
         {/* One radius on all four corners. Matching the bottom pair to the
@@ -411,7 +460,7 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
             </Pressable>
           </View>
         </GlassPanel>
-      </LinearGradient>
+      </AnimatedLinearGradient>
     </Animated.View>
   );
 }

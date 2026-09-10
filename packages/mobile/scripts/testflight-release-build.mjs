@@ -34,15 +34,34 @@ function token() {
   return signing + '.' + sig;
 }
 
-async function api(path, init = {}) {
-  const res = await fetch('https://api.appstoreconnect.apple.com' + path, {
-    ...init,
-    headers: {
-      Authorization: 'Bearer ' + token(),
-      'Content-Type': 'application/json',
-      ...(init.headers || {}),
-    },
-  });
+/**
+ * One App Store Connect call, retrying transient network faults.
+ *
+ * This runs AFTER the archive is uploaded, polling for minutes while Apple
+ * ingests it. A single dropped connection in that window used to abort the
+ * whole release with the build already sitting in App Store Connect, needing
+ * the attach step re-run by hand. A refused or timed-out connection is
+ * retried; an answer from Apple, including an error answer, is not, because
+ * repeating a rejected request just gets rejected again.
+ */
+async function api(path, init = {}, attempt = 0) {
+  let res;
+  try {
+    res = await fetch('https://api.appstoreconnect.apple.com' + path, {
+      ...init,
+      headers: {
+        Authorization: 'Bearer ' + token(),
+        'Content-Type': 'application/json',
+        ...(init.headers || {}),
+      },
+    });
+  } catch (err) {
+    if (attempt >= 4) throw err;
+    const wait = 2000 * 2 ** attempt;
+    console.log(`  network error talking to Apple (${err.cause?.code || err.message}), retrying in ${wait / 1000}s`);
+    await new Promise((r) => setTimeout(r, wait));
+    return api(path, init, attempt + 1);
+  }
   if (res.status === 204) return null;
   const body = await res.json().catch(() => ({}));
   if (body.errors) throw new Error(`${res.status} ${body.errors[0].detail || body.errors[0].title}`);

@@ -24,6 +24,9 @@
     "expo-image-manipulator": [
       "camera",
       "image-picker"
+    ],
+    "@kingstinct/react-native-healthkit": [
+      "health"
     ]
   }
 }

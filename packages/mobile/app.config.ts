@@ -47,6 +47,26 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ],
   ];
 
+  // HealthKit. The entitlement is only requested when a baked module asks
+  // for it: an app with no health module must not ship a health entitlement,
+  // because App Store review asks what it is for.
+  if (caps.has('health')) {
+    plugins.push([
+      '@kingstinct/react-native-healthkit',
+      {
+        NSHealthShareUsageDescription:
+          process.env.APP_HEALTH_READ_PERMISSION_TEXT ||
+          'Reads your weight, activity and sleep from Apple Health so your coach can use them.',
+        NSHealthUpdateUsageDescription:
+          process.env.APP_HEALTH_WRITE_PERMISSION_TEXT ||
+          'Writes the workouts and measurements you log here back to Apple Health.',
+        // Needed for HKObserverQuery to wake the app when new samples land.
+        // Without it the app only ever syncs while open.
+        background: true,
+      },
+    ]);
+  }
+
   if (caps.has('camera') || caps.has('barcode')) {
     plugins.push([
       'expo-camera',
