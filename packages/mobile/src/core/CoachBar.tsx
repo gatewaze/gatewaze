@@ -24,6 +24,8 @@ import { composerModes } from './registry';
 import { requestCoachHandoff } from './coachHandoff';
 import { useTheme, spacing, radius, layout, type } from '../theme/tokens';
 import { useVoiceInput } from './useVoiceInput';
+import { VoiceButton } from './VoiceButton';
+import { VoiceIndicator } from './VoiceIndicator';
 import { ComposerFade, COMPOSER_FADE_HEIGHT } from '../components/ComposerFade';
 import { CircleButton } from './CoachHome';
 
@@ -83,14 +85,18 @@ export function CoachBar({
       <ComposerFade />
       <GlassPanel radius={radius.composer} style={styles.panel}>
         <View style={styles.inputRow}>
-          <TextInput
-            value={draft}
-            onChangeText={setDraft}
-            placeholder="Ask the coach..."
-            placeholderTextColor={theme.textMuted}
-            multiline
-            style={[type.chat, styles.input, { color: theme.text }]}
-          />
+          {voice.state === 'idle' ? (
+            <TextInput
+              value={draft}
+              onChangeText={setDraft}
+              placeholder="Ask the coach..."
+              placeholderTextColor={theme.textMuted}
+              multiline
+              style={[type.chat, styles.input, { color: theme.text }]}
+            />
+          ) : (
+            <VoiceIndicator voice={voice} />
+          )}
         </View>
 
         <View style={styles.toolbar}>
@@ -119,13 +125,7 @@ export function CoachBar({
             </View>
           ) : null}
 
-          <CircleButton
-            icon={voice.state === 'recording' ? 'stop' : 'microphone'}
-            onPress={() => (voice.state === 'recording' ? void voice.stop() : void voice.start())}
-            disabled={voice.state === 'uploading'}
-            prominent
-            active={voice.state === 'recording'}
-          />
+          <VoiceButton voice={voice} />
           <Pressable
             onPress={() => hand(null)}
             disabled={!draft.trim()}

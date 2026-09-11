@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   RecordingPresets,
+  useAudioRecorderState,
   requestRecordingPermissionsAsync,
   setAudioModeAsync,
   useAudioRecorder,
@@ -33,7 +34,19 @@ export function useVoiceInput({
   useCase: string;
   onTranscript: (text: string) => void;
 }) {
-  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  // Metering is off in the preset. The waveform follows the recorder's own
+  // level rather than a timer, so without this it would animate whether or
+  // not the microphone was picking anything up — which is the one thing it
+  // most needs to be able to show.
+  const recorder = useAudioRecorder({
+    ...RecordingPresets.HIGH_QUALITY,
+    isMeteringEnabled: true,
+  });
+  // Metering lives on RecorderState, not on the status listener's payload, so
+  // it is read by polling the recorder rather than pushed. 100ms is well under
+  // the waveform's own 60ms sampling and cheap.
+  const recorderState = useAudioRecorderState(recorder, 100);
+  const metering = recorderState.metering;
   const [state, setState] = useState<VoiceState>('idle');
   const [error, setError] = useState<string | null>(null);
   const [seconds, setSeconds] = useState(0);
@@ -108,5 +121,5 @@ export function useVoiceInput({
     setSeconds(0);
   }, [clearTick, recorder, state]);
 
-  return { state, error, seconds, start, stop, cancel, maxSeconds: MAX_SECONDS };
+  return { state, error, seconds, metering, start, stop, cancel, maxSeconds: MAX_SECONDS };
 }

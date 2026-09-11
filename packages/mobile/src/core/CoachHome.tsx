@@ -11,6 +11,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Keyboard,
   Pressable,
   type NativeScrollEvent,
@@ -29,6 +30,8 @@ import { ChatBubble, SuggestionChip } from '../components/ChatBubble';
 import { LazyThunk } from '../components/LazyThunk';
 import { Caps, Caption, Greeting, LoadingState, withAlpha } from '../components/primitives';
 import { useVoiceInput } from './useVoiceInput';
+import { VoiceButton } from './VoiceButton';
+import { VoiceIndicator } from './VoiceIndicator';
 import { ComposerFade, COMPOSER_FADE_HEIGHT } from '../components/ComposerFade';
 import { coachProvider, composerModes, threadCardRenderer } from './registry';
 import { getModuleContext } from './context';
@@ -437,17 +440,25 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
             concentric one here. */}
         <GlassPanel radius={radius.composer} style={styles.composer}>
           <View style={styles.inputRow}>
-            <TextInput
-              // Development affordance: focus on mount so keyboard-avoidance
-              // can be inspected without driving the simulator by hand.
-              autoFocus={__DEV__ && process.env.EXPO_PUBLIC_DEV_FOCUS_COMPOSER === '1'}
-              value={draft}
-              onChangeText={setDraft}
-              placeholder={mode?.id === 'search' ? 'Search the food database' : 'Ask me anything...'}
-              placeholderTextColor={theme.textMuted}
-              multiline
-              style={[type.chat, styles.input, { color: theme.text }]}
-            />
+            {/* The field gives way to the waveform for the whole of a voice
+                note, and stays gone until the transcript lands, so the row
+                never jumps and there is always something saying what is
+                happening. */}
+            {voice.state === 'idle' ? (
+              <TextInput
+                // Development affordance: focus on mount so keyboard-avoidance
+                // can be inspected without driving the simulator by hand.
+                autoFocus={__DEV__ && process.env.EXPO_PUBLIC_DEV_FOCUS_COMPOSER === '1'}
+                value={draft}
+                onChangeText={setDraft}
+                placeholder={mode?.id === 'search' ? 'Search the food database' : 'Ask me anything...'}
+                placeholderTextColor={theme.textMuted}
+                multiline
+                style={[type.chat, styles.input, { color: theme.text }]}
+              />
+            ) : (
+              <VoiceIndicator voice={voice} />
+            )}
           </View>
 
           <View style={styles.toolbar}>
@@ -471,13 +482,7 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
               </View>
             ) : null}
 
-            <CircleButton
-              icon={voice.state === 'recording' ? 'stop' : 'microphone'}
-              onPress={() => (voice.state === 'recording' ? void voice.stop() : void voice.start())}
-              disabled={voice.state === 'uploading'}
-              prominent
-              active={voice.state === 'recording'}
-            />
+            <VoiceButton voice={voice} />
             <Pressable
               onPress={() => void send(draft)}
               disabled={!draft.trim() || busy}
@@ -520,14 +525,21 @@ function ThreadCard({
 export function CircleButton({
   icon,
   onPress,
+  onPressIn,
+  onPressOut,
   active = false,
   disabled = false,
   prominent = false,
+  busy = false,
 }: {
   icon: string;
   onPress: () => void;
+  onPressIn?: () => void;
+  onPressOut?: () => void;
   active?: boolean;
   disabled?: boolean;
+  /** Replaces the glyph with a spinner. The button stays put and stays sized. */
+  busy?: boolean;
   /**
    * Draws the button filled rather than as a faint control. Used for voice
    * input, which we want people to reach for rather than overlook.
@@ -539,6 +551,8 @@ export function CircleButton({
   return (
     <Pressable
       onPress={onPress}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
       disabled={disabled}
       style={[
         styles.circle,
@@ -551,7 +565,11 @@ export function CircleButton({
         },
       ]}
     >
-      <Icon name={icon} size={16} color={filled ? theme.onInvert : theme.text} />
+      {busy ? (
+        <ActivityIndicator size="small" color={filled ? theme.onInvert : theme.text} />
+      ) : (
+        <Icon name={icon} size={16} color={filled ? theme.onInvert : theme.text} />
+      )}
     </Pressable>
   );
 }
