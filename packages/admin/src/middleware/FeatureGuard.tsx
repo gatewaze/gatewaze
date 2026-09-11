@@ -45,7 +45,12 @@ export function FeatureGuard({
   redirectTo,
   showLoading = true,
 }: FeatureGuardProps) {
-  const { user, loading: authLoading } = useAuth();
+  // `loading` is declared optional on AuthContextType but the provider never sets it — its state
+  // field is `isLoading`. Reading `loading` alone made authLoading permanently undefined, so the
+  // loading gate below never engaged and an unauthenticated *first render* (which is every render
+  // before async auth init finishes) fell straight through to <Navigate to="/login">.
+  const { user, isLoading, loading } = useAuth();
+  const authLoading = isLoading ?? loading;
   const { hasPermission, loading: permissionLoading } = useHasPermission(
     feature as AdminFeature,
     accountId
