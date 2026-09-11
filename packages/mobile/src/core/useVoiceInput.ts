@@ -14,8 +14,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  AudioModule,
   RecordingPresets,
+  requestRecordingPermissionsAsync,
   setAudioModeAsync,
   useAudioRecorder,
 } from 'expo-audio';
@@ -50,7 +50,7 @@ export function useVoiceInput({
 
   const start = useCallback(async () => {
     setError(null);
-    const granted = await AudioModule.requestRecordingPermissionsAsync();
+    const granted = await requestRecordingPermissionsAsync();
     if (!granted.granted) {
       // Not an error state to shout about: they said no, which is allowed.
       setError('Microphone access is off. You can turn it on in Settings.');
