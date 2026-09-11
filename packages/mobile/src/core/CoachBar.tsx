@@ -22,7 +22,10 @@ import { GlassPanel } from '../components/GlassPanel';
 import { ModePill } from './CoachHome';
 import { composerModes } from './registry';
 import { requestCoachHandoff } from './coachHandoff';
-import { useTheme, spacing, radius, type } from '../theme/tokens';
+import { useTheme, spacing, radius, layout, type } from '../theme/tokens';
+import { useVoiceInput } from './useVoiceInput';
+import { ComposerFade, COMPOSER_FADE_HEIGHT } from '../components/ComposerFade';
+import { CircleButton } from './CoachHome';
 
 export function CoachBar({
   enabled,
@@ -39,6 +42,11 @@ export function CoachBar({
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState('');
+  const voice = useVoiceInput({
+    useCase: 'health-coach-dictation',
+    onTranscript: (text) => setDraft((d) => (d.trim() ? `${d.trim()} ${text}` : text)),
+  });
+
 
   const modes = composerModes(enabled);
   const modeKey = (m: { moduleId: string; id: string }) => `${m.moduleId}:${m.id}`;
@@ -72,6 +80,7 @@ export function CoachBar({
       pointerEvents="box-none"
       onLayout={(e) => onHeight?.(e.nativeEvent.layout.height)}
     >
+      <ComposerFade />
       <GlassPanel radius={radius.composer} style={styles.panel}>
         <View style={styles.inputRow}>
           <TextInput
@@ -110,6 +119,13 @@ export function CoachBar({
             </View>
           ) : null}
 
+          <CircleButton
+            icon={voice.state === 'recording' ? 'stop' : 'microphone'}
+            onPress={() => (voice.state === 'recording' ? void voice.stop() : void voice.start())}
+            disabled={voice.state === 'uploading'}
+            prominent
+            active={voice.state === 'recording'}
+          />
           <Pressable
             onPress={() => hand(null)}
             disabled={!draft.trim()}
@@ -132,25 +148,34 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    paddingHorizontal: spacing.md,
+    paddingTop: COMPOSER_FADE_HEIGHT,
+    paddingHorizontal: layout.composerMargin,
+    paddingBottom: layout.composerPadBottom,
   },
-  panel: { padding: spacing.sm, gap: spacing.xs },
-  inputRow: { paddingHorizontal: spacing.xs },
-  input: { maxHeight: 96, paddingTop: 6, paddingBottom: 6 },
-  toolbar: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  panel: {},
+  inputRow: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg, paddingBottom: spacing.xs },
+  input: { minHeight: 40, maxHeight: 120, paddingVertical: 8 },
+  toolbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.lg,
+    paddingTop: spacing.sm,
+  },
   track: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    padding: 3,
-    borderRadius: 999,
+    gap: 2,
+    borderRadius: radius.full,
     borderWidth: 1,
+    padding: 3,
   },
   send: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
   },

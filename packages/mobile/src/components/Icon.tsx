@@ -37,6 +37,8 @@ const SF_SYMBOLS: Record<string, string> = {
   check: 'checkmark',
   send: 'arrow.up.circle.fill',
   microphone: 'mic',
+  // Shown in place of the mic while a voice note is being recorded.
+  stop: 'stop',
   camera: 'camera',
   barcode: 'barcode.viewfinder',
   magnify: 'magnifyingglass',

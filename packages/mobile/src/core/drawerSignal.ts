@@ -32,3 +32,23 @@ export function consumeOpenDrawerRequest(): boolean {
   pending = false;
   return requested;
 }
+
+/**
+ * The same flag, for the drawer on the right.
+ *
+ * A pushed screen sits above the drawer host in the stack, so it cannot open
+ * either drawer itself. It leaves a request and pops back, and the host acts
+ * on it when it regains focus — which is what makes one swipe enough rather
+ * than two.
+ */
+let summaryPending = false;
+
+export function requestOpenSummary(): void {
+  summaryPending = true;
+}
+
+export function consumeOpenSummaryRequest(): boolean {
+  const held = summaryPending;
+  summaryPending = false;
+  return held;
+}

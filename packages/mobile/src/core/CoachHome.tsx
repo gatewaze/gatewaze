@@ -28,6 +28,8 @@ import { GlassPanel } from '../components/GlassPanel';
 import { ChatBubble, SuggestionChip } from '../components/ChatBubble';
 import { LazyThunk } from '../components/LazyThunk';
 import { Caps, Caption, Greeting, LoadingState, withAlpha } from '../components/primitives';
+import { useVoiceInput } from './useVoiceInput';
+import { ComposerFade, COMPOSER_FADE_HEIGHT } from '../components/ComposerFade';
 import { coachProvider, composerModes, threadCardRenderer } from './registry';
 import { getModuleContext } from './context';
 import { ChromeInsetsProvider } from './chrome';
@@ -68,6 +70,11 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
   const [messages, setMessages] = useState<MobileCoachMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState('');
+  const voice = useVoiceInput({
+    useCase: 'health-coach-dictation',
+    onTranscript: (text) => setDraft((d) => (d.trim() ? `${d.trim()} ${text}` : text)),
+  });
+
   const [busy, setBusy] = useState(false);
   const [activeMode, setActiveMode] = useState<string | null>(null);
   // Props a mode was handed off with, cleared whenever the member picks a
@@ -416,20 +423,14 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
       {/* The composer floats over the thread rather than sitting below it:
           as a sibling it cut the canvas off on a hard edge. Its fade is the
           mirror of the header's, so messages dissolve at both ends. */}
-      <AnimatedLinearGradient
-        colors={[
-          withAlpha(theme.background, layout.composerFadeStops[0]),
-          withAlpha(theme.background, layout.composerFadeStops[1]),
-          withAlpha(theme.background, layout.composerFadeStops[2]),
-        ]}
-        locations={[
-          layout.composerFadeLocations[0],
-          layout.composerFadeLocations[1],
-          layout.composerFadeLocations[2],
-        ]}
+      <Animated.View
         style={[styles.composerWrap, composerShift]}
         onLayout={(e) => setComposerHeight(e.nativeEvent.layout.height)}
+        pointerEvents="box-none"
       >
+        {/* Dissolves the thread as it reaches the composer. It must not sit
+            BEHIND the panel, or the glass has an opaque backdrop. */}
+        <ComposerFade />
         {/* One radius on all four corners. Matching the bottom pair to the
             display's own curve left them much rounder than the top pair,
             which read as lopsided; an even shape looks better than a
@@ -470,7 +471,13 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
               </View>
             ) : null}
 
-            <CircleButton icon="microphone" onPress={() => {}} disabled prominent />
+            <CircleButton
+              icon={voice.state === 'recording' ? 'stop' : 'microphone'}
+              onPress={() => (voice.state === 'recording' ? void voice.stop() : void voice.start())}
+              disabled={voice.state === 'uploading'}
+              prominent
+              active={voice.state === 'recording'}
+            />
             <Pressable
               onPress={() => void send(draft)}
               disabled={!draft.trim() || busy}
@@ -483,7 +490,7 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
             </Pressable>
           </View>
         </GlassPanel>
-      </AnimatedLinearGradient>
+      </Animated.View>
     </Animated.View>
   );
 }
@@ -510,7 +517,7 @@ function ThreadCard({
   return <LazyThunk thunk={renderer} props={{ payload, threadId }} />;
 }
 
-function CircleButton({
+export function CircleButton({
   icon,
   onPress,
   active = false,
@@ -632,7 +639,9 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     zIndex: 5,
-    paddingTop: layout.composerPadTop,
+    // Matches the fade's height so the gradient fills the gap above the
+    // panel exactly, with no overlap onto the glass.
+    paddingTop: COMPOSER_FADE_HEIGHT,
     paddingHorizontal: layout.composerMargin,
     paddingBottom: layout.composerPadBottom,
   },

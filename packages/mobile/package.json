@@ -23,6 +23,7 @@
     "@supabase/supabase-js": "^2.57.4",
     "aes-js": "^3.1.2",
     "expo": "~55.0.31",
+    "expo-audio": "^57.0.5",
     "expo-blur": "~55.0.18",
     "expo-camera": "~55.0.23",
     "expo-constants": "~55.0.17",

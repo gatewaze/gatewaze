@@ -30,7 +30,11 @@ export type MobileCapability =
   | 'barcode'
   | 'image-picker'
   | 'health'
-  | 'notifications';
+  | 'notifications'
+  // Recording a voice note for transcription. Declaring it is what puts the
+  // microphone permission string in the build, so an app with no module that
+  // records asks for nothing.
+  | 'microphone';
 
 /**
  * One primary destination contributed by a module.

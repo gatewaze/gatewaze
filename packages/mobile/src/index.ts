@@ -88,6 +88,7 @@ export {
 // without depending on the navigation library directly. Modules resolve
 // `@gatewaze/mobile` and nothing else at build time.
 export { useFocusEffect } from 'expo-router';
+export { SlideOver } from './components/SlideOver';
 
 // Theme
 export {

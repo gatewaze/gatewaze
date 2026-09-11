@@ -31,7 +31,7 @@ import { CoachBar } from './CoachBar';
 import { Button, Caps, EmptyState } from '../components/primitives';
 import { coachProvider, drawerSections } from './registry';
 import { onOutboxChange, outboxCounts } from './outbox';
-import { consumeOpenDrawerRequest } from './drawerSignal';
+import { consumeOpenDrawerRequest, consumeOpenSummaryRequest } from './drawerSignal';
 import { hasPendingHandoff } from './coachHandoff';
 import { ChromeInsetsProvider } from './chrome';
 import { useSession } from './auth/session';
@@ -101,6 +101,7 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
   useFocusEffect(
     useCallback(() => {
       if (consumeOpenDrawerRequest()) setOpen(true);
+      if (consumeOpenSummaryRequest()) setSummaryOpen(true);
       // A pushed screen's composer bar left a message on its way back here.
       // The coach consumes it; this only has to be showing the coach when it
       // does. Peeked rather than consumed, for that reason.
@@ -182,13 +183,23 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
     if (open && summaryOpen) setSummaryOpen(false);
   }, [open]);
 
-  const surfaceStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: progress.value * drawerTokens.slide },
-      { scale: interpolate(progress.value, [0, 1], [1, drawerTokens.scale]) },
-    ],
-    borderRadius: progress.value * drawerTokens.radius,
-  }));
+  // Two drawers, one surface. The menu is revealed by sliding right, the day
+  // summary by sliding left, and the scale and corner radius follow whichever
+  // is open. They cannot both be open (see the effect below), so taking the
+  // larger of the two is the whole of the arithmetic.
+  const surfaceStyle = useAnimatedStyle(() => {
+    const revealed = Math.max(progress.value, summary.value);
+    return {
+      transform: [
+        {
+          translateX:
+            progress.value * drawerTokens.slide - summary.value * SUMMARY_WIDTH,
+        },
+        { scale: interpolate(revealed, [0, 1], [1, drawerTokens.scale]) },
+      ],
+      borderRadius: revealed * drawerTokens.radius,
+    };
+  });
 
   const go = useCallback((d: Destination) => {
     setDestination(d);
@@ -277,7 +288,11 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
 
       </SafeAreaView>
 
-      {/* The active surface, which slides right to reveal the menu */}
+      {/* The day summary, pinned to the right edge and revealed the same way:
+          underneath the surface, which slides left off it. */}
+      <SummaryDrawer onClose={() => setSummaryOpen(false)} />
+
+      {/* The active surface, which slides off whichever drawer is opening */}
       <Animated.View style={[styles.surface, { backgroundColor: theme.background }, surfaceStyle]}>
         {/* The living gradient sits behind the app surface only, so the
             drawer underneath stays a flat dark ground. */}
@@ -356,9 +371,6 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setOpen(false)} />
         ) : null}
       </Animated.View>
-
-      {/* Above the app surface, so it covers whatever screen is showing. */}
-      <SummaryDrawer progress={summary} onClose={() => setSummaryOpen(false)} />
     </View>
   );
 }

@@ -77,6 +77,16 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       },
     ]);
   }
+  if (caps.has('microphone')) {
+    plugins.push([
+      'expo-audio',
+      {
+        microphonePermission:
+          process.env.APP_MICROPHONE_PERMISSION_TEXT ||
+          `Allow ${name} to use the microphone so you can speak to the coach instead of typing.`,
+      },
+    ]);
+  }
   if (caps.has('image-picker')) {
     plugins.push([
       'expo-image-picker',

@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from 'react';
+import { PanResponder, View, useWindowDimensions } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { requestOpenDrawer, requestOpenSummary } from '../../../src/core/drawerSignal';
 import { findScreen, allModules } from '../../../src/core/registry';
 import { LazyThunk } from '../../../src/components/LazyThunk';
 import { EmptyState, Screen } from '../../../src/components/primitives';
@@ -19,9 +21,31 @@ export default function ModuleScreenHost() {
   const params = useLocalSearchParams<{ module: string; view: string }>();
   const { module: moduleId, view: screenName, ...rest } = params;
   const [barHeight, setBarHeight] = useState(0);
+  const { width: screenWidth } = useWindowDimensions();
   // Every baked module, as the composer's entitlement map. A pushed screen is
   // only reachable once the host has already proved the member is entitled to
   // the module it belongs to.
+  // Both drawers are reachable from a pushed screen. The screen cannot open
+  // them itself — it sits above the host in the stack — so an edge swipe
+  // leaves a request and pops back, and the host opens the drawer when it
+  // regains focus. Same trick the header's menu button uses.
+  const edgeSwipe = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (evt, g) => {
+          const startX = evt.nativeEvent.pageX - g.dx;
+          if (Math.abs(g.dx) < 12 || Math.abs(g.dx) <= Math.abs(g.dy) * 1.5) return false;
+          return (startX <= 24 && g.dx > 0) || (startX >= screenWidth - 24 && g.dx < 0);
+        },
+        onPanResponderRelease: (_e, g) => {
+          if (g.dx > 0) requestOpenDrawer();
+          else requestOpenSummary();
+          router.dismissAll();
+        },
+      }),
+    [screenWidth]
+  );
+
   const enabled = useMemo(
     () => Object.fromEntries(allModules().map((m) => [m.id, true])),
     []
@@ -49,7 +73,7 @@ export default function ModuleScreenHost() {
   }
 
   return (
-    <>
+    <View style={{ flex: 1 }} {...edgeSwipe.panHandlers}>
       <Stack.Screen options={{ title: def.title ?? def.name }} />
       <ChromeInsetsProvider top={0} bottom={barHeight}>
         <LazyThunk thunk={def.screen} props={rest as Record<string, unknown>} />
@@ -62,6 +86,6 @@ export default function ModuleScreenHost() {
         onHandoff={() => router.dismissAll()}
         onHeight={setBarHeight}
       />
-    </>
+    </View>
   );
 }
