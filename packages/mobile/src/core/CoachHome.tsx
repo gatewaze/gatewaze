@@ -11,7 +11,6 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Keyboard,
   Pressable,
   type NativeScrollEvent,
@@ -19,49 +18,26 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Icon } from '../components/Icon';
 import { GlassPanel } from '../components/GlassPanel';
 import { ChatBubble, SuggestionChip } from '../components/ChatBubble';
 import { LazyThunk } from '../components/LazyThunk';
-import { Caps, Caption, Greeting, LoadingState, withAlpha } from '../components/primitives';
-import { useVoiceInput } from './useVoiceInput';
-import { VoiceButton } from './VoiceButton';
-import { VoiceIndicator } from './VoiceIndicator';
-import { ComposerFade, COMPOSER_FADE_HEIGHT } from '../components/ComposerFade';
+import { Caps, Caption, Greeting, LoadingState } from '../components/primitives';
+import { Composer } from './Composer';
 import { coachProvider, composerModes, threadCardRenderer } from './registry';
 import { getModuleContext } from './context';
 import { ChromeInsetsProvider } from './chrome';
 import { consumeCoachHandoff } from './coachHandoff';
 import Animated, {
-  useSharedValue,
   useAnimatedStyle,
   useAnimatedKeyboard,
   useAnimatedReaction,
   runOnJS,
-  withTiming,
-  Easing,
 } from 'react-native-reanimated';
-import {
-  useTheme,
-  radius,
-  spacing,
-  type,
-  motion,
-  easing as easingToken,
-  layout,
-  headerHeight,
-} from '../theme/tokens';
+import { useTheme, radius, spacing, type, headerHeight } from '../theme/tokens';
 import type { MobileCoachMessage, MobileCoachGreeting } from '@gatewaze/shared';
-
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-// The composer's fade is moved by an animated transform, so the gradient
-// itself has to be an animated component.
-const AnimatedLinearGradient = Animated.createAnimatedComponent(LinearGradient);
 
 export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
   const theme = useTheme();
@@ -73,11 +49,6 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
   const [messages, setMessages] = useState<MobileCoachMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState('');
-  const voice = useVoiceInput({
-    useCase: 'health-coach-dictation',
-    onTranscript: (text) => setDraft((d) => (d.trim() ? `${d.trim()} ${text}` : text)),
-  });
-
   const [busy, setBusy] = useState(false);
   const [activeMode, setActiveMode] = useState<string | null>(null);
   // Props a mode was handed off with, cleared whenever the member picks a
@@ -138,14 +109,6 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
   // instead is immune to any ancestor transform.
   const keyboard = useAnimatedKeyboard();
 
-  // The composer is moved by a transform, not by padding on its parent.
-  // Reanimated applies a padding change on the UI thread without a fresh
-  // Yoga pass, and an absolutely positioned child keeps the position layout
-  // already gave it, so the composer stayed under the keyboard on device.
-  // A transform is applied directly to the view and cannot miss.
-  const composerShift = useAnimatedStyle(() => ({
-    transform: [{ translateY: -keyboard.height.value }],
-  }));
 
   // Room for the keyboard at the end of the thread, so the newest message can
   // still be scrolled clear of it. A spacer rather than animated padding:
@@ -426,76 +389,21 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
       {/* The composer floats over the thread rather than sitting below it:
           as a sibling it cut the canvas off on a hard edge. Its fade is the
           mirror of the header's, so messages dissolve at both ends. */}
-      <Animated.View
-        style={[styles.composerWrap, composerShift]}
-        onLayout={(e) => setComposerHeight(e.nativeEvent.layout.height)}
-        pointerEvents="box-none"
-      >
-        {/* Dissolves the thread as it reaches the composer. It must not sit
-            BEHIND the panel, or the glass has an opaque backdrop. */}
-        <ComposerFade />
-        {/* One radius on all four corners. Matching the bottom pair to the
-            display's own curve left them much rounder than the top pair,
-            which read as lopsided; an even shape looks better than a
-            concentric one here. */}
-        <GlassPanel radius={radius.composer} style={styles.composer}>
-          <View style={styles.inputRow}>
-            {/* The field gives way to the waveform for the whole of a voice
-                note, and stays gone until the transcript lands, so the row
-                never jumps and there is always something saying what is
-                happening. */}
-            {voice.state === 'idle' ? (
-              <TextInput
-                // Development affordance: focus on mount so keyboard-avoidance
-                // can be inspected without driving the simulator by hand.
-                autoFocus={__DEV__ && process.env.EXPO_PUBLIC_DEV_FOCUS_COMPOSER === '1'}
-                value={draft}
-                onChangeText={setDraft}
-                placeholder={mode?.id === 'search' ? 'Search the food database' : 'Ask me anything...'}
-                placeholderTextColor={theme.textMuted}
-                multiline
-                style={[type.chat, styles.input, { color: theme.text }]}
-              />
-            ) : (
-              <VoiceIndicator voice={voice} />
-            )}
-          </View>
-
-          <View style={styles.toolbar}>
-            {modes.length > 0 ? (
-              <View style={[styles.track, { backgroundColor: theme.controlFill, borderColor: 'rgba(255,255,255,0.12)' }]}>
-                <ModePill
-                  icon="message-outline"
-                  label="Chat"
-                  active={activeMode === null}
-                  onPress={() => selectMode(null)}
-                />
-                {modes.map((m) => (
-                  <ModePill
-                    key={modeKey(m)}
-                    icon={m.icon}
-                    label={m.label}
-                    active={activeMode === modeKey(m)}
-                    onPress={() => selectMode(activeMode === modeKey(m) ? null : modeKey(m))}
-                  />
-                ))}
-              </View>
-            ) : null}
-
-            <VoiceButton voice={voice} />
-            <Pressable
-              onPress={() => void send(draft)}
-              disabled={!draft.trim() || busy}
-              style={[
-                styles.sendButton,
-                { backgroundColor: theme.accent, opacity: draft.trim() && !busy ? 1 : 0.4 },
-              ]}
-            >
-              <Icon name="arrow-up" size={18} color={theme.onAccent} />
-            </Pressable>
-          </View>
-        </GlassPanel>
-      </Animated.View>
+      <Composer
+        enabled={enabled}
+        draft={draft}
+        onChangeDraft={setDraft}
+        activeMode={activeMode}
+        onSelectMode={selectMode}
+        onSend={() => void send(draft)}
+        placeholder={mode?.id === 'search' ? 'Search the food database' : undefined}
+        busy={busy}
+        // Development affordance: focus on mount so keyboard-avoidance can be
+        // inspected without driving the simulator by hand.
+        autoFocus={__DEV__ && process.env.EXPO_PUBLIC_DEV_FOCUS_COMPOSER === '1'}
+        onHeight={setComposerHeight}
+        zIndex={5}
+      />
     </Animated.View>
   );
 }
@@ -510,7 +418,6 @@ function ThreadCard({
   payload: unknown;
   threadId?: string;
 }) {
-  const theme = useTheme();
   const renderer = useMemo(() => threadCardRenderer(kind), [kind]);
   if (!renderer) {
     return (
@@ -520,117 +427,6 @@ function ThreadCard({
     );
   }
   return <LazyThunk thunk={renderer} props={{ payload, threadId }} />;
-}
-
-export function CircleButton({
-  icon,
-  onPress,
-  onPressIn,
-  onPressOut,
-  active = false,
-  disabled = false,
-  prominent = false,
-  busy = false,
-}: {
-  icon: string;
-  onPress: () => void;
-  onPressIn?: () => void;
-  onPressOut?: () => void;
-  active?: boolean;
-  disabled?: boolean;
-  /** Replaces the glyph with a spinner. The button stays put and stays sized. */
-  busy?: boolean;
-  /**
-   * Draws the button filled rather than as a faint control. Used for voice
-   * input, which we want people to reach for rather than overlook.
-   */
-  prominent?: boolean;
-}) {
-  const theme = useTheme();
-  const filled = active || prominent;
-  return (
-    <Pressable
-      onPress={onPress}
-      onPressIn={onPressIn}
-      onPressOut={onPressOut}
-      disabled={disabled}
-      style={[
-        styles.circle,
-        {
-          backgroundColor: filled ? theme.invert : theme.controlFill,
-          borderColor: filled ? theme.invert : theme.controlBorder,
-          // A prominent control keeps its weight: dimming it to 35% would
-          // defeat the point of making it stand out.
-          opacity: disabled && !prominent ? 0.35 : 1,
-        },
-      ]}
-    >
-      {busy ? (
-        <ActivityIndicator size="small" color={filled ? theme.onInvert : theme.text} />
-      ) : (
-        <Icon name={icon} size={16} color={filled ? theme.onInvert : theme.text} />
-      )}
-    </Pressable>
-  );
-}
-
-/**
- * A mode pill. Inactive pills are icon-only; the active pill fills and its
- * label expands, animated with the shared easing token (design: mode
- * switch, .3s, label max-width 0 to 64px plus opacity).
- */
-export function ModePill({
-  icon,
-  label,
-  active,
-  onPress,
-}: {
-  icon: string;
-  label: string;
-  active: boolean;
-  onPress: () => void;
-}) {
-  const theme = useTheme();
-  const progress = useSharedValue(active ? 1 : 0);
-
-  useEffect(() => {
-    progress.value = withTiming(active ? 1 : 0, {
-      duration: motion.quick,
-      easing: Easing.bezier(easingToken.x1, easingToken.y1, easingToken.x2, easingToken.y2),
-    });
-  }, [active, progress]);
-
-  const labelStyle = useAnimatedStyle(() => ({
-    maxWidth: progress.value * 90,
-    opacity: progress.value,
-    marginLeft: progress.value * 6,
-  }));
-
-  const pillStyle = useAnimatedStyle(() => ({
-    paddingHorizontal: 10 + progress.value * 4,
-  }));
-
-  return (
-    <AnimatedPressable
-      onPress={onPress}
-      style={[
-        styles.pill,
-        active ? styles.pillActive : null,
-        { backgroundColor: active ? theme.invert : 'transparent' },
-        pillStyle,
-      ]}
-    >
-      <Icon name={icon} size={15} color={active ? theme.onInvert : theme.textMuted} />
-      <Animated.View style={[styles.pillLabel, labelStyle]}>
-        <Text
-          numberOfLines={1}
-          style={{ fontSize: 13, fontWeight: '700', color: theme.onInvert }}
-        >
-          {label}
-        </Text>
-      </Animated.View>
-    </AnimatedPressable>
-  );
 }
 
 const styles = StyleSheet.create({
@@ -651,62 +447,5 @@ const styles = StyleSheet.create({
   },
   starterDot: { width: 7, height: 7, borderRadius: 4 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  composerWrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 5,
-    // Matches the fade's height so the gradient fills the gap above the
-    // panel exactly, with no overlap onto the glass.
-    paddingTop: COMPOSER_FADE_HEIGHT,
-    paddingHorizontal: layout.composerMargin,
-    paddingBottom: layout.composerPadBottom,
-  },
-  composer: {},
-  // Roomier than the original: the prompt needs air above and below.
-  inputRow: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg, paddingBottom: spacing.xs },
-  input: { minHeight: 40, maxHeight: 120, paddingVertical: 8 },
-  toolbar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.lg,
-    paddingTop: spacing.sm,
-  },
   spacer: { flex: 1 },
-  track: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-    borderRadius: radius.full,
-    borderWidth: 1,
-    padding: 3,
-  },
-  circle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sendButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: radius.full,
-    height: 30,
-    justifyContent: 'center',
-  },
-  pillActive: { flex: 1 },
-  pillLabel: { overflow: 'hidden' },
 });

@@ -15,7 +15,7 @@
  */
 
 import React, { useCallback, useRef } from 'react';
-import { CircleButton } from './CoachHome';
+import { CircleButton } from '../components/ComposerControls';
 
 /** Below this, a press reads as a tap rather than a hold. */
 const HOLD_MS = 1000;

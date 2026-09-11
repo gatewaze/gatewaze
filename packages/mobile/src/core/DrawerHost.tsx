@@ -10,7 +10,7 @@
  * appear when a module owns the coach; Settings is pinned at the bottom.
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PanResponder, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -132,8 +132,14 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
    * The responder only claims a touch that STARTS within the edge strip and
    * is already more horizontal than vertical. Anything else is left alone,
    * so lists still scroll and the composer still drags.
+   *
+   * Which drawer a gesture drives is decided once, when the responder is
+   * claimed, and held for the rest of the drag. Deciding it per frame from
+   * the sign of `dx` meant a drag that wandered back past where it started
+   * flipped to the other drawer mid-gesture, leaving both part-open at once.
    */
   const EDGE = 24;
+  const side = useRef<'left' | 'right' | null>(null);
   const gestures = useMemo(
     () =>
       PanResponder.create({
@@ -141,13 +147,18 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
           const x = evt.nativeEvent.pageX - g.dx;
           const horizontal = Math.abs(g.dx) > Math.abs(g.dy) * 1.5 && Math.abs(g.dx) > 8;
           if (!horizontal) return false;
-          if (open || summaryOpen) return true;
-          if (x <= EDGE && g.dx > 0) return true;
-          if (x >= screenWidth - EDGE && g.dx < 0) return true;
-          return false;
+          // An open drawer owns the gesture whichever way it is dragged, so
+          // a swipe back closes the one that is showing rather than opening
+          // the other one behind it.
+          if (open) side.current = 'left';
+          else if (summaryOpen) side.current = 'right';
+          else if (x <= EDGE && g.dx > 0) side.current = 'left';
+          else if (x >= screenWidth - EDGE && g.dx < 0) side.current = 'right';
+          else return false;
+          return true;
         },
         onPanResponderMove: (_evt, g) => {
-          if (summaryOpen || (g.dx < 0 && !open)) {
+          if (side.current === 'right') {
             // Dragging the right-hand drawer, in or out.
             const from = summaryOpen ? 1 : 0;
             const next = from + -g.dx / SUMMARY_WIDTH;
@@ -160,7 +171,9 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
         },
         onPanResponderRelease: (_evt, g) => {
           const flung = Math.abs(g.vx) > 0.35;
-          if (summaryOpen || (g.dx < 0 && !open)) {
+          const dragged = side.current;
+          side.current = null;
+          if (dragged === 'right') {
             const shouldOpen = flung ? g.vx < 0 : summary.value > 0.5;
             setSummaryOpen(shouldOpen);
             // The effect only fires when the boolean actually changes, so
@@ -172,6 +185,13 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
           const shouldOpen = flung ? g.vx > 0 : progress.value > 0.5;
           setOpen(shouldOpen);
           progress.value = withTiming(shouldOpen ? 1 : 0, { duration: motion.drawer, easing: EASE });
+        },
+        // A terminated gesture settles back to the booleans it started from,
+        // so an interrupted drag cannot strand a drawer half-open.
+        onPanResponderTerminate: () => {
+          side.current = null;
+          progress.value = withTiming(open ? 1 : 0, { duration: motion.drawer, easing: EASE });
+          summary.value = withTiming(summaryOpen ? 1 : 0, { duration: motion.drawer, easing: EASE });
         },
         onPanResponderTerminationRequest: () => false,
       }),
@@ -200,6 +220,22 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
       borderRadius: revealed * drawerTokens.radius,
     };
   });
+
+  // Only the drawer the surface has slid off is drawn. The two overlap in
+  // layout (295pt from the left and 320pt from the right is wider than the
+  // screen) and the summary is mounted second, so without this it paints
+  // over the menu across most of the width whenever the menu is open. The
+  // surface also scales to 0.93, which opens a strip down the far edge that
+  // the other drawer would otherwise show through.
+  //
+  // Comparing the two values rather than reading a boolean keeps this exact
+  // during a drag, where neither drawer is "open" yet.
+  const leftStyle = useAnimatedStyle(() => ({
+    opacity: progress.value > summary.value ? 1 : 0,
+  }));
+  const rightStyle = useAnimatedStyle(() => ({
+    opacity: summary.value > progress.value ? 1 : 0,
+  }));
 
   const go = useCallback((d: Destination) => {
     setDestination(d);
@@ -237,60 +273,71 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
     <View style={[styles.fill, { backgroundColor: theme.void }]} {...gestures.panHandlers}>
 
       {/* The menu underneath: a flat list of destinations with Settings
-          last, then Recents, then the New chat pill — per the design. */}
-      <SafeAreaView style={styles.drawer} edges={['top', 'bottom']}>
-        <View style={styles.drawerHead}>
-          <Text style={[type.title, { color: theme.invert }]}>{config.appName}</Text>
-        </View>
+          last, then Recents, then the New chat pill — per the design.
+          Hidden unless the surface has slid right off it. */}
+      <Animated.View
+        style={[StyleSheet.absoluteFill, leftStyle]}
+        pointerEvents={open ? 'auto' : 'none'}
+      >
+        <SafeAreaView style={styles.drawer} edges={['top', 'bottom']}>
+          <View style={styles.drawerHead}>
+            <Text style={[type.title, { color: theme.invert }]}>{config.appName}</Text>
+          </View>
 
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.navList}>
-          {coach ? (
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.navList}>
+            {coach ? (
+              <DrawerRow
+                icon="message-outline"
+                label="Coach"
+                active={destination.kind === 'coach'}
+                onPress={() => go({ kind: 'coach' })}
+              />
+            ) : null}
+
+            {sections.map((section) => (
+              <React.Fragment key={section.title}>
+                {/* A heading only earns its place once there is more than one
+                    group; a single family reads as a flat list, as designed. */}
+                {sections.length > 1 ? <Caps style={styles.sectionLabel}>{section.title}</Caps> : null}
+                {section.entries.map((entry) => (
+                  <DrawerRow
+                    key={entry.moduleId + ':' + entry.id}
+                    icon={entry.icon}
+                    label={entry.label}
+                    active={
+                      destination.kind === 'module' &&
+                      destination.moduleId === entry.moduleId &&
+                      destination.entryId === entry.id
+                    }
+                    onPress={() => go({ kind: 'module', moduleId: entry.moduleId, entryId: entry.id })}
+                  />
+                ))}
+              </React.Fragment>
+            ))}
+
             <DrawerRow
-              icon="message-outline"
-              label="Coach"
-              active={destination.kind === 'coach'}
-              onPress={() => go({ kind: 'coach' })}
+              icon="cog-outline"
+              label="Settings"
+              badge={failedCount > 0}
+              onPress={() => {
+                setOpen(false);
+                router.push('/settings');
+              }}
             />
-          ) : null}
 
-          {sections.map((section) => (
-            <React.Fragment key={section.title}>
-              {/* A heading only earns its place once there is more than one
-                  group; a single family reads as a flat list, as designed. */}
-              {sections.length > 1 ? <Caps style={styles.sectionLabel}>{section.title}</Caps> : null}
-              {section.entries.map((entry) => (
-                <DrawerRow
-                  key={entry.moduleId + ':' + entry.id}
-                  icon={entry.icon}
-                  label={entry.label}
-                  active={
-                    destination.kind === 'module' &&
-                    destination.moduleId === entry.moduleId &&
-                    destination.entryId === entry.id
-                  }
-                  onPress={() => go({ kind: 'module', moduleId: entry.moduleId, entryId: entry.id })}
-                />
-              ))}
-            </React.Fragment>
-          ))}
+          </ScrollView>
 
-          <DrawerRow
-            icon="cog-outline"
-            label="Settings"
-            badge={failedCount > 0}
-            onPress={() => {
-              setOpen(false);
-              router.push('/settings');
-            }}
-          />
-
-        </ScrollView>
-
-      </SafeAreaView>
+        </SafeAreaView>
+      </Animated.View>
 
       {/* The day summary, pinned to the right edge and revealed the same way:
           underneath the surface, which slides left off it. */}
-      <SummaryDrawer onClose={() => setSummaryOpen(false)} />
+      <Animated.View
+        style={[StyleSheet.absoluteFill, rightStyle]}
+        pointerEvents={summaryOpen ? 'auto' : 'none'}
+      >
+        <SummaryDrawer onClose={() => setSummaryOpen(false)} />
+      </Animated.View>
 
       {/* The active surface, which slides off whichever drawer is opening */}
       <Animated.View style={[styles.surface, { backgroundColor: theme.background }, surfaceStyle]}>

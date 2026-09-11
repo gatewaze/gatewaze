@@ -1,16 +1,22 @@
 /**
- * The strip of fade that sits directly above the composer.
+ * The ground the composer sits on. Two strips, above it and below it.
  *
- * Content scrolling toward the composer dissolves into the app's ground
- * instead of running underneath it and showing through the glass. The fade
- * stops where the panel begins, and that is the whole point: an earlier
- * version wrapped the panel in the gradient, so the panel's own backdrop was
- * 97% opaque and the glass could not read as glass. The fade is for the
- * content; the panel is glass over whatever is actually behind it.
+ * Content scrolling toward the composer dissolves into the app's ground over
+ * `COMPOSER_FADE_HEIGHT` instead of running underneath it. Below the panel
+ * there is the margin that clears the home indicator, and content was showing
+ * through that: it faded out above the composer and then reappeared beneath
+ * it. The second strip is flat, at the colour the gradient ends on, so the
+ * fade carries on past the panel instead of stopping at it.
+ *
+ * Neither strip covers the panel itself, and that is the point. An earlier
+ * version wrapped the panel in the gradient, which put a 97% opaque backdrop
+ * on the glass and stopped it reading as glass. The thread showing faintly
+ * through the panel is what makes it look like glass; the strips only deal
+ * with the content that would otherwise be fully legible around it.
  */
 
 import React from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme, layout } from '../theme/tokens';
 import { withAlpha } from './primitives';
@@ -18,23 +24,38 @@ import { withAlpha } from './primitives';
 /** Tall enough to dissolve a line of text, short enough not to eat the view. */
 export const COMPOSER_FADE_HEIGHT = 72;
 
-export function ComposerFade() {
+export function ComposerFade({ bottom = 0 }: {
+  /**
+   * Height of the flat strip under the panel. The composer passes its own
+   * bottom padding, which is the only gap content can show through.
+   */
+  bottom?: number;
+}) {
   const theme = useTheme();
+  const ground = withAlpha(theme.background, layout.composerFadeStops[2]);
   return (
-    <LinearGradient
-      colors={[
-        withAlpha(theme.background, layout.composerFadeStops[0]),
-        withAlpha(theme.background, layout.composerFadeStops[1]),
-        withAlpha(theme.background, layout.composerFadeStops[2]),
-      ]}
-      locations={[
-        layout.composerFadeLocations[0],
-        layout.composerFadeLocations[1],
-        layout.composerFadeLocations[2],
-      ]}
-      style={styles.fade}
-      pointerEvents="none"
-    />
+    <>
+      <LinearGradient
+        colors={[
+          withAlpha(theme.background, layout.composerFadeStops[0]),
+          withAlpha(theme.background, layout.composerFadeStops[1]),
+          withAlpha(theme.background, layout.composerFadeStops[2]),
+        ]}
+        locations={[
+          layout.composerFadeLocations[0],
+          layout.composerFadeLocations[1],
+          layout.composerFadeLocations[2],
+        ]}
+        style={styles.fade}
+        pointerEvents="none"
+      />
+      {bottom > 0 ? (
+        <View
+          style={[styles.base, { height: bottom, backgroundColor: ground }]}
+          pointerEvents="none"
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -46,4 +67,5 @@ const styles = StyleSheet.create({
     right: 0,
     height: COMPOSER_FADE_HEIGHT,
   },
+  base: { position: 'absolute', bottom: 0, left: 0, right: 0 },
 });
