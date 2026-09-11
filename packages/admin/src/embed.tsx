@@ -1,3 +1,15 @@
+// Base stylesheet. The standalone app pulls this in from main.tsx, which the library build never
+// reaches — so without these imports the embed shipped with no Radix Themes CSS, no Tailwind base
+// and no fonts, leaving every Radix component (tabs, buttons, badges) unstyled in the host.
+// styles/index.css also carries the @source directives that make Tailwind scan the module repos,
+// so module-specific utilities are generated too.
+import '@fontsource/inter/400.css';
+import '@fontsource/inter/500.css';
+import '@fontsource/inter/600.css';
+import '@fontsource/inter/700.css';
+import 'simplebar-react/dist/simplebar.min.css';
+import './styles/index.css';
+
 import { createRoot, type Root } from 'react-dom/client';
 import { StrictMode } from 'react';
 
@@ -5,6 +17,8 @@ import { configureEmbedSupabase } from '@/lib/supabase';
 
 import { getCompiledFeatures, getCompiledModuleIds } from './embed/compiledModules';
 import { EmbedApp } from './embed/EmbedApp';
+import { setHostNotify } from './embed/hostNotify';
+import { setEmbedPortalContainer } from './embed/portalContainer';
 import { deregisterMount, tryRegisterMount } from './embed/registry';
 import { sanitizeMessage } from './embed/sanitize';
 import { createTelemetry } from './embed/telemetry';
@@ -91,6 +105,12 @@ export function mount(el: HTMLElement, ctx: GwHostContext): { unmount(): void } 
       VITE_API_URL: validCtx.apiBaseUrl === '' ? '/api/gw' : validCtx.apiBaseUrl,
     };
 
+    // Before render: Radix's portalled components read this at their own first render, and the
+    // host's element is the only thing keeping their overlays inside the scope our stylesheet is
+    // contained to. See embed/radixThemesPortal.tsx.
+    setEmbedPortalContainer(validCtx.portalContainer);
+    setHostNotify(validCtx.notify);
+
     configureEmbedSupabase({
       url: validCtx.supabase.url,
       anonKey: validCtx.supabase.anonKey,
@@ -113,6 +133,10 @@ export function mount(el: HTMLElement, ctx: GwHostContext): { unmount(): void } 
       unmount() {
         root?.unmount();
         deregisterMount(el);
+        // The host owns this element and may reuse or drop it; holding a reference past unmount
+        // would keep it alive and would hand a stale container to the next mount.
+        setEmbedPortalContainer(null);
+        setHostNotify(null);
       },
     };
     return handle;

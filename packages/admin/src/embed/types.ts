@@ -36,6 +36,14 @@ export interface GwHostContext {
    * only the embed (and unmount) writes into it.
    */
   portalContainer?: HTMLElement;
+  /**
+   * Host notification sink. When present, `toast()` calls inside the embed are rendered by the
+   * HOST's notification system instead of the embed's own toaster, so they look and stack like
+   * every other notification in the host app. Absent: the embed falls back to its own toaster.
+   *
+   * Only string-content toasts can cross this boundary; anything richer stays with the embed.
+   */
+  notify?: (notification: GwEmbedNotification) => void;
   /** Host hook: embed gave up. */
   onFatal?: (err: GwEmbedFatalError) => void;
   /**
@@ -69,4 +77,20 @@ export interface GwEmbedFatalError {
 
 export interface GwEmbedHandle {
   unmount(): void;
+}
+
+/** Severity of a notification handed to the host, mapped from the embed's toast levels. */
+export type GwEmbedNotificationLevel = 'success' | 'error' | 'warning' | 'info';
+
+/** One notification for GwHostContext.notify. */
+export interface GwEmbedNotification {
+  level: GwEmbedNotificationLevel;
+  /** Plain text; the host renders it with its own components. */
+  message: string;
+  /** Optional secondary line. */
+  description?: string;
+  /** Stable id for this notification, unique within the mount. */
+  id: string;
+  /** Requested lifetime in ms, if the caller asked for one. The host may ignore it. */
+  durationMs?: number;
 }

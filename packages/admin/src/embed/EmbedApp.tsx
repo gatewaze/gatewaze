@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { lazy, useEffect, useMemo } from 'react';
 import { createBrowserRouter, RouterProvider } from 'react-router';
 
 import { AuthProvider } from '@/app/contexts/auth/Provider';
@@ -8,9 +8,28 @@ import { ThemeProvider } from '@/app/contexts/theme/Provider';
 import { RadixThemeBridge } from '@/app/contexts/theme/RadixThemeBridge';
 import { moduleAdminRoutes, moduleRoutes } from '@/app/router/moduleRoutes';
 
+import { Loadable } from '@/components/shared/Loadable';
+
 import { EmbedErrorBoundary } from './EmbedErrorBoundary';
 import { EmbedModulesProvider } from './EmbedModulesProvider';
 import type { GwHostContext } from './types';
+
+/**
+ * The standalone app mounts these once in the Root layout (app/layouts/Root.tsx), which the embed
+ * deliberately does not use — Root also owns a splash screen, scroll restoration and a progress
+ * bar, all of which belong to the host in an embed.
+ *
+ * Their absence was not cosmetic: `toast()` calls throughout the modules resolve against whichever
+ * sonner Toaster is mounted, so with none mounted every toast was silently dropped. The
+ * copy-to-clipboard confirmations on the Substack and Beehiiv actions are the visible case — the
+ * copy itself worked, the feedback never appeared. Tooltip is the same story for `[data-tooltip]`
+ * anchors.
+ *
+ * Both render inline (no portal of their own), so they land inside the mount element and the
+ * contained stylesheet reaches them without further help.
+ */
+const Toaster = Loadable(lazy(() => import('@/components/template/Toaster')));
+const Tooltip = Loadable(lazy(() => import('@/components/template/Tooltip')));
 
 /**
  * Navigation contract (spec): the embed router owns pushState/popstate
@@ -59,6 +78,8 @@ export function EmbedApp({ ctx, container }: { ctx: GwHostContext; container: HT
               <BreakpointProvider container={container}>
                 <SidebarProvider container={container}>
                   <RouterProvider router={router} />
+                  <Tooltip />
+                  <Toaster />
                 </SidebarProvider>
               </BreakpointProvider>
             </RadixThemeBridge>
