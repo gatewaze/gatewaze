@@ -74,6 +74,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       if (!opts?.background) setStatus({ phase: 'bootstrapping' });
       registry().wireOutboxKinds();
 
+      // The composer's cycling openers, from the last session. Restored here
+      // so the field is already prompting on the first frame rather than
+      // waiting for the coach greeting to come back over the network.
+      void import('../coachPrompts').then((m) => m.loadCoachPrompts());
+
       // Offline-tolerant: paint from persisted entitlement first.
       if (!entitlementRef.current) {
         entitlementRef.current = await entitlement().loadPersistedEntitlement();

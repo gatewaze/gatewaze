@@ -237,6 +237,18 @@ export const layout = {
   headerSolidFraction: 1 / 3,
   headerPaddingH: 22,
   headerFadeStops: [0.97, 0.85, 0] as const,
+  /**
+   * Apple's Human Interface Guidelines put the minimum tappable target at
+   * 44x44pt. The composer's controls were 36pt circles and 30pt pills, which
+   * are comfortably under it and were being missed.
+   */
+  tapTarget: 44,
+  /**
+   * The mode pills are shorter than the full target because they sit in a
+   * track that adds its own padding, and they carry hitSlop to make up the
+   * difference. Their visible height plus the track's padding clears 44.
+   */
+  modePillHeight: 38,
   /** Gap between the composer and the screen edges. */
   composerMargin: 12,
   /**

@@ -70,10 +70,17 @@ export function DesignIcon({
       ) : null}
 
       {name === 'camera' ? (
+        // A camera: body, viewfinder hump, lens. What was here before was a
+        // rectangle with a circle and a diagonal, which is the picture/image
+        // mark — it had simply been given the wrong name, so every caller
+        // asking for a camera got a photo icon.
         <>
-          <Rect x={3} y={4} width={18} height={16} rx={3} strokeWidth={2} {...common} />
-          <Circle cx={9} cy={10} r={2} strokeWidth={2} {...common} />
-          <Path d="M21 16l-5-5-9 9" strokeWidth={2} {...common} />
+          <Path
+            d="M7.4 7.2l1.5-2.4A1.2 1.2 0 0 1 10 4.2h4a1.2 1.2 0 0 1 1.1.6l1.5 2.4H20a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9.2a2 2 0 0 1 2-2h3.4z"
+            strokeWidth={2}
+            {...common}
+          />
+          <Circle cx={12} cy={13.2} r={3.3} strokeWidth={2} {...common} />
         </>
       ) : null}
 

@@ -146,6 +146,42 @@ function PendingDots() {
   );
 }
 
+/**
+ * A selectable chip. Unlike SuggestionChip, which is a one-shot action in a
+ * thread, this one holds a state: it is used for multi-select sets like a
+ * day's triggers, and for single-select ranges like a chart window.
+ */
+export function Chip({
+  label,
+  selected = false,
+  onPress,
+}: {
+  label: string;
+  selected?: boolean;
+  onPress: () => void;
+}) {
+  const theme = useTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      style={({ pressed }) => [
+        styles.chip,
+        {
+          borderColor: selected ? theme.accent : theme.controlBorder,
+          backgroundColor: selected ? theme.accentSoft : theme.controlFill,
+          opacity: pressed ? 0.7 : 1,
+        },
+      ]}
+    >
+      <Text style={[type.button, { color: selected ? theme.accent : theme.textSecondary }]}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
 export function SuggestionChip({ label, onPress }: { label: string; onPress: () => void }) {
   const theme = useTheme();
   return (

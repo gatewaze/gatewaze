@@ -1,71 +1,51 @@
 /**
- * The ground the composer sits on. Two strips, above it and below it.
+ * The ground the composer sits on.
  *
- * Content scrolling toward the composer dissolves into the app's ground over
- * `COMPOSER_FADE_HEIGHT` instead of running underneath it. Below the panel
- * there is the margin that clears the home indicator, and content was showing
- * through that: it faded out above the composer and then reappeared beneath
- * it. The second strip is flat, at the colour the gradient ends on, so the
- * fade carries on past the panel instead of stopping at it.
+ * One gradient filling the composer's area, drawn UNDERNEATH the panel. It is
+ * fully transparent at the panel's top edge and nearly opaque by the bottom of
+ * the screen, so content carries on behind the glass and dissolves on the way
+ * down instead of ending on a line.
  *
- * Neither strip covers the panel itself, and that is the point. An earlier
- * version wrapped the panel in the gradient, which put a 97% opaque backdrop
- * on the glass and stopped it reading as glass. The thread showing faintly
- * through the panel is what makes it look like glass; the strips only deal
- * with the content that would otherwise be fully legible around it.
+ * Three things this is deliberately not, each of which was tried:
+ *
+ *   Above the panel. Dissolving content over a strip before it reached the
+ *   composer hid rows the member was still reading.
+ *
+ *   A flat fill. It hid content behind the panel completely, which is a hard
+ *   cutoff at the panel's top edge and wastes the glass.
+ *
+ *   Nothing at all below the panel. Content stayed fully legible in the margin
+ *   under the composer, so it faded out and then came back.
  */
 
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme, layout } from '../theme/tokens';
 import { withAlpha } from './primitives';
 
-/** Tall enough to dissolve a line of text, short enough not to eat the view. */
-export const COMPOSER_FADE_HEIGHT = 72;
-
-export function ComposerFade({ bottom = 0 }: {
-  /**
-   * Height of the flat strip under the panel. The composer passes its own
-   * bottom padding, which is the only gap content can show through.
-   */
-  bottom?: number;
-}) {
+export function ComposerFade() {
   const theme = useTheme();
-  const ground = withAlpha(theme.background, layout.composerFadeStops[2]);
   return (
-    <>
-      <LinearGradient
-        colors={[
-          withAlpha(theme.background, layout.composerFadeStops[0]),
-          withAlpha(theme.background, layout.composerFadeStops[1]),
-          withAlpha(theme.background, layout.composerFadeStops[2]),
-        ]}
-        locations={[
-          layout.composerFadeLocations[0],
-          layout.composerFadeLocations[1],
-          layout.composerFadeLocations[2],
-        ]}
-        style={styles.fade}
-        pointerEvents="none"
-      />
-      {bottom > 0 ? (
-        <View
-          style={[styles.base, { height: bottom, backgroundColor: ground }]}
-          pointerEvents="none"
-        />
-      ) : null}
-    </>
+    <LinearGradient
+      colors={[
+        withAlpha(theme.background, layout.composerFadeStops[0]),
+        withAlpha(theme.background, layout.composerFadeStops[1]),
+        withAlpha(theme.background, layout.composerFadeStops[2]),
+      ]}
+      locations={[
+        layout.composerFadeLocations[0],
+        layout.composerFadeLocations[1],
+        layout.composerFadeLocations[2],
+      ]}
+      style={styles.layer}
+      pointerEvents="none"
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  fade: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: COMPOSER_FADE_HEIGHT,
-  },
-  base: { position: 'absolute', bottom: 0, left: 0, right: 0 },
+  // Spans the panel and the margin below it. The composer reserves no top
+  // padding, so the top of this layer is the top of the panel.
+  layer: { ...StyleSheet.absoluteFillObject },
 });

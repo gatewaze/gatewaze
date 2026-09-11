@@ -11,10 +11,13 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { useTheme } from '../theme/tokens';
 
-const BARS = 28;
+// More bars than the old 28, because the row now stretches to whatever width
+// it is given rather than drawing at a fixed ~165pt. At the composer's width
+// this keeps each bar slim instead of turning it into a bar chart.
+const BARS = 40;
 /** Quiet rooms still show life; a flat line means nothing is arriving. */
 const FLOOR = 0.08;
 
@@ -30,7 +33,12 @@ function levelFromMetering(db: number | undefined): number {
   return Math.max(FLOOR, Math.min(1, normalised ** 2.2));
 }
 
-export function Waveform({ metering, active }: { metering?: number; active: boolean }) {
+export function Waveform({ metering, active, style }: {
+  metering?: number;
+  active: boolean;
+  /** Pass `{ flex: 1 }` to fill the space beside a label. */
+  style?: StyleProp<ViewStyle>;
+}) {
   const theme = useTheme();
   const [bars, setBars] = useState<number[]>(() => new Array(BARS).fill(FLOOR));
   const latest = useRef(FLOOR);
@@ -52,7 +60,9 @@ export function Waveform({ metering, active }: { metering?: number; active: bool
   }, [active]);
 
   return (
-    <View style={styles.row} accessibilityLabel="Recording">
+    // No label of its own: the indicator wrapping this one names the
+    // state, and it knows whether the note is being recorded or sent.
+    <View style={[styles.row, style]}>
       {bars.map((level, i) => (
         <View
           key={i}
@@ -76,8 +86,10 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
+    gap: 2,
     height: 28,
   },
-  bar: { width: 3, borderRadius: 2 },
+  // Each bar takes an equal share of whatever width the row has, so the
+  // waveform fills the field rather than sitting in a fixed-width block.
+  bar: { flex: 1, borderRadius: 2 },
 });

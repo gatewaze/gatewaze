@@ -26,6 +26,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { Icon } from '../components/Icon';
 import { LazyThunk } from '../components/LazyThunk';
 import { AmbientBackground } from '../components/AmbientBackground';
+import { GatewazeLogo } from '../components/GatewazeLogo';
 import { SummaryDrawer, SUMMARY_WIDTH } from './SummaryDrawer';
 import { CoachBar } from './CoachBar';
 import { Button, Caps, EmptyState } from '../components/primitives';
@@ -281,7 +282,9 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
       >
         <SafeAreaView style={styles.drawer} edges={['top', 'bottom']}>
           <View style={styles.drawerHead}>
-            <Text style={[type.title, { color: theme.invert }]}>{config.appName}</Text>
+            {/* The drawer's ground is the dark `void`, so the wordmark takes
+                `invert` here, the same colour the rows use. */}
+            <GatewazeLogo height={26} color={theme.invert} />
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.navList}>
@@ -371,11 +374,14 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
               <View style={[styles.dot, { backgroundColor: theme.danger }]} />
             ) : null}
           </Pressable>
-          {/* A destination shows its name; the coach home does not, so the
-              greeting is the first thing read. */}
+          {/* A destination shows its name. The coach home has no name to show,
+              so the wordmark takes the slot rather than leaving the two
+              controls floating at the edges with a gap between them. */}
           {destination.kind === 'module' ? (
             <Text style={[type.cardTitle, { color: theme.text }]}>{title}</Text>
-          ) : null}
+          ) : (
+            <GatewazeLogo height={26} />
+          )}
           {/* Bug reporter. The screenshot-and-send flow is not built yet;
               the control is here because the design places it here. */}
           <Pressable

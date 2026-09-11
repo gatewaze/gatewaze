@@ -21,6 +21,7 @@ import {
   type TextStyle,
   type ViewStyle,
   type TextInputProps,
+  type TextProps,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Icon } from './Icon';
@@ -44,28 +45,28 @@ function useTextStyle(base: TextStyle, muted?: 'secondary' | 'muted'): TextStyle
 export function Greeting({ children, style }: { children: React.ReactNode; style?: StyleProp<TextStyle> }) {
   return <RNText style={[useTextStyle(type.greeting), style]}>{children}</RNText>;
 }
-export function Title({ children, style }: { children: React.ReactNode; style?: StyleProp<TextStyle> }) {
-  return <RNText style={[useTextStyle(type.title), style]}>{children}</RNText>;
+export function Title({ children, style, ...rest }: TextProps & { children: React.ReactNode }) {
+  return <RNText {...rest} style={[useTextStyle(type.title), style]}>{children}</RNText>;
 }
-export function CardTitle({ children, style }: { children: React.ReactNode; style?: StyleProp<TextStyle> }) {
-  return <RNText style={[useTextStyle(type.cardTitle), style]}>{children}</RNText>;
+export function CardTitle({ children, style, ...rest }: TextProps & { children: React.ReactNode }) {
+  return <RNText {...rest} style={[useTextStyle(type.cardTitle), style]}>{children}</RNText>;
 }
-export function Heading({ children, style }: { children: React.ReactNode; style?: StyleProp<TextStyle> }) {
-  return <RNText style={[useTextStyle(type.heading), style]}>{children}</RNText>;
+export function Heading({ children, style, ...rest }: TextProps & { children: React.ReactNode }) {
+  return <RNText {...rest} style={[useTextStyle(type.heading), style]}>{children}</RNText>;
 }
-export function Body({ children, style }: { children: React.ReactNode; style?: StyleProp<TextStyle> }) {
-  return <RNText style={[useTextStyle(type.body), style]}>{children}</RNText>;
+export function Body({ children, style, ...rest }: TextProps & { children: React.ReactNode }) {
+  return <RNText {...rest} style={[useTextStyle(type.body), style]}>{children}</RNText>;
 }
-export function Label({ children, style }: { children: React.ReactNode; style?: StyleProp<TextStyle> }) {
-  return <RNText style={[useTextStyle(type.label, 'secondary'), style]}>{children}</RNText>;
+export function Label({ children, style, ...rest }: TextProps & { children: React.ReactNode }) {
+  return <RNText {...rest} style={[useTextStyle(type.label, 'secondary'), style]}>{children}</RNText>;
 }
-export function Caption({ children, style }: { children: React.ReactNode; style?: StyleProp<TextStyle> }) {
-  return <RNText style={[useTextStyle(type.caption, 'muted'), style]}>{children}</RNText>;
+export function Caption({ children, style, ...rest }: TextProps & { children: React.ReactNode }) {
+  return <RNText {...rest} style={[useTextStyle(type.caption, 'muted'), style]}>{children}</RNText>;
 }
-export function Caps({ children, style }: { children: React.ReactNode; style?: StyleProp<TextStyle> }) {
+export function Caps({ children, style, ...rest }: TextProps & { children: React.ReactNode }) {
   const theme = useTheme();
   return (
-    <RNText style={[type.caps, { color: theme.sectionLabel, textTransform: 'uppercase' }, style]}>
+    <RNText {...rest} style={[type.caps, { color: theme.sectionLabel, textTransform: 'uppercase' }, style]}>
       {children}
     </RNText>
   );

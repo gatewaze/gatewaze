@@ -43,7 +43,20 @@ export async function evaluateEntitlement(
   const ctx = getModuleContext();
   const modules = allModules();
 
-  const results = await Promise.allSettled(modules.map((m) => m.available(ctx)));
+  // Called through a wrapper rather than directly. `m.available(ctx)` throws
+  // synchronously if a manifest is missing the probe, and it throws inside the
+  // map callback, so allSettled is never reached and the whole evaluation
+  // rejects: one malformed module took entitlement down for all of them, and
+  // no module ever became enabled. A module that cannot answer fails closed on
+  // its own now.
+  const results = await Promise.allSettled(
+    modules.map(async (m) => {
+      if (typeof m.available !== 'function') {
+        throw new Error(`module '${m.id}' has no available() probe`);
+      }
+      return m.available(ctx);
+    })
+  );
 
   const enabled: Record<string, boolean> = {};
   modules.forEach((m, i) => {

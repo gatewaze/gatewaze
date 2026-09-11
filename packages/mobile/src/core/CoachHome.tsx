@@ -30,6 +30,7 @@ import { coachProvider, composerModes, threadCardRenderer } from './registry';
 import { getModuleContext } from './context';
 import { ChromeInsetsProvider } from './chrome';
 import { consumeCoachHandoff } from './coachHandoff';
+import { setCoachPrompts } from './coachPrompts';
 import Animated, {
   useAnimatedStyle,
   useAnimatedKeyboard,
@@ -157,7 +158,13 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
     let alive = true;
     coach
       .greeting(getModuleContext())
-      .then((g) => alive && setGreeting(g))
+      .then((g) => {
+        if (!alive) return;
+        setGreeting(g);
+        // Publish the openers for every composer, including the ones on
+        // destinations that never load a greeting of their own.
+        if (g?.starters?.length) setCoachPrompts(g.starters);
+      })
       .catch(() => {
         /* The greeting is decoration; a failure just leaves the default. */
       });
@@ -398,9 +405,22 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
         onSend={() => void send(draft)}
         placeholder={mode?.id === 'search' ? 'Search the food database' : undefined}
         busy={busy}
-        // Development affordance: focus on mount so keyboard-avoidance can be
-        // inspected without driving the simulator by hand.
-        autoFocus={__DEV__ && process.env.EXPO_PUBLIC_DEV_FOCUS_COMPOSER === '1'}
+        /**
+         * The coach opens with a caret in the field.
+         *
+         * Nothing else on this screen says "you can type here": the composer
+         * is a dark panel with a placeholder, and a member has to guess that
+         * tapping it does something. A caret says it without a word.
+         *
+         * Only on the coach. Every other destination shows a list the member
+         * came to read, and opening the keyboard over it would be answering
+         * a question nobody asked.
+         *
+         * The cost is that the keyboard covers part of the thread on arrival.
+         * That is survivable here because the composer rides the keyboard and
+         * the thread follows it, so the newest message stays in view.
+         */
+        autoFocus
         onHeight={setComposerHeight}
         zIndex={5}
       />

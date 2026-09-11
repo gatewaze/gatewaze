@@ -14,22 +14,32 @@
  * and moves there, so there is one thread and one place a reply arrives.
  */
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
-import Animated, { useAnimatedKeyboard, useAnimatedStyle } from 'react-native-reanimated';
+import Animated, {
+  useAnimatedKeyboard,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+  Easing,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '../components/Icon';
 import { GlassPanel } from '../components/GlassPanel';
 import { ModePill } from '../components/ComposerControls';
-import { ComposerFade, COMPOSER_FADE_HEIGHT } from '../components/ComposerFade';
+import { ComposerFade } from '../components/ComposerFade';
+import { useCyclingPrompt } from './useCyclingPrompt';
+import { coachPrompts, onCoachPromptsChange } from './coachPrompts';
 import { useVoiceInput } from './useVoiceInput';
 import { VoiceButton } from './VoiceButton';
 import { VoiceIndicator } from './VoiceIndicator';
 import { composerModes } from './registry';
-import { useTheme, spacing, radius, layout, type } from '../theme/tokens';
+import { useTheme, spacing, radius, layout, motion, easing as easingToken, type } from '../theme/tokens';
 
 /** What the field says when nothing has been typed and no mode is open. */
 export const COMPOSER_PLACEHOLDER = 'Ask me anything...';
+
+const EASE = Easing.bezier(easingToken.x1, easingToken.y1, easingToken.x2, easingToken.y2);
 
 const modeKey = (m: { moduleId: string; id: string }) => `${m.moduleId}:${m.id}`;
 
@@ -72,36 +82,64 @@ export function Composer({
       onChangeDraft(draft.trim() ? `${draft.trim()} ${text}` : text),
   });
 
+  /**
+   * How far the panel sits above the bottom of the screen at rest.
+   *
+   * It has to clear two things. The home indicator is the obvious one. The
+   * other is the display's own corner curve: the panel is inset 12pt from
+   * each side, and at that x the curve has already risen about 21pt, so a
+   * smaller value has the panel's bottom corners cut off by the hardware.
+   * A device with no indicator has square enough corners not to need it.
+   */
+  const restPad = Math.max(layout.composerPadBottom, insets.bottom - spacing.md);
+
   // KeyboardAvoidingView measures the wrong frame under an ancestor
   // transform, and the drawer host applies one. Reanimated's keyboard height
   // is immune to that.
   const keyboard = useAnimatedKeyboard();
-  const shift = useAnimatedStyle(() => ({
-    transform: [{ translateY: -keyboard.height.value }],
-  }));
+  const shift = useAnimatedStyle(() => {
+    const k = keyboard.height.value;
+    // The keyboard's height already includes the safe area, and it covers the
+    // curve, so the clearance above is not needed while it is open. Giving it
+    // back keeps the panel sitting on the keyboard instead of floating over
+    // it. Done on the transform rather than by animating paddingBottom, which
+    // reanimated applies without a fresh layout pass.
+    return { transform: [{ translateY: k > 0 ? -(k - (restPad - layout.composerPadBottom)) : 0 }] };
+  });
+
+  // The openers the coach offers, which are whatever module drives it. An
+  // empty list simply means the static placeholder stands.
+  const [prompts, setPrompts] = useState<string[]>(() => coachPrompts());
+  useEffect(() => onCoachPromptsChange(setPrompts), []);
+
+  // A caller-supplied placeholder is a statement about the current mode, e.g.
+  // 'Search the food database', so it wins over the cycle.
+  const cycling = placeholder === COMPOSER_PLACEHOLDER && prompts.length > 0;
+  const prompt = useCyclingPrompt(cycling ? prompts : []);
+
+  // The adopt arrow belongs to a FINISHED sentence, and fades rather than
+  // toggling: tying it to the keystrokes made it blink on and off.
+  const arrow = useSharedValue(0);
+  useEffect(() => {
+    arrow.value = withTiming(prompt.complete ? 1 : 0, { duration: motion.quick, easing: EASE });
+  }, [prompt.complete, arrow]);
+  const arrowStyle = useAnimatedStyle(() => ({ opacity: arrow.value }));
 
   const canSend = Boolean(draft.trim()) && !busy;
 
   return (
     <Animated.View
-      style={[
-        styles.wrap,
-        // Clears the home indicator. The coach's copy used a flat 10pt and
-        // sat lower than the one on every other screen; this is the version
-        // that leaves room, applied to both.
-        { paddingBottom: insets.bottom + spacing.sm },
-        zIndex === undefined ? null : { zIndex },
-        shift,
-      ]}
+      style={[styles.wrap, { paddingBottom: restPad }, zIndex === undefined ? null : { zIndex }, shift]}
       // The composer floats over the destination's own content. Only the
       // panel should take touches, or the whole strip would swallow taps
       // meant for the list underneath it.
       pointerEvents="box-none"
       onLayout={(e) => onHeight?.(e.nativeEvent.layout.height)}
     >
-      {/* The strip below the panel is exactly the padding that clears the
-          home indicator, which is the one gap content could show through. */}
-      <ComposerFade bottom={insets.bottom + spacing.sm} />
+      {/* Fills this whole area, under the panel. Content dissolves into it on
+          the way down and is hidden from there, rather than staying legible
+          through the glass and reappearing below it. */}
+      <ComposerFade />
       {/* One radius on all four corners. Matching the bottom pair to the
           display's own curve left them much rounder than the top pair,
           which read as lopsided; an even shape looks better than a
@@ -113,17 +151,44 @@ export function Composer({
               never jumps and there is always something saying what is
               happening. */}
           {voice.state === 'idle' ? (
-            <TextInput
-              // Development affordance: focus on mount so keyboard-avoidance
-              // can be inspected without driving the simulator by hand.
-              autoFocus={autoFocus}
-              value={draft}
-              onChangeText={onChangeDraft}
-              placeholder={placeholder}
-              placeholderTextColor={theme.textMuted}
-              multiline
-              style={[type.chat, styles.input, { color: theme.text }]}
-            />
+            <View style={styles.fieldWrap}>
+              <TextInput
+                // Development affordance: focus on mount so keyboard-avoidance
+                // can be inspected without driving the simulator by hand.
+                autoFocus={autoFocus}
+                value={draft}
+                onChangeText={onChangeDraft}
+                // The cycling suggestion IS the placeholder, rather than
+                // something drawn over it. Same view, same font, same line as
+                // the text that replaces it, so adopting one cannot make the
+                // words move.
+                placeholder={cycling ? prompt.text : placeholder}
+                placeholderTextColor={theme.textMuted}
+                multiline
+                style={[type.chat, styles.input, { color: theme.text }]}
+              />
+              {/* The one thing that adopts the suggestion, at the far end of
+                  the field and well away from where a caret tap lands. The
+                  words themselves are the field's own placeholder and cannot
+                  be tapped at all, so tapping the text just puts the caret
+                  there, which is what someone typing their own question
+                  expects. */}
+              {cycling ? (
+                <Animated.View
+                  style={[styles.adopt, arrowStyle]}
+                  pointerEvents={prompt.complete ? 'auto' : 'none'}
+                >
+                  <Pressable
+                    onPress={() => onChangeDraft(prompt.full)}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Ask: ${prompt.full}`}
+                  >
+                    <Icon name="arrow-up" size={15} color={theme.textMuted} />
+                  </Pressable>
+                </Animated.View>
+              ) : null}
+            </View>
           ) : (
             <VoiceIndicator voice={voice} />
           )}
@@ -161,7 +226,7 @@ export function Composer({
             disabled={!canSend}
             style={[styles.send, { backgroundColor: theme.accent, opacity: canSend ? 1 : 0.4 }]}
           >
-            <Icon name="arrow-up" size={18} color={theme.onAccent} />
+            <Icon name="arrow-up" size={21} color={theme.onAccent} />
           </Pressable>
         </View>
       </GlassPanel>
@@ -175,15 +240,20 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    // Matches the fade's height so the gradient fills the gap above the
-    // panel exactly, with no overlap onto the glass.
-    paddingTop: COMPOSER_FADE_HEIGHT,
+    // The design's `padding: 26px 12px 10px`. The fade spans this whole area,
+    // so the top padding is the stretch where it is still nearly transparent
+    // and content above the composer stays readable.
+    paddingTop: layout.composerPadTop,
     paddingHorizontal: layout.composerMargin,
-    // paddingBottom is applied inline from the safe-area inset.
+    // paddingBottom is applied inline; it depends on the safe-area inset.
   },
   // Roomier than the original: the prompt needs air above and below.
   inputRow: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg, paddingBottom: spacing.xs },
   input: { minHeight: 40, maxHeight: 120, paddingVertical: 8 },
+  fieldWrap: {},
+  // Centred on the field, which is one line high whenever a suggestion is
+  // showing: a suggestion only appears on an empty field.
+  adopt: { position: 'absolute', right: 0, top: 0, bottom: 0, justifyContent: 'center' },
   toolbar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -199,12 +269,17 @@ const styles = StyleSheet.create({
     gap: 2,
     borderRadius: radius.full,
     borderWidth: 1,
-    padding: 3,
+    // Uniform, so the active pill sits in an even margin. Splitting this into
+    // 9 horizontal and 3 vertical gave the white pill three times more room
+    // beside it than above it, which reads as a mistake however much the end
+    // pills needed the space. 6 all round is the compromise: double the
+    // original clearance at the ends, and square.
+    padding: 6,
   },
   send: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: layout.tapTarget,
+    height: layout.tapTarget,
+    borderRadius: layout.tapTarget / 2,
     alignItems: 'center',
     justifyContent: 'center',
   },

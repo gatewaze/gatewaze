@@ -16,7 +16,7 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { Icon } from './Icon';
-import { useTheme, radius, motion, easing as easingToken } from '../theme/tokens';
+import { useTheme, radius, motion, layout, easing as easingToken } from '../theme/tokens';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -66,7 +66,7 @@ export function CircleButton({
       {busy ? (
         <ActivityIndicator size="small" color={filled ? theme.onInvert : theme.text} />
       ) : (
-        <Icon name={icon} size={16} color={filled ? theme.onInvert : theme.text} />
+        <Icon name={icon} size={19} color={filled ? theme.onInvert : theme.text} />
       )}
     </Pressable>
   );
@@ -111,6 +111,8 @@ export function ModePill({
   return (
     <AnimatedPressable
       onPress={onPress}
+      // Draws at modePillHeight, but the target reaches the HIG's 44.
+      hitSlop={{ top: 6, bottom: 6, left: 2, right: 2 }}
       style={[
         styles.pill,
         active ? styles.pillActive : null,
@@ -118,7 +120,7 @@ export function ModePill({
         pillStyle,
       ]}
     >
-      <Icon name={icon} size={15} color={active ? theme.onInvert : theme.textMuted} />
+      <Icon name={icon} size={18} color={active ? theme.onInvert : theme.textMuted} />
       <Animated.View style={[styles.pillLabel, labelStyle]}>
         <Text
           numberOfLines={1}
@@ -133,9 +135,9 @@ export function ModePill({
 
 const styles = StyleSheet.create({
   circle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: layout.tapTarget,
+    height: layout.tapTarget,
+    borderRadius: layout.tapTarget / 2,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
@@ -144,7 +146,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: radius.full,
-    height: 30,
+    height: layout.modePillHeight,
     justifyContent: 'center',
   },
   pillActive: { flex: 1 },
