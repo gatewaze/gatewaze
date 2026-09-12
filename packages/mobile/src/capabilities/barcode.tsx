@@ -49,7 +49,9 @@ export function BarcodeScannerView({
       barcodeScannerSettings={{ barcodeTypes: [...SYMBOLOGIES] }}
       onBarcodeScanned={handle}
     >
-      <ScanFrame size={200} />
+      {/* The glyph is what distinguishes this from the meal scanner,
+          which uses the same frame with nothing inside it. */}
+      <ScanFrame size={200} glyph="barcode" />
       <View style={styles.topRight}>
         <Pressable onPress={() => setTorch((t) => !t)} style={styles.torch}>
           <MaterialCommunityIcons
