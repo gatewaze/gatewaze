@@ -69,15 +69,6 @@ export {
   type AnchoredResult,
 } from './capabilities/health';
 export {
-  isAvailable as notificationsAvailable,
-  requestPermission as requestNotificationPermission,
-  hasPermission as hasNotificationPermission,
-  pushToken as notificationPushToken,
-  onNoticeTapped,
-  handOffToCoach as handNoticeToCoach,
-  type NoticePayload,
-} from './capabilities/notifications';
-export {
   pickFromLibrary,
   captureWithSystemCamera,
   normalisePhoto,
