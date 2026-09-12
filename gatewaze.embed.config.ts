@@ -19,6 +19,7 @@ const config: GatewazeConfig = {
     'host-media',
     'templates',
     'editor-ai-copilot',
+    'broadcasts',
   ],
 };
 
