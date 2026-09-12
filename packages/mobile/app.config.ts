@@ -91,7 +91,21 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   // asks for it: an app with nothing to notify about must not ship a push
   // entitlement, because App Store review asks what it is for and there would be
   // no answer.
-  if (caps.has('notifications')) {
+  //
+  // GATED ON APP_ENABLE_PUSH, and not on the capability alone. The plugin adds
+  // the aps-environment entitlement, and an archive is REJECTED when the App
+  // Store provisioning profile does not carry the Push Notifications
+  // capability:
+  //
+  //   error: Provisioning profile "Gatewaze Health App Store" doesn't include
+  //   the aps-environment entitlement.
+  //
+  // That is a change in the Apple Developer portal — enable Push Notifications
+  // on the App ID, then regenerate the profile — not a change in this file.
+  // Until somebody makes it, health-meds declaring the capability would break
+  // every release, so the switch is explicit and off. Nothing sends
+  // notifications yet, so shipping without the entitlement costs nothing.
+  if (caps.has('notifications') && process.env.APP_ENABLE_PUSH === '1') {
     plugins.push([
       'expo-notifications',
       {
