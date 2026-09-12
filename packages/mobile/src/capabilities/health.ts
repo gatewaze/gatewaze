@@ -178,7 +178,13 @@ export async function readChangedCategory(opts: {
 }
 
 /**
- * Per-day totals between two dates, deduplicated across sources by HealthKit.
+ * Per-day totals between two dates, summed across every source.
+ *
+ * NOT deduplicated, and it cannot be: a statistics query has no per-sample
+ * hook, so anything an app has written into HealthKit counts toward the
+ * total. Where a member syncs a device to HealthKit AND connects that device
+ * here directly, its contribution arrives twice. Read per source instead and
+ * drop the bundles you already receive directly.
  *
  * `timeZone` decides where a day starts and ends. Pass the one the member's
  * data is anchored to, not the device's, or a trip abroad silently reshapes
@@ -218,6 +224,53 @@ export async function readDailyTotals(opts: {
       date: formatDateInZone(new Date(r.startDate as string), opts.timeZone),
       value,
       unit: opts.unit,
+    };
+  });
+}
+
+/**
+ * The same per-day totals, split by the app that wrote them.
+ *
+ * This exists so a caller can exclude a source. HealthKit aggregates whatever
+ * is installed on the phone, so a member with the Withings app syncing to
+ * Health, who has ALSO connected Withings here directly, has those steps
+ * counted once by each route. Reading per source lets the caller drop the
+ * bundles it already receives directly and sum the rest, which is the same
+ * rule the sample path applies through `keepSample`.
+ */
+export async function readDailyTotalsBySource(opts: {
+  type: string;
+  unit: string;
+  from: Date;
+  to: Date;
+  timeZone: string;
+  statistic?: 'cumulativeSum' | 'discreteAverage' | 'discreteMin' | 'discreteMax';
+}): Promise<Array<HealthDailyTotal & { sourceBundleId: string }>> {
+  const api = native();
+  const statistic = opts.statistic ?? 'cumulativeSum';
+  const anchorDate = startOfDayInZone(opts.from, opts.timeZone);
+
+  const res = (await api.queryStatisticsCollectionForQuantitySeparateBySource(
+    opts.type as never,
+    [statistic] as never,
+    anchorDate,
+    { day: 1 } as never,
+    { filter: { startDate: opts.from, endDate: opts.to }, unit: opts.unit } as never
+  )) as unknown as Record<string, unknown>[];
+
+  return (res ?? []).map((r) => {
+    const holder = (r[statistic] ?? r.sumQuantity ?? r.averageQuantity) as
+      | Record<string, unknown>
+      | number
+      | undefined;
+    const value =
+      typeof holder === 'number' ? holder : Number((holder as Record<string, unknown>)?.quantity ?? 0);
+    const src = r.source as Record<string, unknown> | undefined;
+    return {
+      date: formatDateInZone(new Date(r.startDate as string), opts.timeZone),
+      value,
+      unit: opts.unit,
+      sourceBundleId: String(src?.bundleIdentifier ?? ''),
     };
   });
 }

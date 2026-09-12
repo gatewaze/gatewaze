@@ -55,6 +55,7 @@ export {
   readChanged as readHealthChanged,
   readChangedCategory as readHealthChangedCategory,
   readDailyTotals as readHealthDailyTotals,
+  readDailyTotalsBySource as readHealthDailyTotalsBySource,
   observe as observeHealth,
   stopObserving as stopObservingHealth,
   writeSample as writeHealthSample,
