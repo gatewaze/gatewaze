@@ -87,6 +87,21 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       },
     ]);
   }
+  // Notifications. Like HealthKit, the plugin is only added when a baked module
+  // asks for it: an app with nothing to notify about must not ship a push
+  // entitlement, because App Store review asks what it is for and there would be
+  // no answer.
+  if (caps.has('notifications')) {
+    plugins.push([
+      'expo-notifications',
+      {
+        // No custom icon or sound yet. Declared explicitly so the defaults are
+        // a decision rather than an omission.
+        enableBackgroundRemoteNotifications: false,
+      },
+    ]);
+  }
+
   if (caps.has('image-picker')) {
     plugins.push([
       'expo-image-picker',

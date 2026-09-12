@@ -62,6 +62,15 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
   const [composerHeight, setComposerHeight] = useState(0);
   /** Messages sent while the coach was mid-reply, waiting their turn. */
   const [queued, setQueued] = useState<string[]>([]);
+  /**
+   * A notice the member tapped, waiting to be shown at the end of the thread.
+   *
+   * Held rather than sent: a notice is not a message from the member, and
+   * writing one into the conversation would put words in their mouth.
+   */
+  const [pendingNotice, setPendingNotice] = useState<
+    { noticeId: string; sendId: string; payload?: unknown } | null
+  >(null);
 
   // Auto-scrolling unconditionally fought the member: any content change
   // while they were reading further up yanked them back down. Follow the
@@ -93,6 +102,13 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
     if (!coach) return;
     const handoff = consumeCoachHandoff();
     if (!handoff) return;
+    if (handoff.kind === 'notice') {
+      // A tapped notification. The prompt itself is the contributing module's
+      // thread card, so this only has to put it in the thread; the card knows
+      // how to be acknowledged and talks to its own module's API.
+      setPendingNotice(handoff.notice);
+      return;
+    }
     if (handoff.mode) selectMode(handoff.mode);
     if (handoff.text) void send(handoff.text);
   });
@@ -397,6 +413,21 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
             );
           })}
 
+          {/* A tapped notification, shown at the end of the thread as the
+              contributing module's own card. Dismissing it leaves the thread
+              as it was: a notice is something the app said, not something the
+              member did, so it does not become a message. */}
+          {pendingNotice ? (
+            <View style={styles.group}>
+              <ThreadCard
+                kind={pendingNotice.noticeId}
+                payload={pendingNotice.payload}
+                threadId={threadId}
+              />
+              <SuggestionChip label="Dismiss" onPress={() => setPendingNotice(null)} />
+            </View>
+          ) : null}
+
           {error ? <Caption style={{ color: theme.danger }}>{error}</Caption> : null}
           <Animated.View style={keyboardSpacer} />
         </Animated.ScrollView>
@@ -476,5 +507,7 @@ const styles = StyleSheet.create({
   },
   starterDot: { width: 7, height: 7, borderRadius: 4 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  // A tapped notice and its dismiss, kept together at the end of the thread.
+  group: { gap: spacing.sm, alignItems: 'flex-start' },
   spacer: { flex: 1 },
 });

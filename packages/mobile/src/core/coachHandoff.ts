@@ -15,12 +15,32 @@
  * press enough.
  */
 
-interface Handoff {
-  /** Text to send as soon as the coach is ready. Empty when only a mode. */
-  text: string;
-  /** A composer mode to open, as '<moduleId>:<id>'. */
-  mode: string | null;
-}
+/**
+ * Something left for the coach to pick up on focus.
+ *
+ * Two shapes, and they are genuinely different things rather than one thing
+ * with optional fields:
+ *
+ *   - a MESSAGE the member composed somewhere else, to be sent;
+ *   - a NOTICE the server sent them, to be acknowledged.
+ *
+ * A notice carries no text of its own. The coach renders it through the
+ * contributing module's thread card, so acknowledging a medication reminder
+ * lands on the take/skip card health-meds already has rather than on a second
+ * surface built for notifications.
+ */
+export type Handoff =
+  | {
+      kind?: 'message';
+      /** Text to send as soon as the coach is ready. Empty when only a mode. */
+      text: string;
+      /** A composer mode to open, as '<moduleId>:<id>'. */
+      mode: string | null;
+    }
+  | {
+      kind: 'notice';
+      notice: { noticeId: string; sendId: string; payload?: unknown };
+    };
 
 let pending: Handoff | null = null;
 
