@@ -47,4 +47,31 @@ config.resolver.extraNodeModules = {
   '@gatewaze/shared': path.resolve(workspaceRoot, 'packages/shared/src/types'),
 };
 
+/**
+ * Node ESM's '.js' specifiers, resolved to the '.ts' files they name.
+ *
+ * A module's SERVER code is authored as Node ESM, where a relative import must
+ * carry an explicit extension, and it writes '.js' while the file on disk is
+ * '.ts'. Mobile code in the same module legitimately shares pure logic with
+ * that server code — health-menopause's offline red-flag rules have to reach
+ * the same verdict as the server's, so there is one evaluator and both import
+ * it — and those specifiers reach Metro, which does not do the mapping and
+ * fails the bundle.
+ *
+ * Only relative specifiers ending in '.js' are retried, and only after the
+ * normal resolution has already failed, so nothing that resolves today changes.
+ */
+const upstreamResolve = config.resolver.resolveRequest;
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  const resolve = upstreamResolve ?? context.resolveRequest;
+  if (moduleName.startsWith('.') && moduleName.endsWith('.js')) {
+    try {
+      return resolve(context, moduleName, platform);
+    } catch {
+      return resolve(context, moduleName.slice(0, -'.js'.length), platform);
+    }
+  }
+  return resolve(context, moduleName, platform);
+};
+
 module.exports = config;
