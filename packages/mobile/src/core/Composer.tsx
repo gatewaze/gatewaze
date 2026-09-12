@@ -14,8 +14,8 @@
  * and moves there, so there is one thread and one place a reply arrives.
  */
 
-import React, { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Keyboard, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import Animated, {
   useAnimatedKeyboard,
   useAnimatedStyle,
@@ -125,6 +125,24 @@ export function Composer({
   }, [prompt.complete, arrow]);
   const arrowStyle = useAnimatedStyle(() => ({ opacity: arrow.value }));
 
+  /**
+   * A capture mode owns the screen, and the field must give up focus for it.
+   *
+   * The coach already calls Keyboard.dismiss() when a mode opens, and that is
+   * not enough on its own: dismissing hides the keyboard while the field
+   * stays focused, so the next tap anywhere — including on the scanner —
+   * brings it straight back up over the camera. Blur actually surrenders it.
+   *
+   * This lives here rather than in the caller because the composer owns the
+   * field, and the caller has no handle on it to blur.
+   */
+  const inputRef = useRef<TextInput>(null);
+  useEffect(() => {
+    if (activeMode === null) return;
+    inputRef.current?.blur();
+    Keyboard.dismiss();
+  }, [activeMode]);
+
   const canSend = Boolean(draft.trim()) && !busy;
 
   return (
@@ -153,9 +171,11 @@ export function Composer({
           {voice.state === 'idle' ? (
             <View style={styles.fieldWrap}>
               <TextInput
-                // Development affordance: focus on mount so keyboard-avoidance
-                // can be inspected without driving the simulator by hand.
-                autoFocus={autoFocus}
+                ref={inputRef}
+                // Never while a mode surface is up: the camera and the scanner
+                // need the whole screen, and a keyboard over them is the one
+                // thing that makes them unusable.
+                autoFocus={autoFocus && activeMode === null}
                 value={draft}
                 onChangeText={onChangeDraft}
                 // The cycling suggestion IS the placeholder, rather than
