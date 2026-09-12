@@ -13,6 +13,7 @@ import type {
   MobileComponentThunk,
   MobileCoachProvider,
   MobileDaySummaryContribution,
+  MobilePhotoKind,
 } from '@gatewaze/shared';
 import { mobileModules } from '../generated/mobile-modules';
 import deletionCopy from '../generated/deletion-copy.json';
@@ -46,6 +47,18 @@ export function daySummaryPanels(): Array<
   return mobileModules
     .flatMap((m) => (m.daySummary ?? []).map((d) => ({ ...d, moduleId: m.id })))
     .sort((a, b) => (a.order ?? 100) - (b.order ?? 100) || a.key.localeCompare(b.key));
+}
+
+/**
+ * Every photo kind the baked modules offer, in chooser order.
+ *
+ * Food sorts first by its `order`, because it is the one taken daily while a
+ * body or medication photo is occasional.
+ */
+export function photoKinds(): Array<MobilePhotoKind & { moduleId: string }> {
+  return mobileModules
+    .flatMap((m) => (m.photoKinds ?? []).map((k) => ({ ...k, moduleId: m.id })))
+    .sort((a, b) => (a.order ?? 100) - (b.order ?? 100) || a.id.localeCompare(b.id));
 }
 
 /**

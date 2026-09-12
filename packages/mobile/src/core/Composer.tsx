@@ -33,8 +33,16 @@ import { coachPrompts, onCoachPromptsChange } from './coachPrompts';
 import { useVoiceInput } from './useVoiceInput';
 import { VoiceButton } from './VoiceButton';
 import { VoiceIndicator } from './VoiceIndicator';
-import { composerModes } from './registry';
+import { composerModes, photoKinds } from './registry';
 import { useTheme, spacing, radius, layout, motion, easing as easingToken, type } from '../theme/tokens';
+
+/**
+ * The core's own camera mode key.
+ *
+ * Namespaced like a module's so it can never collide with one, but owned
+ * here: see the note by `hasCamera`.
+ */
+export const CAMERA_MODE = 'core:camera';
 
 /** What the field says when nothing has been typed and no mode is open. */
 export const COMPOSER_PLACEHOLDER = 'Ask me anything...';
@@ -75,6 +83,15 @@ export function Composer({
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const modes = composerModes(enabled);
+  /**
+   * The camera is the core's own mode, not a module's.
+   *
+   * Food, body and medication photos each belong to a different module, and
+   * no module can offer a camera that reaches the others. So the core owns
+   * one camera and the modules say what a photo can be OF, through
+   * `photoKinds`. The pill appears only when something has offered a kind.
+   */
+  const hasCamera = photoKinds().length > 0;
 
   const voice = useVoiceInput({
     useCase: 'health-coach-dictation',
@@ -228,6 +245,14 @@ export function Composer({
                 active={activeMode === null}
                 onPress={() => onSelectMode(null)}
               />
+              {hasCamera ? (
+                <ModePill
+                  icon="camera"
+                  label="Photo"
+                  active={activeMode === CAMERA_MODE}
+                  onPress={() => onSelectMode(activeMode === CAMERA_MODE ? null : CAMERA_MODE)}
+                />
+              ) : null}
               {modes.map((m) => (
                 <ModePill
                   key={modeKey(m)}

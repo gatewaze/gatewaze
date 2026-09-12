@@ -25,7 +25,8 @@ import { GlassPanel } from '../components/GlassPanel';
 import { ChatBubble, SuggestionChip } from '../components/ChatBubble';
 import { LazyThunk } from '../components/LazyThunk';
 import { Caps, Caption, Greeting, LoadingState } from '../components/primitives';
-import { Composer } from './Composer';
+import { Composer, CAMERA_MODE } from './Composer';
+import { CameraMode } from './CameraMode';
 import { coachProvider, composerModes, threadCardRenderer } from './registry';
 import { getModuleContext } from './context';
 import { ChromeInsetsProvider } from './chrome';
@@ -271,13 +272,21 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
   // tracked by the same '<moduleId>:<id>' key the registry uses.
   const modeKey = (m: { moduleId: string; id: string }) => `${m.moduleId}:${m.id}`;
   const mode = modes.find((m) => modeKey(m) === activeMode);
+  // The camera is the core's own mode rather than any module's, because the
+  // modules it serves are several and a mode belongs to one module. See the
+  // note on CAMERA_MODE.
+  const cameraOpen = activeMode === CAMERA_MODE;
 
   return (
     <Animated.View style={styles.fill}>
       {/* The content area. A mode surface (camera, scanner, search) fills
           it, so the composer below stays docked and visible — the design
           puts the camera layer above the composer, never under it. */}
-      {mode ? (
+      {cameraOpen ? (
+        <ChromeInsetsProvider top={headerHeight(insets.top)} bottom={composerHeight}>
+          <CameraMode onDismiss={() => selectMode(null)} />
+        </ChromeInsetsProvider>
+      ) : mode ? (
         <ChromeInsetsProvider top={headerHeight(insets.top)} bottom={composerHeight}>
           <LazyThunk
             key={modeKey(mode)}

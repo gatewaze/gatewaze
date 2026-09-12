@@ -67,6 +67,74 @@ export interface MobileTabContribution {
  * chat input). The core owns the composer; modules own what each mode
  * does, so the core never calls a module's API.
  */
+/**
+ * One kind of photo a module can take, offered by the core's camera.
+ *
+ * ── WHY THE CORE OWNS THE CAMERA AND MODULES ONLY DESCRIBE THE SHOT ───────
+ *
+ * Food photos belong to health-diet, body photos to whichever module owns
+ * body data, medication photos to health-meds. Each module owns the DATA, and
+ * none of them can own the INTERFACE: a module cannot reach into a sibling,
+ * and `switchMode` deliberately only moves between modes of the same module,
+ * so a food camera could never hand off to a body one.
+ *
+ * So the core draws one camera and asks "what is this a photo of", and each
+ * module contributes an answer. The useful consequence is that where a photo
+ * is STORED stops being an interface question: moving body photos to another
+ * module later moves this declaration with them and changes nothing a member
+ * sees.
+ *
+ * NOTHING HERE MAY SAVE TO THE DEVICE. A capture stays in the app's cache
+ * directory until it is uploaded. It is never written to the photo library
+ * (the app ships no media-library permission, so it could not be) and never
+ * to `Documents`, which is included in iCloud backup and is forbidden for
+ * health data by Apple's guideline 5.1.3(ii).
+ */
+export interface MobilePhotoKind {
+  /** Stable id, unique across baked modules, e.g. 'food' | 'body' | 'medication'. */
+  id: string;
+  /** Shown in the chooser, e.g. 'Food'. */
+  label: string;
+  /** Core icon name for the chooser. */
+  icon: string;
+  /** Order in the chooser (ascending). Food is first, being the frequent one. */
+  order: number;
+  /**
+   * The steps to capture, in order. One entry is a single shot; several make
+   * a sequence, e.g. front, side and back.
+   *
+   * EVERY STEP IS SKIPPABLE AND EACH UPLOADS AS IT IS TAKEN. Someone who
+   * abandons a body sequence after the front shot keeps the front shot. A set
+   * that only counted when complete would throw away the photo they did take.
+   */
+  steps: MobilePhotoStep[];
+  /**
+   * Where a captured image is handed to. Receives
+   * `{ uri, stepId, onDone, onCancel }` and talks only to its own module's
+   * API — it confirms with the member, or uploads, or both.
+   *
+   * A kind whose AI reads the photo MUST confirm before it writes. A model
+   * that misreads a dose is confident and plausible about it, and the record
+   * it would write is one a clinician may later read.
+   */
+  surface: MobileComponentThunk;
+}
+
+/** One shot within a photo kind. */
+export interface MobilePhotoStep {
+  /** Stable id passed to the surface, e.g. 'front' | 'side' | 'back'. */
+  id: string;
+  /** Shown while this step is being taken, e.g. 'Front'. */
+  label: string;
+  /** One line of guidance over the preview, e.g. 'Face the camera.' */
+  hint?: string;
+  /**
+   * Drawn over the live preview for this step: a pose silhouette, a frame, a
+   * barcode motif. Receives no props and must not take touches.
+   */
+  overlay?: MobileComponentThunk;
+}
+
 export interface MobileComposerMode {
   /** Stable id, unique across baked modules, e.g. 'photo' | 'scan'. */
   id: string;
@@ -321,6 +389,12 @@ export interface GatewazeMobileModule {
    * the union of baked modules' modes, filtered by entitlement.
    */
   composerModes?: MobileComposerMode[];
+  /**
+   * Kinds of photo this module can receive, offered by the core's one camera.
+   * See MobilePhotoKind. A build without a given module simply has one fewer
+   * thing to choose from.
+   */
+  photoKinds?: MobilePhotoKind[];
   /**
    * Renderers for rich cards this module's data appears in, keyed by card
    * kind (namespaced '<module-id>:<kind>'). The core thread surface
