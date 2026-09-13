@@ -10,6 +10,7 @@ import {
 import { SessionProvider } from '../src/core/auth/session';
 import { Icon } from '../src/components/Icon';
 import { requestOpenDrawer } from '../src/core/drawerSignal';
+import { useNoticeTaps } from '../src/core/useNoticeTaps';
 import { LoadingState, withAlpha } from '../src/components/primitives';
 import { useTheme, layout } from '../src/theme/tokens';
 
@@ -18,6 +19,11 @@ export default function RootLayout() {
   // The display face is part of the brand, so hold the first paint until
   // it is ready rather than showing the fallback and reflowing.
   const [fontsLoaded] = useFonts({ BricolageGrotesque_700Bold });
+
+  // A tapped notification becomes a pending handover the coach picks up on
+  // focus. Wired here because the tap that launches the app from cold is the
+  // one that matters most, and at that moment no module code has run.
+  useNoticeTaps();
 
   return (
     <SafeAreaProvider>

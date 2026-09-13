@@ -69,7 +69,7 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
    * writing one into the conversation would put words in their mouth.
    */
   const [pendingNotice, setPendingNotice] = useState<
-    { noticeId: string; sendId: string; payload?: unknown } | null
+    { noticeId: string; sendId: string; cardKind?: string; payload?: unknown } | null
   >(null);
 
   // Auto-scrolling unconditionally fought the member: any content change
@@ -420,8 +420,23 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
           {pendingNotice ? (
             <View style={styles.group}>
               <ThreadCard
-                kind={pendingNotice.noticeId}
-                payload={pendingNotice.payload}
+                /* The card the notice named, falling back to its own id. A
+                   medication reminder names health-meds' existing take/skip
+                   card rather than a surface built for notifications. */
+                kind={pendingNotice.cardKind ?? pendingNotice.noticeId}
+                /* `sendId` rides along in the payload because a card has to be
+                   able to say what the member did with it, and 'acted' is the
+                   only outcome that resets the cooling-off ladder. Without a
+                   way to report it, every prompt a member acted on would still
+                   count as ignored six hours later, and the app would
+                   eventually switch off the notices that were working. */
+                payload={{
+                  ...(typeof pendingNotice.payload === 'object' && pendingNotice.payload !== null
+                    ? (pendingNotice.payload as Record<string, unknown>)
+                    : {}),
+                  sendId: pendingNotice.sendId,
+                  noticeId: pendingNotice.noticeId,
+                }}
                 threadId={threadId}
               />
               <SuggestionChip label="Dismiss" onPress={() => setPendingNotice(null)} />
@@ -445,22 +460,23 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
         onSend={() => void send(draft)}
         placeholder={mode?.id === 'search' ? 'Search the food database' : undefined}
         busy={busy}
-        /**
-         * The coach opens with a caret in the field.
+        /*
+         * The coach does NOT open with a caret in the field, and this is
+         * deliberate rather than an omission.
          *
-         * Nothing else on this screen says "you can type here": the composer
-         * is a dark panel with a placeholder, and a member has to guess that
-         * tapping it does something. A caret says it without a word.
+         * It used to. The reason was discoverability: the composer was a dark
+         * panel with a static placeholder, and a member had to guess that
+         * tapping it did anything, so a caret said it without a word.
          *
-         * Only on the coach. Every other destination shows a list the member
-         * came to read, and opening the keyboard over it would be answering
-         * a question nobody asked.
+         * The cycling placeholder now says it instead, and says it better. It
+         * types out real questions the coach can answer, so it shows what to
+         * ask as well as where to ask it. With a caret in front of it the
+         * animation reads as the app typing into its own field, which is the
+         * opposite of an invitation.
          *
-         * The cost is that the keyboard covers part of the thread on arrival.
-         * That is survivable here because the composer rides the keyboard and
-         * the thread follows it, so the newest message stays in view.
+         * The keyboard also cost half the screen on arrival, covering the
+         * thread the member came back to read.
          */
-        autoFocus
         onHeight={setComposerHeight}
         zIndex={5}
       />

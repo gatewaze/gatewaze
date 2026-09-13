@@ -39,7 +39,21 @@ export type Handoff =
     }
   | {
       kind: 'notice';
-      notice: { noticeId: string; sendId: string; payload?: unknown };
+      notice: {
+        noticeId: string;
+        sendId: string;
+        /**
+         * Which thread card renders it. Usually a card belonging to the module
+         * the notice came from, and NOT always the notice's own id: a
+         * medication reminder lands on the take/skip card health-meds already
+         * has rather than on a second surface built for notifications.
+         *
+         * Absent falls back to the notice id, so a module whose card is named
+         * after its notice needs to say nothing.
+         */
+        cardKind?: string;
+        payload?: unknown;
+      };
     };
 
 let pending: Handoff | null = null;

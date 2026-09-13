@@ -33,6 +33,11 @@ import { requestCoachHandoff } from '../core/coachHandoff';
 export interface NoticePayload {
   noticeId: string;
   sendId: string;
+  /**
+   * Which thread card renders the prompt. Not always the notice's own id — a
+   * medication reminder lands on the card health-meds already has.
+   */
+  cardKind?: string;
   /** The module's own card payload, passed through untouched. */
   payload?: unknown;
 }
@@ -109,7 +114,12 @@ function toNotice(data: unknown): NoticePayload | null {
   if (!data || typeof data !== 'object') return null;
   const d = data as Record<string, unknown>;
   if (typeof d.noticeId !== 'string' || typeof d.sendId !== 'string') return null;
-  return { noticeId: d.noticeId, sendId: d.sendId, payload: d.payload };
+  return {
+    noticeId: d.noticeId,
+    sendId: d.sendId,
+    cardKind: typeof d.cardKind === 'string' ? d.cardKind : undefined,
+    payload: d.payload,
+  };
 }
 
 /**

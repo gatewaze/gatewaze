@@ -86,6 +86,7 @@ export {
 } from './capabilities/imagePicker';
 
 // Hooks + helpers
+export { appBuildNumber, appVersion, deviceTimezone } from './core/appInfo';
 export { useModuleContext, newClientRef, useCachedQuery, isApiFailure } from './hooks';
 export { useSession } from './core/auth/session';
 export { useChromeInsets, type ChromeInsets } from './core/chrome';
