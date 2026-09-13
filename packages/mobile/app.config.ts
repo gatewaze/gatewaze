@@ -91,6 +91,27 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   // asks for it: an app with nothing to notify about must not ship a push
   // entitlement, because App Store review asks what it is for and there would be
   // no answer.
+  // Notifications. Like HealthKit, added only when a baked module asks for it:
+  // an app with nothing to notify about must not ship a push entitlement,
+  // because App Store review asks what it is for and there is no answer.
+  //
+  // This was briefly behind an env flag, because the App Store provisioning
+  // profile did not carry the Push Notifications capability and every archive
+  // failed on the missing aps-environment entitlement. The App ID now has the
+  // capability and the profile has been regenerated, so the flag is gone: a
+  // build that silently omits push because an env var was unset is a worse
+  // failure than one that stops.
+  if (caps.has('notifications')) {
+    plugins.push([
+      'expo-notifications',
+      {
+        // No custom icon or sound yet. Declared explicitly so the defaults are
+        // a decision rather than an omission.
+        enableBackgroundRemoteNotifications: false,
+      },
+    ]);
+  }
+
   if (caps.has('image-picker')) {
     plugins.push([
       'expo-image-picker',
