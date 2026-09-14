@@ -7,7 +7,7 @@
  * anything about a thread, so they belong here with the other primitives.
  */
 
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, PanResponder, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -117,6 +117,24 @@ export interface PillSpec {
 export function PillTrack({ pills, style }: { pills: PillSpec[]; style?: ViewStyle | ViewStyle[] }) {
   /** Which pill the finger is over; -1 for none. Written from the gesture. */
   const held = useSharedValue(-1);
+  /**
+   * The same thing again, in React state.
+   *
+   * The swell is a transform and lives on the native thread. The SELECTED LOOK
+   * — the white fill, the expanded label, the dark glyph — is rendered, not
+   * animated, so it cannot be driven from a shared value. A drag has to change
+   * both, so the gesture writes both.
+   *
+   * Only set when it actually changes, so a drag across one pill is one
+   * re-render rather than one per touch event.
+   */
+  const [hovered, setHovered] = useState(-1);
+  const hoverRef = useRef(-1);
+  const setHover = useCallback((i: number) => {
+    if (hoverRef.current === i) return;
+    hoverRef.current = i;
+    setHovered(i);
+  }, []);
   /** x and width of each pill within the track, filled in by onLayout. */
   const rects = useRef<Array<{ x: number; w: number }>>([]);
   /**
@@ -188,23 +206,32 @@ export function PillTrack({ pills, style }: { pills: PillSpec[]; style?: ViewSty
           // if onLayout never fired, trackX would be 0 and every hit test
           // would miss, which is a whole control silently doing nothing.
           remeasure();
-          held.value = indexAt(e.nativeEvent.pageX);
+          const i = indexAt(e.nativeEvent.pageX);
+          held.value = i;
+          setHover(i);
         },
         onPanResponderMove: (e) => {
-          held.value = indexAt(e.nativeEvent.pageX);
+          const i = indexAt(e.nativeEvent.pageX);
+          held.value = i;
+          // The pill under the finger LOOKS selected as the finger crosses it.
+          // The mode itself does not change until release: opening the camera
+          // mid-drag would tear the screen away underneath the gesture.
+          setHover(i);
         },
         onPanResponderRelease: (e) => {
           const i = indexAt(e.nativeEvent.pageX);
           held.value = -1;
+          setHover(-1);
           // Lifting outside every pill selects nothing, which is how a member
           // changes their mind after touching the wrong one.
           if (i >= 0) specs.current[i]?.onPress();
         },
         onPanResponderTerminate: () => {
           held.value = -1;
+          setHover(-1);
         },
       }),
-    [held, indexAt, remeasure]
+    [held, indexAt, remeasure, setHover]
   );
 
   return (
@@ -226,7 +253,14 @@ export function PillTrack({ pills, style }: { pills: PillSpec[]; style?: ViewSty
           key={p.key}
           icon={p.icon}
           label={p.label}
-          active={p.active}
+          /*
+           * While a finger is down, the pill under it is the ONLY one that
+           * looks selected — otherwise the genuinely active pill stays white
+           * as well and two appear chosen at once, which reads as the control
+           * having lost track of itself. With no finger down, the real
+           * selection shows.
+           */
+          active={hovered >= 0 ? hovered === i : p.active}
           held={held}
           index={i}
           onLayout={(x, w) => {
