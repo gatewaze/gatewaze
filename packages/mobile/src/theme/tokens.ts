@@ -117,7 +117,12 @@ export const darkColors: Palette = {
   // 0.82 keeps the dark text at about 12:1 against the app background, well
   // clear of the 4.5:1 body-text minimum, with room to spare for the brighter
   // patches of the ambient field drifting underneath.
-  bubbleCoach: 'rgba(255,255,255,0.82)',
+  // 0.62 after the operator called 0.82 "still a little too bold". The dark
+  // ink stays ~9:1 against the dark ground and HIGHER over bright mesh patches
+  // (a lighter composite behind dark text raises contrast), so the readable
+  // floor is nowhere near. The crisp full-white border stays: soft fill with a
+  // crisp edge reads as glass.
+  bubbleCoach: 'rgba(255,255,255,0.62)',
   bubbleBorderMember: 'rgba(255,255,255,0.55)',
   bubbleBorderCoach: '#ffffff',
   bubbleGlowCoach: 'rgba(255,255,255,0.22)',
