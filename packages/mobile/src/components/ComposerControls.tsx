@@ -10,6 +10,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, PanResponder, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import Animated, {
+  ReduceMotion,
   useSharedValue,
   useAnimatedStyle,
   useDerivedValue,
@@ -307,7 +308,7 @@ export function ModePill({
    * halfway is ordinary instead of a jump.
    */
   const swell = useDerivedValue(() =>
-    withSpring(held.value === index ? 1 : 0, { damping: 18, stiffness: 320, mass: 0.6 })
+    withSpring(held.value === index ? 1 : 0, { damping: 18, stiffness: 320, mass: 0.6, reduceMotion: ReduceMotion.Never })
   );
 
   useEffect(() => {

@@ -601,7 +601,9 @@ const styles = StyleSheet.create({
   },
   fill: { flex: 1 },
   centered: { alignItems: 'center', justifyContent: 'center' },
-  thread: { padding: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.md },
+  // gap moved md → lg: the thread read as one dense column, and a
+  // conversation needs air between turns more than it needs density.
+  thread: { padding: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.lg },
   intro: { paddingTop: spacing.xl, gap: spacing.sm },
   subtitle: { fontStyle: 'italic' },
   starters: { marginTop: spacing.xl, gap: spacing.sm, alignItems: 'flex-start' },

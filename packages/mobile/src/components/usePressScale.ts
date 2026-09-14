@@ -34,6 +34,7 @@
 
 import { useCallback } from 'react';
 import {
+  ReduceMotion,
   useSharedValue,
   useAnimatedStyle,
   withSpring,
@@ -46,6 +47,18 @@ export const PRESS_SPRING = {
   stiffness: 320,
   mass: 0.6,
   overshootClamping: false,
+  /**
+   * Runs even with the system's Reduce Motion enabled — deliberately.
+   *
+   * Reanimated honours Reduce Motion by default, which makes springs JUMP to
+   * their end state. A 6% press-scale that jumps is imperceptible, so on any
+   * phone with the setting on (the operator's included) every button appeared
+   * to have lost its press behaviour entirely. Press feedback is FUNCTIONAL —
+   * it tells the finger it landed — and Apple's own controls keep theirs under
+   * Reduce Motion. Decorative motion (the ambient mesh drift) still honours
+   * the setting; this is the line between the two.
+   */
+  reduceMotion: ReduceMotion.Never,
 } as const;
 
 export interface PressScale {

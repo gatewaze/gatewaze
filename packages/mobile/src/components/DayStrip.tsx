@@ -42,7 +42,10 @@ export function DayStrip({
         return (
           <Pressable
             key={d.key}
-            style={[styles.day, d.disabled && { opacity: 0.3 }]}
+            /* 0.5, up from 0.3: at 0.3 the future dates were nearly unreadable
+               rather than merely unavailable. The dim needs to say "not yet",
+               not "not there". */
+            style={[styles.day, d.disabled && { opacity: 0.5 }]}
             onPress={onSelect && !d.disabled ? () => onSelect(d.key) : undefined}
           >
             <Text style={styles.label}>{d.label}</Text>

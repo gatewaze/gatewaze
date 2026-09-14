@@ -10,6 +10,7 @@
 import React, { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, {
+  ReduceMotion,
   useSharedValue,
   useAnimatedStyle,
   withRepeat,
@@ -155,14 +156,19 @@ function WaveDot({ delay, color }: { delay: number; color: string }) {
       delay,
       withRepeat(
         withSequence(
-          withTiming(1, { duration: 260, easing: Easing.out(Easing.quad) }),
-          withTiming(0, { duration: 340, easing: Easing.in(Easing.quad) }),
+          withTiming(1, { duration: 260, easing: Easing.out(Easing.quad), reduceMotion: ReduceMotion.Never }),
+          withTiming(0, { duration: 340, easing: Easing.in(Easing.quad), reduceMotion: ReduceMotion.Never }),
           // The rest between sweeps. Long enough that the wave is an event
           // with a beginning, not a permanent shimmer.
-          withTiming(0, { duration: 520 })
+          withTiming(0, { duration: 520, reduceMotion: ReduceMotion.Never })
         ),
         -1,
-        false
+        false,
+        undefined,
+        // A frozen typing indicator reads as the coach having died mid-reply.
+        // The wave is small and communicates live progress, so it runs under
+        // Reduce Motion, like the system's own typing indicators.
+        ReduceMotion.Never
       )
     );
   }, [delay, lift]);
