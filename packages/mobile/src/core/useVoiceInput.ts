@@ -22,7 +22,7 @@ import {
 } from 'expo-audio';
 import { getModuleContext } from './context';
 import { humanMessage } from './errors';
-import { onDeviceAvailable, requestSpeechPermission, transcribeFile } from '../capabilities/speech';
+
 
 export type VoiceState = 'idle' | 'recording' | 'uploading';
 
@@ -136,42 +136,19 @@ export function useVoiceInput({
       if (!uri) throw new Error('Nothing was recorded.');
 
       /**
-       * On-device first, the server second — recognising the FILE, never the
-       * live microphone.
+       * Straight to the upload. On-device recognition is NOT called here.
        *
-       * The first version listened live alongside the recorder and crashed
-       * the app on a real iPhone at the first press of the mic: two captures
-       * of one microphone raise a native AVAudioEngine exception that no
-       * catch in here can reach. The simulator never crashed because it
-       * reports no on-device support, so the live path never ran there — a
-       * capability that only executes on hardware has to be treated as broken
-       * until a device has run it.
+       * It was, twice, and both attempts crashed the app on a real iPhone
+       * inside expo-speech-recognition's native code — first the live
+       * recogniser fighting the recorder for the microphone, then the
+       * file-based path at stop. Both crashes were invisible in the
+       * simulator, which reports no on-device support and so never runs a
+       * line of it.
        *
-       * The recorder is now the only thing that ever touches the microphone,
-       * and recognition runs on the file it produced, after it has stopped.
-       * Apple's on-device model is also weaker on proper nouns than the
-       * server model, and exercise and medicine names are mostly proper
-       * nouns, so anything it cannot make out falls through to the upload
-       * rather than being accepted as the answer. The permission is asked at
-       * first use, not at launch.
+       * capabilities/speech.ts is kept, unreferenced, for when a device
+       * crash log can say what actually failed. Until then a mic that works
+       * over the network beats a faster one that takes the app down.
        */
-      try {
-        if (await onDeviceAvailable()) {
-          if (await requestSpeechPermission()) {
-            const heard = await transcribeFile(uri);
-            if (heard.ok && heard.text) {
-              onTranscript(heard.text);
-              setPending(null);
-              setError(null);
-              return;
-            }
-          }
-        }
-      } catch {
-        // Any surprise from the native side means the upload path, not a
-        // broken mic. Speech is an optimisation and must never cost the note.
-      }
-
       await upload(uri);
     } catch (err) {
       // Same trap as the coach's send had: a raw Error message always won, so
