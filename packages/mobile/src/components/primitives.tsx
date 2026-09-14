@@ -26,10 +26,38 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Icon } from './Icon';
 import { usePressScale } from './usePressScale';
-import Animated from 'react-native-reanimated';
+import Animated, { FadeInDown, LinearTransition, ReduceMotion } from 'react-native-reanimated';
 
 /** Pressable that can take an animated style. */
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+/**
+ * The app-wide "state changed" motion. Anything whose size or position
+ * changes in place — a card growing an edit form, a row appearing — glides
+ * there instead of jumping. One curve everywhere, so the app moves as one
+ * thing. Opted out of Reduce Motion for the same reason the press-scale is:
+ * this is feedback about what just happened, not decoration, and with the
+ * setting on it would jump exactly as before.
+ */
+export const STATE_CHANGE = LinearTransition.duration(220).reduceMotion(ReduceMotion.Never);
+
+/**
+ * Kit wrapper for "this block just appeared": fades and settles downward.
+ * Module code cannot import reanimated directly (the dependency allowlist),
+ * so revealed state — an edit form expanding, an option row arriving — goes
+ * through this instead. Same Reduce Motion stance as STATE_CHANGE.
+ */
+export function Reveal({ children, style }: { children: React.ReactNode; style?: StyleProp<ViewStyle> }) {
+  return (
+    <Animated.View
+      entering={FadeInDown.duration(200).reduceMotion(ReduceMotion.Never)}
+      layout={STATE_CHANGE}
+      style={style}
+    >
+      {children}
+    </Animated.View>
+  );
+}
 import { GlassPanel } from './GlassPanel';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { useChromeInsets } from '../core/chrome';
@@ -185,10 +213,13 @@ export function Card({
       {inner}
     </View>
   );
-  if (!onPress) return body;
+  // Every card glides when its content grows or shrinks — expanding an edit
+  // form, a row arriving — rather than snapping to the new size.
+  const animated = <Animated.View layout={STATE_CHANGE}>{body}</Animated.View>;
+  if (!onPress) return animated;
   return (
     <Pressable onPress={onPress} style={({ pressed }) => (pressed ? styles.pressed : undefined)}>
-      {body}
+      {animated}
     </Pressable>
   );
 }

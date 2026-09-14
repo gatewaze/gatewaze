@@ -27,6 +27,8 @@ export {
   ProgressBar,
   EmptyState,
   LoadingState,
+  STATE_CHANGE,
+  Reveal,
 } from './components/primitives';
 export { Icon } from './components/Icon';
 export { GlassPanel } from './components/GlassPanel';

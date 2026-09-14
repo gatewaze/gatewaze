@@ -39,7 +39,10 @@ export function ComposerFade() {
 }
 
 const styles = StyleSheet.create({
-  // Spans the panel and the margin below it. The composer reserves no top
-  // padding, so the top of this layer is the top of the panel.
-  layer: { ...StyleSheet.absoluteFillObject },
+  // Spans the panel and the margin below it, PLUS a fixed reach above the
+  // panel (layout.composerFadeReach) so the gradient's climb distance no
+  // longer depends on how tall the composer happens to be — the collapsed
+  // launcher compressed the whole curve into its own short height, which
+  // looked like a hard band on every non-coach screen.
+  layer: { ...StyleSheet.absoluteFillObject, top: -layout.composerFadeReach },
 });

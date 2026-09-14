@@ -357,6 +357,15 @@ export const layout = {
    */
   composerFadeStops: [0, 0.25, 0.7, 0.95] as const,
   composerFadeLocations: [0, 0.3, 0.62, 1] as const,
+  /**
+   * How far above the composer panel the bottom fade begins. The fade layer
+   * used to be exactly the panel's height, which made its softness depend on
+   * what the panel held: the coach's full composer spread the gradient over
+   * ~130pt while the collapsed launcher on other screens compressed the same
+   * stops into ~60pt — the "harsh" band. A fixed reach makes every screen's
+   * bottom fade climb over the same distance.
+   */
+  composerFadeReach: 64,
 };
 
 /**

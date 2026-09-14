@@ -38,6 +38,8 @@ import { hasPendingHandoff } from './coachHandoff';
 import { ChromeInsetsProvider } from './chrome';
 import { useSession } from './auth/session';
 import { CoachHome } from './CoachHome';
+import { BugReportSheet } from './BugReport';
+import { captureScreen } from 'react-native-view-shot';
 import { config } from './config';
 import {
   useTheme,
@@ -95,7 +97,12 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
   const [open, setOpen] = useState(
     __DEV__ && process.env.EXPO_PUBLIC_DEV_OPEN_DRAWER === '1'
   );
-  const [bugNotice, setBugNotice] = useState(false);
+  // The screenshot is taken BEFORE the sheet opens, so the report shows the
+  // screen the member was looking at, not the report form. null = capture
+  // failed (dev build without the native module, or the OS refused) — the
+  // sheet still opens, just without an attachment.
+  const [bugShot, setBugShot] = useState<string | null>(null);
+  const [bugOpen, setBugOpen] = useState(false);
   // Measured, not assumed: the bar's height depends on the mode track, which
   // depends on which modules the member has.
   const [coachBarHeight, setCoachBarHeight] = useState(0);
@@ -402,13 +409,22 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
           ) : (
             <GatewazeLogo height={26} />
           )}
-          {/* Bug reporter. The screenshot-and-send flow is not built yet;
-              the control is here because the design places it here. */}
           <GlassCircleButton
             icon="bug"
             iconSize={17}
             color={theme.textSecondary}
-            onPress={() => setBugNotice(true)}
+            onPress={() => {
+              void (async () => {
+                let shot: string | null = null;
+                try {
+                  shot = await captureScreen({ format: 'jpg', quality: 0.6, result: 'base64' });
+                } catch {
+                  // No native module (dev) or capture refused — report without it.
+                }
+                setBugShot(shot);
+                setBugOpen(true);
+              })();
+            }}
             accessibilityLabel="Report a problem"
           />
         </LinearGradient>
@@ -443,6 +459,14 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
 
         {open ? (
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setOpen(false)} />
+        ) : null}
+
+        {bugOpen ? (
+          <BugReportSheet
+            shotBase64={bugShot}
+            route={destination.kind === 'coach' ? 'coach' : `${destination.moduleId}:${destination.entryId}`}
+            onClose={() => { setBugOpen(false); setBugShot(null); }}
+          />
         ) : null}
       </Animated.View>
     </View>
