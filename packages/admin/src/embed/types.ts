@@ -29,6 +29,18 @@ export interface GwHostContext {
    */
   enabled: { moduleIds: string[]; features: string[] };
   signIn: { lfidStartUrl: string; returnUrl: string };
+  /**
+   * Resolves the newsletter template collection to publish with, as a
+   * `newsletters_template_collections.slug`.
+   *
+   * A function, not a value: the host's scope changes without the embed remounting, so anything
+   * captured at mount would be wrong for the rest of the session. Called on demand.
+   *
+   * Treated as a preference, not an instruction — an edition that already names its own collection
+   * keeps it, and a slug this tenant has no collection for falls back to the default rather than
+   * failing.
+   */
+  resolveTemplateCollection?: () => string;
   /** Session isolation; embed defaults to 'host_embed' if omitted. */
   storageKeySuffix?: string;
   /**
