@@ -385,6 +385,20 @@ export interface MobileDaySummaryContribution {
 export interface GatewazeMobileModule {
   /** Module id — must match the module's manifest id. */
   id: string;
+  /**
+   * This module's colour in the coach thread.
+   *
+   * The thread is one conversation carrying cards from several modules — a
+   * meal, a workout, a medication reminder — and with nothing to tell them
+   * apart it reads as a single undifferentiated column. A module's cards take
+   * a hairline of this colour, so which part of the app is speaking is
+   * legible before a word is read.
+   *
+   * A hairline and not a fill, deliberately. Filling each card in its module's
+   * colour turns a thread into a chart, and the words are the thing being
+   * read. Modules that set nothing simply get the core's own accent.
+   */
+  color?: string;
   /** Bottom tabs this module contributes (shown only when `available` passes). */
   tabs?: MobileTabContribution[];
   /** Pushable screens (`/m/<module>/<name>`). */

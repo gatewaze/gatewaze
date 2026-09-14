@@ -111,6 +111,24 @@ export function composerModes(
 }
 
 /** Renderer for a rich card kind, or undefined for the fallback card. */
+/**
+ * The colour a module's cards are marked with in the thread.
+ *
+ * Cards are registered by KIND, namespaced '<moduleId>:<kind>', so the module
+ * is recoverable from the kind without the card having to declare it. Returns
+ * undefined for an unknown module, and the caller falls back to the core's
+ * accent rather than inventing one.
+ */
+export function moduleColor(moduleId: string): string | undefined {
+  return mobileModules.find((m) => m.id === moduleId)?.color;
+}
+
+/** The module a namespaced card kind belongs to, e.g. 'health-diet:food'. */
+export function moduleOfKind(kind: string): string | undefined {
+  const at = kind.indexOf(':');
+  return at > 0 ? kind.slice(0, at) : undefined;
+}
+
 export function threadCardRenderer(kind: string): MobileComponentThunk | undefined {
   for (const mod of mobileModules) {
     const renderer = mod.threadCards?.[kind];

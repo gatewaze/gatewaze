@@ -27,7 +27,7 @@ import { LazyThunk } from '../components/LazyThunk';
 import { Caps, Caption, Greeting, LoadingState } from '../components/primitives';
 import { Composer, CAMERA_MODE } from './Composer';
 import { CameraMode } from './CameraMode';
-import { coachProvider, composerModes, threadCardRenderer } from './registry';
+import { coachProvider, composerModes, moduleColor, moduleOfKind, threadCardRenderer } from './registry';
 import { getModuleContext } from './context';
 import { ChromeInsetsProvider } from './chrome';
 import { consumeCoachHandoff } from './coachHandoff';
@@ -539,7 +539,25 @@ function ThreadCard({
   payload: unknown;
   threadId?: string;
 }) {
+  const theme = useTheme();
   const renderer = useMemo(() => threadCardRenderer(kind), [kind]);
+  /**
+   * The hairline that says which part of the app is speaking.
+   *
+   * The thread carries cards from several modules — a meal, a workout, a
+   * medication reminder — and with nothing to tell them apart it reads as one
+   * undifferentiated column. The module is recovered from the card's own
+   * namespaced kind, so a card does not have to declare it.
+   *
+   * A hairline rather than a fill, on purpose: filling each card in its
+   * module's colour turns a conversation into a chart, and the words are the
+   * thing being read.
+   */
+  const accent = useMemo(() => {
+    const owner = moduleOfKind(kind);
+    return (owner ? moduleColor(owner) : undefined) ?? theme.accent;
+  }, [kind, theme.accent]);
+
   if (!renderer) {
     return (
       <GlassPanel style={{ padding: spacing.lg }}>
@@ -547,10 +565,22 @@ function ThreadCard({
       </GlassPanel>
     );
   }
-  return <LazyThunk thunk={renderer} props={{ payload, threadId }} />;
+  return (
+    <View style={[styles.cardAccent, { borderLeftColor: accent }]}>
+      <LazyThunk thunk={renderer} props={{ payload, threadId }} />
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
+  // Left edge only, and the radius keeps it from poking past the card's own
+  // rounded corner.
+  cardAccent: {
+    borderLeftWidth: 3,
+    borderTopLeftRadius: radius.md,
+    borderBottomLeftRadius: radius.md,
+    overflow: 'hidden',
+  },
   fill: { flex: 1 },
   centered: { alignItems: 'center', justifyContent: 'center' },
   thread: { padding: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.md },
