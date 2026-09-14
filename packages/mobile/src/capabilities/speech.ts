@@ -75,80 +75,80 @@ export async function requestSpeechPermission(): Promise<boolean> {
 }
 
 /**
- * Listen until `stop()` is called, then resolve with what was heard.
+ * Transcribe a finished recording, on the device.
  *
- * Returns a handle rather than taking a duration: the member decides when they
- * have finished speaking, exactly as they do with the recorder, and the two are
- * driven by the same button.
+ * ── WHY A FILE AND NOT THE LIVE MICROPHONE ────────────────────────────────
  *
- * `requiresOnDeviceRecognition` is set, so this never silently falls back to
- * Apple's server recognition. If it did, the audio would leave the phone
- * without anybody choosing that — which is the one property this path exists
- * to provide.
+ * The first version listened live, alongside the recorder — and crashed the
+ * app on a real iPhone the moment the mic was pressed. Two systems capturing
+ * one microphone: expo-audio's recorder holds the audio session for the
+ * waveform, and the recogniser then starts its own AVAudioEngine on the same
+ * input, which raises a NATIVE exception that no JavaScript catch can reach.
+ * The simulator never crashed because it reports no on-device support, so the
+ * live path never executed there. A capability that only runs on hardware has
+ * to be assumed broken until a device has run it.
+ *
+ * Recognising the finished FILE removes the conflict outright: the recorder is
+ * the only thing that ever touches the microphone, and recognition starts
+ * after it has stopped. It also keeps the fallback exact — the same file that
+ * was recognised is the one uploaded if recognition hears nothing.
+ *
+ * `requiresOnDeviceRecognition` stays set, so audio never reaches Apple's
+ * servers: no-connection transcription is the point, and so is the audio not
+ * leaving the phone.
  */
-export async function listen(locale = 'en-GB'): Promise<{
-  stop: () => Promise<SpeechResult>;
-  cancel: () => void;
-} | null> {
+export async function transcribeFile(uri: string, locale = 'en-GB'): Promise<SpeechResult> {
   const mod = await load();
-  if (!mod) return null;
+  if (!mod) return { ok: false, reason: 'not available in this build' };
 
   const { ExpoSpeechRecognitionModule } = mod;
-  let best = '';
-  let failed: string | null = null;
-  let settled = false;
 
-  const onResult = (event: { results?: Array<{ transcript?: string }> }) => {
-    const transcript = event?.results?.[0]?.transcript;
-    // Partial results arrive continuously; the last one is the fullest.
-    if (typeof transcript === 'string' && transcript.trim()) best = transcript.trim();
-  };
-  const onError = (event: { error?: string; message?: string }) => {
-    failed = event?.message || event?.error || 'recognition failed';
-  };
+  return new Promise<SpeechResult>((resolve) => {
+    let best = '';
+    let settled = false;
+    const subs: Array<{ remove: () => void }> = [];
 
-  const resultSub = ExpoSpeechRecognitionModule.addListener('result', onResult);
-  const errorSub = ExpoSpeechRecognitionModule.addListener('error', onError);
-
-  const cleanup = () => {
-    if (settled) return;
-    settled = true;
-    try { resultSub?.remove(); } catch { /* already gone */ }
-    try { errorSub?.remove(); } catch { /* already gone */ }
-  };
-
-  try {
-    ExpoSpeechRecognitionModule.start({
-      lang: locale,
-      interimResults: true,
-      // Never Apple's servers. See the note above.
-      requiresOnDeviceRecognition: true,
-      continuous: true,
-    });
-  } catch {
-    cleanup();
-    return null;
-  }
-
-  return {
-    async stop() {
-      try {
-        ExpoSpeechRecognitionModule.stop();
-      } catch {
-        // Stopping a session that already ended is not an error.
+    const done = (result: SpeechResult) => {
+      if (settled) return;
+      settled = true;
+      for (const s of subs) {
+        try { s.remove(); } catch { /* already gone */ }
       }
-      // The final result lands after stop(), so give it a moment before
-      // deciding there was nothing. Short enough that a member does not feel
-      // it, long enough that a finished sentence arrives.
-      await new Promise((resolve) => setTimeout(resolve, 450));
-      cleanup();
-      if (failed) return { ok: false, reason: failed };
-      if (!best) return { ok: false, reason: 'nothing heard' };
-      return { ok: true, text: best };
-    },
-    cancel() {
-      try { ExpoSpeechRecognitionModule.abort(); } catch { /* nothing running */ }
-      cleanup();
-    },
-  };
+      clearTimeout(timer);
+      resolve(result);
+    };
+
+    // A file has a length, so recognition ends on its own — but a hang here
+    // would leave the composer stuck on "uploading" forever, and the server
+    // fallback is better than a stuck composer.
+    const timer = setTimeout(() => {
+      try { ExpoSpeechRecognitionModule.abort(); } catch { /* not running */ }
+      done(best ? { ok: true, text: best } : { ok: false, reason: 'timed out' });
+    }, 20_000);
+
+    try {
+      subs.push(ExpoSpeechRecognitionModule.addListener('result', (event) => {
+        const transcript = event?.results?.[0]?.transcript;
+        if (typeof transcript === 'string' && transcript.trim()) best = transcript.trim();
+      }));
+      subs.push(ExpoSpeechRecognitionModule.addListener('error', (event) => {
+        done(best
+          ? { ok: true, text: best }
+          : { ok: false, reason: event?.message || event?.error || 'recognition failed' });
+      }));
+      subs.push(ExpoSpeechRecognitionModule.addListener('end', () => {
+        done(best ? { ok: true, text: best } : { ok: false, reason: 'nothing heard' });
+      }));
+
+      ExpoSpeechRecognitionModule.start({
+        lang: locale,
+        interimResults: true,
+        // Never Apple's servers. See the note above.
+        requiresOnDeviceRecognition: true,
+        audioSource: { uri },
+      });
+    } catch (err) {
+      done({ ok: false, reason: err instanceof Error ? err.message : 'could not start recognition' });
+    }
+  });
 }
