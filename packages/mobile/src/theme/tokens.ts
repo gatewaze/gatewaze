@@ -61,6 +61,14 @@ export interface Palette {
    * value here rather than reusing `background`, so it is kept separate.
    */
   headerScrim: string;
+  /**
+   * The colours the living background is painted from.
+   *
+   * A list rather than named tokens so a brand can change the app's whole
+   * mood by editing one array. Orbs take their colour by index and a
+   * shorter list simply repeats, so a palette of one is a valid answer.
+   */
+  ambientPalette: string[];
 }
 
 export const darkColors: Palette = {
@@ -94,6 +102,9 @@ export const darkColors: Palette = {
   controlFill: 'rgba(255,255,255,0.14)',
   controlBorder: 'rgba(255,255,255,0.16)',
   headerScrim: '#0a101c',
+  // Blue, green, violet, amber, cyan. Wider than the old three so the field
+  // has somewhere to travel between hues instead of reading as one wash.
+  ambientPalette: ['#6ea8ff', '#63d9a0', '#a98be8', '#f0b45a', '#5fc3e8'],
 };
 
 export const lightColors: Palette = {
@@ -127,6 +138,9 @@ export const lightColors: Palette = {
   controlFill: 'rgba(20,40,70,0.12)',
   controlBorder: 'rgba(20,40,70,0.14)',
   headerScrim: '#f6f8fb',
+  // Softer and a touch deeper than the dark set: on a pale ground the same
+  // hues at the same strength read as washed out rather than ambient.
+  ambientPalette: ['#4a86e8', '#35b98a', '#8b6fd4', '#e09a3c', '#3fa8d4'],
 };
 
 /** Dark is primary; the static export is what unmigrated screens import. */
