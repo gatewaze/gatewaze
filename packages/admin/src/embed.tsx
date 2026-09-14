@@ -18,6 +18,7 @@ import { configureEmbedSupabase } from '@/lib/supabase';
 import { getCompiledFeatures, getCompiledModuleIds } from './embed/compiledModules';
 import { EmbedApp } from './embed/EmbedApp';
 import { setHostNotify } from './embed/hostNotify';
+import { setHostTemplateResolver } from './embed/hostTemplate';
 import { setEmbedPortalContainer } from './embed/portalContainer';
 import { deregisterMount, tryRegisterMount } from './embed/registry';
 import { sanitizeMessage } from './embed/sanitize';
@@ -110,6 +111,7 @@ export function mount(el: HTMLElement, ctx: GwHostContext): { unmount(): void } 
     // contained to. See embed/radixThemesPortal.tsx.
     setEmbedPortalContainer(validCtx.portalContainer);
     setHostNotify(validCtx.notify);
+    setHostTemplateResolver(validCtx.resolveTemplateCollection);
 
     configureEmbedSupabase({
       url: validCtx.supabase.url,
@@ -137,6 +139,7 @@ export function mount(el: HTMLElement, ctx: GwHostContext): { unmount(): void } 
         // would keep it alive and would hand a stale container to the next mount.
         setEmbedPortalContainer(null);
         setHostNotify(null);
+        setHostTemplateResolver(null);
       },
     };
     return handle;
