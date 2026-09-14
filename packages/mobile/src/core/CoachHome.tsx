@@ -352,7 +352,19 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
           ]}
           onScroll={onScroll}
           scrollEventThrottle={16}
-          onContentSizeChange={() => followIfAtEnd(true)}
+          /**
+           * Jump, never glide. The animated scrollToEnd this used sabotaged
+           * itself: the animation's own intermediate scroll events report
+           * positions far from the bottom, onScroll read them as the member
+           * scrolling up and cleared atBottom, and when a card finished loading
+           * a moment later the follow logic thought they had scrolled away —
+           * parked partway down on every switch to the coach. An unanimated
+           * jump emits no intermediate positions, so bottom-following survives
+           * and every open lands on the newest message. Highlighting a specific
+           * message from another screen, when it exists, will be an explicit
+           * target rather than a change to this default.
+           */
+          onContentSizeChange={() => followIfAtEnd(false)}
           // "on-drag", not "interactive". Interactive dismissal drags the
           // keyboard with the finger without reporting height as it moves, so
           // the composer stayed where it was and only jumped to the bottom on

@@ -129,9 +129,26 @@ export function Composer({
   const [prompts, setPrompts] = useState<string[]>(() => coachPrompts());
   useEffect(() => onCoachPromptsChange(setPrompts), []);
 
+  /**
+   * The typewriter runs for a short opening spell, then settles.
+   *
+   * Cycling forever was reported as tiring — an interface element that never
+   * stops moving keeps claiming attention it has already been paid — and it
+   * had a bug to match: the native placeholder swap sometimes left the field
+   * blank with only the adopt arrow pulsing. So the suggestions play twice
+   * through on arrival, long enough to teach what the coach can be asked,
+   * and then the field settles to the plain static placeholder for good.
+   * A remount (next app open) starts the spell again.
+   */
+  const [settled, setSettled] = useState(false);
+  useEffect(() => {
+    const spell = setTimeout(() => setSettled(true), 24_000);
+    return () => clearTimeout(spell);
+  }, []);
+
   // A caller-supplied placeholder is a statement about the current mode, e.g.
   // 'Search the food database', so it wins over the cycle.
-  const cycling = placeholder === COMPOSER_PLACEHOLDER && prompts.length > 0;
+  const cycling = !settled && placeholder === COMPOSER_PLACEHOLDER && prompts.length > 0;
   const prompt = useCyclingPrompt(cycling ? prompts : []);
 
   // The adopt arrow belongs to a FINISHED sentence, and fades rather than

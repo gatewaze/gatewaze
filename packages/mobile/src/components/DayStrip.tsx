@@ -17,6 +17,13 @@ export interface DayStripDay {
   value?: string;
   /** Filled check instead of the value. */
   checked?: boolean;
+  /**
+   * Rendered dimmed and untappable. A paged week strip needs it for days that
+   * have not happened yet: a diary for next Thursday is not a thing, and a
+   * tappable circle that loads an empty screen reads as broken rather than as
+   * "not yet".
+   */
+  disabled?: boolean;
 }
 
 export function DayStrip({
@@ -33,7 +40,11 @@ export function DayStrip({
       {days.map((d) => {
         const selected = d.key === selectedKey;
         return (
-          <Pressable key={d.key} style={styles.day} onPress={onSelect ? () => onSelect(d.key) : undefined}>
+          <Pressable
+            key={d.key}
+            style={[styles.day, d.disabled && { opacity: 0.3 }]}
+            onPress={onSelect && !d.disabled ? () => onSelect(d.key) : undefined}
+          >
             <Text style={styles.label}>{d.label}</Text>
             <View
               style={[

@@ -73,6 +73,12 @@ interface FieldSpec {
 /**
  * Six fields, deliberately larger than the frame and hung off its edges.
  *
+ * Opacities were raised ~1.5x after the first pass shipped: on an OLED panel,
+ * under the header and composer scrims, the original values read as barely
+ * more than black and the operator could not see the background at all in the
+ * live app. These values are tuned to be plainly visible through the scrims
+ * while the thread text stays comfortably dominant.
+ *
  * A field whose whole circle is on screen reads as a disc however soft its
  * edge is. These are sized and placed so the eye only ever sees part of one,
  * which is why the result looks like weather rather than like shapes.
@@ -82,17 +88,17 @@ interface FieldSpec {
  * beats in time with itself.
  */
 const FIELDS: FieldSpec[] = [
-  { colorIndex: 0, size: 620, opacity: 0.38, left: -210, top: -240, durationMs: 11000, dx: 110, dy: 90, swellMs: 8300, swellTo: 1.18 },
-  { colorIndex: 1, size: 560, opacity: 0.30, left: FRAME_W - 300, top: FRAME_H - 380, durationMs: 14000, dx: -120, dy: -95, swellMs: 9700, swellTo: 0.84 },
-  { colorIndex: 2, size: 520, opacity: 0.32, left: -230, top: FRAME_H * 0.36, durationMs: 16000, dx: 140, dy: -80, swellMs: 12100, swellTo: 1.22 },
+  { colorIndex: 0, size: 620, opacity: 0.55, left: -210, top: -240, durationMs: 11000, dx: 110, dy: 90, swellMs: 8300, swellTo: 1.18 },
+  { colorIndex: 1, size: 560, opacity: 0.46, left: FRAME_W - 300, top: FRAME_H - 380, durationMs: 14000, dx: -120, dy: -95, swellMs: 9700, swellTo: 0.84 },
+  { colorIndex: 2, size: 520, opacity: 0.48, left: -230, top: FRAME_H * 0.36, durationMs: 16000, dx: 140, dy: -80, swellMs: 12100, swellTo: 1.22 },
   // Amber, top-right. The warm one is what stops the whole field reading as
   // cold, and it is kept weaker than the rest because warm colours advance:
   // at equal opacity it would sit in front of everything else.
-  { colorIndex: 3, size: 470, opacity: 0.22, left: FRAME_W - 210, top: -150, durationMs: 19000, dx: -95, dy: 120, swellMs: 10300, swellTo: 1.15 },
-  { colorIndex: 4, size: 500, opacity: 0.26, left: FRAME_W * 0.18, top: FRAME_H * 0.62, durationMs: 21000, dx: 90, dy: -110, swellMs: 13700, swellTo: 0.88 },
+  { colorIndex: 3, size: 470, opacity: 0.34, left: FRAME_W - 210, top: -150, durationMs: 19000, dx: -95, dy: 120, swellMs: 10300, swellTo: 1.15 },
+  { colorIndex: 4, size: 500, opacity: 0.40, left: FRAME_W * 0.18, top: FRAME_H * 0.62, durationMs: 21000, dx: 90, dy: -110, swellMs: 13700, swellTo: 0.88 },
   // A second pass of the first hue, low and slow, to tie the top and bottom
   // of the screen together.
-  { colorIndex: 0, size: 580, opacity: 0.18, left: FRAME_W * 0.30, top: FRAME_H - 200, durationMs: 26000, dx: -70, dy: -60, swellMs: 15500, swellTo: 1.12 },
+  { colorIndex: 0, size: 580, opacity: 0.28, left: FRAME_W * 0.30, top: FRAME_H - 200, durationMs: 26000, dx: -70, dy: -60, swellMs: 15500, swellTo: 1.12 },
 ];
 
 function Field({
