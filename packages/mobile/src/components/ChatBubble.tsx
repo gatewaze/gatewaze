@@ -179,7 +179,15 @@ function PendingDots() {
   return (
     <Animated.View style={styles.dots}>
       {[0, 1, 2].map((i) => (
-        <WaveDot key={i} delay={i * 140} color={theme.coach} />
+        <WaveDot
+          key={i}
+          delay={i * 140}
+          /* The bubble's own ink, not the coach accent. The dots live INSIDE
+             the coach bubble, which is white since the bubble retheme, and the
+             old coach green was near-invisible against it — the same
+             fill-vs-ink rule the bubble text itself follows. */
+          color={theme.bubbleTextCoach}
+        />
       ))}
     </Animated.View>
   );
