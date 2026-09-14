@@ -8,7 +8,7 @@
  */
 
 import React, { useEffect } from 'react';
-import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -16,6 +16,7 @@ import Animated, {
   withTiming,
   withSequence,
   Easing,
+  withDelay,
 } from 'react-native-reanimated';
 import { useTheme, bubbleRadius, radius, spacing, type, motion } from '../theme/tokens';
 
@@ -139,18 +140,46 @@ const DUB_FALL = 110;
 /** The second beat is weaker than the first, as in a real heartbeat. */
 const DUB_PEAK = 0.6;
 
+/**
+ * One dot of the typing wave.
+ *
+ * Each dot runs the SAME cycle offset by a phase delay, which is what makes
+ * three dots read as one travelling wave rather than three blinkers. The
+ * cycle is a quick rise with a slower settle and then a rest, so the wave
+ * sweeps across and pauses — the rhythm of typing, not a metronome.
+ */
+function WaveDot({ delay, color }: { delay: number; color: string }) {
+  const lift = useSharedValue(0);
+  useEffect(() => {
+    lift.value = withDelay(
+      delay,
+      withRepeat(
+        withSequence(
+          withTiming(1, { duration: 260, easing: Easing.out(Easing.quad) }),
+          withTiming(0, { duration: 340, easing: Easing.in(Easing.quad) }),
+          // The rest between sweeps. Long enough that the wave is an event
+          // with a beginning, not a permanent shimmer.
+          withTiming(0, { duration: 520 })
+        ),
+        -1,
+        false
+      )
+    );
+  }, [delay, lift]);
+  const style = useAnimatedStyle(() => ({
+    transform: [{ translateY: -lift.value * 5 }],
+    opacity: 0.45 + lift.value * 0.55,
+  }));
+  return <Animated.View style={[styles.dot, { backgroundColor: color }, style]} />;
+}
+
 /** Shown while the coach is composing a reply. */
 function PendingDots() {
   const theme = useTheme();
-  const pulse = useSharedValue(0);
-  useEffect(() => {
-    pulse.value = withRepeat(withTiming(1, { duration: 700 }), -1, true);
-  }, [pulse]);
-  const style = useAnimatedStyle(() => ({ opacity: 0.3 + pulse.value * 0.7 }));
   return (
-    <Animated.View style={[styles.dots, style]}>
+    <Animated.View style={styles.dots}>
       {[0, 1, 2].map((i) => (
-        <View key={i} style={[styles.dot, { backgroundColor: theme.coach }]} />
+        <WaveDot key={i} delay={i * 140} color={theme.coach} />
       ))}
     </Animated.View>
   );
