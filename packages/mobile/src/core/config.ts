@@ -26,6 +26,6 @@ export const config = {
   },
   /** Set by the EAS profile; used only for display. */
   get appName(): string {
-    return process.env.EXPO_PUBLIC_APP_NAME || 'Gatewaze';
+    return process.env.EXPO_PUBLIC_APP_NAME || 'HELF';
   },
 };

@@ -27,7 +27,7 @@ import { Icon } from '../components/Icon';
 import { GlassCircleButton } from '../components/GlassCircleButton';
 import { LazyThunk } from '../components/LazyThunk';
 import { AmbientBackground } from '../components/AmbientBackground';
-import { GatewazeLogo } from '../components/GatewazeLogo';
+import { HelfLogo } from '../components/HelfLogo';
 import { SummaryDrawer, SUMMARY_WIDTH } from './SummaryDrawer';
 import { CoachBar } from './CoachBar';
 import { Button, Caps, EmptyState } from '../components/primitives';
@@ -305,7 +305,7 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
           <View style={styles.drawerHead}>
             {/* The drawer's ground is the dark `void`, so the wordmark takes
                 `invert` here, the same colour the rows use. */}
-            <GatewazeLogo height={26} color={theme.invert} />
+            <HelfLogo height={24} />
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.navList}>
@@ -406,7 +406,7 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
           {destination.kind === 'module' ? (
             <Text style={[type.cardTitle, { color: theme.text }]}>{title}</Text>
           ) : (
-            <GatewazeLogo height={26} />
+            <HelfLogo height={24} />
           )}
           <GlassCircleButton
             icon="bug"

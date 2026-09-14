@@ -154,7 +154,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     version: process.env.APP_VERSION || '0.1.0',
     orientation: 'portrait',
     userInterfaceStyle: 'dark',
-    // The Gatewaze mark, on the dark ground the app uses. A brand builds
+    // The app icon, on the dark ground the app uses. A brand builds
     // its own app by pointing APP_ICON at its own 1024x1024 opaque PNG.
     icon: process.env.APP_ICON || './assets/icon.png',
     newArchEnabled: true,
