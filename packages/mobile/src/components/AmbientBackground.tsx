@@ -40,7 +40,7 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { AccessibilityInfo, Image, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -50,7 +50,6 @@ import Animated, {
 } from 'react-native-reanimated';
 import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
 import { useTheme } from '../theme/tokens';
-import { GRAIN_URI } from './grain';
 
 /** The design frame the composition below is specified against. */
 const FRAME_W = 390;
@@ -225,22 +224,10 @@ export function AmbientBackground() {
         <Field key={id} id={id} spec={spec} color={color} scale={scale} animate={animate} />
       ))}
 
-      {/*
-        The grain, over everything.
-
-        Two jobs. It is most of what makes the reference look considered rather
-        than flat, and it hides the banding that a wide soft gradient shows on
-        an OLED panel, where one hue meets the next across only a few levels of
-        colour. Tiled at its natural size and very faint: at this opacity it is
-        texture rather than noise, and it must never be visible as dots.
-      */}
-      {/* The whole layer is already pointerEvents="none"; Image has no such
-          prop of its own. */}
-      <Image
-        source={{ uri: GRAIN_URI }}
-        resizeMode="repeat"
-        style={[StyleSheet.absoluteFill, { opacity: 0.06, width: undefined, height: undefined }]}
-      />
+      {/* The grain overlay is gone by choice: at an opacity low enough to
+          never read as dots it read as nothing at all on a real panel, and
+          the operator judged the plain gradients better. grain.ts stays for
+          the day banding on OLED argues it back in. */}
     </View>
   );
 }

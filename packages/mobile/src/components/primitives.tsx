@@ -212,6 +212,7 @@ export function Button({
   disabled = false,
   loading = false,
   icon,
+  compact = false,
   style,
 }: {
   title: string;
@@ -222,6 +223,9 @@ export function Button({
   disabled?: boolean;
   loading?: boolean;
   icon?: string;
+  /** Row-of-links form: tighter padding, smaller type and icon, so three can
+   *  share one row without spilling off the screen. */
+  compact?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
   const theme = useTheme();
@@ -272,7 +276,12 @@ export function Button({
       disabled={disabled || loading}
       style={[
         styles.button,
+        compact ? styles.buttonCompact : null,
         { backgroundColor: bg, opacity: disabled ? 0.4 : held ? 0.85 : 1 },
+        // `edge` was computed and silently unused for a few builds — the
+        // dark buttons shipped without their white border. Keep it in the
+        // array, before the caller's style so a screen can still override.
+        edge,
         style,
         press.style,
       ]}
@@ -280,9 +289,9 @@ export function Button({
       {loading ? (
         <ActivityIndicator color={fg} />
       ) : (
-        <Row style={{ gap: spacing.sm }}>
-          {icon ? <Icon name={icon} size={18} color={fg} /> : null}
-          <RNText style={[type.button, { color: fg, fontSize: 15 }]}>{title}</RNText>
+        <Row style={{ gap: compact ? spacing.xs : spacing.sm }}>
+          {icon ? <Icon name={icon} size={compact ? 15 : 18} color={fg} /> : null}
+          <RNText style={[type.button, { color: fg, fontSize: compact ? 13 : 15 }]}>{title}</RNText>
         </Row>
       )}
     </AnimatedPressable>
@@ -458,6 +467,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  buttonCompact: {
+    paddingVertical: 8,
+    paddingHorizontal: spacing.sm,
   },
   input: {
     borderWidth: StyleSheet.hairlineWidth,
