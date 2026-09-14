@@ -25,6 +25,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Icon } from './Icon';
+import { usePressScale } from './usePressScale';
+import Animated from 'react-native-reanimated';
+
+/** Pressable that can take an animated style. */
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 import { GlassPanel } from './GlassPanel';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { useChromeInsets } from '../core/chrome';
@@ -230,14 +235,21 @@ export function Button({
     variant === 'primary' || variant === 'coach' ? theme.onAccent
     : variant === 'danger' ? '#fff'
     : theme.accent;
+  // Grows while held, matching the platform. The dim on press stays: on a
+  // ghost button there is no fill to see the scale against, so opacity is
+  // what actually reads there.
+  const press = usePressScale(1.03);
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={onPress}
+      onPressIn={press.onPressIn}
+      onPressOut={press.onPressOut}
       disabled={disabled || loading}
       style={({ pressed }) => [
         styles.button,
         { backgroundColor: bg, opacity: disabled ? 0.4 : pressed ? 0.85 : 1 },
         style,
+        press.style,
       ]}
     >
       {loading ? (
@@ -248,7 +260,7 @@ export function Button({
           <RNText style={[type.button, { color: fg, fontSize: 15 }]}>{title}</RNText>
         </Row>
       )}
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 

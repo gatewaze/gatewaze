@@ -50,7 +50,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
 import { useTheme } from '../theme/tokens';
-import { GRAIN_URI, GRAIN_SIZE } from './grain';
+import { GRAIN_URI } from './grain';
 
 /** The design frame the composition below is specified against. */
 const FRAME_W = 390;
@@ -199,7 +199,7 @@ export function AmbientBackground() {
 
   return (
     <View pointerEvents="none" style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]}>
-      {fields.map(({ spec, color, id }, i) => (
+      {fields.map(({ spec, color, id }) => (
         <Field key={id} id={id} spec={spec} color={color} scale={scale} animate={animate} />
       ))}
 

@@ -129,8 +129,25 @@ export function coachProvider(): (MobileCoachProvider & { moduleId: string }) | 
   return mod ? { ...(mod.coachProvider as MobileCoachProvider), moduleId: mod.id } : undefined;
 }
 
-export function allSettingsSections(): Array<MobileSettingsSection & { moduleId: string }> {
+/**
+ * Settings sections, for the modules that are actually on for this member.
+ *
+ * `enabled` is the same map the drawer is built from. Passing it is not
+ * optional in practice and the parameter is only tolerant of being omitted so
+ * that a caller with no entitlement loaded yet shows nothing rather than
+ * everything.
+ *
+ * It used to take no argument and return every baked module's section. Tabs
+ * were filtered and settings were not, so a module that was switched off
+ * server-side still contributed a panel — which then rendered its own "could
+ * not load" error, because its routes are not mounted when it is disabled. A
+ * member saw a broken setting for a feature they do not have.
+ */
+export function allSettingsSections(
+  enabled?: Record<string, boolean>
+): Array<MobileSettingsSection & { moduleId: string }> {
   return mobileModules
+    .filter((m) => (enabled ? enabled[m.id] === true : false))
     .flatMap((m) => (m.settingsSections ?? []).map((s) => ({ ...s, moduleId: m.id })))
     .sort((a, b) => (a.order ?? 100) - (b.order ?? 100));
 }

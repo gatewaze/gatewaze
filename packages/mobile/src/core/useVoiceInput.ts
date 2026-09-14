@@ -21,6 +21,7 @@ import {
   useAudioRecorder,
 } from 'expo-audio';
 import { getModuleContext } from './context';
+import { humanMessage } from './errors';
 
 export type VoiceState = 'idle' | 'recording' | 'uploading';
 
@@ -107,7 +108,10 @@ export function useVoiceInput({
       if (text) onTranscript(text);
       else setError("We couldn't hear anything in that.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'That could not be transcribed.');
+      // Same trap as the coach's send had: a raw Error message always won, so
+      // a bad connection said "Network request failed" — and nothing rendered
+      // it anyway, so it said nothing at all.
+      setError(humanMessage(err).text);
     } finally {
       setState('idle');
       setSeconds(0);

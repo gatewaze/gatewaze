@@ -22,7 +22,7 @@ import Animated, {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { withAlpha } from '../components/primitives';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, usePathname, useRouter } from 'expo-router';
 import { Icon } from '../components/Icon';
 import { LazyThunk } from '../components/LazyThunk';
 import { AmbientBackground } from '../components/AmbientBackground';
@@ -58,6 +58,20 @@ type Destination =
   | { kind: 'module'; moduleId: string; entryId: string };
 
 export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
+  /**
+   * Whether this host is the route actually on screen.
+   *
+   * A pushed screen sits above this one and draws its own menu button in the
+   * navigation header. This one stays mounted underneath, and `theme.surface`
+   * is rgba(255,255,255,0.16) — the glass look — so the button in front is
+   * mostly transparent and the one behind showed straight through it. Every
+   * pushed screen had a doubled ring around its menu button.
+   *
+   * Two controls doing the same job, one of them invisible to everything but
+   * the eye. The one underneath is the one that goes.
+   */
+  const pathname = usePathname();
+  const isVisibleRoute = pathname === '/' || pathname === '/index';
   const theme = useTheme();
   const router = useRouter();
   const { refresh } = useSession();
@@ -352,6 +366,7 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
             dissolve rather than ending on a hard edge.
             `padding: 64px 22px 18px` with a 180deg gradient at .97/.85/0,
             where the design's 64px status bar becomes the safe-area inset. */}
+        {isVisibleRoute ? (
         <LinearGradient
           colors={[
             withAlpha(theme.headerScrim, layout.headerFadeStops[0]),
@@ -392,6 +407,7 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
             <Icon name="bug" size={17} color={theme.textSecondary} />
           </Pressable>
         </LinearGradient>
+        ) : null}
 
         {/* The header floats over everything, so its height is published
             rather than padded around. A destination's Screen applies it to

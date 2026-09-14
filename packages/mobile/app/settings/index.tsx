@@ -6,6 +6,7 @@ import Constants from 'expo-constants';
 import { Caption, Card, Heading, ListItem, Screen } from '../../src/components/primitives';
 import { LazyThunk } from '../../src/components/LazyThunk';
 import { allSettingsSections } from '../../src/core/registry';
+import { loadPersistedEntitlement } from '../../src/core/entitlement';
 import { onOutboxChange, outboxCounts } from '../../src/core/outbox';
 import { useSession } from '../../src/core/auth/session';
 import { colors } from '../../src/theme/tokens';
@@ -15,6 +16,20 @@ export default function Settings() {
   const { signOut } = useSession();
   const [counts, setCounts] = useState(() => outboxCounts());
   const [deviceLockWarning, setDeviceLockWarning] = useState(false);
+  /**
+   * Which modules are on for this member. Undefined until it has been read,
+   * and sections are drawn only once it has: showing a panel for a module the
+   * member does not have, which then fails to load its own data, is worse than
+   * showing it a moment later.
+   */
+  const [enabled, setEnabled] = useState<Record<string, boolean> | undefined>(undefined);
+  useEffect(() => {
+    let alive = true;
+    void loadPersistedEntitlement()
+      .then((e) => { if (alive) setEnabled(e?.enabled ?? {}); })
+      .catch(() => { if (alive) setEnabled({}); });
+    return () => { alive = false; };
+  }, []);
 
   useEffect(() => onOutboxChange(() => setCounts(outboxCounts())), []);
 
@@ -32,7 +47,7 @@ export default function Settings() {
     })();
   }, []);
 
-  const sections = allSettingsSections();
+  const sections = allSettingsSections(enabled);
 
   return (
     <Screen>

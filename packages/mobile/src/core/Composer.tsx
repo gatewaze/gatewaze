@@ -15,7 +15,7 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Keyboard, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, {
   useAnimatedKeyboard,
   useAnimatedStyle,
@@ -26,7 +26,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '../components/Icon';
 import { GlassPanel } from '../components/GlassPanel';
-import { ModePill } from '../components/ComposerControls';
+import { PillTrack, type PillSpec } from '../components/ComposerControls';
 import { ComposerFade } from '../components/ComposerFade';
 import { useCyclingPrompt } from './useCyclingPrompt';
 import { coachPrompts, onCoachPromptsChange } from './coachPrompts';
@@ -233,36 +233,37 @@ export function Composer({
 
         <View style={styles.toolbar}>
           {modes.length > 0 ? (
-            <View
+            <PillTrack
               style={[
                 styles.track,
                 { backgroundColor: theme.controlFill, borderColor: 'rgba(255,255,255,0.12)' },
               ]}
-            >
-              <ModePill
-                icon="message-outline"
-                label="Chat"
-                active={activeMode === null}
-                onPress={() => onSelectMode(null)}
-              />
-              {hasCamera ? (
-                <ModePill
-                  icon="camera"
-                  label="Photo"
-                  active={activeMode === CAMERA_MODE}
-                  onPress={() => onSelectMode(activeMode === CAMERA_MODE ? null : CAMERA_MODE)}
-                />
-              ) : null}
-              {modes.map((m) => (
-                <ModePill
-                  key={modeKey(m)}
-                  icon={m.icon}
-                  label={m.label}
-                  active={activeMode === modeKey(m)}
-                  onPress={() => onSelectMode(activeMode === modeKey(m) ? null : modeKey(m))}
-                />
-              ))}
-            </View>
+              pills={[
+                {
+                  key: 'chat',
+                  icon: 'message-outline',
+                  label: 'Chat',
+                  active: activeMode === null,
+                  onPress: () => onSelectMode(null),
+                },
+                ...(hasCamera
+                  ? [{
+                      key: CAMERA_MODE,
+                      icon: 'camera',
+                      label: 'Photo',
+                      active: activeMode === CAMERA_MODE,
+                      onPress: () => onSelectMode(activeMode === CAMERA_MODE ? null : CAMERA_MODE),
+                    } as PillSpec]
+                  : []),
+                ...modes.map((m): PillSpec => ({
+                  key: modeKey(m),
+                  icon: m.icon,
+                  label: m.label,
+                  active: activeMode === modeKey(m),
+                  onPress: () => onSelectMode(activeMode === modeKey(m) ? null : modeKey(m)),
+                })),
+              ]}
+            />
           ) : null}
 
           <VoiceButton voice={voice} />
@@ -274,6 +275,25 @@ export function Composer({
             <Icon name="arrow-up" size={21} color={theme.onAccent} />
           </Pressable>
         </View>
+        {/*
+          The microphone's own failures, which had nowhere to go.
+      
+          `useVoiceInput` has always set `error` — a refused permission, silence,
+          a failed upload — and nothing rendered it. On a weak connection the
+          transcript simply never arrived and the app said nothing at all, which
+          is indistinguishable from the button being broken.
+        */}
+        {voice.error ? (
+          <Text
+            numberOfLines={2}
+            style={[
+              type.caption,
+              { color: theme.danger, paddingHorizontal: spacing.md, paddingBottom: spacing.sm },
+            ]}
+          >
+            {voice.error}
+          </Text>
+        ) : null}
       </GlassPanel>
     </Animated.View>
   );

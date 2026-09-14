@@ -31,6 +31,7 @@ import { coachProvider, composerModes, threadCardRenderer } from './registry';
 import { getModuleContext } from './context';
 import { ChromeInsetsProvider } from './chrome';
 import { consumeCoachHandoff } from './coachHandoff';
+import { humanMessage } from './errors';
 import { setCoachPrompts } from './coachPrompts';
 import Animated, {
   useAnimatedStyle,
@@ -58,6 +59,8 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
   const [modeProps, setModeProps] = useState<Record<string, unknown>>({});
   const [greeting, setGreeting] = useState<MobileCoachGreeting | undefined>();
   const [error, setError] = useState<string | null>(null);
+  /** The last send that failed, kept so it can be retried unchanged. */
+  const [failed, setFailed] = useState<{ text: string; alreadyShown: boolean } | null>(null);
   const scrollRef = useRef<ScrollView>(null);
   const [composerHeight, setComposerHeight] = useState(0);
   /** Messages sent while the coach was mid-reply, waiting their turn. */
@@ -214,6 +217,7 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
       const ctx = getModuleContext();
       setBusy(true);
       setError(null);
+      setFailed(null);
       setDraft('');
       setModeProps({});
       // Sending is a chat action, so leave any capture mode and show the
@@ -255,9 +259,22 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
         setMessages(updated);
       } catch (err) {
         setMessages((prev) => prev.filter((m) => !m.pending));
-        setError(
-          err instanceof Error ? err.message : 'That message could not be sent. Try again.'
-        );
+        /**
+         * The raw message is never the right thing to show.
+         *
+         * This used to read `err instanceof Error ? err.message : 'friendly'`,
+         * which looks careful and does the opposite: a real Error always wins,
+         * so the friendly text only ran for something that was not an Error at
+         * all. On one bar of LTE that put "Network request failed" under the
+         * member's own message, in red, which tells them nothing to do about it
+         * and reads like the app broke.
+         */
+        const human = humanMessage(err);
+        setError(human.text);
+        // Held so the member can try the same message again rather than
+        // retyping it. Their bubble stays in the thread, so without this it
+        // looks sent and silently is not.
+        setFailed({ text, alreadyShown: true });
       } finally {
         setBusy(false);
       }
@@ -455,7 +472,23 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
             </View>
           ) : null}
 
-          {error ? <Caption style={{ color: theme.danger }}>{error}</Caption> : null}
+          {error ? (
+            <View style={styles.group}>
+              <Caption style={{ color: theme.danger }}>{error}</Caption>
+              {/* The member's bubble is still in the thread, so without a way
+                  to send it again it looks sent and silently is not. */}
+              {failed ? (
+                <SuggestionChip
+                  label="Try again"
+                  onPress={() => {
+                    const held = failed;
+                    setFailed(null);
+                    void send(held.text, held.alreadyShown);
+                  }}
+                />
+              ) : null}
+            </View>
+          ) : null}
           <Animated.View style={keyboardSpacer} />
         </Animated.ScrollView>
       )}
