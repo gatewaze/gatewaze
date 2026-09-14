@@ -585,12 +585,18 @@ function ThreadCard({
 }
 
 const styles = StyleSheet.create({
-  // Left edge only, and the radius keeps it from poking past the card's own
-  // rounded corner.
+  /**
+   * Left edge only. The corner radius MUST equal the card's own (radius.lg):
+   * the wrapper clips with overflow hidden, so a smaller radius here shaved
+   * the card's 16pt corners with a 14pt mask and the coloured edge made its
+   * own odd corner shape beside them — the mismatched corners the operator
+   * pointed at. One radius, shared with the Card primitive, keeps the
+   * coloured edge hugging the same curve as the card it belongs to.
+   */
   cardAccent: {
     borderLeftWidth: 3,
-    borderTopLeftRadius: radius.md,
-    borderBottomLeftRadius: radius.md,
+    borderTopLeftRadius: radius.lg,
+    borderBottomLeftRadius: radius.lg,
     overflow: 'hidden',
   },
   fill: { flex: 1 },
