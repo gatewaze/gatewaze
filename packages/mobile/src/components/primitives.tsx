@@ -240,7 +240,9 @@ export function Button({
   const fg =
     variant === 'coach' ? theme.onAccent
     : variant === 'danger' ? '#fff'
-    : variant === 'ghost' ? theme.accent
+    /* Ghost text was accent-tinted, which read as lilac links scattered over
+       the brightened mesh. Ghost buttons now speak in the same white ink as
+       the filled buttons; weight and the leading icon carry tappability. */
     : theme.buttonText;
   const edge =
     variant === 'primary' || variant === 'secondary'

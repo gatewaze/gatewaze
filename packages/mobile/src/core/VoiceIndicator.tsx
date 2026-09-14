@@ -43,7 +43,7 @@ export function VoiceIndicator({ voice }: { voice: ReturnType<typeof useVoiceInp
           where a number used to be. */}
       {recording ? (
         <View style={styles.label}>
-          <Caption style={{ color: theme.accent, fontVariant: ['tabular-nums'] }}>
+          <Caption style={{ color: theme.buttonText, fontVariant: ['tabular-nums'] }}>
             {`${mm}:${ss}`}
           </Caption>
         </View>

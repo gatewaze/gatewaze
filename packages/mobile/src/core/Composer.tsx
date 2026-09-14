@@ -401,7 +401,7 @@ export function Composer({
                 again rather than making the member say it all over. */}
             {voice.canRetry ? (
               <Pressable onPress={() => void voice.retry()} hitSlop={8}>
-                <Text style={[type.caption, { color: theme.accent, fontWeight: '700' }]}>
+                <Text style={[type.caption, { color: theme.buttonText, fontWeight: '700' }]}>
                   Try sending it again
                 </Text>
               </Pressable>
