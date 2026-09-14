@@ -39,7 +39,6 @@ import { ChromeInsetsProvider } from './chrome';
 import { useSession } from './auth/session';
 import { CoachHome } from './CoachHome';
 import { BugReportSheet } from './BugReport';
-import { captureScreen } from 'react-native-view-shot';
 import { config } from './config';
 import {
   useTheme,
@@ -417,6 +416,15 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
               void (async () => {
                 let shot: string | null = null;
                 try {
+                  // Required HERE, not imported at the top: on the new
+                  // architecture the package calls TurboModuleRegistry
+                  // .getEnforcing at module load, which throws the moment a
+                  // binary without the native half (a dev build predating the
+                  // dependency) loads the JS. Deferring the require confines
+                  // the failure to this tap, where the catch turns it into
+                  // "report without a screenshot".
+                  // eslint-disable-next-line @typescript-eslint/no-require-imports
+                  const { captureScreen } = require('react-native-view-shot') as typeof import('react-native-view-shot');
                   shot = await captureScreen({ format: 'jpg', quality: 0.6, result: 'base64' });
                 } catch {
                   // No native module (dev) or capture refused — report without it.
