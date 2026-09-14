@@ -51,6 +51,9 @@ export function GlassPanel({
   }
 
   if (Platform.OS === 'ios') {
+    // Pre-26: expo-blur is the closest available material. It has no specular
+    // edge and does not respond to how the device is held — that behaviour
+    // belongs to Liquid Glass and is drawn by the system, not by us.
     return (
       <BlurView intensity={variant === 'clear' ? 20 : 40} tint="systemMaterial" style={[shape, style]}>
         {children}

@@ -95,7 +95,17 @@ export function ChatBubble({
       {pending ? (
         <PendingDots />
       ) : typeof children === 'string' ? (
-        <Text style={[type.chat, { color: theme.text }]}>{children}</Text>
+        <Text
+          style={[
+            type.chat,
+            // Per role: a filled coach bubble needs ink that reads against the
+            // fill, and an outlined member bubble needs text that reads against
+            // whatever is drifting behind it.
+            { color: isCoach ? theme.bubbleTextCoach : theme.bubbleTextMember },
+          ]}
+        >
+          {children}
+        </Text>
       ) : (
         children
       )}

@@ -119,13 +119,60 @@ export function PillTrack({ pills, style }: { pills: PillSpec[]; style?: ViewSty
   const held = useSharedValue(-1);
   /** x and width of each pill within the track, filled in by onLayout. */
   const rects = useRef<Array<{ x: number; w: number }>>([]);
+  /**
+   * The track's own left edge in window coordinates.
+   *
+   * Needed because a touch reports `locationX` RELATIVE TO THE VIEW THAT
+   * RECEIVED IT, which is whichever pill is under the finger and not the
+   * track. Every touch therefore arrived with a small x measured from the
+   * pill's own left edge, which resolved to index 0 every time: Chat swelled
+   * and nothing else could be selected at all.
+   *
+   * `pageX` is absolute, so it is the only coordinate that means the same
+   * thing wherever the touch landed. This is what it is measured against.
+   */
+  const trackX = useRef(0);
+  const trackRef = useRef<View>(null);
   /** Kept in a ref so the responder never closes over a stale render's props. */
   const specs = useRef(pills);
   specs.current = pills;
 
-  const indexAt = useCallback((x: number) => {
-    const found = rects.current.findIndex((r) => r && x >= r.x && x <= r.x + r.w);
-    return found;
+  /**
+   * Which pill is under this touch.
+   *
+   * @param pageX absolute window x of the touch.
+   *
+   * Falls back to the NEAREST pill rather than answering "none" when the touch
+   * lands in the gap between two. The track is a strip of controls with a few
+   * points of padding between them, and a finger that lands in a gap plainly
+   * meant one of the two either side of it — answering nothing there makes the
+   * control feel like it is ignoring you.
+   */
+  const indexAt = useCallback((pageX: number) => {
+    const x = pageX - trackX.current;
+    const inside = rects.current.findIndex((r) => r && x >= r.x && x <= r.x + r.w);
+    if (inside >= 0) return inside;
+
+    let best = -1;
+    let bestGap = Infinity;
+    rects.current.forEach((r, i) => {
+      if (!r) return;
+      const gap = x < r.x ? r.x - x : x - (r.x + r.w);
+      if (gap < bestGap) {
+        bestGap = gap;
+        best = i;
+      }
+    });
+    // Only if it is genuinely near the strip. A touch that misses by a long
+    // way is a miss, and selecting the end pill for it would be worse.
+    return bestGap <= 24 ? best : -1;
+  }, []);
+
+  /** Re-read the track's position. Cheap, and immune to anything having moved. */
+  const remeasure = useCallback(() => {
+    trackRef.current?.measureInWindow((x) => {
+      trackX.current = x;
+    });
   }, []);
 
   const responder = useMemo(
@@ -137,13 +184,17 @@ export function PillTrack({ pills, style }: { pills: PillSpec[]; style?: ViewSty
         onStartShouldSetPanResponder: () => true,
         onMoveShouldSetPanResponder: () => true,
         onPanResponderGrant: (e) => {
-          held.value = indexAt(e.nativeEvent.locationX);
+          // Measured again on every touch rather than trusting layout time:
+          // if onLayout never fired, trackX would be 0 and every hit test
+          // would miss, which is a whole control silently doing nothing.
+          remeasure();
+          held.value = indexAt(e.nativeEvent.pageX);
         },
         onPanResponderMove: (e) => {
-          held.value = indexAt(e.nativeEvent.locationX);
+          held.value = indexAt(e.nativeEvent.pageX);
         },
         onPanResponderRelease: (e) => {
-          const i = indexAt(e.nativeEvent.locationX);
+          const i = indexAt(e.nativeEvent.pageX);
           held.value = -1;
           // Lifting outside every pill selects nothing, which is how a member
           // changes their mind after touching the wrong one.
@@ -153,11 +204,23 @@ export function PillTrack({ pills, style }: { pills: PillSpec[]; style?: ViewSty
           held.value = -1;
         },
       }),
-    [held, indexAt]
+    [held, indexAt, remeasure]
   );
 
   return (
-    <View style={style} {...responder.panHandlers}>
+    <View
+      ref={trackRef}
+      // Measured in WINDOW coordinates, not layout ones: the track sits inside
+      // the composer's own animated transforms, so its layout x says nothing
+      // about where it actually is on screen.
+      onLayout={() => {
+        trackRef.current?.measureInWindow((x) => {
+          trackX.current = x;
+        });
+      }}
+      style={style}
+      {...responder.panHandlers}
+    >
       {pills.map((p, i) => (
         <ModePill
           key={p.key}

@@ -24,6 +24,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { withAlpha } from '../components/primitives';
 import { useFocusEffect, usePathname, useRouter } from 'expo-router';
 import { Icon } from '../components/Icon';
+import { GlassCircleButton } from '../components/GlassCircleButton';
 import { LazyThunk } from '../components/LazyThunk';
 import { AmbientBackground } from '../components/AmbientBackground';
 import { GatewazeLogo } from '../components/GatewazeLogo';
@@ -379,16 +380,20 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
             { paddingTop: insets.top + layout.headerTopGap, paddingBottom: layout.headerFadeDrop },
           ]}
         >
-          <Pressable
+          {/* Real glass, the same material the navigation bar gives its own
+              button items on iOS 26. This used to be a hand-drawn circle with a
+              flat rgba fill, which next to the system's capsule looked thin and
+              slightly too small. */}
+          <GlassCircleButton
+            icon={open ? 'close' : 'menu'}
+            iconSize={18}
             onPress={() => setOpen((o) => !o)}
-            hitSlop={12}
-            style={[styles.headerCircle, { backgroundColor: theme.surface, borderColor: theme.border }]}
+            accessibilityLabel={open ? 'Close menu' : 'Menu'}
           >
-            <Icon name={open ? 'close' : 'menu'} size={18} color={theme.text} />
             {failedCount > 0 && !open ? (
               <View style={[styles.dot, { backgroundColor: theme.danger }]} />
             ) : null}
-          </Pressable>
+          </GlassCircleButton>
           {/* A destination shows its name. The coach home has no name to show,
               so the wordmark takes the slot rather than leaving the two
               controls floating at the edges with a gap between them. */}
@@ -399,13 +404,13 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
           )}
           {/* Bug reporter. The screenshot-and-send flow is not built yet;
               the control is here because the design places it here. */}
-          <Pressable
-            hitSlop={12}
+          <GlassCircleButton
+            icon="bug"
+            iconSize={17}
+            color={theme.textSecondary}
             onPress={() => setBugNotice(true)}
-            style={[styles.headerCircle, { backgroundColor: theme.surface, borderColor: theme.border }]}
-          >
-            <Icon name="bug" size={17} color={theme.textSecondary} />
-          </Pressable>
+            accessibilityLabel="Report a problem"
+          />
         </LinearGradient>
         ) : null}
 

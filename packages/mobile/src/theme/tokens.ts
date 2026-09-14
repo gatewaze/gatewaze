@@ -50,6 +50,17 @@ export interface Palette {
   bubbleBorderCoach: string;
   /** The coach bubble's border at the peak of a heartbeat. */
   bubbleGlowCoach: string;
+  /**
+   * The words inside each bubble.
+   *
+   * Separate tokens because the two bubbles are not the same shape of
+   * thing: a filled bubble needs text that reads against the fill, and an
+   * outlined one needs text that reads against whatever the background
+   * happens to be behind it. Tying both to `text` meant a filled coach
+   * bubble could not be given a light fill without the words vanishing.
+   */
+  bubbleTextCoach: string;
+  bubbleTextMember: string;
   /** Inverted surface: the active mode pill and white primary buttons. */
   invert: string;
   onInvert: string;
@@ -92,11 +103,18 @@ export const darkColors: Palette = {
   series1: '#5fc3e8',
   series2: '#a98be8',
   series3: '#f0b45a',
-  bubbleMember: 'rgba(110,168,255,0.42)',
-  bubbleCoach: 'rgba(99,217,160,0.26)',
-  bubbleBorderMember: 'rgba(110,168,255,0.35)',
-  bubbleBorderCoach: 'rgba(99,217,160,0.28)',
-  bubbleGlowCoach: 'rgba(99,217,160,0.36)',
+  // The reference look: the coach speaks on a solid light bubble with dark
+  // words, and the member's own messages are an outline with light words.
+  // It also reads better over a moving background — a filled bubble is
+  // legible whatever drifts behind it, while the outlined one lets the
+  // background through, so the thread is not a wall of solid cards.
+  bubbleMember: 'transparent',
+  bubbleCoach: '#ffffff',
+  bubbleBorderMember: 'rgba(255,255,255,0.55)',
+  bubbleBorderCoach: '#ffffff',
+  bubbleGlowCoach: 'rgba(255,255,255,0.22)',
+  bubbleTextCoach: '#0a1020',
+  bubbleTextMember: '#ffffff',
   invert: '#ffffff',
   onInvert: '#0a1020',
   controlFill: 'rgba(255,255,255,0.14)',
@@ -132,7 +150,12 @@ export const lightColors: Palette = {
   bubbleCoach: 'rgba(23,132,87,0.20)',
   bubbleBorderMember: '#2563d9',
   bubbleBorderCoach: 'rgba(23,132,87,0.28)',
-  bubbleGlowCoach: 'rgba(23,132,87,0.32)',
+  bubbleGlowCoach: 'rgba(16,21,28,0.18)',
+  // Light theme: the coach still speaks on a solid bubble, dark on white is
+  // wrong here so it is the app's own dark ink on white, and the member's
+  // outline takes the dark edge instead of a light one.
+  bubbleTextCoach: '#10151c',
+  bubbleTextMember: '#10151c',
   invert: '#10151c',
   onInvert: '#ffffff',
   controlFill: 'rgba(20,40,70,0.12)',

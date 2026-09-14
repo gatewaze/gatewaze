@@ -105,7 +105,22 @@ export default function RootLayout() {
                           }
                     }
                   >
-                    <Icon name="menu" size={18} color={theme.text} />
+                    {/*
+                      Dark while held.
+
+                      The system's Liquid Glass capsule brightens under a
+                      finger, and a white glyph brightens with it — so the
+                      control looked like it went blank at the exact moment it
+                      was touched. Pressable hands the state to its children as
+                      a function, which is the only way to reach it from here.
+                    */}
+                    {({ pressed }) => (
+                      <Icon
+                        name="menu"
+                        size={18}
+                        color={pressed ? theme.onInvert : theme.text}
+                      />
+                    )}
                   </Pressable>
                 ),
               }}

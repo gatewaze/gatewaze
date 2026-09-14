@@ -179,7 +179,16 @@ export function Composer({
           display's own curve left them much rounder than the top pair,
           which read as lopsided; an even shape looks better than a
           concentric one here. */}
-      <GlassPanel radius={radius.composer}>
+      {/*
+        'clear' rather than the default 'regular'.
+
+        The regular material is the chrome one and is nearly opaque, so the
+        thread scrolling underneath disappeared behind the composer instead of
+        passing through it. Clear is the lighter material: the content stays
+        readable through the panel, which is the whole point of putting glass
+        there rather than a card.
+      */}
+      <GlassPanel radius={radius.composer} variant="clear">
         <View style={styles.inputRow}>
           {/* The field gives way to the waveform for the whole of a voice
               note, and stays gone until the transcript lands, so the row
