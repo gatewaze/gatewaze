@@ -51,10 +51,11 @@ jobs:
             "https://x-access-token:${GH_PAT_MODULES}@github.com/gatewaze/gatewaze-modules.git" \
             "$(dirname "$GITHUB_WORKSPACE")/gatewaze-modules"
 
+      # No `version` input: package.json already pins `packageManager: pnpm@10.31.0`, and
+      # specifying both makes action-setup fail outright with "Multiple versions of pnpm
+      # specified". Letting it read packageManager also keeps CI on the same pnpm the repo pins.
       - name: Setup pnpm
         uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
-        with:
-          version: 10
 
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
