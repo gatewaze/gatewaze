@@ -7,7 +7,7 @@
  * working while they are restyled.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -239,15 +239,27 @@ export function Button({
   // ghost button there is no fill to see the scale against, so opacity is
   // what actually reads there.
   const press = usePressScale(1.03);
+  /**
+   * Pressed, in React state rather than Pressable's style-function.
+   *
+   * The two cannot be combined: an AnimatedPressable resolves ANIMATED styles,
+   * and Pressable's function-style form returns a fresh array per render that
+   * Reanimated does not process — so the whole array was dropped and every
+   * Button in the app rendered with no fill, no colour, no shape. The styling
+   * "disappeared" the moment the scale was added. A static array is the form
+   * both systems agree on, and the press state the scale already tracks drives
+   * the dim as well.
+   */
+  const [held, setHeld] = useState(false);
   return (
     <AnimatedPressable
       onPress={onPress}
-      onPressIn={press.onPressIn}
-      onPressOut={press.onPressOut}
+      onPressIn={() => { press.onPressIn(); setHeld(true); }}
+      onPressOut={() => { press.onPressOut(); setHeld(false); }}
       disabled={disabled || loading}
-      style={({ pressed }) => [
+      style={[
         styles.button,
-        { backgroundColor: bg, opacity: disabled ? 0.4 : pressed ? 0.85 : 1 },
+        { backgroundColor: bg, opacity: disabled ? 0.4 : held ? 0.85 : 1 },
         style,
         press.style,
       ]}
