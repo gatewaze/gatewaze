@@ -248,6 +248,21 @@ export interface MobileCoachGreeting {
   subtitle?: string;
   /** Tappable openers shown under a "FOR YOU" label. */
   starters?: string[];
+  /**
+   * One rich card in the opening, dispatched through `threadCards` by kind.
+   *
+   * A starter can only ever SAY something: it sends its own text as a message.
+   * That is right for "How's my week going?" and useless for "start today's
+   * session", which has to do something rather than ask about it. This is the
+   * opening's one action, rendered by the contributing module so the core still
+   * knows nothing about workouts.
+   *
+   * Shown only on an empty thread, alongside the greeting it belongs to. One
+   * card and not a list: an opening screen that greets you and then presents
+   * five things to do is a menu, and the thread below is where a conversation
+   * is supposed to go.
+   */
+  card?: { kind: string; payload?: unknown };
 }
 
 export interface MobileCoachThreadSummary {

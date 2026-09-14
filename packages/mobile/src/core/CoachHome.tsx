@@ -358,6 +358,18 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
                 // would be wrong in a build with different modules.
                 <Caption>Ask me anything to get started.</Caption>
               )}
+              {/* The opening's one action, drawn by whichever module supplied
+                  it. A starter can only say something; this can do something,
+                  which is what "start today's session" needs. */}
+              {greeting?.card ? (
+                <View style={styles.group}>
+                  <ThreadCard
+                    kind={greeting.card.kind}
+                    payload={greeting.card.payload}
+                    threadId={threadId}
+                  />
+                </View>
+              ) : null}
               {greeting?.starters?.length ? (
                 <View style={styles.starters}>
                   <Caps>For you</Caps>
