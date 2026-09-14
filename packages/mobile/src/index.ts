@@ -73,6 +73,8 @@ export {
   requestPermission as requestNotificationPermission,
   hasPermission as hasNotificationPermission,
   pushToken as notificationPushToken,
+  pushTokenResult as notificationPushTokenResult,
+  type PushToken,
   onNoticeTapped,
   handOffToCoach as handNoticeToCoach,
   type NoticePayload,

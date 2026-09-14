@@ -22,6 +22,7 @@ import {
 } from 'expo-audio';
 import { getModuleContext } from './context';
 import { humanMessage } from './errors';
+import { listen, onDeviceAvailable, requestSpeechPermission } from '../capabilities/speech';
 
 export type VoiceState = 'idle' | 'recording' | 'uploading';
 
@@ -62,6 +63,13 @@ export function useVoiceInput({
    */
   const [pending, setPending] = useState<string | null>(null);
   const tick = useRef<ReturnType<typeof setInterval> | null>(null);
+  /**
+   * The on-device recogniser, when this phone has one.
+   *
+   * Held for the life of one recording. The member presses the same button
+   * either way; which path ran is not something they should have to know.
+   */
+  const speech = useRef<Awaited<ReturnType<typeof listen>> | null>(null);
 
   const clearTick = useCallback(() => {
     if (tick.current) {
@@ -84,6 +92,24 @@ export function useVoiceInput({
     await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
     await recorder.prepareToRecordAsync();
     recorder.record();
+
+    /**
+     * Start the on-device recogniser alongside the recorder.
+     *
+     * Both run: the recorder drives the waveform, which follows the microphone
+     * level and is the only thing telling the member they are being heard, and
+     * it is also the fallback file if recognition comes back with nothing.
+     *
+     * The permission is asked for here rather than at the top, because a member
+     * who is only ever going to use the server path should not be asked for
+     * speech recognition at all.
+     */
+    speech.current = null;
+    if (await onDeviceAvailable()) {
+      if (await requestSpeechPermission()) {
+        speech.current = await listen();
+      }
+    }
     setSeconds(0);
     setState('recording');
     tick.current = setInterval(() => {
@@ -130,8 +156,31 @@ export function useVoiceInput({
     try {
       await recorder.stop();
       const uri = recorder.uri;
-      if (!uri) throw new Error('Nothing was recorded.');
 
+      /**
+       * On-device first, the server second.
+       *
+       * Apple's on-device model is weaker on proper nouns than the server one,
+       * and exercise and medicine names are mostly proper nouns — so anything
+       * it cannot make out falls through to the upload rather than being
+       * accepted as the answer. What it buys is a transcript with no
+       * connection at all, which is the case that started this: a basement gym
+       * on one bar.
+       */
+      if (speech.current) {
+        const held = speech.current;
+        speech.current = null;
+        const heard = await held.stop();
+        if (heard.ok && heard.text) {
+          onTranscript(heard.text);
+          setPending(null);
+          setError(null);
+          return;
+        }
+        // Fall through to the upload, which is the better transcriber anyway.
+      }
+
+      if (!uri) throw new Error('Nothing was recorded.');
       await upload(uri);
     } catch (err) {
       // Same trap as the coach's send had: a raw Error message always won, so
@@ -168,6 +217,8 @@ export function useVoiceInput({
 
   const cancel = useCallback(async () => {
     clearTick();
+    speech.current?.cancel();
+    speech.current = null;
     if (state === 'recording') await recorder.stop().catch(() => undefined);
     setState('idle');
     setSeconds(0);

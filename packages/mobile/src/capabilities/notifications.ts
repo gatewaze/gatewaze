@@ -88,25 +88,71 @@ export async function hasPermission(): Promise<boolean> {
 }
 
 /**
- * The Expo push token for this device, or null.
+ * The device's push token, or null.
  *
  * Null is an ordinary outcome and not an error: a simulator, a denied
- * permission, or a device with no network at launch. The caller registers a
- * token when there is one and otherwise does nothing, and a person with no
- * usable device is simply never evaluated server-side.
+ * permission, or a device with no network at launch. A caller that needs to
+ * TELL somebody why should use pushTokenResult instead, which carries the
+ * reason.
  */
-export async function pushToken(projectId?: string): Promise<string | null> {
-  if (!isAvailable()) return null;
-  if (!(await hasPermission())) return null;
+export async function pushToken(): Promise<PushToken | null> {
+  const res = await pushTokenResult();
+  return res.ok ? res.token : null;
+}
+
+/** A device's push token and which service it belongs to. */
+export interface PushToken {
+  value: string;
+  /** 'apns' on iOS, 'fcm' on Android. The server sends by this. */
+  kind: 'apns' | 'fcm';
+}
+
+export type PushTokenResult =
+  | { ok: true; token: PushToken }
+  | { ok: false; reason: string };
+
+/**
+ * The device's NATIVE push token, and why it failed if it did.
+ *
+ * ── WHY NOT AN EXPO PUSH TOKEN ────────────────────────────────────────────
+ *
+ * `getExpoPushTokenAsync` needs an EAS projectId, which it infers from the
+ * manifest. This app is built locally with xcodebuild and has no EAS project,
+ * so it throws ERR_NOTIFICATIONS_NO_EXPERIENCE_ID every time — "No projectId
+ * found ... in bare workflow you have to pass it in yourself."
+ *
+ * The native token needs no Expo project at all, and the server already holds
+ * the APNs key it is sent with. It is also the better answer on its own terms:
+ * a health prompt does not travel through a third-party relay to reach the
+ * phone, which is one fewer party holding a device identifier for an app whose
+ * notifications are about somebody's medication.
+ *
+ * ── AND WHY THIS RETURNS A REASON ─────────────────────────────────────────
+ *
+ * The old version caught everything and returned null, so the settings screen
+ * could only ever say "this device could not be registered" — the same
+ * sentence for a simulator, a revoked permission, a missing project id and a
+ * dead network. The caller now gets something it can tell a person.
+ */
+export async function pushTokenResult(): Promise<PushTokenResult> {
+  if (!isAvailable()) return { ok: false, reason: 'This device cannot receive notifications.' };
+  if (!(await hasPermission())) {
+    return { ok: false, reason: 'Notifications are turned off for this app in your device Settings.' };
+  }
   try {
-    const res = await Notifications.getExpoPushTokenAsync(
-      projectId ? { projectId } : undefined
-    );
-    return res?.data ?? null;
-  } catch {
-    // No network, or a project id the push service will not accept. Neither is
-    // worth surfacing: notifications are an enhancement and the app works.
-    return null;
+    const res = await Notifications.getDevicePushTokenAsync();
+    const value = typeof res?.data === 'string' ? res.data : null;
+    if (!value) {
+      return {
+        ok: false,
+        // A simulator reaches here: it registers but is handed nothing.
+        reason: 'This device was not given a push token. A simulator cannot receive notifications.',
+      };
+    }
+    return { ok: true, token: { value, kind: Platform.OS === 'ios' ? 'apns' : 'fcm' } };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, reason: `Could not register this device: ${message}` };
   }
 }
 

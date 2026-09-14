@@ -86,6 +86,29 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           `Allow ${name} to use the microphone so you can speak to the coach instead of typing.`,
       },
     ]);
+    /**
+     * On-device speech recognition, alongside the recorder.
+     *
+     * Same capability rather than a new one: a module that records in order to
+     * be transcribed is asking for one feature, and splitting it would let a
+     * build ship the recorder without the thing that reads it.
+     *
+     * The plugin exists to put NSSpeechRecognitionUsageDescription in the
+     * Info.plist. Without that string iOS does not refuse the permission, it
+     * TERMINATES the app the moment it is requested, which is a crash on a
+     * button press rather than a message.
+     */
+    plugins.push([
+      'expo-speech-recognition',
+      {
+        speechRecognitionPermission:
+          process.env.APP_SPEECH_PERMISSION_TEXT ||
+          `Allow ${name} to turn what you say into text on this device, so a note you dictate never leaves the phone.`,
+        microphonePermission:
+          process.env.APP_MICROPHONE_PERMISSION_TEXT ||
+          `Allow ${name} to use the microphone so you can speak to the coach instead of typing.`,
+      },
+    ]);
   }
   // Notifications. Like HealthKit, the plugin is only added when a baked module
   // asks for it: an app with nothing to notify about must not ship a push
