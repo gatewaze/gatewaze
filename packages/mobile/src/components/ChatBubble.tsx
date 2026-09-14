@@ -258,7 +258,10 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     borderWidth: 1,
   },
-  dots: { flexDirection: 'row', gap: 4, paddingVertical: 2 },
+  /* The wave only travels UP from rest (translateY 0 → -5), so with equal
+     padding the cluster's motion band sat high in the bubble. Headroom above
+     and rest near the bottom centres the band. */
+  dots: { flexDirection: 'row', gap: 4, paddingTop: 7, paddingBottom: 2 },
   dot: { width: 6, height: 6, borderRadius: 3 },
   chip: {
     borderRadius: radius.full,
