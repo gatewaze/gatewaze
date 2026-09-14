@@ -109,7 +109,15 @@ export const darkColors: Palette = {
   // legible whatever drifts behind it, while the outlined one lets the
   // background through, so the thread is not a wall of solid cards.
   bubbleMember: 'transparent',
-  bubbleCoach: '#ffffff',
+  // Translucent rather than solid, so the moving background tints the coach's
+  // bubble instead of sitting behind a white card. The BORDER stays at full
+  // strength: a soft fill with a crisp edge reads as glass, whereas softening
+  // both reads as something that failed to load.
+  //
+  // 0.82 keeps the dark text at about 12:1 against the app background, well
+  // clear of the 4.5:1 body-text minimum, with room to spare for the brighter
+  // patches of the ambient field drifting underneath.
+  bubbleCoach: 'rgba(255,255,255,0.82)',
   bubbleBorderMember: 'rgba(255,255,255,0.55)',
   bubbleBorderCoach: '#ffffff',
   bubbleGlowCoach: 'rgba(255,255,255,0.22)',
@@ -297,8 +305,22 @@ export const layout = {
    */
   composerPadTop: 26,
   composerPadBottom: 10,
-  composerFadeStops: [0, 0.8, 0.97] as const,
-  composerFadeLocations: [0, 0.45, 1] as const,
+  /**
+   * The scrim behind the composer.
+   *
+   * It reaches its full strength EARLY, by roughly where the panel's top edge
+   * is (composerPadTop below the top of this layer), and holds it from there
+   * down. The first version climbed to 0.8 only at 45% of the way down, which
+   * put the panel's whole upper half over a weak scrim — and with the panel on
+   * the clear glass material, the thread underneath was legible straight
+   * through it.
+   *
+   * The top of the gradient still starts fully transparent, because the
+   * purpose of the first few points is to let content dissolve as it reaches
+   * the composer rather than meet a hard edge.
+   */
+  composerFadeStops: [0, 0.93, 0.99] as const,
+  composerFadeLocations: [0, 0.28, 1] as const,
 };
 
 /**
