@@ -284,15 +284,20 @@ export function Composer({
           is indistinguishable from the button being broken.
         */}
         {voice.error ? (
-          <Text
-            numberOfLines={2}
-            style={[
-              type.caption,
-              { color: theme.danger, paddingHorizontal: spacing.md, paddingBottom: spacing.sm },
-            ]}
-          >
-            {voice.error}
-          </Text>
+          <View style={{ paddingHorizontal: spacing.md, paddingBottom: spacing.sm, gap: spacing.xs }}>
+            <Text numberOfLines={2} style={[type.caption, { color: theme.danger }]}>
+              {voice.error}
+            </Text>
+            {/* The recording is still on the device, so this sends the same audio
+                again rather than making the member say it all over. */}
+            {voice.canRetry ? (
+              <Pressable onPress={() => void voice.retry()} hitSlop={8}>
+                <Text style={[type.caption, { color: theme.accent, fontWeight: '700' }]}>
+                  Try sending it again
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
         ) : null}
       </GlassPanel>
     </Animated.View>

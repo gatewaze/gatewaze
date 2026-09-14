@@ -9,6 +9,7 @@ import {
 } from '@expo-google-fonts/bricolage-grotesque';
 import { SessionProvider } from '../src/core/auth/session';
 import { Icon } from '../src/components/Icon';
+import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { requestOpenDrawer } from '../src/core/drawerSignal';
 import { useNoticeTaps } from '../src/core/useNoticeTaps';
 import { LoadingState, withAlpha } from '../src/components/primitives';
@@ -72,16 +73,37 @@ export default function RootLayout() {
                       router.dismissAll();
                       requestOpenDrawer();
                     }}
-                    style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: 18,
-                      borderWidth: 1,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      backgroundColor: theme.surface,
-                      borderColor: theme.border,
-                    }}
+                    /**
+                     * No circle of our own where the system already draws one.
+                     *
+                     * On iOS 26 UIKit gives every navigation-bar button item a Liquid
+                     * Glass capsule slightly larger than this control. Drawing our own
+                     * circle inside it put two concentric rings around the menu button on
+                     * every pushed screen. That is the doubled hamburger — it was never
+                     * two hamburgers, which is why hiding the one underneath changed
+                     * nothing.
+                     *
+                     * The coach home has no navigation bar (headerShown is false there)
+                     * and draws its own circle, which is why it always looked right and
+                     * only pushed screens did not.
+                     *
+                     * Where there is no system capsule — older iOS, Android — the shape
+                     * still has to come from somewhere, so the circle stays.
+                     */
+                    style={
+                      isLiquidGlassAvailable()
+                        ? { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }
+                        : {
+                            width: 36,
+                            height: 36,
+                            borderRadius: 18,
+                            borderWidth: 1,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backgroundColor: theme.surface,
+                            borderColor: theme.border,
+                          }
+                    }
                   >
                     <Icon name="menu" size={18} color={theme.text} />
                   </Pressable>

@@ -51,6 +51,16 @@ export function useVoiceInput({
   const [state, setState] = useState<VoiceState>('idle');
   const [error, setError] = useState<string | null>(null);
   const [seconds, setSeconds] = useState(0);
+  /**
+   * The recording whose upload failed, kept so it can be sent again.
+   *
+   * Losing it is the part that actually hurt. A member in a basement gym
+   * dictates a note, the upload fails on one bar, and under the old code the
+   * file was simply forgotten — so the only way to recover was to say the whole
+   * thing again, with no indication that was what had happened. The audio is
+   * already on the device and costs nothing to keep.
+   */
+  const [pending, setPending] = useState<string | null>(null);
   const tick = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const clearTick = useCallback(() => {
@@ -85,6 +95,34 @@ export function useVoiceInput({
     }, 1000);
   }, [recorder]);
 
+  /**
+   * Send one recording. Shared by the first attempt and by every retry, so the
+   * two can never drift apart.
+   */
+  const upload = useCallback(async (uri: string) => {
+    const form = new FormData();
+    // iOS records m4a, which the endpoint sniffs as audio/mp4 and accepts.
+    form.append('audio', { uri, name: 'note.m4a', type: 'audio/mp4' } as never);
+    form.append('use_case', useCase);
+
+    const ctx = getModuleContext();
+    const res = await ctx.apiFetch('/api/modules/ai/transcriptions', {
+      method: 'POST',
+      body: form,
+    });
+    const text = (res as { data?: { text?: string } })?.data?.text?.trim();
+    if (text) {
+      onTranscript(text);
+      setPending(null);
+      setError(null);
+    } else {
+      // Heard nothing. That is an answer, not a failure, so the recording is
+      // dropped rather than offered for retry.
+      setPending(null);
+      setError("We couldn't hear anything in that.");
+    }
+  }, [onTranscript, useCase]);
+
   const stop = useCallback(async () => {
     clearTick();
     if (state !== 'recording') return;
@@ -94,29 +132,39 @@ export function useVoiceInput({
       const uri = recorder.uri;
       if (!uri) throw new Error('Nothing was recorded.');
 
-      const form = new FormData();
-      // iOS records m4a, which the endpoint sniffs as audio/mp4 and accepts.
-      form.append('audio', { uri, name: 'note.m4a', type: 'audio/mp4' } as never);
-      form.append('use_case', useCase);
-
-      const ctx = getModuleContext();
-      const res = await ctx.apiFetch('/api/modules/ai/transcriptions', {
-        method: 'POST',
-        body: form,
-      });
-      const text = (res as { data?: { text?: string } })?.data?.text?.trim();
-      if (text) onTranscript(text);
-      else setError("We couldn't hear anything in that.");
+      await upload(uri);
     } catch (err) {
       // Same trap as the coach's send had: a raw Error message always won, so
       // a bad connection said "Network request failed" — and nothing rendered
       // it anyway, so it said nothing at all.
-      setError(humanMessage(err).text);
+      const human = humanMessage(err);
+      setError(human.text);
+      // Held for a retry, but only where trying again could plausibly work.
+      // A refused file will be refused again, and offering to resend it just
+      // teaches the member that the button does nothing.
+      if (human.action === 'retry' && recorder.uri) setPending(recorder.uri);
     } finally {
       setState('idle');
       setSeconds(0);
     }
   }, [clearTick, onTranscript, recorder, state, useCase]);
+
+  /**
+   * Send the held recording again. Nothing was re-recorded and nothing was
+   * lost: this is the same audio, which is the whole point of keeping it.
+   */
+  const retry = useCallback(async () => {
+    if (!pending) return;
+    setState('uploading');
+    setError(null);
+    try {
+      await upload(pending);
+    } catch (err) {
+      setError(humanMessage(err).text);
+    } finally {
+      setState('idle');
+    }
+  }, [pending, upload]);
 
   const cancel = useCallback(async () => {
     clearTick();
@@ -125,5 +173,10 @@ export function useVoiceInput({
     setSeconds(0);
   }, [clearTick, recorder, state]);
 
-  return { state, error, seconds, metering, start, stop, cancel, maxSeconds: MAX_SECONDS };
+  return {
+    state, error, seconds, metering, start, stop, cancel, retry,
+    /** True when a failed recording is still held and can be sent again. */
+    canRetry: pending !== null,
+    maxSeconds: MAX_SECONDS,
+  };
 }
