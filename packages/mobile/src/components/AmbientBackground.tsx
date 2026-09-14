@@ -88,17 +88,29 @@ interface FieldSpec {
  * beats in time with itself.
  */
 const FIELDS: FieldSpec[] = [
-  { colorIndex: 0, size: 620, opacity: 0.55, left: -210, top: -240, durationMs: 11000, dx: 110, dy: 90, swellMs: 8300, swellTo: 1.18 },
-  { colorIndex: 1, size: 560, opacity: 0.46, left: FRAME_W - 300, top: FRAME_H - 380, durationMs: 14000, dx: -120, dy: -95, swellMs: 9700, swellTo: 0.84 },
-  { colorIndex: 2, size: 520, opacity: 0.48, left: -230, top: FRAME_H * 0.36, durationMs: 16000, dx: 140, dy: -80, swellMs: 12100, swellTo: 1.22 },
-  // Amber, top-right. The warm one is what stops the whole field reading as
-  // cold, and it is kept weaker than the rest because warm colours advance:
-  // at equal opacity it would sit in front of everything else.
-  { colorIndex: 3, size: 470, opacity: 0.34, left: FRAME_W - 210, top: -150, durationMs: 19000, dx: -95, dy: 120, swellMs: 10300, swellTo: 1.15 },
-  { colorIndex: 4, size: 500, opacity: 0.40, left: FRAME_W * 0.18, top: FRAME_H * 0.62, durationMs: 21000, dx: 90, dy: -110, swellMs: 13700, swellTo: 0.88 },
-  // A second pass of the first hue, low and slow, to tie the top and bottom
-  // of the screen together.
-  { colorIndex: 0, size: 580, opacity: 0.28, left: FRAME_W * 0.30, top: FRAME_H - 200, durationMs: 26000, dx: -70, dy: -60, swellMs: 15500, swellTo: 1.12 },
+  /**
+   * Third composition pass, and the lesson of the first two is written here so
+   * a fourth does not repeat them. Pass one was three near-identical hues —
+   * read as one wash. Pass two raised opacities but kept every field's CENTRE
+   * hung off the screen edge, so the visible area only ever received the faded
+   * outer tails, which read as flat colour patches — measured at ~2x background
+   * luminance where the design intended ~8x. Visibility lives in WHERE THE
+   * CENTRES ARE, not in the opacity number: centres now sit on screen, spread
+   * across it, with the fields still oversized so their edges bleed off and
+   * nothing reads as a disc.
+   */
+  // Blue, upper-left third.
+  { colorIndex: 0, size: 560, opacity: 0.50, left: -120, top: -60, durationMs: 11000, dx: 70, dy: 60, swellMs: 8300, swellTo: 1.15 },
+  // Green, right edge at mid-height.
+  { colorIndex: 1, size: 520, opacity: 0.42, left: FRAME_W - 320, top: FRAME_H * 0.30, durationMs: 14000, dx: -80, dy: -60, swellMs: 9700, swellTo: 0.88 },
+  // Violet, lower-left.
+  { colorIndex: 2, size: 540, opacity: 0.44, left: -140, top: FRAME_H * 0.52, durationMs: 16000, dx: 90, dy: -60, swellMs: 12100, swellTo: 1.18 },
+  // Amber, upper-right. Weaker than the rest because warm colours advance.
+  { colorIndex: 3, size: 460, opacity: 0.30, left: FRAME_W - 280, top: -80, durationMs: 19000, dx: -70, dy: 80, swellMs: 10300, swellTo: 1.12 },
+  // Cyan, lower-centre.
+  { colorIndex: 4, size: 500, opacity: 0.38, left: FRAME_W * 0.22, top: FRAME_H * 0.72, durationMs: 21000, dx: 60, dy: -70, swellMs: 13700, swellTo: 0.9 },
+  // A second blue, centre-right, tying the field together.
+  { colorIndex: 0, size: 480, opacity: 0.26, left: FRAME_W * 0.42, top: FRAME_H * 0.34, durationMs: 26000, dx: -50, dy: 50, swellMs: 15500, swellTo: 1.1 },
 ];
 
 function Field({
@@ -157,7 +169,7 @@ function Field({
                 fade to nothing has a visible edge where it reaches zero; this
                 puts most of the fade in the outer third where the eye cannot
                 find it. */}
-            <Stop offset="45%" stopColor={color} stopOpacity={spec.opacity * 0.55} />
+            <Stop offset="55%" stopColor={color} stopOpacity={spec.opacity * 0.72} />
             <Stop offset="100%" stopColor={color} stopOpacity={0} />
           </RadialGradient>
         </Defs>
