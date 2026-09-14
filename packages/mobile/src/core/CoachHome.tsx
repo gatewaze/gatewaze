@@ -102,7 +102,14 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
    * the handover, so this cannot send the same message twice.
    */
   useEffect(() => {
-    if (!coach) return;
+    // Not before the thread list has loaded: this effect and the loader run
+    // on the same mount, and a send with `threadId` still null creates a
+    // second thread on the server. The member's message then lands in a
+    // conversation the app never shows — a reply that "never arrived", and,
+    // because the thread list is newest-first, the next launch would open
+    // the stray thread and hide their whole history. The handoff keeps until
+    // consumed, so waiting a render loses nothing.
+    if (!coach || loading) return;
     const handoff = consumeCoachHandoff();
     if (!handoff) return;
     if (handoff.kind === 'notice') {
@@ -196,11 +203,12 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
   const send = useCallback(
     async (text: string, alreadyShown = false) => {
       if (!coach || !text.trim()) return;
-      // A second message while the coach is still answering is QUEUED, not
+      // A second message while the coach is still answering — or any message
+      // while the thread list is still loading — is QUEUED, not
       // dropped. Returning early here used to lose it silently: the member
       // watched their words vanish from the box with nothing added to the
       // thread. It is sent as soon as the current exchange finishes.
-      if (busy) {
+      if (busy || loading) {
         setDraft('');
         setQueued((prev) => [...prev, text.trim()]);
         setMessages((prev) => [
@@ -279,18 +287,18 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
         setBusy(false);
       }
     },
-    [coach, threadId, busy]
+    [coach, threadId, busy, loading]
   );
 
   // Drain one queued message per idle turn. The optimistic bubble for it is
   // already in the thread, and generate() returns the authoritative list, so
   // it is not painted twice.
   useEffect(() => {
-    if (busy || queued.length === 0) return;
+    if (busy || loading || queued.length === 0) return;
     const [next, ...rest] = queued;
     setQueued(rest);
     void send(next, true);
-  }, [busy, queued, send]);
+  }, [busy, loading, queued, send]);
 
   if (!coach) {
     return (
@@ -601,9 +609,9 @@ const styles = StyleSheet.create({
   },
   fill: { flex: 1 },
   centered: { alignItems: 'center', justifyContent: 'center' },
-  // gap moved md → lg: the thread read as one dense column, and a
-  // conversation needs air between turns more than it needs density.
-  thread: { padding: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.lg },
+  // gap md → lg → xl: lg was reported as no better — each exchange needs
+  // clear air around it before the thread stops reading as one column.
+  thread: { padding: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.xl },
   intro: { paddingTop: spacing.xl, gap: spacing.sm },
   subtitle: { fontStyle: 'italic' },
   starters: { marginTop: spacing.xl, gap: spacing.sm, alignItems: 'flex-start' },
