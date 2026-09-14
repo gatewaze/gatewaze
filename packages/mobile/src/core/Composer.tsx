@@ -17,6 +17,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, {
+  FadeInDown,
   useAnimatedKeyboard,
   useAnimatedStyle,
   useSharedValue,
@@ -162,6 +163,18 @@ export function Composer({
    * moment only exists focused, which is exactly when the overlay is gone.
    */
   const [focused, setFocused] = useState(false);
+  /**
+   * Launcher screens start COLLAPSED: the glass panel carries only the
+   * buttons, no field, and no pill drawn as selected — a bar that shows a lit
+   * Chat pill and a text field on every screen reads as "you are in the chat
+   * window", which was the confusion. Tapping Chat (or the mic) expands the
+   * panel: the field animates in above the buttons and takes focus, so the
+   * gesture that asked to talk is the gesture that starts talking. Sending, or
+   * blurring with nothing typed, collapses it again. On the coach itself the
+   * composer is always expanded — that screen IS the chat.
+   */
+  const [expanded, setExpanded] = useState(!launcher);
+  const showField = launcher ? expanded : true;
   useEffect(() => {
     const spell = setTimeout(() => setSettled(true), 24_000);
     return () => clearTimeout(spell);
@@ -233,7 +246,8 @@ export function Composer({
         there rather than a card.
       */}
       <GlassPanel radius={radius.composer} variant="clear" tint={0.45}>
-        <View style={styles.inputRow}>
+        {showField ? (
+        <Animated.View entering={FadeInDown.duration(180)} style={styles.inputRow}>
           {/* The field gives way to the waveform for the whole of a voice
               note, and stays gone until the transcript lands, so the row
               never jumps and there is always something saying what is
@@ -259,7 +273,11 @@ export function Composer({
                 placeholderTextColor={theme.textMuted}
                 multiline
                 onFocus={() => setFocused(true)}
-                onBlur={() => setFocused(false)}
+                onBlur={() => {
+                    setFocused(false);
+                    // An abandoned launcher folds back to the minimal bar.
+                    if (launcher && !draft.trim()) setExpanded(false);
+                  }}
                 style={[type.chat, styles.input, { color: theme.text }]}
               />
               {/* The resting suggestion, drawn as a real Text so it renders whether
@@ -297,10 +315,11 @@ export function Composer({
           ) : (
             <VoiceIndicator voice={voice} />
           )}
-        </View>
+        </Animated.View>
+        ) : null}
 
         <View style={styles.toolbar}>
-          {modes.length > 0 && !launcher ? (
+          {modes.length > 0 ? (
             <PillTrack
               style={[
                 styles.track,
@@ -311,8 +330,17 @@ export function Composer({
                   key: 'chat',
                   icon: 'message-outline',
                   label: 'Chat',
-                  active: activeMode === null,
-                  onPress: () => onSelectMode(null),
+                  // On a launcher nothing is lit until the member opens the
+                  // field; on the coach, Chat is the resting mode.
+                  active: launcher ? expanded : activeMode === null,
+                  onPress: () => {
+                    if (launcher) {
+                      setExpanded(true);
+                      requestAnimationFrame(() => inputRef.current?.focus());
+                      return;
+                    }
+                    onSelectMode(null);
+                  },
                 },
                 ...(hasCamera
                   ? [{
@@ -334,13 +362,26 @@ export function Composer({
             />
           ) : null}
 
-          <VoiceButton voice={voice} />
+
+          <VoiceButton
+            voice={voice}
+            /* On a launcher, starting a voice note opens the field too: the
+               transcript needs somewhere visible to land. */
+            onEngage={launcher ? () => setExpanded(true) : undefined}
+          />
           <Pressable
             onPress={onSend}
             disabled={!canSend}
-            style={[styles.send, { backgroundColor: theme.accent, opacity: canSend ? 1 : 0.4 }]}
+            /* Dark glass with a light edge, like every action button now — the
+               accent fill read as a lilac pill on the brightened mesh. */
+            style={[styles.send, {
+              backgroundColor: theme.buttonFill,
+              borderWidth: 1,
+              borderColor: theme.buttonBorder,
+              opacity: canSend ? 1 : 0.4,
+            }]}
           >
-            <Icon name="arrow-up" size={21} color={theme.onAccent} />
+            <Icon name="arrow-up" size={21} color={theme.buttonText} />
           </Pressable>
         </View>
         {/*

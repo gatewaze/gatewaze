@@ -225,16 +225,27 @@ export function Button({
   style?: StyleProp<ViewStyle>;
 }) {
   const theme = useTheme();
+  /**
+   * Primary and secondary moved off the accent fills: once the mesh
+   * background brightened, accent and accentSoft read as pale lilac pills
+   * floating on it. Dark glass with a light edge and white text reads on any
+   * patch of the mesh. Coach (green) and danger keep their meanings.
+   */
   const bg =
-    variant === 'primary' ? theme.accent
+    variant === 'primary' ? theme.buttonFill
     : variant === 'coach' ? theme.coach
     : variant === 'danger' ? theme.danger
-    : variant === 'secondary' ? theme.accentSoft
+    : variant === 'secondary' ? theme.buttonFillSoft
     : 'transparent';
   const fg =
-    variant === 'primary' || variant === 'coach' ? theme.onAccent
+    variant === 'coach' ? theme.onAccent
     : variant === 'danger' ? '#fff'
-    : theme.accent;
+    : variant === 'ghost' ? theme.accent
+    : theme.buttonText;
+  const edge =
+    variant === 'primary' || variant === 'secondary'
+      ? { borderWidth: 1, borderColor: theme.buttonBorder }
+      : null;
   // Grows while held, matching the platform. The dim on press stays: on a
   // ghost button there is no fill to see the scale against, so opacity is
   // what actually reads there.

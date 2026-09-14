@@ -27,16 +27,11 @@ export function ComposerFade() {
   const theme = useTheme();
   return (
     <LinearGradient
-      colors={[
-        withAlpha(theme.background, layout.composerFadeStops[0]),
-        withAlpha(theme.background, layout.composerFadeStops[1]),
-        withAlpha(theme.background, layout.composerFadeStops[2]),
-      ]}
-      locations={[
-        layout.composerFadeLocations[0],
-        layout.composerFadeLocations[1],
-        layout.composerFadeLocations[2],
-      ]}
+      /* Mapped, not indexed, so the token curve can gain or lose stops
+         without this file changing. The cast keeps expo-linear-gradient's
+         tuple type satisfied for a readonly token array. */
+      colors={layout.composerFadeStops.map((s) => withAlpha(theme.background, s)) as [string, string, ...string[]]}
+      locations={[...layout.composerFadeLocations] as [number, number, ...number[]]}
       style={styles.layer}
       pointerEvents="none"
     />

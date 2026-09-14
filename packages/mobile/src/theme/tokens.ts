@@ -80,6 +80,16 @@ export interface Palette {
    * shorter list simply repeats, so a palette of one is a valid answer.
    */
   ambientPalette: string[];
+    /**
+     * Solid action buttons. Dark glass with a light edge, because the mesh
+     * background got bright enough that the old accent-tinted fills read as
+     * pale lilac pills floating on it. Dark-with-white-border reads on any
+     * patch of the mesh, light or dark.
+     */
+    buttonFill: string;
+    buttonFillSoft: string;
+    buttonBorder: string;
+    buttonText: string;
 }
 
 export const darkColors: Palette = {
@@ -136,6 +146,10 @@ export const darkColors: Palette = {
   // Blue, green, violet, amber, cyan. Wider than the old three so the field
   // has somewhere to travel between hues instead of reading as one wash.
   ambientPalette: ['#6ea8ff', '#63d9a0', '#a98be8', '#f0b45a', '#5fc3e8'],
+  buttonFill: 'rgba(9,12,20,0.72)',
+  buttonFillSoft: 'rgba(9,12,20,0.45)',
+  buttonBorder: 'rgba(255,255,255,0.75)',
+  buttonText: '#ffffff',
 };
 
 export const lightColors: Palette = {
@@ -177,6 +191,10 @@ export const lightColors: Palette = {
   // Softer and a touch deeper than the dark set: on a pale ground the same
   // hues at the same strength read as washed out rather than ambient.
   ambientPalette: ['#4a86e8', '#35b98a', '#8b6fd4', '#e09a3c', '#3fa8d4'],
+  buttonFill: 'rgba(16,21,28,0.88)',
+  buttonFillSoft: 'rgba(16,21,28,0.62)',
+  buttonBorder: 'rgba(255,255,255,0.9)',
+  buttonText: '#ffffff',
 };
 
 /** Dark is primary; the static export is what unmigrated screens import. */
@@ -282,11 +300,21 @@ export const layout = {
    */
   headerTopGap: 6,
   headerButton: 36,
-  headerFadeDrop: 28,
+  /**
+   * The tail below the buttons. 28 read as a hard band; 64 fixed that but
+   * hid content too far down the screen — a third shorter keeps the soft
+   * dissolve without eating into the thread.
+   */
+  headerFadeDrop: 44,
   /** How much of the button row sits on the solid part of the scrim. */
   headerSolidFraction: 1 / 3,
   headerPaddingH: 22,
-  headerFadeStops: [0.97, 0.85, 0] as const,
+  /**
+   * Peak opacity pulled down from .97/.85: near-solid at the very top made
+   * the scrim read as a bar, not a fade. Sheerer at the top lets the mesh
+   * show through behind the status bar while the buttons stay legible.
+   */
+  headerFadeStops: [0.82, 0.62, 0] as const,
   /**
    * Apple's Human Interface Guidelines put the minimum tappable target at
    * 44x44pt. The composer's controls were 36pt circles and 30pt pills, which
@@ -320,8 +348,15 @@ export const layout = {
    * transparency belongs to the PANEL, not to the scrim — see the composer's
    * GlassPanel tint. This is left alone.
    */
-  composerFadeStops: [0, 0.8, 0.97] as const,
-  composerFadeLocations: [0, 0.45, 1] as const,
+  /**
+   * Four stops, spread wide. The old three climbed to 0.8 by 45% and read as
+   * a visible band under content; easing through a quarter-strength stop and
+   * landing later removes the edge the eye could find. The panel's own tint
+   * (GlassPanel tint=0.45) is what keeps text legible through the glass, so
+   * this can afford to be gentle.
+   */
+  composerFadeStops: [0, 0.25, 0.7, 0.95] as const,
+  composerFadeLocations: [0, 0.3, 0.62, 1] as const,
 };
 
 /**

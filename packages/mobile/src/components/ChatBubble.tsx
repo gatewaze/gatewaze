@@ -242,10 +242,11 @@ export function SuggestionChip({ label, onPress }: { label: string; onPress: () 
       onPress={onPress}
       style={({ pressed }) => [
         styles.chip,
-        { borderColor: theme.accent, backgroundColor: theme.accentSoft, opacity: pressed ? 0.7 : 1 },
+        /* Dark glass, light edge: the accent fill read as lilac on the mesh. */
+        { borderColor: theme.buttonBorder, backgroundColor: theme.buttonFillSoft, opacity: pressed ? 0.7 : 1 },
       ]}
     >
-      <Text style={[type.button, { color: theme.accent }]}>{label}</Text>
+      <Text style={[type.button, { color: theme.buttonText }]}>{label}</Text>
     </Pressable>
   );
 }

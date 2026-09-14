@@ -20,7 +20,15 @@ import { CircleButton } from '../components/ComposerControls';
 /** Below this, a press reads as a tap rather than a hold. */
 const HOLD_MS = 1000;
 
-export function VoiceButton({ voice }: { voice: ReturnType<typeof import('./useVoiceInput').useVoiceInput> }) {
+export function VoiceButton({
+  voice,
+  onEngage,
+}: {
+  voice: ReturnType<typeof import('./useVoiceInput').useVoiceInput>;
+  /** Fired when a press starts a recording — a collapsed launcher uses it to
+      open the field so the transcript has somewhere visible to land. */
+  onEngage?: () => void;
+}) {
   const pressedAt = useRef<number | null>(null);
   // Whether THIS press is the one that started recording. Without it the tap
   // path breaks: the press that begins a recording is followed immediately by
@@ -31,6 +39,7 @@ export function VoiceButton({ voice }: { voice: ReturnType<typeof import('./useV
     if (voice.state === 'idle') {
       startedHere.current = true;
       pressedAt.current = Date.now();
+      onEngage?.();
       void voice.start();
     } else {
       startedHere.current = false;

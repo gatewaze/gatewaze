@@ -83,6 +83,10 @@ interface FieldSpec {
  * edge is. These are sized and placed so the eye only ever sees part of one,
  * which is why the result looks like weather rather than like shapes.
  *
+ * Halved from the first tuning: at 11-26s per half-cycle the drift was
+ * technically present and perceptually absent — the operator saw "incredibly
+ * slow" colours. 6-13s reads as alive without becoming weather you watch.
+ *
  * Every duration is a prime-ish number of seconds and no two are close
  * multiples, so the composition takes minutes to repeat and never visibly
  * beats in time with itself.
@@ -100,17 +104,17 @@ const FIELDS: FieldSpec[] = [
    * nothing reads as a disc.
    */
   // Blue, upper-left third.
-  { colorIndex: 0, size: 560, opacity: 0.50, left: -120, top: -60, durationMs: 11000, dx: 70, dy: 60, swellMs: 8300, swellTo: 1.15 },
+  { colorIndex: 0, size: 560, opacity: 0.50, left: -120, top: -60, durationMs: 6500, dx: 100, dy: 85, swellMs: 5200, swellTo: 1.15 },
   // Green, right edge at mid-height.
-  { colorIndex: 1, size: 520, opacity: 0.42, left: FRAME_W - 320, top: FRAME_H * 0.30, durationMs: 14000, dx: -80, dy: -60, swellMs: 9700, swellTo: 0.88 },
+  { colorIndex: 1, size: 520, opacity: 0.42, left: FRAME_W - 320, top: FRAME_H * 0.30, durationMs: 8000, dx: -115, dy: -85, swellMs: 6100, swellTo: 0.88 },
   // Violet, lower-left.
-  { colorIndex: 2, size: 540, opacity: 0.44, left: -140, top: FRAME_H * 0.52, durationMs: 16000, dx: 90, dy: -60, swellMs: 12100, swellTo: 1.18 },
+  { colorIndex: 2, size: 540, opacity: 0.44, left: -140, top: FRAME_H * 0.52, durationMs: 9000, dx: 130, dy: -85, swellMs: 7300, swellTo: 1.18 },
   // Amber, upper-right. Weaker than the rest because warm colours advance.
-  { colorIndex: 3, size: 460, opacity: 0.30, left: FRAME_W - 280, top: -80, durationMs: 19000, dx: -70, dy: 80, swellMs: 10300, swellTo: 1.12 },
+  { colorIndex: 3, size: 460, opacity: 0.30, left: FRAME_W - 280, top: -80, durationMs: 10500, dx: -100, dy: 115, swellMs: 6700, swellTo: 1.12 },
   // Cyan, lower-centre.
-  { colorIndex: 4, size: 500, opacity: 0.38, left: FRAME_W * 0.22, top: FRAME_H * 0.72, durationMs: 21000, dx: 60, dy: -70, swellMs: 13700, swellTo: 0.9 },
+  { colorIndex: 4, size: 500, opacity: 0.38, left: FRAME_W * 0.22, top: FRAME_H * 0.72, durationMs: 11500, dx: 85, dy: -100, swellMs: 8100, swellTo: 0.9 },
   // A second blue, centre-right, tying the field together.
-  { colorIndex: 0, size: 480, opacity: 0.26, left: FRAME_W * 0.42, top: FRAME_H * 0.34, durationMs: 26000, dx: -50, dy: 50, swellMs: 15500, swellTo: 1.1 },
+  { colorIndex: 0, size: 480, opacity: 0.26, left: FRAME_W * 0.42, top: FRAME_H * 0.34, durationMs: 13500, dx: -70, dy: 70, swellMs: 9300, swellTo: 1.1 },
 ];
 
 function Field({
