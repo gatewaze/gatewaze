@@ -17,6 +17,7 @@ import { Platform, StyleSheet, View, type StyleProp, type ViewStyle } from 'reac
 import { BlurView } from 'expo-blur';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { useTheme, radius as radiusTokens } from '../theme/tokens';
+import { withAlpha } from './primitives';
 
 export interface GlassPanelProps {
   children?: React.ReactNode;
@@ -26,6 +27,20 @@ export interface GlassPanelProps {
   variant?: 'regular' | 'clear';
   /** Draw the hairline edge the design puts on every glass surface. */
   bordered?: boolean;
+  /**
+   * How much of the background colour to lay over the material, 0 to 1.
+   *
+   * The two materials are a coarse choice: 'regular' is chrome and nearly
+   * opaque, 'clear' lets almost everything through, and the composer wants to
+   * sit between them — content visible enough that the thread does not appear
+   * to end at the panel, faint enough that it never competes with the words
+   * being typed over it.
+   *
+   * This is the knob for that. It is deliberately NOT the scrim behind the
+   * panel: that gradient has 26 points to work in and cannot be made strong
+   * without showing an edge, which was learned twice.
+   */
+  tint?: number;
 }
 
 export function GlassPanel({
@@ -34,6 +49,7 @@ export function GlassPanel({
   radius = radiusTokens.lg,
   variant = 'regular',
   bordered = true,
+  tint = 0,
 }: GlassPanelProps) {
   const theme = useTheme();
   const shape: ViewStyle = {
@@ -42,9 +58,20 @@ export function GlassPanel({
     ...(bordered ? { borderWidth: StyleSheet.hairlineWidth, borderColor: theme.border } : {}),
   };
 
+  // Laid over the material, under the content. Absolute so it cannot affect
+  // the panel's layout, and pointerEvents none so it never eats a touch.
+  const wash =
+    tint > 0 ? (
+      <View
+        pointerEvents="none"
+        style={[StyleSheet.absoluteFill, { backgroundColor: withAlpha(theme.background, tint) }]}
+      />
+    ) : null;
+
   if (Platform.OS === 'ios' && isLiquidGlassAvailable()) {
     return (
       <GlassView style={[shape, style]} glassEffectStyle={variant}>
+        {wash}
         {children}
       </GlassView>
     );
@@ -56,6 +83,7 @@ export function GlassPanel({
     // belongs to Liquid Glass and is drawn by the system, not by us.
     return (
       <BlurView intensity={variant === 'clear' ? 20 : 40} tint="systemMaterial" style={[shape, style]}>
+        {wash}
         {children}
       </BlurView>
     );

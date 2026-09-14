@@ -1,21 +1,20 @@
 /**
- * The ground the composer sits on.
+ * The scrim the composer sits on.
  *
- * One gradient filling the composer's area, drawn UNDERNEATH the panel. It is
- * fully transparent at the panel's top edge and nearly opaque by the bottom of
- * the screen, so content carries on behind the glass and dissolves on the way
- * down instead of ending on a line.
+ * Content scrolling up the thread stops being legible before it reaches the
+ * composer, so it does not read as sliding underneath a window. This is the
+ * mirror of the header's fade at the top of the screen.
  *
- * Three things this is deliberately not, each of which was tried:
+ * ── THIS IS NOT THE KNOB FOR "I CAN SEE THROUGH THE COMPOSER" ─────────────
  *
- *   Above the panel. Dissolving content over a strip before it reached the
- *   composer hid rows the member was still reading.
+ * It was tuned twice for that and failed both ways. The panel's top edge is
+ * only `composerPadTop` below the top of this layer, and a gradient cannot
+ * climb from nothing to nearly opaque in 26 points without showing an edge;
+ * back it off and the thread is legible through the glass again. There is no
+ * setting here that does both.
  *
- *   A flat fill. It hid content behind the panel completely, which is a hard
- *   cutoff at the panel's top edge and wastes the glass.
- *
- *   Nothing at all below the panel. Content stayed fully legible in the margin
- *   under the composer, so it faded out and then came back.
+ * How transparent the composer looks is a property of the PANEL. See the
+ * `tint` on its GlassPanel.
  */
 
 import React from 'react';

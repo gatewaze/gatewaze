@@ -306,21 +306,17 @@ export const layout = {
   composerPadTop: 26,
   composerPadBottom: 10,
   /**
-   * The scrim behind the composer.
+   * The scrim behind the composer, back at its original curve.
    *
-   * It reaches its full strength EARLY, by roughly where the panel's top edge
-   * is (composerPadTop below the top of this layer), and holds it from there
-   * down. The first version climbed to 0.8 only at 45% of the way down, which
-   * put the panel's whole upper half over a weak scrim — and with the panel on
-   * the clear glass material, the thread underneath was legible straight
-   * through it.
-   *
-   * The top of the gradient still starts fully transparent, because the
-   * purpose of the first few points is to let content dissolve as it reaches
-   * the composer rather than meet a hard edge.
+   * Two attempts to solve "content shows through the composer" by moving this
+   * gradient both failed, in opposite directions: strong enough to hide the
+   * thread made a visible edge, because the panel's top is only
+   * composerPadTop (26pt) down and no ramp that short can be gentle. The
+   * transparency belongs to the PANEL, not to the scrim — see the composer's
+   * GlassPanel tint. This is left alone.
    */
-  composerFadeStops: [0, 0.93, 0.99] as const,
-  composerFadeLocations: [0, 0.28, 1] as const,
+  composerFadeStops: [0, 0.8, 0.97] as const,
+  composerFadeLocations: [0, 0.45, 1] as const,
 };
 
 /**

@@ -188,7 +188,7 @@ export function Composer({
         readable through the panel, which is the whole point of putting glass
         there rather than a card.
       */}
-      <GlassPanel radius={radius.composer} variant="clear">
+      <GlassPanel radius={radius.composer} variant="clear" tint={0.45}>
         <View style={styles.inputRow}>
           {/* The field gives way to the waveform for the whole of a voice
               note, and stays gone until the transcript lands, so the row
