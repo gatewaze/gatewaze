@@ -47,12 +47,19 @@ export function CoachBar({
       enabled={enabled}
       draft={draft}
       onChangeDraft={setDraft}
-      // No mode surface opens here, so nothing is ever the active one. Chat
-      // is what this bar does, and showing it selected says so.
       activeMode={null}
       onSelectMode={(key) => hand(key)}
       onSend={() => hand(null)}
       onHeight={onHeight}
+      /**
+       * A doorway, not the chat. The full composer here — pill track with
+       * Chat lit — read as "you are in the chat window" on every screen. The
+       * launcher hides the pills and the placeholder names the action, so
+       * the bar says what it does: type here from anywhere, and sending
+       * carries you to the coach.
+       */
+      launcher
+      placeholder="Message your coach…"
     />
   );
 }

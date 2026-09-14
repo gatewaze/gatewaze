@@ -62,6 +62,7 @@ export function Composer({
   busy = false,
   autoFocus = false,
   onHeight,
+  launcher = false,
   zIndex,
 }: {
   /** Which modules the member is entitled to, for the mode track. */
@@ -78,6 +79,8 @@ export function Composer({
   autoFocus?: boolean;
   /** Measured height, so content underneath can clear it. */
   onHeight?: (h: number) => void;
+  /** Doorway styling: no mode pills; the bar names the action instead. */
+  launcher?: boolean;
   zIndex?: number;
 }) {
   const theme = useTheme();
@@ -141,6 +144,24 @@ export function Composer({
    * A remount (next app open) starts the spell again.
    */
   const [settled, setSettled] = useState(false);
+  /**
+   * Whether the field currently has focus.
+   *
+   * The typewriter used to drive the NATIVE placeholder prop, and on-device
+   * iOS does not repaint a multiline TextInput's placeholder while it is
+   * unfocused — so the animated text simply never appeared on a real phone,
+   * the static "Ask me anything…" waited for a tap to show up, and the
+   * adopt arrow flashed beside an apparently empty field. The simulator
+   * repaints eagerly, which is why none of this ever reproduced here.
+   *
+   * The roles are split by what each mechanism can actually do: an OVERLAY
+   * Text renders the suggestion while the field is blurred and empty (a
+   * plain view repaints reliably), and the native placeholder — set once,
+   * never animated — takes over on focus, when iOS repaints it anyway. The
+   * old objection to overlays was a 2px drop at the moment of adoption; that
+   * moment only exists focused, which is exactly when the overlay is gone.
+   */
+  const [focused, setFocused] = useState(false);
   useEffect(() => {
     const spell = setTimeout(() => setSettled(true), 24_000);
     return () => clearTimeout(spell);
@@ -155,8 +176,14 @@ export function Composer({
   // toggling: tying it to the keystrokes made it blink on and off.
   const arrow = useSharedValue(0);
   useEffect(() => {
-    arrow.value = withTiming(prompt.complete ? 1 : 0, { duration: motion.quick, easing: EASE });
-  }, [prompt.complete, arrow]);
+    arrow.value = withTiming(
+      // A finished sentence that is actually on screen. `complete` alone once
+      // left the arrow flashing beside an empty field when the prompt list
+      // emptied mid-cycle or the resting text was not drawn.
+      prompt.complete && prompt.text.length > 0 && !draft && !focused ? 1 : 0,
+      { duration: motion.quick, easing: EASE }
+    );
+  }, [prompt.complete, prompt.text, draft, focused, arrow]);
   const arrowStyle = useAnimatedStyle(() => ({ opacity: arrow.value }));
 
   /**
@@ -225,11 +252,26 @@ export function Composer({
                 // something drawn over it. Same view, same font, same line as
                 // the text that replaces it, so adopting one cannot make the
                 // words move.
-                placeholder={cycling ? prompt.text : placeholder}
+                /* Static, and shown only while focused: dynamic placeholder updates
+                   do not repaint unfocused on iOS; the blurred resting state is the
+                   overlay's job below. */
+                placeholder={focused ? placeholder : ''}
                 placeholderTextColor={theme.textMuted}
                 multiline
+                onFocus={() => setFocused(true)}
+                onBlur={() => setFocused(false)}
                 style={[type.chat, styles.input, { color: theme.text }]}
               />
+              {/* The resting suggestion, drawn as a real Text so it renders whether
+                  or not the field has ever been touched. Hidden the moment there is
+                  focus or a draft — the native field owns both of those states. */}
+              {!focused && !draft ? (
+                <View pointerEvents="none" style={styles.restingOverlay}>
+                  <Text numberOfLines={1} style={[type.chat, { color: theme.textMuted }]}>
+                    {cycling ? prompt.text : placeholder}
+                  </Text>
+                </View>
+              ) : null}
               {/* The one thing that adopts the suggestion, at the far end of
                   the field and well away from where a caret tap lands. The
                   words themselves are the field's own placeholder and cannot
@@ -258,7 +300,7 @@ export function Composer({
         </View>
 
         <View style={styles.toolbar}>
-          {modes.length > 0 ? (
+          {modes.length > 0 && !launcher ? (
             <PillTrack
               style={[
                 styles.track,
@@ -331,6 +373,19 @@ export function Composer({
 }
 
 const styles = StyleSheet.create({
+  /**
+   * Sits where the input draws its first line. Alignment only has to match an
+   * EMPTY field — the overlay is gone whenever there is focus or a draft, so
+   * typed text can never sit beside it.
+   */
+  restingOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 36,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+  },
   wrap: {
     position: 'absolute',
     left: 0,
