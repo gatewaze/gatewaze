@@ -260,6 +260,27 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
     []
   );
 
+  /**
+   * Go to the end regardless of where the member had scrolled to.
+   *
+   * Used when THEY acted — sending, or a reply to something they sent. That
+   * is unambiguous intent to see the bottom, so it does not consult
+   * atBottom the way passive content changes do.
+   *
+   * It also sidesteps a hazard in doing so. atBottom is written by the scroll
+   * worklet on the UI thread and read here on the JS thread, and a value read
+   * across threads can be a frame or two stale — which is enough to skip the
+   * scroll on exactly the send that prompted it. Sending must never depend on
+   * that.
+   *
+   * Deferred a tick so the new message has been laid out before the scroll is
+   * measured; scrolling to the end of a list that does not yet contain the
+   * message lands short of it.
+   */
+  const scrollToNewest = useCallback((animated = true) => {
+    requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated }));
+  }, []);
+
   // KeyboardAvoidingView positions itself by measuring its own frame on
   // screen, and this surface sits inside the drawer's animated translate and
   // scale, which makes that measurement wrong: the composer stayed put and
@@ -430,6 +451,7 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
           setMessages(await coach.answer(ctx, threadId));
           replyArrived();
           playReceived();
+          scrollToNewest();
         } catch (err) {
           setMessages((prev) => prev.filter((m) => !m.pending));
           setError(humanMessage(err).text);
@@ -471,6 +493,8 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
        */
       tap();
       playSent();
+      // Their message is about to appear at the end; go and look at it.
+      scrollToNewest();
       // Sending is a chat action, so leave any capture mode and show the
       // thread: otherwise the camera stays up and the member cannot see
       // what they sent or the reply to it.
@@ -518,11 +542,15 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
             status: statusForMode(activeMode),
           },
         ]);
+        // The typing indicator is the answer to "did that send?", so it has
+        // to be on screen while the reply is being written.
+        scrollToNewest();
         const updated = await coach.generate(ctx, id);
         setMessages(updated);
         // The reply landed: beat in time with the glow on the new bubble.
         replyArrived();
         playReceived();
+        scrollToNewest();
       } catch (err) {
         setMessages((prev) => prev.filter((m) => !m.pending));
         /**
@@ -598,6 +626,7 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
             status: statusForMode(activeMode),
           },
         ]);
+        scrollToNewest();
         const updated = await answer(ctx, threadId);
         setMessages(updated);
         replyArrived();
