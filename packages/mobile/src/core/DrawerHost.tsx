@@ -31,7 +31,7 @@ import { AmbientBackground } from '../components/AmbientBackground';
 import { SummaryDrawer, SUMMARY_WIDTH } from './SummaryDrawer';
 import { CoachBar } from './CoachBar';
 import { Button, Caps, EmptyState } from '../components/primitives';
-import { coachProvider, drawerSections } from './registry';
+import { chatProvider, drawerSections } from './registry';
 import { onOutboxChange, outboxCounts } from './outbox';
 import { consumeOpenDrawerRequest, consumeOpenSummaryRequest } from './drawerSignal';
 import { hasPendingHandoff } from './coachHandoff';
@@ -88,7 +88,7 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
   const { refresh } = useSession();
   const { width } = useWindowDimensions();
 
-  const coach = useMemo(() => coachProvider(), []);
+  const coach = useMemo(() => chatProvider(), []);
   const sections = useMemo(
     () => drawerSections(enabled, config.appName),
     [enabled]

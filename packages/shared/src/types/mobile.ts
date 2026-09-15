@@ -459,9 +459,11 @@ export interface GatewazeMobileModule {
    */
   feedback?: { path: string };
   /**
-   * Declared by the single module that owns the coach conversation.
+   * Declared by the single module that owns the chat conversation.
    * See MobileCoachProvider.
    */
+  chatProvider?: MobileCoachProvider;
+  /** @deprecated Use chatProvider; accepted for one release. */
   coachProvider?: MobileCoachProvider;
   /**
    * Runtime entitlement probe: "is this module enabled for the signed-in

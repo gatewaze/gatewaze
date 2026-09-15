@@ -156,10 +156,23 @@ export function threadCardRenderer(kind: string): MobileComponentThunk | undefin
  * generator guarantees at most one; with none, the app has no coach
  * surface and opens at the first enabled destination.
  */
-export function coachProvider(): (MobileCoachProvider & { moduleId: string }) | undefined {
-  const mod = mobileModules.find((m) => m.coachProvider);
-  return mod ? { ...(mod.coachProvider as MobileCoachProvider), moduleId: mod.id } : undefined;
+/**
+ * The module that owns the conversation.
+ *
+ * `chatProvider` is the name now that the chat is core infrastructure rather
+ * than one module's feature; `coachProvider` is still accepted so a module
+ * built against the old contract keeps working for a release. Whichever a
+ * module declares, the app calls it the same way.
+ */
+export function chatProvider(): (MobileCoachProvider & { moduleId: string }) | undefined {
+  const mod = mobileModules.find((m) => m.chatProvider ?? m.coachProvider);
+  if (!mod) return undefined;
+  const provider = (mod.chatProvider ?? mod.coachProvider) as MobileCoachProvider;
+  return { ...provider, moduleId: mod.id };
 }
+
+/** @deprecated Use chatProvider. Kept while call sites move over. */
+export const coachProvider = chatProvider;
 
 /**
  * Settings sections, for the modules that are actually on for this member.

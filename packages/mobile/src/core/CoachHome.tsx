@@ -27,7 +27,7 @@ import { LazyThunk } from '../components/LazyThunk';
 import { Caps, Caption, Greeting, LoadingState } from '../components/primitives';
 import { Composer, CAMERA_MODE } from './Composer';
 import { CameraMode } from './CameraMode';
-import { coachProvider, composerModes, moduleColor, moduleOfKind, threadCardRenderer } from './registry';
+import { chatProvider, composerModes, moduleColor, moduleOfKind, threadCardRenderer } from './registry';
 import { getModuleContext } from './context';
 import { ChromeInsetsProvider } from './chrome';
 import { consumeCoachHandoff } from './coachHandoff';
@@ -45,7 +45,7 @@ import type { MobileCoachMessage, MobileCoachGreeting } from '@gatewaze/shared';
 export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const coach = useMemo(() => coachProvider(), []);
+  const coach = useMemo(() => chatProvider(), []);
   const modes = useMemo(() => composerModes(enabled), [enabled]);
 
   const [threadId, setThreadId] = useState<string | undefined>(undefined);
