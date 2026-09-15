@@ -20,13 +20,39 @@
  */
 
 const { withDangerousMod } = require('expo/config-plugins');
-// Internal, deliberately: this is the only pipe through which the generated
-// storyboard can be edited without a later mod overwriting the edit. The
-// throwing guards below mean an upstream shape change fails the build
-// loudly instead of shipping a half-patched launch screen.
-const {
-  withIosSplashScreenStoryboard,
-} = require('@expo/prebuild-config/build/plugins/unversioned/expo-splash-screen/withIosSplashScreenStoryboard');
+
+/**
+ * The storyboard mod pipe, resolved lazily and through expo's own dependency
+ * chain — deliberately, twice over:
+ *
+ * - Internal path: it is the only pipe through which the generated
+ *   storyboard can be edited without a later mod overwriting the edit.
+ * - Lazy + chained: pnpm's strict layout means '@expo/prebuild-config' is
+ *   not resolvable from this package directly, only via expo → @expo/cli.
+ *   And the EXConstants build phase re-evaluates the app config in a context
+ *   that may not resolve it at all — that context only serialises the
+ *   config, never executes mods, so returning null there and skipping the
+ *   storyboard registration is correct, not a silent failure. Prebuild
+ *   itself resolves fine, and its guards below still throw loudly.
+ */
+function getStoryboardPipe() {
+  const candidates = [];
+  try {
+    candidates.push(require.resolve('@expo/prebuild-config/build/plugins/unversioned/expo-splash-screen/withIosSplashScreenStoryboard'));
+  } catch {
+    try {
+      const expoDir = path.dirname(require.resolve('expo/package.json'));
+      const cliDir = path.dirname(require.resolve('@expo/cli/package.json', { paths: [expoDir] }));
+      candidates.push(require.resolve(
+        '@expo/prebuild-config/build/plugins/unversioned/expo-splash-screen/withIosSplashScreenStoryboard',
+        { paths: [cliDir, expoDir] }
+      ));
+    } catch {
+      return null;
+    }
+  }
+  return require(candidates[0]).withIosSplashScreenStoryboard;
+}
 const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
@@ -106,7 +132,9 @@ module.exports = function withFullBleedSplash(config, { image } = {}) {
       return cfg;
     },
   ]);
-  return withIosSplashScreenStoryboard(config, (cfg) => {
+  const withStoryboard = getStoryboardPipe();
+  if (!withStoryboard) return config;
+  return withStoryboard(config, (cfg) => {
     patchStoryboardDocument(cfg.modResults.document);
     return cfg;
   });
