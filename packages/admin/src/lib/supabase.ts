@@ -35,24 +35,57 @@ function getSupabase(): SupabaseClient {
 /**
  * Configure the lazy Supabase singleton for an embedded mount. Must be
  * called before anything touches `supabase`/`getSupabase()` (the embed
- * entry point calls this first, ahead of any provider mount). Throws if
- * a client already exists — the embed's mount() only ever calls this
- * once per page per the "one live mount" contract; a second call would
- * silently strand callers on the first mount's project/storage key.
+ * entry point calls this first, ahead of any provider mount).
+ *
+ * Idempotent for an IDENTICAL configuration, and throws only when the
+ * requested configuration differs from the one already in effect.
+ *
+ * The original version threw whenever a client existed at all, on the
+ * assumption of "one live mount per page". That holds for a standalone
+ * page, but not for a host that mounts the embed inside its own router:
+ * leaving the embed's subtree unmounts React and drops the host's
+ * component, while this module stays evaluated with its client intact.
+ * Re-entering then called mount() again and threw, so navigating away
+ * from newsletters and back showed "The embedded admin module couldn't
+ * be loaded" — reported from the LFX pilot, and reproducible every time.
+ *
+ * The hazard the guard exists for is real but narrower than the original
+ * check: a second mount asking for a DIFFERENT project or storage key
+ * would silently strand callers on the first mount's client, because the
+ * singleton is already built and this only sets the override used at
+ * construction. That case still throws.
  */
 export function configureEmbedSupabase(options: {
   url: string
   anonKey: string
   storageKeySuffix?: string
 }): void {
-  if (supabaseClient) {
-    throw new Error('configureEmbedSupabase() called after the Supabase client was already created')
-  }
-  embedOverride = {
+  const requested = {
     url: options.url,
     anonKey: options.anonKey,
     storageKey: `gatewaze-admin-auth-token-${options.storageKeySuffix || 'host_embed'}`,
   }
+
+  if (supabaseClient) {
+    const sameAsActive =
+      embedOverride !== null &&
+      embedOverride.url === requested.url &&
+      embedOverride.anonKey === requested.anonKey &&
+      embedOverride.storageKey === requested.storageKey
+
+    if (sameAsActive) {
+      // Re-mount with the same configuration: the existing client already
+      // matches what was asked for, so there is nothing to do and nothing
+      // to strand.
+      return
+    }
+
+    throw new Error(
+      'configureEmbedSupabase() called with a different configuration after the Supabase client was already created',
+    )
+  }
+
+  embedOverride = requested
 }
 
 // Proxy export for backward compatibility — all `supabase.xxx()` calls work transparently
