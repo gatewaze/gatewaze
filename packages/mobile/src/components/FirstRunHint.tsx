@@ -16,7 +16,7 @@
  * that closes too eagerly.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
@@ -88,11 +88,36 @@ export function FirstRunHint({ visible, onDismiss }: { visible: boolean; onDismi
     return () => { alive = false; };
   }, []);
 
+  const remember = () => {
+    AsyncStorage.setItem(SEEN_KEY, new Date().toISOString()).catch(() => undefined);
+  };
+
   const dismiss = () => {
     setSeen(true);
-    AsyncStorage.setItem(SEEN_KEY, new Date().toISOString()).catch(() => undefined);
+    remember();
     onDismiss();
   };
+
+  /**
+   * Persist when the hint goes away because the member USED the composer.
+   *
+   * The whole design is that focusing the field dismisses this, not tapping a
+   * button — but the focus path only flipped the `visible` prop, so nothing
+   * was ever written down. The hint came back on every single launch until
+   * somebody happened to tap the bubble itself, which is the one interaction
+   * it is trying not to require.
+   *
+   * Guarded on having actually been shown, so a hint that was never displayed
+   * cannot mark itself seen.
+   */
+  const wasShown = useRef(false);
+  if (ready && !seen && visible) wasShown.current = true;
+  useEffect(() => {
+    if (!visible && wasShown.current && !seen) {
+      setSeen(true);
+      remember();
+    }
+  }, [visible, seen]);
 
   if (!ready || seen || !visible) return null;
 
