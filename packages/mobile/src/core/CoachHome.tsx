@@ -24,6 +24,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassPanel } from '../components/GlassPanel';
 import { ChatBubble, SuggestionChip } from '../components/ChatBubble';
 import { MessageActions, type MessageAction } from '../components/MessageActions';
+import { ThreadRow } from '../components/ThreadRow';
 import { LazyThunk } from '../components/LazyThunk';
 import { Body, Caps, Caption, Greeting, LoadingState } from '../components/primitives';
 import { Icon } from '../components/Icon';
@@ -61,15 +62,6 @@ import type { MobileCoachMessage, MobileCoachGreeting } from '@gatewaze/shared';
  */
 const THREAD_GAP = 20;
 
-/**
- * How much the gap opens at full scroll speed.
- *
- * Small on purpose: gap is a layout property, so every point is added
- * between EVERY pair of messages and lengthens the thread by that much times
- * the number of exchanges. Enough to feel, little enough that a long thread
- * does not visibly grow under the thumb scrolling it.
- */
-const THREAD_GAP_DRIFT = 5;
 
 export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
   const theme = useTheme();
@@ -147,6 +139,15 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
    */
   const drift = useSharedValue(0);
   const lastOffset = useSharedValue(0);
+  /**
+   * Where the window onto the thread currently is.
+   *
+   * Rows use these to work out whether they are on screen at all. A row that
+   * is not in frame does not move: there is nothing to see, and moving it
+   * would be work done for nobody.
+   */
+  const scrollY = useSharedValue(0);
+  const viewportH = useSharedValue(0);
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (e) => {
       // Bottom-following used to live in its own JS onScroll handler. It has
@@ -154,6 +155,9 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
       // is now it.
       atBottom.value =
         e.contentSize.height - (e.contentOffset.y + e.layoutMeasurement.height) < 80;
+
+      scrollY.value = e.contentOffset.y;
+      viewportH.value = e.layoutMeasurement.height;
 
       const dy = Math.abs(e.contentOffset.y - lastOffset.value);
       lastOffset.value = e.contentOffset.y;
@@ -170,11 +174,6 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
       drift.value = withSpring(0, { damping: 18, stiffness: 90, mass: 0.6 });
     },
   });
-
-  /** Base gap plus up to a few points of drift. */
-  const threadBreath = useAnimatedStyle(() => ({
-    gap: THREAD_GAP + drift.value * THREAD_GAP_DRIFT,
-  }));
 
   // Opening a capture mode hands the screen to the camera or scanner, so
   // the keyboard has nothing left to type into and would cover the controls.
@@ -661,6 +660,10 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
           ]}
           onScroll={scrollHandler}
           scrollEventThrottle={16}
+          /* The rows need the window's height to place themselves in it, and
+             the scroll handler only reports it once something has been
+             scrolled. This gives them it from the first frame. */
+          onLayout={(e) => { viewportH.value = e.nativeEvent.layout.height; }}
           /**
            * Jump, never glide. The animated scrollToEnd this used sabotaged
            * itself: the animation's own intermediate scroll events report
@@ -734,17 +737,23 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
           ) : null}
 
           {/*
-            The container that owns the gap, so one animated node spaces every
-            exchange instead of each row animating itself. contentContainerStyle
-            is not animatable on a ScrollView, which is why the gap lives here
-            rather than on the scroll's own content box.
+            A plain container with a FIXED gap. The breathing is done by each
+            row's transform, not by this — animating the gap meant a full
+            layout pass of the whole thread on every scroll frame, which is
+            what made it jerky.
           */}
-          <Animated.View style={[styles.threadInner, threadBreath]}>
+          <View style={styles.threadInner}>
           {messages.map((message, i) => {
             const isLatestCoach =
               message.role === 'coach' && i === messages.length - 1 && !message.pending;
             return (
-              <View key={message.id} style={{ gap: spacing.sm }}>
+              <ThreadRow
+                key={message.id}
+                drift={drift}
+                scrollY={scrollY}
+                viewportH={viewportH}
+                style={{ gap: spacing.sm }}
+              >
                 {message.text || message.pending ? (
                   <Pressable
                     onLongPress={() => {
@@ -810,7 +819,7 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
                     ))}
                   </View>
                 ) : null}
-              </View>
+              </ThreadRow>
             );
           })}
 
@@ -877,7 +886,7 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
               ) : null}
             </View>
           ) : null}
-          </Animated.View>
+          </View>
           <Animated.View style={keyboardSpacer} />
         </Animated.ScrollView>
       )}

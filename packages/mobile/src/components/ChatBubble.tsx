@@ -78,7 +78,12 @@ export function ChatBubble({
   // the border colour and the fill both stay constant.
   const rgb = rgbTriplet(theme.coach);
   const glowStyle = useAnimatedStyle(() => ({
-    boxShadow: `0px 0px ${2 + glow.value * 17}px rgba(${rgb}, ${0.07 + glow.value * 0.33})`,
+    // Two shadows, comma separated: the drop shadow that holds the bubble off
+    // the background, and the beat on top of it. Setting only the beat here
+    // would replace the drop shadow on the newest message, so the one bubble
+    // the eye is on would be the one lying flat.
+    boxShadow:
+      `${DROP_SHADOW}, 0px 0px ${2 + glow.value * 17}px rgba(${rgb}, ${0.07 + glow.value * 0.33})`,
   }));
 
   const isCoach = role === 'coach';
@@ -170,6 +175,21 @@ const { lubRise: LUB_RISE, lubFall: LUB_FALL, dubRise: DUB_RISE, dubFall: DUB_FA
 
 /** The second beat is weaker than the first, as in a real heartbeat. */
 const DUB_PEAK = 0.6;
+
+/**
+ * The drop shadow that lifts a bubble off the background.
+ *
+ * `boxShadow` rather than the legacy shadow props, and not by preference: iOS
+ * derives shadowOpacity/shadowRadius from the layer's ALPHA SILHOUETTE, and
+ * these bubbles are a translucent fill, so those props render essentially
+ * nothing however high they are set. boxShadow is a real Gaussian blur drawn
+ * from the border box, which is what a translucent card needs.
+ *
+ * Large and soft, offset downward: a big blur with a small offset reads as
+ * height above the background, where a tight dark edge reads as a sticker cut
+ * out and laid on it.
+ */
+const DROP_SHADOW = '0px 12px 28px rgba(0, 0, 0, 0.38)';
 
 /**
  * One dot of the typing wave.
@@ -368,6 +388,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     borderWidth: 1,
+    boxShadow: DROP_SHADOW,
   },
   /* The wave only travels UP from rest (translateY 0 → -5), so with equal
      padding the cluster's motion band sat high in the bubble. Headroom above
