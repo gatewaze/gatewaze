@@ -160,6 +160,27 @@ export function CameraMode({ onDismiss }: { onDismiss?: () => void }) {
     <View style={[styles.fill, { paddingTop: chrome.top, paddingBottom: chrome.bottom }]}>
       <View style={styles.preview}>
         <CameraSurface ref={cameraRef} facing={facing}>
+          {/*
+            Tap anywhere to shoot.
+
+            Rendered FIRST, and absolutely filling the frame, so everything
+            below it in the tree draws on top and takes its own taps. That
+            ordering is the whole trick: the flip control and any module's
+            overlay sit above this layer, so tapping them does what they say
+            rather than firing the shutter underneath.
+
+            A big target matters more here than in most places — the member is
+            usually holding the phone over a plate or at arm's length in a
+            mirror, where hitting a specific button one-handed is the hard
+            part.
+          */}
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => void capture()}
+            accessibilityLabel="Take the photo"
+            accessibilityRole="button"
+          />
+
           {step?.overlay ? <LazyThunk key={`${kind.id}:${step.id}`} thunk={step.overlay} /> : null}
 
           {/* Front and back. A progress photo in a mirror is taken with the
@@ -221,27 +242,48 @@ export function CameraMode({ onDismiss }: { onDismiss?: () => void }) {
       </View>
 
       <View style={styles.controls}>
-        {/* Library left, shutter centre — the arrangement every phone camera
-            uses, so it needs no explaining. */}
-        <GlassCircleButton
-          icon="image"
-          onPress={() => void chooseFromLibrary()}
-          accessibilityLabel="Choose a photo from your library"
-        />
+        {/*
+          Three slots, the outer two of equal width, so the shutter is centred
+          on the SCREEN rather than in whatever space the flanking controls
+          leave. With space-between it drifted, because "Close" is wider than
+          a round icon button — and a shutter that is not quite centred is the
+          kind of wrong you feel without being able to name it.
+        */}
+        <View style={styles.side}>
+          {/* Library left of the shutter, the arrangement every phone camera
+              uses, so it needs no explaining. */}
+          <GlassCircleButton
+            icon="image"
+            onPress={() => void chooseFromLibrary()}
+            accessibilityLabel="Choose a photo from your library"
+          />
+        </View>
         <CaptureButton onPress={() => void capture()} />
-        <Button title="Close" variant="ghost" onPress={() => onDismiss?.()} />
+        <View style={[styles.side, styles.sideEnd]}>
+          <Button title="Close" variant="ghost" onPress={() => onDismiss?.()} />
+        </View>
       </View>
 
-      {/* Skip moved out of the control row when the library button took its
-          place. It belongs with the line explaining that skipping is allowed
-          anyway, and a sequence step is a decision about the SET of photos
-          rather than about this one shot. */}
-      {multi ? (
-        <View style={styles.sequence}>
-          <Caption>Any of these can be skipped.</Caption>
-          <Button title="Skip" variant="ghost" compact onPress={advance} />
-        </View>
-      ) : null}
+      {/*
+        Always rendered, even with nothing in it.
+
+        The camera preview is flex:1, so it is sized by whatever is left after
+        the rows beneath it. This row only had content for multi-step kinds,
+        which meant the preview was a row shorter on Body than on Food and the
+        whole camera jumped every time the member changed what they were
+        photographing. Holding the space keeps every kind identical.
+
+        Skip lives here rather than in the control row because it is a
+        decision about the SET of photos, not about this one shot.
+      */}
+      <View style={styles.sequence}>
+        {multi ? (
+          <>
+            <Caption>Any of these can be skipped.</Caption>
+            <Button title="Skip" variant="ghost" compact onPress={advance} />
+          </>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -309,6 +351,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: spacing.sm,
     paddingBottom: spacing.xs,
+    // Fixed, because this row's job is to be the same height whether or not
+    // it has anything to say.
+    height: layout.tapTarget,
   },
+  /* Equal outer slots, so the shutter between them lands on the centre line. */
+  side: { flex: 1, alignItems: 'flex-start' },
+  sideEnd: { alignItems: 'flex-end' },
   note: { textAlign: 'center', paddingBottom: spacing.xs },
 });

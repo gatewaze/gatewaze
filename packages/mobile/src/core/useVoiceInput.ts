@@ -108,7 +108,7 @@ export function useVoiceInput({
     form.append('use_case', useCase);
 
     const ctx = getModuleContext();
-    const res = await ctx.apiFetch('/api/modules/ai/transcriptions', {
+    const res = await ctx.apiFetch('/api/ai/transcriptions', {
       method: 'POST',
       body: form,
     });

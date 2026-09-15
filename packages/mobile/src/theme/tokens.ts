@@ -336,7 +336,17 @@ export const layout = {
   headerFadeDrop: 44,
   /** How much of the button row sits on the solid part of the scrim. */
   headerSolidFraction: 1 / 3,
-  headerPaddingH: 22,
+  /**
+   * Must equal the thread's own gutter (spacing.lg), because the header's two
+   * round buttons sit directly above the chat bubbles and the eye lines their
+   * outer edges up whether or not they were meant to align.
+   *
+   * It was 22 against the thread's 16, so the buttons sat six points further
+   * in than everything below them — not enough to look deliberate, just
+   * enough to look wrong. Written as the token rather than the number so
+   * changing the gutter cannot reintroduce the mismatch.
+   */
+  headerPaddingH: spacing.lg,
   /**
    * Peak opacity pulled down from .97/.85: near-solid at the very top made
    * the scrim read as a bar, not a fade. Sheerer at the top lets the mesh

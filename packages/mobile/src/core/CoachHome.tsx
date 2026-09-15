@@ -36,6 +36,8 @@ import { consumeCoachHandoff } from './coachHandoff';
 import { humanMessage } from './errors';
 import { setCoachPrompts } from './coachPrompts';
 import Animated, {
+  FadeIn,
+  FadeOut,
   useAnimatedStyle,
   useAnimatedKeyboard,
   useAnimatedReaction,
@@ -371,11 +373,38 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
       {/* The content area. A mode surface (camera, scanner, search) fills
           it, so the composer below stays docked and visible — the design
           puts the camera layer above the composer, never under it. */}
+      {/*
+        Each surface fades, so switching between chat, photo and barcode
+        crosses over instead of cutting.
+
+        The outgoing one is still fading while the incoming one appears —
+        Reanimated holds an exiting view until its animation finishes — which
+        is what makes it a cross-fade rather than a blink through the
+        background. Keyed per surface so a switch is a genuine unmount and
+        mount, which is what the animations key off.
+
+        Short on purpose. This sits between a tap and the thing the member
+        asked for, so anything slower would be felt as lag rather than read
+        as polish.
+      */}
       {cameraOpen ? (
+        <Animated.View
+          key="surface:camera"
+          style={styles.fill}
+          entering={FadeIn.duration(180)}
+          exiting={FadeOut.duration(140)}
+        >
         <ChromeInsetsProvider top={headerHeight(insets.top)} bottom={composerHeight}>
           <CameraMode onDismiss={() => selectMode(null)} />
         </ChromeInsetsProvider>
+        </Animated.View>
       ) : mode ? (
+        <Animated.View
+          key={`surface:${modeKey(mode)}`}
+          style={styles.fill}
+          entering={FadeIn.duration(180)}
+          exiting={FadeOut.duration(140)}
+        >
         <ChromeInsetsProvider top={headerHeight(insets.top)} bottom={composerHeight}>
           <LazyThunk
             key={modeKey(mode)}
@@ -394,8 +423,12 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
             }}
           />
         </ChromeInsetsProvider>
+        </Animated.View>
       ) : (
         <Animated.ScrollView
+          key="surface:chat"
+          entering={FadeIn.duration(180)}
+          exiting={FadeOut.duration(140)}
           ref={scrollRef}
           style={styles.fill}
           contentContainerStyle={[
