@@ -161,17 +161,26 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
 
       const dy = Math.abs(e.contentOffset.y - lastOffset.value);
       lastOffset.value = e.contentOffset.y;
-      // Normalised against a brisk flick, and capped, so a fast scroll does
-      // not open the thread further than a moderate one.
-      const speed = Math.min(dy / 28, 1);
+      /**
+       * Normalised against an ORDINARY scroll, not a brisk flick, and capped.
+       *
+       * Against 28 the effect was all but invisible in normal use: a gentle
+       * scroll moves about 5 points a frame, which reached 0.18 and a couple
+       * of points of gap change. The point at which it is fully open should
+       * be a scroll somebody actually does, not the fastest one possible.
+       */
+      const speed = Math.min(dy / 10, 1);
       // Rises immediately with the finger, falls back slowly: the opening
       // should feel caused, the closing should feel like settling.
       drift.value = speed > drift.value
         ? speed
-        : withSpring(0, { damping: 18, stiffness: 90, mass: 0.6 });
+        // Underdamped on purpose: it overshoots slightly and comes back,
+        // which is the bounce at the end of a scroll rather than the thread
+        // simply stopping.
+        : withSpring(0, { damping: 11, stiffness: 95, mass: 0.6 });
     },
     onMomentumEnd: () => {
-      drift.value = withSpring(0, { damping: 18, stiffness: 90, mass: 0.6 });
+      drift.value = withSpring(0, { damping: 11, stiffness: 95, mass: 0.6 });
     },
   });
 

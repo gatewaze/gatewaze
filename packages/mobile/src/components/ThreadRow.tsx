@@ -40,10 +40,10 @@ import Animated, {
  * The visible effect on the GAP is the difference between neighbours, which
  * is roughly a third of this for a message about an eighth of the screen
  * tall — so the number here is deliberately larger than the gap change it
- * produces. 28 gives about 10pt of open and close, which is the asked-for
- * amount; 14 gave about 5.
+ * produces. The run has been 14 (about 5pt of gap change), then 28 (about
+ * 10), now 52 (about 18), each time because the last was too easy to miss.
  */
-const WAVE_AMPLITUDE = 28;
+const WAVE_AMPLITUDE = 52;
 
 export function ThreadRow({
   drift,
