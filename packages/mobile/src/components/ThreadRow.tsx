@@ -37,11 +37,13 @@ import Animated, {
 /**
  * The most a row is displaced, in points, at full scroll speed.
  *
- * The visible effect on the gap is the difference between neighbours, which
- * is a fraction of this — so it has to be bigger than the movement you want
- * to notice between two messages.
+ * The visible effect on the GAP is the difference between neighbours, which
+ * is roughly a third of this for a message about an eighth of the screen
+ * tall — so the number here is deliberately larger than the gap change it
+ * produces. 28 gives about 10pt of open and close, which is the asked-for
+ * amount; 14 gave about 5.
  */
-const WAVE_AMPLITUDE = 14;
+const WAVE_AMPLITUDE = 28;
 
 export function ThreadRow({
   drift,
