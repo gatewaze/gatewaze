@@ -83,13 +83,12 @@ export function SignInFlow({ note }: { note?: string }) {
                 Sign in with your email. We will send you a 6-digit code.
               </Body>
               <Input
-                label="Email"
                 value={email}
                 onChangeText={setEmail}
                 autoCapitalize="none"
                 autoComplete="email"
                 keyboardType="email-address"
-                placeholder="you@example.com"
+                placeholder="Email address"
               />
               <Button
                 title="Send code"
