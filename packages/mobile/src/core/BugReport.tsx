@@ -14,10 +14,9 @@
 
 import React, { useState } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, useAnimatedKeyboard, useAnimatedStyle } from 'react-native-reanimated';
 import Constants from 'expo-constants';
 import { getModuleContext } from './context';
-import { GlassPanel } from '../components/GlassPanel';
 import { Body, Button, Caption, CardTitle, Input, Row } from '../components/primitives';
 import { useTheme, radius, spacing } from '../theme/tokens';
 import { humanMessage } from './errors';
@@ -63,12 +62,38 @@ export function BugReportSheet({
     }
   };
 
+  /**
+   * Lift the sheet above the keyboard.
+   *
+   * The field autofocuses, so the keyboard is up before the member has read
+   * anything — and the overlay centres its content, so Send and Cancel sat
+   * underneath it with no way to scroll to them. Extra bottom padding on a
+   * centred container moves the sheet up by half of it, which is exactly
+   * what is wanted here.
+   *
+   * Reading the height from the platform rather than using
+   * KeyboardAvoidingView: this sits inside the drawer's animated translate
+   * and scale, which makes KeyboardAvoidingView's own frame measurement
+   * wrong — the same reason the coach screen reads it this way.
+   */
+  const keyboard = useAnimatedKeyboard();
+  const liftForKeyboard = useAnimatedStyle(() => ({ paddingBottom: spacing.lg + keyboard.height.value }));
+
   return (
-    <Animated.View entering={FadeIn.duration(150)} style={styles.overlay}>
+    <Animated.View entering={FadeIn.duration(150)} style={[styles.overlay, liftForKeyboard]}>
       {/* Tapping the dimmed screen dismisses, like every sheet on the OS. */}
       <Pressable style={StyleSheet.absoluteFill} onPress={sent ? undefined : onClose} />
-      <Animated.View entering={FadeInDown.duration(200)}>
-        <GlassPanel radius={radius.lg}>
+      <Animated.View entering={FadeInDown.duration(200)} style={styles.sheetWrap}>
+        {/*
+          Solid, not glass.
+
+          Glass belongs on the chrome that floats over the member's own
+          content, where seeing through it tells you what you are still on top
+          of. This is a form: it has a text field, an error line and two
+          buttons, and every one of them was competing with whatever colour
+          the mesh happened to be drifting through behind it.
+        */}
+        <View style={[styles.sheet, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <View style={{ padding: spacing.lg, gap: spacing.md }}>
             {sent ? (
               <>
@@ -112,7 +137,7 @@ export function BugReportSheet({
               </>
             )}
           </View>
-        </GlassPanel>
+        </View>
       </Animated.View>
     </Animated.View>
   );
@@ -121,10 +146,18 @@ export function BugReportSheet({
 const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    // Deeper than it was: the sheet is a form, and the point of the scrim is
+    // to put the app behind it rather than beside it.
+    backgroundColor: 'rgba(0,0,0,0.62)',
     justifyContent: 'center',
     padding: spacing.lg,
     zIndex: 40,
+  },
+  sheetWrap: { width: '100%' },
+  sheet: {
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    overflow: 'hidden',
   },
   thumb: {
     width: 44,
