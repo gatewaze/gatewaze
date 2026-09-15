@@ -262,7 +262,11 @@ function Typewriter({ text, color }: { text: string | null; color: string }) {
 
   if (!shown) return null;
   return (
-    <Text style={[type.caption, { color, opacity: 0.75 }]} numberOfLines={2}>
+    /* 0.9, not 0.75: at 0.75 this measured 4.77:1 against the dimmest bubble
+       fill, which clears the 4.5 minimum with almost nothing to spare. It is
+       secondary text, so it stays below full strength, but not so far below
+       that a slightly darker fill would push it under. */
+    <Text style={[type.caption, { color, opacity: 0.9 }]} numberOfLines={2}>
       {shown}
     </Text>
   );

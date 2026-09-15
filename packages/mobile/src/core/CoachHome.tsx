@@ -23,6 +23,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassPanel } from '../components/GlassPanel';
 import { ChatBubble, SuggestionChip } from '../components/ChatBubble';
+import { MessageActions, type MessageAction } from '../components/MessageActions';
 import { LazyThunk } from '../components/LazyThunk';
 import { Body, Caps, Caption, Greeting, LoadingState } from '../components/primitives';
 import { Icon } from '../components/Icon';
@@ -38,13 +39,37 @@ import { setCoachPrompts } from './coachPrompts';
 import Animated, {
   FadeIn,
   FadeOut,
+  useAnimatedScrollHandler,
   useAnimatedStyle,
+  useSharedValue,
+  withSpring,
   useAnimatedKeyboard,
   useAnimatedReaction,
   runOnJS,
 } from 'react-native-reanimated';
-import { useTheme, radius, spacing, type, headerHeight } from '../theme/tokens';
+import { useTheme, radius, spacing, type, headerHeight, layout } from '../theme/tokens';
 import type { MobileCoachMessage, MobileCoachGreeting } from '@gatewaze/shared';
+
+
+/**
+ * The resting gap between exchanges: md (12) → lg (16) → xl (24) → 20.
+ *
+ * 12 read as one undifferentiated column, 16 was reported as no better, 24
+ * was too airy. A literal because the spacing scale has no step between lg
+ * and xl, and one surface needing a half-step is not a reason to give every
+ * surface one.
+ */
+const THREAD_GAP = 20;
+
+/**
+ * How much the gap opens at full scroll speed.
+ *
+ * Small on purpose: gap is a layout property, so every point is added
+ * between EVERY pair of messages and lengthens the thread by that much times
+ * the number of exchanges. Enough to feel, little enough that a long thread
+ * does not visibly grow under the thumb scrolling it.
+ */
+const THREAD_GAP_DRIFT = 5;
 
 export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
   const theme = useTheme();
@@ -69,6 +94,14 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
   const [composerHeight, setComposerHeight] = useState(0);
   /** Messages sent while the coach was mid-reply, waiting their turn. */
   const [queued, setQueued] = useState<string[]>([]);
+  /** The message whose action bar is open, if any. */
+  const [held, setHeld] = useState<string | null>(null);
+  /**
+   * The message being edited, if any. While this is set, sending PATCHes that
+   * message instead of adding a new one — which is why it holds the id rather
+   * than a boolean.
+   */
+  const [editing, setEditing] = useState<{ id: string; original: string } | null>(null);
   /**
    * A notice the member tapped, waiting to be shown at the end of the thread.
    *
@@ -82,11 +115,66 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
   // Auto-scrolling unconditionally fought the member: any content change
   // while they were reading further up yanked them back down. Follow the
   // thread only when they are already at the end of it.
-  const atBottom = useRef(true);
-  const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
-    atBottom.current = contentSize.height - (contentOffset.y + layoutMeasurement.height) < 80;
-  }, []);
+  /**
+   * Whether the thread is parked at the newest message.
+   *
+   * A shared value rather than a ref, because the scroll handler that
+   * maintains it now runs on the UI thread. Reading `.value` from JS is fine;
+   * calling back into JS on every scroll event would not be.
+   */
+  const atBottom = useSharedValue(true);
+  /**
+   * The thread breathes as it is scrolled: gaps open while it moves and
+   * settle closed when it stops.
+   *
+   * ── IS THERE A NATIVE API FOR THIS? ─────────────────────────────────────
+   *
+   * No. The feel in Messages is not a switch Apple exposes — it is a physics
+   * simulation Apple wrote, and neither UIKit nor SwiftUI offers it as a
+   * property. Anything that looks like it has to be built, which is what this
+   * is: scroll speed drives a value, the value drives the spacing, and a
+   * spring returns it to rest.
+   *
+   * ── WHY SPEED, AND WHY SO LITTLE OF IT ──────────────────────────────────
+   *
+   * Speed is what makes it feel like momentum rather than a loop playing.
+   * The amplitude is deliberately small, because the gap is a LAYOUT
+   * property: every point added is added between every pair of messages, so
+   * it also lengthens the content. Push it far and a long thread grows by
+   * enough to move under the reader's thumb while they are scrolling it,
+   * which reads as the list fighting them. A few points is enough to be felt
+   * and little enough to stay still.
+   */
+  const drift = useSharedValue(0);
+  const lastOffset = useSharedValue(0);
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (e) => {
+      // Bottom-following used to live in its own JS onScroll handler. It has
+      // to move here, because a scroll view has one scroll handler and this
+      // is now it.
+      atBottom.value =
+        e.contentSize.height - (e.contentOffset.y + e.layoutMeasurement.height) < 80;
+
+      const dy = Math.abs(e.contentOffset.y - lastOffset.value);
+      lastOffset.value = e.contentOffset.y;
+      // Normalised against a brisk flick, and capped, so a fast scroll does
+      // not open the thread further than a moderate one.
+      const speed = Math.min(dy / 28, 1);
+      // Rises immediately with the finger, falls back slowly: the opening
+      // should feel caused, the closing should feel like settling.
+      drift.value = speed > drift.value
+        ? speed
+        : withSpring(0, { damping: 18, stiffness: 90, mass: 0.6 });
+    },
+    onMomentumEnd: () => {
+      drift.value = withSpring(0, { damping: 18, stiffness: 90, mass: 0.6 });
+    },
+  });
+
+  /** Base gap plus up to a few points of drift. */
+  const threadBreath = useAnimatedStyle(() => ({
+    gap: THREAD_GAP + drift.value * THREAD_GAP_DRIFT,
+  }));
 
   // Opening a capture mode hands the screen to the camera or scanner, so
   // the keyboard has nothing left to type into and would cover the controls.
@@ -129,7 +217,7 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
 
   const followIfAtEnd = useCallback(
     (animated: boolean) => {
-      if (atBottom.current) scrollRef.current?.scrollToEnd({ animated });
+      if (atBottom.value) scrollRef.current?.scrollToEnd({ animated });
     },
     []
   );
@@ -236,9 +324,81 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
     return null;
   }, []);
 
+  /**
+   * What can be done to a message.
+   *
+   * Delete on either side, because it is the member's conversation. Edit only
+   * on their OWN latest message, which is the case it exists for: you send
+   * something, see immediately that it was wrong, and fix it rather than send
+   * a correction. Editing further back would rewrite the premise of
+   * everything after it.
+   */
+  const messageActions = useCallback((message: MobileCoachMessage, index: number): MessageAction[] => {
+    const acts: MessageAction[] = [];
+    const laterMember = messages.slice(index + 1).some((m) => m.role === 'member');
+    if (message.role === 'member' && !laterMember) {
+      acts.push({ id: 'edit', label: 'Edit', icon: 'pencil' });
+    }
+    acts.push({ id: 'delete', label: 'Delete', icon: 'trash-can-outline', destructive: true });
+    return acts;
+  }, [messages]);
+
+  const removeMessage = useCallback(async (messageId: string) => {
+    if (!coach?.removeMessage || !threadId) return;
+    // Gone from the thread immediately: waiting on a round trip to remove
+    // something the member has just chosen to remove feels like it failed.
+    setMessages((prev) => prev.filter((m) => m.id !== messageId));
+    try {
+      const updated = await coach.removeMessage(getModuleContext(), threadId, messageId);
+      setMessages(updated);
+    } catch (err) {
+      setError(humanMessage(err).text);
+      // Put it back: it is still there on the server.
+      try {
+        setMessages(await coach.thread(getModuleContext(), threadId));
+      } catch { /* The next open is authoritative. */ }
+    }
+  }, [coach, threadId]);
+
   const send = useCallback(
     async (text: string, alreadyShown = false) => {
       if (!coach || !text.trim()) return;
+
+      /**
+       * An edit in progress replaces the message rather than adding one.
+       *
+       * Handled at the top of send() so every way of sending — the button,
+       * the keyboard's return, a suggestion chip — goes through it, instead
+       * of the composer needing to know an edit is happening.
+       */
+      if (editing && coach.editMessage && coach.answer && threadId) {
+        const target = editing;
+        setEditing(null);
+        setDraft('');
+        setBusy(true);
+        const ctx = getModuleContext();
+        try {
+          setMessages(await coach.editMessage(ctx, threadId, target.id, text.trim()));
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: 'pending-' + Date.now(),
+              role: 'coach',
+              createdAt: new Date().toISOString(),
+              pending: true,
+              status: statusForMode(activeMode),
+            },
+          ]);
+          setMessages(await coach.answer(ctx, threadId));
+          replyArrived();
+        } catch (err) {
+          setMessages((prev) => prev.filter((m) => !m.pending));
+          setError(humanMessage(err).text);
+        } finally {
+          setBusy(false);
+        }
+        return;
+      }
       // A second message while the coach is still answering — or any message
       // while the thread list is still loading — is QUEUED, not
       // dropped. Returning early here used to lose it silently: the member
@@ -337,7 +497,7 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
         setBusy(false);
       }
     },
-    [coach, threadId, busy, loading]
+    [coach, threadId, busy, loading, editing, statusForMode, activeMode]
   );
 
   /**
@@ -451,7 +611,11 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
           exiting={FadeOut.duration(140)}
         >
         <ChromeInsetsProvider top={headerHeight(insets.top)} bottom={composerHeight}>
-          <CameraMode onDismiss={() => selectMode(null)} />
+          <CameraMode
+            onDismiss={() => selectMode(null)}
+            openKindId={modeProps.kindId as string | undefined}
+            openStepId={modeProps.stepId as string | undefined}
+          />
         </ChromeInsetsProvider>
         </Animated.View>
       ) : mode ? (
@@ -495,7 +659,7 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
               paddingBottom: composerHeight + spacing.lg,
             },
           ]}
-          onScroll={onScroll}
+          onScroll={scrollHandler}
           scrollEventThrottle={16}
           /**
            * Jump, never glide. The animated scrollToEnd this used sabotaged
@@ -569,12 +733,29 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
             </View>
           ) : null}
 
+          {/*
+            The container that owns the gap, so one animated node spaces every
+            exchange instead of each row animating itself. contentContainerStyle
+            is not animatable on a ScrollView, which is why the gap lives here
+            rather than on the scroll's own content box.
+          */}
+          <Animated.View style={[styles.threadInner, threadBreath]}>
           {messages.map((message, i) => {
             const isLatestCoach =
               message.role === 'coach' && i === messages.length - 1 && !message.pending;
             return (
               <View key={message.id} style={{ gap: spacing.sm }}>
                 {message.text || message.pending ? (
+                  <Pressable
+                    onLongPress={() => {
+                      // Nothing to act on until the server has given it an id:
+                      // an optimistic bubble has a local one that no route
+                      // would recognise.
+                      if (message.pending || String(message.id).match(/^(local|queued|pending)-/)) return;
+                      setHeld(message.id);
+                    }}
+                    delayLongPress={350}
+                  >
                   <ChatBubble
                     role={message.role}
                     latestCoach={isLatestCoach}
@@ -583,6 +764,29 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
                   >
                     {message.text ?? ''}
                   </ChatBubble>
+                  </Pressable>
+                ) : null}
+
+                {/*
+                  The action bar, under the message it belongs to and on the
+                  same side, so there is no doubt which one is about to be
+                  edited or deleted.
+                */}
+                {held === message.id ? (
+                  <MessageActions
+                    align={message.role === 'member' ? 'right' : 'left'}
+                    actions={messageActions(message, i)}
+                    onDismiss={() => setHeld(null)}
+                    onPick={(action) => {
+                      setHeld(null);
+                      if (action === 'edit') {
+                        setEditing({ id: message.id, original: message.text ?? '' });
+                        setDraft(message.text ?? '');
+                      } else {
+                        void removeMessage(message.id);
+                      }
+                    }}
+                  />
                 ) : null}
 
                 {(message.cards ?? []).map((card, ci) => (
@@ -592,6 +796,10 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
                     payload={card.payload}
                     threadId={threadId}
                     onSend={(text) => void send(text)}
+                    onOpenMode={(key, props) => {
+                      setModeProps(props ?? {});
+                      selectMode(key);
+                    }}
                   />
                 ))}
 
@@ -669,6 +877,7 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
               ) : null}
             </View>
           ) : null}
+          </Animated.View>
           <Animated.View style={keyboardSpacer} />
         </Animated.ScrollView>
       )}
@@ -676,6 +885,25 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
       {/* The composer floats over the thread rather than sitting below it:
           as a sibling it cut the canvas off on a hard edge. Its fade is the
           mirror of the header's, so messages dissolve at both ends. */}
+      {/*
+        Says the composer is about to REPLACE something rather than add to it.
+        Without it the only clue is that the field arrived pre-filled, which
+        is not enough to explain why sending will not append a message.
+      */}
+      {editing ? (
+        <View style={[styles.editingBar, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Icon name="pencil" size={14} color={theme.textSecondary} />
+          <Caption style={{ flex: 1 }}>Editing your message</Caption>
+          <Pressable
+            onPress={() => { setEditing(null); setDraft(''); }}
+            hitSlop={8}
+            accessibilityRole="button"
+          >
+            <Caption style={{ color: theme.accent }}>Cancel</Caption>
+          </Pressable>
+        </View>
+      ) : null}
+
       <Composer
         enabled={enabled}
         draft={draft}
@@ -718,6 +946,7 @@ function ThreadCard({
   payload,
   threadId,
   onSend,
+  onOpenMode,
 }: {
   kind: string;
   payload: unknown;
@@ -735,6 +964,12 @@ function ThreadCard({
    * Optional, so every existing card is unaffected.
    */
   onSend?: (text: string) => void;
+  /**
+   * Lets a card open a composer mode — the camera, the scanner — with props.
+   * Added for the assistant's photo requests, which know which shot they are
+   * asking for and should not make the member go and find it.
+   */
+  onOpenMode?: (key: string, props?: Record<string, unknown>) => void;
 }) {
   const theme = useTheme();
   const renderer = useMemo(() => threadCardRenderer(kind), [kind]);
@@ -764,7 +999,7 @@ function ThreadCard({
   }
   return (
     <View style={[styles.cardAccent, { borderLeftColor: accent }]}>
-      <LazyThunk thunk={renderer} props={{ payload, threadId, onSend }} />
+      <LazyThunk thunk={renderer} props={{ payload, threadId, onSend, onOpenMode }} />
     </View>
   );
 }
@@ -785,6 +1020,18 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   fill: { flex: 1 },
+  /* Sits directly above the composer, inside the same gutter. */
+  editingBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginHorizontal: layout.composerMargin,
+    marginBottom: spacing.xs,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.full,
+    borderWidth: 1,
+  },
   errorPanel: {
     borderWidth: 1,
     borderRadius: radius.lg,
@@ -812,7 +1059,10 @@ const styles = StyleSheet.create({
    * scale: one surface needing a half-step is not a reason to give every
    * surface one.
    */
-  thread: { padding: spacing.lg, paddingBottom: spacing.xxl, gap: 20 },
+  // The gap now lives on the inner breathing container, so the scroll's
+  // content box keeps only its padding.
+  thread: { padding: spacing.lg, paddingBottom: spacing.xxl },
+  threadInner: { gap: THREAD_GAP },
   intro: { paddingTop: spacing.xl, gap: spacing.sm },
   subtitle: { fontStyle: 'italic' },
   starters: { marginTop: spacing.xl, gap: spacing.sm, alignItems: 'flex-start' },

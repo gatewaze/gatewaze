@@ -250,6 +250,28 @@ export interface MobileCoachProvider {
    * to the thread as it now stands. Optional, and paired with `stash`.
    */
   answer?: (ctx: MobileModuleContext, threadId: string) => Promise<MobileCoachMessage[]>;
+
+  /**
+   * Remove one message, either side, resolving to the thread as it stands.
+   * Optional: a provider without it simply offers no delete action.
+   */
+  removeMessage?: (
+    ctx: MobileModuleContext,
+    threadId: string,
+    messageId: string
+  ) => Promise<MobileCoachMessage[]>;
+
+  /**
+   * Change the member's latest message. The reply that answered the old
+   * wording is dropped, and the caller asks for a fresh one separately so the
+   * app can paint its pending state in between.
+   */
+  editMessage?: (
+    ctx: MobileModuleContext,
+    threadId: string,
+    messageId: string,
+    text: string
+  ) => Promise<MobileCoachMessage[]>;
   /** Unread count for the drawer badge, if the module tracks one. */
   unread?: (ctx: MobileModuleContext) => Promise<number>;
   /**

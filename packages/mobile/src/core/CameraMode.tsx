@@ -50,14 +50,37 @@ import { useTheme, radius, spacing, layout, type } from '../theme/tokens';
 import { pickFromLibrary } from '../capabilities/imagePicker';
 import { GlassCircleButton } from '../components/GlassCircleButton';
 
-export function CameraMode({ onDismiss }: { onDismiss?: () => void }) {
+export function CameraMode({
+  onDismiss,
+  openKindId,
+  openStepId,
+}: {
+  onDismiss?: () => void;
+  /**
+   * Open on a particular kind and step rather than on the default.
+   *
+   * For when something else already knows which photo it wants — the
+   * assistant asking for a front progress photo, say. Without it a card that
+   * asks for a specific shot can only open the camera and hope the member
+   * finds the right pill and the right step themselves.
+   */
+  openKindId?: string | null;
+  openStepId?: string | null;
+}) {
   const theme = useTheme();
   const chrome = useChromeInsets();
   const kinds = useMemo(() => photoKinds(), []);
 
-  // Food is first by its `order`, and is where this opens every time.
-  const [kindId, setKindId] = useState<string | null>(kinds[0]?.id ?? null);
-  const [stepIndex, setStepIndex] = useState(0);
+  // Food is first by its `order`, and is where this opens every time unless
+  // the caller asked for something specific. An unknown id falls back rather
+  // than opening a camera with nothing to photograph.
+  const requested = openKindId ? kinds.find((k) => k.id === openKindId) : null;
+  const [kindId, setKindId] = useState<string | null>((requested ?? kinds[0])?.id ?? null);
+  const [stepIndex, setStepIndex] = useState(() => {
+    if (!requested || !openStepId) return 0;
+    const at = requested.steps.findIndex((s) => s.id === openStepId);
+    return at >= 0 ? at : 0;
+  });
   const [facing, setFacing] = useState<'back' | 'front'>('back');
   const [captured, setCaptured] = useState<{ uri: string; stepId: string } | null>(null);
   const cameraRef = React.useRef<React.ComponentRef<typeof CameraSurface>>(null);
