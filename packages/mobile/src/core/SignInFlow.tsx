@@ -17,9 +17,14 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
+import Animated from 'react-native-reanimated';
+import { Pressable } from 'react-native';
 import {
-  Body, Button, Caption, CardTitle, Input, Screen, Spacer, Title,
+  Body, Button, Caption, CardTitle, Input, Reveal, Row, Screen, Spacer, Title,
 } from '../components/primitives';
+import { Icon } from '../components/Icon';
+import { usePressScale } from '../components/usePressScale';
+import { useTheme, radius } from '../theme/tokens';
 import { AmbientBackground } from '../components/AmbientBackground';
 import { brandLogo, signupProvider } from './registry';
 import { getModuleContext } from './context';
@@ -28,7 +33,77 @@ import { colors, spacing } from '../theme/tokens';
 import { useSession } from './auth/session';
 import { humanMessage } from './errors';
 
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
 type Step = 'welcome' | 'plan' | 'email' | 'code';
+
+/**
+ * One plan, as something you pick rather than a button you press.
+ *
+ * Selection has to be unmistakable at a glance, so it is carried by four
+ * things at once — a tinted ground, a full-strength border, a filled check,
+ * and the icon coming up to full opacity. One of them alone (the old
+ * primary-vs-secondary button) was too quiet to read as "this is the one".
+ *
+ * The icon and the feature lines come from the server, so what a plan
+ * contains is the module's copy rather than this file's knowledge.
+ */
+function PlanCard({
+  plan, selected, onPress,
+}: {
+  plan: { id: string; name: string; blurb: string; icon?: string; features?: string[] };
+  selected: boolean;
+  onPress: () => void;
+}) {
+  const theme = useTheme();
+  const press = usePressScale(1.02);
+  return (
+    <AnimatedPressable
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      onPress={onPress}
+      onPressIn={press.onPressIn}
+      onPressOut={press.onPressOut}
+      style={[
+        styles.planCard,
+        {
+          borderColor: selected ? theme.buttonBorder : theme.controlBorder,
+          backgroundColor: selected ? theme.buttonFill : theme.buttonFillSoft,
+        },
+        press.style,
+      ]}
+    >
+      <Row style={{ gap: spacing.md, alignItems: 'center' }}>
+        <Icon
+          name={plan.icon || 'star-four-points'}
+          size={26}
+          color={selected ? theme.buttonText : theme.textSecondary}
+        />
+        <View style={{ flex: 1 }}>
+          <Body style={{ fontWeight: '700', color: theme.buttonText }}>{plan.name}</Body>
+        </View>
+        <Icon
+          name={selected ? 'check-circle' : 'circle-outline'}
+          size={22}
+          color={selected ? theme.coach : theme.textMuted}
+        />
+      </Row>
+
+      {(plan.features ?? []).length ? (
+        <View style={{ gap: 4, marginTop: spacing.sm }}>
+          {(plan.features ?? []).map((f) => (
+            <Row key={f} style={{ gap: spacing.sm, alignItems: 'flex-start' }}>
+              <Icon name="check" size={13} color={theme.coach} />
+              <Caption style={{ flex: 1, color: theme.textSecondary }}>{f}</Caption>
+            </Row>
+          ))}
+        </View>
+      ) : (
+        <Caption style={{ marginTop: spacing.xs }}>{plan.blurb}</Caption>
+      )}
+    </AnimatedPressable>
+  );
+}
 
 export function SignInFlow({ note }: { note?: string }) {
   const { requestCode, verifyCode } = useSession();
@@ -50,7 +125,12 @@ export function SignInFlow({ note }: { note?: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [plans, setPlans] = useState<Array<{ id: string; name: string; blurb: string }>>([]);
+  const [plans, setPlans] = useState<Array<{
+    id: string; name: string; blurb: string; icon?: string; features?: string[];
+  }>>([]);
+  // The code field is hidden until asked for: most people do not have one,
+  // and an empty box on the screen invites the question "should I have a code?"
+  const [redeeming, setRedeeming] = useState(false);
   const [planId, setPlanId] = useState<string | null>(null);
   const [inviteCode, setInviteCode] = useState('');
   const [invite, setInvite] = useState<{
@@ -149,42 +229,49 @@ export function SignInFlow({ note }: { note?: string }) {
           ) : null}
 
           {step === 'plan' ? (
-            <View style={styles.form}>
-              <CardTitle>Choose what you want</CardTitle>
-              <Caption>Everything is included free while {config.appName} is in testing.</Caption>
+            <View style={styles.wide}>
+              <CardTitle style={{ textAlign: 'center' }}>Choose what you want</CardTitle>
+              <Caption style={{ textAlign: 'center' }}>
+                Everything is included free while {config.appName} is in testing.
+              </Caption>
+              <Spacer size={spacing.xs} />
+
               {plans.map((p) => (
-                <Button
+                <PlanCard
                   key={p.id}
-                  title={p.name}
-                  variant={p.id === planId ? 'primary' : 'secondary'}
+                  plan={p}
+                  selected={p.id === planId}
                   onPress={() => setPlanId(p.id)}
                 />
               ))}
-              {planId ? (
-                <Caption>{plans.find((p) => p.id === planId)?.blurb}</Caption>
-              ) : null}
 
               {signup?.validateCode ? (
-                <>
-                  <Input
-                    placeholder="Invite or discount code (optional)"
-                    value={inviteCode}
-                    onChangeText={setInviteCode}
-                    autoCapitalize="characters"
-                    autoCorrect={false}
-                    onBlur={() => void checkCode()}
-                  />
-                  {invite ? (
-                    <Caption style={{ color: colors.coach }}>
-                      {invite.trainer
-                        ? `You will join as a client of ${invite.trainer.displayName}.`
-                        : `${invite.percentOff}% off applied.`}
-                    </Caption>
-                  ) : null}
-                  {inviteError ? <Caption style={{ color: colors.danger }}>{inviteError}</Caption> : null}
-                </>
+                redeeming ? (
+                  <Reveal style={{ gap: spacing.sm }}>
+                    <Input
+                      placeholder="Enter your code"
+                      value={inviteCode}
+                      onChangeText={setInviteCode}
+                      autoCapitalize="characters"
+                      autoCorrect={false}
+                      autoFocus
+                      onBlur={() => void checkCode()}
+                    />
+                    {invite ? (
+                      <Caption style={{ color: colors.coach }}>
+                        {invite.trainer
+                          ? `You will join as a client of ${invite.trainer.displayName}.`
+                          : `${invite.percentOff}% off applied.`}
+                      </Caption>
+                    ) : null}
+                    {inviteError ? <Caption style={{ color: colors.danger }}>{inviteError}</Caption> : null}
+                  </Reveal>
+                ) : (
+                  <Button title="Redeem a code" variant="ghost" compact onPress={() => setRedeeming(true)} />
+                )
               ) : null}
 
+              <Spacer size={spacing.xs} />
               <Button title="Continue" onPress={() => setStep('email')} disabled={!planId} />
               <Button title="Back" variant="ghost" onPress={() => setStep('welcome')} />
             </View>
@@ -255,4 +342,11 @@ const styles = StyleSheet.create({
   // Narrow and centred: a full-bleed form on a phone reads as a settings
   // page, not a front door.
   form: { gap: spacing.lg, width: '100%', maxWidth: 300, alignSelf: 'center' },
+  // The picker needs more room than a form: three cards with feature lines.
+  wide: { gap: spacing.sm, width: '100%', maxWidth: 340, alignSelf: 'center' },
+  planCard: {
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+  },
 });
