@@ -340,15 +340,71 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
     [coach, threadId, busy, loading]
   );
 
-  // Drain one queued message per idle turn. The optimistic bubble for it is
-  // already in the thread, and generate() returns the authoritative list, so
-  // it is not painted twice.
+  /**
+   * Answer everything that piled up while the last reply was being written,
+   * in ONE turn.
+   *
+   * It used to drain one message per turn, so somebody who sent a thought in
+   * three goes got three separate replies, each answering only its own
+   * fragment. That is not how a conversation works: if you say three things
+   * in a row, the other person reads all three and responds once.
+   *
+   * Each message is still stored as its own message, so the thread keeps the
+   * shape the member typed. Only the ANSWER is shared. The server merges
+   * consecutive member turns before the model sees them, so this needs no
+   * joining of text here.
+   *
+   * Falls back to the old behaviour on a provider that predates `stash`, so a
+   * module built against the earlier contract keeps working.
+   */
   useEffect(() => {
-    if (busy || loading || queued.length === 0) return;
-    const [next, ...rest] = queued;
-    setQueued(rest);
-    void send(next, true);
-  }, [busy, loading, queued, send]);
+    if (busy || loading || queued.length === 0 || !threadId) return;
+    const batch = queued;
+    setQueued([]);
+
+    // Captured once, so TypeScript knows they survive the await boundary and
+    // a provider swapped mid-flight cannot change what this batch calls.
+    const stash = coach?.stash;
+    const answer = coach?.answer;
+    if (!stash || !answer) {
+      // Older contract: one at a time, as before.
+      void send(batch[0], true);
+      setQueued(batch.slice(1));
+      return;
+    }
+
+    setBusy(true);
+    (async () => {
+      const ctx = getModuleContext();
+      try {
+        // In order, and one at a time: the thread's sense depends on them
+        // arriving in the order they were typed.
+        for (const text of batch) await stash(ctx, threadId, text);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: 'pending-' + Date.now(),
+            role: 'coach',
+            createdAt: new Date().toISOString(),
+            pending: true,
+            status: statusForMode(activeMode),
+          },
+        ]);
+        const updated = await answer(ctx, threadId);
+        setMessages(updated);
+        replyArrived();
+      } catch (err) {
+        setMessages((prev) => prev.filter((m) => !m.pending));
+        const human = humanMessage(err);
+        setError(human.text);
+        // Their words are already stored, so offering to resend them would
+        // duplicate. The reply is what failed, and that is what to retry.
+        setFailed(null);
+      } finally {
+        setBusy(false);
+      }
+    })();
+  }, [busy, loading, queued, threadId, coach, send, statusForMode, activeMode]);
 
   if (!coach) {
     return (
@@ -746,9 +802,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
   },
   centered: { alignItems: 'center', justifyContent: 'center' },
-  // gap md → lg → xl: lg was reported as no better — each exchange needs
-  // clear air around it before the thread stops reading as one column.
-  thread: { padding: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.xl },
+  /**
+   * The gap between exchanges: md (12) → lg (16) → xl (24) → 20.
+   *
+   * 12 read as one undifferentiated column. 16 was reported as no better,
+   * which is why it went past the token scale to 24 — and 24 is now too
+   * airy. 20 is the settled value, and it is a literal because the spacing
+   * scale has no step between lg and xl. Kept here rather than added to the
+   * scale: one surface needing a half-step is not a reason to give every
+   * surface one.
+   */
+  thread: { padding: spacing.lg, paddingBottom: spacing.xxl, gap: 20 },
   intro: { paddingTop: spacing.xl, gap: spacing.sm },
   subtitle: { fontStyle: 'italic' },
   starters: { marginTop: spacing.xl, gap: spacing.sm, alignItems: 'flex-start' },

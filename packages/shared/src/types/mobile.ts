@@ -232,6 +232,24 @@ export interface MobileCoachProvider {
    * contract). Resolves to the updated message list.
    */
   generate: (ctx: MobileModuleContext, threadId: string) => Promise<MobileCoachMessage[]>;
+
+  /**
+   * Store a message without asking for a reply yet.
+   *
+   * Used when the member sends again while a reply is still being written.
+   * Their words go in as their own message straight away, so the thread keeps
+   * the shape they typed, and nothing is generated until `answer` runs.
+   *
+   * Optional: a provider built against the earlier contract simply keeps the
+   * one-reply-per-message behaviour.
+   */
+  stash?: (ctx: MobileModuleContext, threadId: string, text: string) => Promise<void>;
+
+  /**
+   * Answer everything stashed since the last reply, in one turn, and resolve
+   * to the thread as it now stands. Optional, and paired with `stash`.
+   */
+  answer?: (ctx: MobileModuleContext, threadId: string) => Promise<MobileCoachMessage[]>;
   /** Unread count for the drawer badge, if the module tracks one. */
   unread?: (ctx: MobileModuleContext) => Promise<number>;
   /**
