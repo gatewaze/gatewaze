@@ -19,7 +19,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
-import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
+import Animated, {
+  FadeIn,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Body, Caption } from './primitives';
 import { useTheme, radius, spacing } from '../theme/tokens';
@@ -119,14 +125,39 @@ export function FirstRunHint({ visible, onDismiss }: { visible: boolean; onDismi
     }
   }, [visible, seen]);
 
-  if (!ready || seen || !visible) return null;
+  /**
+   * The fade-out is owned here, and the element keeps its layout slot until
+   * the fade has finished.
+   *
+   * Unmounting it the moment it was dismissed made it appear to slide down
+   * behind the composer's glass panel: everything below reflowed while the
+   * exit animation was still playing, so the bubble was travelling as it
+   * faded. Holding the slot means nothing moves and the only thing that
+   * changes is opacity, which is what was asked for and what a dismissal
+   * should look like.
+   */
+  const fade = useSharedValue(1);
+  const [gone, setGone] = useState(false);
+  useEffect(() => {
+    if (visible) {
+      fade.value = 1;
+      setGone(false);
+      return;
+    }
+    if (!ready || seen) return;
+    fade.value = withTiming(0, { duration: 220 }, (finished) => {
+      if (finished) runOnJS(setGone)(true);
+    });
+  }, [visible, ready, seen, fade]);
+  const fadeStyle = useAnimatedStyle(() => ({ opacity: fade.value }));
+
+  if (!ready || seen || gone) return null;
 
   return (
     <Animated.View
       entering={FadeIn.duration(320).delay(700)}
-      exiting={FadeOut.duration(160)}
-      style={styles.wrap}
-      pointerEvents="box-none"
+      style={[styles.wrap, fadeStyle]}
+      pointerEvents={visible ? 'box-none' : 'none'}
     >
       <Pressable onPress={dismiss} style={styles.bubble} onLayout={(e) => {
         const { width, height } = e.nativeEvent.layout;

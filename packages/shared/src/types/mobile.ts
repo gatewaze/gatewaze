@@ -288,6 +288,13 @@ export interface MobileCoachMessage {
   createdAt: string;
   /** Set while a reply is being generated, so the core can show progress. */
   pending?: boolean;
+  /**
+   * What the app is doing while this pending bubble is on screen, e.g.
+   * 'Reading your photo'. Client-side only and set from the mode the member
+   * sent from: a turn is a single request with no progress channel, so this
+   * is never a claim about what the model is doing.
+   */
+  status?: string | null;
 }
 
 /** A non-tab screen, pushed by name via the core router (`/m/<module>/<name>`). */

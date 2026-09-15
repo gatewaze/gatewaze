@@ -16,6 +16,7 @@
 
 import React, { useCallback, useRef } from 'react';
 import { CircleButton } from '../components/ComposerControls';
+import { toggleOff, toggleOn } from './haptics';
 
 /** Below this, a press reads as a tap rather than a hold. */
 const HOLD_MS = 1000;
@@ -40,6 +41,11 @@ export function VoiceButton({
       startedHere.current = true;
       pressedAt.current = Date.now();
       onEngage?.();
+      // The firm click of a switch being thrown, fired on the PRESS rather
+      // than when recording actually begins: the member's thumb is asking for
+      // confirmation that the app heard the press, and permission checks or a
+      // slow audio session must not delay that answer.
+      toggleOn();
       void voice.start();
     } else {
       startedHere.current = false;
@@ -53,11 +59,17 @@ export function VoiceButton({
     if (startedHere.current) {
       // Held long enough to be push-to-talk, so releasing ends it. A quicker
       // release was a tap, and recording carries on until the next one.
-      if (held >= HOLD_MS && voice.state === 'recording') void voice.stop();
+      if (held >= HOLD_MS && voice.state === 'recording') {
+        toggleOff();
+        void voice.stop();
+      }
       return;
     }
     // A press that did not start the recording is the tap that ends it.
-    if (voice.state === 'recording') void voice.stop();
+    if (voice.state === 'recording') {
+      toggleOff();
+      void voice.stop();
+    }
   }, [voice]);
 
   return (

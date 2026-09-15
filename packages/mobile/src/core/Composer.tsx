@@ -65,10 +65,13 @@ export function Composer({
   autoFocus = false,
   onHeight,
   launcher = false,
+  hintEligible = true,
   zIndex,
 }: {
   /** Which modules the member is entitled to, for the mode track. */
   enabled: Record<string, boolean>;
+  /** False once the member has sent anything: the hint is for a first run. */
+  hintEligible?: boolean;
   draft: string;
   onChangeDraft: (text: string) => void;
   /** `null` is the chat mode, which is why it is not simply absent. */
@@ -169,7 +172,14 @@ export function Composer({
    * the acknowledgement.
    */
   const [hintDone, setHintDone] = useState(false);
-  const hint = !launcher && !hintDone && !draft;
+  /**
+   * `hintEligible` is false once the thread has anything the member sent.
+   *
+   * Somebody who has already sent a message has, by definition, worked out how
+   * to send a message. Explaining it to them reads as the app not paying
+   * attention, so this is a first-conversation thing only.
+   */
+  const hint = !launcher && hintEligible && !hintDone && !draft;
 
   const [focused, setFocused] = useState(false);
   /**
@@ -244,7 +254,7 @@ export function Composer({
       {/* The first-run hint sits ABOVE the panel, pointing down at it. Only
           on the chat surface: on other screens the bar is a launcher and the
           hint would be explaining something the member is not looking at. */}
-      {hint ? <FirstRunHint visible onDismiss={() => setHintDone(true)} /> : null}
+      <FirstRunHint visible={hint} onDismiss={() => setHintDone(true)} />
       {/* One radius on all four corners. Matching the bottom pair to the
           display's own curve left them much rounder than the top pair,
           which read as lopsided; an even shape looks better than a

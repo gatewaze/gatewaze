@@ -7,7 +7,7 @@
  * instant scripted replies.
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, {
   FadeInDown,
@@ -27,6 +27,7 @@ export function ChatBubble({
   children,
   latestCoach = false,
   pending = false,
+  status = null,
   style,
 }: {
   role: 'member' | 'coach';
@@ -34,6 +35,8 @@ export function ChatBubble({
   /** The newest coach message glows gently. */
   latestCoach?: boolean;
   pending?: boolean;
+  /** What the app is doing, shown under the dots if the wait runs long. */
+  status?: string | null;
   style?: StyleProp<ViewStyle>;
 }) {
   const theme = useTheme();
@@ -121,7 +124,7 @@ export function ChatBubble({
       ]}
     >
       {pending ? (
-        <PendingDots />
+        <PendingDots status={status} />
       ) : typeof children === 'string' ? (
         <Text
           style={[
@@ -152,17 +155,18 @@ function rgbTriplet(color: string): string {
 }
 
 /**
- * The lub-dub, in milliseconds.
+ * The lub-dub, in milliseconds, from the shared motion tokens.
  *
  * These are absolute rather than a share of the cycle. Deriving them from
  * the cycle length tied the beat's speed to the gap between beats, so making
  * the coach calmer by lengthening the gap also made each beat slow and
  * laboured. The beats stay quick and the gap alone sets the mood.
+ *
+ * They moved into tokens once the arriving-reply haptic began tapping in
+ * time with this glow — one source, so the felt beat and the seen beat
+ * cannot drift apart.
  */
-const LUB_RISE = 77;
-const LUB_FALL = 77;
-const DUB_RISE = 88;
-const DUB_FALL = 110;
+const { lubRise: LUB_RISE, lubFall: LUB_FALL, dubRise: DUB_RISE, dubFall: DUB_FALL } = motion.heartbeat;
 
 /** The second beat is weaker than the first, as in a real heartbeat. */
 const DUB_PEAK = 0.6;
@@ -205,22 +209,99 @@ function WaveDot({ delay, color }: { delay: number; color: string }) {
   return <Animated.View style={[styles.dot, { backgroundColor: color }, style]} />;
 }
 
-/** Shown while the coach is composing a reply. */
-function PendingDots() {
-  const theme = useTheme();
+/**
+ * How long a reply has to be taking before it explains itself.
+ *
+ * Under this, a status line is noise: the answer arrives before anybody has
+ * finished reading why they are waiting, and a label that flashes up and
+ * vanishes is worse than none. Most replies land in about two seconds, so
+ * this shows up only for the ones that genuinely make you wait.
+ */
+const STATUS_AFTER_MS = 2000;
+
+/** Milliseconds per character, in and out. Fast enough not to be the wait. */
+const TYPE_IN_MS = 28;
+const TYPE_OUT_MS = 14;
+
+/**
+ * A line of text that types itself in, and back out again when it changes.
+ *
+ * Deliberately character-by-character rather than a fade: the point is to look
+ * like something is being worked out, and a fade reads as a label appearing
+ * rather than as progress.
+ */
+function Typewriter({ text, color }: { text: string | null; color: string }) {
+  const [shown, setShown] = useState('');
+  // What is currently being typed out or in, so a change mid-type reverses
+  // cleanly instead of interleaving two words.
+  const target = useRef<string | null>(null);
+
+  useEffect(() => {
+    target.current = text;
+    let timer: ReturnType<typeof setTimeout>;
+
+    const step = () => {
+      setShown((current) => {
+        const want = target.current ?? '';
+        if (current === want) return current;
+        // Type OUT first whenever the current text is not a prefix of the
+        // wanted one — you cannot type "Searching" into "Reading" without
+        // clearing it.
+        if (!want.startsWith(current)) {
+          timer = setTimeout(step, TYPE_OUT_MS);
+          return current.slice(0, -1);
+        }
+        timer = setTimeout(step, TYPE_IN_MS);
+        return want.slice(0, current.length + 1);
+      });
+    };
+
+    step();
+    return () => clearTimeout(timer);
+  }, [text]);
+
+  if (!shown) return null;
   return (
-    <Animated.View style={styles.dots}>
-      {[0, 1, 2].map((i) => (
-        <WaveDot
-          key={i}
-          delay={i * 140}
-          /* The bubble's own ink, not the coach accent. The dots live INSIDE
-             the coach bubble, which is white since the bubble retheme, and the
-             old coach green was near-invisible against it — the same
-             fill-vs-ink rule the bubble text itself follows. */
-          color={theme.bubbleTextCoach}
-        />
-      ))}
+    <Text style={[type.caption, { color, opacity: 0.75 }]} numberOfLines={2}>
+      {shown}
+    </Text>
+  );
+}
+
+/**
+ * Shown while the coach is composing a reply.
+ *
+ * `status` is what the app KNOWS it asked for — reading a photo, searching the
+ * food database — never a guess at what the model is thinking. When there is
+ * nothing honest to say it stays as dots, which is why the prop is optional
+ * rather than defaulted to something vague.
+ */
+function PendingDots({ status = null }: { status?: string | null }) {
+  const theme = useTheme();
+  const [late, setLate] = useState(false);
+
+  useEffect(() => {
+    if (!status) return undefined;
+    const t = setTimeout(() => setLate(true), STATUS_AFTER_MS);
+    return () => clearTimeout(t);
+  }, [status]);
+
+  return (
+    <Animated.View style={styles.pending}>
+      <Animated.View style={styles.dots}>
+        {[0, 1, 2].map((i) => (
+          <WaveDot
+            key={i}
+            delay={i * 140}
+            /* The bubble's own ink, not the coach accent. The dots live INSIDE
+               the coach bubble, which is white since the bubble retheme, and the
+               old coach green was near-invisible against it — the same
+               fill-vs-ink rule the bubble text itself follows. */
+            color={theme.bubbleTextCoach}
+          />
+        ))}
+      </Animated.View>
+      <Typewriter text={late ? status : null} color={theme.bubbleTextCoach} />
     </Animated.View>
   );
 }
@@ -288,6 +369,9 @@ const styles = StyleSheet.create({
      padding the cluster's motion band sat high in the bubble. Headroom above
      and rest near the bottom centres the band. */
   dots: { flexDirection: 'row', gap: 4, paddingTop: 7, paddingBottom: 2 },
+  /* The bubble grows downward to make room for the status line, so the dots
+     stay where they were rather than jumping when the text appears. */
+  pending: { gap: spacing.xs },
   dot: { width: 6, height: 6, borderRadius: 3 },
   chip: {
     borderRadius: radius.full,

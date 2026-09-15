@@ -132,7 +132,16 @@ export const darkColors: Palette = {
   // (a lighter composite behind dark text raises contrast), so the readable
   // floor is nowhere near. The crisp full-white border stays: soft fill with a
   // crisp edge reads as glass.
-  bubbleCoach: 'rgba(255,255,255,0.62)',
+  /**
+   * The coach bubble is a white VEIL over the mesh, not a white card.
+   *
+   * At 0.62 it read as a solid panel and the colour moving behind the app
+   * stopped at its edges. Thinner lets the mesh through so the bubble sits in
+   * the scene rather than on top of it. The floor is set by the ink: the text
+   * is near-black, so going much below this starts costing contrast against
+   * the darker parts of the mesh, and readability wins over the effect.
+   */
+  bubbleCoach: 'rgba(255,255,255,0.48)',
   bubbleBorderMember: 'rgba(255,255,255,0.55)',
   bubbleBorderCoach: '#ffffff',
   bubbleGlowCoach: 'rgba(255,255,255,0.22)',
@@ -279,6 +288,25 @@ export const motion = {
    * quick, and the calm comes from a long gap between them.
    */
   heartbeatRest: 1080,
+
+  /**
+   * The lub-dub itself, in milliseconds.
+   *
+   * These live here rather than in ChatBubble because the glow is no longer
+   * the only thing that beats: the haptic on an arriving reply taps in time
+   * with it. Two copies of these numbers would drift, and a heartbeat you can
+   * feel half a beat away from the one you can see is worse than no haptic at
+   * all.
+   *
+   * `lubRise` and `dubRise` are also the moments the beat PEAKS, which is
+   * where a tap belongs.
+   */
+  heartbeat: {
+    lubRise: 77,
+    lubFall: 77,
+    dubRise: 88,
+    dubFall: 110,
+  },
 };
 
 /**

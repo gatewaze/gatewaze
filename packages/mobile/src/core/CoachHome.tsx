@@ -24,12 +24,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassPanel } from '../components/GlassPanel';
 import { ChatBubble, SuggestionChip } from '../components/ChatBubble';
 import { LazyThunk } from '../components/LazyThunk';
-import { Caps, Caption, Greeting, LoadingState } from '../components/primitives';
+import { Body, Caps, Caption, Greeting, LoadingState } from '../components/primitives';
+import { Icon } from '../components/Icon';
 import { Composer, CAMERA_MODE } from './Composer';
 import { CameraMode } from './CameraMode';
 import { chatProvider, composerModes, moduleColor, moduleOfKind, threadCardRenderer } from './registry';
 import { getModuleContext } from './context';
 import { ChromeInsetsProvider } from './chrome';
+import { replyArrived, stopHeartbeat } from './haptics';
 import { consumeCoachHandoff } from './coachHandoff';
 import { humanMessage } from './errors';
 import { setCoachPrompts } from './coachPrompts';
@@ -216,6 +218,22 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
     };
   }, [coach, messages.length]);
 
+  /**
+   * The honest label for a mode, or null.
+   *
+   * Null is the common case and is meant to be: an ordinary typed message goes
+   * to the assistant and comes back, and the app has nothing to add about the
+   * middle of that.
+   */
+  const statusForMode = useCallback((key: string | null): string | null => {
+    if (!key) return null;
+    const id = key.slice(key.indexOf(':') + 1);
+    if (id === 'camera' || id === 'photo') return 'Reading your photo';
+    if (id === 'barcode') return 'Looking up the barcode';
+    if (id === 'search') return 'Searching the food database';
+    return null;
+  }, []);
+
   const send = useCallback(
     async (text: string, alreadyShown = false) => {
       if (!coach || !text.trim()) return;
@@ -277,10 +295,24 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
             role: 'coach',
             createdAt: new Date().toISOString(),
             pending: true,
+            /**
+             * What the app is actually doing, taken from the mode the member
+             * sent from — the one thing the client can state truthfully.
+             *
+             * There is no progress channel from the server: a turn is one
+             * request that returns a finished reply, so anything more specific
+             * than this would be invented. A status line that guesses is worse
+             * than dots, because a member who reads "searching the food
+             * database" during a question about their knee stops trusting the
+             * next one.
+             */
+            status: statusForMode(activeMode),
           },
         ]);
         const updated = await coach.generate(ctx, id);
         setMessages(updated);
+        // The reply landed: beat in time with the glow on the new bubble.
+        replyArrived();
       } catch (err) {
         setMessages((prev) => prev.filter((m) => !m.pending));
         /**
@@ -458,6 +490,7 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
                     role={message.role}
                     latestCoach={isLatestCoach}
                     pending={message.pending}
+                    status={message.status}
                   >
                     {message.text ?? ''}
                   </ChatBubble>
@@ -515,8 +548,24 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
           ) : null}
 
           {error ? (
+            /**
+             * On a surface, not loose on the background.
+             *
+             * It was bare coloured text over the mesh, which drifts through
+             * every hue the app uses — so the one message that has to be read
+             * calmly was the least readable thing on screen, and its contrast
+             * changed as the background moved. A panel gives it a constant
+             * ground to sit on, and the accent stripe carries the "this went
+             * wrong" signal so the text itself can be ordinary ink.
+             */
             <View style={styles.group}>
-              <Caption style={{ color: theme.danger }}>{error}</Caption>
+              <View style={[styles.errorPanel, { borderColor: theme.danger, backgroundColor: theme.surface }]}>
+                <View style={[styles.errorStripe, { backgroundColor: theme.danger }]} />
+                <View style={styles.errorBody}>
+                  <Icon name="alert-circle-outline" size={18} color={theme.danger} />
+                  <Body style={{ flex: 1, color: theme.text }}>{error}</Body>
+                </View>
+              </View>
               {/* The member's bubble is still in the thread, so without a way
                   to send it again it looks sent and silently is not. */}
               {failed ? (
@@ -547,6 +596,9 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
         onSend={() => void send(draft)}
         placeholder={mode?.id === 'search' ? 'Search the food database' : undefined}
         busy={busy}
+        /* The composer hint is for a first conversation only. Anyone who has
+           already sent something has demonstrably worked out how to. */
+        hintEligible={!messages.some((m) => m.role === 'member')}
         /*
          * The coach does NOT open with a caret in the field, and this is
          * deliberate rather than an omission.
@@ -644,6 +696,22 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   fill: { flex: 1 },
+  errorPanel: {
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+    flexDirection: 'row',
+  },
+  /* The colour lives on the edge, so the message itself can be plain ink. */
+  errorStripe: { width: 3 },
+  errorBody: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+  },
   centered: { alignItems: 'center', justifyContent: 'center' },
   // gap md → lg → xl: lg was reported as no better — each exchange needs
   // clear air around it before the thread stops reading as one column.
