@@ -47,6 +47,8 @@ import { Button, Caption, EmptyState } from '../components/primitives';
 import { photoKinds } from './registry';
 import { useChromeInsets } from './chrome';
 import { useTheme, radius, spacing, layout, type } from '../theme/tokens';
+import { pickFromLibrary } from '../capabilities/imagePicker';
+import { GlassCircleButton } from '../components/GlassCircleButton';
 
 export function CameraMode({ onDismiss }: { onDismiss?: () => void }) {
   const theme = useTheme();
@@ -86,6 +88,31 @@ export function CameraMode({ onDismiss }: { onDismiss?: () => void }) {
       return next;
     });
   }, [kind]);
+
+  /**
+   * Choose an existing photo instead of taking one.
+   *
+   * It lands in exactly the same place as a capture — the module's own
+   * confirm-and-upload step — because to everything downstream a photo is a
+   * photo. Plenty of what members want to record already exists in their
+   * library: a meal eaten before they opened the app, a prescription label
+   * photographed at the pharmacy, last month's progress shot.
+   *
+   * No conversion here: pickFromLibrary already normalises to a modest JPEG,
+   * which is the same shape normalisePhoto produces for the camera path.
+   */
+  const chooseFromLibrary = useCallback(async () => {
+    if (!step) return;
+    try {
+      const picked = await pickFromLibrary();
+      // A cancelled picker is the ordinary outcome, not a failure.
+      if (!picked?.uri) return;
+      setCaptured({ uri: picked.uri, stepId: step.id });
+    } catch {
+      // Same reasoning as the shutter: the camera is still up and both
+      // buttons are still there, so a dialog would add nothing.
+    }
+  }, [step]);
 
   const capture = useCallback(async () => {
     if (!step) return;
@@ -194,19 +221,26 @@ export function CameraMode({ onDismiss }: { onDismiss?: () => void }) {
       </View>
 
       <View style={styles.controls}>
-        {/* Only where there is a sequence to skip within. What has already
-            been taken is already uploaded and kept. */}
-        {multi ? (
-          <Button title="Skip" variant="ghost" onPress={advance} />
-        ) : (
-          <View style={styles.spacer} />
-        )}
+        {/* Library left, shutter centre — the arrangement every phone camera
+            uses, so it needs no explaining. */}
+        <GlassCircleButton
+          icon="image"
+          onPress={() => void chooseFromLibrary()}
+          accessibilityLabel="Choose a photo from your library"
+        />
         <CaptureButton onPress={() => void capture()} />
         <Button title="Close" variant="ghost" onPress={() => onDismiss?.()} />
       </View>
 
+      {/* Skip moved out of the control row when the library button took its
+          place. It belongs with the line explaining that skipping is allowed
+          anyway, and a sequence step is a decision about the SET of photos
+          rather than about this one shot. */}
       {multi ? (
-        <Caption style={styles.note}>Any of these can be skipped.</Caption>
+        <View style={styles.sequence}>
+          <Caption>Any of these can be skipped.</Caption>
+          <Button title="Skip" variant="ghost" compact onPress={advance} />
+        </View>
       ) : null}
     </View>
   );
@@ -269,5 +303,12 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
   },
   spacer: { width: 64 },
+  sequence: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    paddingBottom: spacing.xs,
+  },
   note: { textAlign: 'center', paddingBottom: spacing.xs },
 });
