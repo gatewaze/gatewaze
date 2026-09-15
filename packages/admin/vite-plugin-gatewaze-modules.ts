@@ -409,7 +409,11 @@ export function gatewazeModulesPlugin(): Plugin {
       }
       // Virtual module for gatewaze-modules
       if (id === RESOLVED_ID) {
-        const configPath = resolve(projectRoot, 'gatewaze.config.ts');
+        // GATEWAZE_CONFIG_FILE lets a build target a different module
+        // allow-list than the main app's gatewaze.config.ts (e.g. the
+        // admin-embed library build, which compiles in only the pilot
+        // module subset). Unset in the normal app build/dev server.
+        const configPath = resolve(projectRoot, process.env.GATEWAZE_CONFIG_FILE || 'gatewaze.config.ts');
         const { moduleIds: explicitIds, sources } = parseConfig(configPath);
         const resolvedSources = resolveSources(sources, projectRoot);
         const moduleIds = explicitIds.length > 0

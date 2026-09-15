@@ -8,31 +8,43 @@ import { BreakpointsContext, type BreakpointsContextType } from "./context";
 
 // ----------------------------------------------------------------------
 
-export function BreakpointProvider({ children }: { children: ReactNode }) {
-  const [breakpointState, setBreakpointState] =
-    useState<BreakpointsContextType>(getBreakpoint());
+export interface BreakpointProviderProps {
+  children: ReactNode;
+  /**
+   * Observe this element's size instead of `document.documentElement`.
+   * Used by the embed entry point so breakpoint state tracks the host's
+   * mount container rather than the whole browser viewport, matching
+   * the theme provider's containment behavior.
+   */
+  container?: HTMLElement | null;
+}
+
+export function BreakpointProvider({ children, container }: BreakpointProviderProps) {
+  const [breakpointState, setBreakpointState] = useState<BreakpointsContextType>(
+    getBreakpoint(container ? container.getBoundingClientRect().width : undefined),
+  );
 
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
 
   useEffect(() => {
-    // Function to update breakpoint based on current width
-    const updateBreakpoint = () => {
-      const current = getBreakpoint();
-      if (current.name !== breakpointState.name) {
-        setBreakpointState(current);
-      }
+    if (isServer) return;
+
+    // When observing a container (embed mode), use its own box width from
+    // the ResizeObserver entry rather than window.innerWidth — the host
+    // page's viewport is typically wider than the embedded mount point.
+    const updateBreakpoint = (entries?: ResizeObserverEntry[]) => {
+      const width = container ? entries?.[0]?.contentRect.width : undefined;
+      const current = getBreakpoint(width);
+      setBreakpointState((prev) => (prev.name === current.name ? prev : current));
     };
 
-    if (!isServer) {
-      // Initialize ResizeObserver on the document's root element
-      resizeObserverRef.current = new ResizeObserver(updateBreakpoint);
-      resizeObserverRef.current.observe(document.documentElement);
-    }
+    resizeObserverRef.current = new ResizeObserver(updateBreakpoint);
+    resizeObserverRef.current.observe(container ?? document.documentElement);
 
     return () => {
       resizeObserverRef.current?.disconnect();
     };
-  }, [breakpointState.name]);
+  }, [container]);
 
   if (!children) {
     return null;
@@ -43,8 +55,10 @@ export function BreakpointProvider({ children }: { children: ReactNode }) {
   );
 }
 
-// Function to get the current breakpoint state
-function getBreakpoint() {
+// Function to get the current breakpoint state. `widthOverride` lets a
+// container-scoped provider (embed mode) compute against its own box
+// width instead of the browser viewport.
+function getBreakpoint(widthOverride?: number) {
   if (isServer) {
     return {
       name: "",
@@ -66,7 +80,7 @@ function getBreakpoint() {
     };
   }
 
-  const width = window.innerWidth;
+  const width = widthOverride ?? window.innerWidth;
 
   let name = "";
 
