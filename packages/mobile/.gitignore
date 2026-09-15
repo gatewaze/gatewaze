@@ -1,0 +1,23 @@
+# Generated module registry — rebuilt by scripts/generate-mobile-registry.ts
+# on every dev/build/typecheck run. Never committed: the open-source core
+# repo carries no module references.
+src/generated/*
+!src/generated/.gitkeep
+
+.expo/
+dist/
+web-build/
+ios/
+android/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+.env
+.env.*
+!.env.example
+
+# Local prebuilt Hermes fallback (see scripts/release-testflight.sh)
+.hermes-prebuilt.tar.gz

@@ -1,0 +1,592 @@
+/**
+ * The slide-out drawer host (spec-mobile-coach-rebrand.md).
+ *
+ * Custom by decision: iOS has no native drawer, and this is the pattern
+ * mobile AI apps use. Opening slides the active surface right and scales
+ * it down, revealing the menu underneath.
+ *
+ * Entries come from module `tabs` contributions, grouped by `section` so
+ * the list stays readable as the module set grows. Recents and New chat
+ * appear when a module owns the coach; Settings is pinned at the bottom.
+ */
+
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { PanResponder, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  Easing,
+  interpolate,
+} from 'react-native-reanimated';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import { withAlpha } from '../components/primitives';
+import { useFocusEffect, usePathname, useRouter } from 'expo-router';
+import { Icon } from '../components/Icon';
+import { GlassCircleButton } from '../components/GlassCircleButton';
+import { LazyThunk } from '../components/LazyThunk';
+import { AmbientBackground } from '../components/AmbientBackground';
+
+import { SummaryDrawer, SUMMARY_WIDTH } from './SummaryDrawer';
+import { CoachBar } from './CoachBar';
+import { Button, Caps, EmptyState } from '../components/primitives';
+import { chatProvider, drawerSections } from './registry';
+import { onOutboxChange, outboxCounts } from './outbox';
+import { consumeOpenDrawerRequest, consumeOpenSummaryRequest } from './drawerSignal';
+import { hasPendingHandoff } from './coachHandoff';
+import { ChromeInsetsProvider } from './chrome';
+import { useSession } from './auth/session';
+import { CoachHome } from './CoachHome';
+import { BugReportSheet } from './BugReport';
+import { brandLogo, feedbackPath } from './registry';
+import { config } from './config';
+import {
+  useTheme,
+  drawer as drawerTokens,
+  easing,
+  headerFadeLocations,
+  headerHeight,
+  layout,
+  motion,
+  radius,
+  spacing,
+  type,
+} from '../theme/tokens';
+
+const EASE = Easing.bezier(easing.x1, easing.y1, easing.x2, easing.y2);
+
+type Destination =
+  | { kind: 'coach' }
+  | { kind: 'module'; moduleId: string; entryId: string };
+
+/** The contributed wordmark, or the app's name in text for unbranded builds. */
+function BrandMark({ height }: { height: number }) {
+  const theme = useTheme();
+  const Logo = brandLogo();
+  if (Logo) return <Logo height={height} />;
+  return <Text style={[type.cardTitle, { color: theme.text }]}>{config.appName}</Text>;
+}
+
+export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
+  /**
+   * Whether this host is the route actually on screen.
+   *
+   * A pushed screen sits above this one and draws its own menu button in the
+   * navigation header. This one stays mounted underneath, and `theme.surface`
+   * is rgba(255,255,255,0.16) — the glass look — so the button in front is
+   * mostly transparent and the one behind showed straight through it. Every
+   * pushed screen had a doubled ring around its menu button.
+   *
+   * Two controls doing the same job, one of them invisible to everything but
+   * the eye. The one underneath is the one that goes.
+   */
+  const pathname = usePathname();
+  const isVisibleRoute = pathname === '/' || pathname === '/index';
+  const theme = useTheme();
+  const router = useRouter();
+  const { refresh } = useSession();
+  const { width } = useWindowDimensions();
+
+  const coach = useMemo(() => chatProvider(), []);
+  const sections = useMemo(
+    () => drawerSections(enabled, config.appName),
+    [enabled]
+  );
+  const firstEntry = sections[0]?.entries[0];
+
+  const [destination, setDestination] = useState<Destination>(() =>
+    coach ? { kind: 'coach' } : firstEntry
+      ? { kind: 'module', moduleId: firstEntry.moduleId, entryId: firstEntry.id }
+      : { kind: 'coach' }
+  );
+  // Development affordance: open the drawer on launch so its layout can be
+  // inspected without driving the simulator. Set in .env.development only.
+  const [open, setOpen] = useState(
+    __DEV__ && process.env.EXPO_PUBLIC_DEV_OPEN_DRAWER === '1'
+  );
+  // The screenshot is taken BEFORE the sheet opens, so the report shows the
+  // screen the member was looking at, not the report form. null = capture
+  // failed (dev build without the native module, or the OS refused) — the
+  // sheet still opens, just without an attachment.
+  const [bugShot, setBugShot] = useState<string | null>(null);
+  const [bugOpen, setBugOpen] = useState(false);
+  // Measured, not assumed: the bar's height depends on the mode track, which
+  // depends on which modules the member has.
+  const [coachBarHeight, setCoachBarHeight] = useState(0);
+  const [failedCount, setFailedCount] = useState(() => outboxCounts().failed);
+
+  const insets = useSafeAreaInsets();
+  const progress = useSharedValue(0);
+  useEffect(() => {
+    progress.value = withTiming(open ? 1 : 0, { duration: motion.drawer, easing: EASE });
+  }, [open, progress]);
+
+  useEffect(() => onOutboxChange(() => setFailedCount(outboxCounts().failed)), []);
+
+  // A module screen's header asks for the drawer as it navigates back here,
+  // because it cannot reach this state from above in the stack. Acting on
+  // focus rather than on the call itself is what makes one press enough: the
+  // request arrives while this route is still being restored, so anything
+  // done immediately is undone by the render that follows.
+  useFocusEffect(
+    useCallback(() => {
+      if (consumeOpenDrawerRequest()) setOpen(true);
+      if (consumeOpenSummaryRequest()) setSummaryOpen(true);
+      // A pushed screen's composer bar left a message on its way back here.
+      // The coach consumes it; this only has to be showing the coach when it
+      // does. Peeked rather than consumed, for that reason.
+      if (hasPendingHandoff()) setDestination({ kind: 'coach' });
+    }, [])
+  );
+
+  // The day summary lives on the right. Its own progress value so the two
+  // drawers animate independently, and a guard so they can never both be
+  // open: opening one closes the other.
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const summary = useSharedValue(0);
+  useEffect(() => {
+    summary.value = withTiming(summaryOpen ? 1 : 0, { duration: motion.drawer, easing: EASE });
+  }, [summaryOpen, summary]);
+
+  const { width: screenWidth } = useWindowDimensions();
+
+  /**
+   * Edge swipes, on every screen.
+   *
+   * PanResponder rather than a gesture-handler pan. react-native-gesture-
+   * handler is not installed here (it is an optional peer of expo-router),
+   * and adding a native module for this would mean a new prebuild on the
+   * morning of a gym test. PanResponder needs no native code and is
+   * comfortably smooth for a drawer.
+   *
+   * The responder only claims a touch that STARTS within the edge strip and
+   * is already more horizontal than vertical. Anything else is left alone,
+   * so lists still scroll and the composer still drags.
+   *
+   * Which drawer a gesture drives is decided once, when the responder is
+   * claimed, and held for the rest of the drag. Deciding it per frame from
+   * the sign of `dx` meant a drag that wandered back past where it started
+   * flipped to the other drawer mid-gesture, leaving both part-open at once.
+   */
+  const EDGE = 24;
+  const side = useRef<'left' | 'right' | null>(null);
+  const gestures = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (evt, g) => {
+          const x = evt.nativeEvent.pageX - g.dx;
+          const horizontal = Math.abs(g.dx) > Math.abs(g.dy) * 1.5 && Math.abs(g.dx) > 8;
+          if (!horizontal) return false;
+          // An open drawer owns the gesture whichever way it is dragged, so
+          // a swipe back closes the one that is showing rather than opening
+          // the other one behind it.
+          if (open) side.current = 'left';
+          else if (summaryOpen) side.current = 'right';
+          else if (x <= EDGE && g.dx > 0) side.current = 'left';
+          else if (x >= screenWidth - EDGE && g.dx < 0) side.current = 'right';
+          else return false;
+          return true;
+        },
+        onPanResponderMove: (_evt, g) => {
+          if (side.current === 'right') {
+            // Dragging the right-hand drawer, in or out.
+            const from = summaryOpen ? 1 : 0;
+            const next = from + -g.dx / SUMMARY_WIDTH;
+            summary.value = Math.min(1, Math.max(0, next));
+            return;
+          }
+          const from = open ? 1 : 0;
+          const next = from + g.dx / drawerTokens.slide;
+          progress.value = Math.min(1, Math.max(0, next));
+        },
+        onPanResponderRelease: (_evt, g) => {
+          const flung = Math.abs(g.vx) > 0.35;
+          const dragged = side.current;
+          side.current = null;
+          if (dragged === 'right') {
+            const shouldOpen = flung ? g.vx < 0 : summary.value > 0.5;
+            setSummaryOpen(shouldOpen);
+            // The effect only fires when the boolean actually changes, so
+            // settle the value here too or a half-drag that ends where it
+            // started would stay half-open.
+            summary.value = withTiming(shouldOpen ? 1 : 0, { duration: motion.drawer, easing: EASE });
+            return;
+          }
+          const shouldOpen = flung ? g.vx > 0 : progress.value > 0.5;
+          setOpen(shouldOpen);
+          progress.value = withTiming(shouldOpen ? 1 : 0, { duration: motion.drawer, easing: EASE });
+        },
+        // A terminated gesture settles back to the booleans it started from,
+        // so an interrupted drag cannot strand a drawer half-open.
+        onPanResponderTerminate: () => {
+          side.current = null;
+          progress.value = withTiming(open ? 1 : 0, { duration: motion.drawer, easing: EASE });
+          summary.value = withTiming(summaryOpen ? 1 : 0, { duration: motion.drawer, easing: EASE });
+        },
+        onPanResponderTerminationRequest: () => false,
+      }),
+    [open, summaryOpen, screenWidth, progress, summary]
+  );
+
+  // Two drawers open at once would be two scrims over one screen.
+  useEffect(() => {
+    if (open && summaryOpen) setSummaryOpen(false);
+  }, [open]);
+
+  // Two drawers, one surface. The menu is revealed by sliding right, the day
+  // summary by sliding left, and the scale and corner radius follow whichever
+  // is open. They cannot both be open (see the effect below), so taking the
+  // larger of the two is the whole of the arithmetic.
+  const surfaceStyle = useAnimatedStyle(() => {
+    const revealed = Math.max(progress.value, summary.value);
+    return {
+      transform: [
+        {
+          translateX:
+            progress.value * drawerTokens.slide - summary.value * SUMMARY_WIDTH,
+        },
+        { scale: interpolate(revealed, [0, 1], [1, drawerTokens.scale]) },
+      ],
+      borderRadius: revealed * drawerTokens.radius,
+    };
+  });
+
+  // Only the drawer the surface has slid off is drawn. The two overlap in
+  // layout (295pt from the left and 320pt from the right is wider than the
+  // screen) and the summary is mounted second, so without this it paints
+  // over the menu across most of the width whenever the menu is open. The
+  // surface also scales to 0.93, which opens a strip down the far edge that
+  // the other drawer would otherwise show through.
+  //
+  // Comparing the two values rather than reading a boolean keeps this exact
+  // during a drag, where neither drawer is "open" yet.
+  const leftStyle = useAnimatedStyle(() => ({
+    opacity: progress.value > summary.value ? 1 : 0,
+  }));
+  const rightStyle = useAnimatedStyle(() => ({
+    opacity: summary.value > progress.value ? 1 : 0,
+  }));
+
+  const go = useCallback((d: Destination) => {
+    setDestination(d);
+    setOpen(false);
+  }, []);
+
+  const activeScreen = useMemo(() => {
+    if (destination.kind === 'coach') return null;
+    for (const section of sections) {
+      const entry = section.entries.find(
+        (e) => e.moduleId === destination.moduleId && e.id === destination.entryId
+      );
+      if (entry) return entry;
+    }
+    return null;
+  }, [destination, sections]);
+
+  const title =
+    destination.kind === 'coach' ? config.appName : (activeScreen?.label ?? config.appName);
+
+  if (!coach && sections.length === 0) {
+    return (
+      <SafeAreaView style={[styles.fill, { backgroundColor: theme.background }]}>
+        <EmptyState
+          icon="lock-outline"
+          title="Nothing is enabled for your account yet"
+          body="Ask your trainer or administrator to enable access, then check again."
+          action={<Button title="Check again" variant="secondary" onPress={() => void refresh()} />}
+        />
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <View style={[styles.fill, { backgroundColor: theme.void }]} {...gestures.panHandlers}>
+
+      {/* The menu underneath: a flat list of destinations with Settings
+          last, then Recents, then the New chat pill — per the design.
+          Hidden unless the surface has slid right off it. */}
+      <Animated.View
+        style={[StyleSheet.absoluteFill, leftStyle]}
+        pointerEvents={open ? 'auto' : 'none'}
+      >
+        <SafeAreaView style={styles.drawer} edges={['top', 'bottom']}>
+          <View style={styles.drawerHead}>
+            <BrandMark height={30} />
+          </View>
+
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.navList}>
+            {coach ? (
+              <DrawerRow
+                icon="message-outline"
+                label="Chat"
+                active={destination.kind === 'coach'}
+                onPress={() => go({ kind: 'coach' })}
+              />
+            ) : null}
+
+            {sections.map((section) => (
+              <React.Fragment key={section.title}>
+                {/* A heading only earns its place once there is more than one
+                    group; a single family reads as a flat list, as designed. */}
+                {sections.length > 1 ? <Caps style={styles.sectionLabel}>{section.title}</Caps> : null}
+                {section.entries.map((entry) => (
+                  <DrawerRow
+                    key={entry.moduleId + ':' + entry.id}
+                    icon={entry.icon}
+                    label={entry.label}
+                    active={
+                      destination.kind === 'module' &&
+                      destination.moduleId === entry.moduleId &&
+                      destination.entryId === entry.id
+                    }
+                    onPress={() => go({ kind: 'module', moduleId: entry.moduleId, entryId: entry.id })}
+                  />
+                ))}
+              </React.Fragment>
+            ))}
+
+            <DrawerRow
+              icon="cog-outline"
+              label="Settings"
+              badge={failedCount > 0}
+              onPress={() => {
+                setOpen(false);
+                router.push('/settings');
+              }}
+            />
+
+          </ScrollView>
+
+        </SafeAreaView>
+      </Animated.View>
+
+      {/* The day summary, pinned to the right edge and revealed the same way:
+          underneath the surface, which slides left off it. */}
+      <Animated.View
+        style={[StyleSheet.absoluteFill, rightStyle]}
+        pointerEvents={summaryOpen ? 'auto' : 'none'}
+      >
+        <SummaryDrawer onClose={() => setSummaryOpen(false)} />
+      </Animated.View>
+
+      {/* The active surface, which slides off whichever drawer is opening */}
+      <Animated.View style={[styles.surface, { backgroundColor: theme.background }, surfaceStyle]}>
+        {/* The living gradient sits behind the app surface only, so the
+            drawer underneath stays a flat dark ground. */}
+        <AmbientBackground />
+        {/* The header IS the fade, per the design: it floats over the
+            scrolling content (z-index 3) so messages pass beneath it and
+            dissolve rather than ending on a hard edge.
+            `padding: 64px 22px 18px` with a 180deg gradient at .97/.85/0,
+            where the design's 64px status bar becomes the safe-area inset. */}
+        {isVisibleRoute ? (
+        <LinearGradient
+          colors={[
+            withAlpha(theme.headerScrim, layout.headerFadeStops[0]),
+            withAlpha(theme.headerScrim, layout.headerFadeStops[1]),
+            withAlpha(theme.headerScrim, layout.headerFadeStops[2]),
+          ]}
+          locations={headerFadeLocations(insets.top)}
+          style={[
+            styles.header,
+            { paddingTop: insets.top + layout.headerTopGap, paddingBottom: layout.headerFadeDrop },
+          ]}
+        >
+          {/* Real glass, the same material the navigation bar gives its own
+              button items on iOS 26. This used to be a hand-drawn circle with a
+              flat rgba fill, which next to the system's capsule looked thin and
+              slightly too small. */}
+          <GlassCircleButton
+            icon={open ? 'close' : 'menu'}
+            iconSize={18}
+            onPress={() => setOpen((o) => !o)}
+            accessibilityLabel={open ? 'Close menu' : 'Menu'}
+          >
+            {failedCount > 0 && !open ? (
+              <View style={[styles.dot, { backgroundColor: theme.danger }]} />
+            ) : null}
+          </GlassCircleButton>
+          {/* A destination shows its name. The coach home has no name to show,
+              so the wordmark takes the slot rather than leaving the two
+              controls floating at the edges with a gap between them. */}
+          {destination.kind === 'module' ? (
+            <Text style={[type.cardTitle, { color: theme.text }]}>{title}</Text>
+          ) : (
+            /* The dark glow keeps the white letters legible when a light
+               coach bubble scrolls behind the transparent header. A view
+               shadow follows the alpha of what it wraps, so this halos the
+               letterforms themselves rather than drawing a box. */
+            <View
+              style={{
+                shadowColor: '#000',
+                shadowOpacity: 0.6,
+                shadowRadius: 7,
+                shadowOffset: { width: 0, height: 1 },
+              }}
+            >
+              <BrandMark height={28} />
+            </View>
+          )}
+          {feedbackPath() ? (
+          <GlassCircleButton
+            icon="bug"
+            iconSize={17}
+            color={theme.textSecondary}
+            onPress={() => {
+              void (async () => {
+                let shot: string | null = null;
+                try {
+                  // Required HERE, not imported at the top: on the new
+                  // architecture the package calls TurboModuleRegistry
+                  // .getEnforcing at module load, which throws the moment a
+                  // binary without the native half (a dev build predating the
+                  // dependency) loads the JS. Deferring the require confines
+                  // the failure to this tap, where the catch turns it into
+                  // "report without a screenshot".
+                  // eslint-disable-next-line @typescript-eslint/no-require-imports
+                  const { captureScreen } = require('react-native-view-shot') as typeof import('react-native-view-shot');
+                  shot = await captureScreen({ format: 'jpg', quality: 0.6, result: 'base64' });
+                } catch {
+                  // No native module (dev) or capture refused — report without it.
+                }
+                setBugShot(shot);
+                setBugOpen(true);
+              })();
+            }}
+            accessibilityLabel="Report a problem"
+          />
+          ) : null}
+        </LinearGradient>
+        ) : null}
+
+        {/* The header floats over everything, so its height is published
+            rather than padded around. A destination's Screen applies it to
+            its scroll content, which lets content pass under the header and
+            fade instead of being clipped at a padded edge. */}
+        <ChromeInsetsProvider
+          top={destination.kind === 'coach' ? 0 : headerHeight(insets.top)}
+          // The coach draws its own composer inside its content area. Every
+          // other destination has the bar floating over it, so it publishes
+          // the bar's height and screens keep their last row clear of it.
+          bottom={destination.kind === 'coach' ? 0 : coachBarHeight}
+        >
+          {destination.kind === 'coach' ? (
+            <CoachHome enabled={enabled} />
+          ) : activeScreen ? (
+            <LazyThunk key={destination.moduleId + ':' + destination.entryId} thunk={activeScreen.screen} />
+          ) : null}
+        </ChromeInsetsProvider>
+
+        {/* The coach is reachable from every destination, not only its own. */}
+        {destination.kind === 'coach' ? null : (
+          <CoachBar
+            enabled={enabled}
+            onHandoff={() => setDestination({ kind: 'coach' })}
+            onHeight={setCoachBarHeight}
+          />
+        )}
+
+        {open ? (
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setOpen(false)} />
+        ) : null}
+
+        {bugOpen ? (
+          <BugReportSheet
+            path={feedbackPath()!}
+            shotBase64={bugShot}
+            route={destination.kind === 'coach' ? 'coach' : `${destination.moduleId}:${destination.entryId}`}
+            onClose={() => { setBugOpen(false); setBugShot(null); }}
+          />
+        ) : null}
+      </Animated.View>
+    </View>
+  );
+}
+
+function DrawerRow({
+  icon,
+  label,
+  onPress,
+  active = false,
+  badge = false,
+}: {
+  icon: string;
+  label: string;
+  onPress: () => void;
+  active?: boolean;
+  badge?: boolean;
+}) {
+  const theme = useTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.row, pressed ? { opacity: 0.6 } : null]}
+    >
+      <Icon name={icon} size={19} color={active ? theme.invert : theme.textSecondary} />
+      <Text
+        numberOfLines={1}
+        style={{
+          flex: 1,
+          fontSize: 17,
+          fontWeight: '600',
+          color: active ? theme.invert : theme.textSecondary,
+        }}
+      >
+        {label}
+      </Text>
+      {badge ? <View style={[styles.dot, { backgroundColor: theme.danger, position: 'relative', top: 0, right: 0 }]} /> : null}
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  fill: { flex: 1 },
+  drawer: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: drawerTokens.slide,
+    paddingHorizontal: 26,
+    paddingTop: 34,
+    paddingBottom: 20,
+  },
+  drawerHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  navList: { gap: 2, marginTop: 26, paddingBottom: spacing.lg },
+  sectionLabel: { marginTop: spacing.xl, marginBottom: spacing.sm },
+  recent: { paddingVertical: 9 },
+  drawerFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
+  newChat: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    borderRadius: radius.full,
+    paddingVertical: 12,
+    paddingHorizontal: 22,
+    minHeight: 44,
+  },
+  group: { gap: spacing.xs },
+  surface: { flex: 1, overflow: 'hidden' },
+  header: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: layout.headerPaddingH,
+  },
+  headerCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 11 },
+  dot: { position: 'absolute', top: 4, right: 4, width: 9, height: 9, borderRadius: 5 },
+});

@@ -1,0 +1,153 @@
+/**
+ * Wait for the newest uploaded build to finish Apple's processing, then
+ * attach it to the internal TestFlight group so testers actually see it.
+ *
+ * Uploading alone is not enough: a build only reaches testers once it is
+ * linked to a beta group, and nothing does that automatically.
+ *
+ * Usage: node scripts/testflight-release-build.mjs <appId> <buildVersion> [groupName]
+ * Env:   ASC_KEY_PATH, ASC_KEY_ID, ASC_ISSUER_ID
+ */
+
+import { createSign, sign as cryptoSign } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+
+const [appId, buildVersion, groupName = 'Internal Testers'] = process.argv.slice(2);
+if (!appId || !buildVersion) {
+  console.error('usage: testflight-release-build.mjs <appId> <buildVersion> [groupName]');
+  process.exit(2);
+}
+
+const KEY = readFileSync(process.env.ASC_KEY_PATH, 'utf8');
+const b64 = (o) => Buffer.from(typeof o === 'string' ? o : JSON.stringify(o)).toString('base64url');
+
+function token() {
+  const now = Math.floor(Date.now() / 1000);
+  const signing =
+    b64({ alg: 'ES256', kid: process.env.ASC_KEY_ID, typ: 'JWT' }) +
+    '.' +
+    b64({ iss: process.env.ASC_ISSUER_ID, iat: now, exp: now + 600, aud: 'appstoreconnect-v1' });
+  const sig = cryptoSign('sha256', Buffer.from(signing), {
+    key: KEY,
+    dsaEncoding: 'ieee-p1363',
+  }).toString('base64url');
+  return signing + '.' + sig;
+}
+
+/**
+ * One App Store Connect call, retrying transient network faults.
+ *
+ * This runs AFTER the archive is uploaded, polling for minutes while Apple
+ * ingests it. A single dropped connection in that window used to abort the
+ * whole release with the build already sitting in App Store Connect, needing
+ * the attach step re-run by hand. A refused or timed-out connection is
+ * retried; an answer from Apple, including an error answer, is not, because
+ * repeating a rejected request just gets rejected again.
+ */
+async function api(path, init = {}, attempt = 0) {
+  let res;
+  try {
+    res = await fetch('https://api.appstoreconnect.apple.com' + path, {
+      ...init,
+      headers: {
+        Authorization: 'Bearer ' + token(),
+        'Content-Type': 'application/json',
+        ...(init.headers || {}),
+      },
+    });
+  } catch (err) {
+    if (attempt >= 4) throw err;
+    const wait = 2000 * 2 ** attempt;
+    console.log(`  network error talking to Apple (${err.cause?.code || err.message}), retrying in ${wait / 1000}s`);
+    await new Promise((r) => setTimeout(r, wait));
+    return api(path, init, attempt + 1);
+  }
+  if (res.status === 204) return null;
+  const body = await res.json().catch(() => ({}));
+  if (body.errors) throw new Error(`${res.status} ${body.errors[0].detail || body.errors[0].title}`);
+  return body;
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Apple takes minutes to ingest; poll rather than assume.
+let build;
+for (let attempt = 0; attempt < 60; attempt++) {
+  const j = await api(`/v1/builds?filter[app]=${appId}&limit=20&sort=-uploadedDate`);
+  build = (j.data || []).find((b) => b.attributes.version === String(buildVersion));
+  if (build && build.attributes.processingState === 'VALID') break;
+  console.log(
+    `waiting for build ${buildVersion}… ${build ? build.attributes.processingState : 'not visible yet'}`
+  );
+  build = undefined;
+  await sleep(30_000);
+}
+
+if (!build) {
+  console.error(`build ${buildVersion} did not become VALID in time — check App Store Connect`);
+  process.exit(1);
+}
+
+// The Info.plist declares encryption compliance, but an older build or a
+// changed plist can still leave it unanswered, which blocks testers.
+if (build.attributes.usesNonExemptEncryption === null) {
+  await api(`/v1/builds/${build.id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      data: { type: 'builds', id: build.id, attributes: { usesNonExemptEncryption: false } },
+    }),
+  });
+  console.log('export compliance answered');
+}
+
+/**
+ * Find the beta group, retrying an empty answer.
+ *
+ * This runs after a successful upload, so giving up here strands a build in
+ * App Store Connect that then has to be attached by hand. Apple has answered
+ * this call with an empty list at least once while the group plainly existed,
+ * and the old message told the operator to create a group they already had,
+ * which sent them looking in the wrong place.
+ *
+ * An empty list is treated as possibly transient and retried. A list that
+ * comes back populated WITHOUT the wanted name is a real configuration
+ * problem, so it fails immediately and says what it did find.
+ */
+let group;
+for (let attempt = 0; attempt < 5; attempt += 1) {
+  const groups = await api(`/v1/apps/${appId}/betaGroups?limit=50`);
+  const found = groups.data || [];
+  group = found.find((g) => g.attributes.name === groupName);
+  if (group) break;
+  if (found.length > 0) {
+    console.error(
+      `beta group "${groupName}" not found. This app has: ` +
+        found.map((g) => `"${g.attributes.name}"`).join(', ')
+    );
+    process.exit(1);
+  }
+  if (attempt < 4) {
+    console.log('  no beta groups returned, retrying…');
+    await sleep(4000);
+  }
+}
+if (!group) {
+  console.error(
+    `beta group "${groupName}" not found after 5 attempts, and App Store Connect ` +
+      'returned no groups at all. If this app really has none, create it once there.'
+  );
+  process.exit(1);
+}
+
+// A group with access to all builds cannot (and need not) have builds added
+// explicitly — Apple answers 422 "Cannot add internal group to a build".
+// Every processed build already flows to it, so that answer IS success.
+if (group.attributes?.hasAccessToAllBuilds) {
+  console.log(`build ${buildVersion} is VALID; "${groupName}" has all-builds access — released`);
+} else {
+  await api(`/v1/betaGroups/${group.id}/relationships/builds`, {
+    method: 'POST',
+    body: JSON.stringify({ data: [{ type: 'builds', id: build.id }] }),
+  });
+  console.log(`build ${buildVersion} is VALID and released to "${groupName}"`);
+}

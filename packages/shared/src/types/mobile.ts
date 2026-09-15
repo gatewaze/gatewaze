@@ -1,0 +1,554 @@
+import type { ComponentType } from 'react';
+/**
+ * Mobile app module-contribution contract (spec-mobile-app.md).
+ *
+ * A module opts into the Gatewaze mobile app by shipping a `mobile/`
+ * directory whose `index.ts` exports a `GatewazeMobileModule`. The mobile
+ * registry generator (packages/mobile/scripts/generate-mobile-registry.ts)
+ * discovers these from configured module sources and bakes them into the
+ * app at build time. The core app itself contains no module-specific code.
+ *
+ * Everything here is either plain data or a lazily-required component
+ * thunk. Components are React Native component trees ONLY — no DOM, no
+ * webviews. Types are framework-agnostic (`unknown` component payloads,
+ * mirroring GatewazeModule's portal/admin route typing) so this package
+ * never depends on react-native.
+ */
+
+/** Lazy component thunk — `() => require('./screens/Foo')` or dynamic import. */
+export type MobileComponentThunk = () =>
+  | { default: unknown }
+  | Promise<{ default: unknown }>;
+
+/**
+ * Native capabilities the core capability kit ships. A module must declare
+ * every capability its mobile code uses; the registry generator unions the
+ * declarations per build to gate entitlements/permissions, and fails the
+ * build if a module imports capability code it did not declare.
+ */
+export type MobileCapability =
+  | 'camera'
+  | 'barcode'
+  | 'image-picker'
+  | 'health'
+  | 'notifications'
+  // Recording a voice note for transcription. Declaring it is what puts the
+  // microphone permission string in the build, so an app with no module that
+  // records asks for nothing.
+  | 'microphone';
+
+/**
+ * One primary destination contributed by a module.
+ *
+ * Named "tab" for history; since the coach rebrand these render as entries
+ * in the app's slide-out drawer, grouped by `section`. The shape is
+ * unchanged so existing manifests keep working.
+ */
+export interface MobileTabContribution {
+  /** Stable id, unique across the app's baked modules. */
+  id: string;
+  /** Label shown in the drawer. */
+  label: string;
+  /** Core icon name (an SF Symbol on iOS, MaterialCommunityIcons elsewhere). */
+  icon: string;
+  /** Sort order across all modules' entries (ascending). */
+  order: number;
+  /** The destination's screen component. */
+  screen: MobileComponentThunk;
+  /**
+   * Drawer section heading this entry groups under, e.g. 'Health'.
+   * Entries without one group under the app's own name. Sections render
+   * in the order their lowest-ordered entry appears.
+   */
+  section?: string;
+}
+
+/**
+ * A composer mode contributed by a module (the mode-pill track next to the
+ * chat input). The core owns the composer; modules own what each mode
+ * does, so the core never calls a module's API.
+ */
+/**
+ * One kind of photo a module can take, offered by the core's camera.
+ *
+ * ── WHY THE CORE OWNS THE CAMERA AND MODULES ONLY DESCRIBE THE SHOT ───────
+ *
+ * Food photos belong to health-diet, body photos to whichever module owns
+ * body data, medication photos to health-meds. Each module owns the DATA, and
+ * none of them can own the INTERFACE: a module cannot reach into a sibling,
+ * and `switchMode` deliberately only moves between modes of the same module,
+ * so a food camera could never hand off to a body one.
+ *
+ * So the core draws one camera and asks "what is this a photo of", and each
+ * module contributes an answer. The useful consequence is that where a photo
+ * is STORED stops being an interface question: moving body photos to another
+ * module later moves this declaration with them and changes nothing a member
+ * sees.
+ *
+ * NOTHING HERE MAY SAVE TO THE DEVICE. A capture stays in the app's cache
+ * directory until it is uploaded. It is never written to the photo library
+ * (the app ships no media-library permission, so it could not be) and never
+ * to `Documents`, which is included in iCloud backup and is forbidden for
+ * health data by Apple's guideline 5.1.3(ii).
+ */
+export interface MobilePhotoKind {
+  /** Stable id, unique across baked modules, e.g. 'food' | 'body' | 'medication'. */
+  id: string;
+  /** Shown in the chooser, e.g. 'Food'. */
+  label: string;
+  /** Core icon name for the chooser. */
+  icon: string;
+  /** Order in the chooser (ascending). Food is first, being the frequent one. */
+  order: number;
+  /**
+   * The steps to capture, in order. One entry is a single shot; several make
+   * a sequence, e.g. front, side and back.
+   *
+   * EVERY STEP IS SKIPPABLE AND EACH UPLOADS AS IT IS TAKEN. Someone who
+   * abandons a body sequence after the front shot keeps the front shot. A set
+   * that only counted when complete would throw away the photo they did take.
+   */
+  steps: MobilePhotoStep[];
+  /**
+   * Where a captured image is handed to. Receives
+   * `{ uri, stepId, onDone, onCancel }` and talks only to its own module's
+   * API — it confirms with the member, or uploads, or both.
+   *
+   * A kind whose AI reads the photo MUST confirm before it writes. A model
+   * that misreads a dose is confident and plausible about it, and the record
+   * it would write is one a clinician may later read.
+   */
+  surface: MobileComponentThunk;
+}
+
+/** One shot within a photo kind. */
+export interface MobilePhotoStep {
+  /** Stable id passed to the surface, e.g. 'front' | 'side' | 'back'. */
+  id: string;
+  /** Shown while this step is being taken, e.g. 'Front'. */
+  label: string;
+  /** One line of guidance over the preview, e.g. 'Face the camera.' */
+  hint?: string;
+  /**
+   * Drawn over the live preview for this step: a pose silhouette, a frame, a
+   * barcode motif. Receives no props and must not take touches.
+   */
+  overlay?: MobileComponentThunk;
+}
+
+export interface MobileComposerMode {
+  /** Stable id, unique across baked modules, e.g. 'photo' | 'scan'. */
+  id: string;
+  /** Pill label. */
+  label: string;
+  /** Core icon name. */
+  icon: string;
+  /** Order within the mode track (ascending); the core's Chat mode is first. */
+  order: number;
+  /**
+   * The mode's surface, rendered behind the composer while the mode is
+   * active (camera preview, scanner, search results). Reports results by
+   * enqueuing or creating through its own module's API.
+   *
+   * Receives `{ onDismiss, threadId, switchMode }`. `switchMode` hands
+   * control to another mode of the SAME module by its bare id, with
+   * optional props for the surface it opens. A surface that renders a
+   * sibling mode itself would leave the core's mode pill pointing at the
+   * one it replaced, because the core owns that state.
+   */
+  surface: MobileComponentThunk;
+}
+
+/**
+ * What the core's on-device detection saw in a captured photo.
+ *
+ * Detection runs on the device, never on a server. The whole point of the
+ * progress-photo privacy work is that the exposure window is a plaintext
+ * photo sitting on someone else's computer, so a photo must not be uploaded
+ * merely to work out where it should go.
+ */
+export interface MobilePhotoDetection {
+  /** Whether a person was found, and how sure the detector is (0 to 1). */
+  person: boolean;
+  confidence: number;
+  /**
+   * Which way the person is facing, when that could be told apart. Inferred
+   * from face visibility and shoulder separation, so it is a suggestion the
+   * receiving surface may override, not a fact.
+   */
+  facing?: 'front' | 'side' | 'back';
+}
+
+/** The subject a photo target handles. */
+export type MobilePhotoSubject = 'person' | 'other';
+
+/**
+ * Somewhere a captured photo can go. The core owns the camera and the
+ * routing; a module owns what happens to the image.
+ *
+ * The core routes silently when detection is confident. When it is not, the
+ * member is asked to confirm, and `label` is what they see. Modules do not
+ * get to draw a chooser of their own.
+ */
+export interface MobilePhotoTarget {
+  /** Stable id, unique within the module. */
+  id: string;
+  /** Which subject routes here. */
+  subject: MobilePhotoSubject;
+  /** Shown only when the member is asked to confirm, e.g. 'Progress photo'. */
+  label: string;
+  icon: string;
+  /** Ascending; the lowest order wins when two targets claim one subject. */
+  order: number;
+  /**
+   * Receives `{ photoUri, detection, onDismiss }`. It must not re-open the
+   * camera: the photo has already been taken.
+   */
+  surface: MobileComponentThunk;
+}
+
+/**
+ * Drives the coach conversation. Exactly ONE baked module may declare this;
+ * the registry generator fails the build if two do. With none declared, the
+ * app has no coach surface and opens at the first enabled destination,
+ * which keeps non-coach builds (e.g. a future foundation app) working.
+ */
+export interface MobileCoachProvider {
+  /** List the member's threads for the drawer's Recents. */
+  threads: (ctx: MobileModuleContext) => Promise<MobileCoachThreadSummary[]>;
+  /** Load one thread's messages. */
+  thread: (ctx: MobileModuleContext, threadId: string) => Promise<MobileCoachMessage[]>;
+  /** Start a new thread; resolves to its id. */
+  createThread: (ctx: MobileModuleContext) => Promise<string>;
+  /** Send a member message. */
+  send: (
+    ctx: MobileModuleContext,
+    threadId: string,
+    text: string,
+    attachments?: unknown
+  ) => Promise<void>;
+  /**
+   * Ask for a reply and poll until it lands (the module owns the polling
+   * contract). Resolves to the updated message list.
+   */
+  generate: (ctx: MobileModuleContext, threadId: string) => Promise<MobileCoachMessage[]>;
+
+  /**
+   * Store a message without asking for a reply yet.
+   *
+   * Used when the member sends again while a reply is still being written.
+   * Their words go in as their own message straight away, so the thread keeps
+   * the shape they typed, and nothing is generated until `answer` runs.
+   *
+   * Optional: a provider built against the earlier contract simply keeps the
+   * one-reply-per-message behaviour.
+   */
+  stash?: (ctx: MobileModuleContext, threadId: string, text: string) => Promise<void>;
+
+  /**
+   * Answer everything stashed since the last reply, in one turn, and resolve
+   * to the thread as it now stands. Optional, and paired with `stash`.
+   */
+  answer?: (ctx: MobileModuleContext, threadId: string) => Promise<MobileCoachMessage[]>;
+  /** Unread count for the drawer badge, if the module tracks one. */
+  unread?: (ctx: MobileModuleContext) => Promise<number>;
+  /**
+   * The opening of an empty coach thread: a greeting, an optional line of
+   * context beneath it, and suggested openers. The core cannot know a
+   * member's name or what today holds, so the module supplies them.
+   */
+  greeting?: (ctx: MobileModuleContext) => Promise<MobileCoachGreeting>;
+}
+
+export interface MobileCoachGreeting {
+  /** e.g. "Morning, Dan." */
+  title: string;
+  /** e.g. "Push Day and 1,430 kcal to go." Rendered in italics. */
+  subtitle?: string;
+  /** Tappable openers shown under a "FOR YOU" label. */
+  starters?: string[];
+  /**
+   * One rich card in the opening, dispatched through `threadCards` by kind.
+   *
+   * A starter can only ever SAY something: it sends its own text as a message.
+   * That is right for "How's my week going?" and useless for "start today's
+   * session", which has to do something rather than ask about it. This is the
+   * opening's one action, rendered by the contributing module so the core still
+   * knows nothing about workouts.
+   *
+   * Shown only on an empty thread, alongside the greeting it belongs to. One
+   * card and not a list: an opening screen that greets you and then presents
+   * five things to do is a menu, and the thread below is where a conversation
+   * is supposed to go.
+   */
+  card?: { kind: string; payload?: unknown };
+}
+
+export interface MobileCoachThreadSummary {
+  id: string;
+  title: string;
+  updatedAt: string;
+}
+
+/**
+ * One message in the coach thread. `cards` carry module-specific payloads
+ * rendered by the contributing module's registered renderer, so the core
+ * shows rich content without knowing any module's data shapes.
+ */
+export interface MobileCoachMessage {
+  id: string;
+  role: 'member' | 'coach';
+  text?: string;
+  /** Tappable quick replies the member can send back. */
+  choices?: string[];
+  /** Rich cards, dispatched to threadCards renderers by `kind`. */
+  cards?: Array<{ kind: string; payload: unknown }>;
+  createdAt: string;
+  /** Set while a reply is being generated, so the core can show progress. */
+  pending?: boolean;
+  /**
+   * What the app is doing while this pending bubble is on screen, e.g.
+   * 'Reading your photo'. Client-side only and set from the mode the member
+   * sent from: a turn is a single request with no progress channel, so this
+   * is never a claim about what the model is doing.
+   */
+  status?: string | null;
+}
+
+/** A non-tab screen, pushed by name via the core router (`/m/<module>/<name>`). */
+export interface MobileScreenContribution {
+  /** Route name, unique within the module. */
+  name: string;
+  /** Screen title shown in the header (module can also set it at runtime). */
+  title?: string;
+  screen: MobileComponentThunk;
+}
+
+/** A section contributed to the core-hosted Settings screen. */
+export interface MobileSettingsSection {
+  id: string;
+  title: string;
+  order?: number;
+  component: MobileComponentThunk;
+}
+
+/**
+ * Typed failure taxonomy the core API client maps every error into
+ * (spec-mobile-app.md "Error handling"). Screens branch on `kind`,
+ * never on raw status codes.
+ */
+export interface MobileApiFailure {
+  kind: 'offline' | 'auth' | 'client' | 'server' | 'local';
+  status?: number;
+  /** Stable machine code when the API supplied one. */
+  code?: string;
+  message: string;
+}
+
+/**
+ * The context handed to module code (entitlement probes, outbox replay,
+ * lifecycle hooks) and available to screens via the core's useModuleContext().
+ *
+ * Deliberately generic: core primitives only, so the core never knows any
+ * module's client types. Modules build their typed call slices on these.
+ */
+export interface MobileModuleContext {
+  /**
+   * Authenticated fetch against the brand API. Prepends the API base URL,
+   * attaches the bearer token, retries once on 401 after a forced refresh,
+   * and throws a MobileApiFailure on any error. 204 resolves to undefined;
+   * other successes resolve to parsed JSON.
+   */
+  apiFetch: (path: string, init?: MobileFetchInit) => Promise<unknown>;
+  /** Read-through cache (backed by sqlite; wiped on sign-out). */
+  cacheGet: (key: string) => Promise<unknown | undefined>;
+  cacheSet: (key: string, value: unknown) => Promise<void>;
+  /**
+   * Enqueue a write into the offline outbox. `kind` must be registered in
+   * the module's `outboxKinds`; `clientRef` is generated by the caller once
+   * per logical action and reused across retries (server-side idempotency).
+   */
+  enqueue: (kind: string, payload: unknown, clientRef: string) => Promise<void>;
+  /**
+   * Best-effort shared in-memory KV for the signed-in session (e.g. a
+   * module caching the member profile for its own screens). Cleared on
+   * sign-out. Never persisted.
+   */
+  store: {
+    get: (key: string) => unknown | undefined;
+    set: (key: string, value: unknown) => void;
+  };
+}
+
+/** Subset of RequestInit the mobile API client supports (framework-agnostic). */
+export interface MobileFetchInit {
+  method?: string;
+  headers?: Record<string, string>;
+  /** JSON-serialisable body, or FormData (typed unknown to avoid DOM libs here). */
+  body?: unknown;
+}
+
+/**
+ * Result of a module's post-sign-in hook. 'blocked' means the member cannot
+ * proceed into this module family yet (e.g. no person record linked); the
+ * core shows the module's `blockedScreen` until a retry succeeds.
+ */
+export type MobileSessionReadyResult = 'ready' | 'blocked';
+
+/** One panel in the day summary drawer. */
+export interface MobileDaySummaryContribution {
+  /** Stable key, used for the React key and for ordering ties. */
+  key: string;
+  /**
+   * Lower sorts higher up the drawer. The intent is that what the member
+   * looks at most often is nearest the top, so food sits above workouts.
+   */
+  order?: number;
+  component: MobileComponentThunk;
+}
+
+/** The manifest a module's `mobile/index.ts` exports. */
+export interface GatewazeMobileModule {
+  /** Module id — must match the module's manifest id. */
+  id: string;
+  /**
+   * This module's colour in the coach thread.
+   *
+   * The thread is one conversation carrying cards from several modules — a
+   * meal, a workout, a medication reminder — and with nothing to tell them
+   * apart it reads as a single undifferentiated column. A module's cards take
+   * a hairline of this colour, so which part of the app is speaking is
+   * legible before a word is read.
+   *
+   * A hairline and not a fill, deliberately. Filling each card in its module's
+   * colour turns a thread into a chart, and the words are the thing being
+   * read. Modules that set nothing simply get the core's own accent.
+   */
+  color?: string;
+  /** Bottom tabs this module contributes (shown only when `available` passes). */
+  tabs?: MobileTabContribution[];
+  /** Pushable screens (`/m/<module>/<name>`). */
+  screens?: MobileScreenContribution[];
+  /** Sections contributed to the core Settings screen. */
+  settingsSections?: MobileSettingsSection[];
+  /**
+   * One-line description of what account deletion removes for this module.
+   * Collated by the registry generator into the deletion confirmation.
+   */
+  deletionCopy?: string;
+  /** Capabilities from the core kit this module's code uses. */
+  requiredCapabilities?: MobileCapability[];
+  /**
+   * Composer modes this module adds to the coach composer (photo capture,
+   * barcode scan, food search, ...). The core renders the mode track from
+   * the union of baked modules' modes, filtered by entitlement.
+   */
+  composerModes?: MobileComposerMode[];
+  /**
+   * Kinds of photo this module can receive, offered by the core's one camera.
+   * See MobilePhotoKind. A build without a given module simply has one fewer
+   * thing to choose from.
+   */
+  photoKinds?: MobilePhotoKind[];
+  /**
+   * Renderers for rich cards this module's data appears in, keyed by card
+   * kind (namespaced '<module-id>:<kind>'). The core thread surface
+   * dispatches by kind; an unregistered kind renders a plain fallback.
+   * Each renderer receives `{ payload, threadId }` and talks only to its
+   * own module's API.
+   */
+  threadCards?: Record<string, MobileComponentThunk>;
+  /**
+   * Panels this module contributes to the day summary drawer, the surface
+   * that opens with a swipe in from the right edge.
+   *
+   * The drawer is a quick read of the day: what has been eaten, what has been
+   * trained, what is left against the member's targets. The core owns the
+   * drawer and knows nothing about food or workouts, so each module renders
+   * its own panel and talks only to its own API, exactly as thread cards do.
+   * A build without a given module simply has one fewer panel.
+   */
+  daySummary?: MobileDaySummaryContribution[];
+  /**
+   * The brand's wordmark, rendered in the core chrome (header, drawer,
+   * sign-in). Exactly one baked module should declare it — the registry
+   * takes the first — and a build with none falls back to the app name as
+   * text. A direct component, not a thunk: the logo has to paint on the
+   * very first frame of the sign-in screen.
+   */
+  brandLogo?: ComponentType<{ height?: number; color?: string }>;
+  /**
+   * Sign-up, contributed by the module that owns accounts.
+   *
+   * The core owns the FLOW — the front door, the plan cards, the code field,
+   * the one-time-code screen — and knows nothing about what a plan is or
+   * where it is stored. A build whose modules declare none of this simply
+   * has no "Create account" path: signing in is the only door, which is the
+   * correct behaviour for an app whose accounts are provisioned elsewhere.
+   */
+  signup?: {
+    /** The plans to choose between. Empty array = no plan step. */
+    plans: (ctx: MobileModuleContext) => Promise<Array<{
+      id: string; name: string; blurb: string; pricePence: number; modules: string[];
+    }>>;
+    /** Check a code and describe what it does, or throw for an invalid one. */
+    validateCode?: (ctx: MobileModuleContext, code: string) => Promise<{
+      code: string;
+      percentOff: number;
+      restrictedToPlanId: string | null;
+      trainer: { displayName: string } | null;
+    }>;
+    /** Bind the freshly authenticated account to its plan. Runs once. */
+    complete: (ctx: MobileModuleContext, input: { planId: string; code?: string }) => Promise<unknown>;
+  };
+
+  /**
+   * Where the core's problem-report sheet POSTs. The core owns the capture
+   * and the form; the module owns the endpoint and whatever it does with
+   * the report. Without a declaring module the bug button is not rendered.
+   */
+  feedback?: { path: string };
+  /**
+   * Declared by the single module that owns the chat conversation.
+   * See MobileCoachProvider.
+   */
+  chatProvider?: MobileCoachProvider;
+  /** @deprecated Use chatProvider; accepted for one release. */
+  coachProvider?: MobileCoachProvider;
+  /**
+   * Runtime entitlement probe: "is this module enabled for the signed-in
+   * member?" Evaluated after sign-in and on foreground; the result is
+   * persisted as last-known-good so offline launches keep their tabs.
+   * Must resolve false (not throw) for a definitive "no"; throwing is
+   * treated as transient and keeps the last-known state.
+   */
+  available: (ctx: MobileModuleContext) => Promise<boolean>;
+  /**
+   * Optional post-sign-in hook, run before entitlement probes. A module
+   * that must bootstrap the member (e.g. link the auth user to a person
+   * row) does it here with its own retry policy. Returning 'blocked'
+   * shows `blockedScreen` instead of the tab UI.
+   */
+  onSessionReady?: (ctx: MobileModuleContext) => Promise<MobileSessionReadyResult>;
+  /** Screen shown while this module reports 'blocked'. */
+  blockedScreen?: MobileComponentThunk;
+  /**
+   * Account deletion hook. The core Settings delete flow shows the
+   * generator-collated deletionCopy list, then invokes each module's hook.
+   * Per spec, deletion must be ONE server-side call — a family's root
+   * module (e.g. health-core) implements the orchestrating call here and
+   * sibling modules omit the hook.
+   */
+  deleteAccount?: (ctx: MobileModuleContext) => Promise<void>;
+  /**
+   * Replay handlers for this module's outbox kinds. The core outbox calls
+   * the handler with the stored payload + clientRef; the handler performs
+   * the write through the module's typed client. Throwing a
+   * MobileApiFailure with kind 'client' marks the row failed (user-facing
+   * retry/discard); 'offline'/'server' failures stay pending for retry.
+   */
+  outboxKinds?: Record<
+    string,
+    (ctx: MobileModuleContext, payload: unknown, clientRef: string) => Promise<void>
+  >;
+}
