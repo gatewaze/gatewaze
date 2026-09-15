@@ -40,12 +40,16 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     [
       'expo-splash-screen',
       {
-        // The launch screen is the brand ground with the wordmark on it,
-        // not the icon tile on black. The colour is sampled from the app
-        // icon's own wash so icon-tap → launch reads as one surface.
-        backgroundColor: process.env.APP_SPLASH_COLOR || '#1d3d6b',
+        // The launch screen is a frozen frame of the app's own ambient
+        // mesh with the wordmark centred (assets/splash.png, rendered from
+        // AmbientBackground's field specs — regenerate it if those change).
+        // Launch screens must be static, so this is the mesh minus the
+        // motion. The image is a 430pt-wide full-height frame: at that
+        // imageWidth it covers every iPhone edge-to-edge, and the
+        // backgroundColor is the app ground for any uncovered sliver.
+        backgroundColor: process.env.APP_SPLASH_COLOR || '#090c14',
         image: process.env.APP_SPLASH_IMAGE || './assets/splash.png',
-        imageWidth: 220,
+        imageWidth: 430,
       },
     ],
   ];
