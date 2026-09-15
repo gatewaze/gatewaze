@@ -51,11 +51,15 @@ type Step = 'welcome' | 'plan' | 'email' | 'code';
 function PlanCard({
   plan, selected, onPress,
 }: {
-  plan: { id: string; name: string; blurb: string; icon?: string; features?: string[] };
+  plan: { id: string; name: string; blurb: string; icon?: string; features?: string[]; accent?: string };
   selected: boolean;
   onPress: () => void;
 }) {
   const theme = useTheme();
+  // Each plan carries its own accent — for HELF, one of the three bars from
+  // the E in the wordmark. Falling back to the theme's own accent keeps an
+  // unbranded build looking deliberate rather than broken.
+  const accent = plan.accent || theme.accent;
   const press = usePressScale(1.02);
   return (
     <AnimatedPressable
@@ -67,25 +71,26 @@ function PlanCard({
       style={[
         styles.planCard,
         {
-          borderColor: selected ? theme.buttonBorder : theme.controlBorder,
+          // Selected: the plan's own colour on the border, so the choice is
+          // both obvious AND identifies which plan it was.
+          borderColor: selected ? accent : theme.controlBorder,
+          borderWidth: selected ? 2 : 1,
           backgroundColor: selected ? theme.buttonFill : theme.buttonFillSoft,
         },
         press.style,
       ]}
     >
       <Row style={{ gap: spacing.md, alignItems: 'center' }}>
-        <Icon
-          name={plan.icon || 'star-four-points'}
-          size={26}
-          color={selected ? theme.buttonText : theme.textSecondary}
-        />
+        {/* The icon wears the plan's colour whether or not it is chosen —
+            it is the plan's identity, not its state. */}
+        <Icon name={plan.icon || 'star-four-points'} size={26} color={accent} />
         <View style={{ flex: 1 }}>
           <Body style={{ fontWeight: '700', color: theme.buttonText }}>{plan.name}</Body>
         </View>
         <Icon
           name={selected ? 'check-circle' : 'circle-outline'}
           size={22}
-          color={selected ? theme.coach : theme.textMuted}
+          color={selected ? accent : theme.textMuted}
         />
       </Row>
 
@@ -93,7 +98,7 @@ function PlanCard({
         <View style={{ gap: 4, marginTop: spacing.sm }}>
           {(plan.features ?? []).map((f) => (
             <Row key={f} style={{ gap: spacing.sm, alignItems: 'flex-start' }}>
-              <Icon name="check" size={13} color={theme.coach} />
+              <Icon name="check" size={13} color={accent} />
               <Caption style={{ flex: 1, color: theme.textSecondary }}>{f}</Caption>
             </Row>
           ))}
@@ -126,7 +131,7 @@ export function SignInFlow({ note }: { note?: string }) {
   const [error, setError] = useState<string | null>(null);
 
   const [plans, setPlans] = useState<Array<{
-    id: string; name: string; blurb: string; icon?: string; features?: string[];
+    id: string; name: string; blurb: string; icon?: string; features?: string[]; accent?: string;
   }>>([]);
   // The code field is hidden until asked for: most people do not have one,
   // and an empty box on the screen invites the question "should I have a code?"
@@ -142,7 +147,16 @@ export function SignInFlow({ note }: { note?: string }) {
     if (step !== 'plan' || plans.length || !signup) return;
     let alive = true;
     signup.plans(getModuleContext())
-      .then((rows) => { if (alive) setPlans(rows ?? []); })
+      .then((rows) => {
+        if (!alive) return;
+        setPlans(rows ?? []);
+        // Preselect the first plan the server lists, which is the fullest one
+        // (sort_order puts All Access first). Nobody should reach Continue
+        // wondering why it is greyed out, and the plan someone changes AWAY
+        // from is a better default than no plan at all. A code that restricts
+        // the choice overrides this in checkCode().
+        setPlanId((current) => current ?? rows?.[0]?.id ?? null);
+      })
       .catch(() => { if (alive) setError('We could not load the plans just now.'); });
     return () => { alive = false; };
   }, [step, plans.length, signup]);
