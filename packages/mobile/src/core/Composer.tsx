@@ -29,6 +29,7 @@ import { Icon } from '../components/Icon';
 import { GlassPanel } from '../components/GlassPanel';
 import { PillTrack, type PillSpec } from '../components/ComposerControls';
 import { ComposerFade } from '../components/ComposerFade';
+import { FirstRunHint } from '../components/FirstRunHint';
 import { useCyclingPrompt } from './useCyclingPrompt';
 import { coachPrompts, onCoachPromptsChange } from './coachPrompts';
 import { useVoiceInput } from './useVoiceInput';
@@ -162,6 +163,14 @@ export function Composer({
    * old objection to overlays was a 2px drop at the moment of adoption; that
    * moment only exists focused, which is exactly when the overlay is gone.
    */
+  /**
+   * The composer hint shows on the CHAT surface only, and stops the moment
+   * the member engages with the field — the goal is the first message, not
+   * the acknowledgement.
+   */
+  const [hintDone, setHintDone] = useState(false);
+  const hint = !launcher && !hintDone && !draft;
+
   const [focused, setFocused] = useState(false);
   /**
    * Launcher screens start COLLAPSED: the glass panel carries only the
@@ -232,6 +241,10 @@ export function Composer({
           the way down and is hidden from there, rather than staying legible
           through the glass and reappearing below it. */}
       <ComposerFade />
+      {/* The first-run hint sits ABOVE the panel, pointing down at it. Only
+          on the chat surface: on other screens the bar is a launcher and the
+          hint would be explaining something the member is not looking at. */}
+      {hint ? <FirstRunHint visible onDismiss={() => setHintDone(true)} /> : null}
       {/* One radius on all four corners. Matching the bottom pair to the
           display's own curve left them much rounder than the top pair,
           which read as lopsided; an even shape looks better than a
@@ -272,7 +285,7 @@ export function Composer({
                 placeholder={focused ? placeholder : ''}
                 placeholderTextColor={theme.textMuted}
                 multiline
-                onFocus={() => setFocused(true)}
+                onFocus={() => { setFocused(true); setHintDone(true); }}
                 onBlur={() => {
                     setFocused(false);
                     // An abandoned launcher folds back to the minimal bar.
