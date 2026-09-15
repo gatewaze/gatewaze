@@ -139,9 +139,15 @@ if (!group) {
   process.exit(1);
 }
 
-await api(`/v1/betaGroups/${group.id}/relationships/builds`, {
-  method: 'POST',
-  body: JSON.stringify({ data: [{ type: 'builds', id: build.id }] }),
-});
-
-console.log(`build ${buildVersion} is VALID and released to "${groupName}"`);
+// A group with access to all builds cannot (and need not) have builds added
+// explicitly — Apple answers 422 "Cannot add internal group to a build".
+// Every processed build already flows to it, so that answer IS success.
+if (group.attributes?.hasAccessToAllBuilds) {
+  console.log(`build ${buildVersion} is VALID; "${groupName}" has all-builds access — released`);
+} else {
+  await api(`/v1/betaGroups/${group.id}/relationships/builds`, {
+    method: 'POST',
+    body: JSON.stringify({ data: [{ type: 'builds', id: build.id }] }),
+  });
+  console.log(`build ${buildVersion} is VALID and released to "${groupName}"`);
+}
