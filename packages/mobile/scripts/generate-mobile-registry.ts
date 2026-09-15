@@ -80,10 +80,19 @@ interface DiscoveredModule {
 }
 
 function writeIfChanged(filePath: string, content: string): void {
+  /**
+   * No existsSync before the read.
+   *
+   * Checking a path and then acting on it is a check-then-use race: the file
+   * can change between the two calls, and CodeQL flags it as one. Here the
+   * read IS the existence check — a missing file throws ENOENT, which is the
+   * same "write it" outcome as a file whose contents differ — so dropping
+   * the pre-check removes the race and a redundant stat in one go.
+   */
   try {
-    if (existsSync(filePath) && readFileSync(filePath, 'utf-8') === content) return;
+    if (readFileSync(filePath, 'utf-8') === content) return;
   } catch {
-    /* fall through to write */
+    /* Missing or unreadable: write it. */
   }
   writeFileSync(filePath, content, 'utf-8');
 }
