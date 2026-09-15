@@ -1,0 +1,104 @@
+name: Publish admin-embed
+
+# Publishes @gatewaze/admin-embed to npm at whatever version
+# packages/admin-embed/package.json currently declares.
+#
+# Deliberately NOT tied to the `v*` release tags that drive release.yml.
+# That workflow versions @gatewaze/connect in lockstep with the platform,
+# but admin-embed is on its own 0.x line for the LFX embed pilot, and a
+# tag push there also rebuilds and pushes eight container images — far
+# too much side effect for shipping one npm package.
+#
+# Bump the version in packages/admin-embed/package.json, merge, then run
+# this workflow against that ref.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Build and pack only, do not publish'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Build and publish @gatewaze/admin-embed
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # npm publish --provenance (keyless SLSA provenance)
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      # pnpm-workspace.yaml includes '../gatewaze-modules/modules/*', so the
+      # modules repo has to sit beside the checkout or the admin build cannot
+      # resolve @gatewaze-modules/* at all. Same private repo the image builds
+      # clone, so the same PAT — secrets.GITHUB_TOKEN is scoped to this repo
+      # only and cannot read it.
+      - name: Clone gatewaze-modules alongside the checkout
+        env:
+          GH_PAT_MODULES: ${{ secrets.GH_PAT_MODULES }}
+        run: |
+          if [ -z "$GH_PAT_MODULES" ]; then
+            echo "::error::GH_PAT_MODULES is not configured — cannot clone the private modules repo"
+            exit 1
+          fi
+          git clone --depth 1 --branch main \
+            "https://x-access-token:${GH_PAT_MODULES}@github.com/gatewaze/gatewaze-modules.git" \
+            "$(dirname "$GITHUB_WORKSPACE")/gatewaze-modules"
+
+      # No `version` input: package.json already pins `packageManager: pnpm@10.31.0`, and
+      # specifying both makes action-setup fail outright with "Multiple versions of pnpm
+      # specified". Letting it read packageManager also keeps CI on the same pnpm the repo pins.
+      - name: Setup pnpm
+        uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      # Not --frozen-lockfile: the workspace spans two repositories, so the
+      # lockfile can legitimately disagree with a freshly cloned modules main.
+      - name: Install
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build the embed bundle
+        run: pnpm --filter @gatewaze/admin exec vite build -c vite.embed.config.ts
+
+      - name: Assemble the publishable package
+        run: node packages/admin-embed/scripts/build.mjs
+
+      - name: Publish
+        working-directory: packages/admin-embed
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          echo "Resolved version: $VERSION"
+
+          if [ "$DRY_RUN" = "true" ]; then
+            npm pack --dry-run
+            echo "::notice::dry_run — built and packed @gatewaze/admin-embed@$VERSION without publishing"
+            exit 0
+          fi
+
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "::error::NPM_TOKEN is not configured — cannot publish"
+            exit 1
+          fi
+
+          # Re-run safety: npm rejects a duplicate version anyway, but failing
+          # here says why rather than surfacing a registry error.
+          if npm view "@gatewaze/admin-embed@$VERSION" version > /dev/null 2>&1; then
+            echo "::error::@gatewaze/admin-embed@$VERSION is already published — bump the version first"
+            exit 1
+          fi
+
+          npm publish --access public --provenance
