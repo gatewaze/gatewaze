@@ -10,6 +10,7 @@
 import React, { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, {
+  FadeInDown,
   ReduceMotion,
   useSharedValue,
   useAnimatedStyle,
@@ -80,8 +81,33 @@ export function ChatBubble({
   const isCoach = role === 'coach';
   const showGlow = isCoach && latestCoach && !pending;
 
+  /**
+   * The coach's bubbles arrive; the member's are just there.
+   *
+   * A reply that snaps into existence reads as a page redraw rather than
+   * somebody answering, so it fades up over a short distance — enough to say
+   * "this is new", not enough to make the member wait for it.
+   *
+   * ── WHY THE MEMBER'S BUBBLE IS NOT ANIMATED ───────────────────────────────
+   *
+   * Their message must appear the instant they press send, with no fade at
+   * all; anything else makes the app feel like it is thinking about whether to
+   * accept it. There is also a mechanical reason: when the reply lands, the
+   * thread is replaced with the server's rows, so the optimistic bubble
+   * unmounts and a new one mounts under its real id. An entering animation
+   * would re-run there, flickering the member's own words at the exact moment
+   * they are reading the answer.
+   *
+   * Decorative, so it respects Reduce Motion by default — unlike the typing
+   * dots, which carry information and deliberately do not.
+   */
+  const entering = isCoach
+    ? FadeInDown.duration(260).withInitialValues({ transform: [{ translateY: 10 }] })
+    : undefined;
+
   return (
     <Animated.View
+      entering={entering}
       style={[
         styles.bubble,
         isCoach ? bubbleRadius.coach : bubbleRadius.member,
