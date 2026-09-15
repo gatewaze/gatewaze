@@ -100,6 +100,67 @@ export async function requestPermissions(opts: {
   } as never);
 }
 
+/**
+ * The member's own details, as Apple Health holds them.
+ *
+ * ── WHY THESE ARE NOT JUST MORE SAMPLES ───────────────────────────────────
+ *
+ * Date of birth and biological sex are CHARACTERISTICS: single values the
+ * member typed into Health once, not a time series. They have their own
+ * read-only API and cannot be written by an app, which is also why they are
+ * safe to ask for — there is no version of this that edits somebody's Health.
+ *
+ * Height IS a sample, but only its most recent value is meaningful here, so
+ * it is read as one rather than through the anchored path the syncing metrics
+ * use.
+ *
+ * ── EVERY FIELD IS OPTIONAL, AND ABSENCE MEANS NOTHING ────────────────────
+ *
+ * iOS does not report read-permission denial (see requestPermissions), and on
+ * top of that most people never fill in date of birth or sex at all. So a
+ * missing field here carries no information: it is not "they refused" and not
+ * "they have none", it is only "not available to us". The caller's job is to
+ * ask the member for whatever did not arrive, never to conclude anything.
+ */
+export async function readOwnDetails(): Promise<{
+  dateOfBirth?: string;
+  sex?: 'male' | 'female' | 'other';
+  heightCm?: number;
+}> {
+  const api = native();
+  const out: { dateOfBirth?: string; sex?: 'male' | 'female' | 'other'; heightCm?: number } = {};
+
+  // Each read is independent: one throwing (or being unavailable on an older
+  // iOS) must not cost the others.
+  try {
+    const dob = await api.getDateOfBirthAsync();
+    if (dob) out.dateOfBirth = new Date(dob).toISOString().slice(0, 10);
+  } catch { /* not available; the member will be asked */ }
+
+  try {
+    const sex = await api.getBiologicalSexAsync();
+    // HealthKit's vocabulary is wider than the profile's, and 'notSet' is the
+    // default for anyone who never chose. Anything that is not clearly male or
+    // female maps to 'other' rather than being guessed at.
+    const raw = String((sex as unknown as { biologicalSex?: string })?.biologicalSex ?? sex ?? '')
+      .toLowerCase();
+    if (raw.includes('male') && !raw.includes('female')) out.sex = 'male';
+    else if (raw.includes('female')) out.sex = 'female';
+    else if (raw && !raw.includes('notset')) out.sex = 'other';
+  } catch { /* not available */ }
+
+  try {
+    const sample = await api.getMostRecentQuantitySample('HKQuantityTypeIdentifierHeight' as never, 'cm' as never);
+    const cm = Number((sample as unknown as { quantity?: number })?.quantity);
+    // The profile refuses anything outside 0-300; catching it here too means
+    // a nonsense reading never becomes a failed save the member has to
+    // interpret.
+    if (Number.isFinite(cm) && cm > 50 && cm < 300) out.heightCm = Math.round(cm * 10) / 10;
+  } catch { /* not available */ }
+
+  return out;
+}
+
 /** This app's own bundle id, so callers can skip samples they wrote. */
 export function ownSourceBundleId(): string | null {
   try {

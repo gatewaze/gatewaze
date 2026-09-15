@@ -54,6 +54,7 @@ export {
   isAvailable as isHealthDataAvailable,
   requestPermissions as requestHealthPermissions,
   ownSourceBundleId,
+  readOwnDetails as readHealthOwnDetails,
   readChanged as readHealthChanged,
   readChangedCategory as readHealthChangedCategory,
   readDailyTotals as readHealthDailyTotals,
