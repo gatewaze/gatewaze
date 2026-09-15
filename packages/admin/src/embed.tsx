@@ -18,6 +18,7 @@ import { configureEmbedSupabase } from '@/lib/supabase';
 import { getCompiledFeatures, getCompiledModuleIds } from './embed/compiledModules';
 import { EmbedApp } from './embed/EmbedApp';
 import { setHostNotify } from './embed/hostNotify';
+import { setEmbeddedMode } from './embed/embedMode';
 import { setEmbedPortalContainer } from './embed/portalContainer';
 import { deregisterMount, tryRegisterMount } from './embed/registry';
 import { sanitizeMessage } from './embed/sanitize';
@@ -108,6 +109,7 @@ export function mount(el: HTMLElement, ctx: GwHostContext): { unmount(): void } 
     // Before render: Radix's portalled components read this at their own first render, and the
     // host's element is the only thing keeping their overlays inside the scope our stylesheet is
     // contained to. See embed/radixThemesPortal.tsx.
+    setEmbeddedMode(true);
     setEmbedPortalContainer(validCtx.portalContainer);
     setHostNotify(validCtx.notify);
 
@@ -131,6 +133,7 @@ export function mount(el: HTMLElement, ctx: GwHostContext): { unmount(): void } 
 
     const handle = {
       unmount() {
+        setEmbeddedMode(false);
         root?.unmount();
         deregisterMount(el);
         // The host owns this element and may reuse or drop it; holding a reference past unmount

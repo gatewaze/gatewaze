@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { Navigate } from 'react-router-dom';
+import { isEmbedded } from '../embed/embedMode';
 import { useAuthContext as useAuth } from '@/app/contexts/auth/context';
 import { useHasPermission } from '@/hooks/usePermissions';
 import { AccessDeniedRedirect } from '@/app/router/AccessDeniedRedirect';
@@ -59,6 +60,13 @@ export function FeatureGuard({
   // Show loading state
   if (authLoading || permissionLoading) {
     if (!showLoading) return null;
+
+    // Embedded: render nothing rather than a second full-screen loader. The host already shows
+    // its own loading state while the bundle downloads and mounts, and the page underneath shows
+    // its own once this guard passes — so this one sits between two others and reads as a stall,
+    // not as progress. Reported from the LFX pilot as "Checking permissions" followed by a
+    // spinner. Standalone keeps it: there is no host frame there to carry the wait.
+    if (isEmbedded()) return null;
 
     return (
       <div className="flex items-center justify-center min-h-screen">
