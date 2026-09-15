@@ -37,6 +37,12 @@ export function brandLogo() {
   return mobileModules.find((m) => m.brandLogo)?.brandLogo ?? null;
 }
 
+/** The module that owns sign-up, or null when this build has no sign-up. */
+export function signupProvider() {
+  const mod = mobileModules.find((m) => m.signup);
+  return mod?.signup ?? null;
+}
+
 /** Where the problem-report sheet POSTs, or null to hide the bug button. */
 export function feedbackPath(): string | null {
   return mobileModules.find((m) => m.feedback)?.feedback?.path ?? null;

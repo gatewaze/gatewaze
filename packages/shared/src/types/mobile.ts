@@ -453,6 +453,31 @@ export interface GatewazeMobileModule {
    */
   brandLogo?: ComponentType<{ height?: number; color?: string }>;
   /**
+   * Sign-up, contributed by the module that owns accounts.
+   *
+   * The core owns the FLOW — the front door, the plan cards, the code field,
+   * the one-time-code screen — and knows nothing about what a plan is or
+   * where it is stored. A build whose modules declare none of this simply
+   * has no "Create account" path: signing in is the only door, which is the
+   * correct behaviour for an app whose accounts are provisioned elsewhere.
+   */
+  signup?: {
+    /** The plans to choose between. Empty array = no plan step. */
+    plans: (ctx: MobileModuleContext) => Promise<Array<{
+      id: string; name: string; blurb: string; pricePence: number; modules: string[];
+    }>>;
+    /** Check a code and describe what it does, or throw for an invalid one. */
+    validateCode?: (ctx: MobileModuleContext, code: string) => Promise<{
+      code: string;
+      percentOff: number;
+      restrictedToPlanId: string | null;
+      trainer: { displayName: string } | null;
+    }>;
+    /** Bind the freshly authenticated account to its plan. Runs once. */
+    complete: (ctx: MobileModuleContext, input: { planId: string; code?: string }) => Promise<unknown>;
+  };
+
+  /**
    * Where the core's problem-report sheet POSTs. The core owns the capture
    * and the form; the module owns the endpoint and whatever it does with
    * the report. Without a declaring module the bug button is not rendered.

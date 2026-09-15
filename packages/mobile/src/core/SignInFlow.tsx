@@ -1,24 +1,88 @@
 /**
- * Email one-time-code sign-in (spec-mobile-app.md "Auth"): request a code,
- * type the code, no browser round-trip and no deep links.
+ * The front door: create an account, or sign in.
+ *
+ * Both paths end in the same email one-time code — no password to choose, no
+ * browser round-trip, no deep links. What differs is what happens either side
+ * of it: signing up picks a plan and may carry a code, and finishes by binding
+ * the account to that plan before the app decides which tabs exist.
+ *
+ * ── WHY THE CORE KNOWS NOTHING ABOUT PLANS ────────────────────────────────
+ *
+ * The steps, the cards and the copy live here; what a plan IS, what it costs
+ * and where it is stored belong to whichever module declares `signup`. A build
+ * whose modules declare none has no Create-account path at all and shows the
+ * sign-in form alone, which is right for an app whose accounts are provisioned
+ * somewhere else.
  */
 
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
-import { Body, Button, Caption, Input, Screen, Spacer, Title } from '../components/primitives';
+import {
+  Body, Button, Caption, CardTitle, Input, Screen, Spacer, Title,
+} from '../components/primitives';
 import { AmbientBackground } from '../components/AmbientBackground';
-import { brandLogo } from './registry';
+import { brandLogo, signupProvider } from './registry';
+import { getModuleContext } from './context';
 import { config } from './config';
 import { colors, spacing } from '../theme/tokens';
 import { useSession } from './auth/session';
+import { humanMessage } from './errors';
+
+type Step = 'welcome' | 'plan' | 'email' | 'code';
 
 export function SignInFlow({ note }: { note?: string }) {
   const { requestCode, verifyCode } = useSession();
-  const [step, setStep] = useState<'email' | 'code'>('email');
+  const signup = signupProvider();
+
+  // Without a sign-up contribution there is nothing to choose, so the front
+  // door collapses to the form it has always been.
+  const [step, setStep] = useState<Step>(() => {
+    // Development affordance: open a later step directly, so the plan picker
+    // can be inspected without tapping through. .env.development only.
+    const start = __DEV__ ? process.env.EXPO_PUBLIC_DEV_SIGNUP_STEP : undefined;
+    if (start === 'plan' && signup) return 'plan';
+    return signup ? 'welcome' : 'email';
+  });
+  const [creating, setCreating] = useState(__DEV__ && process.env.EXPO_PUBLIC_DEV_SIGNUP_STEP === 'plan');
+
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [plans, setPlans] = useState<Array<{ id: string; name: string; blurb: string }>>([]);
+  const [planId, setPlanId] = useState<string | null>(null);
+  const [inviteCode, setInviteCode] = useState('');
+  const [invite, setInvite] = useState<{
+    trainer?: { displayName: string } | null; percentOff: number; restrictedToPlanId?: string | null;
+  } | null>(null);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (step !== 'plan' || plans.length || !signup) return;
+    let alive = true;
+    signup.plans(getModuleContext())
+      .then((rows) => { if (alive) setPlans(rows ?? []); })
+      .catch(() => { if (alive) setError('We could not load the plans just now.'); });
+    return () => { alive = false; };
+  }, [step, plans.length, signup]);
+
+  /** Check a code before the member commits, so surprises arrive early. */
+  const checkCode = useCallback(async () => {
+    const raw = inviteCode.trim();
+    setInvite(null);
+    setInviteError(null);
+    if (!raw || !signup?.validateCode) return;
+    try {
+      const res = await signup.validateCode(getModuleContext(), raw);
+      setInvite(res);
+      // A code tied to one plan chooses it, rather than letting the member
+      // pick one the last step would then reject.
+      if (res.restrictedToPlanId) setPlanId(res.restrictedToPlanId);
+    } catch (err) {
+      setInviteError(humanMessage(err).text);
+    }
+  }, [inviteCode, signup]);
 
   const submitEmail = async () => {
     setBusy(true);
@@ -27,7 +91,7 @@ export function SignInFlow({ note }: { note?: string }) {
       await requestCode(email.trim());
       setStep('code');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not send the code');
+      setError(humanMessage(err).text);
     } finally {
       setBusy(false);
     }
@@ -37,17 +101,30 @@ export function SignInFlow({ note }: { note?: string }) {
     setBusy(true);
     setError(null);
     try {
-      await verifyCode(email.trim(), code.trim());
+      const finish = creating && signup && planId
+        ? async () => {
+            // The account exists by now and the entitlement probes have not
+            // run, which is the only safe window to bind the plan: a new
+            // member never sees a half-built app with tabs they have not
+            // chosen. A failure here is surfaced rather than swallowed — the
+            // session is valid either way, and Settings can finish the job.
+            await signup.complete(getModuleContext(), {
+              planId,
+              code: inviteCode.trim() || undefined,
+            });
+          }
+        : undefined;
+      await verifyCode(email.trim(), code.trim(), finish);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'That code did not work');
+      setError(humanMessage(err).text);
       setBusy(false);
     }
   };
 
+  const Brand = brandLogo();
+
   return (
     <Screen scroll={false}>
-      {/* Signed-out is still the app: the same mesh every other surface
-          sits on, with the wordmark where the plain text title was. */}
       <AmbientBackground />
       {/* The front door runs the mesh a step darker than the app proper:
           nothing competes with the form, and the wordmark's halo reads. */}
@@ -57,30 +134,68 @@ export function SignInFlow({ note }: { note?: string }) {
         style={styles.fill}
       >
         <View style={styles.center}>
-          {/* Same halo the header wordmark carries: the shadow follows the
-              letterforms' alpha, keeping them legible on the mesh's lighter
-              patches. */}
-          <View
-            style={{
-              alignItems: 'center',
-              shadowColor: '#000',
-              shadowOpacity: 0.6,
-              shadowRadius: 7,
-              shadowOffset: { width: 0, height: 1 },
-            }}
-          >
-            {(() => {
-              const Logo = brandLogo();
-              return Logo ? <Logo height={42} /> : <Title>{config.appName}</Title>;
-            })()}
+          <View style={styles.brand}>
+            {Brand ? <Brand height={42} /> : <Title>{config.appName}</Title>}
           </View>
           <Spacer size={spacing.sm} />
           {note ? <Caption style={{ textAlign: 'center' }}>{note}</Caption> : null}
           <Spacer />
+
+          {step === 'welcome' ? (
+            <View style={styles.form}>
+              <Button title="Create account" onPress={() => { setCreating(true); setStep('plan'); }} />
+              <Button title="Sign in" variant="ghost" onPress={() => { setCreating(false); setStep('email'); }} />
+            </View>
+          ) : null}
+
+          {step === 'plan' ? (
+            <View style={styles.form}>
+              <CardTitle>Choose what you want</CardTitle>
+              <Caption>Everything is included free while {config.appName} is in testing.</Caption>
+              {plans.map((p) => (
+                <Button
+                  key={p.id}
+                  title={p.name}
+                  variant={p.id === planId ? 'primary' : 'secondary'}
+                  onPress={() => setPlanId(p.id)}
+                />
+              ))}
+              {planId ? (
+                <Caption>{plans.find((p) => p.id === planId)?.blurb}</Caption>
+              ) : null}
+
+              {signup?.validateCode ? (
+                <>
+                  <Input
+                    placeholder="Invite or discount code (optional)"
+                    value={inviteCode}
+                    onChangeText={setInviteCode}
+                    autoCapitalize="characters"
+                    autoCorrect={false}
+                    onBlur={() => void checkCode()}
+                  />
+                  {invite ? (
+                    <Caption style={{ color: colors.coach }}>
+                      {invite.trainer
+                        ? `You will join as a client of ${invite.trainer.displayName}.`
+                        : `${invite.percentOff}% off applied.`}
+                    </Caption>
+                  ) : null}
+                  {inviteError ? <Caption style={{ color: colors.danger }}>{inviteError}</Caption> : null}
+                </>
+              ) : null}
+
+              <Button title="Continue" onPress={() => setStep('email')} disabled={!planId} />
+              <Button title="Back" variant="ghost" onPress={() => setStep('welcome')} />
+            </View>
+          ) : null}
+
           {step === 'email' ? (
             <View style={styles.form}>
               <Body style={{ color: colors.textSecondary }}>
-                Sign in with your email. We will send you a 6-digit code.
+                {creating
+                  ? 'What email should we use? We will send you a 6-digit code.'
+                  : 'Sign in with your email. We will send you a 6-digit code.'}
               </Body>
               <Input
                 value={email}
@@ -90,20 +205,19 @@ export function SignInFlow({ note }: { note?: string }) {
                 keyboardType="email-address"
                 placeholder="Email address"
               />
-              <Button
-                title="Send code"
-                onPress={submitEmail}
-                loading={busy}
-                disabled={!email.includes('@')}
-              />
+              <Button title="Send code" onPress={submitEmail} loading={busy} disabled={!email.includes('@')} />
+              {signup ? (
+                <Button title="Back" variant="ghost" onPress={() => setStep(creating ? 'plan' : 'welcome')} />
+              ) : null}
             </View>
-          ) : (
+          ) : null}
+
+          {step === 'code' ? (
             <View style={styles.form}>
               <Body style={{ color: colors.textSecondary }}>
                 Enter the 6-digit code we sent to {email.trim()}.
               </Body>
               <Input
-                label="Code"
                 value={code}
                 onChangeText={setCode}
                 keyboardType="number-pad"
@@ -112,14 +226,15 @@ export function SignInFlow({ note }: { note?: string }) {
                 maxLength={6}
               />
               <Button
-                title="Sign in"
+                title={creating ? 'Create account' : 'Sign in'}
                 onPress={submitCode}
                 loading={busy}
                 disabled={code.trim().length < 6}
               />
               <Button title="Use a different email" variant="ghost" onPress={() => setStep('email')} />
             </View>
-          )}
+          ) : null}
+
           {error ? <Caption style={{ color: colors.danger }}>{error}</Caption> : null}
         </View>
       </KeyboardAvoidingView>
@@ -130,8 +245,14 @@ export function SignInFlow({ note }: { note?: string }) {
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   center: { flex: 1, justifyContent: 'center', gap: spacing.sm },
+  brand: {
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.6,
+    shadowRadius: 7,
+    shadowOffset: { width: 0, height: 1 },
+  },
   // Narrow and centred: a full-bleed form on a phone reads as a settings
-  // page, not a front door. 300pt also keeps the inputs a comfortable
-  // thumb-width on every device.
+  // page, not a front door.
   form: { gap: spacing.lg, width: '100%', maxWidth: 300, alignSelf: 'center' },
 });

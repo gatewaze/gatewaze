@@ -49,7 +49,13 @@ export type SessionStatus =
 interface SessionContextValue {
   status: SessionStatus;
   requestCode: (email: string) => Promise<void>;
-  verifyCode: (email: string, token: string) => Promise<void>;
+  /**
+   * `onVerified` runs after the code is accepted but BEFORE entitlements are
+   * probed. That window is the only safe place to finish signing up: the
+   * account exists by then, and the probes that decide which tabs appear have
+   * not run yet, so a new member never sees a half-built app.
+   */
+  verifyCode: (email: string, token: string, onVerified?: () => Promise<void>) => Promise<void>;
   refresh: () => Promise<void>;
   signOut: (note?: string) => Promise<void>;
 }
@@ -184,9 +190,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const verifyCode = useCallback(
-    async (email: string, token: string) => {
+    async (email: string, token: string, onVerified?: () => Promise<void>) => {
       const { error } = await getSupabase().auth.verifyOtp({ email, token, type: 'email' });
       if (error) throw new Error(error.message);
+      if (onVerified) await onVerified();
       await bootstrap();
     },
     [bootstrap]
