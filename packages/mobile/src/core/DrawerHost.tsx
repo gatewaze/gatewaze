@@ -27,7 +27,7 @@ import { Icon } from '../components/Icon';
 import { GlassCircleButton } from '../components/GlassCircleButton';
 import { LazyThunk } from '../components/LazyThunk';
 import { AmbientBackground } from '../components/AmbientBackground';
-import { HelfLogo } from '../components/HelfLogo';
+
 import { SummaryDrawer, SUMMARY_WIDTH } from './SummaryDrawer';
 import { CoachBar } from './CoachBar';
 import { Button, Caps, EmptyState } from '../components/primitives';
@@ -39,6 +39,7 @@ import { ChromeInsetsProvider } from './chrome';
 import { useSession } from './auth/session';
 import { CoachHome } from './CoachHome';
 import { BugReportSheet } from './BugReport';
+import { brandLogo, feedbackPath } from './registry';
 import { config } from './config';
 import {
   useTheme,
@@ -58,6 +59,14 @@ const EASE = Easing.bezier(easing.x1, easing.y1, easing.x2, easing.y2);
 type Destination =
   | { kind: 'coach' }
   | { kind: 'module'; moduleId: string; entryId: string };
+
+/** The contributed wordmark, or the app's name in text for unbranded builds. */
+function BrandMark({ height }: { height: number }) {
+  const theme = useTheme();
+  const Logo = brandLogo();
+  if (Logo) return <Logo height={height} />;
+  return <Text style={[type.cardTitle, { color: theme.text }]}>{config.appName}</Text>;
+}
 
 export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
   /**
@@ -303,9 +312,7 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
       >
         <SafeAreaView style={styles.drawer} edges={['top', 'bottom']}>
           <View style={styles.drawerHead}>
-            {/* The drawer's ground is the dark `void`, so the wordmark takes
-                `invert` here, the same colour the rows use. */}
-            <HelfLogo height={30} />
+            <BrandMark height={30} />
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.navList}>
@@ -418,9 +425,10 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
                 shadowOffset: { width: 0, height: 1 },
               }}
             >
-              <HelfLogo height={28} />
+              <BrandMark height={28} />
             </View>
           )}
+          {feedbackPath() ? (
           <GlassCircleButton
             icon="bug"
             iconSize={17}
@@ -448,6 +456,7 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
             }}
             accessibilityLabel="Report a problem"
           />
+          ) : null}
         </LinearGradient>
         ) : null}
 
@@ -484,6 +493,7 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
 
         {bugOpen ? (
           <BugReportSheet
+            path={feedbackPath()!}
             shotBase64={bugShot}
             route={destination.kind === 'coach' ? 'coach' : `${destination.moduleId}:${destination.entryId}`}
             onClose={() => { setBugOpen(false); setBugShot(null); }}

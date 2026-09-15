@@ -3,10 +3,9 @@
  *
  * The flow the operator asked for: tapping the header's bug icon grabs a
  * screenshot of what the member was looking at BEFORE anything opens, then
- * this sheet collects a few words and sends both to the server. The report's
- * home is the hc_feedback table — engineering agents read the rows directly —
- * and the server announces each new row in Slack; this client neither holds
- * nor sees any Slack detail.
+ * this sheet collects a few words and sends both to the server. The report is POSTed to whatever
+ * endpoint the brand's module contributed (see `feedback` in the manifest);
+ * what happens to it server-side is that module's business.
  *
  * The screenshot is shown IN the sheet, small. Not decoration: the member is
  * about to send a picture of their screen, possibly with their own health
@@ -26,8 +25,11 @@ import { humanMessage } from './errors';
 export function BugReportSheet({
   shotBase64,
   route,
+  path,
   onClose,
 }: {
+  /** The module-contributed endpoint the report is POSTed to. */
+  path: string;
   /** Captured before the sheet opened; null when the capture failed. */
   shotBase64: string | null;
   route: string;
@@ -44,7 +46,7 @@ export function BugReportSheet({
     setSending(true);
     setError(null);
     try {
-      await getModuleContext().apiFetch('/api/health-core/feedback', {
+      await getModuleContext().apiFetch(path, {
         method: 'POST',
         body: {
           message: text.trim(),

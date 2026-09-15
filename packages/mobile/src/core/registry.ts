@@ -28,6 +28,20 @@ export function moduleById(id: string): GatewazeMobileModule | undefined {
   return mobileModules.find((m) => m.id === id);
 }
 
+/**
+ * The brand wordmark, contributed by whichever baked module declares one
+ * (the registry takes the first). null = no module brands this build; the
+ * chrome falls back to the app name as text.
+ */
+export function brandLogo() {
+  return mobileModules.find((m) => m.brandLogo)?.brandLogo ?? null;
+}
+
+/** Where the problem-report sheet POSTs, or null to hide the bug button. */
+export function feedbackPath(): string | null {
+  return mobileModules.find((m) => m.feedback)?.feedback?.path ?? null;
+}
+
 export function allTabs(): Array<MobileTabContribution & { moduleId: string }> {
   return mobileModules
     .flatMap((m) => (m.tabs ?? []).map((t) => ({ ...t, moduleId: m.id })))

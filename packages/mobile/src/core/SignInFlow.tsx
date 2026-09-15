@@ -5,9 +5,10 @@
 
 import React, { useState } from 'react';
 import { KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
-import { Body, Button, Caption, Input, Screen, Spacer } from '../components/primitives';
+import { Body, Button, Caption, Input, Screen, Spacer, Title } from '../components/primitives';
 import { AmbientBackground } from '../components/AmbientBackground';
-import { HelfLogo } from '../components/HelfLogo';
+import { brandLogo } from './registry';
+import { config } from './config';
 import { colors, spacing } from '../theme/tokens';
 import { useSession } from './auth/session';
 
@@ -53,8 +54,22 @@ export function SignInFlow({ note }: { note?: string }) {
         style={styles.fill}
       >
         <View style={styles.center}>
-          <View style={{ alignItems: 'center' }}>
-            <HelfLogo height={34} />
+          {/* Same halo the header wordmark carries: the shadow follows the
+              letterforms' alpha, keeping them legible on the mesh's lighter
+              patches. */}
+          <View
+            style={{
+              alignItems: 'center',
+              shadowColor: '#000',
+              shadowOpacity: 0.6,
+              shadowRadius: 7,
+              shadowOffset: { width: 0, height: 1 },
+            }}
+          >
+            {(() => {
+              const Logo = brandLogo();
+              return Logo ? <Logo height={42} /> : <Title>{config.appName}</Title>;
+            })()}
           </View>
           <Spacer size={spacing.sm} />
           {note ? <Caption style={{ textAlign: 'center' }}>{note}</Caption> : null}

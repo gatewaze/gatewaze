@@ -1,3 +1,4 @@
+import type { ComponentType } from 'react';
 /**
  * Mobile app module-contribution contract (spec-mobile-app.md).
  *
@@ -443,6 +444,20 @@ export interface GatewazeMobileModule {
    * A build without a given module simply has one fewer panel.
    */
   daySummary?: MobileDaySummaryContribution[];
+  /**
+   * The brand's wordmark, rendered in the core chrome (header, drawer,
+   * sign-in). Exactly one baked module should declare it — the registry
+   * takes the first — and a build with none falls back to the app name as
+   * text. A direct component, not a thunk: the logo has to paint on the
+   * very first frame of the sign-in screen.
+   */
+  brandLogo?: ComponentType<{ height?: number; color?: string }>;
+  /**
+   * Where the core's problem-report sheet POSTs. The core owns the capture
+   * and the form; the module owns the endpoint and whatever it does with
+   * the report. Without a declaring module the bug button is not rendered.
+   */
+  feedback?: { path: string };
   /**
    * Declared by the single module that owns the coach conversation.
    * See MobileCoachProvider.
