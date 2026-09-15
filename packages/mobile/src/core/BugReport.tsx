@@ -93,7 +93,7 @@ export function BugReportSheet({
           buttons, and every one of them was competing with whatever colour
           the mesh happened to be drifting through behind it.
         */}
-        <View style={[styles.sheet, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <View style={[styles.sheet, { backgroundColor: theme.sheet, borderColor: theme.border }]}>
           <View style={{ padding: spacing.lg, gap: spacing.md }}>
             {sent ? (
               <>

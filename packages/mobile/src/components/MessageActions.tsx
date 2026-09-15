@@ -59,7 +59,9 @@ export function MessageActions({
           styles.bar,
           {
             alignSelf: align === 'right' ? 'flex-end' : 'flex-start',
-            backgroundColor: theme.surface,
+            // Opaque: a menu you have to read through the background is not
+            // a menu. Same reasoning as the bug report sheet.
+            backgroundColor: theme.sheet,
             borderColor: theme.border,
           },
         ]}
