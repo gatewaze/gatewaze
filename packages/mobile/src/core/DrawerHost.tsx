@@ -312,7 +312,7 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
             {coach ? (
               <DrawerRow
                 icon="message-outline"
-                label="Coach"
+                label="Chat"
                 active={destination.kind === 'coach'}
                 onPress={() => go({ kind: 'coach' })}
               />
