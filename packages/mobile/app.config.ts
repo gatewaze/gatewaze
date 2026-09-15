@@ -40,9 +40,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     [
       'expo-splash-screen',
       {
-        backgroundColor: process.env.APP_SPLASH_COLOR || '#06080d',
-        image: process.env.APP_ICON || './assets/icon.png',
-        imageWidth: 180,
+        // The launch screen is the brand ground with the wordmark on it,
+        // not the icon tile on black. The colour is sampled from the app
+        // icon's own wash so icon-tap → launch reads as one surface.
+        backgroundColor: process.env.APP_SPLASH_COLOR || '#1d3d6b',
+        image: process.env.APP_SPLASH_IMAGE || './assets/splash.png',
+        imageWidth: 220,
       },
     ],
   ];
