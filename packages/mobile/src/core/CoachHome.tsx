@@ -33,7 +33,8 @@ import { CameraMode } from './CameraMode';
 import { chatProvider, composerModes, moduleColor, moduleOfKind, threadCardRenderer } from './registry';
 import { getModuleContext } from './context';
 import { ChromeInsetsProvider } from './chrome';
-import { replyArrived, stopHeartbeat } from './haptics';
+import { replyArrived, stopHeartbeat, tap } from './haptics';
+import { playReceived, playSent } from './messageSounds';
 import { consumeCoachHandoff } from './coachHandoff';
 import { humanMessage } from './errors';
 import { setCoachPrompts } from './coachPrompts';
@@ -428,6 +429,7 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
           ]);
           setMessages(await coach.answer(ctx, threadId));
           replyArrived();
+          playReceived();
         } catch (err) {
           setMessages((prev) => prev.filter((m) => !m.pending));
           setError(humanMessage(err).text);
@@ -461,6 +463,14 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
       setFailed(null);
       setDraft('');
       setModeProps({});
+      /**
+       * Fired HERE, where the member committed, rather than when the request
+       * resolves. It is confirmation that the press registered, and that has
+       * to be immediate — a reply can take seconds, and feedback that waits
+       * for it is feedback about something else.
+       */
+      tap();
+      playSent();
       // Sending is a chat action, so leave any capture mode and show the
       // thread: otherwise the camera stays up and the member cannot see
       // what they sent or the reply to it.
@@ -512,6 +522,7 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
         setMessages(updated);
         // The reply landed: beat in time with the glow on the new bubble.
         replyArrived();
+        playReceived();
       } catch (err) {
         setMessages((prev) => prev.filter((m) => !m.pending));
         /**
@@ -590,6 +601,7 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
         const updated = await answer(ctx, threadId);
         setMessages(updated);
         replyArrived();
+        playReceived();
       } catch (err) {
         setMessages((prev) => prev.filter((m) => !m.pending));
         const human = humanMessage(err);
