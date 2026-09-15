@@ -32,7 +32,13 @@ let cached: HapticsModule | null | undefined;
 function haptics(): HapticsModule | null {
   if (cached !== undefined) return cached;
   try {
-    // Required lazily and inside try/catch on purpose: see the header.
+    // Required lazily and inside try/catch on purpose: see the header. The
+    // rule exists to keep imports static and analysable, which is exactly
+    // what must NOT happen here — a static import of a native module runs at
+    // module load, where a binary without the native half throws before any
+    // of our code can catch it. Same convention as the other deferred
+    // requires in this package.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     cached = require('expo-haptics') as HapticsModule;
   } catch {
     cached = null;
