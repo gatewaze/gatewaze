@@ -21,33 +21,20 @@
  * unchanged. Colours are taken by index and wrap, so a palette of one colour
  * is a perfectly valid answer and gives the old single-hue look.
  *
- * ── AND IT COSTS ALMOST NOTHING ───────────────────────────────────────────
+ * ── STATIC BY DECISION ───────────────────────────────────────────────────
  *
- * The operator asked whether the portal's approach would be too heavy here.
- * The portal does this with CSS on the DOM, which has no equivalent in React
- * Native, but the underlying idea ports fine and this is the cheap way to do
- * it: each field is ONE svg radial gradient, drawn once, and animated by a
- * transform on the native thread through Reanimated. Nothing re-renders per
- * frame, no JavaScript runs during the animation, and the GPU is compositing
- * six textures. That is well inside what a phone does without noticing.
- *
- * The expensive way, and the one to avoid, is redrawing the gradients each
- * frame or animating their colour stops, which forces the SVG to rasterise
- * again and again. Nothing here does that: the colours are fixed and only the
- * transforms move.
- *
- * Honours Reduce Motion: the fields render in place and never animate.
+ * The fields do not move. They used to drift and swell on infinite Reanimated
+ * loops, and even with the animation on the native thread, six endlessly
+ * compositing layers kept the GPU awake — visibly so on a MacBook running the
+ * simulator, and the operator judged (rightly) that phones would pay for it
+ * in battery. The look barely traded away: what makes this read as a mesh is
+ * the overlap of the fields, not the millimetres of drift. The dx/dy/swell
+ * numbers stay on the specs as documentation of each field's intended motion,
+ * should a cheap way to move them ever appear.
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
-import { AccessibilityInfo, StyleSheet, View, useWindowDimensions } from 'react-native';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withRepeat,
-  withTiming,
-  Easing,
-} from 'react-native-reanimated';
+import React, { useMemo } from 'react';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
 import { useTheme } from '../theme/tokens';
 
@@ -117,52 +104,22 @@ const FIELDS: FieldSpec[] = [
 ];
 
 function Field({
-  spec, color, scale, animate, id,
+  spec, color, scale, id,
 }: {
-  spec: FieldSpec; color: string; scale: number; animate: boolean; id: string;
+  spec: FieldSpec; color: string; scale: number; id: string;
 }) {
-  const drift = useSharedValue(0);
-  const swell = useSharedValue(0);
-
-  useEffect(() => {
-    if (!animate) return;
-    drift.value = withRepeat(
-      withTiming(1, { duration: spec.durationMs, easing: Easing.inOut(Easing.ease) }),
-      -1,
-      true
-    );
-    swell.value = withRepeat(
-      withTiming(1, { duration: spec.swellMs, easing: Easing.inOut(Easing.ease) }),
-      -1,
-      true
-    );
-  }, [animate, drift, swell, spec.durationMs, spec.swellMs]);
-
-  // Transform only. The gradient itself never changes, so the SVG is
-  // rasterised once and the rest is the GPU moving a texture about.
-  const style = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: drift.value * spec.dx * scale },
-      { translateY: drift.value * spec.dy * scale },
-      { scale: 1 + swell.value * (spec.swellTo - 1) },
-    ],
-  }));
-
   const size = spec.size * scale;
 
   return (
-    <Animated.View
+    <View
       pointerEvents="none"
-      style={[
-        {
-          position: 'absolute',
-          left: spec.left * scale,
-          top: spec.top * scale,
-          width: size,
-          height: size,
-        },
-        style,
-      ]}
+      style={{
+        position: 'absolute',
+        left: spec.left * scale,
+        top: spec.top * scale,
+        width: size,
+        height: size,
+      }}
     >
       <Svg width={size} height={size}>
         <Defs>
@@ -178,28 +135,13 @@ function Field({
         </Defs>
         <Circle cx={size / 2} cy={size / 2} r={size / 2} fill={`url(#${id})`} />
       </Svg>
-    </Animated.View>
+    </View>
   );
 }
 
 export function AmbientBackground() {
   const theme = useTheme();
   const { width, height } = useWindowDimensions();
-  const [animate, setAnimate] = useState(true);
-
-  useEffect(() => {
-    let alive = true;
-    AccessibilityInfo.isReduceMotionEnabled().then((reduced) => {
-      if (alive) setAnimate(!reduced);
-    });
-    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', (reduced) =>
-      setAnimate(!reduced)
-    );
-    return () => {
-      alive = false;
-      sub.remove();
-    };
-  }, []);
 
   // Scale the composition to the device without distorting it.
   const scale = Math.max(width / FRAME_W, height / FRAME_H);
@@ -221,7 +163,7 @@ export function AmbientBackground() {
   return (
     <View pointerEvents="none" style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]}>
       {fields.map(({ spec, color, id }) => (
-        <Field key={id} id={id} spec={spec} color={color} scale={scale} animate={animate} />
+        <Field key={id} id={id} spec={spec} color={color} scale={scale} />
       ))}
 
       {/* The grain overlay is gone by choice: at an opacity low enough to
