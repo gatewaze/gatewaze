@@ -54,6 +54,15 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ],
   ];
 
+  // Full-bleed launch frame: only when a brand supplies one. The stock
+  // splash plugin squares its image into a centred tile; this rewrites its
+  // output during prebuild. UNSHIFTED, not pushed: dangerous mods run in
+  // reverse insertion order, so being first in the array is what makes this
+  // run AFTER expo-splash-screen has written the files it rewrites.
+  if (process.env.APP_SPLASH_IMAGE) {
+    plugins.unshift(['./plugins/withFullBleedSplash', { image: process.env.APP_SPLASH_IMAGE }]);
+  }
+
   // HealthKit. The entitlement is only requested when a baked module asks
   // for it: an app with no health module must not ship a health entitlement,
   // because App Store review asks what it is for.

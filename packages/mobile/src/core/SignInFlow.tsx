@@ -49,6 +49,9 @@ export function SignInFlow({ note }: { note?: string }) {
       {/* Signed-out is still the app: the same mesh every other surface
           sits on, with the wordmark where the plain text title was. */}
       <AmbientBackground />
+      {/* The front door runs the mesh a step darker than the app proper:
+          nothing competes with the form, and the wordmark's halo reads. */}
+      <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.35)' }]} />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.fill}
