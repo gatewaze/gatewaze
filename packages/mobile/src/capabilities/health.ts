@@ -126,9 +126,15 @@ export async function readOwnDetails(): Promise<{
   dateOfBirth?: string;
   sex?: 'male' | 'female' | 'other';
   heightCm?: number;
+  weightKg?: number;
 }> {
   const api = native();
-  const out: { dateOfBirth?: string; sex?: 'male' | 'female' | 'other'; heightCm?: number } = {};
+  const out: {
+    dateOfBirth?: string;
+    sex?: 'male' | 'female' | 'other';
+    heightCm?: number;
+    weightKg?: number;
+  } = {};
 
   // Each read is independent: one throwing (or being unavailable on an older
   // iOS) must not cost the others.
@@ -156,6 +162,24 @@ export async function readOwnDetails(): Promise<{
     // a nonsense reading never becomes a failed save the member has to
     // interpret.
     if (Number.isFinite(cm) && cm > 50 && cm < 300) out.heightCm = Math.round(cm * 10) / 10;
+  } catch { /* not available */ }
+
+  /**
+   * Latest weight.
+   *
+   * Read here as a PROFILE DETAIL even though weight is also collected as a
+   * time series elsewhere, because the two answer different questions. The
+   * series is history; this is "what do you weigh now", which is one of the
+   * things onboarding would otherwise have to ask for. Reading it means a
+   * member who connects Health is asked four fewer questions rather than
+   * three.
+   */
+  try {
+    const sample = await api.getMostRecentQuantitySample('HKQuantityTypeIdentifierBodyMass' as never, 'kg' as never);
+    const kg = Number((sample as unknown as { quantity?: number })?.quantity);
+    // Same reasoning as height: the profile's own bounds, applied here so a
+    // nonsense reading never becomes a save the member has to make sense of.
+    if (Number.isFinite(kg) && kg > 20 && kg < 500) out.weightKg = Math.round(kg * 10) / 10;
   } catch { /* not available */ }
 
   return out;

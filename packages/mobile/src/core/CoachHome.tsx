@@ -153,8 +153,23 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
     }
   );
 
-  // The app has exactly one coach conversation. Open the member's existing
-  // thread, or start it the first time.
+  /**
+   * The app has exactly one conversation. Open it, creating it if this is the
+   * first launch.
+   *
+   * ── WHY THIS CREATES RATHER THAN WAITS ────────────────────────────────────
+   *
+   * It used to only open a thread that already existed, and a thread only
+   * existed once the member had sent something. That made onboarding
+   * unreachable: the questions are assembled while generating a REPLY, so a
+   * new member who opened the app and read the empty screen was never asked
+   * anything, and nothing on screen suggested they had to go first.
+   *
+   * Creating the thread here is what lets the assistant open the conversation.
+   * The route is idempotent — it returns the existing conversation when there
+   * is one — so this is also the ordinary resume path, and it generates an
+   * opening message at most once per member.
+   */
   useEffect(() => {
     if (!coach) return;
     let alive = true;
@@ -162,13 +177,14 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
       const ctx = getModuleContext();
       try {
         const threads = await coach.threads(ctx);
-        const existing = threads[0]?.id;
         if (!alive) return;
-        if (existing) {
-          setThreadId(existing);
-          const m = await coach.thread(ctx, existing);
-          if (alive) setMessages(m);
-        }
+        // createThread resolves to the existing id when there is one, so the
+        // list is only consulted to avoid a needless round trip.
+        const id = threads[0]?.id ?? (await coach.createThread(ctx));
+        if (!alive || !id) return;
+        setThreadId(id);
+        const m = await coach.thread(ctx, id);
+        if (alive) setMessages(m);
       } catch {
         if (alive) setError('That conversation could not be loaded.');
       } finally {
@@ -448,7 +464,13 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
                 ) : null}
 
                 {(message.cards ?? []).map((card, ci) => (
-                  <ThreadCard key={ci} kind={card.kind} payload={card.payload} threadId={threadId} />
+                  <ThreadCard
+                    key={ci}
+                    kind={card.kind}
+                    payload={card.payload}
+                    threadId={threadId}
+                    onSend={(text) => void send(text)}
+                  />
                 ))}
 
                 {isLatestCoach && message.choices?.length ? (
@@ -554,10 +576,24 @@ function ThreadCard({
   kind,
   payload,
   threadId,
+  onSend,
 }: {
   kind: string;
   payload: unknown;
   threadId?: string;
+  /**
+   * Lets a card continue the conversation it is sitting in.
+   *
+   * Added for the onboarding connect card: once the member has connected
+   * Apple Health, something has to tell the assistant to carry on with what
+   * it still does not know. The alternative was for the card to leave a
+   * handoff and hope the thread picked it up, which is the cross-SCREEN
+   * mechanism — pointless here, where the card is already inside the thread
+   * that owns send().
+   *
+   * Optional, so every existing card is unaffected.
+   */
+  onSend?: (text: string) => void;
 }) {
   const theme = useTheme();
   const renderer = useMemo(() => threadCardRenderer(kind), [kind]);
@@ -587,7 +623,7 @@ function ThreadCard({
   }
   return (
     <View style={[styles.cardAccent, { borderLeftColor: accent }]}>
-      <LazyThunk thunk={renderer} props={{ payload, threadId }} />
+      <LazyThunk thunk={renderer} props={{ payload, threadId, onSend }} />
     </View>
   );
 }
