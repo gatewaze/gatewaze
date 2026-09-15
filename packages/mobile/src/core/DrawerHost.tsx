@@ -305,7 +305,7 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
           <View style={styles.drawerHead}>
             {/* The drawer's ground is the dark `void`, so the wordmark takes
                 `invert` here, the same colour the rows use. */}
-            <HelfLogo height={24} />
+            <HelfLogo height={30} />
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.navList}>
@@ -406,7 +406,20 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
           {destination.kind === 'module' ? (
             <Text style={[type.cardTitle, { color: theme.text }]}>{title}</Text>
           ) : (
-            <HelfLogo height={24} />
+            /* The dark glow keeps the white letters legible when a light
+               coach bubble scrolls behind the transparent header. A view
+               shadow follows the alpha of what it wraps, so this halos the
+               letterforms themselves rather than drawing a box. */
+            <View
+              style={{
+                shadowColor: '#000',
+                shadowOpacity: 0.6,
+                shadowRadius: 7,
+                shadowOffset: { width: 0, height: 1 },
+              }}
+            >
+              <HelfLogo height={28} />
+            </View>
           )}
           <GlassCircleButton
             icon="bug"
