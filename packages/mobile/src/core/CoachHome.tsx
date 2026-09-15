@@ -170,16 +170,45 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
        * be a scroll somebody actually does, not the fastest one possible.
        */
       const speed = Math.min(dy / 10, 1);
-      // Rises immediately with the finger, falls back slowly: the opening
-      // should feel caused, the closing should feel like settling.
-      drift.value = speed > drift.value
-        ? speed
-        // Underdamped on purpose: it overshoots slightly and comes back,
-        // which is the bounce at the end of a scroll rather than the thread
-        // simply stopping.
-        : withSpring(0, { damping: 11, stiffness: 95, mass: 0.6 });
+
+      /**
+       * Plain arithmetic, deliberately — NO spring on this path.
+       *
+       * This used to start a `withSpring(0)` on any frame where speed had
+       * dipped, and hard-assign over it on the next frame where it had not.
+       * Those two then alternated every frame, and because starting a spring
+       * resets its velocity to zero, the decay was re-thrown rather than
+       * continued. That is what made it stutter on release: momentum is
+       * exactly the phase where speed falls gradually, so nearly every frame
+       * flipped between the two.
+       *
+       * An exponential move toward the current speed has no such fight. It
+       * rises quickly under the finger, eases down as momentum fades, and
+       * needs no animation object at all — one multiply and one add per
+       * frame, on the UI thread.
+       */
+      drift.value += (speed - drift.value) * 0.25;
     },
+    /**
+     * The settle, sprung ONCE, when scrolling has actually finished.
+     *
+     * Safe to spring here precisely because no more scroll events follow, so
+     * nothing overwrites it half way. Underdamped, so it overshoots slightly
+     * and comes back — the bounce at the end of a scroll rather than the
+     * thread stopping dead.
+     */
     onMomentumEnd: () => {
+      drift.value = withSpring(0, { damping: 11, stiffness: 95, mass: 0.6 });
+    },
+
+    /**
+     * A lift with no momentum behind it never fires onMomentumEnd, and the
+     * smoothing above only decays while scroll events keep arriving — so
+     * without this the thread would be left holding whatever drift it had
+     * when the finger stopped. Harmless if momentum does follow: the next
+     * scroll frame simply takes the value back over.
+     */
+    onEndDrag: () => {
       drift.value = withSpring(0, { damping: 11, stiffness: 95, mass: 0.6 });
     },
   });
