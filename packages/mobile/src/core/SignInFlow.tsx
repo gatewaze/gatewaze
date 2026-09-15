@@ -97,8 +97,14 @@ function PlanCard({
       {(plan.features ?? []).length ? (
         <View style={{ gap: 4, marginTop: spacing.sm }}>
           {(plan.features ?? []).map((f) => (
-            <Row key={f} style={{ gap: spacing.sm, alignItems: 'flex-start' }}>
-              <Icon name="check" size={13} color={accent} />
+            /* The tick sits in a box the width of the plan icon above it, so
+               the ticks run down the icon's centre line and the feature text
+               starts where the plan name does. Two columns, not a ragged
+               left edge — and the gap has to match the header Row's. */
+            <Row key={f} style={{ gap: spacing.md, alignItems: 'flex-start' }}>
+              <View style={{ width: 26, alignItems: 'center' }}>
+                <Icon name="check" size={13} color={accent} />
+              </View>
               <Caption style={{ flex: 1, color: theme.textSecondary }}>{f}</Caption>
             </Row>
           ))}
