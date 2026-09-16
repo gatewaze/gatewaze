@@ -22,7 +22,7 @@ import { Icon } from './Icon';
 import { useTheme, radius, spacing, type } from '../theme/tokens';
 
 export interface MessageAction {
-  id: 'edit' | 'delete';
+  id: 'edit' | 'delete' | 'copy' | 'reference';
   label: string;
   icon: string;
   /** Drawn in the danger colour, for the one that removes something. */

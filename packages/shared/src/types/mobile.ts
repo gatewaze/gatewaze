@@ -225,7 +225,19 @@ export interface MobileCoachProvider {
     ctx: MobileModuleContext,
     threadId: string,
     text: string,
-    attachments?: unknown
+    /**
+     * Extras that travel with this one message.
+     *
+     * `referToMessageId` points the assistant at an earlier message in the
+     * same thread. The server fetches it by id, so it works even when that
+     * message is far outside the window of recent turns the model is given —
+     * which is exactly when somebody wants to bring an old exchange back up.
+     *
+     * Was `attachments?: unknown` and had no caller; widened rather than
+     * added to, so there is one place for per-message extras instead of a
+     * growing tail of optional arguments.
+     */
+    options?: { attachments?: unknown; referToMessageId?: string }
   ) => Promise<void>;
   /**
    * Ask for a reply and poll until it lands (the module owns the polling
