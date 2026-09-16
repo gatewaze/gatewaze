@@ -430,6 +430,13 @@ export interface MobileFetchInit {
   headers?: Record<string, string>;
   /** JSON-serialisable body, or FormData (typed unknown to avoid DOM libs here). */
   body?: unknown;
+  /**
+   * Abort this request after this many milliseconds, instead of the client's
+   * default. Raise it only where the server is legitimately expected to take
+   * longer, e.g. transcribing a long voice note, where the work scales with
+   * what was sent rather than being a fixed round trip.
+   */
+  timeoutMs?: number;
 }
 
 /**
