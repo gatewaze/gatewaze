@@ -83,17 +83,30 @@ export function CameraMode({
   });
   const [facing, setFacing] = useState<'back' | 'front'>('back');
   const [captured, setCaptured] = useState<{ uri: string; stepId: string } | null>(null);
+  /**
+   * Which steps of this sequence have been taken, by step id.
+   *
+   * Nothing tracked this before, so a three-pose set gave no sign of progress
+   * at all: each photo uploaded silently, the camera moved on, and after the
+   * last one it wrapped back to the first looking exactly as it had at the
+   * start. Indistinguishable from nothing having happened.
+   */
+  const [done, setDone] = useState<Record<string, boolean>>({});
   const cameraRef = React.useRef<React.ComponentRef<typeof CameraSurface>>(null);
 
   const kind = kinds.find((k) => k.id === kindId) ?? kinds[0] ?? null;
   const step = kind?.steps[stepIndex] ?? null;
   const multi = (kind?.steps.length ?? 0) > 1;
+  const takenCount = (kind?.steps ?? []).filter((s) => done[s.id]).length;
+  const allDone = multi && takenCount === (kind?.steps.length ?? 0);
 
   // Switching what the photo is OF starts that kind at its first step. A body
   // sequence half-done does not carry over to a meal.
   const choose = useCallback((id: string) => {
     setKindId(id);
     setStepIndex(0);
+    // A different kind is a different sequence; its progress is its own.
+    setDone({});
     setCaptured(null);
   }, []);
 
@@ -105,9 +118,17 @@ export function CameraMode({
     setCaptured(null);
     setStepIndex((i) => {
       const next = i + 1;
-      // The end of a sequence returns to its first step, so the camera is
-      // ready for the next set rather than stuck past the end.
-      if (kind && next >= kind.steps.length) return 0;
+      /**
+       * Past the end, stay on the last step rather than wrapping to the first.
+       *
+       * Wrapping was meant to leave the camera ready for the next set. What it
+       * actually did was return a finished sequence to its opening state, with
+       * nothing on screen to distinguish "you have taken all three" from "you
+       * have taken none" — so the member kept going round. The completion line
+       * below says the set is done, and any pose can still be retaken by
+       * tapping it.
+       */
+      if (kind && next >= kind.steps.length) return kind.steps.length - 1;
       return next;
     });
   }, [kind]);
@@ -172,7 +193,10 @@ export function CameraMode({
         props={{
           uri: captured.uri,
           stepId: captured.stepId,
-          onDone: advance,
+          onDone: () => {
+            setDone((d) => ({ ...d, [captured.stepId]: true }));
+            advance();
+          },
           onCancel: () => setCaptured(null),
         }}
       />
@@ -219,8 +243,16 @@ export function CameraMode({
 
           {multi ? (
             <View style={styles.stepPill}>
+              {/*
+                Every step, with the taken ones ticked, rather than only the
+                current one's number. "Side · 2 of 3" told the member where
+                they were and nothing about what they had already done, which
+                is the part that was missing when the sequence wrapped around.
+              */}
               <Text style={styles.overlayText}>
-                {`${step?.label ?? ''} · ${stepIndex + 1} of ${kind.steps.length}`}
+                {kind.steps
+                  .map((s, i) => `${done[s.id] ? '✓ ' : ''}${s.label}${i === stepIndex ? ' •' : ''}`)
+                  .join('   ')}
               </Text>
             </View>
           ) : null}
@@ -301,10 +333,20 @@ export function CameraMode({
       */}
       <View style={styles.sequence}>
         {multi ? (
-          <>
-            <Caption>Any of these can be skipped.</Caption>
-            <Button title="Skip" variant="ghost" compact onPress={advance} />
-          </>
+          allDone ? (
+            /*
+              Said out loud, because the alternative is what happened before:
+              after the last photo the camera wrapped to the first pose and sat
+              there looking untouched, so the member had no way to know the set
+              was finished except counting shutter presses.
+            */
+            <Caption>{`All ${kind.steps.length} taken. Close when you are done, or retake any of them.`}</Caption>
+          ) : (
+            <>
+              <Caption>{`${takenCount} of ${kind.steps.length} taken · any can be skipped.`}</Caption>
+              <Button title="Skip" variant="ghost" compact onPress={advance} />
+            </>
+          )
         ) : null}
       </View>
     </View>
