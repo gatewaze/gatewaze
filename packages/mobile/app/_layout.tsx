@@ -1,5 +1,5 @@
 import React from 'react';
-import { Stack, router } from 'expo-router';
+import { Stack, router, usePathname } from 'expo-router';
 import { Pressable, StatusBar, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -10,7 +10,8 @@ import {
 import { SessionProvider } from '../src/core/auth/session';
 import { Icon } from '../src/components/Icon';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
-import { requestOpenDrawer } from '../src/core/drawerSignal';
+import { requestBugReport, requestOpenDrawer } from '../src/core/drawerSignal';
+import { feedbackPath } from '../src/core/registry';
 import { useNoticeTaps } from '../src/core/useNoticeTaps';
 import { LoadingState, withAlpha } from '../src/components/primitives';
 import { useTheme, layout } from '../src/theme/tokens';
@@ -25,6 +26,10 @@ export default function RootLayout() {
   // focus. Wired here because the tap that launches the app from cold is the
   // one that matters most, and at that moment no module code has run.
   useNoticeTaps();
+
+  // Which screen a bug report is about. Read here rather than in the header,
+  // because a header option is not a component and cannot hold a hook.
+  const pathname = usePathname();
 
   return (
     <SafeAreaProvider>
@@ -123,6 +128,69 @@ export default function RootLayout() {
                     )}
                   </Pressable>
                 ),
+                /**
+                 * Report a problem, from the screen the problem is on.
+                 *
+                 * The coach home has drawn this for a long time and pushed
+                 * screens never did, which is most of the app. A tester who
+                 * hit something wrong on a module screen had to navigate away
+                 * from it before they could report it, and the screenshot
+                 * would then be of the coach home rather than of the problem.
+                 *
+                 * The capture happens HERE, while the screen is still on top,
+                 * and the sheet opens back on the coach route once the image
+                 * is already in hand. Same shape as the menu button: do the
+                 * part that only works from here, then leave a request.
+                 */
+                headerRight: () => (feedbackPath() ? (
+                  <Pressable
+                    hitSlop={12}
+                    accessibilityRole="button"
+                    accessibilityLabel="Report a problem"
+                    onPress={() => {
+                      void (async () => {
+                        let shot: string | null = null;
+                        try {
+                          // Required here rather than imported, for the same
+                          // reason the drawer does it: on the new architecture
+                          // this package calls TurboModuleRegistry.getEnforcing
+                          // at load, which throws outright in a binary without
+                          // the native half. Deferring confines that to this
+                          // tap, where it becomes "report without a screenshot".
+                          // eslint-disable-next-line @typescript-eslint/no-require-imports
+                          const { captureScreen } = require('react-native-view-shot') as typeof import('react-native-view-shot');
+                          shot = await captureScreen({ format: 'jpg', quality: 0.6, result: 'base64' });
+                        } catch {
+                          // No native module, or capture refused. Still report.
+                        }
+                        requestBugReport(shot, pathname || 'screen');
+                        router.dismissAll();
+                      })();
+                    }}
+                    style={
+                      isLiquidGlassAvailable()
+                        ? { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }
+                        : {
+                            width: 36,
+                            height: 36,
+                            borderRadius: 18,
+                            borderWidth: 1,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backgroundColor: theme.surface,
+                            borderColor: theme.border,
+                          }
+                    }
+                  >
+                    {({ pressed }) => (
+                      <Icon
+                        name="bug"
+                        size={17}
+                        color={pressed ? theme.onInvert : theme.textSecondary}
+                      />
+                    )}
+                  </Pressable>
+                ) : null),
               }}
             >
               <Stack.Screen name="index" options={{ headerShown: false }} />
