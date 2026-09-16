@@ -24,11 +24,30 @@ export function isApiFailure(err: unknown): err is ApiFailure {
   return err instanceof ApiFailure;
 }
 
+/**
+ * Network failures look like this, and nothing else should be mistaken for one.
+ *
+ * fetch rejects with a TypeError and one of a small set of messages when it
+ * never got a response. Anything else that reaches here is a fault in our own
+ * code, and calling that "offline" is actively harmful: the member is told to
+ * check a signal that is fine, and whoever investigates starts with
+ * connectivity. That is precisely what happened when a signup returned 403 and
+ * the member was shown "No connection just now" — with full LTE.
+ */
+const NETWORK_MESSAGES = /network request failed|failed to fetch|connection (appears )?offline|timed? ?out|aborted/i;
+
 export function toFailure(err: unknown): ApiFailure {
   if (isApiFailure(err)) return err;
   const message = err instanceof Error ? err.message : String(err);
-  // fetch network errors (no response at all) are the offline class
-  return new ApiFailure('offline', message || 'Network request failed');
+  if (NETWORK_MESSAGES.test(message)) {
+    return new ApiFailure('offline', message || 'Network request failed');
+  }
+  /**
+   * 'local' rather than 'offline': something went wrong on this device that is
+   * not the connection. The member gets "that did not work, try again", which
+   * is honest, and nobody is sent looking at the network.
+   */
+  return new ApiFailure('local', message || 'Something went wrong in the app.');
 }
 
 /**
