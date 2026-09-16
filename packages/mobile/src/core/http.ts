@@ -11,6 +11,7 @@
 import type { MobileFetchInit } from '@gatewaze/shared';
 import { config } from './config';
 import { ApiFailure, failureFromStatus, toFailure } from './errors';
+import { noteConnectivity } from './outbox';
 import { getSupabase } from './auth/supabase';
 
 const TIMEOUT_MS = 30_000;
@@ -124,6 +125,15 @@ export async function apiFetch(path: string, init: MobileFetchInit = {}): Promis
     const { message, code } = parseErrorBody(body, res.status);
     throw failureFromStatus(res.status, message, code);
   }
+
+  /**
+   * A request that succeeded is proof there is a connection RIGHT NOW, which
+   * is the one thing a queued write has been waiting to learn. Without a
+   * connectivity API this is the earliest and cheapest signal available —
+   * earlier than the next foreground, and free, because flush() returns
+   * immediately when the queue is empty or already draining.
+   */
+  noteConnectivity();
 
   return body;
 }

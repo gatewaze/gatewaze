@@ -17,7 +17,7 @@ import type { Session } from '@supabase/supabase-js';
 import { getSupabase } from './supabase';
 import { wipeLocalStore } from '../db';
 import { clearModuleStore } from '../context';
-import { flush } from '../outbox';
+import { flush, startOutboxAutoFlush } from '../outbox';
 import type { EntitlementState, SessionGate } from '../entitlement';
 
 /**
@@ -103,6 +103,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       entitlementRef.current = state;
       setStatus({ phase: 'ready', enabled: state.enabled });
       void flush();
+      // And keep draining from here on: on every return to the foreground,
+      // not only at this one moment. See startOutboxAutoFlush.
+      startOutboxAutoFlush();
     } finally {
       bootstrappingRef.current = false;
     }

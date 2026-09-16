@@ -6,7 +6,7 @@
 import type { MobileModuleContext } from '@gatewaze/shared';
 import { apiFetch } from './http';
 import { cacheGet, cacheSet } from './cache';
-import { enqueue } from './outbox';
+import { enqueue, enqueueLatest } from './outbox';
 
 const memoryStore = new Map<string, unknown>();
 
@@ -19,6 +19,7 @@ export function getModuleContext(): MobileModuleContext {
       cacheGet: (key) => cacheGet(key),
       cacheSet,
       enqueue,
+      enqueueLatest,
       store: {
         get: (key) => memoryStore.get(key),
         set: (key, value) => {

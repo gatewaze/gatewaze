@@ -392,6 +392,16 @@ export interface MobileModuleContext {
    */
   enqueue: (kind: string, payload: unknown, clientRef: string) => Promise<void>;
   /**
+   * Queue the LATEST state for a logical action, replacing anything already
+   * pending under the same clientRef.
+   *
+   * `enqueue` is for events — the same clientRef twice means it happened once,
+   * so the first wins. Use this instead when the payload is a SNAPSHOT that is
+   * re-sent as it changes, such as a workout in progress after each set, where
+   * only the newest is worth sending.
+   */
+  enqueueLatest: (kind: string, payload: unknown, clientRef: string) => Promise<void>;
+  /**
    * Best-effort shared in-memory KV for the signed-in session (e.g. a
    * module caching the member profile for its own screens). Cleared on
    * sign-out. Never persisted.

@@ -15,6 +15,7 @@
  *    with exponential backoff via attempt_count.
  */
 
+import { AppState } from 'react-native';
 import { getDb } from './db';
 
 export interface OutboxRow {
@@ -45,6 +46,32 @@ export function onOutboxChange(fn: () => void): () => void {
 
 function notify(): void {
   for (const fn of listeners) fn();
+}
+
+/**
+ * Queue the LATEST state for a logical action, replacing anything pending.
+ *
+ * `enqueue` is for actions: the same client_ref twice means the same thing
+ * happened once, so it keeps the first and ignores the rest. That is wrong
+ * for a payload that is a snapshot rather than an event — a workout in
+ * progress is re-queued after every set, and only the newest matters.
+ *
+ * Replacing also resets the attempt budget, because a fresher payload
+ * deserves a fresh try rather than inheriting the previous one's failures.
+ */
+export async function enqueueLatest(kind: string, payload: unknown, clientRef: string): Promise<void> {
+  getDb().runSync(
+    `INSERT INTO outbox (client_ref, kind, payload, status, created_at)
+     VALUES (?, ?, ?, 'pending', ?)
+     ON CONFLICT(client_ref) DO UPDATE
+       SET payload = excluded.payload,
+           status = 'pending',
+           attempt_count = 0,
+           last_error = NULL`,
+    [clientRef, kind, JSON.stringify(payload), Date.now()]
+  );
+  notify();
+  void flush();
 }
 
 export async function enqueue(kind: string, payload: unknown, clientRef: string): Promise<void> {
@@ -98,6 +125,16 @@ function backoffMs(attempts: number): number {
 
 const MAX_TRANSIENT_ATTEMPTS = 8;
 
+/**
+ * How long to wait before trying again while there is no connection.
+ *
+ * Deliberately unhurried: without a connectivity API we find out by trying,
+ * and trying often on a phone with no signal costs battery for nothing. A
+ * foreground or a successful request flushes immediately anyway, so this is
+ * only the floor for a device left sitting offline.
+ */
+const OFFLINE_RETRY_MS = 30_000;
+
 /** Flush pending rows through their registered handlers, oldest first. */
 export async function flush(): Promise<void> {
   if (flushing) return;
@@ -130,6 +167,25 @@ export async function flush(): Promise<void> {
             message,
             row.id,
           ]);
+        } else if (kind === 'offline') {
+          /**
+           * Being offline does not consume the retry budget.
+           *
+           * It used to: eight attempts on a capped backoff is about three
+           * minutes, so a gym with no signal exhausted the budget and the row
+           * was marked FAILED — parked in Sync Status waiting for somebody to
+           * press retry, for a workout that was never at fault. Two hours
+           * offline is one condition, not a hundred failures.
+           *
+           * The row stays pending with its budget intact, and the next
+           * foreground or successful request picks it up.
+           */
+          db.runSync(`UPDATE outbox SET status = 'pending', last_error = ? WHERE id = ?`, [
+            message,
+            row.id,
+          ]);
+          setTimeout(() => void flush(), OFFLINE_RETRY_MS);
+          break;
         } else {
           const attempts = row.attempt_count + 1;
           const failed = attempts >= MAX_TRANSIENT_ATTEMPTS;
@@ -150,4 +206,62 @@ export async function flush(): Promise<void> {
   } finally {
     flushing = false;
   }
+}
+
+/**
+ * Drain whenever the app comes back to the front, and revive rows that only
+ * failed because there was no connection.
+ *
+ * Until this existed, flush() was called in exactly one place — once, when the
+ * session bootstrapped. So a member who logged a workout in a basement gym,
+ * locked their phone, and walked out into signal had nothing that would
+ * notice: the queue sat there until the next sign-in. Which for an app you
+ * stay signed into is "never".
+ *
+ * There is no connectivity API in this build, so returning to the foreground
+ * is the best available signal that something may have changed — and it is
+ * the moment the member is looking, which is also when being up to date
+ * matters most.
+ */
+let appStateBound = false;
+
+export function startOutboxAutoFlush(): () => void {
+  if (appStateBound) return () => undefined;
+  appStateBound = true;
+
+  const sub = AppState.addEventListener('change', (next) => {
+    if (next !== 'active') return;
+    /**
+     * Rows that ran out of budget against a transient error get one more
+     * chance on foreground. A row that failed for a CLIENT reason is left
+     * alone: it is refused, not unlucky, and retrying it forever would hide
+     * a real problem behind an infinite loop.
+     */
+    try {
+      getDb().runSync(
+        `UPDATE outbox SET status = 'pending', attempt_count = 0
+          WHERE status = 'failed' AND (last_error IS NULL OR last_error NOT LIKE '%HTTP 4%')`
+      );
+    } catch {
+      /* A revive that fails must not stop the flush below. */
+    }
+    notify();
+    void flush();
+  });
+
+  return () => {
+    sub.remove();
+    appStateBound = false;
+  };
+}
+
+/**
+ * Opportunistic drain after any successful request.
+ *
+ * A request that succeeded is proof there is a connection right now, which is
+ * the one thing the queue was waiting to find out. Cheap: flush() returns
+ * immediately when there is nothing pending or a pass is already running.
+ */
+export function noteConnectivity(): void {
+  void flush();
 }
