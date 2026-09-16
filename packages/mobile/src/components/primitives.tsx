@@ -185,22 +185,41 @@ export function Screen({
   );
 }
 
+/**
+ * How much background colour a glass card lays over the material.
+ *
+ * Glass with nothing behind it is a window, not a surface. Liquid Glass is a
+ * material that refracts what is behind it, so over a dark photographic
+ * gradient a card with no wash puts light text on whatever happens to be
+ * there — which in the thread meant a food card's names and numbers sitting
+ * directly on the wallpaper with no backing at all.
+ *
+ * Higher than the composer's 0.45 because a card carries dense content that
+ * has to be read and compared: a product name, a brand, a weight, a calorie
+ * figure and three macros, several of those stacked. The composer holds one
+ * line of text the member is actively typing and can afford to be lighter.
+ */
+const CARD_TINT = 0.6;
+
 export function Card({
   children,
   style,
   onPress,
   glass = true,
+  tint = CARD_TINT,
 }: {
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
   onPress?: () => void;
   /** Glass by default; pass false for an opaque card. */
   glass?: boolean;
+  /** Override the wash laid over the glass, 0 to 1. */
+  tint?: number;
 }) {
   const theme = useTheme();
   const inner = <View style={styles.cardInner}>{children}</View>;
   const body = glass ? (
-    <GlassPanel radius={radius.lg} style={style}>
+    <GlassPanel radius={radius.lg} style={style} tint={tint}>
       {inner}
     </GlassPanel>
   ) : (
