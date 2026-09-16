@@ -20,6 +20,16 @@ export interface Palette {
   void: string;
   background: string;
   surface: string;
+  /**
+   * The ground for something that must be READ rather than seen through: a
+   * form, a popover, an alert. Opaque on purpose.
+   *
+   * `surface` is a translucent veil, which is right for panels that sit over
+   * the member's own content and wrong for anything with a text field in it —
+   * the bug report sheet was drawn on it and the mesh showed straight through
+   * the words.
+   */
+  sheet: string;
   border: string;
   text: string;
   textSecondary: string;
@@ -96,6 +106,8 @@ export const darkColors: Palette = {
   void: '#06080d',
   background: '#090c14',
   surface: 'rgba(255,255,255,0.16)',
+  // Near-black and opaque: a form over the mesh has to stop the mesh.
+  sheet: '#111622',
   border: 'rgba(255,255,255,0.16)',
   text: '#eef1f6',
   textSecondary: '#c3cde0',
@@ -118,7 +130,22 @@ export const darkColors: Palette = {
   // It also reads better over a moving background — a filled bubble is
   // legible whatever drifts behind it, while the outlined one lets the
   // background through, so the thread is not a wall of solid cards.
-  bubbleMember: 'transparent',
+  /**
+   * A faint dark fill, not fully transparent.
+   *
+   * The member's bubble is an OUTLINE by design, so the thread is not a wall
+   * of solid cards. Fully transparent made its readability a property of the
+   * background rather than of the bubble: white text straight over the mesh
+   * measures about 5.8:1 today, which passes, but only because the mesh
+   * happens to render dark. Against the brightest colour in the palette the
+   * same text is 1.76:1, so brightening the background at any point would
+   * break it silently.
+   *
+   * 0.45 holds white text above the 4.5:1 body-text minimum even over the
+   * lightest colour the palette can produce, and is thin enough that the
+   * background still shows through and the bubble still reads as an outline.
+   */
+  bubbleMember: 'rgba(9,12,20,0.45)',
   // Translucent rather than solid, so the moving background tints the coach's
   // bubble instead of sitting behind a white card. The BORDER stays at full
   // strength: a soft fill with a crisp edge reads as glass, whereas softening
@@ -145,7 +172,16 @@ export const darkColors: Palette = {
   bubbleBorderMember: 'rgba(255,255,255,0.55)',
   bubbleBorderCoach: '#ffffff',
   bubbleGlowCoach: 'rgba(255,255,255,0.22)',
-  bubbleTextCoach: '#0a1020',
+  /**
+   * Pure black, not the blue-black used elsewhere for ink.
+   *
+   * The coach bubble is a thin white veil over a moving background, so its
+   * fill is never quite the same colour twice. A neutral black stays neutral
+   * against all of them, where a blue-black picks up whatever is behind it
+   * and reads as slightly washed. It also buys contrast: about 8.6:1 against
+   * the dimmest fill measured, up from 7.3.
+   */
+  bubbleTextCoach: '#000000',
   bubbleTextMember: '#ffffff',
   invert: '#ffffff',
   onInvert: '#0a1020',
@@ -165,6 +201,7 @@ export const lightColors: Palette = {
   void: '#e8ecf3',
   background: '#f6f8fb',
   surface: 'rgba(255,255,255,0.90)',
+  sheet: '#ffffff',
   border: 'rgba(16,21,28,0.10)',
   text: '#10151c',
   textSecondary: '#42506b',

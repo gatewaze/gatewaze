@@ -72,10 +72,11 @@ function impact(style: 'light' | 'medium' | 'heavy' | 'soft' | 'rigid') {
  *
  * The bubble's glow beats for as long as it is the newest message, which is
  * right for something you can look away from. A haptic cannot be looked away
- * from, so it stops: three beats is enough to register as a heartbeat rather
- * than a single buzz, and short enough that it never becomes nagging.
+ * from, so it stops rather than running as long as the glow does. Five beats
+ * is about seven seconds at this cycle — long enough to notice from across a
+ * desk, and still bounded.
  */
-const ARRIVAL_BEATS = 3;
+const ARRIVAL_BEATS = 5;
 
 /** One full lub-dub-and-rest, matching the glow exactly. */
 const CYCLE_MS =

@@ -78,7 +78,12 @@ export function ChatBubble({
   // the border colour and the fill both stay constant.
   const rgb = rgbTriplet(theme.coach);
   const glowStyle = useAnimatedStyle(() => ({
-    boxShadow: `0px 0px ${2 + glow.value * 17}px rgba(${rgb}, ${0.07 + glow.value * 0.33})`,
+    // Two shadows, comma separated: the drop shadow that holds the bubble off
+    // the background, and the beat on top of it. Setting only the beat here
+    // would replace the drop shadow on the newest message, so the one bubble
+    // the eye is on would be the one lying flat.
+    boxShadow:
+      `${DROP_SHADOW}, 0px 0px ${2 + glow.value * 17}px rgba(${rgb}, ${0.07 + glow.value * 0.33})`,
   }));
 
   const isCoach = role === 'coach';
@@ -172,6 +177,21 @@ const { lubRise: LUB_RISE, lubFall: LUB_FALL, dubRise: DUB_RISE, dubFall: DUB_FA
 const DUB_PEAK = 0.6;
 
 /**
+ * The drop shadow that lifts a bubble off the background.
+ *
+ * `boxShadow` rather than the legacy shadow props, and not by preference: iOS
+ * derives shadowOpacity/shadowRadius from the layer's ALPHA SILHOUETTE, and
+ * these bubbles are a translucent fill, so those props render essentially
+ * nothing however high they are set. boxShadow is a real Gaussian blur drawn
+ * from the border box, which is what a translucent card needs.
+ *
+ * Large and soft, offset downward: a big blur with a small offset reads as
+ * height above the background, where a tight dark edge reads as a sticker cut
+ * out and laid on it.
+ */
+const DROP_SHADOW = '0px 12px 28px rgba(0, 0, 0, 0.38)';
+
+/**
  * One dot of the typing wave.
  *
  * Each dot runs the SAME cycle offset by a phase delay, which is what makes
@@ -262,7 +282,11 @@ function Typewriter({ text, color }: { text: string | null; color: string }) {
 
   if (!shown) return null;
   return (
-    <Text style={[type.caption, { color, opacity: 0.75 }]} numberOfLines={2}>
+    /* 0.9, not 0.75: at 0.75 this measured 4.77:1 against the dimmest bubble
+       fill, which clears the 4.5 minimum with almost nothing to spare. It is
+       secondary text, so it stays below full strength, but not so far below
+       that a slightly darker fill would push it under. */
+    <Text style={[type.caption, { color, opacity: 0.9 }]} numberOfLines={2}>
       {shown}
     </Text>
   );
@@ -364,6 +388,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     borderWidth: 1,
+    boxShadow: DROP_SHADOW,
   },
   /* The wave only travels UP from rest (translateY 0 → -5), so with equal
      padding the cluster's motion band sat high in the bubble. Headroom above
