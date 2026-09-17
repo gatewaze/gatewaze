@@ -1,56 +1,70 @@
 # Android: building and getting a beta to testers
 
-## The short answer on testers
+## What testers have to do
 
-**They do not need developer options, and there is no 24-hour wait.** That is
+Testers do not need developer options, and there is no 24 hour wait. That is
 the sideloading route, and it is not the one to use.
 
-Use the Play Console's **Internal testing** track. It is the direct equivalent
-of TestFlight:
+Use the Internal testing track in the Play Console. It does the same job as
+TestFlight.
 
-- Up to **100 testers**, invited by email address or by a shareable opt-in link.
-- Testers install from the **Play Store app** like any other app. No developer
-  mode, no "unknown sources", no warnings.
-- Builds appear in **minutes**. Internal testing is not subject to the review
-  queue that gates production releases.
-- Updates arrive the same way any Play Store update does.
+- Up to 100 testers. You invite them by email address, or by a link they open.
+- They install from the Play Store app, the same as any other app. There is no
+  developer mode, no "unknown sources" setting, and no warning screen.
+- A build is live within minutes. Internal testing does not go through the
+  review queue that holds up a production release.
+- Updates reach them the same way any Play Store update does.
 
-The waits people remember are real but belong elsewhere: the 14-day closed
-testing requirement applies to **new personal developer accounts publishing to
-production**, and full app review applies to **production**. Internal testing
-is exempt from both.
+The waits people remember are real, but they apply elsewhere. The 14 day
+closed testing requirement applies to a new personal developer account
+publishing to production. Full app review applies to production. Internal
+testing is exempt from both.
 
 ## What you need once, before any of this works
 
-1. **A Google Play Developer account** — $25, paid once, at
-   <https://play.google.com/console/signup>. Registering as an **organisation**
-   (Webkit Ltd) rather than a personal account avoids the 14-day/12-tester
-   production rule later, but needs a D-U-N-S number, which takes a few days to
-   obtain. A personal account works immediately and is fine for internal
-   testing; it only constrains production.
-2. **Identity verification.** Google verifies the account. This can take a day
-   or two, and is the one genuine wait in the process. Start it first.
-3. **Create the app** in the console: HELF, package `you.helf.app`.
+1. A Google Play developer account. It costs $25, paid once, at
+   <https://play.google.com/console/signup>.
 
-## The upload key, and why it matters more than it looks
+   This is a new publisher account for AutoDB Ltd. It is not the Apple
+   account. That one belongs to the old company, Webkit Ltd, and is not being
+   reused here, so the two stores have separate publishers and separate
+   billing.
 
-`~/Library/gatewaze/android/helf-upload.keystore` is the app's identity. Anyone
-holding it and its password can publish something Android will accept as an
-update to HELF.
+   Registering as an organisation rather than as a person avoids the 14 day
+   rule later, but it needs a D-U-N-S number, which takes a few days to get. A
+   personal account works immediately and is fine for internal testing. It
+   only constrains production.
 
-- The keystore and `signing.env` (0600) are **outside the repo** and are not in
-  git.
-- **Back both up somewhere you will still have in five years.** If you enrol in
-  Play App Signing when you first upload — do, it is the default — Google holds
-  the real app signing key and this is only the *upload* key, so losing it is
-  recoverable by asking Google to reset it. Losing it *without* Play App
-  Signing means you can never update the app again.
+   The publisher name shown in the Play Store comes from this account. It does
+   not come from the signing certificate.
 
-Current fingerprint:
+2. Identity verification. Google verifies the account. This can take a day or
+   two, and it is the one genuine wait in the process, so start it first.
+
+3. The app itself, created in the console. Call it HELF, with the package name
+   `you.helf.app`.
+
+## The upload key
+
+`~/Library/gatewaze/android/helf-upload.keystore` is the app's identity.
+Anyone who holds it and its password can publish something that Android will
+accept as an update to HELF.
+
+The keystore and `signing.env` both sit outside the repo, and `signing.env` is
+readable only by you. Neither is in git.
+
+Back both of them up somewhere you will still have in five years. If you enrol
+in Play App Signing on the first upload, which is the default and which you
+should do, then Google holds the real signing key and this is only the upload
+key. Losing the upload key is then recoverable, because you can ask Google to
+reset it. Losing it without Play App Signing means you can never update the
+app again.
+
+The current key:
 
 ```
-SHA256: C3:82:60:BC:E3:D7:D7:24:EA:CF:DB:84:56:00:44:E5:CF:B8:C2:6C:F1:EC:CC:1C:D6:AA:15:FF:04:AA:8B:BF
-Owner:  CN=HELF, OU=Mobile, O=Webkit Ltd, L=London, C=GB
+SHA256: FF:FD:72:42:0E:AD:CC:A8:72:08:91:3B:8E:05:CF:4A:46:23:A6:4C:34:ED:DE:5D:13:CF:54:31:14:71:F9:FC
+Owner:  CN=HELF, OU=Mobile, O=AutoDB Ltd, L=London, C=GB
 ```
 
 ## Building a release
@@ -62,69 +76,74 @@ set -a; . ~/Library/gatewaze/android/signing.env; set +a
 ./scripts/release-android.sh
 ```
 
-It prints the path of the finished `.aab` (also copied to
-`~/Library/gatewaze/android/helf-<versionCode>.aab`).
+The script prints the path of the finished `.aab`. It also copies it to
+`~/Library/gatewaze/android/helf-<versionCode>.aab`.
 
-`versionCode` defaults to the commit count, the same rule iOS uses. Play
-refuses a version code it has already seen, so pass `APP_BUILD_NUMBER=<n>` to
-override — which is also how you retry an upload without making a commit.
+The version code defaults to the commit count, which is the same rule iOS
+uses. Play refuses a version code it has already seen, so pass
+`APP_BUILD_NUMBER=<n>` to override it. That is also how you retry an upload
+without making a commit.
 
-The script refuses to start without a signing key, checks the gradle file
-before spending four minutes on a bundle, and verifies the finished artifact's
-certificate against the keystore. That last check exists because the failure it
-catches is invisible: Gradle's template falls back to the **debug** keystore
-when the release config is missing, so the build succeeds and produces
-something Play rejects at the end of the upload.
+The script refuses to start without a signing key. It checks the gradle file
+before spending four minutes on a bundle, and it compares the finished
+artifact's certificate against the keystore. That last check is there because
+the failure it catches is invisible. Gradle's template falls back to the debug
+keystore when the release config is missing, so the build succeeds and
+produces something Play rejects at the end of the upload.
 
-## Getting it to testers
+## Getting a build to testers
 
-1. Play Console → **HELF** → **Testing** → **Internal testing**.
-2. **Create new release** → drop in the `.aab` → **Save**.
-3. **Testers** tab → create an email list → add their addresses → **Save**.
-4. **Review release** → **Start rollout to Internal testing**.
-5. Copy the **join link** from the Testers tab and send it to them. They open
-   it, accept, and get a Play Store link to install.
+1. Open the Play Console, then HELF, then Testing, then Internal testing.
+2. Choose Create new release, drop in the `.aab`, and save.
+3. Open the Testers tab, create an email list, add their addresses, and save.
+4. Choose Review release, then Start rollout to Internal testing.
+5. Copy the join link from the Testers tab and send it to them. They open it,
+   accept, and get a Play Store link to install from.
 
-Subsequent builds: repeat 1, 2 and 4. Testers get an update automatically.
+For later builds, repeat steps 1, 2 and 4. Testers get the update
+automatically.
 
 ## The toolchain
 
-Installed outside the repo, so a clean checkout does not carry 500 MB of SDK:
+The toolchain is installed outside the repo, so a clean checkout does not
+carry 500 MB of Android SDK.
 
 ```
-~/Library/Android/jdk-17.*/          Temurin JDK 17 (arm64)
-~/Library/Android/sdk/               platform-tools, platforms;android-36, build-tools;36.0.0
-~/Library/gatewaze/android/          keystore, signing.env, toolchain.env, built .aab files
+~/Library/Android/jdk-17.*/     Temurin JDK 17, arm64
+~/Library/Android/sdk/          platform-tools, platforms;android-36, build-tools;36.0.0
+~/Library/gatewaze/android/     keystore, signing.env, toolchain.env, built .aab files
 ```
 
 `toolchain.env` sets `JAVA_HOME`, `ANDROID_HOME` and `PATH`. Source it in any
 shell that runs a Gradle build.
 
-**JDK 17 specifically.** The machine's existing JDKs were 18 and 8, both Intel
-builds running under Rosetta. React Native 0.83 wants 17, and an arm64 JDK
-builds considerably faster on this hardware.
+It installs JDK 17 specifically. The two JDKs already on the machine were
+version 18 and version 8, and both were Intel builds running under Rosetta.
+React Native 0.83 wants 17, and an arm64 JDK builds a good deal faster on this
+hardware.
 
-## What does not work on Android, and why
+## What does not work on Android yet
 
-**Apple Health.** HealthKit has no Android equivalent, and this is the only
-real gap. `health-body-metrics` is the single module that needs it, and the
-capability system means an Android build can simply omit it. Nothing crashes:
-`capabilities/health.ts` reports unavailable on Android, and the module checks
-before every call.
+Apple Health does not exist on Android, and this is the only real gap.
+`health-body-metrics` is the one module that needs it. The capability system
+means an Android build can leave that module out. Nothing crashes if it is
+included, because `capabilities/health.ts` reports the feature as unavailable
+and the module checks before every call.
 
-The Android equivalent is **Health Connect**, which is a different API with its
-own permission model and data types. That is a project in itself, not a port.
+The Android equivalent is Health Connect. It is a different API, with its own
+permission model and its own data types, so it is a project in itself rather
+than a port.
 
-**Push notifications.** The device token store is already multi-platform: the
-`hn_devices` table has a `token_kind` column constrained to `'apns' | 'fcm'`,
-with validation for both, and the app already returns an `fcm` token on
-Android. What is missing is the sending half — an FCM sender alongside
-`health-notify/lib/apns.ts`, and a Firebase project. Until that exists, an
-Android build registers a token nobody sends to.
+Push notifications register but nothing sends them. The device table already
+records whether a token is `apns` or `fcm`, it validates both, and the app
+already returns an FCM token on Android. What is missing is the sending half,
+which means an FCM sender alongside `health-notify/lib/apns.ts`, and a
+Firebase project.
 
-**Haptics and message tones.** Silently disabled on Android. They degrade
-rather than break, but Android users get a quieter app.
+Haptics and message tones are switched off on Android. They degrade rather
+than break, but the app is quieter there.
 
-**Liquid Glass.** iOS 26 only. `GlassPanel` falls back to a solid themed fill,
-which is correct but has never been looked at by a person. Expect the first
-Android build to need visual work — the design leans hard on translucency.
+Liquid Glass is iOS 26 only. `GlassPanel` falls back to a solid themed fill,
+which is correct in code, but no one has looked at it on a screen. Expect the
+first Android build to need visual work, because the design leans hard on
+translucency.
