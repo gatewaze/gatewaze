@@ -12,6 +12,9 @@ interface DataTableProps<T> {
   // When provided, expanded rows (row.getIsExpanded()) render this below the
   // row, spanning all columns. The table must enable getExpandedRowModel().
   renderSubComponent?: (row: Row<T>) => ReactNode;
+  // Optional per-row attributes (draggable, drag handlers, className, style)
+  // merged onto the data <tr>. Used for drag-to-folder organise mode.
+  getRowProps?: (row: Row<T>) => (React.HTMLAttributes<HTMLTableRowElement> & { draggable?: boolean }) | undefined;
 }
 
 // Checkbox column width — used to offset the second column when select is first
@@ -24,6 +27,7 @@ export function DataTable<T>({
   colSpan,
   onRowDoubleClick,
   renderSubComponent,
+  getRowProps,
 }: DataTableProps<T>) {
   const columnCount = colSpan ?? table.getAllColumns().length;
   const firstColIsSelect = table.getAllColumns()[0]?.id === "select";
@@ -144,13 +148,15 @@ export function DataTable<T>({
             table.getRowModel().rows.map((row) => {
               const cells = row.getVisibleCells();
               const total = cells.length;
+              const rowProps = getRowProps?.(row) ?? {};
               return (
                 <Fragment key={row.id}>
                 <Tr
+                  {...rowProps}
                   onDoubleClick={
                     onRowDoubleClick
                       ? () => onRowDoubleClick(row.original)
-                      : undefined
+                      : rowProps.onDoubleClick
                   }
                   // user-select: none on dbl-click rows: prevents the first
                   // click from starting a text selection that swallows the
@@ -158,11 +164,10 @@ export function DataTable<T>({
                   // complete; if the in-between produces a text selection,
                   // the dblclick is sometimes dropped and the user sees
                   // "nothing happened" instead of the navigate).
-                  style={
-                    onRowDoubleClick
-                      ? { cursor: "pointer", userSelect: "none" }
-                      : undefined
-                  }
+                  style={{
+                    ...(onRowDoubleClick ? { cursor: "pointer", userSelect: "none" as const } : {}),
+                    ...(rowProps.style as React.CSSProperties | undefined),
+                  }}
                 >
                   {cells.map((cell, index) => (
                     <Td
