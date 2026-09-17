@@ -33,7 +33,7 @@ import { CoachBar } from './CoachBar';
 import { Button, Caps, EmptyState } from '../components/primitives';
 import { chatProvider, drawerSections } from './registry';
 import { onOutboxChange, outboxCounts } from './outbox';
-import { consumeOpenDrawerRequest, consumeOpenSummaryRequest } from './drawerSignal';
+import { consumeBugReportRequest, consumeOpenDrawerRequest, consumeOpenSummaryRequest } from './drawerSignal';
 import { hasPendingHandoff } from './coachHandoff';
 import { ChromeInsetsProvider } from './chrome';
 import { useSession } from './auth/session';
@@ -111,6 +111,13 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
   // sheet still opens, just without an attachment.
   const [bugShot, setBugShot] = useState<string | null>(null);
   const [bugOpen, setBugOpen] = useState(false);
+  /**
+   * The screen a report is about, when it came from a pushed one.
+   *
+   * Null means the report was raised here, and the route is worked out from
+   * the current destination as it always was.
+   */
+  const [bugRoute, setBugRoute] = useState<string | null>(null);
   // Measured, not assumed: the bar's height depends on the mode track, which
   // depends on which modules the member has.
   const [coachBarHeight, setCoachBarHeight] = useState(0);
@@ -133,6 +140,20 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
     useCallback(() => {
       if (consumeOpenDrawerRequest()) setOpen(true);
       if (consumeOpenSummaryRequest()) setSummaryOpen(true);
+      /**
+       * A report raised on a pushed screen, with its screenshot already taken.
+       *
+       * The sheet lives here, below that screen in the stack, so it could not
+       * have been opened from up there — it would have rendered behind it.
+       * The screen captured the image while it was still on top and popped
+       * back; this is the first moment the sheet can actually be shown.
+       */
+      const bug = consumeBugReportRequest();
+      if (bug) {
+        setBugRoute(bug.route);
+        setBugShot(bug.shot);
+        setBugOpen(true);
+      }
       // A pushed screen's composer bar left a message on its way back here.
       // The coach consumes it; this only has to be showing the coach when it
       // does. Peeked rather than consumed, for that reason.
@@ -495,8 +516,8 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
           <BugReportSheet
             path={feedbackPath()!}
             shotBase64={bugShot}
-            route={destination.kind === 'coach' ? 'coach' : `${destination.moduleId}:${destination.entryId}`}
-            onClose={() => { setBugOpen(false); setBugShot(null); }}
+            route={bugRoute ?? (destination.kind === 'coach' ? 'coach' : `${destination.moduleId}:${destination.entryId}`)}
+            onClose={() => { setBugOpen(false); setBugShot(null); setBugRoute(null); }}
           />
         ) : null}
       </Animated.View>

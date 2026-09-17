@@ -26,6 +26,7 @@
     "expo-audio": "^55.0.18",
     "expo-blur": "~55.0.18",
     "expo-camera": "~55.0.23",
+    "expo-clipboard": "~55.0.17",
     "expo-constants": "~55.0.17",
     "expo-crypto": "~55.0.19",
     "expo-font": "~55.0.8",
