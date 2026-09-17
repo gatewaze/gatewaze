@@ -179,9 +179,12 @@ export function useVoiceInput({
        * simulator, which reports no on-device support and so never runs a
        * line of it.
        *
-       * capabilities/speech.ts is kept, unreferenced, for when a device
-       * crash log can say what actually failed. Until then a mic that works
-       * over the network beats a faster one that takes the app down.
+       * The package has since been removed outright. It was version-pinned
+       * to a newer Expo SDK than this app and would not compile for Android
+       * at all, so a parked experiment that had already crashed iOS twice was
+       * also blocking a second platform. It is in git history if the idea is
+       * ever worth another look; the server-side transcriber now answers in
+       * about a second, which was the only argument for doing it on device.
        */
       await upload(uri, recorded);
     } catch (err) {

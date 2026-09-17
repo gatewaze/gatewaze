@@ -59,6 +59,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   // output during prebuild. UNSHIFTED, not pushed: dangerous mods run in
   // reverse insertion order, so being first in the array is what makes this
   // run AFTER expo-splash-screen has written the files it rewrites.
+  // Android release signing. Inert without the keystore environment, so a
+  // debug build and a CI prebuild are unaffected; see the plugin's header.
+  plugins.push('./plugins/withAndroidUploadSigning');
+
   if (process.env.APP_SPLASH_IMAGE) {
     plugins.unshift(['./plugins/withFullBleedSplash', { image: process.env.APP_SPLASH_IMAGE }]);
   }
@@ -97,29 +101,6 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     plugins.push([
       'expo-audio',
       {
-        microphonePermission:
-          process.env.APP_MICROPHONE_PERMISSION_TEXT ||
-          `Allow ${name} to use the microphone so you can speak to the coach instead of typing.`,
-      },
-    ]);
-    /**
-     * On-device speech recognition, alongside the recorder.
-     *
-     * Same capability rather than a new one: a module that records in order to
-     * be transcribed is asking for one feature, and splitting it would let a
-     * build ship the recorder without the thing that reads it.
-     *
-     * The plugin exists to put NSSpeechRecognitionUsageDescription in the
-     * Info.plist. Without that string iOS does not refuse the permission, it
-     * TERMINATES the app the moment it is requested, which is a crash on a
-     * button press rather than a message.
-     */
-    plugins.push([
-      'expo-speech-recognition',
-      {
-        speechRecognitionPermission:
-          process.env.APP_SPEECH_PERMISSION_TEXT ||
-          `Allow ${name} to turn what you say into text on this device, so a note you dictate never leaves the phone.`,
         microphonePermission:
           process.env.APP_MICROPHONE_PERMISSION_TEXT ||
           `Allow ${name} to use the microphone so you can speak to the coach instead of typing.`,
@@ -194,6 +175,20 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
     android: {
       package: bundleId,
+      /**
+       * Play orders builds by versionCode and refuses one it has already
+       * seen. Without this every build ships versionCode 1 — the first
+       * upload works, the second is rejected, and the message says nothing
+       * about where the number comes from.
+       *
+       * Same source as the iOS build number so the two platforms stay
+       * comparable, and an integer because Play requires one.
+       */
+      versionCode: Number(process.env.APP_BUILD_NUMBER) || 1,
+      adaptiveIcon: process.env.APP_ICON
+        ? { foregroundImage: process.env.APP_ICON, backgroundColor: '#090c14' }
+        : undefined,
+      edgeToEdgeEnabled: true,
     },
     plugins,
     experiments: { typedRoutes: false },
