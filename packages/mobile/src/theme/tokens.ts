@@ -13,7 +13,6 @@
  * which adapts to the system appearance on its own.
  */
 
-import { useColorScheme } from 'react-native';
 
 export interface Palette {
   /** Deepest ground, e.g. the drawer canvas behind the app surface. */
@@ -246,10 +245,39 @@ export const lightColors: Palette = {
 /** Dark is primary; the static export is what unmigrated screens import. */
 export const colors: Palette = darkColors;
 
-/** Theme-aware palette for core components and restyled module screens. */
+/**
+ * The palette every core component and module screen draws with.
+ *
+ * ── WHY THIS IGNORES THE DEVICE'S LIGHT OR DARK SETTING ───────────────────
+ *
+ * The app declares `userInterfaceStyle: 'dark'` in app.config.ts. It is a
+ * dark app: the gradient, the glass surfaces, the bubble colours and the
+ * brand mark are all drawn for a dark ground, and the light palette below has
+ * never been the intended appearance.
+ *
+ * iOS honours that declaration, because Expo writes it into the Info.plist as
+ * UIUserInterfaceStyle and the system then reports dark to every API. Android
+ * has no equivalent that reaches React Native's useColorScheme. Installing
+ * expo-system-ui, which is what the prebuild warning asks for, does not change
+ * it either — that was tried.
+ *
+ * So reading the device setting made one platform obey the app's own
+ * declaration and the other ignore it. On a phone set to light mode the
+ * Android build rendered the entire app in the light palette: pale chat
+ * bubbles, a near-white drawer with grey text on it, and a pale status bar
+ * above a dark gradient. It did not look like a themed variant of the app.
+ * It looked broken, and it was the first thing anyone saw.
+ *
+ * The declaration is the source of truth, so this returns it. Two platforms
+ * now agree by construction rather than by each happening to implement the
+ * same convention.
+ *
+ * If the app ever genuinely supports both appearances, this is where that
+ * decision goes, and `lightColors` is already written and waiting. Until
+ * then it is one palette on both platforms.
+ */
 export function useTheme(): Palette {
-  const scheme = useColorScheme();
-  return scheme === 'light' ? lightColors : darkColors;
+  return darkColors;
 }
 
 export const spacing = {

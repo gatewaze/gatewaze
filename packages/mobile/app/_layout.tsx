@@ -1,7 +1,6 @@
 import React from 'react';
 import { Stack, router, usePathname } from 'expo-router';
-import { Pressable, View } from 'react-native';
-import { SystemBars } from 'react-native-edge-to-edge';
+import { Pressable, StatusBar, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
@@ -35,20 +34,20 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       {/*
-        Light glyphs over the app's own background, on both platforms.
+        The app is dark on both platforms, so the bar's glyphs are light.
 
-        React Native's StatusBar cannot do this on Android any more. From
-        Android 15 the system draws every app edge to edge and ignores
-        `backgroundColor`, and the bar's light or dark appearance follows the
-        device theme unless the app says otherwise. On a phone set to light
-        mode that produced dark icons on a pale strip above a near-black app,
-        which is what the first Android build looked like.
+        On Android 15 and later the system ignores `backgroundColor` here and
+        draws every app edge to edge, so that argument does nothing there. It
+        is left because it is still correct on older Android, and harmless.
 
-        SystemBars comes from react-native-edge-to-edge, which is the library
-        that actually implements edge to edge here. It is a no-op on iOS,
-        where the app has always drawn under the status bar.
+        react-native-edge-to-edge's `SystemBars` is the API that can set this
+        on modern Android, and it was tried. It needs its native module
+        registered, which autolinking did not do under pnpm, so it crashed the
+        app on launch with "'RNEdgeToEdge' could not be found" while not
+        having fixed the status bar in the first place. Reverted rather than
+        left in.
       */}
-      <SystemBars style="light" />
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
       <SessionProvider>
         {fontsLoaded ? (
           // The living gradient sits behind every pushed screen, and each
