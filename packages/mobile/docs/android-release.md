@@ -147,3 +147,45 @@ Liquid Glass is iOS 26 only. `GlassPanel` falls back to a solid themed fill,
 which is correct in code, but no one has looked at it on a screen. Expect the
 first Android build to need visual work, because the design leans hard on
 translucency.
+
+The status bar is the first known visual bug. On the emulator the app draws a
+pale strip with dark icons across the top, above its own near black gradient.
+Three things that should have fixed it did not. `react-native-edge-to-edge` is
+now installed and the generated theme is `Theme.EdgeToEdge`, the app uses that
+library's `SystemBars` rather than React Native's `StatusBar`, which cannot
+set this on Android 15 and later, and the theme already sets a transparent
+status bar colour. The strip survives all of it, so the cause is something
+else and it needs someone looking at a real device. It is cosmetic and nothing
+else depends on it.
+
+## Running the emulator
+
+```bash
+. ~/Library/gatewaze/android/toolchain.env
+emulator -avd helf-pixel &          # boots in about 30 seconds
+adb wait-for-device
+
+cd packages/mobile
+adb reverse tcp:8081 tcp:8081       # so the emulator can reach Metro
+npx expo start --dev-client &
+(cd android && ./gradlew :app:assembleDebug)
+adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+adb shell am start -n you.helf.app/.MainActivity
+```
+
+The AVD is a Pixel 7 on API 36, arm64, with 4 GB of RAM and an 8 GB data
+partition. It is arm64 rather than x86, so it runs at native speed on this
+hardware rather than emulating a different processor.
+
+Two things that are not obvious. `adb reverse` is what lets the emulator
+reach Metro on the Mac, and without it a debug build starts and exits with no
+useful message. And `adb shell monkey` does not reliably launch this app, so
+use `am start` with the explicit activity name.
+
+Useful while developing:
+
+```bash
+adb logcat -d -t 400 | grep -iE "FATAL|AndroidRuntime|ReactNativeJS"
+adb exec-out screencap -p > shot.png
+adb shell am force-stop you.helf.app
+```

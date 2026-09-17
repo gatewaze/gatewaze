@@ -1,6 +1,7 @@
 import React from 'react';
 import { Stack, router, usePathname } from 'expo-router';
-import { Pressable, StatusBar, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { SystemBars } from 'react-native-edge-to-edge';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
@@ -33,7 +34,21 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <StatusBar barStyle="light-content" />
+      {/*
+        Light glyphs over the app's own background, on both platforms.
+
+        React Native's StatusBar cannot do this on Android any more. From
+        Android 15 the system draws every app edge to edge and ignores
+        `backgroundColor`, and the bar's light or dark appearance follows the
+        device theme unless the app says otherwise. On a phone set to light
+        mode that produced dark icons on a pale strip above a near-black app,
+        which is what the first Android build looked like.
+
+        SystemBars comes from react-native-edge-to-edge, which is the library
+        that actually implements edge to edge here. It is a no-op on iOS,
+        where the app has always drawn under the status bar.
+      */}
+      <SystemBars style="light" />
       <SessionProvider>
         {fontsLoaded ? (
           // The living gradient sits behind every pushed screen, and each

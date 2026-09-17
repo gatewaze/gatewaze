@@ -59,6 +59,19 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   // output during prebuild. UNSHIFTED, not pushed: dangerous mods run in
   // reverse insertion order, so being first in the array is what makes this
   // run AFTER expo-splash-screen has written the files it rewrites.
+  /**
+   * Draw under the system bars on Android.
+   *
+   * gradle.properties already asked for edge-to-edge, but the library that
+   * implements it was not installed, so the request did nothing and the app
+   * rendered beneath a pale strip with the status bar's own background in it.
+   * On Android 15 and later the system ignores StatusBar.backgroundColor, so
+   * this is the only way to reach it.
+   *
+   * No-op on iOS, which has always drawn under the status bar.
+   */
+  plugins.push('react-native-edge-to-edge');
+
   // Android release signing. Inert without the keystore environment, so a
   // debug build and a CI prebuild are unaffected; see the plugin's header.
   plugins.push('./plugins/withAndroidUploadSigning');
