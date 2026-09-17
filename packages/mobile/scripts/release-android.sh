@@ -63,8 +63,14 @@ AAB=android/app/build/outputs/bundle/release/app-release.aab
 [ -f "$AAB" ] || { echo "no bundle produced" >&2; exit 1; }
 
 # ── Verify what we are about to hand to Google ─────────────────────────────
+# -storepass:env passes the NAME of the variable, not the password itself.
+# Spelled the other way the password sits in this process's argv, where any
+# other user on the machine can read it out of the process table for as long
+# as keytool runs. That is a small window on a single-developer laptop, but
+# this script's whole claim is that nothing secret reaches a log, a file or
+# the generated project, and argv is none of those only by accident.
 EXPECTED=$(keytool -list -v -keystore "$HELF_UPLOAD_STORE_FILE" \
-  -storepass "$HELF_UPLOAD_STORE_PASSWORD" 2>/dev/null \
+  -storepass:env HELF_UPLOAD_STORE_PASSWORD 2>/dev/null \
   | grep -oE 'SHA256: [0-9A-F:]+' | head -1)
 ACTUAL=$(keytool -printcert -jarfile "$AAB" 2>/dev/null \
   | grep -oE 'SHA256: [0-9A-F:]+' | head -1)
