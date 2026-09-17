@@ -59,6 +59,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   // output during prebuild. UNSHIFTED, not pushed: dangerous mods run in
   // reverse insertion order, so being first in the array is what makes this
   // run AFTER expo-splash-screen has written the files it rewrites.
+  if (process.env.APP_SPLASH_IMAGE) {
+    plugins.unshift(['./plugins/withFullBleedSplash', { image: process.env.APP_SPLASH_IMAGE }]);
+  }
+
   /**
    * Draw under the system bars on Android.
    *
@@ -75,10 +79,6 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   // Android release signing. Inert without the keystore environment, so a
   // debug build and a CI prebuild are unaffected; see the plugin's header.
   plugins.push('./plugins/withAndroidUploadSigning');
-
-  if (process.env.APP_SPLASH_IMAGE) {
-    plugins.unshift(['./plugins/withFullBleedSplash', { image: process.env.APP_SPLASH_IMAGE }]);
-  }
 
   // HealthKit. The entitlement is only requested when a baked module asks
   // for it: an app with no health module must not ship a health entitlement,
@@ -199,9 +199,18 @@ export default ({ config }: ConfigContext): ExpoConfig => {
        */
       versionCode: Number(process.env.APP_BUILD_NUMBER) || 1,
       adaptiveIcon: process.env.APP_ICON
-        ? { foregroundImage: process.env.APP_ICON, backgroundColor: '#090c14' }
+        ? {
+          foregroundImage: process.env.APP_ICON,
+          // Same override as the splash, so a brand pointing APP_ICON at its
+          // own art is not left with this app's near-black behind it.
+          backgroundColor: process.env.APP_SPLASH_COLOR || '#090c14',
+        }
         : undefined,
-      edgeToEdgeEnabled: true,
+      // `edgeToEdgeEnabled` is deliberately absent. It is no longer read: the
+      // only consumer left in @expo/prebuild-config emits a warning telling
+      // you to remove it. Edge to edge comes from the
+      // react-native-edge-to-edge plugin above, which is what actually sets
+      // the generated theme to Theme.EdgeToEdge.
     },
     plugins,
     experiments: { typedRoutes: false },

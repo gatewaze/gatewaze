@@ -148,15 +148,21 @@ which is correct in code, but no one has looked at it on a screen. Expect the
 first Android build to need visual work, because the design leans hard on
 translucency.
 
-The status bar is the first known visual bug. On the emulator the app draws a
-pale strip with dark icons across the top, above its own near black gradient.
-Three things that should have fixed it did not. `react-native-edge-to-edge` is
-now installed and the generated theme is `Theme.EdgeToEdge`, the app uses that
-library's `SystemBars` rather than React Native's `StatusBar`, which cannot
-set this on Android 15 and later, and the theme already sets a transparent
-status bar colour. The strip survives all of it, so the cause is something
-else and it needs someone looking at a real device. It is cosmetic and nothing
-else depends on it.
+The status bar may still be worth a look. While the app was rendering in the
+light palette it drew a pale strip with dark icons across the top, above its
+own dark gradient. Forcing the dark palette fixed the palette bug, and the
+strip has not been re-examined since on a real device, so it may already be
+gone.
+
+If it is not, two things are worth knowing. `react-native-edge-to-edge` is
+installed and the generated theme is `Theme.EdgeToEdge`, and the theme sets a
+transparent status bar colour, so both of those are already in place. That
+library's `SystemBars` component is the API that can set the bar's appearance
+on Android 15 and later, where the system ignores
+`StatusBar.backgroundColor`. It was tried and reverted: its native module was
+not registered by autolinking under pnpm, so the app crashed at launch with
+"'RNEdgeToEdge' could not be found". Getting that autolinking working is the
+next thing to try, not more theme XML.
 
 ## Running the emulator
 
