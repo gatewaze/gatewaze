@@ -33,7 +33,21 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <StatusBar barStyle="light-content" />
+      {/*
+        The app is dark on both platforms, so the bar's glyphs are light.
+
+        On Android 15 and later the system ignores `backgroundColor` here and
+        draws every app edge to edge, so that argument does nothing there. It
+        is left because it is still correct on older Android, and harmless.
+
+        react-native-edge-to-edge's `SystemBars` is the API that can set this
+        on modern Android, and it was tried. It needs its native module
+        registered, which autolinking did not do under pnpm, so it crashed the
+        app on launch with "'RNEdgeToEdge' could not be found" while not
+        having fixed the status bar in the first place. Reverted rather than
+        left in.
+      */}
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
       <SessionProvider>
         {fontsLoaded ? (
           // The living gradient sits behind every pushed screen, and each
