@@ -10,6 +10,7 @@
 
 import type { MobileFetchInit } from '@gatewaze/shared';
 import { config } from './config';
+import { deviceTimezone } from './appInfo';
 import { ApiFailure, failureFromStatus, toFailure } from './errors';
 import { noteConnectivity } from './outbox';
 import { getSupabase } from './auth/supabase';
@@ -56,6 +57,16 @@ async function doFetch(path: string, init: MobileFetchInit, token: string | unde
   const isForm = typeof FormData !== 'undefined' && init.body instanceof FormData;
   if (!isForm && init.body !== undefined) headers.set('Content-Type', 'application/json');
   if (token) headers.set('Authorization', `Bearer ${token}`);
+  /**
+   * What day it is where the member is.
+   *
+   * Sent on every request rather than stored against the person, because the
+   * device is the only thing that knows and a member who travels should get
+   * the date they are living by. The server needs it to tell the coach what
+   * today is: without it the coach worked in UTC and read yesterday evening's
+   * meal as "earlier today" for anyone an hour ahead of it.
+   */
+  headers.set('X-Gatewaze-Timezone', deviceTimezone());
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), init.timeoutMs ?? TIMEOUT_MS);
