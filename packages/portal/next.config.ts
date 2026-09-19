@@ -275,6 +275,29 @@ const nextConfig: NextConfig = {
         unoptimized: shouldDisableImageOptimizer(),
       },
 
+  // Same-origin proxy for the api service's PUBLIC endpoints
+  // (/api/public/* — e.g. event-media guest uploads). Browser code must
+  // never be handed NEXT_PUBLIC_API_URL for these: on k8s portals that
+  // env is the in-cluster service DNS, which a guest's phone cannot
+  // resolve, and a separate public api host would need CORS on every
+  // custom domain. The rewrite runs server-side in the portal pod, so
+  // the in-cluster address is exactly right here.
+  async rewrites() {
+    const apiInternal = (
+      process.env.GATEWAZE_API_URL ??
+      process.env.NEXT_PUBLIC_API_URL ??
+      process.env.API_URL ??
+      ''
+    ).replace(/\/+$/, '');
+    if (!apiInternal) return [];
+    return [
+      {
+        source: '/api/public/:path*',
+        destination: `${apiInternal}/api/public/:path*`,
+      },
+    ];
+  },
+
   // Headers for caching static assets
   async headers() {
     return [
