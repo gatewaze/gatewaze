@@ -167,7 +167,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.4
@@ -176,7 +176,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: workspace:*
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
 
   ../gatewaze-modules/modules/ai:
     dependencies:
@@ -188,7 +188,7 @@ importers:
         version: 0.40.1
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.98.0
@@ -264,7 +264,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
     devDependencies:
       typescript:
         specifier: ^5.9.0
@@ -277,19 +277,19 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
 
   ../gatewaze-modules/modules/badge-scanning:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
 
   ../gatewaze-modules/modules/blog:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.98.0
@@ -307,7 +307,7 @@ importers:
         version: link:../ai
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -356,13 +356,13 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
 
   ../gatewaze-modules/modules/calendars:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
     devDependencies:
       vitest:
         specifier: ^4.0.0
@@ -372,25 +372,25 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
 
   ../gatewaze-modules/modules/competitions:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
 
   ../gatewaze-modules/modules/compliance:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
 
   ../gatewaze-modules/modules/content-platform:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.4
@@ -399,7 +399,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: workspace:*
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
 
   ../gatewaze-modules/modules/conversations: {}
 
@@ -407,7 +407,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.4
@@ -416,7 +416,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.6
@@ -425,7 +425,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
 
   ../gatewaze-modules/modules/editor-ai-copilot:
     dependencies:
@@ -483,7 +483,7 @@ importers:
     devDependencies:
       '@gatewaze/shared':
         specifier: workspace:*
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
       '@types/express':
         specifier: ^4.17.21
         version: 4.17.25
@@ -515,25 +515,25 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
 
   ../gatewaze-modules/modules/event-agenda:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
 
   ../gatewaze-modules/modules/event-budget:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
 
   ../gatewaze-modules/modules/event-invites:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.6
@@ -542,19 +542,19 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
 
   ../gatewaze-modules/modules/event-reports:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
 
   ../gatewaze-modules/modules/event-seating:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.6
@@ -563,7 +563,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
       '@supabase/supabase-js':
         specifier: ^2.106.0
         version: 2.108.1
@@ -594,25 +594,25 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
 
   ../gatewaze-modules/modules/event-topics:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
 
   ../gatewaze-modules/modules/event-tracking:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
 
   ../gatewaze-modules/modules/events:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.4
@@ -625,7 +625,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.98.0
@@ -640,7 +640,7 @@ importers:
     devDependencies:
       '@gatewaze/shared':
         specifier: workspace:*
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
       '@mozilla/readability':
         specifier: '>=0.6.0'
         version: 0.6.0
@@ -685,19 +685,19 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
 
   ../gatewaze-modules/modules/gradual:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
 
   ../gatewaze-modules/modules/host-media:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.4
@@ -716,19 +716,19 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
 
   ../gatewaze-modules/modules/luma:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
 
   ../gatewaze-modules/modules/monitoring:
     devDependencies:
       '@gatewaze/shared':
         specifier: workspace:*
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
       typescript:
         specifier: ^5.9.0
         version: 5.9.3
@@ -746,7 +746,7 @@ importers:
         version: 7.29.0
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
       '@puckeditor/core':
         specifier: ~0.21.3
         version: 0.21.3(@floating-ui/dom@1.7.6)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(immer@10.2.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(use-sync-external-store@1.6.0(react@19.2.6))
@@ -771,25 +771,25 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
 
   ../gatewaze-modules/modules/newsletters-output-substack:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
 
   ../gatewaze-modules/modules/offers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
 
   ../gatewaze-modules/modules/people-enrichment:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.6
@@ -798,7 +798,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.6
@@ -807,25 +807,25 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
 
   ../gatewaze-modules/modules/redirects:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
 
   ../gatewaze-modules/modules/redirects-bitly:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
 
   ../gatewaze-modules/modules/redirects-shortio:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
 
   ../gatewaze-modules/modules/redirects-umami: {}
 
@@ -833,7 +833,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -846,7 +846,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -864,7 +864,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: workspace:*
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
 
   ../gatewaze-modules/modules/scrapers:
     dependencies:
@@ -873,7 +873,7 @@ importers:
         version: 0.39.0
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
       '@supabase/supabase-js':
         specifier: ^2.106.0
         version: 2.108.1
@@ -897,13 +897,13 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
 
   ../gatewaze-modules/modules/send-testing:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -915,7 +915,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -927,7 +927,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -948,7 +948,7 @@ importers:
         version: link:../templates
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
       '@puckeditor/core':
         specifier: ~0.21.3
         version: 0.21.3(@floating-ui/dom@1.7.6)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(immer@10.2.0)(react-dom@19.2.6(react@19.2.4))(react@19.2.4)(use-sync-external-store@1.6.0(react@19.2.4))
@@ -985,7 +985,7 @@ importers:
         version: link:../sites
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
     devDependencies:
       vitest:
         specifier: ^4.0.0
@@ -998,7 +998,7 @@ importers:
         version: link:../sites
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
     devDependencies:
       vitest:
         specifier: ^4.0.0
@@ -1008,7 +1008,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
 
   ../gatewaze-modules/modules/software-engineer:
     dependencies:
@@ -1017,7 +1017,7 @@ importers:
         version: 0.3.220(@anthropic-ai/sdk@0.91.1(zod@3.25.76))(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(zod@3.25.76)
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -1061,7 +1061,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.6
@@ -1073,13 +1073,13 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
 
   ../gatewaze-modules/modules/tasks:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
     devDependencies:
       '@supabase/supabase-js':
         specifier: ^2.45.0
@@ -1116,7 +1116,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.4
@@ -1129,7 +1129,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -1166,7 +1166,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -1194,7 +1194,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-guest-uploads/packages/shared
       pg:
         specifier: ^8.11.0
         version: 8.20.0
@@ -1917,6 +1917,9 @@ importers:
       openai:
         specifier: ^6.18.0
         version: 6.27.0(ws@8.21.1)(zod@3.25.76)
+      qrcode:
+        specifier: ^1.5.4
+        version: 1.5.4
       react:
         specifier: ^19.1.1
         version: 19.2.4
@@ -17486,7 +17489,6 @@ snapshots:
       - supports-color
       - typescript
       - utf-8-validate
-    optional: true
 
   '@expo/cli@55.0.36(@expo/dom-webview@55.0.6)(@expo/metro-runtime@55.0.12)(expo-constants@55.0.17)(expo-font@55.0.8)(expo-router@55.0.18)(expo@55.0.31)(react-dom@19.2.6(react@19.2.0))(react-native@0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)(typescript@5.9.3)':
     dependencies:
@@ -17625,7 +17627,6 @@ snapshots:
     optionalDependencies:
       react: 19.2.4
       react-native: 0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.4)
-    optional: true
 
   '@expo/dom-webview@55.0.6(expo@55.0.31)(react-native@0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)':
     dependencies:
@@ -17638,7 +17639,6 @@ snapshots:
       expo: 55.0.31(@babel/core@7.29.7)(@expo/dom-webview@55.0.6)(@expo/metro-runtime@55.0.12)(expo-router@55.0.18)(react-dom@19.2.4(react@19.2.4))(react-native-worklets@0.7.4(@babel/core@7.29.7)(react-native@0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.4))(react@19.2.4))(react-native@0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.4))(react@19.2.4)(typescript@5.9.3)
       react: 19.2.4
       react-native: 0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.4)
-    optional: true
 
   '@expo/env@2.1.3':
     dependencies:
@@ -17725,7 +17725,6 @@ snapshots:
       react: 19.2.4
       react-native: 0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.4)
       stacktrace-parser: 0.1.11
-    optional: true
 
   '@expo/metro-config@55.0.27(expo@55.0.31)(typescript@5.9.3)':
     dependencies:
@@ -17749,7 +17748,7 @@ snapshots:
       postcss: 8.5.25
       resolve-from: 5.0.0
     optionalDependencies:
-      expo: 55.0.31(@babel/core@7.29.7)(@expo/dom-webview@55.0.6)(@expo/metro-runtime@55.0.12)(expo-router@55.0.18)(react-dom@19.2.6(react@19.2.0))(react-native-worklets@0.7.4(@babel/core@7.29.7)(react-native@0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0))(react-native@0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)(typescript@5.9.3)
+      expo: 55.0.31(@babel/core@7.29.7)(@expo/dom-webview@55.0.6)(@expo/metro-runtime@55.0.12)(expo-router@55.0.18)(react-dom@19.2.4(react@19.2.4))(react-native-worklets@0.7.4(@babel/core@7.29.7)(react-native@0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.4))(react@19.2.4))(react-native@0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.4))(react@19.2.4)(typescript@5.9.3)
     transitivePeerDependencies:
       - bufferutil
       - supports-color
@@ -17836,7 +17835,7 @@ snapshots:
       '@expo/json-file': 10.2.0
       '@react-native/normalize-colors': 0.83.10
       debug: 4.4.3
-      expo: 55.0.31(@babel/core@7.29.7)(@expo/dom-webview@55.0.6)(@expo/metro-runtime@55.0.12)(expo-router@55.0.18)(react-dom@19.2.6(react@19.2.0))(react-native-worklets@0.7.4(@babel/core@7.29.7)(react-native@0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0))(react-native@0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)(typescript@5.9.3)
+      expo: 55.0.31(@babel/core@7.29.7)(@expo/dom-webview@55.0.6)(@expo/metro-runtime@55.0.12)(expo-router@55.0.18)(react-dom@19.2.4(react@19.2.4))(react-native-worklets@0.7.4(@babel/core@7.29.7)(react-native@0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.4))(react@19.2.4))(react-native@0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.4))(react@19.2.4)(typescript@5.9.3)
       resolve-from: 5.0.0
       semver: 7.8.5
       xml2js: 0.6.0
@@ -17868,7 +17867,6 @@ snapshots:
       react-dom: 19.2.4(react@19.2.4)
     transitivePeerDependencies:
       - supports-color
-    optional: true
 
   '@expo/router-server@55.0.19(@expo/metro-runtime@55.0.12)(expo-constants@55.0.17)(expo-font@55.0.8)(expo-router@55.0.18)(expo-server@55.0.12)(expo@55.0.31)(react-dom@19.2.6(react@19.2.0))(react@19.2.0)':
     dependencies:
@@ -17906,7 +17904,6 @@ snapshots:
       expo-font: 55.0.8(expo@55.0.31)(react-native@0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.4))(react@19.2.4)
       react: 19.2.4
       react-native: 0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.4)
-    optional: true
 
   '@expo/ws-tunnel@1.0.6': {}
 
@@ -21460,7 +21457,6 @@ snapshots:
       react-native: 0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.4)
     optionalDependencies:
       '@types/react': 19.2.14
-    optional: true
 
   '@react-navigation/bottom-tabs@7.19.1(@react-navigation/native@7.4.1(react-native@0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0))(react-native-safe-area-context@5.6.2(react-native@0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0))(react-native-screens@4.23.0(react-native@0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0))(react-native@0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)':
     dependencies:
@@ -24837,7 +24833,7 @@ snapshots:
       resolve-from: 5.0.0
     optionalDependencies:
       '@babel/runtime': 7.28.6
-      expo: 55.0.31(@babel/core@7.29.7)(@expo/dom-webview@55.0.6)(@expo/metro-runtime@55.0.12)(expo-router@55.0.18)(react-dom@19.2.6(react@19.2.0))(react-native-worklets@0.7.4(@babel/core@7.29.7)(react-native@0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0))(react-native@0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)(typescript@5.9.3)
+      expo: 55.0.31(@babel/core@7.29.7)(@expo/dom-webview@55.0.6)(@expo/metro-runtime@55.0.12)(expo-router@55.0.18)(react-dom@19.2.4(react@19.2.4))(react-native-worklets@0.7.4(@babel/core@7.29.7)(react-native@0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.4))(react@19.2.4))(react-native@0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.4))(react@19.2.4)(typescript@5.9.3)
     transitivePeerDependencies:
       - '@babel/core'
       - supports-color
@@ -26196,7 +26192,6 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
       - typescript
-    optional: true
 
   expo-audio@55.0.18(expo-asset@55.0.20(expo@55.0.31)(react-native@0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)(typescript@5.9.3))(expo@55.0.31)(react-native@0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0):
     dependencies:
@@ -26241,7 +26236,6 @@ snapshots:
       react-native: 0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.4)
     transitivePeerDependencies:
       - supports-color
-    optional: true
 
   expo-crypto@55.0.19(expo@55.0.31):
     dependencies:
@@ -26256,7 +26250,6 @@ snapshots:
     dependencies:
       expo: 55.0.31(@babel/core@7.29.7)(@expo/dom-webview@55.0.6)(@expo/metro-runtime@55.0.12)(expo-router@55.0.18)(react-dom@19.2.4(react@19.2.4))(react-native-worklets@0.7.4(@babel/core@7.29.7)(react-native@0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.4))(react@19.2.4))(react-native@0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.4))(react@19.2.4)(typescript@5.9.3)
       react-native: 0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.4)
-    optional: true
 
   expo-font@55.0.8(expo@55.0.31)(react-native@0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0):
     dependencies:
@@ -26271,7 +26264,6 @@ snapshots:
       fontfaceobserver: 2.3.0
       react: 19.2.4
       react-native: 0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.4)
-    optional: true
 
   expo-glass-effect@55.0.11(expo@55.0.31)(react-native@0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0):
     dependencies:
@@ -26328,7 +26320,6 @@ snapshots:
     dependencies:
       expo: 55.0.31(@babel/core@7.29.7)(@expo/dom-webview@55.0.6)(@expo/metro-runtime@55.0.12)(expo-router@55.0.18)(react-dom@19.2.4(react@19.2.4))(react-native-worklets@0.7.4(@babel/core@7.29.7)(react-native@0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.4))(react@19.2.4))(react-native@0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.4))(react@19.2.4)(typescript@5.9.3)
       react: 19.2.4
-    optional: true
 
   expo-linear-gradient@55.0.18(expo@55.0.31)(react-native@0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0):
     dependencies:
@@ -26387,7 +26378,6 @@ snapshots:
       react-native: 0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.4)
     optionalDependencies:
       react-native-worklets: 0.7.4(@babel/core@7.29.7)(react-native@0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.4))(react@19.2.4)
-    optional: true
 
   expo-notifications@55.0.27(expo@55.0.31)(react-native@0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)(typescript@5.9.3):
     dependencies:
@@ -26586,7 +26576,6 @@ snapshots:
       - supports-color
       - typescript
       - utf-8-validate
-    optional: true
 
   expo@55.0.31(@babel/core@7.29.7)(@expo/dom-webview@55.0.6)(@expo/metro-runtime@55.0.12)(expo-router@55.0.18)(react-dom@19.2.6(react@19.2.0))(react-native-worklets@0.7.4(@babel/core@7.29.7)(react-native@0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0))(react-native@0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)(typescript@5.9.3):
     dependencies:
@@ -30564,7 +30553,6 @@ snapshots:
       - bufferutil
       - supports-color
       - utf-8-validate
-    optional: true
 
   react-property@2.0.2: {}
 

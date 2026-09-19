@@ -495,7 +495,8 @@ export async function middleware(request: NextRequest) {
       //   /rsvp/{code}  — invite-based RSVP short link
       //   /i/{code}     — invite short link (legacy)
       //   /o/{code}     — open-rsvp self-serve short link
-      if (pathname.startsWith('/rsvp/') || pathname.startsWith('/i/') || pathname.startsWith('/o/')) {
+      //   /u/{code}     — guest media upload short link (QR)
+      if (pathname.startsWith('/rsvp/') || pathname.startsWith('/i/') || pathname.startsWith('/o/') || pathname.startsWith('/u/')) {
         const requestHeaders = new Headers(request.headers)
         requestHeaders.set('x-custom-domain', 'true')
         requestHeaders.set('x-content-type', customDomain.contentType)
@@ -575,7 +576,8 @@ export async function middleware(request: NextRequest) {
   //   /rsvp/{code} — invite short link
   //   /i/{code}    — invite short link (legacy)
   //   /o/{code}    — open-rsvp self-serve short link
-  if (pathname.startsWith('/rsvp/') || pathname.startsWith('/i/') || pathname.startsWith('/o/')) {
+  //   /u/{code}    — guest media upload short link (QR)
+  if (pathname.startsWith('/rsvp/') || pathname.startsWith('/i/') || pathname.startsWith('/o/') || pathname.startsWith('/u/')) {
     const requestHeaders = new Headers(request.headers)
     requestHeaders.set('x-custom-domain', 'true')
     requestHeaders.set('x-event-identifier', eventIdentifier)
