@@ -52,7 +52,14 @@ export default async function GuestUploadShortLinkPage({ params }: Props) {
   }
 
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  // Service role only — events_media_upload_links deliberately has no
+  // anon RLS policy, so an anon-key fallback would just silently
+  // redirect every QR scan home. Better to make the misconfiguration
+  // loud in logs than dead-end guests quietly.
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (supabaseUrl && !supabaseKey) {
+    console.error('[u/code] SUPABASE_SERVICE_ROLE_KEY missing — guest upload short links cannot resolve')
+  }
 
   if (supabaseUrl && supabaseKey) {
     const supabase = createClient(supabaseUrl, supabaseKey, {
