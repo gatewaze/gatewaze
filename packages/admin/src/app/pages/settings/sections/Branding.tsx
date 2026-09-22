@@ -88,6 +88,7 @@ interface BrandingSettings {
   storage_bucket_url: string;
   contact_email: string;
   membership_url: string;
+  event_consent_text: string;
   tracking_head: string;
   tracking_body: string;
 }
@@ -111,6 +112,7 @@ const BRANDING_DEFAULTS: BrandingSettings = {
   storage_bucket_url: "",
   contact_email: "",
   membership_url: "",
+  event_consent_text: "",
   tracking_head: "",
   tracking_body: "",
 };
@@ -620,6 +622,27 @@ function BrandingCard({
                     value={settings.membership_url}
                     onChange={(e) => updateSetting("membership_url", e.target.value)}
                     placeholder="https://example.org/members"
+                    className="w-full rounded border border-[var(--gray-6)] bg-[var(--color-surface)] px-3 py-2 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <Text as="label" size="2" weight="medium">
+                    Event Email Consent Notice
+                  </Text>
+                  <Text as="p" size="1" color="gray" className="pb-2">
+                    Compliance notice shown as fixed text in onboarding
+                    Communication Preferences. When set, the list with slug
+                    &quot;event-updates&quot; is no longer offered there as a
+                    checkbox — event participation is treated as the
+                    authorization for event emails. Leave empty to keep the
+                    checkbox.
+                  </Text>
+                  <textarea
+                    value={settings.event_consent_text}
+                    onChange={(e) => updateSetting("event_consent_text", e.target.value)}
+                    rows={3}
+                    placeholder="By participating in events in this community, you authorize…"
                     className="w-full rounded border border-[var(--gray-6)] bg-[var(--color-surface)] px-3 py-2 text-sm"
                   />
                 </div>

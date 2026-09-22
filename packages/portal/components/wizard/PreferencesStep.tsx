@@ -19,6 +19,23 @@ interface ListItem {
 }
 
 /**
+ * When the instance configures `event_consent_text` (platform settings →
+ * brandConfig.eventConsentText), event emails are not a preference:
+ * participating in an event is itself the authorization to be emailed about
+ * future events. The event-updates list is then not offered as a checkbox
+ * here — the configured notice is shown as fixed text instead. The notice
+ * renders from the server-supplied brand config alone, never gated on the
+ * client-side lists fetch, so a failed fetch can suppress the checkboxes
+ * but never the disclosure. Unsubscribing later remains possible from the
+ * Subscription Centre and email footer links; instances that set the
+ * consent text should keep event-updates public so that surface stays
+ * reachable. With no text configured, the list stays an ordinary checkbox.
+ * Slug must match the luma module's auto-subscribe
+ * (gatewaze-modules: modules/luma/functions/_shared/lumaRegistration.ts).
+ */
+const EVENT_UPDATES_SLUG = 'event-updates'
+
+/**
  * Wizard step for communication preferences — shows the same subscribable lists
  * as the Subscription Centre (public, non-internal, active lists) and writes the
  * user's choices to `list_subscriptions` immediately on toggle.
@@ -27,6 +44,7 @@ interface ListItem {
  */
 export function PreferencesStep({ brandConfig, userEmail }: Props) {
   const primaryColor = brandConfig.primaryColor
+  const eventConsentText = brandConfig.eventConsentText.trim()
   const [items, setItems] = useState<ListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
@@ -48,7 +66,7 @@ export function PreferencesStep({ brandConfig, userEmail }: Props) {
         const sb = getSupabaseClient()
         // Internal/staff lists are never offered for self-service subscription.
         const listsPromise = sb.from('lists')
-          .select('id, name, description, default_subscribed')
+          .select('id, slug, name, description, default_subscribed')
           .eq('is_active', true)
           .eq('is_internal', false)
           .order('name')
@@ -71,7 +89,9 @@ export function PreferencesStep({ brandConfig, userEmail }: Props) {
         const subMap = new Map<string, boolean>(
           (((subsRes as { data: { list_id: string; subscribed: boolean }[] | null }).data) || []).map(s => [s.list_id, s.subscribed]),
         )
-        const lists = ((listsRes.data as { id: string; name: string; description: string | null; default_subscribed: boolean | null }[]) || [])
+        const allLists = (listsRes.data as { id: string; slug: string | null; name: string; description: string | null; default_subscribed: boolean | null }[]) || []
+        const lists = allLists
+          .filter(l => !eventConsentText || l.slug !== EVENT_UPDATES_SLUG)
           .map(l => ({
             id: l.id,
             name: l.name,
@@ -92,7 +112,7 @@ export function PreferencesStep({ brandConfig, userEmail }: Props) {
     }
     load()
     return () => { cancelled = true }
-  }, [userEmail])
+  }, [userEmail, eventConsentText])
 
   async function toggle(id: string, subscribed: boolean) {
     if (!userEmail) return
@@ -120,11 +140,23 @@ export function PreferencesStep({ brandConfig, userEmail }: Props) {
     }
   }
 
+  // With the notice showing and no other lists to offer, there is no choice
+  // to make — don't render a header that promises one.
+  const settledEmptyWithNotice = !loading && !loadError && !!eventConsentText && items.length === 0
+
   return (
     <div className="space-y-5">
-      <p className="text-white/70 text-sm text-center mb-2">
-        Choose how you&apos;d like to hear from us.
-      </p>
+      {!settledEmptyWithNotice && (
+        <p className="text-white/70 text-sm text-center mb-2">
+          Choose how you&apos;d like to hear from us.
+        </p>
+      )}
+
+      {eventConsentText && (
+        <p className="text-white/70 text-xs rounded-md p-3 bg-white/5 border border-white/10">
+          {eventConsentText}
+        </p>
+      )}
 
       {loading ? (
         <p className="text-white/50 text-sm text-center py-4">Loading preferences…</p>
@@ -133,7 +165,11 @@ export function PreferencesStep({ brandConfig, userEmail }: Props) {
           We couldn&apos;t load the subscription options right now — you can set these any time from your profile.
         </p>
       ) : items.length === 0 ? (
-        <p className="text-white/50 text-sm text-center py-4">No subscription options available right now.</p>
+        // With the consent notice showing, an otherwise-empty list is a normal
+        // state (event emails are covered by the notice), not a problem to report.
+        eventConsentText ? null : (
+          <p className="text-white/50 text-sm text-center py-4">No subscription options available right now.</p>
+        )
       ) : (
         <div className="space-y-3">
           {items.map(item => (
