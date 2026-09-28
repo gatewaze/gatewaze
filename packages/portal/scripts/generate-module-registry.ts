@@ -562,7 +562,12 @@ function discoverEventPages(sourceDirs: string[]): EventPageDef[] {
           order: pageMeta.order ?? 100,
           requiresLocalStorage: pageMeta.requiresLocalStorage,
           requiresAdmin: pageMeta.requiresAdmin,
-          subNav: pageMeta.subNav,
+          // Ours to serve, not somebody else's: a relative path only. A
+          // module pointing this at another host would have every
+          // visitor's browser announce the event to it.
+          subNav: typeof pageMeta.subNav === 'string' && /^\/[^/]/.test(pageMeta.subNav)
+            ? pageMeta.subNav
+            : undefined,
         })
       }
     }
@@ -821,7 +826,12 @@ export const adminModulePages: AdminModulePage[] = []
   const eventPageEntries: string[] = []
   for (const ep of eventPages) {
     eventPageEntries.push(
-      `  { slug: '${ep.slug}', moduleId: '${ep.moduleId}', label: '${ep.label}', icon: '${ep.icon}', order: ${ep.order}, requiresLocalStorage: ${ep.requiresLocalStorage ? `'${ep.requiresLocalStorage}'` : 'undefined'}, requiresAdmin: ${ep.requiresAdmin ? 'true' : 'false'}, subNav: ${ep.subNav ? `'${ep.subNav.replace(/'/g, "\\'")}'` : 'undefined'}, component: () => import('${ep.componentPath}') },`
+      // Every value is written with JSON.stringify rather than hand-rolled
+      // quotes. This file is imported into the browser bundle, so a value
+      // that breaks out of its own string literal is arbitrary JavaScript
+      // on every event page of every brand -- and hand-rolled quoting gets
+      // backslashes wrong, which is exactly how that happens.
+      `  { slug: ${JSON.stringify(ep.slug)}, moduleId: ${JSON.stringify(ep.moduleId)}, label: ${JSON.stringify(ep.label)}, icon: ${JSON.stringify(ep.icon)}, order: ${ep.order}, requiresLocalStorage: ${ep.requiresLocalStorage ? JSON.stringify(ep.requiresLocalStorage) : 'undefined'}, requiresAdmin: ${ep.requiresAdmin ? 'true' : 'false'}, subNav: ${ep.subNav ? JSON.stringify(ep.subNav) : 'undefined'}, component: () => import(${JSON.stringify(ep.componentPath)}) },`
     )
   }
 

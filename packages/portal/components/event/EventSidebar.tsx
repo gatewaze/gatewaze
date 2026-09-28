@@ -1,6 +1,7 @@
 'use client'
 
 import { usePathname, useSearchParams } from 'next/navigation'
+import { isOwnEndpoint, navChildrenFrom, type NavChild } from '@/lib/nav-children'
 import Link from 'next/link'
 import { Suspense, useMemo, useState, useRef, useEffect, useCallback } from 'react'
 import type { Event } from '@/types/event'
@@ -17,13 +18,6 @@ import { isOnCustomDomain } from '@/lib/customDomain'
 import { isLightColor } from '@/config/brand'
 import { useEventContext } from './EventContext'
 
-/** A page under a page: the albums under Photos, say. */
-interface NavChild {
-  label: string
-  href: string
-  /** A count shown quietly beside it, where there is one. */
-  count?: number
-}
 
 interface NavItem {
   label: string
@@ -103,33 +97,31 @@ function useIsAdmin() {
 function useNavChildren(items: NavItem[], eventIdentifier: string): NavItem[] {
   const [children, setChildren] = useState<Record<string, NavChild[]>>({})
 
-  const wanted = items.filter((i) => i.subNav).map((i) => `${i.href}|${i.subNav}`).join(',')
+  // A map rather than a delimited string: joining hrefs and endpoints
+  // with punctuation invites one item's endpoint being read as another's
+  // address the first time either contains that punctuation.
+  const asks = useMemo(() => {
+    const out: Record<string, string> = {}
+    for (const i of items) if (i.subNav && isOwnEndpoint(i.subNav)) out[i.href] = i.subNav
+    return out
+  }, [items])
+  const asksKey = JSON.stringify(asks)
+
   useEffect(() => {
     let cancelled = false
-    const pairs = wanted ? wanted.split(',') : []
-    for (const pair of pairs) {
-      const [href, endpoint] = pair.split('|')
-      if (!href || !endpoint) continue
+    for (const [href, endpoint] of Object.entries(JSON.parse(asksKey) as Record<string, string>)) {
       const url = endpoint.replace('{identifier}', encodeURIComponent(eventIdentifier))
       fetch(url)
         .then((r) => (r.ok ? r.json() : null))
-        .then((body: { nav?: Array<{ label?: unknown; path?: unknown; count?: unknown }> } | null) => {
-          if (cancelled || !body || !Array.isArray(body.nav)) return
-          const kids = body.nav
-            .filter((n) => typeof n.label === 'string' && typeof n.path === 'string')
-            .slice(0, 12)
-            .map((n) => ({
-              label: String(n.label).slice(0, 40),
-              // The page's own address, then what the page called it.
-              href: `${href}/${String(n.path).split('/').map(encodeURIComponent).join('/')}`,
-              count: typeof n.count === 'number' ? n.count : undefined,
-            }))
-          setChildren((prev) => ({ ...prev, [href]: kids }))
+        .then((body: unknown) => {
+          if (cancelled) return
+          const kids = navChildrenFrom(body, href)
+          if (kids.length > 0) setChildren((prev) => ({ ...prev, [href]: kids }))
         })
         .catch(() => { /* an item without children is the normal case */ })
     }
     return () => { cancelled = true }
-  }, [wanted, eventIdentifier])
+  }, [asksKey, eventIdentifier])
 
   return items.map((i) => (children[i.href]?.length ? { ...i, children: children[i.href] } : i))
 }
