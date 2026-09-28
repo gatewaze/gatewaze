@@ -17,11 +17,27 @@ import { isOnCustomDomain } from '@/lib/customDomain'
 import { isLightColor } from '@/config/brand'
 import { useEventContext } from './EventContext'
 
+/** A page under a page: the albums under Photos, say. */
+interface NavChild {
+  label: string
+  href: string
+  /** A count shown quietly beside it, where there is one. */
+  count?: number
+}
+
 interface NavItem {
   label: string
   href: string
   icon: React.ReactNode
   show: boolean
+  /**
+   * Pages within this one, listed under it while it is the page being
+   * looked at. Optional, and absent for every item that does not have
+   * any -- a module page contributes them (asked 2026-09-28).
+   */
+  children?: NavChild[]
+  /** Where to ask for those children; see the module registry. */
+  subNav?: string
   /**
    * When true, the item links to an external URL (typically populated
    * from event.source_details.action_links). Renders as <a target="_blank">
@@ -75,6 +91,49 @@ function useIsAdmin() {
   return isAdmin
 }
 
+/**
+ * The pages within a page, for any item that says where to find them.
+ *
+ * A module names an endpoint in its page metadata and the portal asks
+ * it; the answer is a short list of labels and paths (the photo albums,
+ * for instance -- asked 2026-09-28). Deliberately generic: this knows
+ * nothing about any particular module, and an endpoint that is missing,
+ * slow or malformed simply leaves the item without children.
+ */
+function useNavChildren(items: NavItem[], eventIdentifier: string): NavItem[] {
+  const [children, setChildren] = useState<Record<string, NavChild[]>>({})
+
+  const wanted = items.filter((i) => i.subNav).map((i) => `${i.href}|${i.subNav}`).join(',')
+  useEffect(() => {
+    let cancelled = false
+    const pairs = wanted ? wanted.split(',') : []
+    for (const pair of pairs) {
+      const [href, endpoint] = pair.split('|')
+      if (!href || !endpoint) continue
+      const url = endpoint.replace('{identifier}', encodeURIComponent(eventIdentifier))
+      fetch(url)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((body: { nav?: Array<{ label?: unknown; path?: unknown; count?: unknown }> } | null) => {
+          if (cancelled || !body || !Array.isArray(body.nav)) return
+          const kids = body.nav
+            .filter((n) => typeof n.label === 'string' && typeof n.path === 'string')
+            .slice(0, 12)
+            .map((n) => ({
+              label: String(n.label).slice(0, 40),
+              // The page's own address, then what the page called it.
+              href: `${href}/${String(n.path).split('/').map(encodeURIComponent).join('/')}`,
+              count: typeof n.count === 'number' ? n.count : undefined,
+            }))
+          setChildren((prev) => ({ ...prev, [href]: kids }))
+        })
+        .catch(() => { /* an item without children is the normal case */ })
+    }
+    return () => { cancelled = true }
+  }, [wanted, eventIdentifier])
+
+  return items.map((i) => (children[i.href]?.length ? { ...i, children: children[i.href] } : i))
+}
+
 function useModuleNavItems(basePath: string, hasVirtualEvent: boolean) {
   const [items, setItems] = useState<NavItem[]>([])
   const isAdmin = useIsAdmin()
@@ -113,6 +172,7 @@ function useModuleNavItems(basePath: string, hasVirtualEvent: boolean) {
           label: page.label,
           href: `${basePath}/${page.slug}`,
           show: true,
+          subNav: page.subNav,
           icon: (
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
@@ -130,6 +190,9 @@ function useModuleNavItems(basePath: string, hasVirtualEvent: boolean) {
 
 function useNavItems(event: Event, basePath: string, speakerCount: number, sponsorCount: number, competitionCount: number, discountCount: number, mediaCount: number, hasVirtualEvent: boolean, userState?: EventUserState) {
   const moduleNavItems = useModuleNavItems(basePath, hasVirtualEvent)
+  // The event as the address names it: the last part of the base path,
+  // which is '' on a custom domain, where the host is the event.
+  const withChildren = useNavChildren(moduleNavItems, basePath.split('/').filter(Boolean).pop() ?? '')
 
   // A scraped speak action link can point BACK at this very portal — aaif.io's
   // event pages link their Speak button to our /talks page, and the scraper
@@ -304,7 +367,7 @@ function useNavItems(event: Event, basePath: string, speakerCount: number, spons
         </svg>
       ),
     },
-    ...moduleNavItems,
+    ...withChildren,
   ]
 
   return navItems.filter(item => item.show)
@@ -616,8 +679,8 @@ function EventMobileActionsInner({ event, eventIdentifier, useDarkText, primaryC
                 const active = isActive(item.href)
                 const isHovered = hoveredItem === item.href
                 return (
+                  <div key={item.href}>
                   <Link
-                    key={item.href}
                     href={item.href}
                     target={item.external ? '_blank' : undefined}
                     rel={item.external ? 'noopener noreferrer' : undefined}
@@ -653,7 +716,28 @@ function EventMobileActionsInner({ event, eventIdentifier, useDarkText, primaryC
                     <span className="text-base font-medium text-white">
                       {item.label}
                     </span>
-                  </Link>
+                    </Link>
+                    {/* The pages within this one, while it is the page
+                        being looked at (asked 2026-09-28). */}
+                    {active && item.children && item.children.length > 0 && (
+                      <div className="ml-14 mt-1 flex flex-col gap-0.5">
+                        {item.children.map((child) => (
+                          <Link
+                            key={child.href}
+                            href={child.href}
+                            onClick={() => setMenuOpen(false)}
+                            className="flex items-center gap-2 rounded px-2 py-1 text-sm"
+                            style={{ color: useDarkText ? '#4b5563' : 'rgba(255,255,255,0.75)' }}
+                          >
+                            <span className="truncate">{child.label}</span>
+                            {typeof child.count === 'number' && (
+                              <span style={{ opacity: 0.6 }}>{child.count}</span>
+                            )}
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                    </div>
                 )
               })}
             </nav>
@@ -808,8 +892,8 @@ function EventSidebarInner({ event, eventIdentifier, useDarkText, primaryColor, 
               const active = isActive(item.href)
               const isHovered = hoveredItem === item.href
               return (
+                <div key={item.href}>
                 <Link
-                  key={item.href}
                   href={item.href}
                   target={item.external ? '_blank' : undefined}
                   rel={item.external ? 'noopener noreferrer' : undefined}
@@ -845,6 +929,26 @@ function EventSidebarInner({ event, eventIdentifier, useDarkText, primaryColor, 
                     {item.label}
                   </span>
                 </Link>
+                {/* The pages within this one, while it is the page being
+                    looked at (asked 2026-09-28). */}
+                {active && item.children && item.children.length > 0 && (
+                  <div className="ml-14 mt-1 flex flex-col gap-0.5">
+                    {item.children.map((child) => (
+                      <Link
+                        key={child.href}
+                        href={child.href}
+                        className="flex items-center gap-2 rounded px-2 py-1 text-sm"
+                        style={{ color: useDarkText ? '#4b5563' : 'rgba(255,255,255,0.75)' }}
+                      >
+                        <span className="truncate">{child.label}</span>
+                        {typeof child.count === 'number' && (
+                          <span style={{ opacity: 0.6 }}>{child.count}</span>
+                        )}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+                </div>
               )
             })}
           </nav>
