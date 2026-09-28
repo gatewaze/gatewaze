@@ -500,6 +500,8 @@ interface EventPageDef {
   order: number
   requiresLocalStorage?: string
   requiresAdmin?: boolean
+  /** An endpoint listing the pages within this one; see EventModulePage. */
+  subNav?: string
 }
 
 function discoverEventPages(sourceDirs: string[]): EventPageDef[] {
@@ -522,7 +524,15 @@ function discoverEventPages(sourceDirs: string[]): EventPageDef[] {
       if (!existsSync(eventPagesDir)) continue
 
       // Load metadata
-      let meta: Record<string, { label?: string; icon?: string; order?: number; requiresLocalStorage?: string; requiresAdmin?: boolean }> = {}
+      let meta: Record<string, {
+        label?: string; icon?: string; order?: number;
+        requiresLocalStorage?: string; requiresAdmin?: boolean;
+        // Pages within this page, listed under it in the sidebar. The
+        // module names an endpoint; the portal fetches it and expects
+        // { nav: [{ label, path, count? }] }, where path is appended to
+        // the page's own address. {identifier} is the event's.
+        subNav?: string;
+      }> = {}
       const metaPath = resolve(eventPagesDir, '_meta.json')
       if (existsSync(metaPath)) {
         try {
@@ -552,6 +562,7 @@ function discoverEventPages(sourceDirs: string[]): EventPageDef[] {
           order: pageMeta.order ?? 100,
           requiresLocalStorage: pageMeta.requiresLocalStorage,
           requiresAdmin: pageMeta.requiresAdmin,
+          subNav: pageMeta.subNav,
         })
       }
     }
@@ -810,7 +821,7 @@ export const adminModulePages: AdminModulePage[] = []
   const eventPageEntries: string[] = []
   for (const ep of eventPages) {
     eventPageEntries.push(
-      `  { slug: '${ep.slug}', moduleId: '${ep.moduleId}', label: '${ep.label}', icon: '${ep.icon}', order: ${ep.order}, requiresLocalStorage: ${ep.requiresLocalStorage ? `'${ep.requiresLocalStorage}'` : 'undefined'}, requiresAdmin: ${ep.requiresAdmin ? 'true' : 'false'}, component: () => import('${ep.componentPath}') },`
+      `  { slug: '${ep.slug}', moduleId: '${ep.moduleId}', label: '${ep.label}', icon: '${ep.icon}', order: ${ep.order}, requiresLocalStorage: ${ep.requiresLocalStorage ? `'${ep.requiresLocalStorage}'` : 'undefined'}, requiresAdmin: ${ep.requiresAdmin ? 'true' : 'false'}, subNav: ${ep.subNav ? `'${ep.subNav.replace(/'/g, "\\'")}'` : 'undefined'}, component: () => import('${ep.componentPath}') },`
     )
   }
 
@@ -827,6 +838,12 @@ export interface EventModulePage {
   order: number
   requiresLocalStorage?: string
   requiresAdmin?: boolean
+  /**
+   * An endpoint listing the pages within this one, for the sidebar.
+   * Answers { nav: [{ label, path, count? }] }; {identifier} is
+   * substituted with the event's. Absent for pages that have none.
+   */
+  subNav?: string
   component: () => Promise<{ default: ComponentType<any> }>
 }
 
