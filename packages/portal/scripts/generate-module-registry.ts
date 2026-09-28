@@ -504,6 +504,53 @@ interface EventPageDef {
   subNav?: string
 }
 
+/**
+ * Writing a value into generated code.
+ *
+ * Everything below refuses rather than sanitises: a value that is not the
+ * shape it should be is a bug in a module, and turning it into something
+ * "safe" hides that. Only after a value has been checked is it written,
+ * and then with JSON.stringify plus the two separators JSON allows raw
+ * and older JavaScript does not.
+ */
+function literal(value: string): string {
+  return JSON.stringify(value).replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029')
+}
+
+/** A slug, a module id, an icon name: lower-case words and dashes. */
+function asToken(value: string, what: string): string {
+  if (!/^[a-z0-9][a-z0-9._-]{0,63}$/i.test(value)) {
+    throw new Error(`[generate-module-registry] ${what} is not a plain name: ${JSON.stringify(value)}`)
+  }
+  return value
+}
+
+/** Something a person reads. No control characters, no separators. */
+function asText(value: string, what: string): string {
+  // eslint-disable-next-line no-control-regex
+  if (value.length === 0 || value.length > 80 || /[\u0000-\u001f\u007f\u2028\u2029]/.test(value)) {
+    throw new Error(`[generate-module-registry] ${what} is not a label: ${JSON.stringify(value)}`)
+  }
+  return value
+}
+
+/** A path on this portal, and nowhere else. */
+function asPath(value: string, what: string): string {
+  if (!/^\/[A-Za-z0-9._~!$&'()*+,;=:@%/?{}-]{1,300}$/.test(value) || value.startsWith('//')) {
+    throw new Error(`[generate-module-registry] ${what} is not a path on this site: ${JSON.stringify(value)}`)
+  }
+  return value
+}
+
+/** A file this build found for itself, on disk. */
+function asFilePath(value: string, what: string): string {
+  // eslint-disable-next-line no-control-regex
+  if (!value.startsWith('/') || /["'`\\\u0000-\u001f\u2028\u2029]/.test(value)) {
+    throw new Error(`[generate-module-registry] ${what} is not a usable path: ${JSON.stringify(value)}`)
+  }
+  return value
+}
+
 function discoverEventPages(sourceDirs: string[]): EventPageDef[] {
   const eventPages: EventPageDef[] = []
   // Deduplicate by (moduleId, slug) — the same module discovered from
@@ -825,13 +872,25 @@ export const adminModulePages: AdminModulePage[] = []
   const EVENT_PAGES_PATH = resolve(__dirname, '../lib/modules/generated-event-pages.ts')
   const eventPageEntries: string[] = []
   for (const ep of eventPages) {
+    // Values reach this file from a module's own directory names and its
+    // _meta.json, and what comes out is code that every event page of
+    // every brand loads into a browser. So they are checked before they
+    // are written, not merely quoted on the way out: a value that is not
+    // the shape it should be stops the build rather than becoming part
+    // of the program.
+    const page = {
+      slug: asToken(ep.slug, 'slug'),
+      moduleId: asToken(ep.moduleId, 'moduleId'),
+      label: asText(ep.label, 'label'),
+      icon: asToken(ep.icon, 'icon'),
+      order: Number.isFinite(ep.order) ? Math.trunc(ep.order) : 100,
+      requiresLocalStorage: ep.requiresLocalStorage ? asToken(ep.requiresLocalStorage, 'requiresLocalStorage') : undefined,
+      requiresAdmin: ep.requiresAdmin === true,
+      subNav: ep.subNav ? asPath(ep.subNav, 'subNav') : undefined,
+      componentPath: asFilePath(ep.componentPath, 'componentPath'),
+    }
     eventPageEntries.push(
-      // Every value is written with JSON.stringify rather than hand-rolled
-      // quotes. This file is imported into the browser bundle, so a value
-      // that breaks out of its own string literal is arbitrary JavaScript
-      // on every event page of every brand -- and hand-rolled quoting gets
-      // backslashes wrong, which is exactly how that happens.
-      `  { slug: ${JSON.stringify(ep.slug)}, moduleId: ${JSON.stringify(ep.moduleId)}, label: ${JSON.stringify(ep.label)}, icon: ${JSON.stringify(ep.icon)}, order: ${ep.order}, requiresLocalStorage: ${ep.requiresLocalStorage ? JSON.stringify(ep.requiresLocalStorage) : 'undefined'}, requiresAdmin: ${ep.requiresAdmin ? 'true' : 'false'}, subNav: ${ep.subNav ? JSON.stringify(ep.subNav) : 'undefined'}, component: () => import(${JSON.stringify(ep.componentPath)}) },`
+      `  { slug: ${literal(page.slug)}, moduleId: ${literal(page.moduleId)}, label: ${literal(page.label)}, icon: ${literal(page.icon)}, order: ${page.order}, requiresLocalStorage: ${page.requiresLocalStorage ? literal(page.requiresLocalStorage) : 'undefined'}, requiresAdmin: ${page.requiresAdmin ? 'true' : 'false'}, subNav: ${page.subNav ? literal(page.subNav) : 'undefined'}, component: () => import(${literal(page.componentPath)}) },`
     )
   }
 
