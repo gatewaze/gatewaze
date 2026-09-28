@@ -109,6 +109,9 @@ function useNavChildren(items: NavItem[], eventIdentifier: string): NavItem[] {
 
   useEffect(() => {
     let cancelled = false
+    // Without an event there is nothing to ask about, and asking anyway
+    // puts a hole where the identifier should be.
+    if (!eventIdentifier) return
     for (const [href, endpoint] of Object.entries(JSON.parse(asksKey) as Record<string, string>)) {
       const url = endpoint.replace('{identifier}', encodeURIComponent(eventIdentifier))
       fetch(url)
@@ -180,11 +183,13 @@ function useModuleNavItems(basePath: string, hasVirtualEvent: boolean) {
   return items
 }
 
-function useNavItems(event: Event, basePath: string, speakerCount: number, sponsorCount: number, competitionCount: number, discountCount: number, mediaCount: number, hasVirtualEvent: boolean, userState?: EventUserState) {
+function useNavItems(event: Event, basePath: string, eventIdentifier: string, speakerCount: number, sponsorCount: number, competitionCount: number, discountCount: number, mediaCount: number, hasVirtualEvent: boolean, userState?: EventUserState) {
   const moduleNavItems = useModuleNavItems(basePath, hasVirtualEvent)
-  // The event as the address names it: the last part of the base path,
-  // which is '' on a custom domain, where the host is the event.
-  const withChildren = useNavChildren(moduleNavItems, basePath.split('/').filter(Boolean).pop() ?? '')
+  // The event as this component was told it, not as the address spells
+  // it: on a custom domain the base path is empty -- the host is the
+  // event -- so taking the last part of it asked the server about an
+  // event with no name (reported 2026-09-28).
+  const withChildren = useNavChildren(moduleNavItems, eventIdentifier)
 
   // A scraped speak action link can point BACK at this very portal — aaif.io's
   // event pages link their Speak button to our /talks page, and the scraper
@@ -463,7 +468,7 @@ function EventMobileActionsInner({ event, eventIdentifier, useDarkText, primaryC
   const searchParams = useSearchParams()
   const customDomain = isOnCustomDomain()
   const basePath = customDomain ? '' : `/events/${eventIdentifier}`
-  const visibleItems = useNavItems(event, basePath, speakerCount, sponsorCount, competitionCount, discountCount, mediaCount, hasVirtualEvent, userState)
+  const visibleItems = useNavItems(event, basePath, eventIdentifier, speakerCount, sponsorCount, competitionCount, discountCount, mediaCount, hasVirtualEvent, userState)
   const { showRegisterButton, useExternalLink, registerHref } = useRegisterLink(event, basePath)
   const handleExternalRegister = useExternalRegisterHandler(event)
   const { requestRegister, registrationMembersOnly } = useEventContext()
@@ -756,7 +761,7 @@ function EventSidebarInner({ event, eventIdentifier, useDarkText, primaryColor, 
   const searchParams = useSearchParams()
   const customDomain = isOnCustomDomain()
   const basePath = customDomain ? '' : `/events/${eventIdentifier}`
-  const visibleItems = useNavItems(event, basePath, speakerCount, sponsorCount, competitionCount, discountCount, mediaCount, hasVirtualEvent, userState)
+  const visibleItems = useNavItems(event, basePath, eventIdentifier, speakerCount, sponsorCount, competitionCount, discountCount, mediaCount, hasVirtualEvent, userState)
   const { showRegisterButton, useExternalLink, registerHref } = useRegisterLink(event, basePath)
   const handleExternalRegister = useExternalRegisterHandler(event)
   const { requestRegister, registrationMembersOnly } = useEventContext()
