@@ -38,22 +38,45 @@ spec:
             {{- with .Values.extraEnvFrom }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
-          livenessProbe:
+          startupProbe:
+            # nginx only binds once a bundle exists to serve, so /healthz
+            # answering IS "startup finished" — on the fast path (bundle baked
+            # into the image) that is ~5s; on the slow path (pnpm install +
+            # module clone + vite build) it is 3-5 minutes. 5s + 60×10s gives a
+            # ~10min budget, comfortably above the slow path.
+            #
+            # This replaces initialDelaySeconds 240/300 on the two probes below.
+            # A fixed delay charges the slow path's cost to every pod, including
+            # fast-path ones that were serving 235 seconds earlier, and because
+            # `helm upgrade --wait` cannot see a pod ready inside 4 minutes it
+            # outran the deploy timeout and left autodb's release marked `failed`
+            # for nine days across two revisions while every pod was healthy.
             httpGet:
               path: /healthz
               port: http
-            initialDelaySeconds: 300
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 60
+          livenessProbe:
+            # Does not begin until the startupProbe above has succeeded once,
+            # so it needs no delay of its own — from here on, /healthz failing
+            # means nginx has actually stopped serving.
+            httpGet:
+              path: /healthz
+              port: http
             periodSeconds: 15
             timeoutSeconds: 3
             failureThreshold: 3
           readinessProbe:
+            # Likewise gated behind the startupProbe. A pod reaches Ready as
+            # soon as it is genuinely serving rather than on a wall clock.
             httpGet:
               path: /healthz
               port: http
-            initialDelaySeconds: 240
             periodSeconds: 10
             timeoutSeconds: 3
-            failureThreshold: 10
+            failureThreshold: 3
           resources:
             {{- toYaml .Values.resources.admin | nindent 12 }}
       {{- with .Values.nodeSelector }}
