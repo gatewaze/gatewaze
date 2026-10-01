@@ -64,7 +64,7 @@
     "@zxing/browser": "^0.2.1",
     "@zxing/library": "^0.23.0",
     "apexcharts": "^5.3.3",
-    "axios": "^1.11.0",
+    "axios": "^1.20.0",
     "cleave.js": "^1.6.0",
     "clsx": "^2.1.1",
     "color": "^5.0.0",
