@@ -236,6 +236,10 @@ services:
       # people-enrichment edge fn reads these (LinkedIn/email enrichment).
       ENRICHLAYER_API_KEY: ${ENRICHLAYER_API_KEY:-}
       CLEARBIT_API_KEY: ${CLEARBIT_API_KEY:-}
+      # integrations-lfid-callback (lf-gatewaze-modules) reads the Auth0
+      # client secret from its environment ONLY — the module-config
+      # fallback was removed because that column is anon-readable.
+      AUTH0_CLIENT_SECRET: ${AUTH0_CLIENT_SECRET:-}
       EMAIL_FROM: ${EMAIL_FROM:-noreply@localhost}
       EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-Gatewaze}
       # Central Sending Service canary: when 'true' the Edge newsletter-send fn
@@ -255,6 +259,7 @@ services:
       SMTP_PASS: ${SMTP_PASS:-}
       GW_APP_NAME: ${GW_APP_NAME:-}
       CI_MODE: "${CI_MODE:-false}"
+      CI_MODE_SECRET: ${CI_MODE_SECRET:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}

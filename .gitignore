@@ -54,6 +54,7 @@ supabase/functions/_shared/*
 !supabase/functions/_shared/cors.ts
 !supabase/functions/_shared/email.ts
 !supabase/functions/_shared/integrationEvents.ts
+!supabase/functions/_shared/onboarding-gates.ts
 !supabase/functions/_shared/supabase.ts
 !supabase/functions/admin-add-first/
 !supabase/functions/admin-nl-query/
