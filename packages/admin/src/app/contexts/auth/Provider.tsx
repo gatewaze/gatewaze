@@ -295,7 +295,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (result.success) {
         if (result.magicLink) {
-          // CI mode: magic link returned directly — auto-authenticate
+          // Unreachable from the browser since the CI direct-link path
+          // started requiring x-ci-secret: this app never sends that header
+          // and the shared CORS allow-list doesn't admit it. Kept only so
+          // the response contract stays handled if the service ever runs in
+          // a non-browser harness. Normal CI_MODE stacks take the verifyOnly
+          // path (signInWithOtp inside SupabaseAuthService.sendMagicLink).
           window.location.href = result.magicLink;
           return;
         }
