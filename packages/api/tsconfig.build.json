@@ -8,5 +8,11 @@
       "@gatewaze/shared/*": ["../shared/src/*"]
     }
   },
-  "include": ["src", "../../gatewaze.config.ts", "../shared/src"]
+  "include": ["src", "../../gatewaze.config.ts", "../shared/src"],
+  // The production build must not compile test files: they are vitest's
+  // concern (and the CI Typecheck job's), and they may import test-only
+  // paths that are absent from the Docker build context — the
+  // onboarding-gates suite imports from supabase/functions/_shared, which
+  // the api image never ships.
+  "exclude": ["src/**/__tests__/**", "src/**/*.test.ts", "test"]
 }
