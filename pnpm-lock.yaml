@@ -139,6 +139,7 @@ overrides:
   undici@>=8.0.0 <8.10.2: '>=8.10.2'
   '@grpc/grpc-js@>=1.14.0 <1.14.5': '>=1.14.5'
   axios@>=1.0.0 <1.20.0: '>=1.20.0'
+  basic-ftp@<=6.2.0: '>=6.2.1'
 
 importers:
 
@@ -171,7 +172,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.4
@@ -180,7 +181,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: workspace:*
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
 
   ../gatewaze-modules/modules/ai:
     dependencies:
@@ -192,7 +193,7 @@ importers:
         version: 0.40.1
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.98.0
@@ -268,7 +269,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
     devDependencies:
       typescript:
         specifier: ^5.9.0
@@ -281,19 +282,19 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
 
   ../gatewaze-modules/modules/badge-scanning:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
 
   ../gatewaze-modules/modules/blog:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.98.0
@@ -311,7 +312,7 @@ importers:
         version: link:../ai
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -360,13 +361,13 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
 
   ../gatewaze-modules/modules/calendars:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
     devDependencies:
       vitest:
         specifier: ^4.0.0
@@ -376,25 +377,25 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
 
   ../gatewaze-modules/modules/competitions:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
 
   ../gatewaze-modules/modules/compliance:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
 
   ../gatewaze-modules/modules/content-platform:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.4
@@ -403,7 +404,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: workspace:*
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
 
   ../gatewaze-modules/modules/conversations: {}
 
@@ -411,7 +412,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.4
@@ -420,7 +421,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.6
@@ -429,7 +430,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
 
   ../gatewaze-modules/modules/editor-ai-copilot:
     dependencies:
@@ -487,7 +488,7 @@ importers:
     devDependencies:
       '@gatewaze/shared':
         specifier: workspace:*
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
       '@types/express':
         specifier: ^4.17.21
         version: 4.17.25
@@ -519,25 +520,25 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
 
   ../gatewaze-modules/modules/event-agenda:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
 
   ../gatewaze-modules/modules/event-budget:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
 
   ../gatewaze-modules/modules/event-invites:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.6
@@ -546,19 +547,19 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
 
   ../gatewaze-modules/modules/event-reports:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
 
   ../gatewaze-modules/modules/event-seating:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.6
@@ -567,7 +568,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
       '@supabase/supabase-js':
         specifier: ^2.106.0
         version: 2.108.1
@@ -598,25 +599,25 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
 
   ../gatewaze-modules/modules/event-topics:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
 
   ../gatewaze-modules/modules/event-tracking:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
 
   ../gatewaze-modules/modules/events:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.4
@@ -629,7 +630,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.98.0
@@ -644,7 +645,7 @@ importers:
     devDependencies:
       '@gatewaze/shared':
         specifier: workspace:*
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
       '@mozilla/readability':
         specifier: '>=0.6.0'
         version: 0.6.0
@@ -689,19 +690,19 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
 
   ../gatewaze-modules/modules/gradual:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
 
   ../gatewaze-modules/modules/host-media:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.4
@@ -720,19 +721,19 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
 
   ../gatewaze-modules/modules/luma:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
 
   ../gatewaze-modules/modules/monitoring:
     devDependencies:
       '@gatewaze/shared':
         specifier: workspace:*
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
       typescript:
         specifier: ^5.9.0
         version: 5.9.3
@@ -750,7 +751,7 @@ importers:
         version: 7.29.0
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
       '@puckeditor/core':
         specifier: ~0.21.3
         version: 0.21.3(@floating-ui/dom@1.7.6)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(immer@10.2.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(use-sync-external-store@1.6.0(react@19.2.6))
@@ -775,25 +776,25 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
 
   ../gatewaze-modules/modules/newsletters-output-substack:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
 
   ../gatewaze-modules/modules/offers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
 
   ../gatewaze-modules/modules/people-enrichment:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.6
@@ -802,7 +803,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.6
@@ -811,25 +812,25 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
 
   ../gatewaze-modules/modules/redirects:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
 
   ../gatewaze-modules/modules/redirects-bitly:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
 
   ../gatewaze-modules/modules/redirects-shortio:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
 
   ../gatewaze-modules/modules/redirects-umami: {}
 
@@ -837,7 +838,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -850,7 +851,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -868,7 +869,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: workspace:*
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
 
   ../gatewaze-modules/modules/scrapers:
     dependencies:
@@ -877,7 +878,7 @@ importers:
         version: 0.39.0
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
       '@supabase/supabase-js':
         specifier: ^2.106.0
         version: 2.108.1
@@ -901,13 +902,13 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
 
   ../gatewaze-modules/modules/send-testing:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -919,7 +920,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -931,7 +932,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -952,7 +953,7 @@ importers:
         version: link:../templates
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
       '@puckeditor/core':
         specifier: ~0.21.3
         version: 0.21.3(@floating-ui/dom@1.7.6)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(immer@10.2.0)(react-dom@19.2.6(react@19.2.4))(react@19.2.4)(use-sync-external-store@1.6.0(react@19.2.4))
@@ -989,7 +990,7 @@ importers:
         version: link:../sites
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
     devDependencies:
       vitest:
         specifier: ^4.0.0
@@ -1002,7 +1003,7 @@ importers:
         version: link:../sites
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
     devDependencies:
       vitest:
         specifier: ^4.0.0
@@ -1012,7 +1013,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
 
   ../gatewaze-modules/modules/software-engineer:
     dependencies:
@@ -1021,7 +1022,7 @@ importers:
         version: 0.3.220(@anthropic-ai/sdk@0.91.1(zod@3.25.76))(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(zod@3.25.76)
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -1065,7 +1066,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.6
@@ -1077,13 +1078,13 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
 
   ../gatewaze-modules/modules/tasks:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
     devDependencies:
       '@supabase/supabase-js':
         specifier: ^2.45.0
@@ -1120,7 +1121,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.4
@@ -1133,7 +1134,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -1170,7 +1171,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -1198,7 +1199,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-undici-audit/packages/shared
+        version: link:../../../gatewaze-wt-helf-app/packages/shared
       pg:
         specifier: ^8.11.0
         version: 8.20.0
@@ -9152,8 +9153,8 @@ packages:
     engines: {node: '>=6.0.0'}
     hasBin: true
 
-  basic-ftp@5.3.1:
-    resolution: {integrity: sha512-bopVNp6ugyA150DDuZfPFdt1KZ5a94ZDiwX4hMgZDzF+GttD80lEy8kj98kbyhLXnPvhtIo93mdnLIjpCAeeOw==}
+  basic-ftp@6.2.1:
+    resolution: {integrity: sha512-bK67isD+lKq46AU8vNtjvMaT2ZqAOAmNCbxUHlFBRD4k15NWxyEjmaKtZPlgce58So4BNTjITGQOVTjL9y0ECA==}
     engines: {node: '>=10.0.0'}
 
   better-opn@3.0.2:
@@ -25208,7 +25209,7 @@ snapshots:
 
   baseline-browser-mapping@2.11.26: {}
 
-  basic-ftp@5.3.1: {}
+  basic-ftp@6.2.1: {}
 
   better-opn@3.0.2:
     dependencies:
@@ -27369,7 +27370,7 @@ snapshots:
 
   get-uri@6.0.5:
     dependencies:
-      basic-ftp: 5.3.1
+      basic-ftp: 6.2.1
       data-uri-to-buffer: 6.0.2
       debug: 4.4.3
     transitivePeerDependencies:
