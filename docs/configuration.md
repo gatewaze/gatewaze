@@ -136,6 +136,7 @@ compose files read `docker/.env`, so that is the one to edit.
 | `VITE_SUPABASE_URL`       | Supabase URL for the admin frontend                  | Yes      | `http://supabase.gatewaze.localhost` |
 | `VITE_SUPABASE_ANON_KEY`  | Supabase anon key for the admin frontend             | Yes      | --                                   |
 | `VITE_API_URL`            | API server URL for the admin frontend                | Yes      | `http://api.gatewaze.localhost`      |
+| `VITE_SUPABASE_FLOW_TYPE` | Supabase Auth flow for the admin: `implicit` or `pkce` (exact, lowercase). Set `pkce` only when every admin sign-in returns to the app with a `?code=` parameter, as Supabase Auth's own OAuth and custom OIDC providers do. Anything that returns tokens in the URL hash (the LFID bridge, magic links, admin invite links) fails silently under `pkce`, so those deployments must keep `implicit` | No | `implicit` |
 | `ADMIN_HOST`              | Traefik hostname for the admin app (Docker)          | No       | `admin.gatewaze.localhost`           |
 
 ### Public Portal (Next.js)

@@ -9,6 +9,7 @@ interface ImportMetaEnv {
   readonly VITE_CUSTOMERIO_SITE_ID: string
   readonly VITE_CUSTOMERIO_API_KEY: string
   readonly VITE_BRAND_ID: string
+  readonly VITE_SUPABASE_FLOW_TYPE?: string
 }
 
 interface ImportMeta {

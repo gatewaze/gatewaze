@@ -8,12 +8,31 @@ let supabaseClient: SupabaseClient | null = null
 // same origin.
 let embedOverride: { url: string; anonKey: string; storageKey: string } | null = null
 
+type AuthFlowType = 'implicit' | 'pkce'
+
+// Implicit stays the default because auth-js rejects a token hash outright
+// under PKCE, and a magic link opened in a different browser from the one
+// that requested it cannot complete PKCE either (the code verifier lives in
+// the requesting browser). Only a deployment whose every sign-in returns
+// with `?code=` opts into PKCE, per environment.
+function resolveFlowType(): AuthFlowType {
+  const configured = import.meta.env.VITE_SUPABASE_FLOW_TYPE
+  if (configured === 'pkce') return 'pkce'
+  if (configured && configured !== 'implicit') {
+    console.warn(`[supabase] Unrecognised VITE_SUPABASE_FLOW_TYPE "${configured}"; using implicit`)
+  }
+  return 'implicit'
+}
+
 function getSupabase(): SupabaseClient {
   if (supabaseClient) return supabaseClient
 
   const url = embedOverride?.url ?? import.meta.env.VITE_SUPABASE_URL
   const anonKey = embedOverride?.anonKey ?? import.meta.env.VITE_SUPABASE_ANON_KEY
   const storageKey = embedOverride?.storageKey ?? 'gatewaze-admin-auth-token'
+  // The embed receives its session from the host and never runs a redirect
+  // flow, so it must not read the runtime env (the host page has none).
+  const flowType: AuthFlowType = embedOverride ? 'implicit' : resolveFlowType()
 
   if (!url || !anonKey) {
     throw new Error('Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY environment variables')
@@ -24,6 +43,7 @@ function getSupabase(): SupabaseClient {
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
+      flowType,
       storage: window.localStorage,
       storageKey,
     },
