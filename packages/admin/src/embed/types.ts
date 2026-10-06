@@ -28,7 +28,12 @@ export interface GwHostContext {
    * them through, it does not invent keys.
    */
   enabled: { moduleIds: string[]; features: string[] };
-  signIn: { lfidStartUrl: string; returnUrl: string };
+  /**
+   * Where to send an unauthenticated user: the host's own sign-in entry
+   * point (absolute URL), and the absolute URL to return to afterwards.
+   * The embed never implements sign-in itself.
+   */
+  signIn: { startUrl: string; returnUrl: string };
   /** Session isolation; embed defaults to 'host_embed' if omitted. */
   storageKeySuffix?: string;
   /**
@@ -36,6 +41,14 @@ export interface GwHostContext {
    * only the embed (and unmount) writes into it.
    */
   portalContainer?: HTMLElement;
+  /**
+   * Host notification sink. When present, `toast()` calls inside the embed are rendered by the
+   * HOST's notification system instead of the embed's own toaster, so they look and stack like
+   * every other notification in the host app. Absent: the embed falls back to its own toaster.
+   *
+   * Only string-content toasts can cross this boundary; anything richer stays with the embed.
+   */
+  notify?: (notification: GwEmbedNotification) => void;
   /** Host hook: embed gave up. */
   onFatal?: (err: GwEmbedFatalError) => void;
   /**
@@ -69,4 +82,20 @@ export interface GwEmbedFatalError {
 
 export interface GwEmbedHandle {
   unmount(): void;
+}
+
+/** Severity of a notification handed to the host, mapped from the embed's toast levels. */
+export type GwEmbedNotificationLevel = 'success' | 'error' | 'warning' | 'info';
+
+/** One notification for GwHostContext.notify. */
+export interface GwEmbedNotification {
+  level: GwEmbedNotificationLevel;
+  /** Plain text; the host renders it with its own components. */
+  message: string;
+  /** Optional secondary line. */
+  description?: string;
+  /** Stable id for this notification, unique within the mount. */
+  id: string;
+  /** Requested lifetime in ms, if the caller asked for one. The host may ignore it. */
+  durationMs?: number;
 }
