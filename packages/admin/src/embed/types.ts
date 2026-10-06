@@ -28,7 +28,12 @@ export interface GwHostContext {
    * them through, it does not invent keys.
    */
   enabled: { moduleIds: string[]; features: string[] };
-  signIn: { lfidStartUrl: string; returnUrl: string };
+  /**
+   * Where to send an unauthenticated user: the host's own sign-in entry
+   * point (absolute URL), and the absolute URL to return to afterwards.
+   * The embed never implements sign-in itself.
+   */
+  signIn: { startUrl: string; returnUrl: string };
   /** Session isolation; embed defaults to 'host_embed' if omitted. */
   storageKeySuffix?: string;
   /**

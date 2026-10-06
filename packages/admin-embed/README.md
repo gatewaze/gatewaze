@@ -11,7 +11,7 @@ const handle = mount(element, {
   supabase: { url, anonKey },
   apiBaseUrl: '', // '' means same-origin /api/gw
   enabled: { moduleIds: [...], features: [...] },
-  signIn: { lfidStartUrl, returnUrl },
+  signIn: { startUrl, returnUrl },
   portalContainer: portalsElement, // where Radix overlays render
   notify: (n) => hostToast(n), // optional: render our toasts as yours
 });

@@ -9,7 +9,7 @@
  * is harmless — the app owns the whole document. Inside a host it is not: the embed's stylesheet
  * is scoped to the host's mount containers, so an overlay that lands directly in the host's
  * `<body>` matches none of it and renders with no panel, no sizing and full-size icons. That is
- * exactly what the row action menus looked like in LFX.
+ * exactly what the row action menus looked like in the first host integration.
  *
  * `GwHostContext.portalContainer` already exists for this, and was documented as "where Radix
  * portals render" — it was simply never read. This file implements it.

@@ -10,7 +10,7 @@ vi.mock('@supabase/supabase-js', () => ({
  * cover the second call rather than the first.
  */
 describe('configureEmbedSupabase', () => {
-  const CONFIG = { url: 'https://data.example.test', anonKey: 'anon-key', storageKeySuffix: 'lfx_embed' }
+  const CONFIG = { url: 'https://data.example.test', anonKey: 'anon-key', storageKeySuffix: 'host_embed' }
 
   beforeEach(() => {
     vi.resetModules()

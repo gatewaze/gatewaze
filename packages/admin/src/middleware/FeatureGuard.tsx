@@ -64,7 +64,7 @@ export function FeatureGuard({
     // Embedded: render nothing rather than a second full-screen loader. The host already shows
     // its own loading state while the bundle downloads and mounts, and the page underneath shows
     // its own once this guard passes — so this one sits between two others and reads as a stall,
-    // not as progress. Reported from the LFX pilot as "Checking permissions" followed by a
+    // not as progress. Reported from the first host integration as "Checking permissions" followed by a
     // spinner. Standalone keeps it: there is no host frame there to carry the wait.
     if (isEmbedded()) return null;
 
