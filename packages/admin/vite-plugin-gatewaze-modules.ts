@@ -414,8 +414,17 @@ export function gatewazeModulesPlugin(): Plugin {
         // admin-embed library build, which compiles in only the pilot
         // module subset). Unset in the normal app build/dev server.
         const configPath = resolve(projectRoot, process.env.GATEWAZE_CONFIG_FILE || 'gatewaze.config.ts');
-        const { moduleIds: explicitIds, sources } = parseConfig(configPath);
+        const { moduleIds: configIds, sources } = parseConfig(configPath);
         const resolvedSources = resolveSources(sources, projectRoot);
+        // GATEWAZE_MODULES (comma-separated ids) overrides the config file's
+        // allow-list outright. The hosted embed build uses it: which modules
+        // a deployment embeds is that deployment's config, not something the
+        // repo decides.
+        const envIds = (process.env.GATEWAZE_MODULES || '')
+          .split(',')
+          .map((id) => id.trim())
+          .filter(Boolean);
+        const explicitIds = envIds.length > 0 ? envIds : configIds;
         const moduleIds = explicitIds.length > 0
           ? explicitIds
           : discoverModulesFromSources(resolvedSources);
