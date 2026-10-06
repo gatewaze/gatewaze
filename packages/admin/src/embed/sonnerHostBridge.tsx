@@ -4,8 +4,8 @@
  * Why
  * ---
  * Inside a host, a second toast stack is wrong twice over: it looks like a different product, and
- * it stacks in a different corner from the host's own notifications. LFX renders toasts through
- * PrimeNG's MessageService and a single app-level `<p-toast/>`, so embed toasts should go there.
+ * it stacks in a different corner from the host's own notifications. A host has one app-level
+ * notification system of its own, so embed toasts should go there.
  *
  * Why an alias rather than editing call sites
  * -------------------------------------------

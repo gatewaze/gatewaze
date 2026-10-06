@@ -1,6 +1,3 @@
-// Copyright The Linux Foundation and each contributor to LFX.
-// SPDX-License-Identifier: MIT
-
 /**
  * Assembles the publishable @gatewaze/admin-embed package from the admin app's library build.
  *

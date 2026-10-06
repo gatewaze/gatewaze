@@ -5,7 +5,7 @@ name: Publish admin-embed
 #
 # Deliberately NOT tied to the `v*` release tags that drive release.yml.
 # That workflow versions @gatewaze/connect in lockstep with the platform,
-# but admin-embed is on its own 0.x line for the LFX embed pilot, and a
+# but admin-embed has its own version line (the host contract), and a
 # tag push there also rebuilds and pushes eight container images — far
 # too much side effect for shipping one npm package.
 #
