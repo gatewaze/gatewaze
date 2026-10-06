@@ -40,10 +40,15 @@ until then a newer bundle is loaded as-is, and an incompatible one is refused wi
 ## Stylesheet
 
 The stylesheet is fetched and injected as a `<style>` element (in `document.head` unless
-`source.stylesheetTarget` says otherwise). It ships unscoped; an application that renders the
-admin inside its own chrome passes `source.transformStylesheet` to scope it before injection.
-The element is keyed on the stylesheet's hashed URL, so re-mounts reuse it and a new build gets a
-fresh one.
+`source.stylesheetTarget` says otherwise). It ships unscoped. An application that renders the
+admin inside its own chrome has two ways to scope it:
+
+- `source.transformStylesheet(css)` rewrites the text in the browser before injection.
+- `source.resolveStylesheetUrl(url)` swaps the manifest's stylesheet URL for one of the
+  application's own, e.g. a server endpoint that fetches the hashed file, scopes it once and
+  caches it. The loader fetches whatever URL comes back.
+
+The element is keyed on the fetched URL, so re-mounts reuse it and a new build gets a fresh one.
 
 ## Serving the embed
 

@@ -1,6 +1,6 @@
 {
   "name": "@gatewaze/admin-embed",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Loader for the embeddable Gatewaze admin: mounts the admin served by a Gatewaze deployment into a host application's DOM node.",
   "license": "MIT",
   "type": "module",
