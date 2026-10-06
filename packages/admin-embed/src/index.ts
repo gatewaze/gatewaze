@@ -41,6 +41,15 @@ export interface GwEmbedSource {
    */
   baseUrl: string;
   /**
+   * Replaces the stylesheet URL the manifest names (absolute, same origin as
+   * `baseUrl`) with the one to fetch. A host that scopes the stylesheet on
+   * its own server points this at that endpoint, keyed by the hashed file
+   * name, so the scoping runs once per build rather than in every browser.
+   * The returned URL is fetched as-is; same-origin and cross-origin both
+   * work, credentials are never sent.
+   */
+  resolveStylesheetUrl?: (url: string) => string;
+  /**
    * Rewrites the fetched stylesheet before it is injected. A host that
    * renders the admin inside its own chrome scopes the rules to its
    * container here; the embed ships them unscoped.
@@ -138,8 +147,9 @@ async function fetchManifest(base: URL): Promise<GwEmbedManifest> {
   return body;
 }
 
-async function ensureStylesheet(href: string, source: GwEmbedSource): Promise<void> {
+async function ensureStylesheet(manifestHref: string, source: GwEmbedSource): Promise<void> {
   const target = source.stylesheetTarget ?? document.head;
+  const href = source.resolveStylesheetUrl ? source.resolveStylesheetUrl(manifestHref) : manifestHref;
   // Re-mounts reuse the sheet; a new build has a new hashed name, so a stale
   // one is never matched.
   if (target.querySelector(`style[${STYLE_ATTR}="${CSS.escape(href)}"]`)) return;

@@ -110,6 +110,22 @@ describe('@gatewaze/admin-embed loader', () => {
     expect(innerUnmount).toHaveBeenCalledTimes(1);
   });
 
+  it('fetches the stylesheet from the URL the host resolves, keyed by the hashed name', async () => {
+    const el = document.createElement('div');
+    const resolve = vi.fn((url: string) => `/api/gw/embed/stylesheet/${url.split('/').pop()}`);
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/manifest.json')) return jsonResponse(MANIFEST);
+      if (url === '/api/gw/embed/stylesheet/admin-embed-def456.css') return new Response('#scoped{}', { status: 200 });
+      return new Response('not found', { status: 404 });
+    });
+    const handle = loader.mount(el, { ...hostCtx({ onFatal: (e) => fatals.push(e) }), source: { baseUrl: BASE, importEntry: importMock, resolveStylesheetUrl: resolve } });
+    expect(await handle.ready).toEqual(MANIFEST);
+    expect(resolve).toHaveBeenCalledWith(`${BASE}/admin-embed-def456.css`);
+    expect(document.head.querySelector('style[data-gw-embed-stylesheet]')?.textContent).toBe('#scoped{}');
+    expect(fetchMock.mock.calls.some(([u]) => String(u) === `${BASE}/admin-embed-def456.css`)).toBe(false);
+  });
+
   it('reuses an injected stylesheet across re-mounts of the same build', async () => {
     const el = document.createElement('div');
     await loader.mount(el, { ...hostCtx(), source: { baseUrl: BASE, importEntry: importMock } }).ready;
