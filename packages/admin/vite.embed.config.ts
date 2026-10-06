@@ -94,7 +94,13 @@ export default defineConfig({
   // server" mode) — the host's mount() call populates
   // globalThis.__GATEWAZE_CONFIG__ at runtime, same mechanism as the
   // prebuilt-image-shared-across-brands case the main app build handles.
-  define: buildRuntimeConfigDefine(__dirname, "vite-embed-config"),
+  define: {
+    ...buildRuntimeConfigDefine(__dirname, "vite-embed-config"),
+    // Library mode leaves process.env.NODE_ENV for the consumer's bundler to
+    // define. There is no bundler here: the browser imports this bundle
+    // directly, where `process` does not exist and evaluation would throw.
+    "process.env.NODE_ENV": JSON.stringify("production"),
+  },
   plugins: [react(), svgr(), tailwindcss(), gatewazeModulesPlugin(), embedManifestPlugin()],
   resolve: {
     // Array form (not the shared object) so the first entry can match `@radix-ui/themes`
