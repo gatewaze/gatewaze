@@ -140,6 +140,11 @@ overrides:
   '@grpc/grpc-js@>=1.14.0 <1.14.5': '>=1.14.5'
   axios@>=1.0.0 <1.20.0: '>=1.20.0'
   basic-ftp@<=6.2.0: '>=6.2.1'
+  proxy-addr@<2.0.8: '>=2.0.8'
+  source-map-js@<1.2.2: '>=1.2.2'
+  '@vue/server-renderer@<3.5.42': '>=3.5.42'
+  prosemirror-view@<1.42.3: '>=1.42.3'
+  vue@<3.5.42: '>=3.5.42'
 
 importers:
 
@@ -172,7 +177,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.4
@@ -181,7 +186,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: workspace:*
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/ai:
     dependencies:
@@ -193,7 +198,7 @@ importers:
         version: 0.40.1
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.98.0
@@ -269,7 +274,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
     devDependencies:
       typescript:
         specifier: ^5.9.0
@@ -282,19 +287,19 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/badge-scanning:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/blog:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.98.0
@@ -312,7 +317,7 @@ importers:
         version: link:../ai
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -361,13 +366,13 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/calendars:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
     devDependencies:
       vitest:
         specifier: ^4.0.0
@@ -377,25 +382,25 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/competitions:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/compliance:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/content-platform:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.4
@@ -404,7 +409,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: workspace:*
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/conversations: {}
 
@@ -412,7 +417,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.4
@@ -421,7 +426,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.6
@@ -430,7 +435,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/editor-ai-copilot:
     dependencies:
@@ -450,7 +455,7 @@ importers:
         specifier: ^3.0.1
         version: 3.0.1(ajv@8.18.0)
       cheerio:
-        specifier: ^1.2.0
+        specifier: ^1.0.0
         version: 1.2.0
       express:
         specifier: '*'
@@ -488,7 +493,7 @@ importers:
     devDependencies:
       '@gatewaze/shared':
         specifier: workspace:*
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
       '@types/express':
         specifier: ^4.17.21
         version: 4.17.25
@@ -520,25 +525,25 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/event-agenda:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/event-budget:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/event-invites:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.6
@@ -547,19 +552,35 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
+      express-rate-limit:
+        specifier: ^8.5.2
+        version: 8.7.0(express@5.2.1)
+    devDependencies:
+      '@types/express':
+        specifier: ^5.0.0
+        version: 5.0.6
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.4
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.0
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.20.4)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.2.0(@types/node@22.20.4)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
 
   ../gatewaze-modules/modules/event-reports:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/event-seating:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.6
@@ -568,7 +589,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
       '@supabase/supabase-js':
         specifier: ^2.106.0
         version: 2.108.1
@@ -599,25 +620,25 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/event-topics:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/event-tracking:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/events:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.4
@@ -630,7 +651,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.98.0
@@ -645,7 +666,7 @@ importers:
     devDependencies:
       '@gatewaze/shared':
         specifier: workspace:*
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
       '@mozilla/readability':
         specifier: '>=0.6.0'
         version: 0.6.0
@@ -690,19 +711,19 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/gradual:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/host-media:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.4
@@ -721,19 +742,19 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/luma:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/monitoring:
     devDependencies:
       '@gatewaze/shared':
         specifier: workspace:*
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
       typescript:
         specifier: ^5.9.0
         version: 5.9.3
@@ -751,7 +772,7 @@ importers:
         version: 7.29.0
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
       '@puckeditor/core':
         specifier: ~0.21.3
         version: 0.21.3(@floating-ui/dom@1.7.6)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(immer@10.2.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(use-sync-external-store@1.6.0(react@19.2.6))
@@ -776,25 +797,25 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/newsletters-output-substack:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/offers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/people-enrichment:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.6
@@ -803,7 +824,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.6
@@ -812,25 +833,25 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/redirects:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/redirects-bitly:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/redirects-shortio:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/redirects-umami: {}
 
@@ -838,7 +859,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -851,7 +872,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -869,7 +890,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: workspace:*
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/scrapers:
     dependencies:
@@ -878,7 +899,7 @@ importers:
         version: 0.39.0
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
       '@supabase/supabase-js':
         specifier: ^2.106.0
         version: 2.108.1
@@ -902,13 +923,13 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/send-testing:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -920,7 +941,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -932,7 +953,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -953,7 +974,7 @@ importers:
         version: link:../templates
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
       '@puckeditor/core':
         specifier: ~0.21.3
         version: 0.21.3(@floating-ui/dom@1.7.6)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(immer@10.2.0)(react-dom@19.2.6(react@19.2.4))(react@19.2.4)(use-sync-external-store@1.6.0(react@19.2.4))
@@ -990,7 +1011,7 @@ importers:
         version: link:../sites
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
     devDependencies:
       vitest:
         specifier: ^4.0.0
@@ -1003,7 +1024,7 @@ importers:
         version: link:../sites
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
     devDependencies:
       vitest:
         specifier: ^4.0.0
@@ -1013,7 +1034,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/software-engineer:
     dependencies:
@@ -1022,7 +1043,7 @@ importers:
         version: 0.3.220(@anthropic-ai/sdk@0.91.1(zod@3.25.76))(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(zod@3.25.76)
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -1066,7 +1087,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.6
@@ -1078,13 +1099,13 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/tasks:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
     devDependencies:
       '@supabase/supabase-js':
         specifier: ^2.45.0
@@ -1121,7 +1142,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.4
@@ -1134,7 +1155,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -1151,7 +1172,7 @@ importers:
         specifier: '>=0.35.4'
         version: 0.35.4(@types/node@22.19.19)
       undici:
-        specifier: ^8.11.2
+        specifier: '>=7.29.1 <8.0.0 || >=8.10.2'
         version: 8.11.2
     devDependencies:
       '@types/express':
@@ -1171,7 +1192,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -1199,7 +1220,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-helf-app/packages/shared
+        version: link:../../../gatewaze/packages/shared
       pg:
         specifier: ^8.11.0
         version: 8.20.0
@@ -1284,7 +1305,7 @@ importers:
         version: 9.5.0(@types/react@19.2.14)(expo-asset@55.0.20(expo@55.0.31)(react-native@0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.4))(react@19.2.4)(typescript@5.9.3))(expo-file-system@55.0.26(expo@55.0.31)(react-native@0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.4)))(expo@55.0.31)(immer@10.2.0)(react-dom@19.2.4(react@19.2.4))(react-native@0.83.10(@babel/core@7.29.7)(@types/react@19.2.14)(react@19.2.4))(react@19.2.4)(three@0.175.0)
       '@scalar/api-reference-react':
         specifier: ^0.9.27
-        version: 0.9.27(@vue/compiler-sfc@3.5.33)(axios@1.20.0)(jwt-decode@4.0.0)(qrcode@1.5.4)(react@19.2.4)(tailwindcss@4.2.1)(typescript@5.9.3)
+        version: 0.9.27(@vue/compiler-sfc@3.5.43)(axios@1.20.0)(jwt-decode@4.0.0)(qrcode@1.5.4)(react@19.2.4)(tailwindcss@4.2.1)(typescript@5.9.3)
       '@sentry/react':
         specifier: ^10.51.0
         version: 10.51.0(react@19.2.4)
@@ -2255,7 +2276,7 @@ packages:
     resolution: {integrity: sha512-czM9Js3a7f+Eo35gjEYEeJYUoPvMg5Dfi4bOLyDBghLqn0gaVg8yTmTaSuHCg+3K/+1xPjyXd4+2XcQIohWWiQ==}
     engines: {node: '>=18'}
     peerDependencies:
-      vue: ^3.3.4
+      vue: '>=3.5.42'
 
   '@alloc/quick-lru@5.2.0':
     resolution: {integrity: sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw==}
@@ -2794,6 +2815,11 @@ packages:
     engines: {node: '>=6.0.0'}
     hasBin: true
 
+  '@babel/parser@7.29.9':
+    resolution: {integrity: sha512-CjXrNHTnvqBVqHgdBysY3vk2T8tpJHb5/RMeHJBTyVa9xgugCB0CJTx/3oO8RV2QRQP391RWpB7D6hLjm8V9uA==}
+    engines: {node: '>=6.0.0'}
+    hasBin: true
+
   '@babel/plugin-proposal-decorators@7.29.7':
     resolution: {integrity: sha512-EtU0Hi3GvrTqD56xKmZvV/uCXK2ZbwVNPNLAquVItcAZpUhkXwWlo3Fmj0c2LxgSf2I8IDULeAepwNP1OefLXg==}
     engines: {node: '>=6.9.0'}
@@ -3244,6 +3270,10 @@ packages:
 
   '@babel/types@7.29.7':
     resolution: {integrity: sha512-4zBIxpPzowiZpusoFkyGVwakdRJUyuH5PxQ/PrqghfdFWWasvnCdPfQXHrenDai+gyLARulZjZowCOj6fjT4pA==}
+    engines: {node: '>=6.9.0'}
+
+  '@babel/types@7.29.8':
+    resolution: {integrity: sha512-Vj1jF3cPfxg7OAfoI7QnVKLoILlm2JF9pnVHrX8qx7AHMiYWT+NDAA7jChlNgRS4WTLc/fD1lXLmPixluj+3Gg==}
     engines: {node: '>=6.9.0'}
 
   '@bramus/specificity@2.4.2':
@@ -4085,7 +4115,7 @@ packages:
     resolution: {integrity: sha512-JzdCNqurrtuu0YW6QaDtR2PIYCKPUWq28csDyMvN4zmGccmE7lz40Is6hc3LA4HFeCI7sekZ/PQMTNmn9I/4Wg==}
     engines: {node: '>=10'}
     peerDependencies:
-      vue: ^3.2.0
+      vue: '>=3.5.42'
 
   '@heroicons/react@2.2.0':
     resolution: {integrity: sha512-LMcepvRaS9LYHJGsF0zzmgKCUim/X3N/DQKc4jepAXJ7l8QxJ1PmxJzqplF2Z3FE4PqBAIGyJAQ/w4B5dsqbtQ==}
@@ -7589,7 +7619,7 @@ packages:
   '@tanstack/vue-virtual@3.13.24':
     resolution: {integrity: sha512-A0k2qF0zFSUStXSZkGXABouXr2Tw2Ztl/cVIYG9qy84uR8W7UNjAcX3DvzBS3YnDcwvLxab8v7dbmYBZ39itDA==}
     peerDependencies:
-      vue: ^2.7.0 || ^3.0.0
+      vue: '>=3.5.42'
 
   '@testing-library/dom@10.4.1':
     resolution: {integrity: sha512-o4PXJQidqJl82ckFaXUeoAW+XysPLauYI43Abki5hABd853iMhitooc6znOnczgbTYmEP6U6/y1ZyKAIsvMKGg==}
@@ -8353,7 +8383,7 @@ packages:
   '@unhead/vue@2.1.13':
     resolution: {integrity: sha512-HYy0shaHRnLNW9r85gppO8IiGz0ONWVV3zGdlT8CQ0tbTwixznJCIiyqV4BSV1aIF1jJIye0pd1p/k6Eab8Z/A==}
     peerDependencies:
-      vue: '>=3.5.18'
+      vue: '>=3.5.42'
 
   '@unrs/resolver-binding-android-arm-eabi@1.12.2':
     resolution: {integrity: sha512-g5T90pqg1bo/7mytQx6F4iBNC0Wsh9cu+z9veDbFjc7HjpesJFWD7QMS0NGStXM075+7dJPPVvBbpZlnrdpi/w==}
@@ -8518,7 +8548,7 @@ packages:
     resolution: {integrity: sha512-h9t4ArDdniO9ekYHAD95t9AZcAbb19lEGK+26iAjUODOIJKmObDNBSe4+6ELQAA3vtYiFPPBtHh7+cQCKi3Dng==}
     engines: {node: '>=20.19.0'}
     peerDependencies:
-      vue: ^2.7.0 || ^3.2.25
+      vue: '>=3.5.42'
     peerDependenciesMeta:
       vue:
         optional: true
@@ -8526,14 +8556,26 @@ packages:
   '@vue/compiler-core@3.5.33':
     resolution: {integrity: sha512-3PZLQwFw4Za3TC8t0FvTy3wI16Kt+pmwcgNZca4Pj9iWL2E72a/gZlpBtAJvEdDMdCxdG/qq0C7PN0bsJuv0Rw==}
 
+  '@vue/compiler-core@3.5.43':
+    resolution: {integrity: sha512-zdiLhnbe1QQqgDT8xZMpNmyqZ3qlI+/Q/FHQco57Kwl/b05HhCzN6eVGN9QU9rbga4CrS0H5SYY8VGHZCt/1Hg==}
+
   '@vue/compiler-dom@3.5.33':
     resolution: {integrity: sha512-PXq0yrfCLzzL07rbXO4awtXY1Z06LG2eu6Adg3RJFa/j3Cii217XxxLXG22N330gw7GmALCY0Z8RgXEviwgpjA==}
+
+  '@vue/compiler-dom@3.5.43':
+    resolution: {integrity: sha512-PEZoAk3NQmsn/ejMzSOCyTYqwGqczrWm70PuhBKjjv1+TCoQAaO/zOqNwjV+honlNstT5ILxtc+8r8UUfj+iEQ==}
 
   '@vue/compiler-sfc@3.5.33':
     resolution: {integrity: sha512-UTUvRO9cY+rROrx/pvN9P5Z7FgA6QGfokUCfhQE4EnmUj3rVnK+CHI0LsEO1pg+I7//iRYMUfcNcCPe7tg0CoA==}
 
+  '@vue/compiler-sfc@3.5.43':
+    resolution: {integrity: sha512-FCbrG3XNCRl+js3huuKx4IVHBLTvMkJhVepjbxSPu1gn4yWLaYtGNQdjJGZaMytXB6qb76qQDDmDSLy/vkmleQ==}
+
   '@vue/compiler-ssr@3.5.33':
     resolution: {integrity: sha512-IErjYdnj1qIupG5xxiVIYiiRvDhGWV4zuh/RCrwfYpuL+HWQzeU6lCk/nF9r7olWMnjKxCAkOctT2qFWFkzb1A==}
+
+  '@vue/compiler-ssr@3.5.43':
+    resolution: {integrity: sha512-GF62orf7KiJX9RqrHNGrYBudsQGD0OhJ5nDs90O8UiDuS40+YMYomiXu6w6EuvtXuRDc3MSNis3EaaSKAVSWpg==}
 
   '@vue/devtools-api@8.1.1':
     resolution: {integrity: sha512-bsDMJ07b3GN1puVwJb/fyFnj/U2imyswK5UQVLZwVl7O05jDrt6BHxeG5XffmOOdasOj/bOmIjxJvGPxU7pcqw==}
@@ -8544,22 +8586,23 @@ packages:
   '@vue/devtools-shared@8.1.1':
     resolution: {integrity: sha512-+h4ttmJYl/txpxHKaoZcaKpC+pvckgLzIDiSQlaQ7kKthKh8KuwoLW2D8hPJEnqKzXOvu15UHEoGyngAXCz0EQ==}
 
-  '@vue/reactivity@3.5.33':
-    resolution: {integrity: sha512-p8UfIqyIhb0rYGlSgSBV+lPhF2iUSBcRy7enhTmPqKWadHy9kcOFYF1AejYBP9P+avnd3OBbD49DU4pLWX/94A==}
+  '@vue/reactivity@3.5.43':
+    resolution: {integrity: sha512-G/c9GyOZNI2jVaaS6OX1EF1SSFSv7H0ERqNTl4+DTFMlZmB5eVAB53aLQNam/7NL2NPtaDD7RdVrzf8uJzMuOA==}
 
-  '@vue/runtime-core@3.5.33':
-    resolution: {integrity: sha512-UpFF45RI9//a7rvq7RdOQblb4tup7hHG9QsmIrxkFQLzQ7R8/iNQ5LE15NhLZ1/WcHMU2b47u6P33CPUelHyIQ==}
+  '@vue/runtime-core@3.5.43':
+    resolution: {integrity: sha512-hU6U6VnVhBGQDpvlnnDlIB8ZGJBiOcgk2lh/0InltHiz3D8oSkluvuvY+do1G2H3+udeKFsmaBlgVYP7gXQzEw==}
 
-  '@vue/runtime-dom@3.5.33':
-    resolution: {integrity: sha512-IOxMsAOwquhfITgmOgaPYl7/j8gKUxUFoflRc+u4LxyD3+783xne8vNta1PONVCvCV9A0w7hkyEepINDqfO0tw==}
+  '@vue/runtime-dom@3.5.43':
+    resolution: {integrity: sha512-Bb2Jc0YjjJdMt1SJmb9b2L/IWd3I8lIT9x9eS/xvvP9CiVgna0ffua74xKRmt4/uSJ+0r4iN8ex1jrqkhQGWQw==}
 
-  '@vue/server-renderer@3.5.33':
-    resolution: {integrity: sha512-0xylq/8/h44lVG0pZFknv1XIdEgymq2E9n59uTWJBG+dIgiT0TMCSsxrN7nO16Z0MU0MPjFcguBbZV8Itk52Hw==}
-    peerDependencies:
-      vue: 3.5.33
+  '@vue/server-renderer@3.5.43':
+    resolution: {integrity: sha512-l2Ygjv9NehV94PSBxNWsAHC0j/eIIKbn92mBuWXAPGLnn6HfJ6MH5ubsd+Nk0YoZ5FRuxWI1P2VSoh+dbPQhCQ==}
 
   '@vue/shared@3.5.33':
     resolution: {integrity: sha512-5vR2QIlmaLG77Ygd4pMP6+SGQ5yox9VhtnbDWTy9DzMzdmeLxZ1QqxrywEZ9sa1AVubfIJyaCG3ytyWU81ufcQ==}
+
+  '@vue/shared@3.5.43':
+    resolution: {integrity: sha512-uksS7YGMR5NZyr4JNq0Rp+QyLns0ueaz20KwzIPW9R0LH1Vnt4E+XUM29PNseEbf1www2gOuhuDi5AKOIXag9Q==}
 
   '@vueuse/core@10.11.1':
     resolution: {integrity: sha512-guoy26JQktXPcz+0n3GukWIy/JDNKti9v6VEMu6kV2sYBsWuGiTU8OWdg+ADfUbHg3/3DlqySDe7JmdHrktiww==}
@@ -8567,7 +8610,7 @@ packages:
   '@vueuse/core@13.9.0':
     resolution: {integrity: sha512-ts3regBQyURfCE2BcytLqzm8+MmLlo5Ln/KLoxDVcsZ2gzIwVNnQpQOL/UKV8alUqjSZOlpFZcRNsLRqj+OzyA==}
     peerDependencies:
-      vue: ^3.5.0
+      vue: '>=3.5.42'
 
   '@vueuse/integrations@13.9.0':
     resolution: {integrity: sha512-SDobKBbPIOe0cVL7QxMzGkuUGHvWTdihi9zOrrWaWUgFKe15cwEcwfWmgrcNzjT6kHnNmWuTajPHoIzUjYNYYQ==}
@@ -8584,7 +8627,7 @@ packages:
       qrcode: ^1.5
       sortablejs: ^1
       universal-cookie: ^7 || ^8
-      vue: ^3.5.0
+      vue: '>=3.5.42'
     peerDependenciesMeta:
       async-validator:
         optional: true
@@ -8623,7 +8666,7 @@ packages:
   '@vueuse/shared@13.9.0':
     resolution: {integrity: sha512-e89uuTLMh0U5cZ9iDpEI2senqPGfbPRTHM/0AaQkcxnpqjkZqDYP8rpfm7edOz8s+pOCOROEy1PIveSW8+fL5g==}
     peerDependencies:
-      vue: ^3.5.0
+      vue: '>=3.5.42'
 
   '@webassemblyjs/ast@1.14.1':
     resolution: {integrity: sha512-nuBEDgQfm1ccRp/8bCQrx1frohyufl4JlbMMZ4P1wpeOfDhF6FQkxZJ1b/e+PLwr6X1Nhw6OLme5usuBWYBvuQ==}
@@ -10470,12 +10513,6 @@ packages:
 
   exponential-backoff@3.1.3:
     resolution: {integrity: sha512-ZgEeZXj30q+I0EN+CbSSpIyPaJ5HVQD18Z1m+u1FXbAeT94mr1zw50q4q6jiiC447Nl/YTcIYSAftiGqetwXCA==}
-
-  express-rate-limit@8.3.2:
-    resolution: {integrity: sha512-77VmFeJkO0/rvimEDuUC5H30oqUC4EyOhyGccfqoLebB0oiEYfM7nwPrsDsBL1gsTpwfzX8SFy2MT3TDyRq+bg==}
-    engines: {node: '>= 16'}
-    peerDependencies:
-      express: '>= 4.11'
 
   express-rate-limit@8.7.0:
     resolution: {integrity: sha512-hOwV7WOxXfjRpAM1DSJWZDXx3GhplwD8IfwuwvogD8i1Qnkgosw/H45s4ZnFAUHDAhPjlY9hLBvJhKmGMyY26g==}
@@ -12459,6 +12496,11 @@ packages:
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
 
+  nanoid@3.3.20:
+    resolution: {integrity: sha512-uKdg2G3GNCKQn9byYOpxbGqrT2fGO5KRt5J/8b3pok8rT6qxGWF6hxMyJiEYtAf+FVyYuD9hRaDqX5uPFYJ4ZQ==}
+    engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
+    hasBin: true
+
   nanoid@5.1.16:
     resolution: {integrity: sha512-kVrnsrJqMR8+oLJnGEmSWw9BivK5mt7H3FZatVRjrc5wGqFYuBxX1yG7+A7Gi5AefkX6t/oCkizcQgpu0cY1dQ==}
     engines: {node: ^18 || >=20}
@@ -13004,6 +13046,10 @@ packages:
     resolution: {integrity: sha512-DTPx3RWSSnWyzLxQnlH0rJP+EW5ekl16ZU4/psbIhA0e53kJfdgaN5vKM+xP7yJtXVu+nfdVFmlgFDEKAe4Pyw==}
     engines: {node: ^10 || ^12 || >=14}
 
+  postcss@8.5.29:
+    resolution: {integrity: sha512-49cGhUbXj8Qenv0iTMxA1cFBzxXoctpC9Ujd77t1WcbJIr6nF/eI7g/8MgxrYldFRuAXvja7xQRwavoW7kgrxQ==}
+    engines: {node: ^10 || ^12 || >=14}
+
   postgres-array@2.0.0:
     resolution: {integrity: sha512-VpZrUqU5A69eQyW2c5CA1jtLecCsN2U/bD6VilrFDWq5+5UIEVO7nazS3TEcHf1zuPYO/sqGvUvW62g86RXZuA==}
     engines: {node: '>=4'}
@@ -13142,16 +13188,13 @@ packages:
     peerDependencies:
       prosemirror-model: ^1.22.1
       prosemirror-state: ^1.4.2
-      prosemirror-view: ^1.33.8
+      prosemirror-view: '>=1.42.3'
 
   prosemirror-transform@1.11.0:
     resolution: {integrity: sha512-4I7Ce4KpygXb9bkiPS3hTEk4dSHorfRw8uI0pE8IhxlK2GXsqv5tIA7JUSxtSu7u8APVOTtbUBxTmnHIxVkIJw==}
 
   prosemirror-transform@1.12.1:
     resolution: {integrity: sha512-t4F5615FycnCqsX7ShTUs8+jfnwcf46kuFRvSl/3qFx2QTZ4DjgowesLHQXcFP7G//TjesqZG3WtgL7vdyVJyA==}
-
-  prosemirror-view@1.41.6:
-    resolution: {integrity: sha512-mxpcDG4hNQa/CPtzxjdlir5bJFDlm0/x5nGBbStB2BWX+XOQ9M8ekEG+ojqB5BcVu2Rc80/jssCMZzSstJuSYg==}
 
   prosemirror-view@1.42.3:
     resolution: {integrity: sha512-oTN7EtH+CpwxU9NrwEYWd0UZ4JUx7l048l5A2Xppm4p/60isZYLnth9QVQmC3VRIvdrIWCxwZSd+Uz791G31/w==}
@@ -13167,8 +13210,8 @@ packages:
   protocol-buffers-schema@3.6.1:
     resolution: {integrity: sha512-VG2K63Igkiv9p76tk1lilczEK1cT+kCjKtkdhw1dQZV3k3IXJbd3o6Ho8b9zJZaHSnT2hKe4I+ObmX9w6m5SmQ==}
 
-  proxy-addr@2.0.7:
-    resolution: {integrity: sha512-llQsMLSUDUPT44jdrU/O37qlnifitDP+ZwrmmZcoSKyLKvtZxpyV0n2/bD/N4tBAAZ/gJEdZU7KMraoK1+XYAg==}
+  proxy-addr@2.0.8:
+    resolution: {integrity: sha512-5nnx0yGyVUcY6t9RnWcARWtwT9F1D8O9rt08htPvnd49W1IgZtmLkhu9WfMzQj1cFxjHIO6connUNVW5k7AVyQ==}
     engines: {node: '>= 0.10'}
 
   proxy-agent@6.5.0:
@@ -13245,7 +13288,7 @@ packages:
   radix-vue@1.9.17:
     resolution: {integrity: sha512-mVCu7I2vXt1L2IUYHTt0sZMz7s1K2ZtqKeTIxG3yC5mMFfLBG4FtE1FDeRMpDd+Hhg/ybi9+iXmAP1ISREndoQ==}
     peerDependencies:
-      vue: '>= 3.2.0'
+      vue: '>=3.5.42'
 
   raf-schd@4.0.3:
     resolution: {integrity: sha512-tQkJl2GRWh83ui2DiPTJz9wEiMN20syf+5oKfB03yYP7ioZcJwsIK8FjrtLwH1m7C7e+Tt2yYBlrOpdT+dyeIQ==}
@@ -14014,8 +14057,8 @@ packages:
       react: ^18.0.0 || ^19.0.0 || ^19.0.0-rc
       react-dom: ^18.0.0 || ^19.0.0 || ^19.0.0-rc
 
-  source-map-js@1.2.1:
-    resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==}
+  source-map-js@1.2.2:
+    resolution: {integrity: sha512-KGj/8Y43x35aZVDtt+J4mK1hoLGHULMYfSkODJNQjNDC3oW1PqPoxMwo0pLUsWM/UEGzON/NxeHywEfNXNP3Vw==}
     engines: {node: '>=0.10.0'}
 
   source-map-support@0.5.21:
@@ -14281,7 +14324,7 @@ packages:
   swrv@1.2.0:
     resolution: {integrity: sha512-lH/g4UcNyj+7lzK4eRGT4C68Q4EhQ6JtM9otPRIASfhhzfLWtbZPHcMuhuba7S9YVYuxkMUGImwMyGpfbkH07A==}
     peerDependencies:
-      vue: '>=3.2.26 < 4'
+      vue: '>=3.5.42'
 
   symbol-tree@3.2.4:
     resolution: {integrity: sha512-9QNk5KwDF+Bvz+PyObkmSYjI5ksVUYtjW7AU22r2NKcfLJcXp96hkDWU3+XndOsUb+AQ9QhfzfCT2O+CNWT5Tw==}
@@ -14972,7 +15015,7 @@ packages:
     hasBin: true
     peerDependencies:
       '@vue/composition-api': ^1.0.0-rc.1
-      vue: ^3.0.0-0 || ^2.6.0
+      vue: '>=3.5.42'
     peerDependenciesMeta:
       '@vue/composition-api':
         optional: true
@@ -14983,7 +15026,7 @@ packages:
       '@pinia/colada': '>=0.21.2'
       '@vue/compiler-sfc': ^3.5.17
       pinia: ^3.0.4
-      vue: ^3.5.0
+      vue: '>=3.5.42'
     peerDependenciesMeta:
       '@pinia/colada':
         optional: true
@@ -14995,8 +15038,8 @@ packages:
   vue-sonner@1.3.2:
     resolution: {integrity: sha512-UbZ48E9VIya3ToiRHAZUbodKute/z/M1iT8/3fU8zEbwBRE11AKuHikssv18LMk2gTTr6eMQT4qf6JoLHWuj/A==}
 
-  vue@3.5.33:
-    resolution: {integrity: sha512-1AgChhx5w3ALgT4oK3acm2Es/7jyZhWSVUfs3rOBlGQC0rjEDkS7G4lWlJJGGNQD+BV3reCwbQrOe1mPNwKHBQ==}
+  vue@3.5.43:
+    resolution: {integrity: sha512-o5qZoksdnjIKvW1srZ3ab7pcDNYAerBjRe54D0LBLfRdCYFrSgBHVXokMas35czQc0//lmx4/tuY4ZNQ+Rf2Ng==}
     peerDependencies:
       typescript: '*'
     peerDependenciesMeta:
@@ -15393,12 +15436,12 @@ snapshots:
     transitivePeerDependencies:
       - zod
 
-  '@ai-sdk/vue@3.0.33(vue@3.5.33(typescript@5.9.3))(zod@4.3.6)':
+  '@ai-sdk/vue@3.0.33(vue@3.5.43(typescript@5.9.3))(zod@4.3.6)':
     dependencies:
       '@ai-sdk/provider-utils': 4.0.5(zod@4.3.6)
       ai: 6.0.33(zod@4.3.6)
-      swrv: 1.2.0(vue@3.5.33(typescript@5.9.3))
-      vue: 3.5.33(typescript@5.9.3)
+      swrv: 1.2.0(vue@3.5.43(typescript@5.9.3))
+      vue: 3.5.43(typescript@5.9.3)
     transitivePeerDependencies:
       - zod
 
@@ -16600,6 +16643,10 @@ snapshots:
     dependencies:
       '@babel/types': 7.29.7
 
+  '@babel/parser@7.29.9':
+    dependencies:
+      '@babel/types': 7.29.8
+
   '@babel/plugin-proposal-decorators@7.29.7(@babel/core@7.29.7)':
     dependencies:
       '@babel/core': 7.29.7
@@ -17122,6 +17169,11 @@ snapshots:
       '@babel/helper-validator-identifier': 7.28.5
 
   '@babel/types@7.29.7':
+    dependencies:
+      '@babel/helper-string-parser': 7.29.7
+      '@babel/helper-validator-identifier': 7.29.7
+
+  '@babel/types@7.29.8':
     dependencies:
       '@babel/helper-string-parser': 7.29.7
       '@babel/helper-validator-identifier': 7.29.7
@@ -18214,11 +18266,11 @@ snapshots:
 
   '@floating-ui/utils@0.2.11': {}
 
-  '@floating-ui/vue@1.1.9(vue@3.5.33(typescript@5.9.3))':
+  '@floating-ui/vue@1.1.9(vue@3.5.43(typescript@5.9.3))':
     dependencies:
       '@floating-ui/dom': 1.7.6
       '@floating-ui/utils': 0.2.11
-      vue-demi: 0.14.10(vue@3.5.33(typescript@5.9.3))
+      vue-demi: 0.14.10(vue@3.5.43(typescript@5.9.3))
     transitivePeerDependencies:
       - '@vue/composition-api'
       - vue
@@ -18253,10 +18305,10 @@ snapshots:
     dependencies:
       tailwindcss: 4.2.1
 
-  '@headlessui/vue@1.7.23(vue@3.5.33(typescript@5.9.3))':
+  '@headlessui/vue@1.7.23(vue@3.5.43(typescript@5.9.3))':
     dependencies:
-      '@tanstack/vue-virtual': 3.13.24(vue@3.5.33(typescript@5.9.3))
-      vue: 3.5.33(typescript@5.9.3)
+      '@tanstack/vue-virtual': 3.13.24(vue@3.5.43(typescript@5.9.3))
+      vue: 3.5.43(typescript@5.9.3)
 
   '@heroicons/react@2.2.0(react@19.2.4)':
     dependencies:
@@ -18428,7 +18480,7 @@ snapshots:
     dependencies:
       '@jest/fake-timers': 29.7.0
       '@jest/types': 29.6.3
-      '@types/node': 22.19.19
+      '@types/node': 22.20.4
       jest-mock: 29.7.0
 
   '@jest/expect-utils@30.3.0':
@@ -18439,7 +18491,7 @@ snapshots:
     dependencies:
       '@jest/types': 29.6.3
       '@sinonjs/fake-timers': 10.3.0
-      '@types/node': 22.19.19
+      '@types/node': 22.20.4
       jest-message-util: 29.7.0
       jest-mock: 29.7.0
       jest-util: 29.7.0
@@ -18448,7 +18500,7 @@ snapshots:
 
   '@jest/pattern@30.0.1':
     dependencies:
-      '@types/node': 22.19.19
+      '@types/node': 22.20.4
       jest-regex-util: 30.0.1
 
   '@jest/schemas@29.6.3':
@@ -18484,7 +18536,7 @@ snapshots:
       '@jest/schemas': 29.6.3
       '@types/istanbul-lib-coverage': 2.0.6
       '@types/istanbul-reports': 3.0.4
-      '@types/node': 22.19.19
+      '@types/node': 22.20.4
       '@types/yargs': 17.0.35
       chalk: 4.1.2
 
@@ -18494,7 +18546,7 @@ snapshots:
       '@jest/schemas': 30.0.5
       '@types/istanbul-lib-coverage': 2.0.6
       '@types/istanbul-reports': 3.0.4
-      '@types/node': 22.19.19
+      '@types/node': 22.20.4
       '@types/yargs': 17.0.35
       chalk: 4.1.2
 
@@ -18607,7 +18659,7 @@ snapshots:
       eventsource: 3.0.7
       eventsource-parser: 3.0.6
       express: 5.2.1
-      express-rate-limit: 8.3.2(express@5.2.1)
+      express-rate-limit: 8.7.0(express@5.2.1)
       hono: 4.12.32
       jose: 6.2.2
       json-schema-typed: 8.0.2
@@ -18629,7 +18681,7 @@ snapshots:
       eventsource: 3.0.7
       eventsource-parser: 3.0.6
       express: 5.2.1
-      express-rate-limit: 8.3.2(express@5.2.1)
+      express-rate-limit: 8.7.0(express@5.2.1)
       hono: 4.12.32
       jose: 6.2.2
       json-schema-typed: 8.0.2
@@ -22064,10 +22116,10 @@ snapshots:
 
   '@rushstack/eslint-patch@1.16.1': {}
 
-  '@scalar/agent-chat@0.10.8(@vue/compiler-sfc@3.5.33)(axios@1.20.0)(jwt-decode@4.0.0)(qrcode@1.5.4)(tailwindcss@4.2.1)(typescript@5.9.3)':
+  '@scalar/agent-chat@0.10.8(@vue/compiler-sfc@3.5.43)(axios@1.20.0)(jwt-decode@4.0.0)(qrcode@1.5.4)(tailwindcss@4.2.1)(typescript@5.9.3)':
     dependencies:
-      '@ai-sdk/vue': 3.0.33(vue@3.5.33(typescript@5.9.3))(zod@4.3.6)
-      '@scalar/api-client': 3.2.2(@vue/compiler-sfc@3.5.33)(axios@1.20.0)(jwt-decode@4.0.0)(qrcode@1.5.4)(tailwindcss@4.2.1)(typescript@5.9.3)
+      '@ai-sdk/vue': 3.0.33(vue@3.5.43(typescript@5.9.3))(zod@4.3.6)
+      '@scalar/api-client': 3.2.2(@vue/compiler-sfc@3.5.43)(axios@1.20.0)(jwt-decode@4.0.0)(qrcode@1.5.4)(tailwindcss@4.2.1)(typescript@5.9.3)
       '@scalar/components': 0.22.3(typescript@5.9.3)
       '@scalar/helpers': 0.5.2
       '@scalar/icons': 0.7.2(typescript@5.9.3)
@@ -22077,12 +22129,12 @@ snapshots:
       '@scalar/types': 0.9.2
       '@scalar/use-toasts': 0.10.2(typescript@5.9.3)
       '@scalar/workspace-store': 0.46.3(typescript@5.9.3)
-      '@vueuse/core': 13.9.0(vue@3.5.33(typescript@5.9.3))
+      '@vueuse/core': 13.9.0(vue@3.5.43(typescript@5.9.3))
       ai: 6.0.33(zod@4.3.6)
       js-base64: 3.7.8
       neverpanic: 0.0.7(typescript@5.9.3)
       truncate-json: 3.0.1
-      vue: 3.5.33(typescript@5.9.3)
+      vue: 3.5.43(typescript@5.9.3)
       zod: 4.3.6
     transitivePeerDependencies:
       - '@pinia/colada'
@@ -22103,10 +22155,10 @@ snapshots:
       - typescript
       - universal-cookie
 
-  '@scalar/api-client@3.2.2(@vue/compiler-sfc@3.5.33)(axios@1.20.0)(jwt-decode@4.0.0)(qrcode@1.5.4)(tailwindcss@4.2.1)(typescript@5.9.3)':
+  '@scalar/api-client@3.2.2(@vue/compiler-sfc@3.5.43)(axios@1.20.0)(jwt-decode@4.0.0)(qrcode@1.5.4)(tailwindcss@4.2.1)(typescript@5.9.3)':
     dependencies:
       '@headlessui/tailwindcss': 0.2.2(tailwindcss@4.2.1)
-      '@headlessui/vue': 1.7.23(vue@3.5.33(typescript@5.9.3))
+      '@headlessui/vue': 1.7.23(vue@3.5.43(typescript@5.9.3))
       '@scalar/components': 0.22.3(typescript@5.9.3)
       '@scalar/helpers': 0.5.2
       '@scalar/icons': 0.7.2(typescript@5.9.3)
@@ -22124,8 +22176,8 @@ snapshots:
       '@scalar/use-toasts': 0.10.2(typescript@5.9.3)
       '@scalar/workspace-store': 0.46.3(typescript@5.9.3)
       '@types/har-format': 1.2.16
-      '@vueuse/core': 13.9.0(vue@3.5.33(typescript@5.9.3))
-      '@vueuse/integrations': 13.9.0(axios@1.20.0)(focus-trap@7.8.0)(fuse.js@7.1.0)(jwt-decode@4.0.0)(qrcode@1.5.4)(vue@3.5.33(typescript@5.9.3))
+      '@vueuse/core': 13.9.0(vue@3.5.43(typescript@5.9.3))
+      '@vueuse/integrations': 13.9.0(axios@1.20.0)(focus-trap@7.8.0)(fuse.js@7.1.0)(jwt-decode@4.0.0)(qrcode@1.5.4)(vue@3.5.43(typescript@5.9.3))
       cookie: 1.1.1
       focus-trap: 7.8.0
       fuse.js: 7.1.0
@@ -22134,12 +22186,12 @@ snapshots:
       monaco-yaml: 5.4.1(monaco-editor@0.55.1)
       nanoid: 5.1.16
       pretty-ms: 9.3.0
-      radix-vue: 1.9.17(vue@3.5.33(typescript@5.9.3))
+      radix-vue: 1.9.17(vue@3.5.43(typescript@5.9.3))
       set-cookie-parser: 3.1.0
       shell-quote: 1.10.0
       vite-plugin-monaco-editor: 1.1.0(monaco-editor@0.55.1)
-      vue: 3.5.33(typescript@5.9.3)
-      vue-router: 5.0.4(@vue/compiler-sfc@3.5.33)(vue@3.5.33(typescript@5.9.3))
+      vue: 3.5.43(typescript@5.9.3)
+      vue-router: 5.0.4(@vue/compiler-sfc@3.5.43)(vue@3.5.43(typescript@5.9.3))
       yaml: 2.8.3
       zod: 4.3.6
     transitivePeerDependencies:
@@ -22161,9 +22213,9 @@ snapshots:
       - typescript
       - universal-cookie
 
-  '@scalar/api-reference-react@0.9.27(@vue/compiler-sfc@3.5.33)(axios@1.20.0)(jwt-decode@4.0.0)(qrcode@1.5.4)(react@19.2.4)(tailwindcss@4.2.1)(typescript@5.9.3)':
+  '@scalar/api-reference-react@0.9.27(@vue/compiler-sfc@3.5.43)(axios@1.20.0)(jwt-decode@4.0.0)(qrcode@1.5.4)(react@19.2.4)(tailwindcss@4.2.1)(typescript@5.9.3)':
     dependencies:
-      '@scalar/api-reference': 1.52.6(@vue/compiler-sfc@3.5.33)(axios@1.20.0)(jwt-decode@4.0.0)(qrcode@1.5.4)(tailwindcss@4.2.1)(typescript@5.9.3)
+      '@scalar/api-reference': 1.52.6(@vue/compiler-sfc@3.5.43)(axios@1.20.0)(jwt-decode@4.0.0)(qrcode@1.5.4)(tailwindcss@4.2.1)(typescript@5.9.3)
       '@scalar/types': 0.9.2
       react: 19.2.4
     transitivePeerDependencies:
@@ -22185,11 +22237,11 @@ snapshots:
       - typescript
       - universal-cookie
 
-  '@scalar/api-reference@1.52.6(@vue/compiler-sfc@3.5.33)(axios@1.20.0)(jwt-decode@4.0.0)(qrcode@1.5.4)(tailwindcss@4.2.1)(typescript@5.9.3)':
+  '@scalar/api-reference@1.52.6(@vue/compiler-sfc@3.5.43)(axios@1.20.0)(jwt-decode@4.0.0)(qrcode@1.5.4)(tailwindcss@4.2.1)(typescript@5.9.3)':
     dependencies:
-      '@headlessui/vue': 1.7.23(vue@3.5.33(typescript@5.9.3))
-      '@scalar/agent-chat': 0.10.8(@vue/compiler-sfc@3.5.33)(axios@1.20.0)(jwt-decode@4.0.0)(qrcode@1.5.4)(tailwindcss@4.2.1)(typescript@5.9.3)
-      '@scalar/api-client': 3.2.2(@vue/compiler-sfc@3.5.33)(axios@1.20.0)(jwt-decode@4.0.0)(qrcode@1.5.4)(tailwindcss@4.2.1)(typescript@5.9.3)
+      '@headlessui/vue': 1.7.23(vue@3.5.43(typescript@5.9.3))
+      '@scalar/agent-chat': 0.10.8(@vue/compiler-sfc@3.5.43)(axios@1.20.0)(jwt-decode@4.0.0)(qrcode@1.5.4)(tailwindcss@4.2.1)(typescript@5.9.3)
+      '@scalar/api-client': 3.2.2(@vue/compiler-sfc@3.5.43)(axios@1.20.0)(jwt-decode@4.0.0)(qrcode@1.5.4)(tailwindcss@4.2.1)(typescript@5.9.3)
       '@scalar/code-highlight': 0.3.3
       '@scalar/components': 0.22.3(typescript@5.9.3)
       '@scalar/helpers': 0.5.2
@@ -22202,13 +22254,13 @@ snapshots:
       '@scalar/use-hooks': 0.4.3(typescript@5.9.3)
       '@scalar/use-toasts': 0.10.2(typescript@5.9.3)
       '@scalar/workspace-store': 0.46.3(typescript@5.9.3)
-      '@unhead/vue': 2.1.13(vue@3.5.33(typescript@5.9.3))
-      '@vueuse/core': 13.9.0(vue@3.5.33(typescript@5.9.3))
+      '@unhead/vue': 2.1.13(vue@3.5.43(typescript@5.9.3))
+      '@vueuse/core': 13.9.0(vue@3.5.43(typescript@5.9.3))
       fuse.js: 7.1.0
       github-slugger: 2.0.0
       microdiff: 1.5.0
       nanoid: 5.1.16
-      vue: 3.5.33(typescript@5.9.3)
+      vue: 3.5.43(typescript@5.9.3)
       yaml: 2.8.3
     transitivePeerDependencies:
       - '@pinia/colada'
@@ -22252,18 +22304,18 @@ snapshots:
   '@scalar/components@0.22.3(typescript@5.9.3)':
     dependencies:
       '@floating-ui/utils': 0.2.10
-      '@floating-ui/vue': 1.1.9(vue@3.5.33(typescript@5.9.3))
-      '@headlessui/vue': 1.7.23(vue@3.5.33(typescript@5.9.3))
+      '@floating-ui/vue': 1.1.9(vue@3.5.43(typescript@5.9.3))
+      '@headlessui/vue': 1.7.23(vue@3.5.43(typescript@5.9.3))
       '@scalar/code-highlight': 0.3.3
       '@scalar/helpers': 0.5.2
       '@scalar/icons': 0.7.2(typescript@5.9.3)
       '@scalar/themes': 0.15.3
       '@scalar/use-hooks': 0.4.3(typescript@5.9.3)
-      '@vueuse/core': 13.9.0(vue@3.5.33(typescript@5.9.3))
+      '@vueuse/core': 13.9.0(vue@3.5.43(typescript@5.9.3))
       cva: 1.0.0-beta.4(typescript@5.9.3)
       nanoid: 5.1.16
-      radix-vue: 1.9.17(vue@3.5.33(typescript@5.9.3))
-      vue: 3.5.33(typescript@5.9.3)
+      radix-vue: 1.9.17(vue@3.5.43(typescript@5.9.3))
+      vue: 3.5.43(typescript@5.9.3)
       vue-component-type-helpers: 3.2.7
     transitivePeerDependencies:
       - '@vue/composition-api'
@@ -22277,7 +22329,7 @@ snapshots:
       '@phosphor-icons/core': 2.1.1
       '@types/node': 24.12.2
       chalk: 5.6.2
-      vue: 3.5.33(typescript@5.9.3)
+      vue: 3.5.43(typescript@5.9.3)
     transitivePeerDependencies:
       - typescript
 
@@ -22295,7 +22347,7 @@ snapshots:
       '@scalar/workspace-store': 0.46.3(typescript@5.9.3)
       flatted: 3.4.2
       github-slugger: 2.0.0
-      vue: 3.5.33(typescript@5.9.3)
+      vue: 3.5.43(typescript@5.9.3)
       yaml: 2.8.3
     transitivePeerDependencies:
       - typescript
@@ -22319,7 +22371,7 @@ snapshots:
       '@scalar/themes': 0.15.3
       '@scalar/use-hooks': 0.4.3(typescript@5.9.3)
       '@scalar/workspace-store': 0.46.3(typescript@5.9.3)
-      vue: 3.5.33(typescript@5.9.3)
+      vue: 3.5.43(typescript@5.9.3)
     transitivePeerDependencies:
       - '@vue/composition-api'
       - supports-color
@@ -22360,24 +22412,24 @@ snapshots:
       '@lezer/common': 1.5.2
       '@lezer/highlight': 1.2.3
       '@replit/codemirror-css-color-picker': 6.3.0(@codemirror/language@6.12.3)(@codemirror/state@6.6.0)(@codemirror/view@6.41.1)
-      vue: 3.5.33(typescript@5.9.3)
+      vue: 3.5.43(typescript@5.9.3)
     transitivePeerDependencies:
       - typescript
 
   '@scalar/use-hooks@0.4.3(typescript@5.9.3)':
     dependencies:
       '@scalar/use-toasts': 0.10.2(typescript@5.9.3)
-      '@vueuse/core': 13.9.0(vue@3.5.33(typescript@5.9.3))
+      '@vueuse/core': 13.9.0(vue@3.5.43(typescript@5.9.3))
       cva: 1.0.0-beta.4(typescript@5.9.3)
       tailwind-merge: 3.5.0
-      vue: 3.5.33(typescript@5.9.3)
+      vue: 3.5.43(typescript@5.9.3)
       zod: 4.3.6
     transitivePeerDependencies:
       - typescript
 
   '@scalar/use-toasts@0.10.2(typescript@5.9.3)':
     dependencies:
-      vue: 3.5.33(typescript@5.9.3)
+      vue: 3.5.43(typescript@5.9.3)
       vue-sonner: 1.3.2
     transitivePeerDependencies:
       - typescript
@@ -22396,7 +22448,7 @@ snapshots:
       github-slugger: 2.0.0
       js-base64: 3.7.8
       type-fest: 5.6.0
-      vue: 3.5.33(typescript@5.9.3)
+      vue: 3.5.43(typescript@5.9.3)
       yaml: 2.8.3
     transitivePeerDependencies:
       - typescript
@@ -23136,7 +23188,7 @@ snapshots:
       jiti: 2.6.1
       lightningcss: 1.31.1
       magic-string: 0.30.21
-      source-map-js: 1.2.1
+      source-map-js: 1.2.2
       tailwindcss: 4.2.1
 
   '@tailwindcss/oxide-android-arm64@4.2.1':
@@ -23258,10 +23310,10 @@ snapshots:
 
   '@tanstack/virtual-core@3.14.0': {}
 
-  '@tanstack/vue-virtual@3.13.24(vue@3.5.33(typescript@5.9.3))':
+  '@tanstack/vue-virtual@3.13.24(vue@3.5.43(typescript@5.9.3))':
     dependencies:
       '@tanstack/virtual-core': 3.14.0
-      vue: 3.5.33(typescript@5.9.3)
+      vue: 3.5.43(typescript@5.9.3)
 
   '@testing-library/dom@10.4.1':
     dependencies:
@@ -23664,9 +23716,9 @@ snapshots:
       prosemirror-schema-list: 1.5.1
       prosemirror-state: 1.4.4
       prosemirror-tables: 1.8.5
-      prosemirror-trailing-node: 3.0.0(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.6)
+      prosemirror-trailing-node: 3.0.0(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)
       prosemirror-transform: 1.11.0
-      prosemirror-view: 1.41.6
+      prosemirror-view: 1.42.3
 
   '@tiptap/pm@3.31.3':
     dependencies:
@@ -23817,7 +23869,7 @@ snapshots:
 
   '@types/adm-zip@0.5.8':
     dependencies:
-      '@types/node': 22.19.19
+      '@types/node': 22.20.4
 
   '@types/aes-js@3.1.4': {}
 
@@ -23849,11 +23901,11 @@ snapshots:
   '@types/body-parser@1.19.6':
     dependencies:
       '@types/connect': 3.4.38
-      '@types/node': 22.19.19
+      '@types/node': 22.20.4
 
   '@types/bunyan@1.8.11':
     dependencies:
-      '@types/node': 22.19.19
+      '@types/node': 22.20.4
 
   '@types/chai@5.2.3':
     dependencies:
@@ -23866,13 +23918,13 @@ snapshots:
 
   '@types/connect@3.4.38':
     dependencies:
-      '@types/node': 22.19.19
+      '@types/node': 22.20.4
 
   '@types/cookiejar@2.1.5': {}
 
   '@types/cors@2.8.19':
     dependencies:
-      '@types/node': 22.19.19
+      '@types/node': 22.20.4
 
   '@types/debug@4.1.12':
     dependencies:
@@ -23908,14 +23960,14 @@ snapshots:
 
   '@types/express-serve-static-core@4.19.8':
     dependencies:
-      '@types/node': 22.19.19
+      '@types/node': 22.20.4
       '@types/qs': 6.15.0
       '@types/range-parser': 1.2.7
       '@types/send': 1.2.1
 
   '@types/express-serve-static-core@5.1.1':
     dependencies:
-      '@types/node': 22.19.19
+      '@types/node': 22.20.4
       '@types/qs': 6.15.0
       '@types/range-parser': 1.2.7
       '@types/send': 1.2.1
@@ -23937,7 +23989,7 @@ snapshots:
 
   '@types/graceful-fs@4.1.9':
     dependencies:
-      '@types/node': 22.19.19
+      '@types/node': 22.20.4
 
   '@types/har-format@1.2.16': {}
 
@@ -23984,7 +24036,7 @@ snapshots:
   '@types/jsonwebtoken@9.0.10':
     dependencies:
       '@types/ms': 2.1.0
-      '@types/node': 22.19.19
+      '@types/node': 22.20.4
 
   '@types/leaflet@1.9.21':
     dependencies:
@@ -24009,7 +24061,7 @@ snapshots:
 
   '@types/memcached@2.2.10':
     dependencies:
-      '@types/node': 22.19.19
+      '@types/node': 22.20.4
 
   '@types/methods@1.1.4': {}
 
@@ -24023,11 +24075,11 @@ snapshots:
 
   '@types/mysql@2.15.27':
     dependencies:
-      '@types/node': 22.19.19
+      '@types/node': 22.20.4
 
   '@types/node-fetch@2.6.13':
     dependencies:
-      '@types/node': 22.19.19
+      '@types/node': 22.20.4
       form-data: 4.0.6
 
   '@types/node@10.17.60': {}
@@ -24056,7 +24108,7 @@ snapshots:
 
   '@types/oracledb@6.5.2':
     dependencies:
-      '@types/node': 22.19.19
+      '@types/node': 22.20.4
 
   '@types/pdf-parse@1.1.5':
     dependencies:
@@ -24068,13 +24120,13 @@ snapshots:
 
   '@types/pg@8.15.6':
     dependencies:
-      '@types/node': 22.19.19
+      '@types/node': 22.20.4
       pg-protocol: 1.13.0
       pg-types: 2.2.0
 
   '@types/pg@8.20.0':
     dependencies:
-      '@types/node': 22.19.19
+      '@types/node': 22.20.4
       pg-protocol: 1.13.0
       pg-types: 2.2.0
 
@@ -24107,22 +24159,22 @@ snapshots:
   '@types/send@0.17.6':
     dependencies:
       '@types/mime': 1.3.5
-      '@types/node': 22.19.19
+      '@types/node': 22.20.4
 
   '@types/send@1.2.1':
     dependencies:
-      '@types/node': 22.19.19
+      '@types/node': 22.20.4
 
   '@types/serve-static@1.15.10':
     dependencies:
       '@types/http-errors': 2.0.5
-      '@types/node': 22.19.19
+      '@types/node': 22.20.4
       '@types/send': 0.17.6
 
   '@types/serve-static@2.2.0':
     dependencies:
       '@types/http-errors': 2.0.5
-      '@types/node': 22.19.19
+      '@types/node': 22.20.4
 
   '@types/stack-utils@2.0.3': {}
 
@@ -24132,7 +24184,7 @@ snapshots:
     dependencies:
       '@types/cookiejar': 2.1.5
       '@types/methods': 1.1.4
-      '@types/node': 22.19.19
+      '@types/node': 22.20.4
       form-data: 4.0.6
 
   '@types/supertest@6.0.3':
@@ -24147,7 +24199,7 @@ snapshots:
 
   '@types/tedious@4.0.14':
     dependencies:
-      '@types/node': 22.19.19
+      '@types/node': 22.20.4
 
   '@types/three@0.182.0':
     dependencies:
@@ -24194,7 +24246,7 @@ snapshots:
 
   '@types/yauzl@2.10.3':
     dependencies:
-      '@types/node': 22.19.19
+      '@types/node': 22.20.4
     optional: true
 
   '@typescript-eslint/eslint-plugin@8.57.0(@typescript-eslint/parser@8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3)':
@@ -24290,11 +24342,11 @@ snapshots:
 
   '@ungap/structured-clone@1.3.0': {}
 
-  '@unhead/vue@2.1.13(vue@3.5.33(typescript@5.9.3))':
+  '@unhead/vue@2.1.13(vue@3.5.43(typescript@5.9.3))':
     dependencies:
       hookable: 6.1.1
       unhead: 2.1.13
-      vue: 3.5.33(typescript@5.9.3)
+      vue: 3.5.43(typescript@5.9.3)
 
   '@unrs/resolver-binding-android-arm-eabi@1.12.2':
     optional: true
@@ -24405,6 +24457,14 @@ snapshots:
     optionalDependencies:
       vite: 8.2.0(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)
 
+  '@vitest/mocker@4.1.0(vite@8.2.0(@types/node@22.20.4)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))':
+    dependencies:
+      '@vitest/spy': 4.1.0
+      estree-walker: 3.0.3
+      magic-string: 0.30.21
+    optionalDependencies:
+      vite: 8.2.0(@types/node@22.20.4)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)
+
   '@vitest/mocker@4.1.0(vite@8.2.0(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))':
     dependencies:
       '@vitest/spy': 4.1.0
@@ -24437,7 +24497,7 @@ snapshots:
       convert-source-map: 2.0.0
       tinyrainbow: 3.1.0
 
-  '@vue-macros/common@3.1.2(vue@3.5.33(typescript@5.9.3))':
+  '@vue-macros/common@3.1.2(vue@3.5.43(typescript@5.9.3))':
     dependencies:
       '@vue/compiler-sfc': 3.5.33
       ast-kit: 2.2.0
@@ -24445,7 +24505,7 @@ snapshots:
       magic-string-ast: 1.0.3
       unplugin-utils: 0.3.1
     optionalDependencies:
-      vue: 3.5.33(typescript@5.9.3)
+      vue: 3.5.43(typescript@5.9.3)
 
   '@vue/compiler-core@3.5.33':
     dependencies:
@@ -24453,12 +24513,25 @@ snapshots:
       '@vue/shared': 3.5.33
       entities: 7.0.1
       estree-walker: 2.0.2
-      source-map-js: 1.2.1
+      source-map-js: 1.2.2
+
+  '@vue/compiler-core@3.5.43':
+    dependencies:
+      '@babel/parser': 7.29.9
+      '@vue/shared': 3.5.43
+      entities: 7.0.1
+      estree-walker: 2.0.2
+      source-map-js: 1.2.2
 
   '@vue/compiler-dom@3.5.33':
     dependencies:
       '@vue/compiler-core': 3.5.33
       '@vue/shared': 3.5.33
+
+  '@vue/compiler-dom@3.5.43':
+    dependencies:
+      '@vue/compiler-core': 3.5.43
+      '@vue/shared': 3.5.43
 
   '@vue/compiler-sfc@3.5.33':
     dependencies:
@@ -24470,12 +24543,29 @@ snapshots:
       estree-walker: 2.0.2
       magic-string: 0.30.21
       postcss: 8.5.25
-      source-map-js: 1.2.1
+      source-map-js: 1.2.2
+
+  '@vue/compiler-sfc@3.5.43':
+    dependencies:
+      '@babel/parser': 7.29.9
+      '@vue/compiler-core': 3.5.43
+      '@vue/compiler-dom': 3.5.43
+      '@vue/compiler-ssr': 3.5.43
+      '@vue/shared': 3.5.43
+      estree-walker: 2.0.2
+      magic-string: 0.30.21
+      postcss: 8.5.29
+      source-map-js: 1.2.2
 
   '@vue/compiler-ssr@3.5.33':
     dependencies:
       '@vue/compiler-dom': 3.5.33
       '@vue/shared': 3.5.33
+
+  '@vue/compiler-ssr@3.5.43':
+    dependencies:
+      '@vue/compiler-dom': 3.5.43
+      '@vue/shared': 3.5.43
 
   '@vue/devtools-api@8.1.1':
     dependencies:
@@ -24490,52 +24580,54 @@ snapshots:
 
   '@vue/devtools-shared@8.1.1': {}
 
-  '@vue/reactivity@3.5.33':
+  '@vue/reactivity@3.5.43':
     dependencies:
-      '@vue/shared': 3.5.33
+      '@vue/shared': 3.5.43
 
-  '@vue/runtime-core@3.5.33':
+  '@vue/runtime-core@3.5.43':
     dependencies:
-      '@vue/reactivity': 3.5.33
-      '@vue/shared': 3.5.33
+      '@vue/reactivity': 3.5.43
+      '@vue/shared': 3.5.43
 
-  '@vue/runtime-dom@3.5.33':
+  '@vue/runtime-dom@3.5.43':
     dependencies:
-      '@vue/reactivity': 3.5.33
-      '@vue/runtime-core': 3.5.33
-      '@vue/shared': 3.5.33
+      '@vue/reactivity': 3.5.43
+      '@vue/runtime-core': 3.5.43
+      '@vue/shared': 3.5.43
       csstype: 3.2.3
 
-  '@vue/server-renderer@3.5.33(vue@3.5.33(typescript@5.9.3))':
+  '@vue/server-renderer@3.5.43':
     dependencies:
-      '@vue/compiler-ssr': 3.5.33
-      '@vue/shared': 3.5.33
-      vue: 3.5.33(typescript@5.9.3)
+      '@vue/compiler-ssr': 3.5.43
+      '@vue/runtime-dom': 3.5.43
+      '@vue/shared': 3.5.43
 
   '@vue/shared@3.5.33': {}
 
-  '@vueuse/core@10.11.1(vue@3.5.33(typescript@5.9.3))':
+  '@vue/shared@3.5.43': {}
+
+  '@vueuse/core@10.11.1(vue@3.5.43(typescript@5.9.3))':
     dependencies:
       '@types/web-bluetooth': 0.0.20
       '@vueuse/metadata': 10.11.1
-      '@vueuse/shared': 10.11.1(vue@3.5.33(typescript@5.9.3))
-      vue-demi: 0.14.10(vue@3.5.33(typescript@5.9.3))
+      '@vueuse/shared': 10.11.1(vue@3.5.43(typescript@5.9.3))
+      vue-demi: 0.14.10(vue@3.5.43(typescript@5.9.3))
     transitivePeerDependencies:
       - '@vue/composition-api'
       - vue
 
-  '@vueuse/core@13.9.0(vue@3.5.33(typescript@5.9.3))':
+  '@vueuse/core@13.9.0(vue@3.5.43(typescript@5.9.3))':
     dependencies:
       '@types/web-bluetooth': 0.0.21
       '@vueuse/metadata': 13.9.0
-      '@vueuse/shared': 13.9.0(vue@3.5.33(typescript@5.9.3))
-      vue: 3.5.33(typescript@5.9.3)
+      '@vueuse/shared': 13.9.0(vue@3.5.43(typescript@5.9.3))
+      vue: 3.5.43(typescript@5.9.3)
 
-  '@vueuse/integrations@13.9.0(axios@1.20.0)(focus-trap@7.8.0)(fuse.js@7.1.0)(jwt-decode@4.0.0)(qrcode@1.5.4)(vue@3.5.33(typescript@5.9.3))':
+  '@vueuse/integrations@13.9.0(axios@1.20.0)(focus-trap@7.8.0)(fuse.js@7.1.0)(jwt-decode@4.0.0)(qrcode@1.5.4)(vue@3.5.43(typescript@5.9.3))':
     dependencies:
-      '@vueuse/core': 13.9.0(vue@3.5.33(typescript@5.9.3))
-      '@vueuse/shared': 13.9.0(vue@3.5.33(typescript@5.9.3))
-      vue: 3.5.33(typescript@5.9.3)
+      '@vueuse/core': 13.9.0(vue@3.5.43(typescript@5.9.3))
+      '@vueuse/shared': 13.9.0(vue@3.5.43(typescript@5.9.3))
+      vue: 3.5.43(typescript@5.9.3)
     optionalDependencies:
       axios: 1.20.0
       focus-trap: 7.8.0
@@ -24547,16 +24639,16 @@ snapshots:
 
   '@vueuse/metadata@13.9.0': {}
 
-  '@vueuse/shared@10.11.1(vue@3.5.33(typescript@5.9.3))':
+  '@vueuse/shared@10.11.1(vue@3.5.43(typescript@5.9.3))':
     dependencies:
-      vue-demi: 0.14.10(vue@3.5.33(typescript@5.9.3))
+      vue-demi: 0.14.10(vue@3.5.43(typescript@5.9.3))
     transitivePeerDependencies:
       - '@vue/composition-api'
       - vue
 
-  '@vueuse/shared@13.9.0(vue@3.5.33(typescript@5.9.3))':
+  '@vueuse/shared@13.9.0(vue@3.5.43(typescript@5.9.3))':
     dependencies:
-      vue: 3.5.33(typescript@5.9.3)
+      vue: 3.5.43(typescript@5.9.3)
 
   '@webassemblyjs/ast@1.14.1':
     dependencies:
@@ -25426,7 +25518,7 @@ snapshots:
 
   chrome-launcher@0.15.2:
     dependencies:
-      '@types/node': 22.19.19
+      '@types/node': 22.20.4
       escape-string-regexp: 4.0.0
       is-wsl: 2.2.0
       lighthouse-logger: 1.4.2
@@ -25443,7 +25535,7 @@ snapshots:
 
   chromium-edge-launcher@0.2.0:
     dependencies:
-      '@types/node': 22.19.19
+      '@types/node': 22.20.4
       escape-string-regexp: 4.0.0
       is-wsl: 2.2.0
       lighthouse-logger: 1.4.2
@@ -25706,7 +25798,7 @@ snapshots:
   css-tree@3.2.1:
     dependencies:
       mdn-data: 2.27.1
-      source-map-js: 1.2.1
+      source-map-js: 1.2.2
 
   css-what@6.2.2: {}
 
@@ -26915,15 +27007,18 @@ snapshots:
 
   exponential-backoff@3.1.3: {}
 
-  express-rate-limit@8.3.2(express@5.2.1):
-    dependencies:
-      express: 5.2.1
-      ip-address: 10.4.0
-
   express-rate-limit@8.7.0(express@4.22.1):
     dependencies:
       debug: 4.4.3
       express: 4.22.1
+      ip-address: 10.4.0
+    transitivePeerDependencies:
+      - supports-color
+
+  express-rate-limit@8.7.0(express@5.2.1):
+    dependencies:
+      debug: 4.4.3
+      express: 5.2.1
       ip-address: 10.4.0
     transitivePeerDependencies:
       - supports-color
@@ -26950,7 +27045,7 @@ snapshots:
       on-finished: 2.4.1
       parseurl: 1.3.3
       path-to-regexp: 0.1.13
-      proxy-addr: 2.0.7
+      proxy-addr: 2.0.8
       qs: 6.15.3
       range-parser: 1.2.1
       safe-buffer: 5.2.1
@@ -26985,7 +27080,7 @@ snapshots:
       on-finished: 2.4.1
       once: 1.4.0
       parseurl: 1.3.3
-      proxy-addr: 2.0.7
+      proxy-addr: 2.0.8
       qs: 6.15.3
       range-parser: 1.2.1
       router: 2.2.0
@@ -27449,7 +27544,7 @@ snapshots:
 
   happy-dom@20.9.0:
     dependencies:
-      '@types/node': 22.19.19
+      '@types/node': 22.20.4
       '@types/whatwg-mimetype': 3.0.2
       '@types/ws': 8.18.1
       entities: 7.0.1
@@ -28154,7 +28249,7 @@ snapshots:
       '@jest/environment': 29.7.0
       '@jest/fake-timers': 29.7.0
       '@jest/types': 29.6.3
-      '@types/node': 22.19.19
+      '@types/node': 22.20.4
       jest-mock: 29.7.0
       jest-util: 29.7.0
 
@@ -28164,7 +28259,7 @@ snapshots:
     dependencies:
       '@jest/types': 29.6.3
       '@types/graceful-fs': 4.1.9
-      '@types/node': 22.19.19
+      '@types/node': 22.20.4
       anymatch: 3.1.3
       fb-watchman: 2.0.2
       graceful-fs: 4.2.11
@@ -28217,13 +28312,13 @@ snapshots:
   jest-mock@29.7.0:
     dependencies:
       '@jest/types': 29.6.3
-      '@types/node': 22.19.19
+      '@types/node': 22.20.4
       jest-util: 29.7.0
 
   jest-mock@30.3.0:
     dependencies:
       '@jest/types': 30.3.0
-      '@types/node': 22.19.19
+      '@types/node': 22.20.4
       jest-util: 30.3.0
 
   jest-regex-util@29.6.3: {}
@@ -28233,7 +28328,7 @@ snapshots:
   jest-util@29.7.0:
     dependencies:
       '@jest/types': 29.6.3
-      '@types/node': 22.19.19
+      '@types/node': 22.20.4
       chalk: 4.1.2
       ci-info: 3.9.0
       graceful-fs: 4.2.11
@@ -28242,7 +28337,7 @@ snapshots:
   jest-util@30.3.0:
     dependencies:
       '@jest/types': 30.3.0
-      '@types/node': 22.19.19
+      '@types/node': 22.20.4
       chalk: 4.1.2
       ci-info: 4.4.0
       graceful-fs: 4.2.11
@@ -28265,7 +28360,7 @@ snapshots:
 
   jest-worker@29.7.0:
     dependencies:
-      '@types/node': 22.19.19
+      '@types/node': 22.20.4
       jest-util: 29.7.0
       merge-stream: 2.0.0
       supports-color: 8.1.1
@@ -29514,6 +29609,8 @@ snapshots:
 
   nanoid@3.3.18: {}
 
+  nanoid@3.3.20: {}
+
   nanoid@5.1.16: {}
 
   napi-postinstall@0.3.4: {}
@@ -30090,7 +30187,13 @@ snapshots:
     dependencies:
       nanoid: 3.3.18
       picocolors: 1.1.1
-      source-map-js: 1.2.1
+      source-map-js: 1.2.2
+
+  postcss@8.5.29:
+    dependencies:
+      nanoid: 3.3.20
+      picocolors: 1.1.1
+      source-map-js: 1.2.2
 
   postgres-array@2.0.0: {}
 
@@ -30257,13 +30360,13 @@ snapshots:
       prosemirror-transform: 1.12.1
       prosemirror-view: 1.42.3
 
-  prosemirror-trailing-node@3.0.0(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.6):
+  prosemirror-trailing-node@3.0.0(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3):
     dependencies:
       '@remirror/core-constants': 3.0.0
       escape-string-regexp: 4.0.0
       prosemirror-model: 1.25.4
       prosemirror-state: 1.4.4
-      prosemirror-view: 1.41.6
+      prosemirror-view: 1.42.3
 
   prosemirror-transform@1.11.0:
     dependencies:
@@ -30272,12 +30375,6 @@ snapshots:
   prosemirror-transform@1.12.1:
     dependencies:
       prosemirror-model: 1.25.11
-
-  prosemirror-view@1.41.6:
-    dependencies:
-      prosemirror-model: 1.25.4
-      prosemirror-state: 1.4.4
-      prosemirror-transform: 1.11.0
 
   prosemirror-view@1.42.3:
     dependencies:
@@ -30295,7 +30392,7 @@ snapshots:
 
   protocol-buffers-schema@3.6.1: {}
 
-  proxy-addr@2.0.7:
+  proxy-addr@2.0.8:
     dependencies:
       forwarded: 0.2.0
       ipaddr.js: 1.9.1
@@ -30437,20 +30534,20 @@ snapshots:
       '@types/react': 19.2.14
       '@types/react-dom': 19.2.3(@types/react@19.2.14)
 
-  radix-vue@1.9.17(vue@3.5.33(typescript@5.9.3)):
+  radix-vue@1.9.17(vue@3.5.43(typescript@5.9.3)):
     dependencies:
       '@floating-ui/dom': 1.7.6
-      '@floating-ui/vue': 1.1.9(vue@3.5.33(typescript@5.9.3))
+      '@floating-ui/vue': 1.1.9(vue@3.5.43(typescript@5.9.3))
       '@internationalized/date': 3.12.1
       '@internationalized/number': 3.6.6
-      '@tanstack/vue-virtual': 3.13.24(vue@3.5.33(typescript@5.9.3))
-      '@vueuse/core': 10.11.1(vue@3.5.33(typescript@5.9.3))
-      '@vueuse/shared': 10.11.1(vue@3.5.33(typescript@5.9.3))
+      '@tanstack/vue-virtual': 3.13.24(vue@3.5.43(typescript@5.9.3))
+      '@vueuse/core': 10.11.1(vue@3.5.43(typescript@5.9.3))
+      '@vueuse/shared': 10.11.1(vue@3.5.43(typescript@5.9.3))
       aria-hidden: 1.2.6
       defu: 6.1.7
       fast-deep-equal: 3.1.3
       nanoid: 5.1.16
-      vue: 3.5.33(typescript@5.9.3)
+      vue: 3.5.43(typescript@5.9.3)
     transitivePeerDependencies:
       - '@vue/composition-api'
 
@@ -31688,7 +31785,7 @@ snapshots:
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
 
-  source-map-js@1.2.1: {}
+  source-map-js@1.2.2: {}
 
   source-map-support@0.5.21:
     dependencies:
@@ -31878,7 +31975,7 @@ snapshots:
 
   stripe@17.7.0:
     dependencies:
-      '@types/node': 22.19.19
+      '@types/node': 22.20.4
       qs: 6.15.3
 
   strnum@2.2.3: {}
@@ -31970,9 +32067,9 @@ snapshots:
       react: 19.2.4
       use-sync-external-store: 1.6.0(react@19.2.4)
 
-  swrv@1.2.0(vue@3.5.33(typescript@5.9.3)):
+  swrv@1.2.0(vue@3.5.43(typescript@5.9.3)):
     dependencies:
-      vue: 3.5.33(typescript@5.9.3)
+      vue: 3.5.43(typescript@5.9.3)
 
   symbol-tree@3.2.4: {}
 
@@ -32669,6 +32766,22 @@ snapshots:
       tsx: 4.21.0
       yaml: 2.8.3
 
+  vite@8.2.0(@types/node@22.20.4)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3):
+    dependencies:
+      lightningcss: 1.33.0
+      picomatch: 4.0.5
+      postcss: 8.5.25
+      rolldown: 1.2.1
+      tinyglobby: 0.2.17
+    optionalDependencies:
+      '@types/node': 22.20.4
+      esbuild: 0.28.1
+      fsevents: 2.3.3
+      jiti: 2.6.1
+      terser: 5.51.2
+      tsx: 4.21.0
+      yaml: 2.8.3
+
   vite@8.2.0(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3):
     dependencies:
       lightningcss: 1.33.0
@@ -32775,6 +32888,36 @@ snapshots:
     transitivePeerDependencies:
       - msw
 
+  vitest@4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.20.4)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.2.0(@types/node@22.20.4)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)):
+    dependencies:
+      '@vitest/expect': 4.1.0
+      '@vitest/mocker': 4.1.0(vite@8.2.0(@types/node@22.20.4)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+      '@vitest/pretty-format': 4.1.0
+      '@vitest/runner': 4.1.0
+      '@vitest/snapshot': 4.1.0
+      '@vitest/spy': 4.1.0
+      '@vitest/utils': 4.1.0
+      es-module-lexer: 2.0.0
+      expect-type: 1.3.0
+      magic-string: 0.30.21
+      obug: 2.1.1
+      pathe: 2.0.3
+      picomatch: 4.0.4
+      std-env: 4.0.0
+      tinybench: 2.9.0
+      tinyexec: 1.0.4
+      tinyglobby: 0.2.15
+      tinyrainbow: 3.1.0
+      vite: 8.2.0(@types/node@22.20.4)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)
+      why-is-node-running: 2.3.0
+    optionalDependencies:
+      '@opentelemetry/api': 1.9.1
+      '@types/node': 22.20.4
+      happy-dom: 20.9.0
+      jsdom: 29.0.0(@noble/hashes@1.8.0)
+    transitivePeerDependencies:
+      - msw
+
   vitest@4.1.0(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@25.0.1)(vite@8.2.0(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)):
     dependencies:
       '@vitest/expect': 4.1.0
@@ -32854,14 +32997,14 @@ snapshots:
 
   vue-component-type-helpers@3.2.7: {}
 
-  vue-demi@0.14.10(vue@3.5.33(typescript@5.9.3)):
+  vue-demi@0.14.10(vue@3.5.43(typescript@5.9.3)):
     dependencies:
-      vue: 3.5.33(typescript@5.9.3)
+      vue: 3.5.43(typescript@5.9.3)
 
-  vue-router@5.0.4(@vue/compiler-sfc@3.5.33)(vue@3.5.33(typescript@5.9.3)):
+  vue-router@5.0.4(@vue/compiler-sfc@3.5.43)(vue@3.5.43(typescript@5.9.3)):
     dependencies:
       '@babel/generator': 7.29.7
-      '@vue-macros/common': 3.1.2(vue@3.5.33(typescript@5.9.3))
+      '@vue-macros/common': 3.1.2(vue@3.5.43(typescript@5.9.3))
       '@vue/devtools-api': 8.1.1
       ast-walker-scope: 0.8.3
       chokidar: 5.0.0
@@ -32876,20 +33019,20 @@ snapshots:
       tinyglobby: 0.2.15
       unplugin: 3.0.0
       unplugin-utils: 0.3.1
-      vue: 3.5.33(typescript@5.9.3)
+      vue: 3.5.43(typescript@5.9.3)
       yaml: 2.8.3
     optionalDependencies:
-      '@vue/compiler-sfc': 3.5.33
+      '@vue/compiler-sfc': 3.5.43
 
   vue-sonner@1.3.2: {}
 
-  vue@3.5.33(typescript@5.9.3):
+  vue@3.5.43(typescript@5.9.3):
     dependencies:
-      '@vue/compiler-dom': 3.5.33
-      '@vue/compiler-sfc': 3.5.33
-      '@vue/runtime-dom': 3.5.33
-      '@vue/server-renderer': 3.5.33(vue@3.5.33(typescript@5.9.3))
-      '@vue/shared': 3.5.33
+      '@vue/compiler-dom': 3.5.43
+      '@vue/compiler-sfc': 3.5.43
+      '@vue/runtime-dom': 3.5.43
+      '@vue/server-renderer': 3.5.43
+      '@vue/shared': 3.5.43
     optionalDependencies:
       typescript: 5.9.3
 
