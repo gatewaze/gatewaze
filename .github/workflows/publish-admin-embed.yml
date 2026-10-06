@@ -3,11 +3,13 @@ name: Publish admin-embed
 # Publishes @gatewaze/admin-embed to npm at whatever version
 # packages/admin-embed/package.json currently declares.
 #
-# Deliberately NOT tied to the `v*` release tags that drive release.yml.
-# That workflow versions @gatewaze/connect in lockstep with the platform,
-# but admin-embed is on its own 0.x line for the LFX embed pilot, and a
-# tag push there also rebuilds and pushes eight container images — far
-# too much side effect for shipping one npm package.
+# The package is the LOADER only: a small, dependency-free module that
+# fetches the admin bundle a Gatewaze deployment serves under /embed/. The
+# bundle itself ships inside the admin image (release.yml), so this workflow
+# needs no module repos and no Vite build — just the loader's own compile.
+#
+# Deliberately NOT tied to the `v*` release tags: the loader changes only
+# when the host contract does, which is rare, while images ship constantly.
 #
 # Bump the version in packages/admin-embed/package.json, merge, then run
 # this workflow against that ref.
@@ -34,27 +36,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      # pnpm-workspace.yaml includes '../gatewaze-modules/modules/*', so the
-      # modules repo has to sit beside the checkout or the admin build cannot
-      # resolve @gatewaze-modules/* at all. Same private repo the image builds
-      # clone, so the same PAT — secrets.GITHUB_TOKEN is scoped to this repo
-      # only and cannot read it.
-      - name: Clone gatewaze-modules alongside the checkout
-        env:
-          GH_PAT_MODULES: ${{ secrets.GH_PAT_MODULES }}
-        run: |
-          if [ -z "$GH_PAT_MODULES" ]; then
-            echo "::error::GH_PAT_MODULES is not configured — cannot clone the private modules repo"
-            exit 1
-          fi
-          git clone --depth 1 --branch main \
-            "https://x-access-token:${GH_PAT_MODULES}@github.com/gatewaze/gatewaze-modules.git" \
-            "$(dirname "$GITHUB_WORKSPACE")/gatewaze-modules"
-
       - name: Setup pnpm
         uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
-        with:
-          version: 10
 
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -63,14 +46,12 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       # Not --frozen-lockfile: the workspace spans two repositories, so the
-      # lockfile can legitimately disagree with a freshly cloned modules main.
+      # lockfile can legitimately disagree with the modules repo even when
+      # this job never touches it.
       - name: Install
         run: pnpm install --no-frozen-lockfile
 
-      - name: Build the embed bundle
-        run: pnpm --filter @gatewaze/admin exec vite build -c vite.embed.config.ts
-
-      - name: Assemble the publishable package
+      - name: Build the loader
         run: node packages/admin-embed/scripts/build.mjs
 
       - name: Publish

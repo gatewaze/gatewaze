@@ -9,7 +9,7 @@ function validCtx(overrides: Partial<GwHostContext> = {}): GwHostContext {
     apiBaseUrl: '',
     enabled: { moduleIds: ['newsletters'], features: ['newsletters.editions'] },
     signIn: {
-      lfidStartUrl: 'https://host.example.org/auth/lfid/start',
+      startUrl: 'https://host.example.org/auth/start',
       returnUrl: 'https://host.example.org/apps/gw/newsletters',
     },
     ...overrides,
@@ -100,17 +100,17 @@ describe('validateGwHostContext', () => {
   });
 
   describe('signIn', () => {
-    it('rejects a non-absolute lfidStartUrl', () => {
+    it('rejects a non-absolute startUrl', () => {
       const result = validateGwHostContext(
-        validCtx({ signIn: { lfidStartUrl: '/relative', returnUrl: 'https://x.example.org/gw' } }),
+        validCtx({ signIn: { startUrl: '/relative', returnUrl: 'https://x.example.org/gw' } }),
       );
       expect(result.ok).toBe(false);
-      if (!result.ok) expect(result.error.field).toBe('signIn.lfidStartUrl');
+      if (!result.ok) expect(result.error.field).toBe('signIn.startUrl');
     });
 
     it('rejects a non-absolute returnUrl', () => {
       const result = validateGwHostContext(
-        validCtx({ signIn: { lfidStartUrl: 'https://x.example.org/start', returnUrl: '/relative' } }),
+        validCtx({ signIn: { startUrl: 'https://x.example.org/start', returnUrl: '/relative' } }),
       );
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.error.field).toBe('signIn.returnUrl');

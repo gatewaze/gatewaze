@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { Navigate } from 'react-router-dom';
+import { isEmbedded } from '../embed/embedMode';
 import { useAuthContext as useAuth } from '@/app/contexts/auth/context';
 import { useHasPermission } from '@/hooks/usePermissions';
 import { AccessDeniedRedirect } from '@/app/router/AccessDeniedRedirect';
@@ -45,7 +46,12 @@ export function FeatureGuard({
   redirectTo,
   showLoading = true,
 }: FeatureGuardProps) {
-  const { user, loading: authLoading } = useAuth();
+  // `loading` is declared optional on AuthContextType but the provider never sets it — its state
+  // field is `isLoading`. Reading `loading` alone made authLoading permanently undefined, so the
+  // loading gate below never engaged and an unauthenticated *first render* (which is every render
+  // before async auth init finishes) fell straight through to <Navigate to="/login">.
+  const { user, isLoading, loading } = useAuth();
+  const authLoading = isLoading ?? loading;
   const { hasPermission, loading: permissionLoading } = useHasPermission(
     feature as AdminFeature,
     accountId
@@ -54,6 +60,13 @@ export function FeatureGuard({
   // Show loading state
   if (authLoading || permissionLoading) {
     if (!showLoading) return null;
+
+    // Embedded: render nothing rather than a second full-screen loader. The host already shows
+    // its own loading state while the bundle downloads and mounts, and the page underneath shows
+    // its own once this guard passes — so this one sits between two others and reads as a stall,
+    // not as progress. Reported from the first host integration as "Checking permissions" followed by a
+    // spinner. Standalone keeps it: there is no host frame there to carry the wait.
+    if (isEmbedded()) return null;
 
     return (
       <div className="flex items-center justify-center min-h-screen">

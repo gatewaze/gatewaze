@@ -17,6 +17,9 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
+      // Embed-build-only alias (vite.embed.config.ts) for the real sonner
+      // entry behind src/embed/sonnerHostBridge.tsx; type-checks as sonner.
+      "gw-sonner-real": ["./node_modules/sonner"],
       "@/*": ["./src/*"],
       "@gatewaze/shared": ["../shared/src"],
       "@gatewaze/shared/*": ["../shared/src/*"]
