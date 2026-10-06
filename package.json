@@ -177,7 +177,12 @@
       "undici@>=8.0.0 <8.10.2": ">=8.10.2",
       "@grpc/grpc-js@>=1.14.0 <1.14.5": ">=1.14.5",
       "axios@>=1.0.0 <1.20.0": ">=1.20.0",
-      "basic-ftp@<=6.2.0": ">=6.2.1"
+      "basic-ftp@<=6.2.0": ">=6.2.1",
+      "proxy-addr@<2.0.8": ">=2.0.8",
+      "source-map-js@<1.2.2": ">=1.2.2",
+      "@vue/server-renderer@<3.5.42": ">=3.5.42",
+      "prosemirror-view@<1.42.3": ">=1.42.3",
+      "vue@<3.5.42": ">=3.5.42"
     },
     "auditConfig": {
       "ignoreGhsas": [
@@ -186,7 +191,8 @@
         "GHSA-vxpw-j846-p89q",
         "GHSA-jmr9-qjv8-65gv",
         "GHSA-7pqw-9j4j-h8q3",
-        "GHSA-86w9-cpqp-85rv"
+        "GHSA-86w9-cpqp-85rv",
+        "GHSA-vfj7-8cjw-p6xm"
       ]
     }
   },
