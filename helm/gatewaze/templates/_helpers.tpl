@@ -61,6 +61,21 @@ Create the name of the service account to use
 {{- end }}
 
 {{/*
+Name of the Secret every pod reads its credentials from. The chart renders
+its own Secret from values unless .Values.existingSecret names one the
+operator provides (for example one built by External Secrets). The existing
+Secret must carry the same keys the chart Secret would, plus REDIS_PASSWORD
+and SCRAPLING_INTERNAL_TOKEN; see values.yaml.
+*/}}
+{{- define "gatewaze.secretName" -}}
+{{- if .Values.existingSecret }}
+{{- .Values.existingSecret | quote }}
+{{- else }}
+{{- printf "%s-secret" (include "gatewaze.fullname" .) }}
+{{- end }}
+{{- end }}
+
+{{/*
 Redis URL — internal or external
 */}}
 {{- define "gatewaze.redisUrl" -}}

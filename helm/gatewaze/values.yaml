@@ -37,6 +37,34 @@ replicaCount:
   scheduler: 1
 
 # =============================================================================
+# Secrets
+# =============================================================================
+# By default the chart renders one Secret, <instance>-secret, from the
+# secret-bearing values below (supabase.*Key, redis.password, email.*,
+# githubToken, publicApi.apiKeyPepper, mcpPublic.*, tracking.segmentWriteKey)
+# and every pod reads it through envFrom.
+#
+# Set existingSecret to the name of a Secret you manage yourself (for example
+# one that External Secrets builds from a vault) and the chart renders no
+# Secret of its own: envFrom, the mcp-public and fetcher references, and
+# redis-server all read from yours instead. Leave the secret-bearing values
+# empty in that case; they are ignored. The Secret must carry these keys:
+#
+#   SUPABASE_ANON_KEY, VITE_SUPABASE_ANON_KEY, NEXT_PUBLIC_SUPABASE_ANON_KEY,
+#   SUPABASE_SERVICE_ROLE_KEY, JWT_SECRET, DATABASE_URL,
+#   REDIS_URL            redis://:<password>@<instance>-redis:6379
+#   REDIS_PASSWORD       the same password on its own (redis-server reads it)
+#   SENDGRID_API_KEY, UNSUBSCRIBE_HMAC_SECRET      when email.provider=sendgrid
+#   GITHUB_TOKEN                                   when moduleSources has private repos
+#   API_KEY_PEPPER
+#   MCP_PUBLIC_API_KEY, MCP_TOKEN_SECRET, MCP_EVENTS_TOKEN   when mcpPublic.enabled
+#   SCRAPLING_INTERNAL_TOKEN                       when scraplingFetcher.enabled
+#   SEGMENT_WRITE_KEY                              optional
+#   plus any env.* value you would rather keep out of the ConfigMap
+#   (later envFrom sources win, so a key here overrides the ConfigMap).
+existingSecret: ""
+
+# =============================================================================
 # Supabase Configuration
 # =============================================================================
 supabase:
