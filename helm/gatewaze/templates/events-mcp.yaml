@@ -66,7 +66,7 @@ spec:
             - name: SUPABASE_SERVICE_ROLE_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "gatewaze.fullname" . }}-secret
+                  name: {{ include "gatewaze.secretName" . }}
                   key: SUPABASE_SERVICE_ROLE_KEY
           resources:
             requests:
