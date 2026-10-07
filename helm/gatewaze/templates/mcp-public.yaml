@@ -66,7 +66,7 @@ spec:
             - name: GATEWAZE_MCP_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "gatewaze.fullname" . }}-secret
+                  name: {{ include "gatewaze.secretName" . }}
                   key: MCP_PUBLIC_API_KEY
             - name: MCP_RATE_LIMIT_RPM
               value: {{ .Values.mcpPublic.rateLimitRpm | default 120 | quote }}
@@ -77,18 +77,18 @@ spec:
             - name: GATEWAZE_AUTH_SERVER_URL
               value: "https://{{ .Values.ingress.hosts.api }}"
             {{- end }}
-            {{- if .Values.mcpPublic.tokenSecret }}
+            {{- if or .Values.mcpPublic.tokenSecret .Values.existingSecret }}
             - name: MCP_TOKEN_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "gatewaze.fullname" . }}-secret
+                  name: {{ include "gatewaze.secretName" . }}
                   key: MCP_TOKEN_SECRET
             {{- end }}
-            {{- if .Values.mcpPublic.eventsToken }}
+            {{- if or .Values.mcpPublic.eventsToken .Values.existingSecret }}
             - name: MCP_EVENTS_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "gatewaze.fullname" . }}-secret
+                  name: {{ include "gatewaze.secretName" . }}
                   key: MCP_EVENTS_TOKEN
             {{- end }}
             {{- if .Values.mcpPublic.brandName }}
