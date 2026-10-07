@@ -31,7 +31,7 @@ spec:
             - name: SUPABASE_SERVICE_ROLE_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "gatewaze.fullname" . }}-secret
+                  name: {{ include "gatewaze.secretName" . }}
                   key: SUPABASE_SERVICE_ROLE_KEY
             - name: CNAME_TARGET
               value: {{ .Values.customDomains.cnameTarget | quote }}

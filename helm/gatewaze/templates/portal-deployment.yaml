@@ -34,7 +34,7 @@ spec:
             - configMapRef:
                 name: {{ include "gatewaze.fullname" . }}-config
             - secretRef:
-                name: {{ include "gatewaze.fullname" . }}-secret
+                name: {{ include "gatewaze.secretName" . }}
             {{- with .Values.extraEnvFrom }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

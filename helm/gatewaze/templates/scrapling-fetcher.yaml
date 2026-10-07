@@ -47,8 +47,13 @@ spec:
             - name: SCRAPLING_INTERNAL_TOKEN
               valueFrom:
                 secretKeyRef:
+                  {{- if .Values.existingSecret }}
+                  name: {{ .Values.existingSecret | quote }}
+                  key: SCRAPLING_INTERNAL_TOKEN
+                  {{- else }}
                   name: {{ include "gatewaze.fullname" . }}-scrapling-fetcher-secrets
                   key: internalToken
+                  {{- end }}
             - name: SCRAPLING_PROXY_PROVIDER
               value: {{ .Values.scraplingFetcher.proxyProvider | default "none" | quote }}
             - name: SCRAPLING_PROXY_MODE
@@ -81,7 +86,7 @@ spec:
             - name: SUPABASE_SERVICE_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "gatewaze.fullname" . }}-secret
+                  name: {{ include "gatewaze.secretName" . }}
                   key: SUPABASE_SERVICE_ROLE_KEY
             - name: LOG_LEVEL
               value: {{ .Values.scraplingFetcher.logLevel | default "INFO" | quote }}
@@ -143,7 +148,9 @@ metadata:
     app.kubernetes.io/component: scrapling-fetcher
 type: Opaque
 stringData:
-  internalToken: {{ required "scraplingFetcher.internalToken is required when scraplingFetcher.enabled=true" .Values.scraplingFetcher.internalToken | quote }}
+  {{- if not .Values.existingSecret }}
+  internalToken: {{ required "scraplingFetcher.internalToken is required when scraplingFetcher.enabled=true (or set existingSecret with a SCRAPLING_INTERNAL_TOKEN key)" .Values.scraplingFetcher.internalToken | quote }}
+  {{- end }}
   {{- if .Values.scraplingFetcher.proxyConfig }}
   proxyConfig: {{ .Values.scraplingFetcher.proxyConfig | toJson | quote }}
   {{- end }}
