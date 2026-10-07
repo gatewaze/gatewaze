@@ -47,7 +47,9 @@ ARG BUILD_TIME_MODULE_SOURCES="https://github.com/gatewaze/gatewaze-modules.git#
 ARG BUILD_TIME_GITHUB_TOKEN=""
 # Hosted embed baked alongside the admin bundle (served at /embed/). The
 # runtime ADMIN_EMBED_MODULES must match this list exactly for the baked
-# copy to be served; otherwise the pod rebuilds it on the boot refresh.
+# copy to be served; a different list is only built on the slow path (a
+# fresh clone per pod), never by the boot refresh, so that every replica
+# of one image serves the same embed — see build_embed in entrypoint.sh.
 # Empty = no embed baked.
 ARG BUILD_TIME_EMBED_MODULES="newsletters,content-platform,host-media,templates,editor-ai-copilot,broadcasts"
 # Release tag, stamped into /embed/manifest.json so a host can report which

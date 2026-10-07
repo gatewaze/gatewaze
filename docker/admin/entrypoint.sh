@@ -51,6 +51,18 @@ build_embed() {
   if [ -z "$ADMIN_EMBED_MODULES" ]; then
     return 0
   fi
+  # Never in the boot refresh. Each replica refreshes at its own boot time from
+  # the module tip of that moment, so two replicas can serve two different
+  # admin bundles (that is why the admin Service pins browsers with ClientIP
+  # affinity). A host loads the embed in two steps from two clients — the
+  # browser reads the manifest, the host's server fetches the stylesheet — and
+  # those can land on different replicas. The embed therefore has to be
+  # identical across replicas of one image: built once at image build (or on
+  # the slow path, from the same sources), and changed only by a new release.
+  if [ -n "$ADMIN_REFRESH_CHILD" ]; then
+    echo "[admin] Boot refresh: hosted embed is pinned to the image build, not rebuilt"
+    return 0
+  fi
   echo "[admin] Building hosted embed (modules: ${ADMIN_EMBED_MODULES})..."
   if ! ( cd /app/packages/admin && \
          ADMIN_EMBED_VERSION="${ADMIN_IMAGE_VERSION:-dev}" \
