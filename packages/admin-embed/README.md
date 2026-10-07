@@ -63,6 +63,11 @@ ADMIN_EMBED_MODULES=newsletters,content-platform,host-media,templates,editor-ai-
 and immutable, with CORS open to any origin (the bundle is public code — credentials and data
 live behind the API and Supabase).
 
+The embed is built once per image and is the same on every replica: a host may read the manifest
+from one replica and fetch a file from another (its server scoping the stylesheet, say), so the
+replicas must agree. The admin SPA's per-pod boot refresh deliberately leaves the embed alone;
+embed changes ship as a new image.
+
 ## Building this package
 
 ```bash
