@@ -121,6 +121,17 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
   // Measured, not assumed: the bar's height depends on the mode track, which
   // depends on which modules the member has.
   const [coachBarHeight, setCoachBarHeight] = useState(0);
+  // Measured, not assumed, the same way: `headerHeight()` is a reasonable
+  // floor built from fixed constants, but a module destination's title runs
+  // through a plain Text that scales with the system's font size setting. At
+  // the larger end of Dynamic Type (Larger Accessibility Sizes) the title can
+  // render taller than the `headerButton` constant the formula assumes, so
+  // the header's real on-screen height grows past what every destination
+  // pads for and the bottom of the header overlaps the top of the content.
+  // Taking the larger of the two keeps the formula as the pre-layout default
+  // (nothing changes at ordinary text sizes) and corrects it once the header
+  // has actually measured itself.
+  const [headerMeasuredHeight, setHeaderMeasuredHeight] = useState(0);
   const [failedCount, setFailedCount] = useState(() => outboxCounts().failed);
 
   const insets = useSafeAreaInsets();
@@ -409,6 +420,7 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
             withAlpha(theme.headerScrim, layout.headerFadeStops[2]),
           ]}
           locations={headerFadeLocations(insets.top)}
+          onLayout={(e) => setHeaderMeasuredHeight(e.nativeEvent.layout.height)}
           style={[
             styles.header,
             { paddingTop: insets.top + layout.headerTopGap, paddingBottom: layout.headerFadeDrop },
@@ -486,7 +498,11 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
             its scroll content, which lets content pass under the header and
             fade instead of being clipped at a padded edge. */}
         <ChromeInsetsProvider
-          top={destination.kind === 'coach' ? 0 : headerHeight(insets.top)}
+          top={
+            destination.kind === 'coach'
+              ? 0
+              : Math.max(headerHeight(insets.top), headerMeasuredHeight)
+          }
           // The coach draws its own composer inside its content area. Every
           // other destination has the bar floating over it, so it publishes
           // the bar's height and screens keep their last row clear of it.
