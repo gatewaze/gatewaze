@@ -71,9 +71,11 @@ RUN if [ -n "$BUILD_TIME_GITHUB_TOKEN" ]; then \
         || echo "[scheduler-prebuild] Warning: failed to clone $url"; \
     done; \
     unset IFS; \
-    node /docker/shared/aggregate-module-deps.mjs /app/package.json; \
-    cd /app && npm install --omit=dev 2>&1 | tail -5 \
-      || echo "[scheduler-prebuild] Warning: npm install for aggregated module deps failed"
+    node /docker/shared/aggregate-module-deps.mjs /app/package.json && \
+    # --legacy-peer-deps + hard failure: see docker/worker/Dockerfile — the
+    # union of module deps can always hit a cross-module peer conflict, and
+    # the old piped/|| form shipped images with the install silently skipped.
+    cd /app && npm install --omit=dev --legacy-peer-deps --no-audit --no-fund
 
 # Create non-root user for security
 RUN groupadd -r gatewaze && useradd -r -g gatewaze gatewaze \
