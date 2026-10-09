@@ -685,7 +685,9 @@ modulesRouter.put('/:id/config', async (req, res) => {
       }
       sealedConfig = sealSecretConfigFields(newConfig, def.config.configSchema ?? null);
     } catch (sealErr) {
-      logger.error({ err: sealErr }, `[modules] Refusing config save for "${moduleId}": secret fields could not be sealed`);
+      // moduleId is a request param — passed as a structured field, never
+      // interpolated into the message (js/log-injection).
+      logger.error({ err: sealErr, moduleId }, '[modules] Refusing config save: secret fields could not be sealed');
       return res.status(500).json({
         error: `Could not seal secret config fields: ${sealErr instanceof Error ? sealErr.message : 'unknown error'}`,
       });
