@@ -400,7 +400,7 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
             <DrawerRow
               icon="history"
               label="Change log"
-              onPress={() => setChangelogOpen(true)}
+              onPress={() => { setOpen(false); setChangelogOpen(true); }}
             />
           </View>
 
@@ -550,11 +550,11 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
             onClose={() => { setBugOpen(false); setBugShot(null); setBugRoute(null); }}
           />
         ) : null}
-
-        {changelogOpen ? (
-          <ChangelogSheet onClose={() => setChangelogOpen(false)} />
-        ) : null}
       </Animated.View>
+
+      {changelogOpen ? (
+        <ChangelogSheet onClose={() => setChangelogOpen(false)} />
+      ) : null}
     </View>
   );
 }
