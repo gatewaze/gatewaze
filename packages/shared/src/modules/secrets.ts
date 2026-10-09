@@ -145,7 +145,12 @@ export function sealSecretConfigFields(
   if (!configSchema) return config;
   let out: Record<string, unknown> | null = null;
   for (const [key, value] of Object.entries(config)) {
-    const field = configSchema[key];
+    // Keys come from the request body: never treat prototype-walking names
+    // as schema fields, and only honour the schema's OWN properties — both
+    // guards close the js/remote-property-injection shape (a crafted key
+    // like __proto__ matching Object.prototype members).
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') continue;
+    const field = Object.prototype.hasOwnProperty.call(configSchema, key) ? configSchema[key] : undefined;
     if (!field || field.type !== 'secret' || field.encrypted !== true) continue;
     if (typeof value !== 'string' || value === '' || value.startsWith(VERSION_PREFIX)) continue;
     (out ??= { ...config })[key] = encryptSecret(value);
