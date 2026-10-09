@@ -206,9 +206,15 @@ RUN if [ -n "$BUILD_TIME_GITHUB_TOKEN" ]; then \
         || echo "[worker-prebuild] Warning: failed to clone $url"; \
     done; \
     unset IFS; \
-    MODULE_DEPS_EXCLUDE="$MODULE_DEPS_EXCLUDE" node /docker/shared/aggregate-module-deps.mjs /app/package.json; \
-    cd /app && npm install --omit=dev 2>&1 | tail -5 \
-      || echo "[worker-prebuild] Warning: npm install for aggregated module deps failed"
+    MODULE_DEPS_EXCLUDE="$MODULE_DEPS_EXCLUDE" node /docker/shared/aggregate-module-deps.mjs /app/package.json && \
+    # --legacy-peer-deps: the aggregated set is a UNION of independent modules'
+    # deps, so strict peer resolution can always find a cross-module conflict
+    # (e.g. scrapers' @anthropic-ai/sdk pin vs the ai module's agent-sdk peer
+    # range) and abort the WHOLE install. No pipe and no `|| echo`: both
+    # swallowed that abort (a piped RUN exits with tail's status), which
+    # shipped images missing every aggregated module dep — job handlers then
+    # die at import time. A failed install must fail the image build.
+    cd /app && npm install --omit=dev --legacy-peer-deps --no-audit --no-fund
 
 # Copy compiled @gatewaze/shared from the builder stage and expose it as a
 # package in the runtime node_modules. Module job handlers transitively
