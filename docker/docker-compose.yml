@@ -746,6 +746,10 @@ services:
       # their existing Puppeteer paths.
       SCRAPLING_FETCHER_URL: http://scrapling-fetcher:8080
       SCRAPLING_INTERNAL_TOKEN: ${SCRAPLING_INTERNAL_TOKEN:-}
+      # Residential-egress toggle for conference-recap transcript fetching —
+      # same switch prod sets in k8s values (CONFERENCE_RECAP_RESIDENTIAL_EGRESS).
+      # Needs the residential-egress module enabled+configured to take effect.
+      CONFERENCE_RECAP_RESIDENTIAL_EGRESS: ${CONFERENCE_RECAP_RESIDENTIAL_EGRESS:-}
       # Let the recipe executor reach the internal browser-mcp HTTP service
       # (http://browser-mcp:8080) past the streamable_http SSRF guard.
       AI_MCP_HTTP_ALLOW_PRIVATE: ${AI_MCP_HTTP_ALLOW_PRIVATE:-}
