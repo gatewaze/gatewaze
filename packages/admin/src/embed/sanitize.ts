@@ -2,7 +2,7 @@
  * Shared sanitizer for anything that crosses the embed's onFatal/telemetry
  * boundary (spec definition-of-done: "telemetry events emitted with
  * URL/token sanitization"). Strips full URLs (query/fragment can carry a
- * Supabase access token or LFID state) and common bearer-token shapes,
+ * Supabase access token or an identity-provider state value) and common bearer-token shapes,
  * then bounds the length so a runaway error message can't balloon a
  * telemetry payload.
  */

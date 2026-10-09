@@ -38,6 +38,68 @@ write_runtime_config() {
   echo "[admin] Wrote runtime-config.js with ${vite_count} VITE_* values to ${out_path}"
 }
 
+# Hosted embed: a library build of the admin that a host application loads at
+# runtime from this pod's /embed/ (see packages/admin/vite.embed.config.ts and
+# packages/admin-embed). Built only when ADMIN_EMBED_MODULES names the modules
+# to compile in; a deployment that does not embed the admin pays nothing.
+#
+# Runs after the main bundle in every path (prebuild, boot refresh, slow
+# path), so /embed/ always comes from the same module tips as the admin it
+# sits beside. A failed embed build is a warning, never fatal: the admin
+# itself must still come up, and the previously served /embed/ (if any) stays.
+build_embed() {
+  if [ -z "$ADMIN_EMBED_MODULES" ]; then
+    return 0
+  fi
+  # Never in the boot refresh. Each replica refreshes at its own boot time from
+  # the module tip of that moment, so two replicas can serve two different
+  # admin bundles (that is why the admin Service pins browsers with ClientIP
+  # affinity). A host loads the embed in two steps from two clients — the
+  # browser reads the manifest, the host's server fetches the stylesheet — and
+  # those can land on different replicas. The embed therefore has to be
+  # identical across replicas of one image: built once at image build (or on
+  # the slow path, from the same sources), and changed only by a new release.
+  if [ -n "$ADMIN_REFRESH_CHILD" ]; then
+    echo "[admin] Boot refresh: hosted embed is pinned to the image build, not rebuilt"
+    return 0
+  fi
+  echo "[admin] Building hosted embed (modules: ${ADMIN_EMBED_MODULES})..."
+  if ! ( cd /app/packages/admin && \
+         ADMIN_EMBED_VERSION="${ADMIN_IMAGE_VERSION:-dev}" \
+         NODE_OPTIONS="--max-old-space-size=${NODE_HEAP_MB:-${ADMIN_NODE_HEAP_MB:-2560}}" \
+         npx vite build -c vite.embed.config.ts ); then
+    echo "[admin] WARNING: hosted embed build failed — /embed/ not updated" >&2
+    return 0
+  fi
+  # Stage beside, then swap: nginx never sees a half-copied directory.
+  rm -rf /usr/share/nginx/html/embed.next
+  cp -r /app/packages/admin/dist-embed /usr/share/nginx/html/embed.next
+  rm -rf /usr/share/nginx/html/embed
+  mv /usr/share/nginx/html/embed.next /usr/share/nginx/html/embed
+  echo "[admin] Hosted embed ready: $(tr -d '\n ' < /usr/share/nginx/html/embed/manifest.json | cut -c1-160)"
+}
+
+# Fast path only: the baked /embed/ was built for the image's default module
+# list. Serve it only if this deployment asked for exactly that list;
+# otherwise drop it (serving the wrong module set is worse than a short gap)
+# and let the boot refresh build the right one.
+reconcile_baked_embed() {
+  baked_manifest=/usr/share/nginx/html/embed/manifest.json
+  [ -f "$baked_manifest" ] || return 0
+  if [ -z "$ADMIN_EMBED_MODULES" ]; then
+    echo "[admin] ADMIN_EMBED_MODULES unset — not serving the baked embed"
+    rm -rf /usr/share/nginx/html/embed
+    return 0
+  fi
+  baked_modules=$(node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).modules.join(","))' "$baked_manifest" 2>/dev/null || echo "?")
+  if [ "$baked_modules" != "$ADMIN_EMBED_MODULES" ]; then
+    echo "[admin] Baked embed modules (${baked_modules}) differ from ADMIN_EMBED_MODULES — dropping until the boot refresh rebuilds it"
+    rm -rf /usr/share/nginx/html/embed
+  else
+    echo "[admin] Serving baked hosted embed (modules: ${baked_modules})"
+  fi
+}
+
 # Fast path: if a pre-built bundle was baked in at image build time AND
 # the runtime MODULE_SOURCES is a subset of the build-time MODULE_SOURCES,
 # we can skip pnpm install + clone + vite build entirely and start nginx
@@ -71,6 +133,7 @@ if [ -z "$PREBUILD" ] && [ -z "$ADMIN_REFRESH_CHILD" ] && [ -d /usr/share/nginx/
     echo "[admin] Fast path: copying pre-built bundle to nginx html"
     cp -r /usr/share/nginx/html-prebuilt/* /usr/share/nginx/html/
     write_runtime_config /usr/share/nginx/html/runtime-config.js
+    reconcile_baked_embed
     # The baked bundle is a SNAPSHOT from image-build time. Without a refresh, module
     # updates NEVER reach a fast-path admin (restarts just re-serve the snapshot — the
     # frozen-at-bake bug behind the 2026-08-04 prod SE incident). Serve the snapshot for
@@ -234,6 +297,7 @@ cd /app/packages/admin && NODE_OPTIONS="--max-old-space-size=${NODE_HEAP_MB}" np
 # Copy built assets to nginx html directory
 cp -r /app/packages/admin/dist/* /usr/share/nginx/html/
 write_runtime_config /usr/share/nginx/html/runtime-config.js
+build_embed
 
 if [ -n "$PREBUILD" ]; then
   echo "[admin] PREBUILD=1 — build complete, exiting without starting nginx (Dockerfile will snapshot the dist)"

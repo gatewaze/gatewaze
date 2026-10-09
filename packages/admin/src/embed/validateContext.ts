@@ -96,8 +96,8 @@ export function validateGwHostContext(ctx: unknown): ValidationResult {
   if (!c.signIn || typeof c.signIn !== 'object') {
     return fail('signIn', 'signIn config is required');
   }
-  if (!isAbsoluteUrl(c.signIn.lfidStartUrl)) {
-    return fail('signIn.lfidStartUrl', 'signIn.lfidStartUrl must be an absolute URL');
+  if (!isAbsoluteUrl(c.signIn.startUrl)) {
+    return fail('signIn.startUrl', 'signIn.startUrl must be an absolute URL');
   }
   if (!isAbsoluteUrl(c.signIn.returnUrl)) {
     return fail('signIn.returnUrl', 'signIn.returnUrl must be an absolute URL');

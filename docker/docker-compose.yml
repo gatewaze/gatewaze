@@ -236,6 +236,10 @@ services:
       # people-enrichment edge fn reads these (LinkedIn/email enrichment).
       ENRICHLAYER_API_KEY: ${ENRICHLAYER_API_KEY:-}
       CLEARBIT_API_KEY: ${CLEARBIT_API_KEY:-}
+      # integrations-lfid-callback (lf-gatewaze-modules) reads the Auth0
+      # client secret from its environment ONLY — the module-config
+      # fallback was removed because that column is anon-readable.
+      AUTH0_CLIENT_SECRET: ${AUTH0_CLIENT_SECRET:-}
       EMAIL_FROM: ${EMAIL_FROM:-noreply@localhost}
       EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-Gatewaze}
       # Central Sending Service canary: when 'true' the Edge newsletter-send fn
@@ -255,6 +259,7 @@ services:
       SMTP_PASS: ${SMTP_PASS:-}
       GW_APP_NAME: ${GW_APP_NAME:-}
       CI_MODE: "${CI_MODE:-false}"
+      CI_MODE_SECRET: ${CI_MODE_SECRET:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
@@ -386,6 +391,7 @@ services:
       VITE_SUPABASE_URL: ${SUPABASE_URL:-http://supabase.gatewaze.localhost}
       VITE_SUPABASE_ANON_KEY: ${ANON_KEY}
       VITE_API_URL: ${API_URL:-http://api.gatewaze.localhost}
+      VITE_SUPABASE_FLOW_TYPE: ${VITE_SUPABASE_FLOW_TYPE:-implicit}
       VITE_PORTAL_DOMAIN: ${PORTAL_HOST:-app.gatewaze.localhost}
       VITE_APP_URL: http://${PORTAL_HOST:-app.gatewaze.localhost}
       VITE_APP_NAME: ${GW_APP_NAME:-}
