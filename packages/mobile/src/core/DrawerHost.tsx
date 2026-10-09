@@ -30,15 +30,17 @@ import { AmbientBackground } from '../components/AmbientBackground';
 
 import { SummaryDrawer, SUMMARY_WIDTH } from './SummaryDrawer';
 import { CoachBar } from './CoachBar';
-import { Button, Caps, EmptyState } from '../components/primitives';
+import { Button, Caption, Caps, EmptyState } from '../components/primitives';
 import { chatProvider, drawerSections } from './registry';
 import { onOutboxChange, outboxCounts } from './outbox';
-import { consumeOpenDrawerRequest, consumeOpenSummaryRequest } from './drawerSignal';
+import { consumeBugReportRequest, consumeOpenDrawerRequest, consumeOpenSummaryRequest } from './drawerSignal';
 import { hasPendingHandoff } from './coachHandoff';
 import { ChromeInsetsProvider } from './chrome';
 import { useSession } from './auth/session';
 import { CoachHome } from './CoachHome';
 import { BugReportSheet } from './BugReport';
+import { ChangelogSheet } from './ChangelogSheet';
+import { appBuildNumber, appVersion } from './appInfo';
 import { brandLogo, feedbackPath } from './registry';
 import { config } from './config';
 import {
@@ -111,9 +113,28 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
   // sheet still opens, just without an attachment.
   const [bugShot, setBugShot] = useState<string | null>(null);
   const [bugOpen, setBugOpen] = useState(false);
+  const [changelogOpen, setChangelogOpen] = useState(false);
+  /**
+   * The screen a report is about, when it came from a pushed one.
+   *
+   * Null means the report was raised here, and the route is worked out from
+   * the current destination as it always was.
+   */
+  const [bugRoute, setBugRoute] = useState<string | null>(null);
   // Measured, not assumed: the bar's height depends on the mode track, which
   // depends on which modules the member has.
   const [coachBarHeight, setCoachBarHeight] = useState(0);
+  // Measured, not assumed, the same way: `headerHeight()` is a reasonable
+  // floor built from fixed constants, but a module destination's title runs
+  // through a plain Text that scales with the system's font size setting. At
+  // the larger end of Dynamic Type (Larger Accessibility Sizes) the title can
+  // render taller than the `headerButton` constant the formula assumes, so
+  // the header's real on-screen height grows past what every destination
+  // pads for and the bottom of the header overlaps the top of the content.
+  // Taking the larger of the two keeps the formula as the pre-layout default
+  // (nothing changes at ordinary text sizes) and corrects it once the header
+  // has actually measured itself.
+  const [headerMeasuredHeight, setHeaderMeasuredHeight] = useState(0);
   const [failedCount, setFailedCount] = useState(() => outboxCounts().failed);
 
   const insets = useSafeAreaInsets();
@@ -133,6 +154,20 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
     useCallback(() => {
       if (consumeOpenDrawerRequest()) setOpen(true);
       if (consumeOpenSummaryRequest()) setSummaryOpen(true);
+      /**
+       * A report raised on a pushed screen, with its screenshot already taken.
+       *
+       * The sheet lives here, below that screen in the stack, so it could not
+       * have been opened from up there — it would have rendered behind it.
+       * The screen captured the image while it was still on top and popped
+       * back; this is the first moment the sheet can actually be shown.
+       */
+      const bug = consumeBugReportRequest();
+      if (bug) {
+        setBugRoute(bug.route);
+        setBugShot(bug.shot);
+        setBugOpen(true);
+      }
       // A pushed screen's composer bar left a message on its way back here.
       // The coach consumes it; this only has to be showing the coach when it
       // does. Peeked rather than consumed, for that reason.
@@ -315,7 +350,7 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
             <BrandMark height={30} />
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.navList}>
+          <ScrollView style={styles.navScroll} showsVerticalScrollIndicator={false} contentContainerStyle={styles.navList}>
             {coach ? (
               <DrawerRow
                 icon="message-outline"
@@ -358,6 +393,17 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
 
           </ScrollView>
 
+          <View style={[styles.drawerFoot, { borderColor: theme.border }]}>
+            <Caption style={{ textAlign: 'center' }}>
+              {`Version ${appVersion()} · Build ${appBuildNumber()}`}
+            </Caption>
+            <DrawerRow
+              icon="history"
+              label="Change log"
+              onPress={() => { setOpen(false); setChangelogOpen(true); }}
+            />
+          </View>
+
         </SafeAreaView>
       </Animated.View>
 
@@ -388,6 +434,7 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
             withAlpha(theme.headerScrim, layout.headerFadeStops[2]),
           ]}
           locations={headerFadeLocations(insets.top)}
+          onLayout={(e) => setHeaderMeasuredHeight(e.nativeEvent.layout.height)}
           style={[
             styles.header,
             { paddingTop: insets.top + layout.headerTopGap, paddingBottom: layout.headerFadeDrop },
@@ -465,7 +512,11 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
             its scroll content, which lets content pass under the header and
             fade instead of being clipped at a padded edge. */}
         <ChromeInsetsProvider
-          top={destination.kind === 'coach' ? 0 : headerHeight(insets.top)}
+          top={
+            destination.kind === 'coach'
+              ? 0
+              : Math.max(headerHeight(insets.top), headerMeasuredHeight)
+          }
           // The coach draws its own composer inside its content area. Every
           // other destination has the bar floating over it, so it publishes
           // the bar's height and screens keep their last row clear of it.
@@ -495,11 +546,15 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
           <BugReportSheet
             path={feedbackPath()!}
             shotBase64={bugShot}
-            route={destination.kind === 'coach' ? 'coach' : `${destination.moduleId}:${destination.entryId}`}
-            onClose={() => { setBugOpen(false); setBugShot(null); }}
+            route={bugRoute ?? (destination.kind === 'coach' ? 'coach' : `${destination.moduleId}:${destination.entryId}`)}
+            onClose={() => { setBugOpen(false); setBugShot(null); setBugRoute(null); }}
           />
         ) : null}
       </Animated.View>
+
+      {changelogOpen ? (
+        <ChangelogSheet onClose={() => setChangelogOpen(false)} />
+      ) : null}
     </View>
   );
 }
@@ -553,10 +608,15 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   drawerHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  navScroll: { flex: 1 },
   navList: { gap: 2, marginTop: 26, paddingBottom: spacing.lg },
   sectionLabel: { marginTop: spacing.xl, marginBottom: spacing.sm },
   recent: { paddingVertical: 9 },
-  drawerFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
+  drawerFoot: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: spacing.sm,
+    marginTop: spacing.sm,
+  },
   newChat: {
     flexDirection: 'row',
     alignItems: 'center',

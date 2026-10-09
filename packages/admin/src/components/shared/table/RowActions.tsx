@@ -13,9 +13,15 @@ export interface RowAction {
 
 interface RowActionsProps {
   actions: RowAction[];
+  /**
+   * Custom trigger element (e.g. a labelled <Button>). Defaults to the kebab
+   * icon button, so existing table usages are unchanged. Lets module pages
+   * build "Create ▾"-style menus without importing Radix directly.
+   */
+  trigger?: ReactNode;
 }
 
-export function RowActions({ actions }: RowActionsProps) {
+export function RowActions({ actions, trigger }: RowActionsProps) {
   const visibleActions = actions.filter((a) => !a.hidden);
 
   if (visibleActions.length === 0) return null;
@@ -23,17 +29,19 @@ export function RowActions({ actions }: RowActionsProps) {
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger>
-        <button
-          // type="button" is required: without it, <button> defaults to
-          // type="submit" inside any form ancestor — a stray dbl-click
-          // on a row could land its second click on this trigger and
-          // submit a form (full page refresh).
-          type="button"
-          className="inline-flex items-center justify-center size-8 rounded-md text-[var(--accent-9)] hover:text-[var(--accent-11)] hover:bg-[var(--accent-a3)] transition-colors cursor-pointer"
-          aria-label="Row actions"
-        >
-          <EllipsisVerticalIcon className="size-5" />
-        </button>
+        {trigger ?? (
+          <button
+            // type="button" is required: without it, <button> defaults to
+            // type="submit" inside any form ancestor — a stray dbl-click
+            // on a row could land its second click on this trigger and
+            // submit a form (full page refresh).
+            type="button"
+            className="inline-flex items-center justify-center size-8 rounded-md text-[var(--accent-9)] hover:text-[var(--accent-11)] hover:bg-[var(--accent-a3)] transition-colors cursor-pointer"
+            aria-label="Row actions"
+          >
+            <EllipsisVerticalIcon className="size-5" />
+          </button>
+        )}
       </DropdownMenu.Trigger>
       <DropdownMenu.Content align="end" size="1">
         {visibleActions.map((action) => (

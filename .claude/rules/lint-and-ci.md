@@ -126,6 +126,30 @@ so the practical risk is nil. Don't try to "fix" them — there's
 nothing to upgrade to. Migrating off lodash is a deeper refactor and
 isn't in scope.
 
+## The unfixable node-forge advisory
+
+```
+node-forge  <=1.4.0  →  patched: <0.0.0  (no fix exists; 1.4.0 IS the latest)
+```
+
+GHSA-86w9-cpqp-85rv, RSA PKCS#1 v1.5 signature verification accepting extra
+nested DigestAlgorithm elements. It is in `pnpm.auditConfig.ignoreGhsas`
+because there is nothing to upgrade to.
+
+It reaches the production graph through `packages/mobile > expo > @expo/cli`.
+`@expo/cli` is build tooling. It runs on a developer machine during prebuild
+and is not part of the shipped app binary, and nothing on that path verifies
+an RSA signature with node-forge.
+
+Admin also declares `@react-three/fiber` and `three` as production dependencies
+and imports neither, which brings the same chain in a second time. Removing
+them is worth doing on its own rather than inside an audit fix, so the ignore
+covers the advisory by its GHSA id and both paths with it. Portal's use of
+`@react-three/fiber` is real (`FluidBackground.tsx`) and stays.
+
+Revisit when node-forge ships a patched release: drop the ignore and let the
+gate speak.
+
 ## husky / lint-staged
 
 `.husky/pre-commit` runs `pnpm exec lint-staged`. The lint-staged

@@ -63,6 +63,23 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     plugins.unshift(['./plugins/withFullBleedSplash', { image: process.env.APP_SPLASH_IMAGE }]);
   }
 
+  /**
+   * Draw under the system bars on Android.
+   *
+   * gradle.properties already asked for edge-to-edge, but the library that
+   * implements it was not installed, so the request did nothing and the app
+   * rendered beneath a pale strip with the status bar's own background in it.
+   * On Android 15 and later the system ignores StatusBar.backgroundColor, so
+   * this is the only way to reach it.
+   *
+   * No-op on iOS, which has always drawn under the status bar.
+   */
+  plugins.push('react-native-edge-to-edge');
+
+  // Android release signing. Inert without the keystore environment, so a
+  // debug build and a CI prebuild are unaffected; see the plugin's header.
+  plugins.push('./plugins/withAndroidUploadSigning');
+
   // HealthKit. The entitlement is only requested when a baked module asks
   // for it: an app with no health module must not ship a health entitlement,
   // because App Store review asks what it is for.
@@ -97,29 +114,6 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     plugins.push([
       'expo-audio',
       {
-        microphonePermission:
-          process.env.APP_MICROPHONE_PERMISSION_TEXT ||
-          `Allow ${name} to use the microphone so you can speak to the coach instead of typing.`,
-      },
-    ]);
-    /**
-     * On-device speech recognition, alongside the recorder.
-     *
-     * Same capability rather than a new one: a module that records in order to
-     * be transcribed is asking for one feature, and splitting it would let a
-     * build ship the recorder without the thing that reads it.
-     *
-     * The plugin exists to put NSSpeechRecognitionUsageDescription in the
-     * Info.plist. Without that string iOS does not refuse the permission, it
-     * TERMINATES the app the moment it is requested, which is a crash on a
-     * button press rather than a message.
-     */
-    plugins.push([
-      'expo-speech-recognition',
-      {
-        speechRecognitionPermission:
-          process.env.APP_SPEECH_PERMISSION_TEXT ||
-          `Allow ${name} to turn what you say into text on this device, so a note you dictate never leaves the phone.`,
         microphonePermission:
           process.env.APP_MICROPHONE_PERMISSION_TEXT ||
           `Allow ${name} to use the microphone so you can speak to the coach instead of typing.`,
@@ -194,6 +188,29 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
     android: {
       package: bundleId,
+      /**
+       * Play orders builds by versionCode and refuses one it has already
+       * seen. Without this every build ships versionCode 1 — the first
+       * upload works, the second is rejected, and the message says nothing
+       * about where the number comes from.
+       *
+       * Same source as the iOS build number so the two platforms stay
+       * comparable, and an integer because Play requires one.
+       */
+      versionCode: Number(process.env.APP_BUILD_NUMBER) || 1,
+      adaptiveIcon: process.env.APP_ICON
+        ? {
+          foregroundImage: process.env.APP_ICON,
+          // Same override as the splash, so a brand pointing APP_ICON at its
+          // own art is not left with this app's near-black behind it.
+          backgroundColor: process.env.APP_SPLASH_COLOR || '#090c14',
+        }
+        : undefined,
+      // `edgeToEdgeEnabled` is deliberately absent. It is no longer read: the
+      // only consumer left in @expo/prebuild-config emits a warning telling
+      // you to remove it. Edge to edge comes from the
+      // react-native-edge-to-edge plugin above, which is what actually sets
+      // the generated theme to Theme.EdgeToEdge.
     },
     plugins,
     experiments: { typedRoutes: false },

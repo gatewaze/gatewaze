@@ -10,10 +10,21 @@
 
 import type { MobileFetchInit } from '@gatewaze/shared';
 import { config } from './config';
+import { deviceTimezone } from './appInfo';
 import { ApiFailure, failureFromStatus, toFailure } from './errors';
 import { noteConnectivity } from './outbox';
 import { getSupabase } from './auth/supabase';
 
+/**
+ * The default deadline for a request. Suits everything that is a round trip to
+ * the database and back.
+ *
+ * A caller whose work legitimately takes longer passes its own `timeoutMs`
+ * rather than this being raised for everybody: a GET that has not answered in
+ * thirty seconds is not going to, and failing fast is the right behaviour for
+ * it. Transcription is the case that needs more, because the server's work
+ * there is proportional to the length of the recording.
+ */
 const TIMEOUT_MS = 30_000;
 
 async function accessToken(forceRefresh = false): Promise<string | undefined> {
@@ -46,9 +57,19 @@ async function doFetch(path: string, init: MobileFetchInit, token: string | unde
   const isForm = typeof FormData !== 'undefined' && init.body instanceof FormData;
   if (!isForm && init.body !== undefined) headers.set('Content-Type', 'application/json');
   if (token) headers.set('Authorization', `Bearer ${token}`);
+  /**
+   * What day it is where the member is.
+   *
+   * Sent on every request rather than stored against the person, because the
+   * device is the only thing that knows and a member who travels should get
+   * the date they are living by. The server needs it to tell the coach what
+   * today is: without it the coach worked in UTC and read yesterday evening's
+   * meal as "earlier today" for anyone an hour ahead of it.
+   */
+  headers.set('X-Gatewaze-Timezone', deviceTimezone());
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), init.timeoutMs ?? TIMEOUT_MS);
   try {
     return await fetch(`${config.apiUrl}${path}`, {
       method: init.method || (init.body !== undefined ? 'POST' : 'GET'),

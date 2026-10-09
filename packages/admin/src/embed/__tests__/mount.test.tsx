@@ -29,7 +29,7 @@ function makeCtx(overrides: Partial<GwHostContext> = {}): GwHostContext {
     apiBaseUrl: '',
     enabled: { moduleIds: [], features: [] },
     signIn: {
-      lfidStartUrl: 'https://host.example.org/auth/lfid/start',
+      startUrl: 'https://host.example.org/auth/start',
       returnUrl: 'https://host.example.org/apps/gw',
     },
     ...overrides,

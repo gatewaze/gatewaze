@@ -132,6 +132,15 @@ export function ChatBubble({
         <PendingDots status={status} />
       ) : typeof children === 'string' ? (
         <Text
+          /**
+           * Selectable, so the OS's own selection handles and its Copy, Look
+           * Up and Share menu all work inside a message — the behaviour
+           * anybody expects of text on a phone, and which a plain Text simply
+           * does not have. The long-press menu offers Copy as well, because a
+           * member who wants the whole message should not have to drag
+           * handles to the end of it.
+           */
+          selectable
           style={[
             type.chat,
             // Per role: a filled coach bubble needs ink that reads against the

@@ -66,6 +66,7 @@ jobs:
           # has read access to all three module repos.
           build-args: |
             BUILD_TIME_GITHUB_TOKEN=${{ secrets.GH_PAT_MODULES }}
+            ADMIN_IMAGE_VERSION=${{ steps.version.outputs.VERSION }}
 
       - name: Build and push portal image
         id: img-portal

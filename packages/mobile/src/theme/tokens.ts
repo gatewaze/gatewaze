@@ -1,19 +1,16 @@
 /**
  * Design tokens (coach rebrand, spec-mobile-coach-rebrand.md).
  *
- * Dark is the primary theme, so the exported `colors` are the dark values
- * and the app is pinned to dark in app.config.ts. The light palette is
- * defined here too, and `useTheme()` already returns the active one, so
- * unpinning to follow the system is a config change plus migrating
- * consumers from the static export to the hook. Module screens still on
- * the static export therefore keep working while they are restyled.
+ * Dark is the only theme the app ships. The exported `colors` are the dark
+ * values, the app is pinned to dark in app.config.ts, and `useTheme()`
+ * returns dark on both platforms rather than following the device. The light
+ * palette is defined here and is currently unreachable; see `useTheme` for
+ * what unpinning would take, which is more than a config change.
  *
  * Values are the design's semantic colors. Materials (glass, blur) are NOT
  * tokens: those come from the native component in components/GlassPanel,
  * which adapts to the system appearance on its own.
  */
-
-import { useColorScheme } from 'react-native';
 
 export interface Palette {
   /** Deepest ground, e.g. the drawer canvas behind the app surface. */
@@ -246,10 +243,44 @@ export const lightColors: Palette = {
 /** Dark is primary; the static export is what unmigrated screens import. */
 export const colors: Palette = darkColors;
 
-/** Theme-aware palette for core components and restyled module screens. */
+/**
+ * The palette every core component and module screen draws with.
+ *
+ * ── WHY THIS DOES NOT READ THE DEVICE'S LIGHT OR DARK SETTING ─────────────
+ *
+ * The app declares `userInterfaceStyle: 'dark'` in app.config.ts and is drawn
+ * throughout for a dark ground: the gradient, the glass surfaces, the bubble
+ * colours and the brand mark. iOS honours that declaration, because Expo
+ * writes it into the Info.plist as UIUserInterfaceStyle and the system then
+ * reports dark to every API, `useColorScheme` included.
+ *
+ * On Android it does not reach `useColorScheme`, and reading the device there
+ * rendered the whole app in the light palette on a phone set to light mode:
+ * pale chat bubbles, a near-white drawer with grey text, a pale strip above
+ * the gradient. Not a themed variant. It looked broken, and it was the first
+ * thing anyone saw.
+ *
+ * The obvious cause is not the cause, so do not "fix" this by installing the
+ * missing piece. `expo-system-ui` IS installed, its plugin DOES write
+ * `expo_system_ui_user_interface_style=dark` into the generated
+ * strings.xml, and its Kotlin DOES map that to
+ * `AppCompatDelegate.setDefaultNightMode(MODE_NIGHT_YES)`. All three were
+ * verified in this tree. It was then tested end to end on a clean build —
+ * fresh `prebuild --clean`, app uninstalled, APK rebuilt and reinstalled,
+ * emulator held in light mode — and the app still came up light. So the
+ * mechanism exists, is wired, and does not arrive in time or in a form that
+ * `useColorScheme` sees here.
+ *
+ * Rather than depend on that, the app's own declaration is the source of
+ * truth and this returns it. The two platforms agree by construction instead
+ * of by each happening to implement the same convention.
+ *
+ * `lightColors` is untouched below and still exported. If the app ever
+ * genuinely offers both appearances, this function is where that decision
+ * goes, and the Android mechanism above is worth retesting at that point.
+ */
 export function useTheme(): Palette {
-  const scheme = useColorScheme();
-  return scheme === 'light' ? lightColors : darkColors;
+  return darkColors;
 }
 
 export const spacing = {

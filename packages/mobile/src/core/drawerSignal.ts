@@ -52,3 +52,32 @@ export function consumeOpenSummaryRequest(): boolean {
   summaryPending = false;
   return held;
 }
+
+/**
+ * A bug report raised from a pushed screen, with the screenshot already taken.
+ *
+ * The report sheet lives inside the drawer host, which sits BELOW a pushed
+ * module screen in the stack — so a screen cannot open it, and opening it
+ * from underneath would render it invisibly behind whatever is on top. Until
+ * this existed the bug button simply was not offered on those screens, which
+ * is most of the app: a tester could only report a problem from the coach
+ * home, having first navigated away from the thing they wanted to report.
+ *
+ * The SCREENSHOT is why this carries a payload rather than being a bare flag
+ * like the two above. It has to be captured while the screen in question is
+ * still on top, because a moment later it will not be. Capture first, then
+ * pop back, then open the sheet with the image already in hand.
+ */
+let bugRequest: { shot: string | null; route: string } | null = null;
+
+/** Raise a report about the screen that is on top right now. */
+export function requestBugReport(shot: string | null, route: string): void {
+  bugRequest = { shot, route };
+}
+
+/** The outstanding report, clearing it. Null when there is none. */
+export function consumeBugReportRequest(): { shot: string | null; route: string } | null {
+  const held = bugRequest;
+  bugRequest = null;
+  return held;
+}

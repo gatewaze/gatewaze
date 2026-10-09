@@ -45,7 +45,7 @@ spec:
             - configMapRef:
                 name: {{ include "gatewaze.fullname" . }}-config
             - secretRef:
-                name: {{ include "gatewaze.fullname" . }}-secret
+                name: {{ include "gatewaze.secretName" . }}
             {{- with .Values.extraEnvFrom }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -59,8 +59,13 @@ spec:
             - name: SCRAPLING_INTERNAL_TOKEN
               valueFrom:
                 secretKeyRef:
+                  {{- if .Values.existingSecret }}
+                  name: {{ .Values.existingSecret | quote }}
+                  key: SCRAPLING_INTERNAL_TOKEN
+                  {{- else }}
                   name: {{ include "gatewaze.fullname" . }}-scrapling-fetcher-secrets
                   key: internalToken
+                  {{- end }}
           {{- end }}
           {{- if .Values.worker.healthCheck.enabled }}
           # Startup probe: gives the worker time to load modules,

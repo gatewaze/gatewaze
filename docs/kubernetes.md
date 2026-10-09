@@ -328,6 +328,22 @@ Teams that want the secrets in version control usually reach for
 come from a secret manager at deploy time. Either works with this chart. The
 chart writes everything into one Kubernetes Secret named after the release.
 
+If you would rather own that Secret yourself, set `existingSecret` to its name
+and leave every secret-bearing value empty. The chart then renders no Secret of
+its own, and the pods, the public MCP server, the fetcher and `redis-server`
+all read from yours. This is the path for the External Secrets Operator or any
+GitOps setup that keeps values files free of secrets. The Secret must hold the
+same keys the chart would have written, plus `REDIS_PASSWORD` and
+`SCRAPLING_INTERNAL_TOKEN`. The full key list is in the `existingSecret`
+comment in `values.yaml`.
+
+```yaml
+existingSecret: gatewaze-secrets
+redis:
+  enabled: true
+  password: ""        # ignored; REDIS_PASSWORD comes from the Secret
+```
+
 Modules that need their own environment variables should ship their own
 ConfigMap or Secret, which you then reference from `extraEnvFrom` rather than
 editing this chart.

@@ -95,6 +95,8 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
    * than a boolean.
    */
   const [editing, setEditing] = useState<{ id: string; original: string } | null>(null);
+  /** An earlier message the next send should point the assistant at. */
+  const [referring, setReferring] = useState<{ id: string; text: string } | null>(null);
   /**
    * A notice the member tapped, waiting to be shown at the end of the thread.
    *
@@ -394,6 +396,19 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
    */
   const messageActions = useCallback((message: MobileCoachMessage, index: number): MessageAction[] => {
     const acts: MessageAction[] = [];
+    /**
+     * Refer, rather than re-paste.
+     *
+     * A tester wanted to copy an old message so they could bring it up again.
+     * Copying works and is offered below, but it makes the member the
+     * courier: they paste a wall of text the assistant has to re-read, and
+     * the thread now holds it twice. Referring points at the message instead
+     * — the server pulls it in by id, so it works even when that message is
+     * far outside the window of recent turns the model is given, which is
+     * exactly when somebody needs it.
+     */
+    acts.push({ id: 'reference', label: 'Refer to this', icon: 'link' });
+    acts.push({ id: 'copy', label: 'Copy', icon: 'content-copy' });
     const laterMember = messages.slice(index + 1).some((m) => m.role === 'member');
     if (message.role === 'member' && !laterMember) {
       acts.push({ id: 'edit', label: 'Edit', icon: 'pencil' });
@@ -401,6 +416,22 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
     acts.push({ id: 'delete', label: 'Delete', icon: 'trash-can-outline', destructive: true });
     return acts;
   }, [messages]);
+
+  /** Copy a whole message, without making the member drag selection handles. */
+  const copyText = useCallback(async (text: string) => {
+    if (!text) return;
+    try {
+      // Required lazily, like the other native modules here: a static import
+      // runs at load, where a binary without the native half throws before
+      // any of our code can catch it.
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const Clipboard = require('expo-clipboard') as typeof import('expo-clipboard');
+      await Clipboard.setStringAsync(text);
+      tap();
+    } catch {
+      /* No clipboard here; the text is still selectable by hand. */
+    }
+  }, []);
 
   const removeMessage = useCallback(async (messageId: string) => {
     if (!coach?.removeMessage || !threadId) return;
@@ -493,6 +524,10 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
        */
       tap();
       playSent();
+      // Consumed by this send: referring to something is about THIS message,
+      // not a mode the member is left in.
+      const refId = referring?.id ?? null;
+      setReferring(null);
       // Their message is about to appear at the end; go and look at it.
       scrollToNewest();
       // Sending is a chat action, so leave any capture mode and show the
@@ -520,7 +555,7 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
           id = await coach.createThread(ctx);
           setThreadId(id);
         }
-        await coach.send(ctx, id, text.trim());
+        await coach.send(ctx, id, text.trim(), refId ? { referToMessageId: refId } : undefined);
         setMessages((prev) => [
           ...prev,
           {
@@ -870,6 +905,10 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
                       if (action === 'edit') {
                         setEditing({ id: message.id, original: message.text ?? '' });
                         setDraft(message.text ?? '');
+                      } else if (action === 'copy') {
+                        void copyText(message.text ?? '');
+                      } else if (action === 'reference') {
+                        setReferring({ id: message.id, text: message.text ?? '' });
                       } else {
                         void removeMessage(message.id);
                       }
@@ -978,8 +1017,23 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
         Without it the only clue is that the field arrived pre-filled, which
         is not enough to explain why sending will not append a message.
       */}
+      {/* What the next message will point the assistant at. Shown for the same
+          reason the editing bar is: the composer is about to behave
+          differently and the only other clue would be nothing at all. */}
+      {referring ? (
+        <View style={[styles.editingBar, { backgroundColor: theme.sheet, borderColor: theme.border }]}>
+          <Icon name="link" size={14} color={theme.textSecondary} />
+          <Caption style={{ flex: 1 }} numberOfLines={1}>
+            {`Referring to: ${referring.text}`}
+          </Caption>
+          <Pressable onPress={() => setReferring(null)} hitSlop={8} accessibilityRole="button">
+            <Caption style={{ color: theme.accent }}>Clear</Caption>
+          </Pressable>
+        </View>
+      ) : null}
+
       {editing ? (
-        <View style={[styles.editingBar, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <View style={[styles.editingBar, { backgroundColor: theme.sheet, borderColor: theme.border }]}>
           <Icon name="pencil" size={14} color={theme.textSecondary} />
           <Caption style={{ flex: 1 }}>Editing your message</Caption>
           <Pressable

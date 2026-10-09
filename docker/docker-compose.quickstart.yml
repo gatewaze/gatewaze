@@ -281,6 +281,7 @@ services:
       VITE_SUPABASE_URL: ${SUPABASE_URL:-http://supabase.gatewaze.localhost}
       VITE_SUPABASE_ANON_KEY: ${ANON_KEY}
       VITE_API_URL: ${API_URL:-http://api.gatewaze.localhost}
+      VITE_SUPABASE_FLOW_TYPE: ${VITE_SUPABASE_FLOW_TYPE:-implicit}
     depends_on:
       supabase-kong:
         condition: service_started

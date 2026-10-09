@@ -1,0 +1,33 @@
+{
+  "name": "@gatewaze/admin-embed",
+  "version": "1.0.1",
+  "description": "Loader for the embeddable Gatewaze admin: mounts the admin served by a Gatewaze deployment into a host application's DOM node.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "types": "./dist/index.d.ts",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "node scripts/build.mjs --check"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gatewaze/gatewaze.git",
+    "directory": "packages/admin-embed"
+  }
+}

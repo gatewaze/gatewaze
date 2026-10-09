@@ -17,7 +17,11 @@ import { resolveEventImages } from '@/lib/storage-resolve'
 
 import { resolveSiteName } from '@/lib/metadata-helpers'
 interface Props {
-  params: Promise<{ identifier: string; custompage: string }>
+  // A catch-all: the first segment names the page, and anything after it
+  // is the page's own business -- /photos/getting-ready is the photos
+  // page being asked for one album (asked 2026-09-28). Pages that want
+  // nothing after their name simply ignore it.
+  params: Promise<{ identifier: string; custompage: string[] }>
 }
 
 function slugify(text: string): string {
@@ -55,7 +59,8 @@ async function getEventForMetadata(identifier: string, brandId: string) {
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { identifier, custompage } = await params
+  const { identifier, custompage: segments } = await params
+  const custompage = segments?.[0] ?? ''
   const brand = await getServerBrand()
   const brandConfig = await getBrandConfigById(brand)
 
@@ -105,7 +110,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function CustomPage({ params }: Props) {
-  const { identifier, custompage } = await params
+  const { identifier, custompage: segments } = await params
+  const custompage = segments?.[0] ?? ''
+  // What the page is being asked for, if anything: the album in
+  // /photos/getting-ready. Handed over as given; the page decides what
+  // it means and validates it.
+  const subPath = (segments ?? []).slice(1)
 
   // All module event pages (including RSVP) flow through the generated
   // registry — the registry's dynamic import resolves to the module source
@@ -167,6 +177,7 @@ export default async function CustomPage({ params }: Props) {
             brandName={brandConfig.name}
             currentPersonId={currentPersonId}
             darkMode={darkMode}
+            subPath={subPath}
           />
         </Suspense>
       )

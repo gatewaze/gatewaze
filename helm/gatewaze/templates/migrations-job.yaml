@@ -33,7 +33,7 @@ spec:
             - configMapRef:
                 name: {{ include "gatewaze.fullname" . }}-config
             - secretRef:
-                name: {{ include "gatewaze.fullname" . }}-secret
+                name: {{ include "gatewaze.secretName" . }}
           resources:
             requests:
               cpu: 100m

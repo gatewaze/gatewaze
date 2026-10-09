@@ -70,6 +70,9 @@ const SF_SYMBOLS: Record<string, string> = {
   'account-outline': 'person',
   'scale-bathroom-outline': 'scalemass',
   'link-variant': 'link',
+  // Used by the chat's long-press menu.
+  link: 'link',
+  'content-copy': 'doc.on.doc',
   'link-off': 'link.badge.plus',
   information: 'info.circle',
   'information-outline': 'info.circle',
