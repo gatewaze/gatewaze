@@ -20,6 +20,9 @@ import { getModuleContext } from './context';
 import { Body, Button, Caption, CardTitle, Input, Row } from '../components/primitives';
 import { useTheme, radius, spacing } from '../theme/tokens';
 import { humanMessage } from './errors';
+import { useVoiceInput } from './useVoiceInput';
+import { VoiceButton } from './VoiceButton';
+import { VoiceIndicator } from './VoiceIndicator';
 
 export function BugReportSheet({
   shotBase64,
@@ -39,6 +42,12 @@ export function BugReportSheet({
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const voice = useVoiceInput({
+    useCase: 'health-feedback-dictation',
+    onTranscript: (transcribed) =>
+      setText((current) => (current.trim() ? `${current.trim()} ${transcribed}` : transcribed)),
+  });
 
   const send = async () => {
     if (!text.trim() || sending) return;
@@ -118,17 +127,23 @@ export function BugReportSheet({
                     />
                   ) : null}
                 </Row>
-                <Input
-                  placeholder="What went wrong?"
-                  value={text}
-                  onChangeText={setText}
-                  multiline
-                  numberOfLines={4}
-                  style={{ minHeight: 96, textAlignVertical: 'top' }}
-                  autoFocus
-                />
+                {voice.state === 'idle' ? (
+                  <Input
+                    placeholder="What went wrong?"
+                    value={text}
+                    onChangeText={setText}
+                    multiline
+                    numberOfLines={4}
+                    style={{ minHeight: 96, textAlignVertical: 'top' }}
+                    autoFocus
+                  />
+                ) : (
+                  <VoiceIndicator voice={voice} />
+                )}
                 {error ? <Body style={{ color: theme.danger }}>{error}</Body> : null}
+                {voice.error ? <Body style={{ color: theme.danger }}>{voice.error}</Body> : null}
                 <Row style={{ gap: spacing.sm }}>
+                  <VoiceButton voice={voice} />
                   <View style={{ flex: 1 }}>
                     <Button title="Send" onPress={() => void send()} loading={sending} disabled={!text.trim()} />
                   </View>
