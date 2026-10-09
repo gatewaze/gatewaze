@@ -30,7 +30,7 @@ import { AmbientBackground } from '../components/AmbientBackground';
 
 import { SummaryDrawer, SUMMARY_WIDTH } from './SummaryDrawer';
 import { CoachBar } from './CoachBar';
-import { Button, Caps, EmptyState } from '../components/primitives';
+import { Button, Caption, Caps, EmptyState } from '../components/primitives';
 import { chatProvider, drawerSections } from './registry';
 import { onOutboxChange, outboxCounts } from './outbox';
 import { consumeBugReportRequest, consumeOpenDrawerRequest, consumeOpenSummaryRequest } from './drawerSignal';
@@ -39,6 +39,8 @@ import { ChromeInsetsProvider } from './chrome';
 import { useSession } from './auth/session';
 import { CoachHome } from './CoachHome';
 import { BugReportSheet } from './BugReport';
+import { ChangelogSheet } from './ChangelogSheet';
+import { appBuildNumber, appVersion } from './appInfo';
 import { brandLogo, feedbackPath } from './registry';
 import { config } from './config';
 import {
@@ -111,6 +113,7 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
   // sheet still opens, just without an attachment.
   const [bugShot, setBugShot] = useState<string | null>(null);
   const [bugOpen, setBugOpen] = useState(false);
+  const [changelogOpen, setChangelogOpen] = useState(false);
   /**
    * The screen a report is about, when it came from a pushed one.
    *
@@ -347,7 +350,7 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
             <BrandMark height={30} />
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.navList}>
+          <ScrollView style={styles.navScroll} showsVerticalScrollIndicator={false} contentContainerStyle={styles.navList}>
             {coach ? (
               <DrawerRow
                 icon="message-outline"
@@ -389,6 +392,17 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
             />
 
           </ScrollView>
+
+          <View style={[styles.drawerFoot, { borderColor: theme.border }]}>
+            <Caption style={{ textAlign: 'center' }}>
+              {`Version ${appVersion()} · Build ${appBuildNumber()}`}
+            </Caption>
+            <DrawerRow
+              icon="history"
+              label="Change log"
+              onPress={() => setChangelogOpen(true)}
+            />
+          </View>
 
         </SafeAreaView>
       </Animated.View>
@@ -536,6 +550,10 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
             onClose={() => { setBugOpen(false); setBugShot(null); setBugRoute(null); }}
           />
         ) : null}
+
+        {changelogOpen ? (
+          <ChangelogSheet onClose={() => setChangelogOpen(false)} />
+        ) : null}
       </Animated.View>
     </View>
   );
@@ -590,10 +608,15 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   drawerHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  navScroll: { flex: 1 },
   navList: { gap: 2, marginTop: 26, paddingBottom: spacing.lg },
   sectionLabel: { marginTop: spacing.xl, marginBottom: spacing.sm },
   recent: { paddingVertical: 9 },
-  drawerFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
+  drawerFoot: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: spacing.sm,
+    marginTop: spacing.sm,
+  },
   newChat: {
     flexDirection: 'row',
     alignItems: 'center',
