@@ -157,16 +157,6 @@ export async function getEventDiscounts(identifier: string): Promise<unknown[]> 
   return res?.data ?? []
 }
 
-export async function getEventMedia(
-  identifier: string,
-): Promise<{ media: unknown[]; albums: unknown[] }> {
-  const res = await gatewazeFetch<{ media: unknown[]; albums: unknown[] }>(
-    eventPath(identifier, '/media'),
-    { tags: [`event:${identifier}:media`], revalidate: DEFAULT_REVALIDATE },
-  )
-  return { media: res?.media ?? [], albums: res?.albums ?? [] }
-}
-
 // ---------------------------------------------------------------------------
 // Event listings (upcoming/past/all)
 // ---------------------------------------------------------------------------

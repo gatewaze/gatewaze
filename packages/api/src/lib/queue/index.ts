@@ -78,12 +78,13 @@ export * from './schemas.js';
 import { registerQueue } from './registry.js';
 
 /**
- * Register the three built-in queues with default options. Call once,
- * early, from any process that uses the queue layer (API, worker,
- * scheduler). Idempotent.
+ * Register the built-in queues with default options. Call once, early,
+ * from any process that uses the queue layer (API, worker, scheduler).
+ * Idempotent. (The legacy 'image' queue was retired with the
+ * events_media tables — image processing lives in the event-media
+ * module's own queues now.)
  */
 export function registerBuiltInQueues(): void {
   registerQueue({ name: 'jobs', module: 'core', defaultConcurrency: 2 });
   registerQueue({ name: 'email', module: 'core', defaultConcurrency: 5 });
-  registerQueue({ name: 'image', module: 'core', defaultConcurrency: 5 });
 }

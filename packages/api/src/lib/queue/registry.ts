@@ -234,10 +234,9 @@ export function startWorker(queueName: string): Worker {
 }
 
 function resolveConcurrency(cfg: RegisteredQueueConfig): number {
-  // Built-in envs for the three core queues.
+  // Built-in envs for the core queues.
   if (cfg.name === 'jobs') return intEnv('WORKER_CONCURRENCY_JOBS', cfg.defaultConcurrency ?? 2);
   if (cfg.name === 'email') return intEnv('WORKER_CONCURRENCY_EMAIL', cfg.defaultConcurrency ?? 5);
-  if (cfg.name === 'image') return intEnv('WORKER_CONCURRENCY_IMAGE', cfg.defaultConcurrency ?? 5);
   // Module queues: WORKER_CONCURRENCY_<MODULE>_<QUEUE>.
   const modKey = cfg.module.replace(/[^A-Za-z0-9]/g, '_').toUpperCase();
   const qKey = cfg.name.replace(/[^A-Za-z0-9]/g, '_').toUpperCase();

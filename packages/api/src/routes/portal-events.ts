@@ -18,7 +18,7 @@
 // per-viewer pages (RSVP status, talk-edit forms, etc.). Those don't
 // belong on the CDN.
 
-import { getAnonSupabase } from '../lib/supabase.js';
+import { getAnonSupabase, getServiceSupabase } from '../lib/supabase.js';
 import { labeledRouter } from '../lib/router-registry.js';
 import { logger } from '../lib/logger.js';
 
@@ -416,11 +416,19 @@ portalEventsRouter.get('/:identifier/counts', async (req, res) => {
         .select('*', { count: 'exact', head: true })
         .eq('event_id', eventId)
         .eq('status', 'active'),
-      supabase
-        .from('events_media')
+      // SERVICE-ROLE OK: events_media is retired; public event photos live
+      // in the event-media module's host_media table, which has no anon
+      // RLS read policy. This is a head-only count (no row data) and the
+      // public-visibility gate is applied explicitly below — the same
+      // filters the module's public gallery endpoint serves rows under.
+      getServiceSupabase()
+        .from('host_media')
         .select('*', { count: 'exact', head: true })
-        .eq('event_id', eventId)
-        .eq('file_type', 'photo'),
+        .eq('host_kind', 'event')
+        .eq('host_id', eventUuid)
+        .eq('access_level', 'public')
+        .eq('is_approved', true)
+        .like('mime_type', 'image/%'),
       supabase
         .from('live_event_config')
         .select('id', { count: 'exact', head: true })
@@ -635,45 +643,6 @@ portalEventsRouter.get('/:identifier/discounts', async (req, res) => {
   } catch (err) {
     logger.error({ err, identifier: req.params.identifier }, 'portal-events: failed to fetch discounts');
     res.status(500).json({ error: 'Failed to fetch discounts' });
-  }
-});
-
-// ---------------------------------------------------------------------------
-// GET /api/portal/events/:identifier/media — photos + albums
-// ---------------------------------------------------------------------------
-portalEventsRouter.get('/:identifier/media', async (req, res) => {
-  try {
-    const identifier = req.params.identifier;
-    const supabase = getAnonSupabase();
-    const event = await fetchEventByIdentifier(supabase, identifier);
-    if (!event) return res.status(404).json({ error: 'Event not found' });
-    const eventId = event.event_id as string;
-
-    const [mediaRes, albumsRes] = await Promise.all([
-      supabase
-        .from('events_media')
-        .select('*')
-        .eq('event_id', eventId)
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('events_media_albums')
-        .select('*')
-        .eq('event_id', eventId)
-        .order('display_order', { ascending: true, nullsFirst: false }),
-    ]);
-    if (mediaRes.error) throw mediaRes.error;
-    // Albums table is optional (module may not be installed). 42P01 =
-    // undefined_table; treat as "no albums" rather than 500.
-    const albums =
-      albumsRes.error && /relation .* does not exist/i.test(albumsRes.error.message || '')
-        ? []
-        : albumsRes.data ?? [];
-
-    setCacheHeaders(res, [`event:${eventId}:media`]);
-    res.json({ media: mediaRes.data ?? [], albums });
-  } catch (err) {
-    logger.error({ err, identifier: req.params.identifier }, 'portal-events: failed to fetch media');
-    res.status(500).json({ error: 'Failed to fetch media' });
   }
 });
 
