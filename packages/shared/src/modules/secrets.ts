@@ -143,17 +143,20 @@ export function sealSecretConfigFields(
   configSchema: Record<string, { type?: string; encrypted?: boolean } | undefined> | null | undefined,
 ): Record<string, unknown> {
   if (!configSchema) return config;
-  let out: Record<string, unknown> | null = null;
-  for (const [key, value] of Object.entries(config)) {
-    // Keys come from the request body: never treat prototype-walking names
-    // as schema fields, and only honour the schema's OWN properties — both
-    // guards close the js/remote-property-injection shape (a crafted key
-    // like __proto__ matching Object.prototype members).
-    if (key === '__proto__' || key === 'constructor' || key === 'prototype') continue;
+  let changed = false;
+  // Built entry-wise with Object.fromEntries — never a computed property
+  // write keyed by request-body input (js/remote-property-injection), and
+  // fromEntries defines own data properties, so even a literal "__proto__"
+  // key cannot walk the prototype. Prototype-walking names are additionally
+  // never treated as schema fields, and only the schema's OWN properties
+  // are honoured.
+  const entries = Object.entries(config).map(([key, value]): [string, unknown] => {
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') return [key, value];
     const field = Object.prototype.hasOwnProperty.call(configSchema, key) ? configSchema[key] : undefined;
-    if (!field || field.type !== 'secret' || field.encrypted !== true) continue;
-    if (typeof value !== 'string' || value === '' || value.startsWith(VERSION_PREFIX)) continue;
-    (out ??= { ...config })[key] = encryptSecret(value);
-  }
-  return out ?? config;
+    if (!field || field.type !== 'secret' || field.encrypted !== true) return [key, value];
+    if (typeof value !== 'string' || value === '' || value.startsWith(VERSION_PREFIX)) return [key, value];
+    changed = true;
+    return [key, encryptSecret(value)];
+  });
+  return changed ? Object.fromEntries(entries) : config;
 }
