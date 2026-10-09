@@ -10,6 +10,7 @@ import {
   deployEdgeFunctions,
   computeEdgeFunctionsHash,
   isNewerVersion,
+  sealSecretConfigFields,
   compareSemver,
   bootstrapCheck,
   applyCoreMigrations,
@@ -667,6 +668,29 @@ modulesRouter.put('/:id/config', async (req, res) => {
       return res.status(400).json({ error: 'config object is required' });
     }
 
+    // Seal schema-declared secret fields (ConfigField `type: 'secret'` +
+    // `encrypted: true`) before they reach installed_modules.config. Opt-in
+    // per field so modules that still read their config raw are untouched.
+    // Fail closed: if the module definition can't be resolved or the secrets
+    // key is missing, refuse the save rather than silently store plaintext.
+    let sealedConfig = newConfig;
+    try {
+      const loadedModules = await loadAllModules();
+      const def = loadedModules.find((m) => m.config.id === moduleId);
+      // loadAllModules swallows per-module load failures (bad source, clone
+      // error) by omitting the module — a missing def here must NOT be read
+      // as "no secret fields", or a transient load failure stores plaintext.
+      if (!def) {
+        throw new Error(`module definition for "${moduleId}" could not be resolved`);
+      }
+      sealedConfig = sealSecretConfigFields(newConfig, def.config.configSchema ?? null);
+    } catch (sealErr) {
+      logger.error({ err: sealErr }, `[modules] Refusing config save for "${moduleId}": secret fields could not be sealed`);
+      return res.status(500).json({
+        error: `Could not seal secret config fields: ${sealErr instanceof Error ? sealErr.message : 'unknown error'}`,
+      });
+    }
+
     // Get existing config to merge
     const { data: existing } = await supabase
       .from('installed_modules')
@@ -680,7 +704,7 @@ modulesRouter.put('/:id/config', async (req, res) => {
 
     const mergedConfig = {
       ...((existing as Record<string, unknown>).config as Record<string, unknown> ?? {}),
-      ...newConfig,
+      ...sealedConfig,
     };
 
     const { error: updateErr } = await supabase
