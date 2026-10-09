@@ -93,3 +93,16 @@ describe('sealSecretConfigFields', () => {
     expect(() => sealSecretConfigFields({ proxy_password: 'p' }, schema)).toThrow(/GATEWAZE_SECRETS_KEY/);
   });
 });
+
+describe('sealSecretConfigFields prototype-safety', () => {
+  const schema = { proxy_password: { type: 'secret', encrypted: true } };
+  it('ignores __proto__/constructor/prototype keys and inherited schema members', () => {
+    process.env.GATEWAZE_SECRETS_KEY = Buffer.alloc(32, 7).toString('base64');
+    const cfg = JSON.parse('{"__proto__": "x", "constructor": "y", "proxy_password": "p"}');
+    const out = sealSecretConfigFields(cfg, schema);
+    expect(String(out.proxy_password).startsWith('v1:')).toBe(true);
+    expect(Object.getPrototypeOf(out)).toBe(Object.prototype); // untouched
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+    delete process.env.GATEWAZE_SECRETS_KEY;
+  });
+});
