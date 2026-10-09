@@ -11,7 +11,8 @@
     "ios": "pnpm generate && expo run:ios",
     "typecheck": "pnpm generate && tsc --noEmit",
     "lint": "eslint src app scripts",
-    "test": "echo 'no tests configured yet'"
+    "test": "echo 'no tests configured yet'",
+    "test:release-candidate": "node scripts/__tests__/release-candidate.test.mjs"
   },
   "dependencies": {
     "@expo-google-fonts/bricolage-grotesque": "^0.4.1",

@@ -48,6 +48,19 @@ BUILD_NUMBER="${APP_BUILD_NUMBER:-$(git rev-list --count HEAD)}"
 export APP_BUILD_NUMBER="$BUILD_NUMBER"
 MARKETING_VERSION="${APP_VERSION:-0.1.0}"
 
+# Opt-in release-candidate checks (issue #83). Unset by default, so today's non-HELF callers of this
+# script see no behavior change — a future HELF release script sets these.
+if [[ -n "${ASSERT_RELEASE_FEATURES:-}" ]]; then
+  echo "==> Asserting claimed features are really wired: ${ASSERT_RELEASE_FEATURES}"
+  node scripts/release-candidate-assert.mjs --features "$ASSERT_RELEASE_FEATURES"
+fi
+PROVENANCE=$(node scripts/release-provenance.mjs)
+echo "==> Release provenance: $PROVENANCE"
+if [[ -n "${REQUIRE_CLEAN_CHECKOUT:-}" ]] && echo "$PROVENANCE" | grep -q 'Dirty":true'; then
+  echo "refusing to release from a dirty checkout" >&2
+  exit 1
+fi
+
 # React Native fetches a prebuilt Hermes from repo.reactnative.dev (via a
 # Maven Central redirect). When that mirror is down it returns 404, and the
 # hermes-engine podspec silently falls back to compiling Hermes from GitHub
