@@ -125,3 +125,30 @@ export function maskSecret(last4?: string | null): string {
 export function isEncryptionConfigured(): boolean {
   return getKey() !== null;
 }
+
+/**
+ * Seal the schema-declared secret fields of a module-config payload before it
+ * is stored (PUT /api/modules/:id/config).
+ *
+ * Only fields whose ConfigField is `type: 'secret'` AND `encrypted: true` are
+ * touched — the flag is the module's opt-in that its readers unseal. Values
+ * already in the `v1:` envelope (a round-tripped form re-save) and non-string
+ * or empty values pass through unchanged.
+ *
+ * Throws when a field needs sealing but GATEWAZE_SECRETS_KEY is not
+ * configured: for an opted-in field, storing plaintext is never acceptable.
+ */
+export function sealSecretConfigFields(
+  config: Record<string, unknown>,
+  configSchema: Record<string, { type?: string; encrypted?: boolean } | undefined> | null | undefined,
+): Record<string, unknown> {
+  if (!configSchema) return config;
+  let out: Record<string, unknown> | null = null;
+  for (const [key, value] of Object.entries(config)) {
+    const field = configSchema[key];
+    if (!field || field.type !== 'secret' || field.encrypted !== true) continue;
+    if (typeof value !== 'string' || value === '' || value.startsWith(VERSION_PREFIX)) continue;
+    (out ??= { ...config })[key] = encryptSecret(value);
+  }
+  return out ?? config;
+}
