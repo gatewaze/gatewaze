@@ -49,7 +49,8 @@ import Animated, {
   useAnimatedReaction,
   runOnJS,
 } from 'react-native-reanimated';
-import { useTheme, radius, spacing, type, headerHeight, layout } from '../theme/tokens';
+import { useTextScale } from './textScale';
+import { useTheme, radius, scaled, spacing, type, headerHeight, layout } from '../theme/tokens';
 import type { MobileCoachMessage, MobileCoachGreeting } from '@gatewaze/shared';
 
 
@@ -66,6 +67,7 @@ const THREAD_GAP = 20;
 
 export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
   const theme = useTheme();
+  const { scale } = useTextScale();
   const insets = useSafeAreaInsets();
   const coach = useMemo(() => chatProvider(), []);
   const modes = useMemo(() => composerModes(enabled), [enabled]);
@@ -803,7 +805,7 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
             <View style={styles.intro}>
               <Greeting>{greeting?.title ?? 'How can I help?'}</Greeting>
               {greeting?.subtitle ? (
-                <Text style={[type.body, styles.subtitle, { color: theme.textSecondary }]}>
+                <Text style={[scaled(type.body, scale), styles.subtitle, { color: theme.textSecondary }]}>
                   {greeting.subtitle}
                 </Text>
               ) : (
@@ -842,7 +844,7 @@ export function CoachHome({ enabled }: { enabled: Record<string, boolean> }) {
                       ]}
                     >
                       <View style={[styles.starterDot, { backgroundColor: theme.accent }]} />
-                      <Text style={[type.body, { color: theme.text, flex: 1 }]}>{starter}</Text>
+                      <Text style={[scaled(type.body, scale), { color: theme.text, flex: 1 }]}>{starter}</Text>
                     </Pressable>
                   ))}
                 </View>

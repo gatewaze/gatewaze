@@ -36,7 +36,8 @@ import { useVoiceInput } from './useVoiceInput';
 import { VoiceButton } from './VoiceButton';
 import { VoiceIndicator } from './VoiceIndicator';
 import { composerModes, photoKinds } from './registry';
-import { useTheme, spacing, radius, layout, motion, easing as easingToken, type } from '../theme/tokens';
+import { useTextScale } from './textScale';
+import { useTheme, spacing, radius, scaled, layout, motion, easing as easingToken, type } from '../theme/tokens';
 
 /**
  * The core's own camera mode key.
@@ -89,6 +90,7 @@ export function Composer({
   zIndex?: number;
 }) {
   const theme = useTheme();
+  const { scale } = useTextScale();
   const insets = useSafeAreaInsets();
   const modes = composerModes(enabled);
   /**
@@ -301,14 +303,14 @@ export function Composer({
                     // An abandoned launcher folds back to the minimal bar.
                     if (launcher && !draft.trim()) setExpanded(false);
                   }}
-                style={[type.chat, styles.input, { color: theme.text }]}
+                style={[scaled(type.chat, scale), styles.input, { color: theme.text }]}
               />
               {/* The resting suggestion, drawn as a real Text so it renders whether
                   or not the field has ever been touched. Hidden the moment there is
                   focus or a draft — the native field owns both of those states. */}
               {!focused && !draft ? (
                 <View pointerEvents="none" style={styles.restingOverlay}>
-                  <Text numberOfLines={1} style={[type.chat, { color: theme.textMuted }]}>
+                  <Text numberOfLines={1} style={[scaled(type.chat, scale), { color: theme.textMuted }]}>
                     {cycling ? prompt.text : placeholder}
                   </Text>
                 </View>
@@ -417,14 +419,14 @@ export function Composer({
         */}
         {voice.error ? (
           <View style={{ paddingHorizontal: spacing.md, paddingBottom: spacing.sm, gap: spacing.xs }}>
-            <Text numberOfLines={2} style={[type.caption, { color: theme.danger }]}>
+            <Text numberOfLines={2} style={[scaled(type.caption, scale), { color: theme.danger }]}>
               {voice.error}
             </Text>
             {/* The recording is still on the device, so this sends the same audio
                 again rather than making the member say it all over. */}
             {voice.canRetry ? (
               <Pressable onPress={() => void voice.retry()} hitSlop={8}>
-                <Text style={[type.caption, { color: theme.buttonText, fontWeight: '700' }]}>
+                <Text style={[scaled(type.caption, scale), { color: theme.buttonText, fontWeight: '700' }]}>
                   Try sending it again
                 </Text>
               </Pressable>
