@@ -41,7 +41,7 @@ import { CoachHome } from './CoachHome';
 import { BugReportSheet } from './BugReport';
 import { ChangelogSheet } from './ChangelogSheet';
 import { appBuildNumber, appVersion } from './appInfo';
-import { brandLogo, feedbackPath } from './registry';
+import { brandLogo, feedbackPath, feedbackHistoryPath } from './registry';
 import { config } from './config';
 import {
   useTheme,
@@ -501,7 +501,7 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
                 setBugOpen(true);
               })();
             }}
-            accessibilityLabel="Report a problem"
+            accessibilityLabel="Feedback & requests"
           />
           ) : null}
         </LinearGradient>
@@ -545,6 +545,7 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
         {bugOpen ? (
           <BugReportSheet
             path={feedbackPath()!}
+            historyPath={feedbackHistoryPath()}
             shotBase64={bugShot}
             route={bugRoute ?? (destination.kind === 'coach' ? 'coach' : `${destination.moduleId}:${destination.entryId}`)}
             onClose={() => { setBugOpen(false); setBugShot(null); setBugRoute(null); }}
