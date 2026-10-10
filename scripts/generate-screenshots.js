@@ -91,7 +91,17 @@ export async function resolveCaptureProxy(client = supabase) {
         .select('status, config')
         .eq('id', 'residential-egress')
         .maybeSingle();
-      if (data?.status === 'enabled' && data.config) cfg = { ...data.config };
+      // The module's configSchema names these proxy_username / proxy_password
+      // (see modules/residential-egress/index.ts). Reading them straight into
+      // `username` / `password` is why egress never switched on from module
+      // config and every capture went out from the cluster address.
+      if (data?.status === 'enabled' && data.config) {
+        cfg = {
+          ...data.config,
+          username: data.config.proxy_username ?? data.config.username,
+          password: data.config.proxy_password ?? data.config.password,
+        };
+      }
     } catch (error) {
       console.log(`  Could not read residential-egress config: ${error.message}`);
     }
