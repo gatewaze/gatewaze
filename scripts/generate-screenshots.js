@@ -166,6 +166,46 @@ export async function dismissOverlays(page) {
 }
 
 /**
+ * Clicking a banner or overlay can be a link, not a button, and navigate away
+ * from the event page. Compare the current URL with the one we navigated to
+ * and go back when the path has changed, so the capture is always of the page
+ * we were asked for. Query and hash differences are ignored, since consent
+ * tools routinely add their own.
+ *
+ * Returns true when it had to recover.
+ */
+export async function returnToTarget(page, targetUrl, reason) {
+  let current;
+  try {
+    current = page.url();
+  } catch {
+    return false;
+  }
+  if (!current || current === 'about:blank') return false;
+
+  const samePage = (a, b) => {
+    try {
+      const ua = new URL(a);
+      const ub = new URL(b);
+      return ua.host === ub.host && ua.pathname.replace(/\/$/, '') === ub.pathname.replace(/\/$/, '');
+    } catch {
+      return a === b;
+    }
+  };
+
+  if (samePage(current, targetUrl)) return false;
+
+  console.log(`  ⤺ ${reason} navigated to ${current}; returning to the event page`);
+  try {
+    await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    return true;
+  } catch (error) {
+    console.log(`  Could not return to the event page: ${error.message}`);
+    return false;
+  }
+}
+
+/**
  * Wait until the page has actually painted its styling. The old code
  * navigated with `networkidle2`, which never settles on sites that poll or
  * stream, so those navigations timed out and fell through to a retry path
@@ -1404,13 +1444,20 @@ export async function generateScreenshots(options = {}) {
         console.log(`  Error handling cookie consent: ${err.message}`);
         return false;
       });
-      
+
       if (consentHandled) {
         console.log(`  Cookie consent handled for ${eventTitle}`);
         // Wait a moment after accepting cookies for any UI changes to settle
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
-      
+
+      // Accepting consent must not take us off the event page. The consent
+      // selectors include `button[class*="privacy"]` and "any button inside a
+      // cookie banner", so on sites whose banner links to its privacy policy
+      // we clicked through to it and captured that instead of the event.
+      // Seen on nordicapis.com, 10 Oct 2026.
+      await returnToTarget(page, navigationResult.url, 'cookie consent');
+
       // Wait a bit for any lazy-loaded content
       const hostname = new URL(navigationResult.url).hostname;
       if (hostname.includes('devopscon.io')) {
@@ -1463,6 +1510,11 @@ export async function generateScreenshots(options = {}) {
       // Clear newsletter/promo modals that would otherwise cover the hero.
       const dismissedOverlays = await dismissOverlays(page);
       if (dismissedOverlays) console.log(`  Dismissed ${dismissedOverlays} overlay(s)`);
+
+      // Same guard as after consent: a mis-clicked "close" can be a link.
+      if (await returnToTarget(page, navigationResult.url, 'overlay dismissal')) {
+        await waitForStyledPage(page, { settleMs: 1000, budgetMs: 10000 });
+      }
 
       // Never store a rate-limit or challenge page as the event's image.
       const renderedHtml = await page.content().catch(() => '');
