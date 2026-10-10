@@ -128,15 +128,6 @@ interface EventAttendance {
   event?: EventDetails;
 }
 
-interface SpeakerSubmission {
-  id: string;
-  event_uuid: string;
-  status: string;
-  talk_title?: string;
-  submitted_at?: string;
-  event?: EventDetails;
-}
-
 interface CompetitionActivity {
   offerId: string;
   statuses: {
@@ -181,7 +172,6 @@ export default function MemberDetailPage() {
   const [offers, setOffers] = useState<OfferActivity[]>([]);
   const [eventRegistrations, setEventRegistrations] = useState<EventRegistration[]>([]);
   const [eventAttendances, setEventAttendances] = useState<EventAttendance[]>([]);
-  const [speakerSubmissions, setSpeakerSubmissions] = useState<SpeakerSubmission[]>([]);
   const [emailSubscriptions, setEmailSubscriptions] = useState<EmailSubscription[]>([]);
   const [topicLabels, setTopicLabels] = useState<Record<string, TopicLabelInfo>>({});
   const [togglingSubscription, setTogglingSubscription] = useState<string | null>(null);
@@ -679,7 +669,7 @@ export default function MemberDetailPage() {
         const memberProfileIds = ((profileData ?? []) as Array<{ id: string }>).map((p) => p.id);
 
         if (memberProfileIds.length > 0) {
-          const [regResult, attendResult, speakerResult] = await Promise.all([
+          const [regResult, attendResult] = await Promise.all([
             supabase
               .from('events_registrations')
               .select('id, event_id, status, registered_at, ticket_type, registration_type')
@@ -690,11 +680,6 @@ export default function MemberDetailPage() {
               .select('id, event_id, checked_in_at, checked_out_at')
               .in('people_profile_id', memberProfileIds)
               .order('checked_in_at', { ascending: false }),
-            supabase
-              .from('events_speakers')
-              .select('id, event_uuid, status, talk_title, submitted_at')
-              .in('people_profile_id', memberProfileIds)
-              .order('submitted_at', { ascending: false }),
           ]);
 
           interface RegRow {
@@ -705,21 +690,15 @@ export default function MemberDetailPage() {
             id: string; event_id: string;
             checked_in_at?: string; checked_out_at?: string;
           }
-          interface SpeakerRow {
-            id: string; event_uuid?: string | number | null;
-            status: string; talk_title?: string; submitted_at?: string;
-          }
 
           const regData = (regResult.data ?? []) as unknown as RegRow[];
           const attendData = (attendResult.data ?? []) as unknown as AttendRow[];
-          const speakerData = (speakerResult.data ?? []) as unknown as SpeakerRow[];
 
           // Collect all event IDs to fetch titles in one query
           const allEventIds = [
             ...new Set([
               ...regData.map((r) => r.event_id),
               ...attendData.map((a) => a.event_id),
-              ...speakerData.map((s) => s.event_uuid?.toString()),
             ].filter(Boolean)),
           ];
 
@@ -734,14 +713,6 @@ export default function MemberDetailPage() {
 
           setEventRegistrations(regData.map((r) => ({ ...r, event: eventsMap.get(r.event_id) })));
           setEventAttendances(attendData.map((a) => ({ ...a, event: eventsMap.get(a.event_id) })));
-          setSpeakerSubmissions(speakerData.map((s) => ({
-            id: s.id,
-            event_uuid: s.event_uuid?.toString() ?? '',
-            status: s.status,
-            talk_title: s.talk_title,
-            submitted_at: s.submitted_at,
-            event: eventsMap.get(s.event_uuid?.toString() ?? ''),
-          })));
         }
       }
     } catch (error) {
