@@ -61,11 +61,15 @@ export function EventTimelineCard({ event, brandConfig, userLocation }: Props) {
       >
         {/* Event Details (below the banner on mobile, left column on desktop) */}
         <div className="order-2 sm:order-1 flex-1 min-w-0 pl-4 pr-3 py-4 flex flex-col justify-between">
-          {/* Top-left: category, then title directly underneath. The category row reserves its
-              height even when empty so the title sits at the same position on every card. */}
+          {/* Top-left: category, then title directly underneath. The category row used to reserve
+              its height even when empty, so that the title lined up across cards. On a brand whose
+              events carry no content_category that left an empty band above every title, so the row
+              is only rendered when there is a badge to put in it. In a mixed list the titles of
+              categorised and uncategorised cards no longer start at the same height, which is the
+              intended trade for not holding space that is usually unused. */}
           <div>
-            <div className="h-5 mb-3">
-              {categoryLabel && (
+            {categoryLabel && (
+              <div className="mb-3">
                 <span
                   className="inline-flex self-start px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded-sm"
                   style={{
@@ -75,10 +79,10 @@ export function EventTimelineCard({ event, brandConfig, userLocation }: Props) {
                 >
                   {categoryLabel}
                 </span>
-              )}
-            </div>
+              </div>
+            )}
             <h3
-              className="text-white font-semibold text-base sm:text-lg
+              className="text-white font-semibold text-lg sm:text-xl
                          group-hover:text-white/90 transition-colors line-clamp-2"
               style={{ fontFamily: 'var(--font-display)' }}
             >
