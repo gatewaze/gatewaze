@@ -6,6 +6,13 @@ import { getClientBrandConfig, isLightColor } from '@/config/brand'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { useEventContext } from './EventContext'
 import { GlowBorder } from '@/components/ui/GlowBorder'
+import { AgendaTalkSurface } from './AgendaTalkSurface'
+import {
+  indexTalkSurface,
+  mediaSummaryLabel,
+  type AgendaTalkMedia,
+  type AgendaTalkSurface as TalkSurfacePayload,
+} from '@/lib/agendaTalkSurface'
 
 interface Track {
   id: string
@@ -46,7 +53,7 @@ interface AgendaEntry {
 }
 
 export function AgendaContent() {
-  const { event, useDarkText, primaryColor, userState } = useEventContext()
+  const { event, useDarkText, primaryColor, userState, brandConfig } = useEventContext()
   const [tracks, setTracks] = useState<Track[]>([])
   const [entries, setEntries] = useState<AgendaEntry[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -55,6 +62,17 @@ export function AgendaContent() {
   const [expandedEntries, setExpandedEntries] = useState<Set<string>>(new Set())
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [_storageUrl, setStorageUrl] = useState('')
+  /**
+   * The recap surface behind each session — spec §10.1. Loaded once per
+   * event, not per entry: the route batches the whole entry → video →
+   * album → photos chain server-side (the recap tables are admin-only under
+   * RLS, so the browser cannot read them directly). Stays empty on a brand
+   * with no recap module, which leaves every entry rendering as it does
+   * today.
+   */
+  const [talkMediaBucket, setTalkMediaBucket] = useState('media')
+  const [talkMedia, setTalkMedia] = useState<Map<string, AgendaTalkMedia>>(new Map())
+  const [expandedMedia, setExpandedMedia] = useState<Set<string>>(new Set())
 
   const panelTheme = useMemo(() => ({
     panelBg: useDarkText ? 'bg-gray-900/15' : 'bg-white/15',
@@ -174,6 +192,27 @@ export function AgendaContent() {
     }
   }, [event.id])
 
+  // Recap surface, fetched alongside the agenda and independent of it: a
+  // failure here must never keep the agenda itself from rendering.
+  useEffect(() => {
+    if (!event.id || event.enable_agenda !== true) return
+    let cancelled = false
+    async function fetchTalkMedia(eventId: string) {
+      try {
+        const res = await fetch(`/api/event-agenda-talks?event=${encodeURIComponent(eventId)}`)
+        if (!res.ok) return
+        const payload = (await res.json()) as TalkSurfacePayload
+        if (cancelled) return
+        if (typeof payload?.bucket === 'string') setTalkMediaBucket(payload.bucket)
+        setTalkMedia(indexTalkSurface(payload?.talks))
+      } catch {
+        // Quiet by design — no recap, no expansion, same agenda as before.
+      }
+    }
+    fetchTalkMedia(event.id)
+    return () => { cancelled = true }
+  }, [event.id, event.enable_agenda])
+
   // Filter entries by selected track and session type
   const filteredEntries = useMemo(() => {
     let result = entries
@@ -219,6 +258,20 @@ export function AgendaContent() {
 
   const toggleExpanded = useCallback((entryId: string) => {
     setExpandedEntries(prev => {
+      const next = new Set(prev)
+      if (next.has(entryId)) {
+        next.delete(entryId)
+      } else {
+        next.add(entryId)
+      }
+      return next
+    })
+  }, [])
+
+  // Kept separate from `expandedEntries` so opening the recording does not
+  // also unclamp the synopsis, and vice versa.
+  const toggleMedia = useCallback((entryId: string) => {
+    setExpandedMedia(prev => {
       const next = new Set(prev)
       if (next.has(entryId)) {
         next.delete(entryId)
@@ -427,6 +480,8 @@ export function AgendaContent() {
                 : entry.description !== '-' ? entry.description : null
               const speakers = entry.talk?.speakers || []
               const sessionType = entry.talk?.session_type
+              const media = talkMedia.get(entry.id)
+              const isMediaOpen = expandedMedia.has(entry.id)
 
               const now = new Date()
               const entryStart = new Date(entry.start_time)
@@ -599,6 +654,43 @@ export function AgendaContent() {
                                 </div>
                               </div>
                             ))}
+                          </div>
+                        )}
+
+                        {/* Recap surface — only for an entry the matcher tied
+                            to a recording (spec §10.1). No match, no change. */}
+                        {media && (
+                          <div className={`mt-3 pt-3 border-t ${
+                            useDarkText ? 'border-gray-900/10' : 'border-white/10'
+                          }`}>
+                            <button
+                              onClick={() => toggleMedia(entry.id)}
+                              aria-expanded={isMediaOpen}
+                              className="flex items-center gap-1.5 text-xs font-medium cursor-pointer hover:underline"
+                              style={{ color: primaryColor }}
+                            >
+                              {/* The icon has to agree with the label: an
+                                  entry can have photos and no recording. */}
+                              {media.youtube_id ? (
+                                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                  <path d="M8 5v14l11-7z" />
+                                </svg>
+                              ) : (
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                              )}
+                              {isMediaOpen ? 'Hide' : mediaSummaryLabel(media)}
+                            </button>
+                            {isMediaOpen && (
+                              <AgendaTalkSurface
+                                media={media}
+                                bucket={talkMediaBucket}
+                                supabaseUrl={brandConfig.supabaseUrl}
+                                fallbackTitle={displayTitle}
+                                useDarkText={useDarkText}
+                              />
+                            )}
                           </div>
                         )}
                       </div>
