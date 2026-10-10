@@ -9,6 +9,207 @@ import { BrowserlessService } from './browserless-service.js';
 import { uploadEventImage, updateScreenshotStatus } from './event-image-service.js';
 import { supabase } from './supabase-client.js';
 
+// Every stored event image is normalised to this card size (16:9-ish, the
+// same shape as the Luma covers the portal already shows). Captures are taken
+// at 1280x720 and centre-cropped from the top, so the hero of the page is kept.
+export const CARD_WIDTH = 640;
+export const CARD_HEIGHT = 336;
+const CAPTURE_WIDTH = 1280;
+const CAPTURE_HEIGHT = 720;
+
+export async function normaliseToCard(input) {
+  return sharp(input)
+    .resize(CARD_WIDTH, CARD_HEIGHT, { fit: 'cover', position: 'top' })
+    .jpeg({ quality: 80 })
+    .toBuffer();
+}
+
+// Rate-limit, bot-challenge and access-denied pages must not be stored as the
+// event's image. Checked on the rendered HTML, so it works for every capture path.
+const BLOCK_PAGE_PATTERNS = [
+  /too many requests/i,
+  /\b429\b.*request/i,
+  /just a moment/i,
+  /attention required/i,
+  /access denied/i,
+  /verify you are human/i,
+  /checking your browser/i,
+  /enable javascript and cookies to continue/i,
+  /request blocked/i,
+  /\b403 forbidden\b/i,
+];
+
+export function looksLikeBlockPage(html, status = 200) {
+  if (status >= 400) return `http ${status}`;
+  const titleMatch = String(html || '').match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  const title = titleMatch ? titleMatch[1] : '';
+  const bodyText = String(html || '').replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>|<[^>]+>/g, ' ').slice(0, 4000);
+  for (const re of BLOCK_PAGE_PATTERNS) {
+    if (re.test(title)) return `title: ${title.trim().slice(0, 60)}`;
+  }
+  // Only look at the body when the page is short; real sites have real content.
+  if (bodyText.replace(/\s+/g, ' ').trim().length < 600) {
+    for (const re of BLOCK_PAGE_PATTERNS) {
+      if (re.test(bodyText)) return 'body looks like a block page';
+    }
+  }
+  return null;
+}
+
+// Residential egress for captures. Event sites rate-limit and bot-gate the
+// cluster's datacenter address, which is how a "429 Too Many Requests" page
+// ended up stored as an event image. Credentials come from the
+// residential-egress module's config (the same row the other consumers read)
+// or from the environment. Returns null when egress is not configured, and
+// the caller then captures directly.
+const PROVIDER_GATEWAYS = {
+  dataimpulse: { host: 'gw.dataimpulse.com', port: 823 },
+  rayobyte: { host: 'gw.rayobyte.com', port: 8080 },
+  brightdata: { host: 'brd.superproxy.io', port: 22225 },
+  oxylabs: { host: 'pr.oxylabs.io', port: 7777 },
+  webshare: { host: 'p.webshare.io', port: 80 },
+  iproyal: { host: 'geo.iproyal.com', port: 12321 },
+  decodo: { host: 'gate.decodo.com', port: 7000 },
+};
+
+export async function resolveCaptureProxy(client = supabase) {
+  if (/^(0|false|no|off)$/i.test(process.env.SCREENSHOTS_RESIDENTIAL_EGRESS || '')) return null;
+
+  let cfg = {
+    provider: process.env.SCREENSHOTS_PROXY_PROVIDER,
+    username: process.env.SCREENSHOTS_PROXY_USERNAME,
+    password: process.env.SCREENSHOTS_PROXY_PASSWORD,
+    gateway_host: process.env.SCREENSHOTS_PROXY_HOST,
+    gateway_port: process.env.SCREENSHOTS_PROXY_PORT,
+  };
+
+  if (!cfg.username || !cfg.password) {
+    try {
+      const { data } = await client
+        .from('installed_modules')
+        .select('status, config')
+        .eq('id', 'residential-egress')
+        .maybeSingle();
+      if (data?.status === 'enabled' && data.config) cfg = { ...data.config };
+    } catch (error) {
+      console.log(`  Could not read residential-egress config: ${error.message}`);
+    }
+  }
+
+  const provider = (cfg.provider || '').toLowerCase();
+  if (!provider || provider === 'none' || !cfg.username || !cfg.password) return null;
+  const gateway = PROVIDER_GATEWAYS[provider];
+  const host = cfg.gateway_host || gateway?.host;
+  const port = Number(cfg.gateway_port || gateway?.port);
+  if (!host || !Number.isFinite(port)) return null;
+  return { provider, host, port, username: cfg.username, password: cfg.password };
+}
+
+/** A fresh exit IP per capture, so one slow site cannot poison the next. */
+function proxyCredentialsFor(proxy) {
+  const sid = Math.floor(Math.random() * 0xffffffff).toString(16).padStart(8, '0');
+  const username = proxy.provider === 'dataimpulse'
+    ? `${proxy.username}__sid.${sid}`
+    : proxy.username;
+  return { username, password: proxy.password };
+}
+
+/**
+ * Best-effort dismissal of newsletter and promo modals, which otherwise sit
+ * over the hero in the captured card. Cookie banners are handled separately
+ * by handleCookieConsent. Bounded and failure-tolerant: a page that ignores
+ * all of this is still captured.
+ */
+export async function dismissOverlays(page) {
+  try {
+    await page.keyboard.press('Escape');
+  } catch {
+    // no focused dialog; nothing to do
+  }
+
+  const dismissed = await page.evaluate(() => {
+    const CLOSE_SELECTORS = [
+      '[aria-label*="close" i]',
+      '[aria-label*="dismiss" i]',
+      'button[class*="close" i]',
+      'button[id*="close" i]',
+      '.modal-close',
+      '.popup-close',
+      '[data-dismiss="modal"]',
+      '[data-testid*="close" i]',
+    ];
+    let clicked = 0;
+    for (const selector of CLOSE_SELECTORS) {
+      for (const el of Array.from(document.querySelectorAll(selector)).slice(0, 4)) {
+        const rect = el.getBoundingClientRect();
+        const visible = rect.width > 0 && rect.height > 0 && rect.top < window.innerHeight;
+        if (!visible) continue;
+        try {
+          el.click();
+          clicked++;
+        } catch {
+          // element detached mid-click
+        }
+      }
+      if (clicked >= 3) break;
+    }
+    return clicked;
+  }).catch(() => 0);
+
+  if (dismissed) await new Promise((resolve) => setTimeout(resolve, 500));
+  return dismissed;
+}
+
+/**
+ * Wait until the page has actually painted its styling. The old code
+ * navigated with `networkidle2`, which never settles on sites that poll or
+ * stream, so those navigations timed out and fell through to a retry path
+ * that captured a half-rendered page. Navigating on `domcontentloaded` and
+ * then waiting for stylesheets, fonts and images here is both faster and
+ * more reliable: on the production worker it gives ~2,000 applied CSS rules
+ * where the old path captured unstyled HTML.
+ */
+export async function waitForStyledPage(page, { settleMs = 1500, budgetMs = 15000 } = {}) {
+  const deadline = Date.now() + budgetMs;
+
+  await page.evaluate(async (cap) => {
+    const pending = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
+      .filter((link) => !link.sheet)
+      .map((link) => new Promise((resolve) => {
+        link.addEventListener('load', resolve, { once: true });
+        link.addEventListener('error', resolve, { once: true });
+        setTimeout(resolve, cap);
+      }));
+    await Promise.all(pending);
+    if (document.fonts && document.fonts.ready) {
+      await Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, cap))]);
+    }
+    const images = Array.from(document.images).filter((img) => !img.complete).slice(0, 25);
+    await Promise.all(images.map((img) => new Promise((resolve) => {
+      img.addEventListener('load', resolve, { once: true });
+      img.addEventListener('error', resolve, { once: true });
+      setTimeout(resolve, cap);
+    })));
+  }, Math.max(1000, Math.min(8000, deadline - Date.now()))).catch(() => {});
+
+  await new Promise((resolve) => setTimeout(resolve, settleMs));
+
+  // Report what actually applied so an unstyled capture is visible in the log
+  // rather than silently stored.
+  return page.evaluate(() => {
+    let rules = 0;
+    let crossOrigin = 0;
+    for (const sheet of document.styleSheets) {
+      try {
+        rules += (sheet.cssRules || []).length;
+      } catch {
+        crossOrigin++;
+      }
+    }
+    return { sheets: document.styleSheets.length, rules, crossOrigin };
+  }).catch(() => ({ sheets: 0, rules: 0, crossOrigin: 0 }));
+}
+
 const SCREENSHOTS_DIR = path.join(process.cwd(), 'public', 'preview');
 const RETRY_LOG_FILE = path.join(process.cwd(), 'navigation-retries.log');
 
@@ -197,23 +398,20 @@ async function setupStealthMode(page) {
     // Set realistic viewport and user agent
     await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
     
-    // Set extra headers to appear more human-like
+    // Only headers that are genuinely the same on every request belong here.
+    //
+    // setExtraHTTPHeaders applies to EVERY request the page makes, not just
+    // the navigation. The old list forced `Sec-Fetch-Dest: document`,
+    // `Sec-Fetch-Mode: navigate`, `Sec-Fetch-Site: none` and an HTML-only
+    // `Accept` onto stylesheet, font and image requests too. A server that
+    // sees a stylesheet request claiming to be a top-level navigation either
+    // refuses it or serves the wrong thing, so pages rendered with no CSS and
+    // the captures stored for them were unstyled HTML. Chrome varies all of
+    // those per destination and so must we, which means not setting them.
     await page.setExtraHTTPHeaders({
-      'Accept-Language': 'en-US,en;q=0.9',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-      'Accept-Encoding': 'gzip, deflate, br',
-      'Cache-Control': 'no-cache',
-      'Pragma': 'no-cache',
-      'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
-      'Sec-Ch-Ua-Mobile': '?0',
-      'Sec-Ch-Ua-Platform': '"macOS"',
-      'Sec-Fetch-Dest': 'document',
-      'Sec-Fetch-Mode': 'navigate',
-      'Sec-Fetch-Site': 'none',
-      'Sec-Fetch-User': '?1',
-      'Upgrade-Insecure-Requests': '1'
+      'Accept-Language': 'en-US,en;q=0.9'
     });
-    
+
     console.log(`  Applied stealth mode configurations`);
   } catch (error) {
     console.log(`  Error setting up stealth mode: ${error.message}`);
@@ -839,9 +1037,13 @@ async function navigateWithRetries(page, eventId, eventTitle, eventLink) {
   async function attemptNavigation(url, retryType = 'primary') {
     console.log(`  Attempting ${retryType} navigation to ${url}`);
     
-    await page.goto(url, { 
-      waitUntil: 'networkidle2', 
-      timeout: 60000 
+    // `domcontentloaded`, not `networkidle2`. Plenty of event sites poll or
+    // stream and never go idle, so the old wait timed out after 60s and the
+    // retry path below captured a half-rendered page. Styling is waited for
+    // explicitly after navigation (waitForStyledPage).
+    await page.goto(url, {
+      waitUntil: 'domcontentloaded',
+      timeout: 40000
     });
     
     let cloudflareHandled = false;
@@ -857,12 +1059,13 @@ async function navigateWithRetries(page, eventId, eventTitle, eventLink) {
       cloudflareHandled = true;
     }
     
-    // After initial page load, wait a bit to see if cookie banners appear
+    // After initial page load, wait a bit to see if cookie banners appear.
+    // waitForStyledPage does the real waiting before the capture, so this only
+    // needs to be long enough for a banner to mount.
     const hostname = new URL(url).hostname;
-    
-    // Longer wait for known slow-loading sites
-    await new Promise(resolve => setTimeout(resolve, 10000));
-    
+
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
     // Scroll down and back up to ensure all elements load
     await page.evaluate(() => {
       window.scrollTo(0, document.body.scrollHeight / 2);
@@ -956,6 +1159,18 @@ export async function generateScreenshots(options = {}) {
   }
   
   let browser;
+  // Hoisted so the mid-run recovery restart below can reuse it; it used to be
+  // scoped to the launch try block, so a restart threw a ReferenceError.
+  let browserOptions;
+
+  // Residential egress, when the residential-egress module is configured.
+  // Resolved once; each page then authenticates with its own session id.
+  const captureProxy = forceBrowserless ? null : await resolveCaptureProxy();
+  if (captureProxy) {
+    console.log(`Capturing through residential egress (${captureProxy.provider} via ${captureProxy.host}:${captureProxy.port})`);
+  } else {
+    console.log('Capturing directly from the worker (no residential egress configured)');
+  }
 
   // Skip Puppeteer browser launch if using BrowserLess.io exclusively
   if (!forceBrowserless) {
@@ -966,20 +1181,23 @@ export async function generateScreenshots(options = {}) {
   }
 
   try {
-    const browserOptions = {
+    browserOptions = {
       headless: 'new',
       defaultViewport: {
-        width: 1366,
-        height: 1024  // Increased height to capture more of the page
+        width: CAPTURE_WIDTH,
+        height: CAPTURE_HEIGHT
       },
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-gpu',
-        '--window-size=1366,1024',  // Match the viewport size
+        `--window-size=${CAPTURE_WIDTH},${CAPTURE_HEIGHT}`,  // Match the viewport size
         '--disable-web-security',
         '--disable-features=IsolateOrigins,site-per-process,Crashpad',
+        // --single-process is load-bearing in this container: without it the
+        // renderer is torn down mid-navigation ("Target closed") on most
+        // sites. Verified on the production worker, 10 Oct 2026.
         '--single-process', // Run in single process mode on servers
         '--no-zygote', // Disable zygote process
         '--disable-breakpad',
@@ -987,12 +1205,14 @@ export async function generateScreenshots(options = {}) {
         '--disable-crashpad',
         `--crash-dumps-dir=${crashpadDir}`,
         `--crashpad-database=${crashpadDir}`,
-        '--enable-crashpad=0'
+        '--enable-crashpad=0',
+        ...(captureProxy ? [`--proxy-server=http://${captureProxy.host}:${captureProxy.port}`] : [])
       ],
       ignoreHTTPSErrors: true,
-      timeout: 20000
+      timeout: 20000,
+      protocolTimeout: 120000
     };
-    
+
     // Use PUPPETEER_EXECUTABLE_PATH if set (for Docker)
     if (process.env.PUPPETEER_EXECUTABLE_PATH) {
       browserOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
@@ -1096,19 +1316,16 @@ export async function generateScreenshots(options = {}) {
       try {
         const browserlessResult = await BrowserlessService.generateScreenshot({
           url: eventLink,
-          width: 1366,
-          height: 1024,
+          width: CAPTURE_WIDTH,
+          height: CAPTURE_HEIGHT,
           format: 'jpeg',
-          quality: 75,
+          quality: 85,
           fullPage: false,
           waitForTimeout: 30000
         });
 
         if (browserlessResult.success && browserlessResult.data) {
-          const resizedBuffer = await sharp(browserlessResult.data)
-            .resize({ width: 400 })
-            .jpeg({ quality: 75 })
-            .toBuffer();
+          const resizedBuffer = await normaliseToCard(browserlessResult.data);
 
           console.log(`  📤 Uploading BrowserLess.io screenshot to Supabase...`);
           const uploadResult = await uploadEventImage(resizedBuffer, eventId, 'jpg');
@@ -1141,6 +1358,12 @@ export async function generateScreenshots(options = {}) {
       console.log(`[${i+1}/${eventsToProcess.length}] Capturing screenshot for ${eventTitle} (${eventLink})`);
 
       page = await browser.newPage();
+      await page.setViewport({ width: CAPTURE_WIDTH, height: CAPTURE_HEIGHT, deviceScaleFactor: 1 });
+
+      // A fresh residential exit IP per page when egress is configured.
+      if (captureProxy) {
+        await page.authenticate(proxyCredentialsFor(captureProxy));
+      }
 
       // Set aggressive timeouts to prevent hanging - max 30 seconds per screenshot
       page.setDefaultTimeout(30000); // 30 seconds per page operation
@@ -1226,30 +1449,29 @@ export async function generateScreenshots(options = {}) {
         omitBackground: false
       };
       
-      // Adjust screenshot dimensions based on the site
-      if (hostname && hostname.includes('devopscon.io')) {
-        screenshotOptions.clip = {
-          x: 0,
-          y: 0,
-          width: 1366,
-          height: 1024
-        };
-      } else {
-        screenshotOptions.clip = {
-          x: 0,
-          y: 0,
-          width: 1366,
-          height: 1024
-        };
+      screenshotOptions.clip = { x: 0, y: 0, width: CAPTURE_WIDTH, height: CAPTURE_HEIGHT };
+
+      // Wait for stylesheets, fonts and above-the-fold images to apply.
+      const styling = await waitForStyledPage(page);
+      console.log(`  Styling applied: ${styling.rules} rules across ${styling.sheets} stylesheet(s)`);
+
+      // Clear newsletter/promo modals that would otherwise cover the hero.
+      const dismissedOverlays = await dismissOverlays(page);
+      if (dismissedOverlays) console.log(`  Dismissed ${dismissedOverlays} overlay(s)`);
+
+      // Never store a rate-limit or challenge page as the event's image.
+      const renderedHtml = await page.content().catch(() => '');
+      const blocked = looksLikeBlockPage(renderedHtml);
+      if (blocked) {
+        const blockedError = new Error(`page is blocked or rate-limited (${blocked})`);
+        blockedError.blockedPage = true;
+        throw blockedError;
       }
-      
+
       await page.screenshot(screenshotOptions);
-      
-      // Resize the image to 400px width and convert to JPG with 75% quality
-      const resizedBuffer = await sharp(fullSizeOutputPath)
-        .resize({ width: 400 })
-        .jpeg({ quality: 75 })
-        .toBuffer();
+
+      // Normalise to the card size and JPG.
+      const resizedBuffer = await normaliseToCard(fullSizeOutputPath);
 
       // Upload to Supabase Storage
       console.log(`  📤 Uploading screenshot to Supabase...`);
@@ -1275,26 +1497,33 @@ export async function generateScreenshots(options = {}) {
     } catch (error) {
       console.error(`❌ Error capturing screenshot for ${eventTitle} (${eventLink}):`, error.message);
 
+      // A rate-limit or challenge page is a decision, not a transport
+      // failure. Retrying through BrowserLess would only capture the same
+      // page, so leave the event without an image and move on.
+      if (error.blockedPage) {
+        console.log(`  🚫 Not storing an image for ${eventTitle}`);
+        errorCount++;
+        await updateScreenshotStatus(eventId, false);
+        continue;
+      }
+
       // Try BrowserLess.io as a fallback service
       console.log(`  🔄 Attempting fallback with BrowserLess.io for ${eventTitle}`);
 
       try {
         const browserlessResult = await BrowserlessService.generateScreenshot({
           url: eventLink,
-          width: 1366,
-          height: 1024,
+          width: CAPTURE_WIDTH,
+          height: CAPTURE_HEIGHT,
           format: 'jpeg',
-          quality: 75,
+          quality: 85,
           fullPage: false,
           waitForTimeout: 30000
         });
 
         if (browserlessResult.success && browserlessResult.data) {
-          // Process the screenshot data with Sharp to resize it
-          const resizedBuffer = await sharp(browserlessResult.data)
-            .resize({ width: 400 })
-            .jpeg({ quality: 75 })
-            .toBuffer();
+          // Normalise to the card size
+          const resizedBuffer = await normaliseToCard(browserlessResult.data);
 
           // Upload to Supabase Storage
           console.log(`  📤 Uploading BrowserLess.io screenshot to Supabase...`);
