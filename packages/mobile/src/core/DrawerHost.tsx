@@ -426,7 +426,10 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
             dissolve rather than ending on a hard edge.
             `padding: 64px 22px 18px` with a 180deg gradient at .97/.85/0,
             where the design's 64px status bar becomes the safe-area inset. */}
-        {isVisibleRoute ? (
+        <View
+          style={[styles.headerWrap, { opacity: isVisibleRoute ? 1 : 0 }]}
+          pointerEvents={isVisibleRoute ? 'auto' : 'none'}
+        >
         <LinearGradient
           colors={[
             withAlpha(theme.headerScrim, layout.headerFadeStops[0]),
@@ -505,7 +508,7 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
           />
           ) : null}
         </LinearGradient>
-        ) : null}
+        </View>
 
         {/* The header floats over everything, so its height is published
             rather than padded around. A destination's Screen applies it to
@@ -628,12 +631,14 @@ const styles = StyleSheet.create({
   },
   group: { gap: spacing.xs },
   surface: { flex: 1, overflow: 'hidden' },
-  header: {
+  headerWrap: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     zIndex: 3,
+  },
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
