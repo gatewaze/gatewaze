@@ -45,7 +45,7 @@ jobs:
       # --- Signed OCI copy + SLSA provenance (additive; the gh-pages
       # Helm repo below is unchanged and remains the primary consumer path) ---
       - name: Install cosign
-        uses: sigstore/cosign-installer@d58896d6a1865668819e1d91763c7751a165e159 # v3.9.2
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
 
       - name: Log in to GHCR
         uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
