@@ -5,6 +5,7 @@ import { execSync } from 'child_process';
 import sharp from 'sharp';
 import url from 'url';
 import { createClient } from '@supabase/supabase-js';
+import { randomBytes } from 'node:crypto';
 import { BrowserlessService } from './browserless-service.js';
 import { uploadEventImage, updateScreenshotStatus } from './event-image-service.js';
 import { supabase } from './supabase-client.js';
@@ -105,9 +106,13 @@ export async function resolveCaptureProxy(client = supabase) {
   return { provider, host, port, username: cfg.username, password: cfg.password };
 }
 
-/** A fresh exit IP per capture, so one slow site cannot poison the next. */
+/**
+ * A fresh exit IP per capture, so one slow site cannot poison the next. The
+ * session id is part of the proxy login, so it comes from a cryptographic
+ * source rather than Math.random.
+ */
 function proxyCredentialsFor(proxy) {
-  const sid = Math.floor(Math.random() * 0xffffffff).toString(16).padStart(8, '0');
+  const sid = randomBytes(6).toString('hex');
   const username = proxy.provider === 'dataimpulse'
     ? `${proxy.username}__sid.${sid}`
     : proxy.username;
