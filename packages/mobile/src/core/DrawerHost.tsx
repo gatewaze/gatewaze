@@ -43,6 +43,7 @@ import { ChangelogSheet } from './ChangelogSheet';
 import { appBuildNumber, appVersion } from './appInfo';
 import { brandLogo, feedbackPath } from './registry';
 import { config } from './config';
+import { useTextScale } from './textScale';
 import {
   useTheme,
   drawer as drawerTokens,
@@ -52,6 +53,7 @@ import {
   layout,
   motion,
   radius,
+  scaled,
   spacing,
   type,
 } from '../theme/tokens';
@@ -65,9 +67,10 @@ type Destination =
 /** The contributed wordmark, or the app's name in text for unbranded builds. */
 function BrandMark({ height }: { height: number }) {
   const theme = useTheme();
+  const { scale } = useTextScale();
   const Logo = brandLogo();
   if (Logo) return <Logo height={height} />;
-  return <Text style={[type.cardTitle, { color: theme.text }]}>{config.appName}</Text>;
+  return <Text style={[scaled(type.cardTitle, scale), { color: theme.text }]}>{config.appName}</Text>;
 }
 
 export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
@@ -86,6 +89,7 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
   const pathname = usePathname();
   const isVisibleRoute = pathname === '/' || pathname === '/index';
   const theme = useTheme();
+  const { scale } = useTextScale();
   const router = useRouter();
   const { refresh } = useSession();
   const { width } = useWindowDimensions();
@@ -458,7 +462,7 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
               so the wordmark takes the slot rather than leaving the two
               controls floating at the edges with a gap between them. */}
           {destination.kind === 'module' ? (
-            <Text style={[type.cardTitle, { color: theme.text }]}>{title}</Text>
+            <Text style={[scaled(type.cardTitle, scale), { color: theme.text }]}>{title}</Text>
           ) : (
             /* The dark glow keeps the white letters legible when a light
                coach bubble scrolls behind the transparent header. A view
@@ -573,6 +577,7 @@ function DrawerRow({
   badge?: boolean;
 }) {
   const theme = useTheme();
+  const { scale } = useTextScale();
   return (
     <Pressable
       onPress={onPress}
@@ -583,7 +588,7 @@ function DrawerRow({
         numberOfLines={1}
         style={{
           flex: 1,
-          fontSize: 17,
+          fontSize: 17 * scale,
           fontWeight: '600',
           color: active ? theme.invert : theme.textSecondary,
         }}

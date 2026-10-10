@@ -62,7 +62,8 @@ import { GlassPanel } from './GlassPanel';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { useChromeInsets } from '../core/chrome';
 import { AmbientBackground } from './AmbientBackground';
-import { useTheme, radius, spacing, type } from '../theme/tokens';
+import { useTextScale } from '../core/textScale';
+import { useTheme, radius, scaled, spacing, type } from '../theme/tokens';
 
 // ---------------------------------------------------------------------------
 // Text
@@ -70,9 +71,10 @@ import { useTheme, radius, spacing, type } from '../theme/tokens';
 
 function useTextStyle(base: TextStyle, muted?: 'secondary' | 'muted'): TextStyle {
   const theme = useTheme();
+  const { scale } = useTextScale();
   const color =
     muted === 'secondary' ? theme.textSecondary : muted === 'muted' ? theme.textMuted : theme.text;
-  return { ...base, color };
+  return { ...scaled(base, scale), color };
 }
 
 export function Greeting({ children, style }: { children: React.ReactNode; style?: StyleProp<TextStyle> }) {
@@ -98,8 +100,12 @@ export function Caption({ children, style, ...rest }: TextProps & { children: Re
 }
 export function Caps({ children, style, ...rest }: TextProps & { children: React.ReactNode }) {
   const theme = useTheme();
+  const { scale } = useTextScale();
   return (
-    <RNText {...rest} style={[type.caps, { color: theme.sectionLabel, textTransform: 'uppercase' }, style]}>
+    <RNText
+      {...rest}
+      style={[scaled(type.caps, scale), { color: theme.sectionLabel, textTransform: 'uppercase' }, style]}
+    >
       {children}
     </RNText>
   );
@@ -279,6 +285,7 @@ export function Button({
   style?: StyleProp<ViewStyle>;
 }) {
   const theme = useTheme();
+  const { scale } = useTextScale();
   /**
    * Primary and secondary moved off the accent fills: once the mesh
    * background brightened, accent and accentSoft read as pale lilac pills
@@ -341,7 +348,9 @@ export function Button({
       ) : (
         <Row style={{ gap: compact ? spacing.xs : spacing.sm }}>
           {icon ? <Icon name={icon} size={compact ? 15 : 18} color={fg} /> : null}
-          <RNText style={[type.button, { color: fg, fontSize: compact ? 13 : 15 }]}>{title}</RNText>
+          <RNText style={[scaled({ ...type.button, fontSize: compact ? 13 : 15 }, scale), { color: fg }]}>
+            {title}
+          </RNText>
         </Row>
       )}
     </AnimatedPressable>
@@ -350,6 +359,7 @@ export function Button({
 
 export function Input(props: TextInputProps & { label?: string }) {
   const theme = useTheme();
+  const { scale } = useTextScale();
   const { label, style, ...rest } = props;
   return (
     <View style={{ gap: spacing.xs }}>
@@ -358,7 +368,7 @@ export function Input(props: TextInputProps & { label?: string }) {
         placeholderTextColor={theme.textMuted}
         style={[
           styles.input,
-          { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text },
+          { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text, fontSize: 16 * scale },
           style,
         ]}
         {...rest}
@@ -395,6 +405,7 @@ export function ListItem({
   destructive?: boolean;
 }) {
   const theme = useTheme();
+  const { scale } = useTextScale();
   return (
     <Pressable
       onPress={onPress}
@@ -410,7 +421,9 @@ export function ListItem({
           <Icon name={icon} size={22} color={destructive ? theme.danger : theme.textSecondary} />
         ) : null)}
       <View style={styles.fill}>
-        <RNText style={[type.body, { color: destructive ? theme.danger : theme.text }]}>{title}</RNText>
+        <RNText style={[scaled(type.body, scale), { color: destructive ? theme.danger : theme.text }]}>
+          {title}
+        </RNText>
         {subtitle ? <Caption>{subtitle}</Caption> : null}
         {below}
       </View>

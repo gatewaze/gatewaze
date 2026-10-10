@@ -20,7 +20,8 @@ import Animated, {
   Easing,
   withDelay,
 } from 'react-native-reanimated';
-import { useTheme, bubbleRadius, radius, spacing, type, motion } from '../theme/tokens';
+import { useTextScale } from '../core/textScale';
+import { useTheme, bubbleRadius, radius, scaled, spacing, type, motion } from '../theme/tokens';
 
 export function ChatBubble({
   role,
@@ -40,6 +41,7 @@ export function ChatBubble({
   style?: StyleProp<ViewStyle>;
 }) {
   const theme = useTheme();
+  const { scale } = useTextScale();
   const glow = useSharedValue(0);
 
   // A lub-dub, not a throb: two quick beats then a long rest, with the glow
@@ -142,7 +144,7 @@ export function ChatBubble({
            */
           selectable
           style={[
-            type.chat,
+            scaled(type.chat, scale),
             // Per role: a filled coach bubble needs ink that reads against the
             // fill, and an outlined member bubble needs text that reads against
             // whatever is drifting behind it.
@@ -260,6 +262,7 @@ const TYPE_OUT_MS = 14;
  * rather than as progress.
  */
 function Typewriter({ text, color }: { text: string | null; color: string }) {
+  const { scale } = useTextScale();
   const [shown, setShown] = useState('');
   // What is currently being typed out or in, so a change mid-type reverses
   // cleanly instead of interleaving two words.
@@ -295,7 +298,7 @@ function Typewriter({ text, color }: { text: string | null; color: string }) {
        fill, which clears the 4.5 minimum with almost nothing to spare. It is
        secondary text, so it stays below full strength, but not so far below
        that a slightly darker fill would push it under. */
-    <Text style={[type.caption, { color, opacity: 0.9 }]} numberOfLines={2}>
+    <Text style={[scaled(type.caption, scale), { color, opacity: 0.9 }]} numberOfLines={2}>
       {shown}
     </Text>
   );
@@ -354,6 +357,7 @@ export function Chip({
   onPress: () => void;
 }) {
   const theme = useTheme();
+  const { scale } = useTextScale();
   return (
     <Pressable
       onPress={onPress}
@@ -368,7 +372,7 @@ export function Chip({
         },
       ]}
     >
-      <Text style={[type.button, { color: selected ? theme.accent : theme.textSecondary }]}>
+      <Text style={[scaled(type.button, scale), { color: selected ? theme.accent : theme.textSecondary }]}>
         {label}
       </Text>
     </Pressable>
@@ -377,6 +381,7 @@ export function Chip({
 
 export function SuggestionChip({ label, onPress }: { label: string; onPress: () => void }) {
   const theme = useTheme();
+  const { scale } = useTextScale();
   return (
     <Pressable
       onPress={onPress}
@@ -386,7 +391,7 @@ export function SuggestionChip({ label, onPress }: { label: string; onPress: () 
         { borderColor: theme.buttonBorder, backgroundColor: theme.buttonFillSoft, opacity: pressed ? 0.7 : 1 },
       ]}
     >
-      <Text style={[type.button, { color: theme.buttonText }]}>{label}</Text>
+      <Text style={[scaled(type.button, scale), { color: theme.buttonText }]}>{label}</Text>
     </Pressable>
   );
 }
