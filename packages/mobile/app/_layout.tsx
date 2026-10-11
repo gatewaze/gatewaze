@@ -8,6 +8,7 @@ import {
   BricolageGrotesque_700Bold,
 } from '@expo-google-fonts/bricolage-grotesque';
 import { SessionProvider } from '../src/core/auth/session';
+import { TextScaleProvider } from '../src/core/textScale';
 import { Icon } from '../src/components/Icon';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { requestBugReport, requestOpenDrawer } from '../src/core/drawerSignal';
@@ -48,176 +49,179 @@ export default function RootLayout() {
         left in.
       */}
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-      <SessionProvider>
-        {fontsLoaded ? (
-          // The living gradient sits behind every pushed screen, and each
-          // screen's own background is transparent so it shows through. A
-          // module screen reached from the drawer then looks like the same
-          // app as the coach, rather than a flat sheet pushed on top of it.
-          <View style={{ flex: 1, backgroundColor: theme.background }}>
-            <Stack
-              screenOptions={{
-                headerTransparent: true,
-                headerShadowVisible: false,
-                headerTintColor: theme.text,
-                // Same fade as the coach header, so content passing under it
-                // dissolves rather than meeting a hard edge.
-                headerBackground: () => (
-                  <LinearGradient
-                    colors={[
-                      withAlpha(theme.headerScrim, layout.headerFadeStops[0]),
-                      withAlpha(theme.headerScrim, layout.headerFadeStops[1]),
-                      withAlpha(theme.headerScrim, layout.headerFadeStops[2]),
-                    ]}
-                    locations={[0, 0.75, 1]}
-                    style={{ flex: 1 }}
-                  />
-                ),
-                // Opaque. Transparent let the route underneath show through,
-                // so a pushed screen showed the coach's hamburger behind its
-                // own. Screen draws the living gradient itself.
-                contentStyle: { backgroundColor: theme.background },
-                // The default back control renders the previous route's name,
-                // which is the file name 'index'. A module screen is part of
-                // this app rather than a sheet on top of it, so it carries the
-                // same menu control as the coach: it returns there and opens
-                // the drawer, which is where every destination is chosen.
-                headerBackVisible: false,
-                headerLeft: () => (
-                  <Pressable
-                    hitSlop={12}
-                    accessibilityRole="button"
-                    accessibilityLabel="Menu"
-                    onPress={() => {
-                      router.dismissAll();
-                      requestOpenDrawer();
-                    }}
-                    /**
-                     * No circle of our own where the system already draws one.
-                     *
-                     * On iOS 26 UIKit gives every navigation-bar button item a Liquid
-                     * Glass capsule slightly larger than this control. Drawing our own
-                     * circle inside it put two concentric rings around the menu button on
-                     * every pushed screen. That is the doubled hamburger — it was never
-                     * two hamburgers, which is why hiding the one underneath changed
-                     * nothing.
-                     *
-                     * The coach home has no navigation bar (headerShown is false there)
-                     * and draws its own circle, which is why it always looked right and
-                     * only pushed screens did not.
-                     *
-                     * Where there is no system capsule — older iOS, Android — the shape
-                     * still has to come from somewhere, so the circle stays.
-                     */
-                    style={
-                      isLiquidGlassAvailable()
-                        ? { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }
-                        : {
-                            width: 36,
-                            height: 36,
-                            borderRadius: 18,
-                            borderWidth: 1,
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            backgroundColor: theme.surface,
-                            borderColor: theme.border,
-                          }
-                    }
-                  >
-                    {/*
-                      Dark while held.
-
-                      The system's Liquid Glass capsule brightens under a
-                      finger, and a white glyph brightens with it — so the
-                      control looked like it went blank at the exact moment it
-                      was touched. Pressable hands the state to its children as
-                      a function, which is the only way to reach it from here.
-                    */}
-                    {({ pressed }) => (
-                      <Icon
-                        name="menu"
-                        size={18}
-                        color={pressed ? theme.onInvert : theme.text}
-                      />
-                    )}
-                  </Pressable>
-                ),
-                /**
-                 * Report a problem, from the screen the problem is on.
-                 *
-                 * The coach home has drawn this for a long time and pushed
-                 * screens never did, which is most of the app. A tester who
-                 * hit something wrong on a module screen had to navigate away
-                 * from it before they could report it, and the screenshot
-                 * would then be of the coach home rather than of the problem.
-                 *
-                 * The capture happens HERE, while the screen is still on top,
-                 * and the sheet opens back on the coach route once the image
-                 * is already in hand. Same shape as the menu button: do the
-                 * part that only works from here, then leave a request.
-                 */
-                headerRight: () => (feedbackPath() ? (
-                  <Pressable
-                    hitSlop={12}
-                    accessibilityRole="button"
-                    accessibilityLabel="Report a problem"
-                    onPress={() => {
-                      void (async () => {
-                        let shot: string | null = null;
-                        try {
-                          // Required here rather than imported, for the same
-                          // reason the drawer does it: on the new architecture
-                          // this package calls TurboModuleRegistry.getEnforcing
-                          // at load, which throws outright in a binary without
-                          // the native half. Deferring confines that to this
-                          // tap, where it becomes "report without a screenshot".
-                          // eslint-disable-next-line @typescript-eslint/no-require-imports
-                          const { captureScreen } = require('react-native-view-shot') as typeof import('react-native-view-shot');
-                          shot = await captureScreen({ format: 'jpg', quality: 0.6, result: 'base64' });
-                        } catch {
-                          // No native module, or capture refused. Still report.
-                        }
-                        requestBugReport(shot, pathname || 'screen');
+      <TextScaleProvider>
+        <SessionProvider>
+          {fontsLoaded ? (
+            // The living gradient sits behind every pushed screen, and each
+            // screen's own background is transparent so it shows through. A
+            // module screen reached from the drawer then looks like the same
+            // app as the coach, rather than a flat sheet pushed on top of it.
+            <View style={{ flex: 1, backgroundColor: theme.background }}>
+              <Stack
+                screenOptions={{
+                  headerTransparent: true,
+                  headerShadowVisible: false,
+                  headerTintColor: theme.text,
+                  // Same fade as the coach header, so content passing under it
+                  // dissolves rather than meeting a hard edge.
+                  headerBackground: () => (
+                    <LinearGradient
+                      colors={[
+                        withAlpha(theme.headerScrim, layout.headerFadeStops[0]),
+                        withAlpha(theme.headerScrim, layout.headerFadeStops[1]),
+                        withAlpha(theme.headerScrim, layout.headerFadeStops[2]),
+                      ]}
+                      locations={[0, 0.75, 1]}
+                      style={{ flex: 1 }}
+                    />
+                  ),
+                  // Opaque. Transparent let the route underneath show through,
+                  // so a pushed screen showed the coach's hamburger behind its
+                  // own. Screen draws the living gradient itself.
+                  contentStyle: { backgroundColor: theme.background },
+                  // The default back control renders the previous route's name,
+                  // which is the file name 'index'. A module screen is part of
+                  // this app rather than a sheet on top of it, so it carries the
+                  // same menu control as the coach: it returns there and opens
+                  // the drawer, which is where every destination is chosen.
+                  headerBackVisible: false,
+                  headerLeft: () => (
+                    <Pressable
+                      hitSlop={12}
+                      accessibilityRole="button"
+                      accessibilityLabel="Menu"
+                      onPress={() => {
                         router.dismissAll();
-                      })();
-                    }}
-                    style={
-                      isLiquidGlassAvailable()
-                        ? { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }
-                        : {
-                            width: 36,
-                            height: 36,
-                            borderRadius: 18,
-                            borderWidth: 1,
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            backgroundColor: theme.surface,
-                            borderColor: theme.border,
+                        requestOpenDrawer();
+                      }}
+                      /**
+                       * No circle of our own where the system already draws one.
+                       *
+                       * On iOS 26 UIKit gives every navigation-bar button item a Liquid
+                       * Glass capsule slightly larger than this control. Drawing our own
+                       * circle inside it put two concentric rings around the menu button on
+                       * every pushed screen. That is the doubled hamburger — it was never
+                       * two hamburgers, which is why hiding the one underneath changed
+                       * nothing.
+                       *
+                       * The coach home has no navigation bar (headerShown is false there)
+                       * and draws its own circle, which is why it always looked right and
+                       * only pushed screens did not.
+                       *
+                       * Where there is no system capsule — older iOS, Android — the shape
+                       * still has to come from somewhere, so the circle stays.
+                       */
+                      style={
+                        isLiquidGlassAvailable()
+                          ? { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }
+                          : {
+                              width: 36,
+                              height: 36,
+                              borderRadius: 18,
+                              borderWidth: 1,
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              backgroundColor: theme.surface,
+                              borderColor: theme.border,
+                            }
+                      }
+                    >
+                      {/*
+                        Dark while held.
+  
+                        The system's Liquid Glass capsule brightens under a
+                        finger, and a white glyph brightens with it — so the
+                        control looked like it went blank at the exact moment it
+                        was touched. Pressable hands the state to its children as
+                        a function, which is the only way to reach it from here.
+                      */}
+                      {({ pressed }) => (
+                        <Icon
+                          name="menu"
+                          size={18}
+                          color={pressed ? theme.onInvert : theme.text}
+                        />
+                      )}
+                    </Pressable>
+                  ),
+                  /**
+                   * Report a problem, from the screen the problem is on.
+                   *
+                   * The coach home has drawn this for a long time and pushed
+                   * screens never did, which is most of the app. A tester who
+                   * hit something wrong on a module screen had to navigate away
+                   * from it before they could report it, and the screenshot
+                   * would then be of the coach home rather than of the problem.
+                   *
+                   * The capture happens HERE, while the screen is still on top,
+                   * and the sheet opens back on the coach route once the image
+                   * is already in hand. Same shape as the menu button: do the
+                   * part that only works from here, then leave a request.
+                   */
+                  headerRight: () => (feedbackPath() ? (
+                    <Pressable
+                      hitSlop={12}
+                      accessibilityRole="button"
+                      accessibilityLabel="Report a problem"
+                      onPress={() => {
+                        void (async () => {
+                          let shot: string | null = null;
+                          try {
+                            // Required here rather than imported, for the same
+                            // reason the drawer does it: on the new architecture
+                            // this package calls TurboModuleRegistry.getEnforcing
+                            // at load, which throws outright in a binary without
+                            // the native half. Deferring confines that to this
+                            // tap, where it becomes "report without a screenshot".
+                            // eslint-disable-next-line @typescript-eslint/no-require-imports
+                            const { captureScreen } = require('react-native-view-shot') as typeof import('react-native-view-shot');
+                            shot = await captureScreen({ format: 'jpg', quality: 0.6, result: 'base64' });
+                          } catch {
+                            // No native module, or capture refused. Still report.
                           }
-                    }
-                  >
-                    {({ pressed }) => (
-                      <Icon
-                        name="bug"
-                        size={17}
-                        color={pressed ? theme.onInvert : theme.textSecondary}
-                      />
-                    )}
-                  </Pressable>
-                ) : null),
-              }}
-            >
-              <Stack.Screen name="index" options={{ headerShown: false }} />
-              <Stack.Screen name="settings/index" options={{ title: 'Settings' }} />
-              <Stack.Screen name="settings/sync" options={{ title: 'Sync status' }} />
-              <Stack.Screen name="settings/diagnostics" options={{ title: 'Diagnostics' }} />
-              <Stack.Screen name="settings/delete" options={{ title: 'Delete account' }} />
-            </Stack>
-          </View>
-        ) : (
-          <LoadingState />
-        )}
-      </SessionProvider>
+                          requestBugReport(shot, pathname || 'screen');
+                          router.dismissAll();
+                        })();
+                      }}
+                      style={
+                        isLiquidGlassAvailable()
+                          ? { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }
+                          : {
+                              width: 36,
+                              height: 36,
+                              borderRadius: 18,
+                              borderWidth: 1,
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              backgroundColor: theme.surface,
+                              borderColor: theme.border,
+                            }
+                      }
+                    >
+                      {({ pressed }) => (
+                        <Icon
+                          name="bug"
+                          size={17}
+                          color={pressed ? theme.onInvert : theme.textSecondary}
+                        />
+                      )}
+                    </Pressable>
+                  ) : null),
+                }}
+              >
+                <Stack.Screen name="index" options={{ headerShown: false }} />
+                <Stack.Screen name="settings/index" options={{ title: 'Settings' }} />
+                <Stack.Screen name="settings/sync" options={{ title: 'Sync status' }} />
+                <Stack.Screen name="settings/text-size" options={{ title: 'Text size' }} />
+                <Stack.Screen name="settings/diagnostics" options={{ title: 'Diagnostics' }} />
+                <Stack.Screen name="settings/delete" options={{ title: 'Delete account' }} />
+              </Stack>
+            </View>
+          ) : (
+            <LoadingState />
+          )}
+        </SessionProvider>
+      </TextScaleProvider>
     </SafeAreaProvider>
   );
 }

@@ -79,6 +79,11 @@ export default function Settings() {
       ))}
 
       <ListItem
+        icon="format-size"
+        title="Text size"
+        onPress={() => router.push('/settings/text-size')}
+      />
+      <ListItem
         icon="stethoscope"
         title="Diagnostics"
         onPress={() => router.push('/settings/diagnostics')}

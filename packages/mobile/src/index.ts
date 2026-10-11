@@ -95,6 +95,7 @@ export { appBuildNumber, appVersion, deviceTimezone } from './core/appInfo';
 export { useModuleContext, newClientRef, useCachedQuery, isApiFailure } from './hooks';
 export { useSession } from './core/auth/session';
 export { useChromeInsets, type ChromeInsets } from './core/chrome';
+export { useTextScale, TEXT_SCALE_OPTIONS, type TextScaleId } from './core/textScale';
 export { KeyboardSpacer } from './components/KeyboardSpacer';
 export {
   onRecordChange,
@@ -122,5 +123,6 @@ export {
   easing,
   layout,
   motion,
+  scaled,
   type Palette,
 } from './theme/tokens';

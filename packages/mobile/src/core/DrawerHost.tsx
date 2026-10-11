@@ -43,6 +43,7 @@ import { ChangelogSheet } from './ChangelogSheet';
 import { appBuildNumber, appVersion } from './appInfo';
 import { brandLogo, feedbackPath, feedbackHistoryPath } from './registry';
 import { config } from './config';
+import { useTextScale } from './textScale';
 import {
   useTheme,
   drawer as drawerTokens,
@@ -52,6 +53,7 @@ import {
   layout,
   motion,
   radius,
+  scaled,
   spacing,
   type,
 } from '../theme/tokens';
@@ -65,9 +67,10 @@ type Destination =
 /** The contributed wordmark, or the app's name in text for unbranded builds. */
 function BrandMark({ height }: { height: number }) {
   const theme = useTheme();
+  const { scale } = useTextScale();
   const Logo = brandLogo();
   if (Logo) return <Logo height={height} />;
-  return <Text style={[type.cardTitle, { color: theme.text }]}>{config.appName}</Text>;
+  return <Text style={[scaled(type.cardTitle, scale), { color: theme.text }]}>{config.appName}</Text>;
 }
 
 export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
@@ -91,6 +94,7 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
   const normalizedPathname = (pathname ?? '').split('?')[0].replace(/\/+$/, '') || '/';
   const isVisibleRoute = normalizedPathname === '/' || normalizedPathname === '/index';
   const theme = useTheme();
+  const { scale } = useTextScale();
   const router = useRouter();
   const { refresh } = useSession();
   const { width } = useWindowDimensions();
@@ -466,8 +470,12 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
               so the wordmark takes the slot rather than leaving the two
               controls floating at the edges with a gap between them. */}
           {destination.kind === 'module' ? (
+            /* Scaled AND truncated. The scale comes from the text-size
+               setting, and the single line with an ellipsis is what keeps a
+               long title from pushing the header controls off the edge —
+               which matters more, not less, once the text can grow. */
             <Text
-              style={[type.cardTitle, { color: theme.text, flexShrink: 1 }]}
+              style={[scaled(type.cardTitle, scale), { color: theme.text, flexShrink: 1 }]}
               numberOfLines={1}
               ellipsizeMode="tail"
             >
@@ -588,6 +596,7 @@ function DrawerRow({
   badge?: boolean;
 }) {
   const theme = useTheme();
+  const { scale } = useTextScale();
   return (
     <Pressable
       onPress={onPress}
@@ -598,7 +607,7 @@ function DrawerRow({
         numberOfLines={1}
         style={{
           flex: 1,
-          fontSize: 17,
+          fontSize: 17 * scale,
           fontWeight: '600',
           color: active ? theme.invert : theme.textSecondary,
         }}
