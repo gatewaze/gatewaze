@@ -470,10 +470,10 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
               so the wordmark takes the slot rather than leaving the two
               controls floating at the edges with a gap between them. */}
           {destination.kind === 'module' ? (
-            {/* Scaled AND truncated. The scale comes from the text-size
-                setting, and the single line with an ellipsis is what keeps a
-                long title from pushing the header controls off the edge —
-                which matters more, not less, once the text can grow. */}
+            /* Scaled AND truncated. The scale comes from the text-size
+               setting, and the single line with an ellipsis is what keeps a
+               long title from pushing the header controls off the edge —
+               which matters more, not less, once the text can grow. */
             <Text
               style={[scaled(type.cardTitle, scale), { color: theme.text, flexShrink: 1 }]}
               numberOfLines={1}
