@@ -20,6 +20,12 @@ import { getDistanceToEventByCity, usesImperialUnits } from '@/lib/location'
 import { eventsListingSchema } from '@gatewaze-modules/events/listing-schema'
 import { usePortalInfiniteListing, type PortalInitialPage } from '@/lib/listing/usePortalInfiniteListing'
 import { MAX_ACCUMULATED_ROWS, NEAR_ME_AUTO_LOAD_LIMIT } from '@/lib/listing/constants'
+import {
+  cardHeightFor,
+  estimateGroupHeight,
+  DESKTOP_CARD_HEIGHT,
+  SM_BREAKPOINT_PX,
+} from '@/lib/timelineLayout'
 
 // useLayoutEffect bails out on the server (no DOM). Use a no-op
 // alias so importing pages SSR cleanly even though the component is
@@ -442,9 +448,26 @@ function VirtualisedGroups({
   const [parentOffset, setParentOffset] = useState(0)
   const [isClient, setIsClient] = useState(false)
   const [scrollEl, setScrollEl] = useState<HTMLElement | null>(null)
+  const [cardHeight, setCardHeight] = useState(DESKTOP_CARD_HEIGHT)
 
   useEffect(() => {
     setIsClient(true)
+  }, [])
+
+  // A card's height is fixed at `sm:h-44` from the sm breakpoint up, but on a
+  // phone the card stacks and its height is the image box (640x336 of the
+  // content column's width) plus the text block. Measuring the column beats
+  // guessing, because the estimate below multiplies this by the event count.
+  useIsoLayoutEffect(() => {
+    const measure = () => {
+      const el = parentRef.current
+      if (!el) return
+      const isDesktop = window.matchMedia(`(min-width: ${SM_BREAKPOINT_PX}px)`).matches
+      setCardHeight(cardHeightFor(el.clientWidth, isDesktop))
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
   }, [])
 
   useIsoLayoutEffect(() => {
@@ -475,8 +498,19 @@ function VirtualisedGroups({
     return () => window.removeEventListener('resize', update)
   }, [groups.length])
 
+  // Estimate from the group's REAL event count. A virtual item here is a whole
+  // date, and a date can be busy: techtickets carries 1163 upcoming events over
+  // 229 dates, a mean of 5.1 per date and a maximum of 32. The old flat 480px
+  // ("a header plus 1-2 cards") was therefore out by up to 15x on the biggest
+  // dates, so each group that mounted and got measured moved the offsets of
+  // every later group, which is what pulled the list around under the user.
+  const estimateSize = useCallback(
+    (index: number) => estimateGroupHeight(groups[index]?.events.length ?? 1, cardHeight),
+    [groups, cardHeight],
+  )
+
   const commonOptions = {
-    estimateSize: () => 480, // date header (~50px) + 1–2 event cards (~200–250px each)
+    estimateSize,
     overscan: 4,
     scrollMargin: parentOffset,
     getItemKey: (index: number) => groups[index]?.dateKey ?? `group-${index}`,

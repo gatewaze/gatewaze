@@ -5,6 +5,7 @@ import type { ReactNode, ErrorInfo } from 'react'
 import { ShaderGradientCanvas, ShaderGradient } from '@shadergradient/react'
 import type { GradientWaveConfig } from '@/config/brand'
 import { DEFAULT_GRADIENT_WAVE_CONFIG } from '@/config/brand'
+import { MOBILE_MEDIA_QUERY } from '@/lib/breakpoints'
 
 interface Props {
   startColor?: string
@@ -53,7 +54,21 @@ export function GradientWaveBackground({
   const [mounted, setMounted] = useState(false)
   const [canvasReady, setCanvasReady] = useState(false)
   const [webglSupported, setWebglSupported] = useState(true)
+  const [isSmallScreen, setIsSmallScreen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
+
+  // Phones get the gradient, but frozen (see the frameloop effect below).
+  // The breakpoint is shared with the timeline's glow hook (lib/breakpoints).
+  // Tracked as state rather than read once so a
+  // rotation across the breakpoint takes effect.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mq = window.matchMedia(MOBILE_MEDIA_QUERY)
+    const sync = () => setIsSmallScreen(mq.matches)
+    sync()
+    mq.addEventListener('change', sync)
+    return () => mq.removeEventListener('change', sync)
+  }, [])
 
   useEffect(() => {
     if (!hasWebGLSupport()) {
@@ -161,8 +176,18 @@ export function GradientWaveBackground({
       if (mode === 'always') state.invalidate?.()
     }
 
-    // Reduced motion: let the gradient paint, then freeze it permanently.
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    // Let the gradient paint, then freeze it permanently, for reduced motion
+    // and on phones.
+    //
+    // Why phones: the shader is a continuously animating WebGL canvas, and
+    // every in-view event card sits on top of it with `backdrop-filter: blur`
+    // (10px on techtickets), so each blurred card has to re-sample a backdrop
+    // that changes every frame. The idle pause below never rescues a phone,
+    // because `scroll` and `touchstart` are in the activity list — scrolling
+    // is exactly what keeps the loop running at full rate. Freezing leaves a
+    // static backdrop the compositor can cache, and the gradient still shows.
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (reducedMotion || isSmallScreen) {
       const t = setTimeout(() => setLoop('never'), 1500)
       return () => clearTimeout(t)
     }
@@ -194,6 +219,11 @@ export function GradientWaveBackground({
     }
     const onVisibility = () => (document.hidden ? pause() : resume())
 
+    // Start running explicitly. Without this, rotating a tablet from the
+    // frozen small-screen branch back to desktop would re-run this effect and
+    // set up the idle machinery while the loop was still 'never', because only
+    // `resume()` ever restarts it and that needs a prior pause.
+    setLoop('always')
     armIdle()
     document.addEventListener('visibilitychange', onVisibility)
     window.addEventListener('blur', pause)
@@ -211,7 +241,7 @@ export function GradientWaveBackground({
       // another instance may reuse the canvas.
       setLoop('always')
     }
-  }, [mounted])
+  }, [mounted, isSmallScreen])
 
   // Mobile accelerometer: map device tilt to camera position (replaces mouse interaction)
   useEffect(() => {

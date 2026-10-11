@@ -24,10 +24,8 @@ import {
   getQueueModule,
   ScreenshotJobSchema,
   EmailJobSchema,
-  ImageProcessJobSchema,
   type ScreenshotJobData,
   type EmailJobData,
-  type ImageProcessJobData,
 } from '../lib/queue/index.js';
 // SERVICE-ROLE OK: background workers run without a user JWT. They
 // process jobs on behalf of the system (email sending, image
@@ -226,17 +224,6 @@ async function handleEmailJob(job: Job): Promise<void> {
   logger.info({ job_id: job.id, to: data.to }, 'email sent');
 }
 
-async function handleImageJob(job: Job): Promise<void> {
-  const data = job.data as ImageProcessJobData;
-  const supabase = getSupabase();
-  const { error } = await supabase.functions.invoke('media-process-image', { body: data });
-  if (error) {
-    logger.error({ job_id: job.id, err: error.message }, 'image job failed');
-    throw error;
-  }
-  logger.info({ job_id: job.id, eventId: data.eventId }, 'image processed');
-}
-
 // -------------------------------------------------------------------------
 // Periodic queue-depth sampler
 // -------------------------------------------------------------------------
@@ -273,7 +260,6 @@ async function main(): Promise<void> {
   registerHandler('jobs', { name: 'screenshot:generate', handler: handleScreenshotJob, schema: ScreenshotJobSchema });
   registerHandler('email', { name: 'email', handler: handleEmailJob, schema: EmailJobSchema });
   registerHandler('email', { name: 'send-reminder-emails', handler: handleEmailJob, schema: EmailJobSchema });
-  registerHandler('image', { name: 'image-processing', handler: handleImageJob, schema: ImageProcessJobSchema });
 
   // Module handlers + module queues (and their LISTEN channels).
   // Use loadModulesWithDbSources so module_sources rows (e.g.
@@ -320,10 +306,10 @@ async function main(): Promise<void> {
   // WORKER_BUILTIN_QUEUES scopes which built-ins THIS process consumes (unset = all three, as
   // before). A dedicated module runner sets it empty so it only consumes its module's own queues.
   const builtins = process.env.WORKER_BUILTIN_QUEUES === undefined
-    ? ['jobs', 'email', 'image']
+    ? ['jobs', 'email']
     : csv(process.env.WORKER_BUILTIN_QUEUES);
   for (const q of builtins) {
-    if (q === 'jobs' || q === 'email' || q === 'image') startWorker(q);
+    if (q === 'jobs' || q === 'email') startWorker(q);
     else logger.warn({ queue: q }, 'WORKER_BUILTIN_QUEUES: unknown built-in queue ignored');
   }
 

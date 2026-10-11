@@ -43,6 +43,27 @@ describe('Portal Events API (public reads)', () => {
       expect(res.status).toBe(400);
     });
 
+    // The portal shows events as image-led cards, so an event with no card
+    // image is not listed. Without this the listing surfaces an empty card.
+    it('excludes events with no screenshot', async () => {
+      mockSupabase.mockResult([], null, 0);
+      await request(app).get('/api/portal/events');
+      expect(mockSupabase.client.not).toHaveBeenCalledWith('screenshot_url', 'is', null);
+    });
+
+    it('still requires the event to be live and listed', async () => {
+      mockSupabase.mockResult([], null, 0);
+      await request(app).get('/api/portal/events');
+      expect(mockSupabase.client.eq).toHaveBeenCalledWith('is_live_in_production', true);
+      expect(mockSupabase.client.eq).toHaveBeenCalledWith('is_listed', true);
+    });
+
+    it('applies the screenshot rule to past events too', async () => {
+      mockSupabase.mockResult([], null, 0);
+      await request(app).get('/api/portal/events?direction=past');
+      expect(mockSupabase.client.not).toHaveBeenCalledWith('screenshot_url', 'is', null);
+    });
+
     it('clamps oversized limit to PAGE_SIZE (1000)', async () => {
       mockSupabase.mockResult([], null, 0);
       const res = await request(app).get('/api/portal/events?limit=99999');
@@ -72,6 +93,15 @@ describe('Portal Events API (public reads)', () => {
       expect(res.status).toBe(200);
       expect(res.body).toEqual(event);
       expect(res.headers['cache-tag']).toContain('event:EVT-1');
+    });
+
+    // Not listing an event is not the same as hiding it. A direct link, a
+    // shared URL or an email link must still resolve, so the card-image rule
+    // deliberately does NOT apply to fetching one event.
+    it('does NOT apply the screenshot rule when fetching one event', async () => {
+      mockSupabase.mockResult({ event_id: 'E1', event_slug: 'test-event' }, null);
+      await request(app).get('/api/portal/events/test-event');
+      expect(mockSupabase.client.not).not.toHaveBeenCalledWith('screenshot_url', 'is', null);
     });
 
     it('returns 404 with brief cache when event missing', async () => {
