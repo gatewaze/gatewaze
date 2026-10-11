@@ -48,6 +48,20 @@ export function feedbackPath(): string | null {
   return mobileModules.find((m) => m.feedback)?.feedback?.path ?? null;
 }
 
+/**
+ * Where "View my feedback" should navigate after a successful send, or null
+ * when the feedback-owning module declares no history screen.
+ *
+ * Built the same way every other module screen is reached
+ * (`/m/<moduleId>/<name>` — see `ModuleScreenHost`), so the sheet does not
+ * need to know the feedback-owning module's id itself.
+ */
+export function feedbackHistoryPath(): string | null {
+  const mod = mobileModules.find((m) => m.feedback);
+  const screen = mod?.feedback?.historyScreen;
+  return mod && screen ? `/m/${mod.id}/${screen}` : null;
+}
+
 export function allTabs(): Array<MobileTabContribution & { moduleId: string }> {
   return mobileModules
     .flatMap((m) => (m.tabs ?? []).map((t) => ({ ...t, moduleId: m.id })))

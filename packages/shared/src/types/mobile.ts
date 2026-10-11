@@ -558,7 +558,17 @@ export interface GatewazeMobileModule {
    * and the form; the module owns the endpoint and whatever it does with
    * the report. Without a declaring module the bug button is not rendered.
    */
-  feedback?: { path: string };
+  feedback?: {
+    path: string;
+    /**
+     * Name of one of this module's own `screens[]` entries that lists the
+     * member's past reports. Optional: a module with no such screen simply
+     * gets no "View my feedback" link after a successful send. Resolved to
+     * `/m/<moduleId>/<historyScreen>` the same way every other pushable
+     * screen is reached — see `MobileScreenContribution`.
+     */
+    historyScreen?: string;
+  };
   /**
    * Declared by the single module that owns the chat conversation.
    * See MobileCoachProvider.
