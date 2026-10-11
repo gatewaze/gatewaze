@@ -611,6 +611,14 @@ export interface ModuleContext {
 export interface ConfigField {
   key: string;
   type: 'string' | 'number' | 'boolean' | 'secret' | 'select';
+  /**
+   * For type === 'secret' only: opt in to at-rest encryption. The config save
+   * route seals the value (AES-256-GCM `v1:` envelope, GATEWAZE_SECRETS_KEY)
+   * before it reaches installed_modules.config, and the module must unseal on
+   * read (decryptSecret, tolerating legacy plaintext). Opt-in because modules
+   * that read their config raw would otherwise receive ciphertext.
+   */
+  encrypted?: boolean;
   label?: string;
   required: boolean;
   default?: string;

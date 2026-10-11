@@ -596,6 +596,11 @@ services:
       # to encrypt user-supplied secrets at rest (e.g. AI skill source auth
       # tokens for private git repos). 32 bytes base64-encoded.
       GATEWAZE_SECRETS_KEY: ${GATEWAZE_SECRETS_KEY:-}
+      # Bunny pull zone for browser-facing media URLs (event-media lib/cdn.ts
+      # and the conference-recap gallery bake share this convention). Unset =
+      # plain Supabase storage URLs — the local default.
+      BUNNY_PULLZONE_URL: ${BUNNY_PULLZONE_URL:-}
+      BUNNY_CDN_ENABLED: ${BUNNY_CDN_ENABLED:-}
       SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
@@ -706,6 +711,11 @@ services:
       # Mirror of the api service's key so worker-run skill syncs can
       # decrypt auth tokens stored on ai_skill_sources rows.
       GATEWAZE_SECRETS_KEY: ${GATEWAZE_SECRETS_KEY:-}
+      # Bunny pull zone for browser-facing media URLs (event-media lib/cdn.ts
+      # and the conference-recap gallery bake share this convention). Unset =
+      # plain Supabase storage URLs — the local default.
+      BUNNY_PULLZONE_URL: ${BUNNY_PULLZONE_URL:-}
+      BUNNY_CDN_ENABLED: ${BUNNY_CDN_ENABLED:-}
       # Internal API base the gatewaze-wiki MCP uses to reach the AI module's
       # /api/modules/ai/internal/wiki/* routes (service-to-service, internal-key
       # authed). spec-ai-memory-wiki.md §5.1.
@@ -746,6 +756,10 @@ services:
       # their existing Puppeteer paths.
       SCRAPLING_FETCHER_URL: http://scrapling-fetcher:8080
       SCRAPLING_INTERNAL_TOKEN: ${SCRAPLING_INTERNAL_TOKEN:-}
+      # Residential-egress toggle for conference-recap transcript fetching —
+      # same switch prod sets in k8s values (CONFERENCE_RECAP_RESIDENTIAL_EGRESS).
+      # Needs the residential-egress module enabled+configured to take effect.
+      CONFERENCE_RECAP_RESIDENTIAL_EGRESS: ${CONFERENCE_RECAP_RESIDENTIAL_EGRESS:-}
       # Let the recipe executor reach the internal browser-mcp HTTP service
       # (http://browser-mcp:8080) past the streamable_http SSRF guard.
       AI_MCP_HTTP_ALLOW_PRIVATE: ${AI_MCP_HTTP_ALLOW_PRIVATE:-}

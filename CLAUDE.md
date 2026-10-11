@@ -13,7 +13,12 @@ and shipped here. Follow it unless the human tells you otherwise in the session.
    review globs these, filters by each file's `paths:` frontmatter against what
    changed, and applies the most specific match. The universal file
    (`lint-and-ci.md`, no `paths:`) always applies.
-5. The skills in the `gatewaze-skills` and `pragma` plugins (both distributed
+5. `docs/reviews/knowledge-base/*.md` — empirical review patterns. Where
+   `.claude/rules/` says how code should be written, these record what has
+   actually gone wrong here, how it was spotted, and what the fix was. Routed by
+   changed path (see that directory's `README.md`); `known-false-positives.md`
+   is applied last and overrides any other match.
+6. The skills in the `gatewaze-skills` and `pragma` plugins (both distributed
    through the committed `gatewaze-skills` marketplace; `pragma` is pinned to an
    exact commit SHA there for supply-chain safety).
 
@@ -44,12 +49,32 @@ The `pragma:security` agent keeps a learned memory under
 it improves over a working session but does not travel between clones. Treat its
 recurring-issue notes as hints, not gospel — verify against current code.
 
+**When that memory produces a pattern that will recur, promote it into
+`docs/reviews/knowledge-base/`.** That directory is the durable half: committed,
+so it survives a fresh clone, a new machine, and a change of maintainer. The
+memory stays a working scratchpad; the knowledge base is what the next reviewer
+actually inherits.
+
 ## The commit-and-push cycle
 
 - **After every commit**, run the review set (`/pragma:review` or, at minimum,
   `pragma:security`) if you have not already for that diff.
 - **Before every push / PR**, the diff must pass the security review above and
-  the local checks below.
+  the local checks below, plus `/preflight` (mechanical checks, then the
+  security-boundary checklist).
+- **Also before every push / PR**, run `/evidence-review` and `/test-coverage`.
+  These cover what the validators structurally cannot. Every `pragma` validator
+  declares a narrow scope and a `MUST NOT report on` block — every one of them
+  disowns performance, three of four disown test coverage, and there is no
+  validator for either — while `/preflight` Phase 2 walks a fixed checklist.
+  A real defect that is not on somebody's list has no other owner.
+  - `/evidence-review` ships only findings it can prove at `file:line`. Its
+    highest-yield check is sibling divergence, because this codebase's own
+    review history is dominated by one module doing correctly what the module
+    beside it does not.
+  - `/test-coverage` applies the inversion test: for each new condition, invert
+    it and ask which existing test fails. If none would, the branch is unpinned.
+  Both are report-only. Fix what they find, or say why you are not.
 - A **blocking pre-push hook** (`.husky/pre-push`) runs a deterministic gate
   before anything reaches the remote: a gitleaks secret scan over the commits
   being pushed, plus the shell-call audit. It requires `gitleaks` installed

@@ -156,16 +156,23 @@ export const darkColors: Palette = {
   // (a lighter composite behind dark text raises contrast), so the readable
   // floor is nowhere near. The crisp full-white border stays: soft fill with a
   // crisp edge reads as glass.
+  // 0.48 after 0.62 "read as a solid panel" and the moving colour appeared to
+  // stop at the bubble's edges. Thinner let the mesh through again, but it
+  // gave back more contrast than intended.
   /**
    * The coach bubble is a white VEIL over the mesh, not a white card.
    *
-   * At 0.62 it read as a solid panel and the colour moving behind the app
-   * stopped at its edges. Thinner lets the mesh through so the bubble sits in
-   * the scene rather than on top of it. The floor is set by the ink: the text
-   * is near-black, so going much below this starts costing contrast against
-   * the darker parts of the mesh, and readability wins over the effect.
+   * Issue #85: members reported the coach's message text was hard to read.
+   * 0.48 measured about 5.4:1 against the app background (sRGB WCAG formula),
+   * only just over the 4.5:1 body-text floor and the lowest point in this
+   * value's history, even though it read much higher over the brighter
+   * ambient hues. Reverted to 0.62, the value already used, and already
+   * judged contrast-sufficient, before the "solid panel" complaint traded it
+   * away. That measures about 8.3:1 against the app background and higher
+   * still over every ambient hue. The border stays crisp full white and the
+   * fill is still well short of opaque, so the veil effect holds.
    */
-  bubbleCoach: 'rgba(255,255,255,0.48)',
+  bubbleCoach: 'rgba(255,255,255,0.62)',
   bubbleBorderMember: 'rgba(255,255,255,0.55)',
   bubbleBorderCoach: '#ffffff',
   bubbleGlowCoach: 'rgba(255,255,255,0.22)',
