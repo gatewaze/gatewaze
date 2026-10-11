@@ -248,7 +248,13 @@ portalEventsRouter.get('/', async (req, res) => {
       .from('events')
       .select(compactSelect(EVENT_LISTING_FIELDS), { count: 'exact' })
       .eq('is_live_in_production', true)
-      .eq('is_listed', true);
+      .eq('is_listed', true)
+      // The portal shows events as image-led cards, so an event with no card
+      // image is not listed anywhere. See the `portal` authFilter in the
+      // events module's listing-schema.ts, which applies the same rule to the
+      // paginated /events/upcoming surface. Fetching one event by id or slug
+      // deliberately does NOT apply it, so a direct link still resolves.
+      .not('screenshot_url', 'is', null);
 
     if (direction === 'upcoming') {
       q = q
@@ -292,7 +298,9 @@ portalEventsRouter.get('/all', async (_req, res) => {
           .from('events')
           .select(compactSelect(EVENT_LISTING_FIELDS))
           .eq('is_live_in_production', true)
-          .eq('is_listed', true);
+          .eq('is_listed', true)
+          // Same card-image rule as the single-page listing above.
+          .not('screenshot_url', 'is', null);
         q = direction === 'upcoming'
           ? q
               .or(`event_start.gte.${now},event_start.is.null`)

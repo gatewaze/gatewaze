@@ -18,7 +18,14 @@ interface Props {
 
 export function EventTimelineCard({ event, brandConfig, userLocation }: Props) {
   const eventUrl = `/events/${event.event_slug || event.event_id}`
-  const imageUrl = event.event_logo || event.screenshot_url
+  // Screenshot first. It is generated at the card's own aspect ratio, whereas
+  // `event_logo` is whatever shape the organiser drew: techtickets carries 18
+  // upcoming events with a legacy logo from the old site, several of them
+  // wordmark strips up to 10:1, and `object-cover` was cropping those to the
+  // middle fifth (EuroRust's 237x30 logo showed as "RORU"). Two of the 18 point
+  // at files that 404. The logo stays as a fallback for an event that somehow
+  // has one without a screenshot, though the portal no longer lists those.
+  const imageUrl = event.screenshot_url || event.event_logo
   const cardImg = imageUrl ? cardImage(imageUrl, brandConfig.cdnBaseUrl) : null
   const { ref: blurRef, inView } = useViewportBlur()
 
