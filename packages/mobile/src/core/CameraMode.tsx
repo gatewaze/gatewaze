@@ -46,7 +46,8 @@ import { LazyThunk } from '../components/LazyThunk';
 import { Button, Caption, EmptyState } from '../components/primitives';
 import { photoKinds } from './registry';
 import { useChromeInsets } from './chrome';
-import { useTheme, radius, spacing, layout, type } from '../theme/tokens';
+import { useTextScale } from './textScale';
+import { useTheme, radius, scaled, spacing, layout, type } from '../theme/tokens';
 import { pickFromLibrary } from '../capabilities/imagePicker';
 import { GlassCircleButton } from '../components/GlassCircleButton';
 
@@ -68,6 +69,7 @@ export function CameraMode({
   openStepId?: string | null;
 }) {
   const theme = useTheme();
+  const { scale } = useTextScale();
   const chrome = useChromeInsets();
   const kinds = useMemo(() => photoKinds(), []);
 
@@ -287,7 +289,7 @@ export function CameraMode({
               <Icon name={k.icon} size={17} color={selected ? theme.onInvert : theme.textSecondary} />
               <Text
                 numberOfLines={1}
-                style={[type.button, { color: selected ? theme.onInvert : theme.textSecondary }]}
+                style={[scaled(type.button, scale), { color: selected ? theme.onInvert : theme.textSecondary }]}
               >
                 {k.label}
               </Text>

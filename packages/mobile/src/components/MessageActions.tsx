@@ -19,7 +19,8 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { Icon } from './Icon';
-import { useTheme, radius, spacing, type } from '../theme/tokens';
+import { useTextScale } from '../core/textScale';
+import { useTheme, radius, scaled, spacing, type } from '../theme/tokens';
 
 export interface MessageAction {
   id: 'edit' | 'delete' | 'copy' | 'reference';
@@ -42,6 +43,7 @@ export function MessageActions({
   align?: 'left' | 'right';
 }) {
   const theme = useTheme();
+  const { scale } = useTextScale();
   if (!actions.length) return null;
 
   return (
@@ -79,7 +81,7 @@ export function MessageActions({
                 size={16}
                 color={a.destructive ? theme.danger : theme.text}
               />
-              <Text style={[type.button, { color: a.destructive ? theme.danger : theme.text }]}>
+              <Text style={[scaled(type.button, scale), { color: a.destructive ? theme.danger : theme.text }]}>
                 {a.label}
               </Text>
             </Pressable>

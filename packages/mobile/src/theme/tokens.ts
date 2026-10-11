@@ -12,6 +12,8 @@
  * which adapts to the system appearance on its own.
  */
 
+import type { TextStyle } from 'react-native';
+
 export interface Palette {
   /** Deepest ground, e.g. the drawer canvas behind the app surface. */
   void: string;
@@ -337,6 +339,18 @@ export const type = {
   caps: { fontSize: 11, fontWeight: '700' as const, letterSpacing: 0.77 },
   stat: { fontSize: 17, fontWeight: '700' as const },
 };
+
+/**
+ * Scales a text style's `fontSize` and `lineHeight` by the member's chosen
+ * text-size setting (`useTextScale()`). Pure and synchronous so every call
+ * site is just `scaled(type.whatever, scale)`.
+ */
+export function scaled(style: TextStyle, scale: number): TextStyle {
+  const out: TextStyle = { ...style };
+  if (typeof out.fontSize === 'number') out.fontSize = out.fontSize * scale;
+  if (typeof out.lineHeight === 'number') out.lineHeight = out.lineHeight * scale;
+  return out;
+}
 
 /** One easing token for every animation in the app. */
 export const easing = { x1: 0.32, y1: 0.72, x2: 0, y2: 1 };
