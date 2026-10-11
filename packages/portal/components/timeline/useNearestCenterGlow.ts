@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { acquireGlowClock } from '@/lib/glowClock'
+import { MOBILE_MEDIA_QUERY } from '@/lib/breakpoints'
 
 /**
  * Shared "nearest to the viewport centre" coordinator for the mobile timeline glow.
@@ -122,7 +123,7 @@ export function useNearestCenterGlow<T extends HTMLElement>() {
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    const mq = window.matchMedia('(max-width: 820px)')
+    const mq = window.matchMedia(MOBILE_MEDIA_QUERY)
     let cleanup: (() => void) | undefined
     const sync = () => {
       if (mq.matches && !cleanup) {
