@@ -1,4 +1,7 @@
-scrapling==0.4.7
+# [fetchers] pulls playwright + curl_cffi, which the browser and stealth
+# fetchers need. Without it `from scrapling import DynamicFetcher` raises
+# ModuleNotFoundError and only fast mode works.
+scrapling[fetchers]==0.4.7
 fastapi==0.115.6
 uvicorn[standard]==0.32.1
 pydantic==2.10.3

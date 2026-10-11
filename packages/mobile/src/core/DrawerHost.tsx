@@ -30,7 +30,7 @@ import { AmbientBackground } from '../components/AmbientBackground';
 
 import { SummaryDrawer, SUMMARY_WIDTH } from './SummaryDrawer';
 import { CoachBar } from './CoachBar';
-import { Button, Caps, EmptyState } from '../components/primitives';
+import { Button, Caption, Caps, EmptyState } from '../components/primitives';
 import { chatProvider, drawerSections } from './registry';
 import { onOutboxChange, outboxCounts } from './outbox';
 import { consumeBugReportRequest, consumeOpenDrawerRequest, consumeOpenSummaryRequest } from './drawerSignal';
@@ -39,6 +39,8 @@ import { ChromeInsetsProvider } from './chrome';
 import { useSession } from './auth/session';
 import { CoachHome } from './CoachHome';
 import { BugReportSheet } from './BugReport';
+import { ChangelogSheet } from './ChangelogSheet';
+import { appBuildNumber, appVersion } from './appInfo';
 import { brandLogo, feedbackPath } from './registry';
 import { config } from './config';
 import {
@@ -82,7 +84,12 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
    * the eye. The one underneath is the one that goes.
    */
   const pathname = usePathname();
-  const isVisibleRoute = pathname === '/' || pathname === '/index';
+  // Strip a query string and any trailing slash before comparing: a deep
+  // link, a resumed-from-background value, or a route reached with a
+  // trailing slash all mean "the index route," but would otherwise defeat
+  // an exact match and hide this header along with it.
+  const normalizedPathname = (pathname ?? '').split('?')[0].replace(/\/+$/, '') || '/';
+  const isVisibleRoute = normalizedPathname === '/' || normalizedPathname === '/index';
   const theme = useTheme();
   const router = useRouter();
   const { refresh } = useSession();
@@ -111,6 +118,7 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
   // sheet still opens, just without an attachment.
   const [bugShot, setBugShot] = useState<string | null>(null);
   const [bugOpen, setBugOpen] = useState(false);
+  const [changelogOpen, setChangelogOpen] = useState(false);
   /**
    * The screen a report is about, when it came from a pushed one.
    *
@@ -347,7 +355,7 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
             <BrandMark height={30} />
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.navList}>
+          <ScrollView style={styles.navScroll} showsVerticalScrollIndicator={false} contentContainerStyle={styles.navList}>
             {coach ? (
               <DrawerRow
                 icon="message-outline"
@@ -390,6 +398,17 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
 
           </ScrollView>
 
+          <View style={[styles.drawerFoot, { borderColor: theme.border }]}>
+            <Caption style={{ textAlign: 'center' }}>
+              {`Version ${appVersion()} · Build ${appBuildNumber()}`}
+            </Caption>
+            <DrawerRow
+              icon="history"
+              label="Change log"
+              onPress={() => { setOpen(false); setChangelogOpen(true); }}
+            />
+          </View>
+
         </SafeAreaView>
       </Animated.View>
 
@@ -412,7 +431,10 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
             dissolve rather than ending on a hard edge.
             `padding: 64px 22px 18px` with a 180deg gradient at .97/.85/0,
             where the design's 64px status bar becomes the safe-area inset. */}
-        {isVisibleRoute ? (
+        <View
+          style={[styles.headerWrap, { opacity: isVisibleRoute ? 1 : 0 }]}
+          pointerEvents={isVisibleRoute ? 'auto' : 'none'}
+        >
         <LinearGradient
           colors={[
             withAlpha(theme.headerScrim, layout.headerFadeStops[0]),
@@ -444,7 +466,13 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
               so the wordmark takes the slot rather than leaving the two
               controls floating at the edges with a gap between them. */}
           {destination.kind === 'module' ? (
-            <Text style={[type.cardTitle, { color: theme.text }]}>{title}</Text>
+            <Text
+              style={[type.cardTitle, { color: theme.text, flexShrink: 1 }]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              {title}
+            </Text>
           ) : (
             /* The dark glow keeps the white letters legible when a light
                coach bubble scrolls behind the transparent header. A view
@@ -491,7 +519,7 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
           />
           ) : null}
         </LinearGradient>
-        ) : null}
+        </View>
 
         {/* The header floats over everything, so its height is published
             rather than padded around. A destination's Screen applies it to
@@ -537,6 +565,10 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
           />
         ) : null}
       </Animated.View>
+
+      {changelogOpen ? (
+        <ChangelogSheet onClose={() => setChangelogOpen(false)} />
+      ) : null}
     </View>
   );
 }
@@ -590,10 +622,15 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   drawerHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  navScroll: { flex: 1 },
   navList: { gap: 2, marginTop: 26, paddingBottom: spacing.lg },
   sectionLabel: { marginTop: spacing.xl, marginBottom: spacing.sm },
   recent: { paddingVertical: 9 },
-  drawerFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
+  drawerFoot: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: spacing.sm,
+    marginTop: spacing.sm,
+  },
   newChat: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -605,12 +642,14 @@ const styles = StyleSheet.create({
   },
   group: { gap: spacing.xs },
   surface: { flex: 1, overflow: 'hidden' },
-  header: {
+  headerWrap: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     zIndex: 3,
+  },
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',

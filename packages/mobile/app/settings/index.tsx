@@ -2,10 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as LocalAuthentication from 'expo-local-authentication';
-import Constants from 'expo-constants';
 import { Caption, Card, Heading, ListItem, Screen } from '../../src/components/primitives';
 import { LazyThunk } from '../../src/components/LazyThunk';
 import { allSettingsSections } from '../../src/core/registry';
+import { appBuildNumber, appVersion } from '../../src/core/appInfo';
 import { loadPersistedEntitlement } from '../../src/core/entitlement';
 import { onOutboxChange, outboxCounts } from '../../src/core/outbox';
 import { useSession } from '../../src/core/auth/session';
@@ -100,7 +100,7 @@ export default function Settings() {
         onPress={() => router.push('/settings/delete')}
       />
       <Caption style={{ textAlign: 'center' }}>
-        Version {Constants.expoConfig?.version ?? 'dev'}
+        {`Version ${appVersion()} · Build ${appBuildNumber()}`}
       </Caption>
     </Screen>
   );
