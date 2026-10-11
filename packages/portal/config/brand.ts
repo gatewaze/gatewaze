@@ -10,6 +10,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { resolveBucketUrl, toPublicUrl } from '@gatewaze/shared'
+import { resolveCdnBaseUrl } from '@/lib/cdnBaseUrl'
 
 export type PortalTheme = 'blobs' | 'gradient_wave' | 'basic'
 
@@ -195,6 +196,17 @@ export interface BrandConfig {
    * Consumers pass this to `toPublicUrl(path, storageBucketUrl)`.
    */
   storageBucketUrl: string
+  /**
+   * Origin of this brand's Bunny CDN pull zone, e.g. `https://aaif.b-cdn.net`.
+   * Empty when the brand has no zone or BUNNY_CDN_ENABLED is not "true".
+   *
+   * Resolved server-side from env so it does NOT depend on build-time
+   * inlining. `packages/portal/lib/bunnyNet.ts` reads `NEXT_PUBLIC_BUNNY_*`
+   * instead, which is not set on any brand, so that helper is inert in
+   * production — this field is the working channel. Consumers pass it to
+   * `cardImage(url, cdnBaseUrl)`.
+   */
+  cdnBaseUrl: string
 }
 
 // ---------------------------------------------------------------------------
@@ -294,6 +306,7 @@ const defaults: BrandConfig = {
   portalUiMode: 'smoke' as const,
   storageBucketUrlRaw: '',
   storageBucketUrl: '',
+  cdnBaseUrl: resolveCdnBaseUrl(process.env),
 }
 
 // Mapping from app_settings keys to BrandConfig fields + defaults
@@ -589,6 +602,11 @@ export async function getServerBrandConfig(): Promise<BrandConfig> {
       supabaseUrl,
       publicSupabaseUrl,
     )
+
+    // Read the pull zone per request rather than trusting the module-load
+    // snapshot in `defaults`, so a pod that gets new env on restart picks it
+    // up without depending on when this module was first evaluated.
+    config.cdnBaseUrl = resolveCdnBaseUrl(process.env)
 
     // Resolve branding image fields to full URLs using the effective bucket URL.
     // Idempotent — already-full URLs (legacy data) pass through unchanged.

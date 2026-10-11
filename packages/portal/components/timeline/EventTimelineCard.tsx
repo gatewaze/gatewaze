@@ -19,7 +19,7 @@ interface Props {
 export function EventTimelineCard({ event, brandConfig, userLocation }: Props) {
   const eventUrl = `/events/${event.event_slug || event.event_id}`
   const imageUrl = event.event_logo || event.screenshot_url
-  const cardImg = imageUrl ? cardImage(imageUrl) : null
+  const cardImg = imageUrl ? cardImage(imageUrl, brandConfig.cdnBaseUrl) : null
   const { ref: blurRef, inView } = useViewportBlur()
 
   // On mobile (no hover), the card nearest the viewport's vertical centre lights its glow border,

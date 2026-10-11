@@ -138,3 +138,88 @@ describe('cardImage', () => {
     expect(new URL(img.src).origin).toBe('http://127.0.0.1:54321');
   });
 });
+
+const CDN = 'https://techtickets.b-cdn.net';
+
+describe('cardImage through a Bunny pull zone', () => {
+  it('serves from the pull zone and keeps the object path', () => {
+    const img = cardImage(PREVIEW, CDN);
+    const u = new URL(img.src);
+    expect(u.origin).toBe(CDN);
+    // The zone's own origin is the brand's storage domain, so the path that
+    // worked against Supabase works against the zone unchanged.
+    expect(u.pathname).toBe('/storage/v1/object/public/media/event-previews/gc5043.jpg');
+  });
+
+  it('uses the object path, not the Supabase render path', () => {
+    const img = cardImage(PREVIEW, CDN);
+    expect(img.src).not.toContain('/render/image/');
+    expect(img.src).toContain('/object/public/');
+  });
+
+  it('asks the Optimizer for the card box with a crop', () => {
+    const u = new URL(cardImage(PREVIEW, CDN).src);
+    expect(u.searchParams.get('width')).toBe('640');
+    expect(u.searchParams.get('height')).toBe('336');
+    expect(u.searchParams.get('aspect_ratio')).toBe('crop');
+    expect(u.searchParams.get('quality')).toBe('85');
+  });
+
+  it('builds every srcSet candidate on the pull zone at the right ratio', () => {
+    const img = cardImage(PREVIEW, CDN);
+    const candidates = img.srcSet!.split(', ');
+    expect(candidates).toHaveLength(3);
+    for (const candidate of candidates) {
+      const [href, descriptor] = candidate.split(' ');
+      const u = new URL(href);
+      expect(u.origin).toBe(CDN);
+      const w = Number(u.searchParams.get('width'));
+      expect(`${w}w`).toBe(descriptor);
+      expect(Number(u.searchParams.get('height'))).toBe(
+        Math.round((w * CARD_IMAGE_HEIGHT) / CARD_IMAGE_WIDTH),
+      );
+      expect(w).toBeLessThanOrEqual(CARD_IMAGE_WIDTH);
+    }
+  });
+
+  it('still declares the same intrinsic box as the Supabase path', () => {
+    const viaCdn = cardImage(PREVIEW, CDN);
+    const viaSupabase = cardImage(PREVIEW);
+    expect(viaCdn.width).toBe(viaSupabase.width);
+    expect(viaCdn.height).toBe(viaSupabase.height);
+    expect(viaCdn.sizes).toBe(viaSupabase.sizes);
+  });
+
+  // An unusable zone value must not break images. Falling back to the Supabase
+  // render endpoint keeps right-sized output; the brand just pays the quota.
+  it.each([
+    ['', 'empty'],
+    [undefined, 'absent'],
+    ['not a url', 'unparseable'],
+    ['ftp://techtickets.b-cdn.net', 'non-http scheme'],
+    ['https://user:pw@techtickets.b-cdn.net', 'embedded credentials'],
+  ])('falls back to the Supabase render endpoint when the zone is %s (%s)', (value, _label) => {
+    const img = cardImage(PREVIEW, value as string | undefined);
+    expect(img.src).toContain('/storage/v1/render/image/public/');
+    expect(new URL(img.src).origin).toBe('https://qjzldkohlokymerlobfc.supabase.co');
+    expect(img.width).toBe(CARD_IMAGE_WIDTH);
+  });
+
+  it('keeps only the origin when the zone value carries a path or query', () => {
+    const img = cardImage(PREVIEW, 'https://techtickets.b-cdn.net/some/path?token=abc');
+    const u = new URL(img.src);
+    expect(u.origin).toBe(CDN);
+    expect(u.pathname).toBe('/storage/v1/object/public/media/event-previews/gc5043.jpg');
+    expect(u.searchParams.get('token')).toBeNull();
+  });
+
+  it('does not route a non-preview image through the zone', () => {
+    const logo = 'https://qjzldkohlokymerlobfc.supabase.co/storage/v1/object/public/media/branding/logo.png';
+    expect(cardImage(logo, CDN)).toEqual({ src: logo });
+  });
+
+  it('does not route a non-http source through the zone', () => {
+    const raw = 'javascript:alert(1)';
+    expect(cardImage(raw, CDN)).toEqual({ src: raw });
+  });
+});
