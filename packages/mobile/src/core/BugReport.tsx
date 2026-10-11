@@ -12,33 +12,84 @@
  * data on it, and they should see exactly what leaves the phone.
  */
 
-import React, { useState } from 'react';
-import { Image, Pressable, StyleSheet, View } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { Image, Platform, Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown, useAnimatedKeyboard, useAnimatedStyle } from 'react-native-reanimated';
-import Constants from 'expo-constants';
+import { useRouter } from 'expo-router';
 import { getModuleContext } from './context';
 import { Body, Button, Caption, CardTitle, Input, Row } from '../components/primitives';
 import { useTheme, radius, spacing } from '../theme/tokens';
 import { humanMessage } from './errors';
+import { useVoiceInput } from './useVoiceInput';
+import { VoiceButton } from './VoiceButton';
+import { VoiceIndicator } from './VoiceIndicator';
+import { appBuildNumber } from './appInfo';
+
+type FeedbackKind = 'bug' | 'feature';
+
+/** Bug vs feature-request pill track, matching the segmented controls used elsewhere in the app. */
+function KindToggle({ value, onChange }: { value: FeedbackKind; onChange: (kind: FeedbackKind) => void }) {
+  const theme = useTheme();
+  return (
+    <Row style={{ gap: spacing.xs }}>
+      {([
+        { id: 'bug' as const, label: 'Bug' },
+        { id: 'feature' as const, label: 'Feature request' },
+      ]).map(({ id, label }) => {
+        const on = value === id;
+        return (
+          <Pressable
+            key={id}
+            onPress={() => onChange(id)}
+            style={[
+              styles.kindChip,
+              { borderColor: theme.border },
+              on ? { backgroundColor: theme.buttonFill, borderColor: theme.buttonFill } : null,
+            ]}
+          >
+            <Caption style={{ color: on ? theme.buttonText : theme.textSecondary, fontWeight: on ? '700' : '500' }}>
+              {label}
+            </Caption>
+          </Pressable>
+        );
+      })}
+    </Row>
+  );
+}
 
 export function BugReportSheet({
   shotBase64,
   route,
   path,
+  historyPath,
   onClose,
 }: {
   /** The module-contributed endpoint the report is POSTed to. */
   path: string;
+  /**
+   * Where "View my feedback" navigates after a successful send, or null to
+   * not show that link. See `feedbackHistoryPath` in `./registry`.
+   */
+  historyPath?: string | null;
   /** Captured before the sheet opened; null when the capture failed. */
   shotBase64: string | null;
   route: string;
   onClose: () => void;
 }) {
   const theme = useTheme();
+  const router = useRouter();
   const [text, setText] = useState('');
+  const [kind, setKind] = useState<FeedbackKind>('bug');
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const voice = useVoiceInput({
+    useCase: 'health-feedback-dictation',
+    onTranscript: (transcribed) =>
+      setText((current) => (current.trim() ? `${current.trim()} ${transcribed}` : transcribed)),
+  });
 
   const send = async () => {
     if (!text.trim() || sending) return;
@@ -50,16 +101,24 @@ export function BugReportSheet({
         body: {
           message: text.trim(),
           screenshotBase64: shotBase64 ?? undefined,
-          appBuild: String(Constants.expoConfig?.ios?.buildNumber ?? ''),
+          appBuild: String(appBuildNumber()),
+          platform: Platform.OS === 'ios' ? 'ios' : 'android',
           route,
+          kind,
         },
       });
       setSent(true);
-      setTimeout(onClose, 1400);
+      closeTimer.current = setTimeout(onClose, 1400);
     } catch (err) {
       setError(humanMessage(err).text);
       setSending(false);
     }
+  };
+
+  const viewFeedback = () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    if (historyPath) router.push(historyPath);
+    onClose();
   };
 
   /**
@@ -99,16 +158,19 @@ export function BugReportSheet({
               <>
                 <CardTitle>Sent — thank you</CardTitle>
                 <Caption>It goes straight to the people building the app.</Caption>
+                {historyPath ? (
+                  <Button title="View my feedback" variant="ghost" onPress={viewFeedback} />
+                ) : null}
               </>
             ) : (
               <>
                 <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing.md }}>
                   <View style={{ flex: 1, gap: spacing.xs }}>
-                    <CardTitle>Report a problem</CardTitle>
+                    <CardTitle>Feedback & requests</CardTitle>
                     <Caption>
                       {shotBase64
                         ? 'A screenshot of the screen you were on is attached.'
-                        : 'Say what went wrong and where.'}
+                        : 'Say what went wrong, or what you would like to see.'}
                     </Caption>
                   </View>
                   {shotBase64 ? (
@@ -118,17 +180,24 @@ export function BugReportSheet({
                     />
                   ) : null}
                 </Row>
-                <Input
-                  placeholder="What went wrong?"
-                  value={text}
-                  onChangeText={setText}
-                  multiline
-                  numberOfLines={4}
-                  style={{ minHeight: 96, textAlignVertical: 'top' }}
-                  autoFocus
-                />
+                <KindToggle value={kind} onChange={setKind} />
+                {voice.state === 'idle' ? (
+                  <Input
+                    placeholder={kind === 'bug' ? 'What went wrong?' : 'What would you like to see?'}
+                    value={text}
+                    onChangeText={setText}
+                    multiline
+                    numberOfLines={4}
+                    style={{ minHeight: 96, textAlignVertical: 'top' }}
+                    autoFocus
+                  />
+                ) : (
+                  <VoiceIndicator voice={voice} />
+                )}
                 {error ? <Body style={{ color: theme.danger }}>{error}</Body> : null}
+                {voice.error ? <Body style={{ color: theme.danger }}>{voice.error}</Body> : null}
                 <Row style={{ gap: spacing.sm }}>
+                  <VoiceButton voice={voice} />
                   <View style={{ flex: 1 }}>
                     <Button title="Send" onPress={() => void send()} loading={sending} disabled={!text.trim()} />
                   </View>
@@ -163,6 +232,12 @@ const styles = StyleSheet.create({
     width: 44,
     height: 92,
     borderRadius: radius.xs,
+    borderWidth: 1,
+  },
+  kindChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: radius.full,
     borderWidth: 1,
   },
 });

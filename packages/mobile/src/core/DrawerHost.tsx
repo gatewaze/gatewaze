@@ -41,7 +41,7 @@ import { CoachHome } from './CoachHome';
 import { BugReportSheet } from './BugReport';
 import { ChangelogSheet } from './ChangelogSheet';
 import { appBuildNumber, appVersion } from './appInfo';
-import { brandLogo, feedbackPath } from './registry';
+import { brandLogo, feedbackPath, feedbackHistoryPath } from './registry';
 import { config } from './config';
 import { useTextScale } from './textScale';
 import {
@@ -87,7 +87,12 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
    * the eye. The one underneath is the one that goes.
    */
   const pathname = usePathname();
-  const isVisibleRoute = pathname === '/' || pathname === '/index';
+  // Strip a query string and any trailing slash before comparing: a deep
+  // link, a resumed-from-background value, or a route reached with a
+  // trailing slash all mean "the index route," but would otherwise defeat
+  // an exact match and hide this header along with it.
+  const normalizedPathname = (pathname ?? '').split('?')[0].replace(/\/+$/, '') || '/';
+  const isVisibleRoute = normalizedPathname === '/' || normalizedPathname === '/index';
   const theme = useTheme();
   const { scale } = useTextScale();
   const router = useRouter();
@@ -430,7 +435,10 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
             dissolve rather than ending on a hard edge.
             `padding: 64px 22px 18px` with a 180deg gradient at .97/.85/0,
             where the design's 64px status bar becomes the safe-area inset. */}
-        {isVisibleRoute ? (
+        <View
+          style={[styles.headerWrap, { opacity: isVisibleRoute ? 1 : 0 }]}
+          pointerEvents={isVisibleRoute ? 'auto' : 'none'}
+        >
         <LinearGradient
           colors={[
             withAlpha(theme.headerScrim, layout.headerFadeStops[0]),
@@ -462,7 +470,17 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
               so the wordmark takes the slot rather than leaving the two
               controls floating at the edges with a gap between them. */}
           {destination.kind === 'module' ? (
-            <Text style={[scaled(type.cardTitle, scale), { color: theme.text }]}>{title}</Text>
+            {/* Scaled AND truncated. The scale comes from the text-size
+                setting, and the single line with an ellipsis is what keeps a
+                long title from pushing the header controls off the edge —
+                which matters more, not less, once the text can grow. */}
+            <Text
+              style={[scaled(type.cardTitle, scale), { color: theme.text, flexShrink: 1 }]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              {title}
+            </Text>
           ) : (
             /* The dark glow keeps the white letters legible when a light
                coach bubble scrolls behind the transparent header. A view
@@ -505,11 +523,11 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
                 setBugOpen(true);
               })();
             }}
-            accessibilityLabel="Report a problem"
+            accessibilityLabel="Feedback & requests"
           />
           ) : null}
         </LinearGradient>
-        ) : null}
+        </View>
 
         {/* The header floats over everything, so its height is published
             rather than padded around. A destination's Screen applies it to
@@ -549,6 +567,7 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
         {bugOpen ? (
           <BugReportSheet
             path={feedbackPath()!}
+            historyPath={feedbackHistoryPath()}
             shotBase64={bugShot}
             route={bugRoute ?? (destination.kind === 'coach' ? 'coach' : `${destination.moduleId}:${destination.entryId}`)}
             onClose={() => { setBugOpen(false); setBugShot(null); setBugRoute(null); }}
@@ -633,12 +652,14 @@ const styles = StyleSheet.create({
   },
   group: { gap: spacing.xs },
   surface: { flex: 1, overflow: 'hidden' },
-  header: {
+  headerWrap: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     zIndex: 3,
+  },
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',

@@ -7,6 +7,7 @@ import { useViewportBlur } from '@/hooks/useViewportBlur'
 import { useNearestCenterGlow } from './useNearestCenterGlow'
 import { type UserLocation, getDistanceToEventByCity, usesImperialUnits } from '@/lib/location'
 import { stripEmojis } from '@/lib/text'
+import { cardImage } from '@/lib/cardImage'
 
 interface Props {
   event: Event
@@ -17,7 +18,15 @@ interface Props {
 
 export function EventTimelineCard({ event, brandConfig, userLocation }: Props) {
   const eventUrl = `/events/${event.event_slug || event.event_id}`
-  const imageUrl = event.event_logo || event.screenshot_url
+  // Screenshot first. It is generated at the card's own aspect ratio, whereas
+  // `event_logo` is whatever shape the organiser drew: techtickets carries 18
+  // upcoming events with a legacy logo from the old site, several of them
+  // wordmark strips up to 10:1, and `object-cover` was cropping those to the
+  // middle fifth (EuroRust's 237x30 logo showed as "RORU"). Two of the 18 point
+  // at files that 404. The logo stays as a fallback for an event that somehow
+  // has one without a screenshot, though the portal no longer lists those.
+  const imageUrl = event.screenshot_url || event.event_logo
+  const cardImg = imageUrl ? cardImage(imageUrl, brandConfig.cdnBaseUrl) : null
   const { ref: blurRef, inView } = useViewportBlur()
 
   // On mobile (no hover), the card nearest the viewport's vertical centre lights its glow border,
@@ -102,15 +111,27 @@ export function EventTimelineCard({ event, brandConfig, userLocation }: Props) {
         </div>
 
         {/* Event Screenshot.
-            Mobile: full-width banner on top at the image's full native aspect ratio (no cropping —
-            square posters just make the card taller), with the details below at full width.
-            Desktop: right column at native aspect ratio, fixed to the card height and width-capped so
-            it can't crowd out the details (object-cover trims only when a very wide image hits the cap). */}
-        {imageUrl && (
+            Mobile: full-width banner on top, with the details below at full width.
+            Desktop: right column fixed to the card height and width-capped so it can't crowd out
+            the details (object-cover trims only when a very wide image hits the cap).
+
+            `cardImage` supplies intrinsic width/height for our normalised 640x336 previews, so the
+            browser reserves the box before the image loads. Without that the card had no height
+            until each image arrived, and because the timeline is virtualised by date group and
+            measures groups after mount, every arriving image shifted the offsets of all later
+            groups while the user was scrolling. An `event_logo` or external image can be any
+            aspect ratio, so it comes back from `cardImage` untouched and still sizes naturally. */}
+        {cardImg && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={imageUrl}
+            src={cardImg.src}
+            srcSet={cardImg.srcSet}
+            sizes={cardImg.sizes}
+            width={cardImg.width}
+            height={cardImg.height}
             alt=""
+            loading="lazy"
+            decoding="async"
             className="order-1 sm:order-2 w-full h-auto sm:w-auto sm:h-full sm:max-w-[55%] object-cover flex-shrink-0"
           />
         )}
