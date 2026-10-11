@@ -14,14 +14,121 @@ permissions:
   contents: read
 
 jobs:
+  # One job per image, run in parallel. Previously all eight images built
+  # sequentially in a single job, which made the release bounded by their
+  # sum (1653s / 27.5 min measured on v1.3.154) rather than by the slowest
+  # image (portal, 337s).
+  #
+  # There is deliberately NO build cache here. The images each clone
+  # gatewaze-modules at `#branch=main` in a RUN whose text never changes,
+  # and that layer bakes the module npm deps. A cache that actually hit
+  # would reuse a stale clone and ship an image whose baked deps predate a
+  # module's new dependency, which is how the portal crash-looped on
+  # `Module not found: qrcode` in Oct 2026. The previous
+  # `cache-to: type=gha,mode=max` cost 727s per release to write a cache
+  # the next release could not read (Actions cache entries are keyed by git
+  # ref, and every release runs on a fresh tag), and it kept the repo's
+  # 10GB Actions cache permanently full, which evicted the PR jobs'
+  # pnpm caches as a side effect. Caching the installs is only safe once
+  # the module clone layers take a cache-busting build arg derived from the
+  # module repos' commit SHAs.
   build-and-push:
-    name: Build & Push Images
+    name: Build ${{ matrix.image }}
     runs-on: ubuntu-latest
     permissions:
-      contents: write      # create the GitHub Release
+      contents: read       # checkout only; the Release is created in its own job
       packages: write      # push images + attestations to GHCR
       id-token: write      # keyless (Sigstore/Fulcio) provenance signing
       attestations: write  # record SLSA build provenance
+    strategy:
+      # One image failing must not cancel the other seven. A release that
+      # pushes 7/8 images and names the one that broke is easier to recover
+      # than a release that cancels mid-flight.
+      fail-fast: false
+      matrix:
+        include:
+          # We MUST use a PAT (GH_PAT_MODULES), not the auto-token, wherever
+          # `pat: true` appears — `secrets.GITHUB_TOKEN` only grants access to
+          # the current repo, so it CANNOT clone the private gatewaze-modules.
+          # v1.2.28 was built with the auto-token; the premium clone failed
+          # silently and the bundle shipped without any premium modules (every
+          # event-* module disappeared from the admin UI). The PAT has read
+          # access to all three module repos.
+
+          # The Dockerfile pre-builds the admin Vite bundle at image build
+          # time using a superset of module sources so pod cold-starts can
+          # skip the 3-5 min runtime rebuild. `no_cache` is kept as a belt-
+          # and-braces marker: it predates this job having no cache at all,
+          # and it documents that this image must never reuse a layer.
+          - image: admin
+            context: .
+            file: docker/admin/Dockerfile
+            pat: true
+            no_cache: true
+
+          # Portal bakes module npm deps at build time (mirrors the api +
+          # worker + admin pattern). The Dockerfile clones
+          # BUILD_TIME_MODULE_SOURCES and aggregates their declared deps into
+          # the workspace install so `next build` at pod startup can resolve
+          # module-side packages without a per-pod aggregate-and-install.
+          - image: portal
+            context: .
+            file: docker/portal/Dockerfile
+            pat: true
+            no_cache: false
+
+          # The Dockerfile bakes module npm deps (openai for the AI module,
+          # ws for editor-ai-copilot, etc.) at build time so pod startup
+          # doesn't have to do per-module pnpm installs.
+          - image: api
+            context: .
+            file: docker/api/Dockerfile
+            pat: true
+            no_cache: false
+
+          # Worker bakes module npm deps at build time (same reason as the
+          # api image) — it dispatches BullMQ jobs to module-side handlers
+          # that require() module-declared deps like `openai`.
+          - image: worker
+            context: .
+            file: docker/worker/Dockerfile
+            pat: true
+            no_cache: false
+
+          # Lean software-engineer runner (SE-runner split): bakes ONLY the
+          # software-engineer module's deps.
+          - image: se-runner
+            context: .
+            file: docker/se-runner/Dockerfile
+            pat: true
+            no_cache: false
+
+          # Self-contained npm build (only external deps) — no module
+          # sources or PAT needed, unlike the app images above.
+          - image: mcp-public
+            context: packages/mcp
+            file: packages/mcp/Dockerfile
+            pat: false
+            no_cache: false
+
+          # Scheduler dynamic-imports each module's scheduler handler via
+          # loadModules() at startup; same dep-resolution issue as the api +
+          # worker.
+          - image: scheduler
+            context: .
+            file: docker/scheduler/Dockerfile
+            pat: true
+            no_cache: false
+
+          # Self-contained Python/FastAPI service (Scrapling on the Playwright
+          # base image). No module sources, so no PAT. See
+          # docs/spec-scrapling-fetcher-service.md §4.1. gatewaze ghcr
+          # packages are public, so the cluster pulls this with no pull secret.
+          - image: scrapling-fetcher
+            context: services/scrapling-fetcher
+            file: services/scrapling-fetcher/Dockerfile
+            pat: false
+            no_cache: false
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -40,223 +147,47 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push admin image
-        id: img-admin
+      - name: Build and push ${{ matrix.image }} image
+        id: build
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
-          context: .
-          file: docker/admin/Dockerfile
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
           push: true
           platforms: linux/amd64
           tags: |
-            ghcr.io/gatewaze/admin:${{ steps.version.outputs.VERSION }}
-            ghcr.io/gatewaze/admin:latest
-          no-cache: true
-          # The Dockerfile pre-builds the admin Vite bundle at image
-          # build time using a superset of module sources so pod
-          # cold-starts can skip the 3-5 min runtime rebuild.
-          #
-          # We MUST use a PAT (GH_PAT_MODULES), not the auto-token —
-          # `secrets.GITHUB_TOKEN` only grants access to the current
-          # repo, so it CANNOT clone the private
-          # gatewaze-modules. v1.2.28 was built with the
-          # auto-token; the premium clone failed silently and the
-          # bundle shipped without any premium modules (every
-          # event-* module disappeared from the admin UI). The PAT
-          # has read access to all three module repos.
+            ghcr.io/gatewaze/${{ matrix.image }}:${{ steps.version.outputs.VERSION }}
+            ghcr.io/gatewaze/${{ matrix.image }}:latest
+          no-cache: ${{ matrix.no_cache || false }}
+          # Empty lines are dropped by the action's list parser, so an image
+          # that needs neither arg passes none.
           build-args: |
-            BUILD_TIME_GITHUB_TOKEN=${{ secrets.GH_PAT_MODULES }}
-            ADMIN_IMAGE_VERSION=${{ steps.version.outputs.VERSION }}
-
-      - name: Build and push portal image
-        id: img-portal
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
-        with:
-          context: .
-          file: docker/portal/Dockerfile
-          push: true
-          platforms: linux/amd64
-          tags: |
-            ghcr.io/gatewaze/portal:${{ steps.version.outputs.VERSION }}
-            ghcr.io/gatewaze/portal:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          # Portal now bakes module npm deps at build time (mirrors
-          # the api + worker + admin pattern). The Dockerfile clones
-          # BUILD_TIME_MODULE_SOURCES and aggregates their declared
-          # deps into the workspace install so `next build` at pod
-          # startup can resolve module-side packages without a
-          # per-pod aggregate-and-install. PAT, not auto-token, in
-          # case any baked source repo is private (lf-gatewaze-modules
-          # historically required it).
-          build-args: |
-            BUILD_TIME_GITHUB_TOKEN=${{ secrets.GH_PAT_MODULES }}
-
-      - name: Build and push api image
-        id: img-api
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
-        with:
-          context: .
-          file: docker/api/Dockerfile
-          push: true
-          platforms: linux/amd64
-          tags: |
-            ghcr.io/gatewaze/api:${{ steps.version.outputs.VERSION }}
-            ghcr.io/gatewaze/api:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          # The Dockerfile bakes module npm deps (openai for the AI
-          # module, ws for editor-ai-copilot, etc.) at build time so
-          # pod startup doesn't have to do per-module pnpm installs.
-          # Mirrors the admin build — PAT, not auto-token, because
-          # gatewaze-modules + lf-gatewaze-modules are private.
-          build-args: |
-            BUILD_TIME_GITHUB_TOKEN=${{ secrets.GH_PAT_MODULES }}
-
-      - name: Build and push worker image
-        id: img-worker
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
-        with:
-          context: .
-          file: docker/worker/Dockerfile
-          push: true
-          platforms: linux/amd64
-          tags: |
-            ghcr.io/gatewaze/worker:${{ steps.version.outputs.VERSION }}
-            ghcr.io/gatewaze/worker:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          # Worker bakes module npm deps at build time (same reason
-          # as the api image) — it dispatches BullMQ jobs to module-
-          # side handlers that require() module-declared deps like
-          # `openai`. Needs the PAT, not the auto-token, to clone the
-          # private gatewaze-modules + lf-gatewaze-modules.
-          build-args: |
-            BUILD_TIME_GITHUB_TOKEN=${{ secrets.GH_PAT_MODULES }}
-
-      - name: Build and push se-runner image
-        id: img-se-runner
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
-        with:
-          context: .
-          file: docker/se-runner/Dockerfile
-          push: true
-          platforms: linux/amd64
-          tags: |
-            ghcr.io/gatewaze/se-runner:${{ steps.version.outputs.VERSION }}
-            ghcr.io/gatewaze/se-runner:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          # Lean software-engineer runner (SE-runner split): bakes ONLY the
-          # software-engineer module's deps. Needs the PAT for the same
-          # module-clone reason as the worker image.
-          build-args: |
-            BUILD_TIME_GITHUB_TOKEN=${{ secrets.GH_PAT_MODULES }}
-
-      - name: Build and push mcp-public image
-        id: img-mcp-public
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
-        with:
-          context: packages/mcp
-          file: packages/mcp/Dockerfile
-          push: true
-          platforms: linux/amd64
-          tags: |
-            ghcr.io/gatewaze/mcp-public:${{ steps.version.outputs.VERSION }}
-            ghcr.io/gatewaze/mcp-public:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          # Self-contained npm build (only external deps) — no module
-          # sources or PAT needed, unlike the app images above.
-
-      - name: Build and push scheduler image
-        id: img-scheduler
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
-        with:
-          context: .
-          file: docker/scheduler/Dockerfile
-          push: true
-          platforms: linux/amd64
-          tags: |
-            ghcr.io/gatewaze/scheduler:${{ steps.version.outputs.VERSION }}
-            ghcr.io/gatewaze/scheduler:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          # Scheduler dynamic-imports each module's scheduler handler
-          # via loadModules() at startup; same dep-resolution issue
-          # as the api + worker.
-          build-args: |
-            BUILD_TIME_GITHUB_TOKEN=${{ secrets.GH_PAT_MODULES }}
-
-      - name: Build and push scrapling-fetcher image
-        id: img-scrapling-fetcher
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
-        with:
-          context: services/scrapling-fetcher
-          file: services/scrapling-fetcher/Dockerfile
-          push: true
-          platforms: linux/amd64
-          tags: |
-            ghcr.io/gatewaze/scrapling-fetcher:${{ steps.version.outputs.VERSION }}
-            ghcr.io/gatewaze/scrapling-fetcher:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          # Self-contained Python/FastAPI service (Scrapling on the Playwright
-          # base image). No module sources, so no BUILD_TIME_GITHUB_TOKEN.
-          # See docs/spec-scrapling-fetcher-service.md §4.1. gatewaze ghcr
-          # packages are public, so the cluster pulls this with no pull secret.
+            ${{ matrix.pat && format('BUILD_TIME_GITHUB_TOKEN={0}', secrets.GH_PAT_MODULES) || '' }}
+            ${{ matrix.image == 'admin' && format('ADMIN_IMAGE_VERSION={0}', steps.version.outputs.VERSION) || '' }}
 
       # SLSA build provenance (build level 2): keyless, signed, tied to
       # this workflow. Consumers verify with:
       #   gh attestation verify oci://ghcr.io/gatewaze/<image>:<tag> --owner gatewaze
-      - name: Attest admin provenance
+      #
+      # se-runner had no attestation step before the matrix split. Nothing
+      # about that image makes it an exception, so it is attested too.
+      - name: Attest ${{ matrix.image }} provenance
         uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
         with:
-          subject-name: ghcr.io/gatewaze/admin
-          subject-digest: ${{ steps.img-admin.outputs.digest }}
+          subject-name: ghcr.io/gatewaze/${{ matrix.image }}
+          subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
 
-      - name: Attest portal provenance
-        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
-        with:
-          subject-name: ghcr.io/gatewaze/portal
-          subject-digest: ${{ steps.img-portal.outputs.digest }}
-          push-to-registry: true
-
-      - name: Attest api provenance
-        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
-        with:
-          subject-name: ghcr.io/gatewaze/api
-          subject-digest: ${{ steps.img-api.outputs.digest }}
-          push-to-registry: true
-
-      - name: Attest worker provenance
-        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
-        with:
-          subject-name: ghcr.io/gatewaze/worker
-          subject-digest: ${{ steps.img-worker.outputs.digest }}
-          push-to-registry: true
-
-      - name: Attest mcp-public provenance
-        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
-        with:
-          subject-name: ghcr.io/gatewaze/mcp-public
-          subject-digest: ${{ steps.img-mcp-public.outputs.digest }}
-          push-to-registry: true
-
-      - name: Attest scheduler provenance
-        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
-        with:
-          subject-name: ghcr.io/gatewaze/scheduler
-          subject-digest: ${{ steps.img-scheduler.outputs.digest }}
-          push-to-registry: true
-
-      - name: Attest scrapling-fetcher provenance
-        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
-        with:
-          subject-name: ghcr.io/gatewaze/scrapling-fetcher
-          subject-digest: ${{ steps.img-scrapling-fetcher.outputs.digest }}
-          push-to-registry: true
+  # Split out of the build job so that job no longer needs `contents: write`.
+  github-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    permissions:
+      contents: write   # create the GitHub Release
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@72f2c25fcb47643c292f7107632f7a47c1df5cd8 # v2.3.2

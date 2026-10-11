@@ -22,6 +22,7 @@ import {
   Square3Stack3DIcon,
   ClockIcon,
   KeyIcon,
+  MicrophoneIcon,
 } from '@heroicons/react/24/outline';
 import { toast } from 'sonner';
 import { Card, Button, Input, Badge, Avatar, Table, THead, TBody, Tr, Th, Td, Tabs } from '@/components/ui';
@@ -44,6 +45,7 @@ import { CompetitionWinner } from '@/utils/competitionWinnerService';
 import { supabase } from '@/lib/supabase';
 import { EmailHistorySection } from '@/components/emails/EmailHistorySection';
 import { PersonActivityTimeline } from '@/components/people/PersonActivityTimeline';
+import { PersonSpeakerHistory } from '@/components/people/PersonSpeakerHistory';
 import { useHasModule } from '@/hooks/useModuleFeature';
 import { ModuleSlot } from '@/components/ModuleSlot';
 import { PersonMcpAccessPanel } from '@/components/mcp/PersonMcpAccessPanel';
@@ -126,15 +128,6 @@ interface EventAttendance {
   event?: EventDetails;
 }
 
-interface SpeakerSubmission {
-  id: string;
-  event_uuid: string;
-  status: string;
-  talk_title?: string;
-  submitted_at?: string;
-  event?: EventDetails;
-}
-
 interface CompetitionActivity {
   offerId: string;
   statuses: {
@@ -159,9 +152,9 @@ interface OfferActivity {
   event?: CompetitionEvent;
 }
 
-type TabType = 'profile' | 'attributes' | 'segments' | 'events' | 'wins' | 'emails' | 'activity' | 'competitions' | 'offers' | 'mcp';
+type TabType = 'profile' | 'attributes' | 'segments' | 'events' | 'speaker' | 'wins' | 'emails' | 'activity' | 'competitions' | 'offers' | 'mcp';
 
-const validTabs: TabType[] = ['profile', 'attributes', 'segments', 'events', 'wins', 'emails', 'activity', 'competitions', 'offers', 'mcp'];
+const validTabs: TabType[] = ['profile', 'attributes', 'segments', 'events', 'speaker', 'wins', 'emails', 'activity', 'competitions', 'offers', 'mcp'];
 
 export default function MemberDetailPage() {
   const { id, tab: tabFromUrl } = useParams<{ id: string; tab?: string }>();
@@ -171,6 +164,7 @@ export default function MemberDetailPage() {
   const hasCompetitions = useHasModule('competitions');
   const hasBulkEmailing = useHasModule('bulk-emailing');
   const hasEvents = useHasModule('events');
+  const hasSpeakers = useHasModule('event-speakers');
   const [person, setPerson] = useState<Person | null>(null);
   const [segments, setSegments] = useState<Segment[]>([]);
   const [competitionWins, setCompetitionWins] = useState<CompetitionWin[]>([]);
@@ -178,7 +172,6 @@ export default function MemberDetailPage() {
   const [offers, setOffers] = useState<OfferActivity[]>([]);
   const [eventRegistrations, setEventRegistrations] = useState<EventRegistration[]>([]);
   const [eventAttendances, setEventAttendances] = useState<EventAttendance[]>([]);
-  const [speakerSubmissions, setSpeakerSubmissions] = useState<SpeakerSubmission[]>([]);
   const [emailSubscriptions, setEmailSubscriptions] = useState<EmailSubscription[]>([]);
   const [topicLabels, setTopicLabels] = useState<Record<string, TopicLabelInfo>>({});
   const [togglingSubscription, setTogglingSubscription] = useState<string | null>(null);
@@ -676,7 +669,7 @@ export default function MemberDetailPage() {
         const memberProfileIds = ((profileData ?? []) as Array<{ id: string }>).map((p) => p.id);
 
         if (memberProfileIds.length > 0) {
-          const [regResult, attendResult, speakerResult] = await Promise.all([
+          const [regResult, attendResult] = await Promise.all([
             supabase
               .from('events_registrations')
               .select('id, event_id, status, registered_at, ticket_type, registration_type')
@@ -687,11 +680,6 @@ export default function MemberDetailPage() {
               .select('id, event_id, checked_in_at, checked_out_at')
               .in('people_profile_id', memberProfileIds)
               .order('checked_in_at', { ascending: false }),
-            supabase
-              .from('events_speakers')
-              .select('id, event_uuid, status, talk_title, submitted_at')
-              .in('people_profile_id', memberProfileIds)
-              .order('submitted_at', { ascending: false }),
           ]);
 
           interface RegRow {
@@ -702,21 +690,15 @@ export default function MemberDetailPage() {
             id: string; event_id: string;
             checked_in_at?: string; checked_out_at?: string;
           }
-          interface SpeakerRow {
-            id: string; event_uuid?: string | number | null;
-            status: string; talk_title?: string; submitted_at?: string;
-          }
 
           const regData = (regResult.data ?? []) as unknown as RegRow[];
           const attendData = (attendResult.data ?? []) as unknown as AttendRow[];
-          const speakerData = (speakerResult.data ?? []) as unknown as SpeakerRow[];
 
           // Collect all event IDs to fetch titles in one query
           const allEventIds = [
             ...new Set([
               ...regData.map((r) => r.event_id),
               ...attendData.map((a) => a.event_id),
-              ...speakerData.map((s) => s.event_uuid?.toString()),
             ].filter(Boolean)),
           ];
 
@@ -731,14 +713,6 @@ export default function MemberDetailPage() {
 
           setEventRegistrations(regData.map((r) => ({ ...r, event: eventsMap.get(r.event_id) })));
           setEventAttendances(attendData.map((a) => ({ ...a, event: eventsMap.get(a.event_id) })));
-          setSpeakerSubmissions(speakerData.map((s) => ({
-            id: s.id,
-            event_uuid: s.event_uuid?.toString() ?? '',
-            status: s.status,
-            talk_title: s.talk_title,
-            submitted_at: s.submitted_at,
-            event: eventsMap.get(s.event_uuid?.toString() ?? ''),
-          })));
         }
       }
     } catch (error) {
@@ -1043,6 +1017,7 @@ export default function MemberDetailPage() {
             competitions.length > 0 && { id: 'competitions', label: 'Competitions', icon: <TrophyIcon className="size-4" />, count: competitions.length },
             offers.length > 0 && { id: 'offers', label: 'Offers', icon: <CalendarIcon className="size-4" />, count: offers.length },
             hasEvents && { id: 'events', label: 'Events', icon: <CalendarIcon className="size-4" /> },
+            hasSpeakers && { id: 'speaker', label: 'Speaker', icon: <MicrophoneIcon className="size-4" /> },
             competitionWins.length > 0 && { id: 'wins', label: 'Wins', icon: <TrophyIcon className="size-4" />, count: competitionWins.length },
             { id: 'emails', label: 'Emails', icon: <EnvelopeIcon className="size-4" /> },
             { id: 'activity', label: 'Activity', icon: <ClockIcon className="size-4" /> },
@@ -1602,6 +1577,24 @@ export default function MemberDetailPage() {
         {/* Events Tab */}
         {activeTab === 'events' && (
           <ModuleSlot name="person-detail:events" props={{ person, personId: id }} />
+        )}
+
+        {/* Speaker Tab — every event this person has spoken at, read through
+            the explicit events_speaker_profiles.person_id link only. */}
+        {activeTab === 'speaker' && person && (
+          <Card variant="surface" className="p-6">
+            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <MicrophoneIcon className="size-5" />
+              Speaking History
+            </h2>
+            <PersonSpeakerHistory
+              personId={person.id || ''}
+              personName={
+                `${person.attributes?.first_name || ''} ${person.attributes?.last_name || ''}`.trim() ||
+                undefined
+              }
+            />
+          </Card>
         )}
 
         {/* Competition Wins Tab */}
