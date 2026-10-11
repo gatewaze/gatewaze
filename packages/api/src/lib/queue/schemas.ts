@@ -18,12 +18,6 @@ export const EmailJobSchema = z.object({
 });
 export type EmailJobData = z.infer<typeof EmailJobSchema>;
 
-export const ImageProcessJobSchema = z.object({
-  eventId: z.string(),
-  imageUrl: z.string().url(),
-});
-export type ImageProcessJobData = z.infer<typeof ImageProcessJobSchema>;
-
 export const ScraperRunSchema = z.object({
   scraperId: z.union([z.string(), z.number()]),
   scraperName: z.string().optional(),
@@ -57,7 +51,6 @@ export const JobTypes = {
   SCREENSHOT_GENERATE: 'screenshot:generate',
   LUMA_CONTENT_PROCESS: 'luma:content-process',
   MEETUP_CONTENT_PROCESS: 'meetup:content-process',
-  MEDIA_PROCESS_ZIP: 'media:process-zip',
   // Bulk speaker extraction enqueued at the end of a scrape run; payload
   // is { event_uuids: string[], scraper_id, brand_id }. The handler runs
   // Anthropic per-event with budget enforcement via callAnthropic.

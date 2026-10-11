@@ -4,65 +4,74 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import ImageGallery from 'react-image-gallery'
 import 'react-image-gallery/styles/image-gallery.css'
 import Image from 'next/image'
-import { getClientBrandConfig, isLightColor } from '@/config/brand'
+import { isLightColor } from '@/config/brand'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { useEventContext } from './EventContext'
 import { GlowBorder } from '@/components/ui/GlowBorder'
 import { PhotoGrid } from './PhotoGrid'
-import { isBunnyCDNEnabled, getBunnyImageUrl } from '@/lib/bunnyNet'
 
 // ─── Types ───────────────────────────────────────────────────
+//
+// This page is a client of the event-media module's public gallery API:
+//   GET /api/public/event-media/events/:identifier/gallery
+// (same-origin; the portal's next.config rewrite proxies /api/public/*
+// to the API service). The legacy events_media* tables are gone.
+//
+// NOTE: the sponsor photo filter that used to live here was removed with
+// the events_media retirement. It had been silently broken since the
+// organiser rebuild — events_media_sponsor_tags is admin-only under RLS
+// (anon reads return nothing) and its tags key on host_media ids, not
+// the rows this page used to query. Reinstating it needs gallery-API
+// support for sponsor tags, not a client-side join.
 
-interface EventMedia {
-  id: string
-  event_id: string
-  file_name: string
-  storage_path: string
-  file_type: 'photo' | 'video'
-  thumbnail_path?: string
-  metadata?: {
-    medium_path?: string
-    processed?: boolean
-  }
-  caption?: string
-  created_at?: string
-  youtube_embed_url?: string
-}
-
-interface EventMediaAlbum {
-  id: string
-  event_id: string
+/** One album as the gallery API serves it. */
+interface GalleryAlbum {
+  album: string
+  slug: string
   name: string
-  description?: string
-  sort_order: number
-  media_count?: number
+  count: number
+  enhanced?: boolean
+  xray?: boolean
 }
 
-interface EventSponsor {
+/** One media row as the gallery API serves it. URLs are absolute. */
+interface GalleryApiItem {
   id: string
-  event_id: string
-  sponsor_id: string
-  sponsorship_tier: string
-  is_active: boolean
-  sponsor: {
-    id: string
-    name: string
-    slug: string
-    logo_url?: string
-  }
-  media_count?: number
+  kind: 'photo' | 'video'
+  url: string
+  mime_type: string
+  width: number | null
+  height: number | null
+  variants: Record<string, string | undefined>
+  guest_name: string | null
+  album_slug?: string
+  created_at?: string
+  /** Present when the album serves an enhanced copy: the untouched file. */
+  original?: { url: string; thumb?: string; medium?: string }
+}
+
+interface GalleryResponse {
+  event: { id: string; name: string | null; starts_at: string | null }
+  albums: GalleryAlbum[]
+  total: number
+  items: GalleryApiItem[]
+  next_offset: number | null
 }
 
 interface EventVideo {
-  youtube_embed_url: string
+  /** Set for YouTube videos (event_videos rows, or gallery items with a YouTube URL). */
+  youtube_embed_url?: string
+  /** Set for direct video files uploaded through the guest app. */
+  file_url?: string
+  /** Poster for direct files, when the API has one. */
+  thumbnail_url?: string
   file_name: string
   caption?: string
 }
 
-interface GalleryItem {
+interface LightboxItem {
   original: string
   thumbnail: string
-  description?: string
 }
 
 // ─── Helpers ─────────────────────────────────────────────────
@@ -90,45 +99,59 @@ function removeFileExtension(filename: string): string {
   return filename.substring(0, lastDotIndex)
 }
 
+/** The file name a download should save as, from the item's URL path. */
+function fileNameFromUrl(url: string, fallback: string): string {
+  try {
+    const path = new URL(url, window.location.origin).pathname
+    const last = path.substring(path.lastIndexOf('/') + 1)
+    return last ? decodeURIComponent(last) : fallback
+  } catch {
+    return fallback
+  }
+}
+
+/** The full-resolution image for the lightbox and the download button. */
+function fullImageUrl(item: GalleryApiItem): string {
+  return item.original?.url ?? item.url
+}
+
 // ─── Component ───────────────────────────────────────────────
 
 const BATCH_SIZE = 50
 
-export function MediaContent() {
-  const { event, useDarkText, primaryColor, brandConfig } = useEventContext()
+/** What one gallery fetch produced. 'gone' = API 404 (no gallery). */
+type GalleryPage = GalleryResponse | 'gone' | null
 
-  // State
-  const [mediaItems, setMediaItems] = useState<EventMedia[]>([])
-  const [totalCount, setTotalCount] = useState(0)
-  const [hasMore, setHasMore] = useState(true)
+export function MediaContent() {
+  const { event, useDarkText, primaryColor } = useEventContext()
+
+  // Photos (current filter: all, or one album)
+  const [items, setItems] = useState<GalleryApiItem[]>([])
+  const [total, setTotal] = useState(0)
+  const [allTotal, setAllTotal] = useState(0)
+  const [nextOffset, setNextOffset] = useState<number | null>(null)
   const [loadingMore, setLoadingMore] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [mounted, setMounted] = useState(false)
 
   // Albums
-  const [albums, setAlbums] = useState<EventMediaAlbum[]>([])
-  const [selectedAlbumId, setSelectedAlbumId] = useState<string | null>(null)
-  const [albumMediaItems, setAlbumMediaItems] = useState<EventMedia[]>([])
+  const [albums, setAlbums] = useState<GalleryAlbum[]>([])
+  const [selectedAlbumSlug, setSelectedAlbumSlug] = useState<string | null>(null)
   const [loadingAlbum, setLoadingAlbum] = useState(false)
 
-  // Sponsors
-  const [sponsors, setSponsors] = useState<EventSponsor[]>([])
-  const [selectedSponsorId, setSelectedSponsorId] = useState<string | null>(null)
-  const [sponsorMediaItems, setSponsorMediaItems] = useState<EventMedia[]>([])
-  const [loadingSponsor, setLoadingSponsor] = useState(false)
-  const [sponsorFilteredAlbums, setSponsorFilteredAlbums] = useState<EventMediaAlbum[]>([])
-
   // Videos
-  const [videoItems, setVideoItems] = useState<EventVideo[]>([])
+  const [apiVideoItems, setApiVideoItems] = useState<EventVideo[]>([])
+  const [linkedVideos, setLinkedVideos] = useState<EventVideo[]>([])
   const [showVideoLightbox, setShowVideoLightbox] = useState(false)
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0)
 
   // Lightbox
   const [showLightbox, setShowLightbox] = useState(false)
   const [currentIndex, setCurrentIndex] = useState(0)
-  const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([])
 
   const observerRef = useRef<HTMLDivElement>(null)
+  // Media ids already folded into apiVideoItems, across pages.
+  const seenVideoIdsRef = useRef<Set<string>>(new Set())
 
   const panelTheme = useMemo(() => ({
     panelBg: useDarkText ? 'bg-gray-900/15' : 'bg-white/15',
@@ -137,401 +160,167 @@ export function MediaContent() {
     textMuted: useDarkText ? 'text-gray-600' : 'text-white/70',
   }), [useDarkText])
 
-  // ─── Supabase client helper ──────────────────────────────
+  // ─── Supabase client helper (event_videos only) ──────────
 
   // Async signature kept so existing `await getSupabase()` call sites don't
   // change. Returns the singleton — see Header.tsx for the leak story.
   const getSupabase = useCallback(async () => getSupabaseClient(), [])
 
-  // ─── Media URL helper ────────────────────────────────────
+  // ─── Gallery API fetch ───────────────────────────────────
 
-  const getMediaPublicUrl = useCallback((
-    storagePath: string,
-    transform?: { width?: number; height?: number; quality?: number; resize?: 'cover' | 'contain' | 'fill' },
-    options?: { disableCDN?: boolean }
-  ): string => {
-    const storageBaseUrl = brandConfig.supabaseUrl
-    const publicUrl = `${storageBaseUrl}/storage/v1/object/public/media/${storagePath}`
-
-    if (options?.disableCDN) return publicUrl
-
-    if (isBunnyCDNEnabled()) {
-      return getBunnyImageUrl(publicUrl, transform ? {
-        width: transform.width,
-        height: transform.height,
-        quality: transform.quality,
-        fit: transform.resize,
-      } : undefined)
-    }
-
-    // Supabase image transformation requires imgproxy. When not available,
-    // fall back to the direct public URL without transforms.
-    // TODO: Re-enable when imgproxy or Bunny CDN module is configured.
-
-    return publicUrl
-  }, [brandConfig.supabaseUrl])
-
-  // ─── Gallery item builder ────────────────────────────────
-
-  const buildGalleryItems = useCallback((media: EventMedia[]): GalleryItem[] => {
-    return media.map((item) => ({
-      original: item.metadata?.medium_path
-        ? getMediaPublicUrl(item.metadata.medium_path)
-        : getMediaPublicUrl(item.storage_path, { width: 800, height: 800, quality: 85, resize: 'contain' }),
-      thumbnail: item.thumbnail_path
-        ? getMediaPublicUrl(item.thumbnail_path)
-        : getMediaPublicUrl(item.storage_path, { width: 350, height: 350, quality: 80, resize: 'contain' }),
-      description: item.caption,
-    }))
-  }, [getMediaPublicUrl])
-
-  // ─── Fetch functions ─────────────────────────────────────
-
-  const fetchInitialMedia = useCallback(async () => {
+  const fetchGalleryPage = useCallback(async (
+    albumSlug: string | null,
+    offset: number,
+  ): Promise<GalleryPage> => {
     try {
-      setIsLoading(true)
-      const supabase = await getSupabase()
-
-      // Count total photos
-      const { count } = await supabase
-        .from('events_media')
-        .select('*', { count: 'exact', head: true })
-        .eq('event_id', event.id)
-        .eq('file_type', 'photo')
-
-      setTotalCount(count || 0)
-
-      // Fetch first batch
-      const { data: mediaData } = await supabase
-        .from('events_media')
-        .select('*')
-        .eq('event_id', event.id)
-        .eq('file_type', 'photo')
-        .order('created_at', { ascending: true })
-        .range(0, BATCH_SIZE - 1)
-
-      const media = (mediaData || []) as EventMedia[]
-      setMediaItems(media)
-      setHasMore(media.length === BATCH_SIZE && media.length < (count || 0))
-      setGalleryItems(buildGalleryItems(media))
+      const params = new URLSearchParams({ limit: String(BATCH_SIZE), offset: String(offset) })
+      if (albumSlug) params.set('album', albumSlug)
+      const res = await fetch(
+        `/api/public/event-media/events/${encodeURIComponent(event.id)}/gallery?${params.toString()}`,
+      )
+      // 404 = this event has no gallery (no upload link with the gallery
+      // switched on, and no portal-visible albums). The page's ordinary
+      // "no media" state, not an error.
+      if (res.status === 404) return 'gone'
+      if (!res.ok) throw new Error(`gallery request failed: ${res.status}`)
+      return (await res.json()) as GalleryResponse
     } catch (err) {
       console.error('Error loading media:', err)
-    } finally {
-      setIsLoading(false)
+      return null
     }
-  }, [event.id, getSupabase, buildGalleryItems])
+  }, [event.id])
 
-  const fetchAlbums = useCallback(async () => {
-    try {
-      const supabase = await getSupabase()
-      const { data: albumData } = await supabase
-        .from('events_media_albums')
-        .select('*')
-        .eq('event_id', event.id)
-        .order('sort_order')
+  /** Fold a page's video items into the Videos section (dedupe by media id). */
+  const collectApiVideos = useCallback((pageItems: GalleryApiItem[]) => {
+    const fresh = pageItems.filter(
+      (i) => i.kind === 'video' && !seenVideoIdsRef.current.has(i.id),
+    )
+    if (fresh.length === 0) return
+    fresh.forEach((i) => seenVideoIdsRef.current.add(i.id))
+    setApiVideoItems((prev) => [
+      ...prev,
+      ...fresh.map((i): EventVideo => {
+        const ytId = getYouTubeVideoId(i.url)
+        return ytId
+          ? { youtube_embed_url: i.url, file_name: fileNameFromUrl(i.url, 'Video') }
+          : {
+              file_url: i.url,
+              thumbnail_url: i.variants?.thumb,
+              file_name: fileNameFromUrl(i.url, 'Video'),
+              caption: i.guest_name ? `By ${i.guest_name}` : undefined,
+            }
+      }),
+    ])
+  }, [])
 
-      if (albumData) {
-        const albumsWithCounts = await Promise.all(
-          albumData.map(async (album: EventMediaAlbum) => {
-            const { count } = await supabase
-              .from('event_media_album_items')
-              .select('*', { count: 'exact', head: true })
-              .eq('album_id', album.id)
-            return { ...album, media_count: count || 0 }
-          })
-        )
-        setAlbums(albumsWithCounts)
-      }
-    } catch (err) {
-      console.error('Error loading albums:', err)
+  const fetchInitialMedia = useCallback(async () => {
+    setIsLoading(true)
+    const page = await fetchGalleryPage(null, 0)
+    if (page && page !== 'gone') {
+      const photos = page.items.filter((i) => i.kind === 'photo')
+      setItems(photos)
+      collectApiVideos(page.items)
+      setAlbums(page.albums)
+      setTotal(page.total)
+      setAllTotal(page.total)
+      setNextOffset(page.next_offset)
+    } else {
+      // 'gone' and transient errors both render the empty state, as the
+      // old page did when its queries returned nothing.
+      setItems([])
+      setAlbums([])
+      setTotal(0)
+      setAllTotal(0)
+      setNextOffset(null)
     }
-  }, [event.id, getSupabase])
+    setIsLoading(false)
+  }, [fetchGalleryPage, collectApiVideos])
 
-  const fetchSponsors = useCallback(async () => {
-    try {
-      const supabase = await getSupabase()
-
-      const { data: sponsorData } = await supabase
-        .from('events_sponsors')
-        .select(`*, sponsor:events_sponsor_profiles!sponsor_id(id, name, slug, logo_url)`)
-        .eq('event_id', event.id)
-        .eq('is_active', true)
-        .order('sponsorship_tier')
-
-      // Get all media IDs for this event
-      const { data: allMediaForEvent } = await supabase
-        .from('events_media')
-        .select('id')
-        .eq('event_id', event.id)
-        .eq('file_type', 'photo')
-
-      const mediaIds = allMediaForEvent?.map((m: { id: string }) => m.id) || []
-
-      if (mediaIds.length > 0 && sponsorData && sponsorData.length > 0) {
-        // Fetch sponsor tags in batches
-        const chunkSize = 50
-        const allTags: { event_sponsor_id: string; media_id: string }[] = []
-        for (let i = 0; i < mediaIds.length; i += chunkSize) {
-          const chunk = mediaIds.slice(i, i + chunkSize)
-          const { data: tags } = await supabase
-            .from('events_media_sponsor_tags')
-            .select('event_sponsor_id, media_id')
-            .in('media_id', chunk)
-          if (tags) allTags.push(...tags)
-        }
-
-        const sponsorMediaCounts = new Map<string, number>()
-        allTags.forEach((tag: { event_sponsor_id: string }) => {
-          const count = sponsorMediaCounts.get(tag.event_sponsor_id) || 0
-          sponsorMediaCounts.set(tag.event_sponsor_id, count + 1)
-        })
-
-        const sponsorsWithCounts = (sponsorData as EventSponsor[]).map((s) => ({
-          ...s,
-          media_count: sponsorMediaCounts.get(s.id) || 0,
-        }))
-
-        setSponsors(sponsorsWithCounts.filter((s) => (s.media_count ?? 0) > 0))
-      } else {
-        setSponsors([])
-      }
-    } catch (err) {
-      console.error('Error loading sponsors:', err)
-    }
-  }, [event.id, getSupabase])
-
-  const fetchVideos = useCallback(async (eventSponsorId?: string | null) => {
+  const fetchVideos = useCallback(async () => {
     try {
       const supabase = await getSupabase()
 
-      let videoIds: string[] | null = null
-      if (eventSponsorId) {
-        const { data: sponsorTags } = await supabase
-          .from('events_media_sponsor_tags')
-          .select('media_id')
-          .eq('event_sponsor_id', eventSponsorId)
-        if (!sponsorTags || sponsorTags.length === 0) {
-          setVideoItems([])
-          return
-        }
-        videoIds = sponsorTags.map((tag: { media_id: string }) => tag.media_id)
+      // Canonical `videos` linked via `event_videos` (P4 video object).
+      // Guarded: tables may be absent per brand.
+      const { data: linked, error: linkErr } = await supabase
+        .from('event_videos')
+        .select('sort_order, video:videos(url, title, caption:description, status, visibility)')
+        .eq('event_uuid', event.id)
+        .order('sort_order', { ascending: true })
+      if (linkErr || !linked) {
+        setLinkedVideos([])
+        return
       }
 
-      let query = supabase
-        .from('events_media')
-        .select('*')
-        .eq('event_id', event.id)
-        .eq('file_type', 'video')
-        .order('created_at', { ascending: true })
-
-      if (videoIds) {
-        query = query.in('id', videoIds)
-      }
-
-      const { data: videoData } = await query
-
-      const merged: EventVideo[] = (videoData || [])
-        .filter((v: EventMedia) => !!v.youtube_embed_url)
-        .map((v: EventMedia) => ({
-          youtube_embed_url: v.youtube_embed_url!,
-          file_name: v.file_name,
+      const out: EventVideo[] = []
+      for (const row of linked as Array<{ video: unknown }>) {
+        const v = (Array.isArray(row.video) ? row.video[0] : row.video) as
+          | { url?: string; title?: string; caption?: string; status?: string; visibility?: string }
+          | null
+        if (!v?.url || v.status !== 'published' || v.visibility !== 'public') continue
+        out.push({
+          youtube_embed_url: v.url,
+          file_name: v.title || 'Video',
           caption: v.caption,
-        }))
-
-      // Merge canonical `videos` linked via `event_videos` (P4 video object).
-      // Skipped under a sponsor filter — linked videos aren't sponsor-tagged.
-      // Deduped against events_media videos by YouTube id so a recording that
-      // exists in both surfaces once. Guarded: tables may be absent per brand.
-      if (!eventSponsorId) {
-        const { data: linked, error: linkErr } = await supabase
-          .from('event_videos')
-          .select('sort_order, video:videos(url, title, caption:description, status, visibility)')
-          .eq('event_uuid', event.id)
-          .order('sort_order', { ascending: true })
-        if (!linkErr && linked) {
-          const seen = new Set(
-            merged.map((v) => getYouTubeVideoId(v.youtube_embed_url)).filter(Boolean) as string[]
-          )
-          for (const row of linked as Array<{ video: unknown }>) {
-            const v = (Array.isArray(row.video) ? row.video[0] : row.video) as
-              | { url?: string; title?: string; caption?: string; status?: string; visibility?: string }
-              | null
-            if (!v?.url || v.status !== 'published' || v.visibility !== 'public') continue
-            const id = getYouTubeVideoId(v.url)
-            if (id && seen.has(id)) continue
-            if (id) seen.add(id)
-            merged.push({
-              youtube_embed_url: v.url,
-              file_name: v.title || 'Video',
-              caption: v.caption,
-            })
-          }
-        }
+        })
       }
-
-      setVideoItems(merged)
+      setLinkedVideos(out)
     } catch (err) {
       console.error('Error loading videos:', err)
     }
   }, [event.id, getSupabase])
 
-  const fetchAlbumMedia = useCallback(async (albumId: string, eventSponsorId?: string | null) => {
-    try {
-      setLoadingAlbum(true)
-      const supabase = await getSupabase()
-
-      const { data: albumItems } = await supabase
-        .from('event_media_album_items')
-        .select('media_id')
-        .eq('album_id', albumId)
-        .order('sort_order')
-
-      if (albumItems && albumItems.length > 0) {
-        let mediaIds = albumItems.map((item: { media_id: string }) => item.media_id)
-
-        // Filter by sponsor if needed
-        if (eventSponsorId) {
-          const { data: sponsorTags } = await supabase
-            .from('events_media_sponsor_tags')
-            .select('media_id')
-            .eq('event_sponsor_id', eventSponsorId)
-          if (sponsorTags) {
-            const sponsorMediaIds = new Set(sponsorTags.map((tag: { media_id: string }) => tag.media_id))
-            mediaIds = mediaIds.filter((id: string) => sponsorMediaIds.has(id))
-          }
-        }
-
-        if (mediaIds.length === 0) {
-          setAlbumMediaItems([])
-          return
-        }
-
-        const { data: mediaData } = await supabase
-          .from('events_media')
-          .select('*')
-          .in('id', mediaIds)
-          .eq('file_type', 'photo')
-
-        if (mediaData) {
-          const sortedMedia = mediaIds
-            .map((id: string) => mediaData.find((m: EventMedia) => m.id === id))
-            .filter(Boolean) as EventMedia[]
-          setAlbumMediaItems(sortedMedia)
-        }
-      } else {
-        setAlbumMediaItems([])
-      }
-    } catch (err) {
-      console.error('Error loading album media:', err)
-    } finally {
-      setLoadingAlbum(false)
+  // Gallery videos first, then event_videos rows deduped against them by
+  // YouTube id — the same dedupe the events_media/event_videos pair had,
+  // so a recording that exists in both surfaces once.
+  const videoItems = useMemo(() => {
+    const merged: EventVideo[] = [...apiVideoItems]
+    const seen = new Set(
+      merged
+        .map((v) => (v.youtube_embed_url ? getYouTubeVideoId(v.youtube_embed_url) : null))
+        .filter(Boolean) as string[],
+    )
+    for (const v of linkedVideos) {
+      const id = v.youtube_embed_url ? getYouTubeVideoId(v.youtube_embed_url) : null
+      if (id && seen.has(id)) continue
+      if (id) seen.add(id)
+      merged.push(v)
     }
-  }, [getSupabase])
+    return merged
+  }, [apiVideoItems, linkedVideos])
 
-  const fetchSponsorMedia = useCallback(async (eventSponsorId: string) => {
-    try {
-      setLoadingSponsor(true)
-      const supabase = await getSupabase()
-
-      const { data: sponsorTags } = await supabase
-        .from('events_media_sponsor_tags')
-        .select('media_id')
-        .eq('event_sponsor_id', eventSponsorId)
-
-      if (sponsorTags && sponsorTags.length > 0) {
-        const mediaIds = sponsorTags.map((tag: { media_id: string }) => tag.media_id)
-        const { data: mediaData } = await supabase
-          .from('events_media')
-          .select('*')
-          .in('id', mediaIds)
-          .eq('file_type', 'photo')
-          .order('created_at', { ascending: true })
-
-        setSponsorMediaItems((mediaData || []) as EventMedia[])
-      } else {
-        setSponsorMediaItems([])
-      }
-    } catch (err) {
-      console.error('Error loading sponsor media:', err)
-    } finally {
-      setLoadingSponsor(false)
+  const fetchAlbumMedia = useCallback(async (albumSlug: string | null) => {
+    setLoadingAlbum(true)
+    const page = await fetchGalleryPage(albumSlug, 0)
+    if (page && page !== 'gone') {
+      setItems(page.items.filter((i) => i.kind === 'photo'))
+      collectApiVideos(page.items)
+      setTotal(page.total)
+      setNextOffset(page.next_offset)
+    } else {
+      setItems([])
+      setTotal(0)
+      setNextOffset(null)
     }
-  }, [getSupabase])
-
-  const fetchSponsorFilteredAlbums = useCallback(async (eventSponsorId: string) => {
-    try {
-      const supabase = await getSupabase()
-
-      const { data: sponsorTags } = await supabase
-        .from('events_media_sponsor_tags')
-        .select('media_id')
-        .eq('event_sponsor_id', eventSponsorId)
-
-      if (!sponsorTags || sponsorTags.length === 0) {
-        setSponsorFilteredAlbums([])
-        return
-      }
-
-      const sponsorMediaIds = new Set(sponsorTags.map((tag: { media_id: string }) => tag.media_id))
-
-      const { data: albumData } = await supabase
-        .from('events_media_albums')
-        .select('*')
-        .eq('event_id', event.id)
-        .order('sort_order')
-
-      if (!albumData) {
-        setSponsorFilteredAlbums([])
-        return
-      }
-
-      const albumsWithCounts = await Promise.all(
-        albumData.map(async (album: EventMediaAlbum) => {
-          const { data: albumItems } = await supabase
-            .from('event_media_album_items')
-            .select('media_id')
-            .eq('album_id', album.id)
-          if (!albumItems) return { ...album, media_count: 0 }
-          const count = albumItems.filter((item: { media_id: string }) => sponsorMediaIds.has(item.media_id)).length
-          return { ...album, media_count: count }
-        })
-      )
-
-      setSponsorFilteredAlbums(albumsWithCounts.filter((a) => a.media_count > 0))
-    } catch (err) {
-      console.error('Error loading sponsor-filtered albums:', err)
-      setSponsorFilteredAlbums([])
-    }
-  }, [event.id, getSupabase])
+    setLoadingAlbum(false)
+  }, [fetchGalleryPage, collectApiVideos])
 
   // ─── Load more (infinite scroll) ────────────────────────
 
   const loadMoreMedia = useCallback(async () => {
-    if (loadingMore || !hasMore) return
-    try {
-      setLoadingMore(true)
-      const supabase = await getSupabase()
-      const offset = mediaItems.length
-
-      const { data: mediaData } = await supabase
-        .from('events_media')
-        .select('*')
-        .eq('event_id', event.id)
-        .eq('file_type', 'photo')
-        .order('created_at', { ascending: true })
-        .range(offset, offset + BATCH_SIZE - 1)
-
-      const newMedia = (mediaData || []) as EventMedia[]
-      const updatedMedia = [...mediaItems, ...newMedia]
-      setMediaItems(updatedMedia)
-      setHasMore(newMedia.length === BATCH_SIZE && updatedMedia.length < totalCount)
-      setGalleryItems(buildGalleryItems(updatedMedia))
-    } catch (err) {
-      console.error('Error loading more media:', err)
-    } finally {
-      setLoadingMore(false)
+    if (loadingMore || nextOffset === null) return
+    setLoadingMore(true)
+    const page = await fetchGalleryPage(selectedAlbumSlug, nextOffset)
+    if (page && page !== 'gone') {
+      const photos = page.items.filter((i) => i.kind === 'photo')
+      setItems((prev) => [...prev, ...photos])
+      collectApiVideos(page.items)
+      setNextOffset(page.next_offset)
+    } else {
+      setNextOffset(null)
     }
-  }, [loadingMore, hasMore, mediaItems, event.id, totalCount, getSupabase, buildGalleryItems])
+    setLoadingMore(false)
+  }, [loadingMore, nextOffset, selectedAlbumSlug, fetchGalleryPage, collectApiVideos])
 
   // ─── Initial load ────────────────────────────────────────
 
@@ -539,20 +328,18 @@ export function MediaContent() {
     setMounted(true)
     if (event.id) {
       fetchInitialMedia()
-      fetchAlbums()
-      fetchSponsors()
       fetchVideos()
     }
-  }, [event.id, fetchInitialMedia, fetchAlbums, fetchSponsors, fetchVideos])
+  }, [event.id, fetchInitialMedia, fetchVideos])
 
   // ─── Intersection Observer for lazy loading ──────────────
 
   useEffect(() => {
-    if (!observerRef.current || !hasMore || loadingMore || selectedAlbumId || selectedSponsorId) return
+    if (!observerRef.current || nextOffset === null || loadingMore) return
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasMore && !loadingMore && !selectedAlbumId && !selectedSponsorId) {
+        if (entries[0].isIntersecting && nextOffset !== null && !loadingMore) {
           loadMoreMedia()
         }
       },
@@ -560,71 +347,32 @@ export function MediaContent() {
     )
     observer.observe(observerRef.current)
     return () => observer.disconnect()
-  }, [hasMore, loadingMore, selectedAlbumId, selectedSponsorId, loadMoreMedia])
+  }, [nextOffset, loadingMore, loadMoreMedia])
 
   // ─── Handlers ────────────────────────────────────────────
 
-  const handleAlbumClick = (album: EventMediaAlbum | null) => {
-    if (album) {
-      setSelectedAlbumId(album.id)
-      fetchAlbumMedia(album.id, selectedSponsorId)
-    } else {
-      setSelectedAlbumId(null)
-      setAlbumMediaItems([])
-      if (totalCount > mediaItems.length) setHasMore(true)
-    }
-  }
-
-  const handleSponsorChange = (sponsorId: string) => {
-    if (sponsorId) {
-      const sponsor = sponsors.find((s) => s.id === sponsorId)
-      if (sponsor) {
-        setSelectedSponsorId(sponsor.id)
-        setSelectedAlbumId(null)
-        setAlbumMediaItems([])
-        fetchSponsorMedia(sponsor.id)
-        fetchVideos(sponsor.id)
-        fetchSponsorFilteredAlbums(sponsor.id)
-      }
-    } else {
-      setSelectedSponsorId(null)
-      setSponsorMediaItems([])
-      setSponsorFilteredAlbums([])
-      setSelectedAlbumId(null)
-      setAlbumMediaItems([])
-      fetchVideos()
-      if (totalCount > mediaItems.length) setHasMore(true)
-    }
+  const handleAlbumClick = (album: GalleryAlbum | null) => {
+    const slug = album?.slug ?? null
+    setSelectedAlbumSlug(slug)
+    fetchAlbumMedia(slug)
   }
 
   const handlePhotoClick = (index: number) => {
-    const currentMediaArray = selectedAlbumId
-      ? albumMediaItems
-      : selectedSponsorId
-        ? sponsorMediaItems
-        : mediaItems
-
     setCurrentIndex(index)
-    setGalleryItems(buildGalleryItems(currentMediaArray))
     setShowLightbox(true)
   }
 
   const handleDownload = async () => {
-    const currentMedia = selectedAlbumId
-      ? albumMediaItems[currentIndex]
-      : selectedSponsorId
-        ? sponsorMediaItems[currentIndex]
-        : mediaItems[currentIndex]
-
+    const currentMedia = items[currentIndex]
     if (currentMedia) {
       try {
-        const downloadUrl = getMediaPublicUrl(currentMedia.storage_path, undefined, { disableCDN: true })
+        const downloadUrl = fullImageUrl(currentMedia)
         const response = await fetch(downloadUrl)
         const blob = await response.blob()
         const blobUrl = URL.createObjectURL(blob)
         const link = document.createElement('a')
         link.href = blobUrl
-        link.download = currentMedia.file_name
+        link.download = fileNameFromUrl(downloadUrl, 'photo')
         document.body.appendChild(link)
         link.click()
         document.body.removeChild(link)
@@ -637,22 +385,18 @@ export function MediaContent() {
 
   // ─── Derived state ───────────────────────────────────────
 
-  const displayMedia = selectedAlbumId
-    ? albumMediaItems
-    : selectedSponsorId
-      ? sponsorMediaItems
-      : mediaItems
-
-  const photos = displayMedia.map((media) => ({
+  const photos = items.map((media) => ({
     id: media.id,
-    media_url: media.thumbnail_path
-      ? getMediaPublicUrl(media.thumbnail_path)
-      : getMediaPublicUrl(media.storage_path, { width: 350, height: 350, quality: 80, resize: 'contain' }),
-    caption: media.caption,
+    media_url: media.variants?.thumb ?? media.url,
+    caption: media.guest_name ?? undefined,
   }))
 
-  const displayAlbums = selectedSponsorId ? sponsorFilteredAlbums : albums
-  const displayTotalCount = selectedSponsorId ? sponsorMediaItems.length : totalCount
+  const lightboxItems: LightboxItem[] = useMemo(() => items.map((media) => ({
+    original: fullImageUrl(media),
+    thumbnail: media.variants?.thumb ?? media.url,
+  })), [items])
+
+  const displayTotalCount = allTotal
 
   // ─── Render ──────────────────────────────────────────────
 
@@ -668,7 +412,7 @@ export function MediaContent() {
     )
   }
 
-  if (totalCount === 0 && videoItems.length === 0) {
+  if (allTotal === 0 && videoItems.length === 0) {
     return (
       <div className={`transition-opacity duration-500 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
         <GlowBorder useDarkTheme={useDarkText}>
@@ -690,29 +434,6 @@ export function MediaContent() {
     <div className={`space-y-6 transition-opacity duration-500 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
       <h1 className={`text-2xl sm:text-3xl font-bold ${panelTheme.textColor}`}>Media</h1>
 
-      {/* Sponsor filter */}
-      {sponsors.length > 0 && (
-        <div
-          className="flex items-center gap-3 justify-center p-4 rounded-xl"
-          style={{ backgroundColor: useDarkText ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.1)' }}
-        >
-          <label className={`text-sm font-semibold ${panelTheme.textColor}`}>Sponsor:</label>
-          <select
-            className="px-3 py-2 text-sm border border-white/30 rounded-lg bg-white/60 text-gray-900 cursor-pointer transition-colors focus:outline-none"
-            style={{ minWidth: '200px' }}
-            value={selectedSponsorId || ''}
-            onChange={(e) => handleSponsorChange(e.target.value)}
-          >
-            <option value="">All</option>
-            {sponsors.map((sponsor) => (
-              <option key={sponsor.id} value={sponsor.id}>
-                {sponsor.sponsor.name} ({sponsor.media_count || 0})
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
       {/* Videos section */}
       {videoItems.length > 0 && (
         <div>
@@ -724,21 +445,24 @@ export function MediaContent() {
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {videoItems.map((video, index) => {
-              const videoId = getYouTubeVideoId(video.youtube_embed_url)
-              if (!videoId) return null
+              const videoId = video.youtube_embed_url ? getYouTubeVideoId(video.youtube_embed_url) : null
+              if (!videoId && !video.file_url) return null
+              const thumbSrc = videoId ? getYouTubeThumbnail(videoId) : video.thumbnail_url
               return (
                 <button
                   key={index}
                   className="relative aspect-video rounded-xl overflow-hidden cursor-pointer border-0 p-0 bg-black transition-all duration-200 hover:scale-[1.02] hover:shadow-[0_8px_24px_rgba(0,0,0,0.15)]"
                   onClick={() => { setCurrentVideoIndex(index); setShowVideoLightbox(true) }}
                 >
-                  <Image
-                    src={getYouTubeThumbnail(videoId)}
-                    alt={video.caption || 'Video thumbnail'}
-                    fill
-                    sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
-                    className="object-cover"
-                  />
+                  {thumbSrc && (
+                    <Image
+                      src={thumbSrc}
+                      alt={video.caption || 'Video thumbnail'}
+                      fill
+                      sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+                      className="object-cover"
+                    />
+                  )}
                   <div className="absolute inset-0 flex items-center justify-center pb-10 bg-gradient-to-b from-black/5 to-black/15 hover:from-black/10 hover:to-black/25 transition-all">
                     <svg className="w-12 h-12 text-white" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M8 5v14l11-7z" />
@@ -766,86 +490,81 @@ export function MediaContent() {
         </h2>
 
         {/* Album filter buttons */}
-        {(() => {
-          if (selectedSponsorId && loadingSponsor) return null
-          if (displayAlbums.length === 0 && !selectedSponsorId) return null
-
-          return (
-            <div className="flex flex-wrap gap-2 mb-4">
+        {albums.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-4">
+            <button
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium cursor-pointer transition-all duration-200 relative ${
+                !selectedAlbumSlug
+                  ? 'border-transparent'
+                  : `${useDarkText ? 'text-gray-600 border-gray-300 hover:border-gray-400 bg-white/40' : 'text-white/70 border-white/20 hover:border-white/40 bg-white/10'}`
+              }`}
+              style={!selectedAlbumSlug ? { backgroundColor: primaryColor, borderColor: primaryColor, color: isLightColor(primaryColor) ? '#000000' : '#ffffff' } : { borderWidth: '1.5px' }}
+              onClick={() => handleAlbumClick(null)}
+            >
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v13.5A1.5 1.5 0 003.75 21z" />
+              </svg>
+              All photos
+              {displayTotalCount > 0 && (
+                <span
+                  className="absolute -top-2 -right-2 rounded-full px-1.5 min-w-[18px] h-[18px] flex items-center justify-center text-[11px] font-semibold shadow"
+                  style={
+                    !selectedAlbumSlug
+                      ? { backgroundColor: '#fff', color: primaryColor }
+                      : { backgroundColor: useDarkText ? '#374151' : 'rgba(255,255,255,0.9)', color: useDarkText ? '#fff' : '#333' }
+                  }
+                >
+                  {displayTotalCount}
+                </span>
+              )}
+            </button>
+            {albums.map((album) => (
               <button
+                key={album.slug}
                 className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium cursor-pointer transition-all duration-200 relative ${
-                  !selectedAlbumId
+                  selectedAlbumSlug === album.slug
                     ? 'border-transparent'
                     : `${useDarkText ? 'text-gray-600 border-gray-300 hover:border-gray-400 bg-white/40' : 'text-white/70 border-white/20 hover:border-white/40 bg-white/10'}`
                 }`}
-                style={!selectedAlbumId ? { backgroundColor: primaryColor, borderColor: primaryColor, color: isLightColor(primaryColor) ? '#000000' : '#ffffff' } : { borderWidth: '1.5px' }}
-                onClick={() => handleAlbumClick(null)}
+                style={selectedAlbumSlug === album.slug ? { backgroundColor: primaryColor, borderColor: primaryColor, color: isLightColor(primaryColor) ? '#000000' : '#ffffff' } : { borderWidth: '1.5px' }}
+                onClick={() => handleAlbumClick(album)}
               >
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v13.5A1.5 1.5 0 003.75 21z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
                 </svg>
-                All photos
-                {displayTotalCount > 0 && (
+                {album.name}
+                {album.count > 0 && (
                   <span
                     className="absolute -top-2 -right-2 rounded-full px-1.5 min-w-[18px] h-[18px] flex items-center justify-center text-[11px] font-semibold shadow"
                     style={
-                      !selectedAlbumId
+                      selectedAlbumSlug === album.slug
                         ? { backgroundColor: '#fff', color: primaryColor }
                         : { backgroundColor: useDarkText ? '#374151' : 'rgba(255,255,255,0.9)', color: useDarkText ? '#fff' : '#333' }
                     }
                   >
-                    {displayTotalCount}
+                    {album.count}
                   </span>
                 )}
               </button>
-              {displayAlbums.map((album) => (
-                <button
-                  key={album.id}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium cursor-pointer transition-all duration-200 relative ${
-                    selectedAlbumId === album.id
-                      ? 'border-transparent'
-                      : `${useDarkText ? 'text-gray-600 border-gray-300 hover:border-gray-400 bg-white/40' : 'text-white/70 border-white/20 hover:border-white/40 bg-white/10'}`
-                  }`}
-                  style={selectedAlbumId === album.id ? { backgroundColor: primaryColor, borderColor: primaryColor, color: isLightColor(primaryColor) ? '#000000' : '#ffffff' } : { borderWidth: '1.5px' }}
-                  onClick={() => handleAlbumClick(album)}
-                >
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
-                  </svg>
-                  {album.name}
-                  {album.media_count !== undefined && album.media_count > 0 && (
-                    <span
-                      className="absolute -top-2 -right-2 rounded-full px-1.5 min-w-[18px] h-[18px] flex items-center justify-center text-[11px] font-semibold shadow"
-                      style={
-                        selectedAlbumId === album.id
-                          ? { backgroundColor: '#fff', color: primaryColor }
-                          : { backgroundColor: useDarkText ? '#374151' : 'rgba(255,255,255,0.9)', color: useDarkText ? '#fff' : '#333' }
-                      }
-                    >
-                      {album.media_count}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
-          )
-        })()}
+            ))}
+          </div>
+        )}
 
         {/* Photo grid */}
-        {loadingAlbum || loadingSponsor ? (
+        {loadingAlbum ? (
           <div className="flex flex-col items-center justify-center py-16 min-h-[300px]">
             <div
               className="loader mx-auto mb-4"
               style={{ '--primary-color': '#fff', '--secondary-color': primaryColor } as React.CSSProperties}
             />
-            <p className={panelTheme.textMuted}>Loading {loadingAlbum ? 'album' : 'sponsor'} photos...</p>
+            <p className={panelTheme.textMuted}>Loading album photos...</p>
           </div>
         ) : (
           <PhotoGrid photos={photos} onPhotoClick={handlePhotoClick} />
         )}
 
         {/* Loading more indicator */}
-        {loadingMore && !selectedAlbumId && !selectedSponsorId && (
+        {loadingMore && (
           <div className="flex flex-col items-center justify-center py-10">
             <div
               className="loader mx-auto mb-4"
@@ -856,20 +575,20 @@ export function MediaContent() {
         )}
 
         {/* Intersection observer target */}
-        {!selectedAlbumId && !selectedSponsorId && hasMore && !loadingMore && (
+        {nextOffset !== null && !loadingMore && !loadingAlbum && (
           <div ref={observerRef} className="h-[100px] w-full mt-5" />
         )}
 
         {/* End message */}
-        {!selectedAlbumId && !selectedSponsorId && !hasMore && mediaItems.length > 0 && (
+        {!selectedAlbumSlug && nextOffset === null && items.length > 0 && (
           <div className="text-center py-10 mt-5">
-            <p className={panelTheme.textMuted}>All photos loaded ({totalCount} total)</p>
+            <p className={panelTheme.textMuted}>All photos loaded ({total} total)</p>
           </div>
         )}
       </div>
 
       {/* ─── Photo Lightbox ───────────────────────────────── */}
-      {showLightbox && galleryItems.length > 0 && (
+      {showLightbox && lightboxItems.length > 0 && (
         <div className="fixed inset-0 bg-black/95 z-[10000] flex items-center justify-center">
           <div className="relative w-full h-full flex items-center justify-center">
             {/* Close button */}
@@ -894,7 +613,7 @@ export function MediaContent() {
 
             {/* Image gallery */}
             <ImageGallery
-              items={galleryItems}
+              items={lightboxItems}
               startIndex={currentIndex}
               showThumbnails={false}
               showPlayButton={false}
@@ -903,16 +622,12 @@ export function MediaContent() {
               additionalClass="custom-image-gallery"
             />
 
-            {/* Caption */}
+            {/* Credit — the gallery API carries the guest's name, not a caption */}
             {(() => {
-              const currentMedia = selectedAlbumId
-                ? albumMediaItems[currentIndex]
-                : selectedSponsorId
-                  ? sponsorMediaItems[currentIndex]
-                  : mediaItems[currentIndex]
-              return currentMedia?.caption ? (
+              const currentMedia = items[currentIndex]
+              return currentMedia?.guest_name ? (
                 <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-black/70 backdrop-blur-[10px] px-6 py-4 rounded-lg max-w-[600px] z-[10001]">
-                  <p className="text-white m-0 text-base text-center whitespace-pre-wrap">{currentMedia.caption}</p>
+                  <p className="text-white m-0 text-base text-center whitespace-pre-wrap">By {currentMedia.guest_name}</p>
                 </div>
               ) : null
             })()}
@@ -932,8 +647,8 @@ export function MediaContent() {
       {/* ─── Video Lightbox ───────────────────────────────── */}
       {showVideoLightbox && videoItems.length > 0 && (() => {
         const currentVideo = videoItems[currentVideoIndex]
-        const videoId = currentVideo ? getYouTubeVideoId(currentVideo.youtube_embed_url) : null
-        if (!videoId) return null
+        const videoId = currentVideo?.youtube_embed_url ? getYouTubeVideoId(currentVideo.youtube_embed_url) : null
+        if (!currentVideo || (!videoId && !currentVideo.file_url)) return null
         return (
           <div className="fixed inset-0 bg-black/95 z-[10000] flex items-center justify-center">
             <div className="relative w-full h-full flex items-center justify-center">
@@ -965,15 +680,25 @@ export function MediaContent() {
                 </>
               )}
 
-              {/* YouTube embed */}
+              {/* YouTube embed, or the uploaded file itself */}
               <div className="w-[90vw] max-w-[1200px] aspect-video">
-                <iframe
-                  src={`https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`}
-                  title={currentVideo.caption || 'Video'}
-                  className="w-full h-full border-0 rounded-lg"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                />
+                {videoId ? (
+                  <iframe
+                    src={`https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`}
+                    title={currentVideo.caption || 'Video'}
+                    className="w-full h-full border-0 rounded-lg"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                ) : (
+                  <video
+                    src={currentVideo.file_url}
+                    poster={currentVideo.thumbnail_url}
+                    className="w-full h-full rounded-lg bg-black"
+                    controls
+                    autoPlay
+                  />
+                )}
               </div>
 
               {/* Caption */}

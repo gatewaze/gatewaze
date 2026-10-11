@@ -84,7 +84,12 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
    * the eye. The one underneath is the one that goes.
    */
   const pathname = usePathname();
-  const isVisibleRoute = pathname === '/' || pathname === '/index';
+  // Strip a query string and any trailing slash before comparing: a deep
+  // link, a resumed-from-background value, or a route reached with a
+  // trailing slash all mean "the index route," but would otherwise defeat
+  // an exact match and hide this header along with it.
+  const normalizedPathname = (pathname ?? '').split('?')[0].replace(/\/+$/, '') || '/';
+  const isVisibleRoute = normalizedPathname === '/' || normalizedPathname === '/index';
   const theme = useTheme();
   const router = useRouter();
   const { refresh } = useSession();
@@ -400,7 +405,7 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
             <DrawerRow
               icon="history"
               label="Change log"
-              onPress={() => setChangelogOpen(true)}
+              onPress={() => { setOpen(false); setChangelogOpen(true); }}
             />
           </View>
 
@@ -461,7 +466,13 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
               so the wordmark takes the slot rather than leaving the two
               controls floating at the edges with a gap between them. */}
           {destination.kind === 'module' ? (
-            <Text style={[type.cardTitle, { color: theme.text }]}>{title}</Text>
+            <Text
+              style={[type.cardTitle, { color: theme.text, flexShrink: 1 }]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              {title}
+            </Text>
           ) : (
             /* The dark glow keeps the white letters legible when a light
                coach bubble scrolls behind the transparent header. A view
@@ -553,11 +564,11 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
             onClose={() => { setBugOpen(false); setBugShot(null); setBugRoute(null); }}
           />
         ) : null}
-
-        {changelogOpen ? (
-          <ChangelogSheet onClose={() => setChangelogOpen(false)} />
-        ) : null}
       </Animated.View>
+
+      {changelogOpen ? (
+        <ChangelogSheet onClose={() => setChangelogOpen(false)} />
+      ) : null}
     </View>
   );
 }
