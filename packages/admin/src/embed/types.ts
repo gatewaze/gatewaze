@@ -11,7 +11,17 @@ export interface GwHostContext {
    * must equal the host route prefix exactly (e.g. '/apps/gw').
    */
   basename: string;
-  supabase: { url: string; anonKey: string };
+  /**
+   * In host-session mode (`session` set) `url` must be an absolute URL on the
+   * page's own origin: the host's proxy for /rest/v1, /storage/v1,
+   * /functions/v1 and /realtime/v1, which swaps in the real token.
+   *
+   * `publicUrl` is the real Supabase project URL (https, or http on
+   * localhost). When given, public storage URLs and OAuth redirect URIs use
+   * it instead of `url`. Required in host-session mode, where `url` is the
+   * host's proxy and would otherwise end up in saved image URLs.
+   */
+  supabase: { url: string; anonKey: string; publicUrl?: string };
   /**
    * '' or a same-origin absolute path (leading '/', no scheme/host, no
    * trailing slash); '' means /api/gw. Cross-origin values are rejected —
@@ -31,10 +41,30 @@ export interface GwHostContext {
   /**
    * Where to send an unauthenticated user: the host's own sign-in entry
    * point (absolute URL), and the absolute URL to return to afterwards.
-   * The embed never implements sign-in itself.
+   * The embed never implements sign-in itself. Required unless `session` is
+   * set; in host-session mode a lost session sends the browser to
+   * `startUrl` when given, and otherwise reloads the page so the host's own
+   * sign-in guard takes over.
    */
-  signIn: { startUrl: string; returnUrl: string };
-  /** Session isolation; embed defaults to 'host_embed' if omitted. */
+  signIn?: { startUrl: string; returnUrl: string };
+  /**
+   * Host-session mode: the host holds the Supabase session server-side (in
+   * an HttpOnly cookie) and the embed only ever sees a placeholder token, so
+   * no real token reaches page scripts or localStorage.
+   *
+   * `meUrl` (GET, with the cookie): 200 { user } signed in as an admin; 401 signed
+   * out (with `x-gw-session: expired` when the cookie's session is gone); 403
+   * { email? } signed in but not an admin; 503 { error: 'admin_check_pending' }
+   * with Retry-After (seconds) while the admin check is still running; 503
+   * { error: 'session_unavailable' } when the session store cannot answer.
+   * Any other answer is treated as unavailable, never as a sign-out.
+   *
+   * `logoutUrl` takes a POST (with the `apikey` header) and ends the
+   * session. Both must be on the page's own origin. Absent: the embed keeps
+   * its session in localStorage, as before.
+   */
+  session?: { mode: 'host'; meUrl: string; logoutUrl: string };
+  /** Session isolation; embed defaults to 'host_embed' if omitted. Ignored in host-session mode. */
   storageKeySuffix?: string;
   /**
    * Where Radix portals render. Host-owned; must outlive the mount, and

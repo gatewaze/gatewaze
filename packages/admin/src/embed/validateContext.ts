@@ -54,14 +54,50 @@ function isSameOriginApiBaseUrl(v: unknown): v is string {
   return true;
 }
 
+/** Absolute https URL, or http on localhost (the loader's rule for source.baseUrl). */
+function isHttpsOrLocalhostUrl(v: unknown): v is string {
+  if (!isNonEmptyString(v)) return false;
+  try {
+    const u = new URL(v);
+    if (u.protocol === 'https:') return true;
+    // http only for local development: localhost, 127.0.0.1 and *.localhost
+    // (e.g. supabase.gatewaze.localhost), which browsers resolve to loopback.
+    return u.protocol === 'http:' && (u.hostname === 'localhost' || u.hostname === '127.0.0.1' || u.hostname.endsWith('.localhost'));
+  } catch {
+    return false;
+  }
+}
+
+/** Absolute URL on the page's own origin. */
+function isSameOriginAbsoluteUrl(v: unknown): v is string {
+  if (!isAbsoluteUrl(v)) return false;
+  try {
+    return new URL(v).origin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * A session route: a same-origin absolute path ('/x', never '//x') or an
+ * absolute URL on the page's origin. The session cookie only rides
+ * same-origin requests, and nothing session-related may leave the origin.
+ */
+function isSameOriginRoute(v: unknown): v is string {
+  if (!isNonEmptyString(v) || /\s/.test(v)) return false;
+  if (v.startsWith('/')) return !v.startsWith('//') && !v.startsWith('/\\');
+  return isSameOriginAbsoluteUrl(v);
+}
+
 function isStringArray(v: unknown): v is string[] {
   return Array.isArray(v) && v.every((x) => typeof x === 'string');
 }
 
 /**
  * Validate a host-supplied GwHostContext before anything reads it.
- * Pure and synchronous — safe to call before touching any config-reading
- * singleton (Supabase client, module registry, etc).
+ * Synchronous and side-effect free (host-session mode reads
+ * window.location.origin for its same-origin rules) — safe to call before
+ * touching any config-reading singleton (Supabase client, module registry, etc).
  */
 export function validateGwHostContext(ctx: unknown): ValidationResult {
   if (!ctx || typeof ctx !== 'object') {
@@ -83,24 +119,62 @@ export function validateGwHostContext(ctx: unknown): ValidationResult {
     );
   }
 
+  // Host-session mode: checked first because it changes the supabase.url
+  // and signIn rules below.
+  const hostMode = c.session !== undefined;
+  if (hostMode) {
+    const s = c.session as Partial<NonNullable<GwHostContext['session']>> | null;
+    if (!s || typeof s !== 'object' || s.mode !== 'host') {
+      return fail('session', "session must be { mode: 'host', meUrl, logoutUrl } when provided");
+    }
+    if (!isSameOriginRoute(s.meUrl)) {
+      return fail('session.meUrl', "session.meUrl must be a same-origin path or URL");
+    }
+    if (!isSameOriginRoute(s.logoutUrl)) {
+      return fail('session.logoutUrl', "session.logoutUrl must be a same-origin path or URL");
+    }
+  }
+
   if (!c.supabase || typeof c.supabase !== 'object') {
     return fail('supabase', 'supabase config is required');
   }
-  if (!isAbsoluteUrl(c.supabase.url)) {
+  if (hostMode) {
+    // The cookie-holding proxy must be this origin, or the real token would
+    // be needed in the page to reach Supabase.
+    if (!isSameOriginAbsoluteUrl(c.supabase.url)) {
+      return fail('supabase.url', "supabase.url must be an absolute URL on the page's own origin in host-session mode");
+    }
+  } else if (!isAbsoluteUrl(c.supabase.url)) {
     return fail('supabase.url', 'supabase.url must be an absolute URL');
   }
   if (!isNonEmptyString(c.supabase.anonKey)) {
     return fail('supabase.anonKey', 'supabase.anonKey is required');
   }
+  // Required in host-session mode: there supabase.url is the host's proxy,
+  // and without the real URL saved image URLs would point at the host.
+  if (hostMode && c.supabase.publicUrl === undefined) {
+    return fail('supabase.publicUrl', 'supabase.publicUrl is required in host-session mode');
+  }
+  if (c.supabase.publicUrl !== undefined && !isHttpsOrLocalhostUrl(c.supabase.publicUrl)) {
+    return fail('supabase.publicUrl', 'supabase.publicUrl must be an absolute https URL (http only for localhost, 127.0.0.1 or *.localhost)');
+  }
 
-  if (!c.signIn || typeof c.signIn !== 'object') {
-    return fail('signIn', 'signIn config is required');
-  }
-  if (!isAbsoluteUrl(c.signIn.startUrl)) {
-    return fail('signIn.startUrl', 'signIn.startUrl must be an absolute URL');
-  }
-  if (!isAbsoluteUrl(c.signIn.returnUrl)) {
-    return fail('signIn.returnUrl', 'signIn.returnUrl must be an absolute URL');
+  // Optional in host-session mode (the host owns sign-in), but checked when given.
+  if (!hostMode || c.signIn !== undefined) {
+    if (!c.signIn || typeof c.signIn !== 'object') {
+      return fail('signIn', 'signIn config is required');
+    }
+    if (!isAbsoluteUrl(c.signIn.startUrl)) {
+      return fail('signIn.startUrl', 'signIn.startUrl must be an absolute URL');
+    }
+    if (!isAbsoluteUrl(c.signIn.returnUrl)) {
+      return fail('signIn.returnUrl', 'signIn.returnUrl must be an absolute URL');
+    }
+    // Host-session mode navigates to startUrl when the session is lost, so a
+    // javascript: or data: URL would run in the page. Only http(s) is allowed.
+    if (hostMode && !/^https?:$/.test(new URL(c.signIn.startUrl).protocol)) {
+      return fail('signIn.startUrl', 'signIn.startUrl must be an http(s) URL in host-session mode');
+    }
   }
 
   if (!c.enabled || typeof c.enabled !== 'object') {

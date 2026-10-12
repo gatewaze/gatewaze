@@ -150,4 +150,134 @@ describe('validateGwHostContext', () => {
     const result = validateGwHostContext(validCtx({ storageKeySuffix: undefined }));
     expect(result.ok).toBe(true);
   });
+
+  describe('host-session mode (session set)', () => {
+    const ORIGIN = window.location.origin;
+
+    function hostCtx(overrides: Partial<GwHostContext> = {}): GwHostContext {
+      const { signIn: _signIn, ...rest } = validCtx();
+      return {
+        ...rest,
+        supabase: { url: `${ORIGIN}/api/gatewaze/supabase`, anonKey: 'anon-key', publicUrl: 'https://project.supabase.co' },
+        session: { mode: 'host', meUrl: '/api/gatewaze/session/me', logoutUrl: '/api/gatewaze/session/logout' },
+        ...overrides,
+      };
+    }
+
+    it('accepts a host context without signIn', () => {
+      expect(validateGwHostContext(hostCtx()).ok).toBe(true);
+    });
+
+    it('still checks signIn when a host context provides it', () => {
+      const result = validateGwHostContext(
+        hostCtx({ signIn: { startUrl: 'not-a-url', returnUrl: 'https://host.example.org/x' } }),
+      );
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.field).toBe('signIn.startUrl');
+    });
+
+    it('still requires signIn without a session (local mode unchanged)', () => {
+      const { signIn: _signIn, ...rest } = validCtx();
+      const result = validateGwHostContext(rest);
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.field).toBe('signIn');
+    });
+
+    it.each([
+      ['another origin', 'https://project.supabase.co'],
+      ['a relative path', '/api/gatewaze/supabase'],
+      ['a protocol-relative URL', '//evil.example/api'],
+    ])('rejects supabase.url on %s', (_label, url) => {
+      const result = validateGwHostContext(hostCtx({ supabase: { url, anonKey: 'anon-key', publicUrl: 'https://project.supabase.co' } }));
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.field).toBe('supabase.url');
+    });
+
+    it.each([
+      ['meUrl', { meUrl: 'https://evil.example/me', logoutUrl: '/logout' }],
+      ['meUrl', { meUrl: '//evil.example/me', logoutUrl: '/logout' }],
+      ['logoutUrl', { meUrl: '/me', logoutUrl: 'https://evil.example/logout' }],
+      ['logoutUrl', { meUrl: '/me', logoutUrl: '' }],
+    ])('rejects a cross-origin or empty session.%s', (field, routes) => {
+      const result = validateGwHostContext(hostCtx({ session: { mode: 'host', ...routes } }));
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.field).toBe(`session.${field}`);
+    });
+
+    it('accepts same-origin absolute session URLs', () => {
+      const result = validateGwHostContext(
+        hostCtx({ session: { mode: 'host', meUrl: `${ORIGIN}/s/me`, logoutUrl: `${ORIGIN}/s/logout` } }),
+      );
+      expect(result.ok).toBe(true);
+    });
+
+    it('rejects a javascript: signIn.startUrl, which a lost session would navigate to', () => {
+      const result = validateGwHostContext(
+        hostCtx({ signIn: { startUrl: 'javascript:alert(1)', returnUrl: 'https://host.example.org/x' } }),
+      );
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.field).toBe('signIn.startUrl');
+    });
+
+    it.each([
+      ['meUrl', { meUrl: '/\\evil.example', logoutUrl: '/logout' }],
+      ['logoutUrl', { meUrl: '/me', logoutUrl: '/a b' }],
+    ])('rejects a backslash or whitespace session.%s', (field, routes) => {
+      const result = validateGwHostContext(hostCtx({ session: { mode: 'host', ...routes } }));
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.field).toBe(`session.${field}`);
+    });
+
+    it.each([
+      ['null', null],
+      ['false', false],
+    ])('treats session: %s as host mode and rejects it (same rule as the loader)', (_label, session) => {
+      const result = validateGwHostContext(hostCtx({ session: session as unknown as GwHostContext['session'] }));
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.field).toBe('session');
+    });
+
+    it('requires supabase.publicUrl in host-session mode', () => {
+      const result = validateGwHostContext(hostCtx({ supabase: { url: `${ORIGIN}/api/gatewaze/supabase`, anonKey: 'anon-key' } }));
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.field).toBe('supabase.publicUrl');
+    });
+
+    it('rejects a session with any other mode', () => {
+      const result = validateGwHostContext(
+        hostCtx({ session: { mode: 'cookie', meUrl: '/me', logoutUrl: '/logout' } as unknown as GwHostContext['session'] }),
+      );
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.field).toBe('session');
+    });
+  });
+
+  describe('supabase.publicUrl', () => {
+    it.each([
+      ['https', 'https://project.supabase.co'],
+      ['http localhost', 'http://localhost:54321'],
+      ['http 127.0.0.1', 'http://127.0.0.1:54321'],
+      ['http *.localhost', 'http://supabase.gatewaze.localhost'],
+    ])('accepts %s', (_label, publicUrl) => {
+      expect(validateGwHostContext(validCtx({ supabase: { url: 'https://project.supabase.co', anonKey: 'k', publicUrl } })).ok).toBe(true);
+    });
+
+    it.each([
+      ['plain http', 'http://project.supabase.co'],
+      ['http evil.example', 'http://evil.example'],
+      ['http with localhost only as a prefix', 'http://localhost.evil.example'],
+      ['a relative path', '/supabase'],
+      ['javascript:', 'javascript:alert(1)'],
+      ['empty', ''],
+    ])('rejects %s', (_label, publicUrl) => {
+      const result = validateGwHostContext(validCtx({ supabase: { url: 'https://project.supabase.co', anonKey: 'k', publicUrl } }));
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.field).toBe('supabase.publicUrl');
+    });
+  });
+
+  it('local mode is unchanged: a cross-origin supabase.url, no publicUrl and no session are fine', () => {
+    const result = validateGwHostContext(validCtx({ supabase: { url: 'https://elsewhere.supabase.co', anonKey: 'k' } }));
+    expect(result.ok).toBe(true);
+  });
 });

@@ -13,7 +13,7 @@ import './styles/index.css';
 import { createRoot, type Root } from 'react-dom/client';
 import { StrictMode } from 'react';
 
-import { configureEmbedSupabase } from '@/lib/supabase';
+import { configureEmbedSupabase, configureHostSession } from '@/lib/supabase';
 
 import { getCompiledFeatures, getCompiledModuleIds } from './embed/compiledModules';
 import { EmbedApp } from './embed/EmbedApp';
@@ -36,6 +36,42 @@ export type { GwHostContext, GwEmbedFatalError, GwEmbedFatalErrorType, GwEmbedHa
 export const version = '0.1.0-pilot';
 
 const NOOP_HANDLE = { unmount() {} };
+
+// A lost host session with no signIn.startUrl reloads the page so the host's
+// own guard takes over. If the host keeps answering "expired" (a
+// misconfigured proxy), that would reload forever; allow at most
+// MAX_RELOADS within RELOAD_WINDOW_MS, counted in sessionStorage so the
+// count survives the reloads it is limiting. Fails closed: if the count
+// cannot be read or recorded, it does not reload at all, because an
+// uncountable reload is exactly the loop this guards against.
+const RELOAD_GUARD_KEY = 'gw-embed-signed-out-reloads';
+const MAX_RELOADS = 2;
+const RELOAD_WINDOW_MS = 30_000;
+
+export function reloadForSignIn(): void {
+  const now = Date.now();
+  let recent: number[];
+  try {
+    const parsed: unknown = JSON.parse(window.sessionStorage.getItem(RELOAD_GUARD_KEY) ?? '[]');
+    recent = Array.isArray(parsed)
+      ? parsed.filter((t): t is number => typeof t === 'number' && now - t < RELOAD_WINDOW_MS)
+      : [];
+  } catch (err) {
+    console.warn('[gw-embed] session lost; cannot read the reload guard, so not reloading', err);
+    return;
+  }
+  if (recent.length >= MAX_RELOADS) {
+    console.warn('[gw-embed] session lost again right after reloading; not reloading again');
+    return;
+  }
+  try {
+    window.sessionStorage.setItem(RELOAD_GUARD_KEY, JSON.stringify([...recent, now]));
+  } catch (err) {
+    console.warn('[gw-embed] session lost; cannot record the reload guard, so not reloading', err);
+    return;
+  }
+  window.location.reload();
+}
 
 /**
  * Unrecognized entries in ctx.enabled are ignored, never fatal — the host
@@ -100,10 +136,14 @@ export function mount(el: HTMLElement, ctx: GwHostContext): { unmount(): void } 
     // config-reading singleton (supabase.ts, the vite-plugin-gatewaze-
     // modules build-time `define` rewrite reads this same global at
     // runtime for every VITE_* reference discovered in source).
+    const hostSession = validCtx.session;
     (globalThis as Record<string, unknown>).__GATEWAZE_CONFIG__ = {
       VITE_SUPABASE_URL: validCtx.supabase.url,
       VITE_SUPABASE_ANON_KEY: validCtx.supabase.anonKey,
       VITE_API_URL: validCtx.apiBaseUrl === '' ? '/api/gw' : validCtx.apiBaseUrl,
+      // Only when set, so an existing embed's config is unchanged.
+      ...(hostSession ? { VITE_AUTH_MODE: 'host-session' } : {}),
+      ...(validCtx.supabase.publicUrl ? { VITE_SUPABASE_PUBLIC_URL: validCtx.supabase.publicUrl } : {}),
     };
 
     // Before render: Radix's portalled components read this at their own first render, and the
@@ -113,11 +153,27 @@ export function mount(el: HTMLElement, ctx: GwHostContext): { unmount(): void } 
     setEmbedPortalContainer(validCtx.portalContainer);
     setHostNotify(validCtx.notify);
 
-    configureEmbedSupabase({
-      url: validCtx.supabase.url,
-      anonKey: validCtx.supabase.anonKey,
-      storageKeySuffix: validCtx.storageKeySuffix,
-    });
+    if (hostSession) {
+      // storageKeySuffix is ignored: nothing is stored in the page.
+      const signIn = validCtx.signIn;
+      configureHostSession({
+        baseUrl: validCtx.supabase.url,
+        anonKey: validCtx.supabase.anonKey,
+        meUrl: hostSession.meUrl,
+        logoutUrl: hostSession.logoutUrl,
+        // The host owns sign-in. Without a startUrl, a reload hands the
+        // signed-out user to the host's own guard.
+        onSignedOut: signIn
+          ? () => window.location.assign(signIn.startUrl)
+          : reloadForSignIn,
+      });
+    } else {
+      configureEmbedSupabase({
+        url: validCtx.supabase.url,
+        anonKey: validCtx.supabase.anonKey,
+        storageKeySuffix: validCtx.storageKeySuffix,
+      });
+    }
 
     warnOnUnknownEnablement(validCtx);
 

@@ -14,8 +14,10 @@ vi.mock('@/embed/compiledModules', () => ({
 }));
 
 const configureEmbedSupabase = vi.fn();
+const configureHostSession = vi.fn();
 vi.mock('@/lib/supabase', () => ({
   configureEmbedSupabase: (...args: unknown[]) => configureEmbedSupabase(...args),
+  configureHostSession: (...args: unknown[]) => configureHostSession(...args),
 }));
 
 vi.mock('@/embed/EmbedApp', () => ({
@@ -39,6 +41,7 @@ function makeCtx(overrides: Partial<GwHostContext> = {}): GwHostContext {
 describe('mount / unmount', () => {
   beforeEach(() => {
     configureEmbedSupabase.mockReset();
+    configureHostSession.mockReset();
     delete (globalThis as Record<string, unknown>).__GATEWAZE_CONFIG__;
   });
 
@@ -121,5 +124,143 @@ describe('mount / unmount', () => {
     const handle = mount(el, makeCtx());
     expect(isMountLive()).toBe(true);
     handle.unmount();
+  });
+
+  describe('host-session mode', () => {
+    const ORIGIN = window.location.origin;
+    function hostCtx(overrides: Partial<GwHostContext> = {}): GwHostContext {
+      const { signIn: _signIn, ...rest } = makeCtx();
+      return {
+        ...rest,
+        supabase: { url: `${ORIGIN}/api/gatewaze/supabase`, anonKey: 'anon-key', publicUrl: 'https://project.supabase.co' },
+        session: { mode: 'host', meUrl: '/api/gatewaze/session/me', logoutUrl: '/api/gatewaze/session/logout' },
+        storageKeySuffix: 'ignored_here',
+        ...overrides,
+      };
+    }
+
+    it('configures the host session instead of a localStorage client', async () => {
+      const { mount } = await import('../../embed');
+      const el = document.createElement('div');
+
+      const handle = mount(el, hostCtx());
+
+      expect(configureEmbedSupabase).not.toHaveBeenCalled();
+      expect(configureHostSession).toHaveBeenCalledWith({
+        baseUrl: `${ORIGIN}/api/gatewaze/supabase`,
+        anonKey: 'anon-key',
+        meUrl: '/api/gatewaze/session/me',
+        logoutUrl: '/api/gatewaze/session/logout',
+        onSignedOut: expect.any(Function),
+      });
+      const config = (globalThis as Record<string, unknown>).__GATEWAZE_CONFIG__ as Record<string, string>;
+      expect(config.VITE_AUTH_MODE).toBe('host-session');
+      expect(config.VITE_SUPABASE_URL).toBe(`${ORIGIN}/api/gatewaze/supabase`);
+      handle.unmount();
+    });
+
+    it('sends a lost session to signIn.startUrl when the host gave one', async () => {
+      const assign = vi.fn();
+      vi.stubGlobal('location', { ...window.location, origin: ORIGIN, assign });
+      const { mount } = await import('../../embed');
+      const handle = mount(
+        document.createElement('div'),
+        hostCtx({ signIn: { startUrl: 'https://host.example.org/login', returnUrl: 'https://host.example.org/x' } }),
+      );
+
+      const { onSignedOut } = configureHostSession.mock.calls[0][0] as { onSignedOut: () => void };
+      onSignedOut();
+
+      expect(assign).toHaveBeenCalledWith('https://host.example.org/login');
+      handle.unmount();
+      vi.unstubAllGlobals();
+    });
+
+    it('reloads on a lost session when the host gave no signIn', async () => {
+      window.sessionStorage.clear();
+      const reload = vi.fn();
+      const assign = vi.fn();
+      vi.stubGlobal('location', { ...window.location, origin: ORIGIN, reload, assign });
+      const { mount } = await import('../../embed');
+      const handle = mount(document.createElement('div'), hostCtx());
+
+      const { onSignedOut } = configureHostSession.mock.calls[0][0] as { onSignedOut: () => void };
+      onSignedOut();
+
+      expect(reload).toHaveBeenCalledTimes(1);
+      expect(assign).not.toHaveBeenCalled();
+      handle.unmount();
+      vi.unstubAllGlobals();
+    });
+
+    it('writes supabase.publicUrl into the runtime config', async () => {
+      const { mount } = await import('../../embed');
+      const handle = mount(
+        document.createElement('div'),
+        hostCtx({ supabase: { url: `${ORIGIN}/api/gatewaze/supabase`, anonKey: 'anon-key', publicUrl: 'https://project.supabase.co' } }),
+      );
+
+      const config = (globalThis as Record<string, unknown>).__GATEWAZE_CONFIG__ as Record<string, string>;
+      expect(config.VITE_SUPABASE_PUBLIC_URL).toBe('https://project.supabase.co');
+      handle.unmount();
+    });
+
+    it('stops reloading after two lost sessions within 30s (no reload loop)', async () => {
+      window.sessionStorage.clear();
+      vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const reload = vi.fn();
+      vi.stubGlobal('location', { ...window.location, origin: ORIGIN, reload });
+      const { reloadForSignIn } = await import('../../embed');
+
+      reloadForSignIn();
+      reloadForSignIn();
+      reloadForSignIn();
+
+      expect(reload).toHaveBeenCalledTimes(2);
+      vi.unstubAllGlobals();
+    });
+
+    it.each([
+      ['read', 'getItem'],
+      ['write', 'setItem'],
+    ])('fails closed: no reload when the guard cannot %s sessionStorage', async (_label, method) => {
+      window.sessionStorage.clear();
+      vi.spyOn(console, 'warn').mockImplementation(() => {});
+      vi.spyOn(Storage.prototype, method as 'getItem' | 'setItem').mockImplementation(() => {
+        throw new DOMException('denied', 'SecurityError');
+      });
+      const reload = vi.fn();
+      vi.stubGlobal('location', { ...window.location, origin: ORIGIN, reload });
+      const { reloadForSignIn } = await import('../../embed');
+
+      reloadForSignIn();
+
+      expect(reload).not.toHaveBeenCalled();
+      vi.restoreAllMocks();
+      vi.unstubAllGlobals();
+    });
+
+    it('reloads again once the 30s window has passed', async () => {
+      window.sessionStorage.setItem('gw-embed-signed-out-reloads', JSON.stringify([Date.now() - 31_000, Date.now() - 31_000]));
+      const reload = vi.fn();
+      vi.stubGlobal('location', { ...window.location, origin: ORIGIN, reload });
+      const { reloadForSignIn } = await import('../../embed');
+
+      reloadForSignIn();
+
+      expect(reload).toHaveBeenCalledTimes(1);
+      vi.unstubAllGlobals();
+    });
+
+    it('leaves the local-mode config without VITE_AUTH_MODE', async () => {
+      const { mount } = await import('../../embed');
+      const handle = mount(document.createElement('div'), makeCtx());
+
+      const config = (globalThis as Record<string, unknown>).__GATEWAZE_CONFIG__ as Record<string, string>;
+      expect(config).not.toHaveProperty('VITE_AUTH_MODE');
+      expect(config).not.toHaveProperty('VITE_SUPABASE_PUBLIC_URL');
+      expect(configureHostSession).not.toHaveBeenCalled();
+      handle.unmount();
+    });
   });
 });

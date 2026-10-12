@@ -143,6 +143,128 @@ describe('@gatewaze/admin-embed loader', () => {
     expect(importMock).not.toHaveBeenCalled();
   });
 
+  describe('source.baseUrl scheme rule', () => {
+    it('accepts http on a *.localhost dev host', async () => {
+      const handle = loader.mount(document.createElement('div'), { ...hostCtx({ onFatal: (e) => fatals.push(e) }), source: { baseUrl: 'http://admin.gatewaze.localhost/embed', importEntry: importMock } });
+      await handle.ready;
+      expect(fatals.map((f) => f.code)).not.toContain('gw_ctx_source_invalid');
+    });
+
+    it.each(['http://evil.example/embed', 'http://localhost.evil.example/embed'])('rejects %s', async (baseUrl) => {
+      const handle = loader.mount(document.createElement('div'), { ...hostCtx({ onFatal: (e) => fatals.push(e) }), source: { baseUrl, importEntry: importMock } });
+      expect(await handle.ready).toBeNull();
+      expect(fatals.map((f) => f.code)).toEqual(['gw_ctx_source_invalid']);
+    });
+
+    it('seeds a *.localhost publicUrl', async () => {
+      fetchMock.mockImplementationOnce(async () => jsonResponse({ ...MANIFEST, capabilities: ['host-session'] }));
+      const { signIn: _signIn, ...rest } = hostCtx();
+      const ctx = {
+        ...rest,
+        supabase: { url: `${window.location.origin}/p`, anonKey: 'anon', publicUrl: 'http://supabase.gatewaze.localhost' },
+        session: { mode: 'host' as const, meUrl: '/me', logoutUrl: '/logout' },
+      };
+      await loader.mount(document.createElement('div'), { ...ctx, source: { baseUrl: BASE, importEntry: importMock } }).ready;
+      const config = (globalThis as Record<string, unknown>).__GATEWAZE_CONFIG__ as Record<string, string>;
+      expect(config.VITE_SUPABASE_PUBLIC_URL).toBe('http://supabase.gatewaze.localhost');
+    });
+  });
+
+  describe('host-session capability', () => {
+    const ORIGIN = window.location.origin;
+    const hostSessionCtx = (): GwHostContext => {
+      const { signIn: _signIn, ...rest } = hostCtx({ onFatal: (e) => fatals.push(e) });
+      return {
+        ...rest,
+        supabase: { url: `${ORIGIN}/api/gatewaze/supabase`, anonKey: 'anon' },
+        session: { mode: 'host', meUrl: '/api/gatewaze/session/me', logoutUrl: '/api/gatewaze/session/logout' },
+      };
+    };
+
+    it('refuses a host-session context against a manifest without capabilities', async () => {
+      // MANIFEST has no `capabilities`, like every bundle built before the field existed.
+      const handle = loader.mount(document.createElement('div'), { ...hostSessionCtx(), source: { baseUrl: BASE, importEntry: importMock } });
+      expect(await handle.ready).toBeNull();
+      expect(fatals.map((f) => f.code)).toEqual(['gw_embed_capability_missing']);
+      expect(fatals[0]).toMatchObject({ error_type: 'import_failed', recoverable: false });
+      expect(importMock).not.toHaveBeenCalled();
+      expect(innerMount).not.toHaveBeenCalled();
+    });
+
+    it('refuses a host-session context when the capabilities list lacks host-session', async () => {
+      fetchMock.mockImplementationOnce(async () => jsonResponse({ ...MANIFEST, capabilities: ['something-else'] }));
+      const handle = loader.mount(document.createElement('div'), { ...hostSessionCtx(), source: { baseUrl: BASE, importEntry: importMock } });
+      expect(await handle.ready).toBeNull();
+      expect(fatals.map((f) => f.code)).toEqual(['gw_embed_capability_missing']);
+    });
+
+    it('mounts a local-mode context against a manifest without capabilities', async () => {
+      const handle = loader.mount(document.createElement('div'), { ...hostCtx({ onFatal: (e) => fatals.push(e) }), source: { baseUrl: BASE, importEntry: importMock } });
+      expect(await handle.ready).not.toBeNull();
+      expect(fatals).toEqual([]);
+      expect(innerMount).toHaveBeenCalled();
+    });
+
+    it('mounts a host-session context against a manifest that lists host-session', async () => {
+      fetchMock.mockImplementationOnce(async () => jsonResponse({ ...MANIFEST, capabilities: ['host-session'] }));
+      const handle = loader.mount(document.createElement('div'), { ...hostSessionCtx(), source: { baseUrl: BASE, importEntry: importMock } });
+      expect(await handle.ready).not.toBeNull();
+      expect(fatals).toEqual([]);
+      expect(innerMount).toHaveBeenCalledWith(expect.any(HTMLElement), expect.objectContaining({ session: expect.objectContaining({ mode: 'host' }) }));
+      const config = (globalThis as Record<string, unknown>).__GATEWAZE_CONFIG__ as Record<string, string>;
+      expect(config.VITE_AUTH_MODE).toBe('host-session');
+    });
+
+    it('rejects a manifest whose capabilities is not a string array', async () => {
+      fetchMock.mockImplementationOnce(async () => jsonResponse({ ...MANIFEST, capabilities: 'host-session' }));
+      const handle = loader.mount(document.createElement('div'), { ...hostCtx({ onFatal: (e) => fatals.push(e) }), source: { baseUrl: BASE, importEntry: importMock } });
+      expect(await handle.ready).toBeNull();
+      expect(fatals.map((f) => f.code)).toEqual(['gw_embed_manifest_unreachable']);
+    });
+
+    it('refuses a malformed session (any session at all) against a manifest without the capability', async () => {
+      const ctx = { ...hostSessionCtx(), session: { mode: 'HOST', meUrl: '/me', logoutUrl: '/logout' } } as unknown as GwHostContext;
+      const handle = loader.mount(document.createElement('div'), { ...ctx, source: { baseUrl: BASE, importEntry: importMock } });
+      expect(await handle.ready).toBeNull();
+      expect(fatals.map((f) => f.code)).toEqual(['gw_embed_capability_missing']);
+      expect(importMock).not.toHaveBeenCalled();
+    });
+
+    it('refuses session: null against a manifest without the capability', async () => {
+      const ctx = { ...hostSessionCtx(), session: null } as unknown as GwHostContext;
+      const handle = loader.mount(document.createElement('div'), { ...ctx, source: { baseUrl: BASE, importEntry: importMock } });
+      expect(await handle.ready).toBeNull();
+      expect(fatals.map((f) => f.code)).toEqual(['gw_embed_capability_missing']);
+    });
+
+    it('rejects a manifest whose capabilities hold non-strings', async () => {
+      fetchMock.mockImplementationOnce(async () => jsonResponse({ ...MANIFEST, capabilities: [1] }));
+      const handle = loader.mount(document.createElement('div'), { ...hostCtx({ onFatal: (e) => fatals.push(e) }), source: { baseUrl: BASE, importEntry: importMock } });
+      expect(await handle.ready).toBeNull();
+      expect(fatals.map((f) => f.code)).toEqual(['gw_embed_manifest_unreachable']);
+    });
+
+    it('does not seed a publicUrl that fails the https/localhost rule', async () => {
+      fetchMock.mockImplementationOnce(async () => jsonResponse({ ...MANIFEST, capabilities: ['host-session'] }));
+      const ctx = hostSessionCtx();
+      ctx.supabase.publicUrl = 'javascript:alert(1)';
+      await loader.mount(document.createElement('div'), { ...ctx, source: { baseUrl: BASE, importEntry: importMock } }).ready;
+      const config = (globalThis as Record<string, unknown>).__GATEWAZE_CONFIG__ as Record<string, string>;
+      expect(config).not.toHaveProperty('VITE_SUPABASE_PUBLIC_URL');
+    });
+
+    it('passes supabase.publicUrl through to the seeded runtime config', async () => {
+      fetchMock.mockImplementationOnce(async () => jsonResponse({ ...MANIFEST, capabilities: ['host-session'] }));
+      const ctx = hostSessionCtx();
+      ctx.supabase.publicUrl = 'https://project.supabase.co';
+      const handle = loader.mount(document.createElement('div'), { ...ctx, source: { baseUrl: BASE, importEntry: importMock } });
+      expect(await handle.ready).not.toBeNull();
+      const config = (globalThis as Record<string, unknown>).__GATEWAZE_CONFIG__ as Record<string, string>;
+      expect(config.VITE_SUPABASE_PUBLIC_URL).toBe('https://project.supabase.co');
+      expect(innerMount).toHaveBeenCalledWith(expect.any(HTMLElement), expect.objectContaining({ supabase: expect.objectContaining({ publicUrl: 'https://project.supabase.co' }) }));
+    });
+  });
+
   it('refuses a manifest whose entry or stylesheet lives on another origin', async () => {
     for (const bad of [{ entry: 'https://evil.example.test/payload.js' }, { stylesheet: '//evil.example.test/x.css' }]) {
       fatals = [];
