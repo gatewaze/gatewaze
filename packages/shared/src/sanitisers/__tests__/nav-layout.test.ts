@@ -79,4 +79,38 @@ describe('sanitizeNavLayout', () => {
     });
     expect(out.sidebar[0].id).toBe('section-0');
   });
+
+  it('keeps hub lists, flattened, under valid hub ids only', () => {
+    const out = sanitizeNavLayout({
+      version: 1,
+      sidebar: [],
+      settings: [],
+      hidden: [],
+      // JSON.parse so `__proto__` lands as an own key, as it would from a request body.
+      hubs: JSON.parse(
+        '{"marketing-os":[{"key":"a","label":"A","extra":"x","children":[{"key":"b"}]},{"nope":1}],' +
+          '"__proto__":[{"key":"evil"}],"Bad Id":[{"key":"c"}]}',
+      ),
+    });
+    expect(out.hubs).toEqual({ 'marketing-os': [{ key: 'a', label: 'A' }] });
+  });
+
+  it('omits hubs when none are valid, and ignores a non-object', () => {
+    expect(sanitizeNavLayout({ sidebar: [], hubs: { 'Bad Id': [] } }).hubs).toBeUndefined();
+    expect(sanitizeNavLayout({ sidebar: [], hubs: [[{ key: 'a' }]] }).hubs).toBeUndefined();
+  });
+
+  it('never lets a __proto__ key reach the hubs prototype', () => {
+    const out = sanitizeNavLayout(JSON.parse('{"sidebar":[],"hubs":{"__proto__":[{"key":"evil"}],"ok":[]}}'));
+    expect(Object.getPrototypeOf(out.hubs)).toBe(Object.prototype);
+    expect(Object.hasOwn(out.hubs!, '__proto__')).toBe(false);
+    expect(Object.keys(out.hubs!)).toEqual(['ok']);
+  });
+
+  it('caps the number of hubs', () => {
+    const hubs = Object.fromEntries(Array.from({ length: 25 }, (_, i) => [`hub-${i}`, [{ key: 'k' }]]));
+    const out = sanitizeNavLayout({ sidebar: [], hubs });
+    expect(Object.keys(out.hubs!)).toHaveLength(20);
+  });
 });
+
