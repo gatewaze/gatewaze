@@ -425,6 +425,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
             timeoutMs,
             downstream: reply.raw,
             privateResponse: bearer !== null && bearer !== cfg.anonKey,
+            siteOrigin,
             log: request.log,
           });
         } catch (e) {
@@ -518,6 +519,9 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
       return reject(400, 'Bad Request');
     }
     // The client went away (or half-closed) while the session loaded.
+    // Defence in depth: ws already destroys such sockets in handleUpgrade,
+    // and the socket-close listener above releases the slot, so no test can
+    // reach the readable/writable part of this check on its own.
     if (socket.destroyed || !socket.readable || !socket.writable) return reject(400, 'Bad Request');
     const s = session;
     wss.handleUpgrade(req, socket, head, (client) => {

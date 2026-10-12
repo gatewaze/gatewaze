@@ -259,6 +259,10 @@ export class FakeSupabase {
       res.writeHead(302, { location: `${this.url}/storage/v1/object/public/b/k.png?v=1` }).end();
       return;
     }
+    if (url.pathname.endsWith('/redirect-to')) {
+      res.writeHead(302, { location: url.searchParams.get('to') ?? '' }).end();
+      return;
+    }
     if (url.pathname.endsWith('/redirect-external')) {
       res.writeHead(302, { location: 'https://cdn.example.test/k.png' }).end();
       return;

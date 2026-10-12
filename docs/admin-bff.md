@@ -28,7 +28,13 @@ For each proxied request the BFF does the following.
 - It removes `access_token` from the query string, and `token` when its value is the `host-session` placeholder. The token travels only in the header, so it never appears in an upstream access log.
 - It appends the client address to `X-Forwarded-For`.
 - It streams the request and response bodies without buffering them. If the browser goes away first, it aborts the upstream request.
-- It drops any `Set-Cookie` and any `x-gw-session` header from the upstream, so only the BFF can set the session marker. A redirect from the upstream to its own internal address is made relative, and a relative redirect on the same origin passes through. Any other `Location` is removed, and the BFF logs it. That covers an absolute address on another host or scheme, an address starting with `//`, and any value with a backslash or a control character, because browsers read those as another host.
+- It drops any `Set-Cookie` and any `x-gw-session` header from the upstream, so only the BFF can set the session marker. The BFF checks every upstream `Location` header as follows.
+
+- A redirect to the upstream's own internal address, or to the admin's public origin, is made relative.
+- A relative redirect must stay on the same origin. A path that starts with `//`, including one that only becomes `//` after `..` is resolved, is removed.
+- A redirect to any other `https:` address passes through unchanged. Edge functions choose their own redirect targets, e.g. the Google Sheets sign-in sends the browser to `accounts.google.com`, the same as when the browser calls them directly.
+- `http:` passes only to `localhost`, `127.0.0.1` and `*.localhost`, for local development.
+- Everything else is removed, and the BFF logs it. That covers other schemes such as `javascript:` and `data:`, and any value with a backslash or a control character, because browsers read those as another host.
 - When the request used the session, it marks the response `Cache-Control: private` (keeping the upstream's other directives) and adds `Cookie` to `Vary`, so no shared cache can serve it to someone else.
 
 For Realtime, the BFF accepts the browser's WebSocket and opens its own socket to Realtime. It writes the real token into every `phx_join` and `access_token` message, because Realtime reads the token from those messages and not from a header. Before the token expires, the BFF refreshes the session and sends Realtime the new token. When the user signs out, on any replica, the BFF closes that user's sockets with code 4001.
@@ -145,8 +151,8 @@ Restarting or flushing Redis signs every admin out.
 | `ADMIN_BFF_SESSION_SECRET` | yes | 64 hex characters (`openssl rand -hex 32`). It encrypts the session cookies and the session records in Redis. To rotate, put the new key first and keep the old one after a comma. The first key encrypts and every key decrypts. Keep the old key for at least `ADMIN_BFF_SESSION_TTL_SECONDS` after rotating, or every session it encrypted ends early. |
 | `OIDC_IDENTIFIER` | no | GoTrue provider, default `custom:lfid`. |
 | `ADMIN_BFF_SESSION_TTL_SECONDS` | no | Session lifetime, default 604800 (7 days). |
-| `ADMIN_BFF_UPSTREAM_TIMEOUT_MS` | no | Idle timeout for a proxied request, default 300000. |
-| `ADMIN_BFF_SIGNIN_RATE_LIMIT` | no | Requests a minute per client address to `/bff/login` and to `/bff/callback`, default 30. |
+| `ADMIN_BFF_UPSTREAM_TIMEOUT_MS` | no | Idle timeout for a proxied request, default 300000. The ingress has its own timeout in front of this one. ingress-nginx closes a request that sends nothing back for 60 seconds by default, so a long edge function call ends there first. To raise it on the chart's ingress, add `nginx.ingress.kubernetes.io/proxy-read-timeout: "300"` and `nginx.ingress.kubernetes.io/proxy-send-timeout: "300"` to `ingress.annotations`. Those annotations apply to every host on the chart's ingress. |
+| `ADMIN_BFF_SIGNIN_RATE_LIMIT` | no | Requests a minute per client address to `/bff/login` and to `/bff/callback`, default 30. Each replica counts on its own, so with the chart's default of 2 replicas one address can make about twice this many. |
 | `ADMIN_BFF_TRUST_PROXY` | no | Comma-separated proxies whose `X-Forwarded-For` is trusted: names (`loopback`, `linklocal`, `uniquelocal`), addresses or CIDR ranges. Default `loopback,linklocal,uniquelocal`. |
 | `PORT`, `HOST`, `LOG_LEVEL` | no | Defaults `3001`, `0.0.0.0`, `info`. |
 
