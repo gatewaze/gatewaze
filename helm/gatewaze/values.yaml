@@ -41,7 +41,8 @@ replicaCount:
 # =============================================================================
 # By default the chart renders one Secret, <instance>-secret, from the
 # secret-bearing values below (supabase.*Key, redis.password, email.*,
-# githubToken, publicApi.apiKeyPepper, mcpPublic.*, tracking.segmentWriteKey)
+# githubToken, publicApi.apiKeyPepper, mcpPublic.*, tracking.segmentWriteKey,
+# adminBff.sessionSecret)
 # and every pod reads it through envFrom.
 #
 # Set existingSecret to the name of a Secret you manage yourself (for example
@@ -60,6 +61,8 @@ replicaCount:
 #   MCP_PUBLIC_API_KEY, MCP_TOKEN_SECRET, MCP_EVENTS_TOKEN   when mcpPublic.enabled
 #   SCRAPLING_INTERNAL_TOKEN                       when scraplingFetcher.enabled
 #   SEGMENT_WRITE_KEY                              optional
+#   ADMIN_BFF_SESSION_SECRET                       when adminBff.enabled (openssl rand -hex 32);
+#                                                  encrypts the admin session cookies and Redis records
 #   plus any env.* value you would rather keep out of the ConfigMap
 #   (later envFrom sources win, so a key here overrides the ConfigMap).
 existingSecret: ""
@@ -786,3 +789,58 @@ eventsMcp:
     limits:
       cpu: "500m"
       memory: "512Mi"
+
+# =============================================================================
+# Admin BFF (host-session mode) — docs/admin-bff.md
+# =============================================================================
+# The admin SPA's session holder: runs the LFID sign-in through GoTrue, keeps
+# the Supabase session server-side (Redis, behind an encrypted HttpOnly
+# cookie) and proxies Supabase, the API and Realtime with the real token, so
+# no access or refresh token ever reaches the browser. Opt-in; with both flags
+# false the chart renders exactly as it did before.
+adminBff:
+  # -- Deploy the admin-bff Deployment + Service (+ PDB). Requires
+  # adminBff.sessionSecret (or ADMIN_BFF_SESSION_SECRET in existingSecret).
+  enabled: false
+  # -- Switch the admin to host-session mode: sets VITE_AUTH_MODE=host-session
+  # (and the URLs that go with it) on the admin pods, and routes /bff,
+  # /rest/v1, /storage/v1, /functions/v1, /realtime/v1 and /api on the admin
+  # host to the BFF. Requires enabled=true and ingress.enabled=true. Turn on
+  # `enabled` first, check /bff/healthz, then this.
+  switchAdmin: false
+  replicaCount: 2
+  # -- GoTrue provider identifier for sign-in (a custom OIDC provider
+  # registered in Supabase Auth, v2.187+).
+  provider: "custom:lfid"
+  # -- Session lifetime in seconds: the cookie's maximum age, and how long an
+  # idle session is kept in Redis (renewed on each token refresh).
+  sessionTtlSeconds: 604800
+  # -- Supabase origin as the BFF reaches it, e.g. http://supabase-kong:8000
+  # for an in-cluster self-hosted Supabase. Empty = supabase.url.
+  supabaseInternalUrl: ""
+  # -- 32-byte master secret, 64 hex characters (openssl rand -hex 32). It
+  # encrypts the session cookies and the session records in Redis (separate
+  # keys are derived from it for each). For rotation, a comma-separated list:
+  # the first key encrypts, all decrypt. Keep an old key in the list for at
+  # least sessionTtlSeconds after rotating, or sessions it encrypted end.
+  # Ignored when existingSecret is set.
+  sessionSecret: ""
+  # -- Proxies whose X-Forwarded-For is trusted for the client address the
+  # sign-in rate limit counts by (names loopback/linklocal/uniquelocal,
+  # addresses or CIDRs, comma-separated). Empty = the BFF default,
+  # loopback,linklocal,uniquelocal. Narrow it to the ingress controller's pod
+  # CIDR if anything else in the cluster can reach the BFF.
+  trustProxy: ""
+  # -- Requests per minute per client address to /bff/login and to
+  # /bff/callback. Empty = the BFF default, 30.
+  signInRateLimit: ""
+  # -- Idle timeout in milliseconds for a proxied request. Empty = the BFF
+  # default, 300000.
+  upstreamTimeoutMs: ""
+  resources:
+    requests:
+      cpu: 50m
+      memory: 96Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi

@@ -24,6 +24,7 @@ const REPO_ROOT = join(import.meta.dirname ?? __dirname, '..');
 const SCAN_DIRS = [
   'packages/api/src',
   'packages/admin/src',
+  'packages/admin-bff/src',
   'packages/portal',
   'packages/shared/src',
   'scripts',

@@ -265,6 +265,7 @@ version.
 | Image | What it is | Runs in the chart by default |
 |---|---|---|
 | `admin` | The administrator interface. A React application built with Vite and served by NGINX. This is where you manage people, events, content, email, and modules. | Yes |
+| `admin-bff` | The optional session holder for the administrator interface in host-session mode. It runs the sign-in through Supabase Auth and keeps the session on the server, so the browser never holds a Supabase token. It proxies Supabase, the API and Realtime with the real token. See [Admin BFF](./admin-bff.md). | No, `adminBff.enabled` |
 | `portal` | The public website. A Next.js application rendered on the server. This is what your community sees. It builds itself when the pod starts, so its first minute is memory hungry. | Yes |
 | `api` | The Express API server. It handles imports and exports, module installation and reconciliation, the public REST API at `/api/v1`, and the routes that modules register. It holds the Supabase service role key, so it can read and write past row level security. | Yes |
 | `worker` | The background job runner, on Redis and BullMQ. It sends bulk email, processes images, runs scrapers, and executes any job a module registers. It carries a Chromium browser for the scrapers, so it is much larger than the other images and gets fixed on its own schedule. `worker.image.tag` lets you pin it separately. | Yes |
