@@ -393,6 +393,30 @@ describe("module hub pages", () => {
     expect(resolveNavigation(tree, layout({})).hubs).toEqual({ constructor: [] });
   });
 
+  it("passes the item's i18n key through only when the layout doesn't override the title", () => {
+    const tree = treeWithHub();
+    tree[1] = { ...tree[1], transKey: "nav.people" };
+    const plain = resolveNavigation(tree, layout({ "marketing-os": [{ key: "people" }] })).hubs["marketing-os"][0];
+    expect(plain.titleKey).toBe("nav.people");
+    const labelled = resolveNavigation(tree, layout({ "marketing-os": [{ key: "people", label: "Contacts" }] })).hubs["marketing-os"][0];
+    expect(labelled.titleKey).toBeUndefined();
+    expect(labelled.title).toBe("Contacts");
+  });
+
+  it("keeps only string tags", () => {
+    const { hubs } = resolveNavigation(
+      treeWithHub(),
+      layout({ "marketing-os": [{ key: "people", tags: ["a", 3, null] as never }] }),
+    );
+    expect(hubs["marketing-os"][0].tags).toEqual(["a"]);
+  });
+
+  it("drops a module card whose item has no route", () => {
+    const tree = treeWithHub();
+    tree[1] = { ...tree[1], path: undefined };
+    expect(resolveNavigation(tree, layout({ "marketing-os": [{ key: "people" }] })).hubs["marketing-os"]).toEqual([]);
+  });
+
   describe("custom link cards", () => {
     it("resolves a custom card with a safe URL", () => {
       const { hubs } = resolveNavigation(

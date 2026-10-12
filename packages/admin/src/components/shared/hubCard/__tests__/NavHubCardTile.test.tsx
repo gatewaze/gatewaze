@@ -71,6 +71,46 @@ describe("NavHubCardTile", () => {
     expect(navigateHost).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["ctrl", { ctrlKey: true }],
+    ["shift", { shiftKey: true }],
+    ["alt", { altKey: true }],
+    ["middle button", { button: 1 }],
+  ])("leaves a %s click on a host path to the browser", (_name, init) => {
+    const navigateHost = vi.fn();
+    setEmbeddedMode(true);
+    setHostNavigate(navigateHost);
+    renderTile({ url: "/foundation/events" });
+    fireEvent.click(screen.getByRole("link"), init);
+    expect(navigateHost).not.toHaveBeenCalled();
+  });
+
+  it("opens a host path set to a new tab as a plain new-tab link", () => {
+    const navigateHost = vi.fn();
+    setEmbeddedMode(true);
+    setHostNavigate(navigateHost);
+    renderTile({ url: "/foundation/events", newTab: true });
+    const link = screen.getByRole("link");
+    fireEvent.click(link);
+    expect(navigateHost).not.toHaveBeenCalled();
+    expect(link.getAttribute("target")).toBe("_blank");
+  });
+
+  it("marks an absolute URL as opening elsewhere and never hands it to the host", () => {
+    const navigateHost = vi.fn();
+    setEmbeddedMode(true);
+    setHostNavigate(navigateHost);
+    renderTile({ url: "https://example.org/x" });
+    expect(screen.getByLabelText("Opens elsewhere")).toBeTruthy();
+    fireEvent.click(screen.getByRole("link"));
+    expect(navigateHost).not.toHaveBeenCalled();
+  });
+
+  it("does not mark a same-tab host path as opening elsewhere", () => {
+    renderTile({ url: "/foundation/events" });
+    expect(screen.queryByLabelText("Opens elsewhere")).toBeNull();
+  });
+
   it("does not link a coming-soon card, and marks it", () => {
     renderTile({ url: "https://example.org", comingSoon: true });
     expect(screen.queryByRole("link")).toBeNull();

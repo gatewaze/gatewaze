@@ -40,6 +40,12 @@ export interface EditorState {
   overrides: Record<string, Override>;
   hubIds: string[]; // installed hub ids, in pool order
   hubCards: Record<string, NavLayoutItem[]>; // hub id -> its cards, in order
+  /**
+   * Card lists for hubs whose module isn't installed or enabled right now.
+   * Not editable, but written back on save so disabling a module for a while
+   * doesn't delete its cards (custom cards can't be rebuilt from defaults).
+   */
+  otherHubs: Record<string, NavLayoutItem[]>;
   defaultRoute?: string;
 }
 
@@ -106,12 +112,17 @@ export function layoutToState(layout: NavLayout, pool: NavPool): EditorState {
     const seen = new Set<string>();
     hubCards[id] = filed.filter((card) => {
       if (seen.has(card.key)) return false;
-      // Custom cards stay as they are. A module card needs its module
-      // installed, and a hub never lists its own page.
-      const keep = isCustomCard(card) || (inPool.has(card.key) && canFileOntoHub(pool.items.get(card.key), id));
+      // A hub never lists its own page. Everything else is kept, including
+      // cards whose module is disabled for now: they don't render, but saving
+      // must not delete them. The editor marks them as unavailable.
+      const keep = isCustomCard(card) || canFileOntoHub(pool.items.get(card.key), id);
       if (keep) seen.add(card.key);
       return keep;
     });
+  }
+  const otherHubs: EditorState["otherHubs"] = {};
+  for (const [id, cards] of Object.entries(layout.hubs ?? {})) {
+    if (!hubIds.includes(id)) otherHubs[id] = cards;
   }
   for (const key of layout.hidden) {
     if (take(key)) containers[HIDDEN].push(key);
@@ -135,6 +146,7 @@ export function layoutToState(layout: NavLayout, pool: NavPool): EditorState {
     overrides,
     hubIds,
     hubCards,
+    otherHubs,
     defaultRoute: layout.defaultRoute,
   };
 }
@@ -162,8 +174,13 @@ export function stateToLayout(state: EditorState): NavLayout {
       ],
     })),
     settings: (state.containers[SETTINGS] ?? []).map(itemRef),
-    ...(state.hubIds.length > 0
-      ? { hubs: Object.fromEntries(state.hubIds.map((id) => [id, state.hubCards[id] ?? []])) }
+    ...(state.hubIds.length > 0 || Object.keys(state.otherHubs).length > 0
+      ? {
+          hubs: {
+            ...state.otherHubs,
+            ...Object.fromEntries(state.hubIds.map((id) => [id, state.hubCards[id] ?? []])),
+          },
+        }
       : {}),
     hidden: state.containers[HIDDEN] ?? [],
     // A default page that isn't in the sidebar or settings (e.g. one that is
@@ -178,6 +195,9 @@ function isOffSidebar(state: EditorState, key: string): boolean {
 }
 
 // ── Hub cards ────────────────────────────────────────────────────────────────
+
+/** Longest tag the layout sanitiser keeps whole. */
+const MAX_TAG_LENGTH = 40;
 
 /** Whether a hub card is a custom link card rather than a nav item's page. */
 export function isCustomCard(card: Pick<NavLayoutItem, "key">): boolean {
@@ -214,6 +234,9 @@ export function newLinkKey(title: string, cards: NavLayoutItem[]): string {
  * sanitiser would drop, so the editor never shows a card that vanishes on save.
  */
 export function hubCardError(card: NavLayoutItem): string | null {
+  if ((card.tags ?? []).some((t) => t.length > MAX_TAG_LENGTH)) {
+    return `Keep each tag to ${MAX_TAG_LENGTH} characters.`;
+  }
   if (!isCustomCard(card)) return null;
   if (!card.label?.trim()) return "Give the card a title.";
   if (card.url) {

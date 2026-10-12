@@ -17,9 +17,10 @@ function parseLayout(raw: unknown): NavLayout | null {
   try {
     const obj = typeof raw === "string" ? JSON.parse(raw) : raw;
     return sanitizeNavLayout(obj);
-  } catch {
+  } catch (err) {
     // A malformed stored layout must never break navigation — fall back to
-    // module defaults rather than throwing.
+    // module defaults rather than throwing, but say why.
+    console.warn("[nav] ignoring a stored navigation layout that failed validation:", err);
   }
   return null;
 }

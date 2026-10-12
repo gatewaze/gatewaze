@@ -79,6 +79,9 @@ export function isSafeHubUrl(url: unknown): url is string {
   // eslint-disable-next-line no-control-regex -- rejecting control characters is the point
   if (/[\u0000-\u0020\u007f\\]/.test(url)) return false;
   if (url.startsWith('/')) return !url.startsWith('//');
+  // Require the full scheme and '//'. WHATWG would read "https:evil" or
+  // "http:/evil" as relative to the current page.
+  if (!/^https?:\/\//i.test(url)) return false;
   let parsed: URL;
   try {
     parsed = new URL(url);

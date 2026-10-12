@@ -70,7 +70,7 @@ describe("layoutToState / stateToLayout", () => {
     expect(state.hubCards).toEqual({ "marketing-os": [] });
   });
 
-  it("drops a hub's own page, uninstalled modules and repeated keys, but keeps custom cards", () => {
+  it("drops a hub's own page and repeated keys, and keeps custom cards and cards for disabled modules", () => {
     const state = layoutToState(
       layout({
         hubs: {
@@ -85,7 +85,18 @@ describe("layoutToState / stateToLayout", () => {
       }),
       buildPool(tree()),
     );
-    expect(state.hubCards["marketing-os"].map((c) => c.key)).toEqual(["people", "link:x"]);
+    // module.gone stays: its module may only be disabled for now.
+    expect(state.hubCards["marketing-os"].map((c) => c.key)).toEqual(["module.gone..gone", "people", "link:x"]);
+  });
+
+  it("keeps the cards of a hub whose module isn't installed when saving", () => {
+    const cards = [{ key: "link:x", label: "X", url: "https://example.org" }];
+    const state = layoutToState(layout({ hubs: { "other-hub": cards } }), buildPool(tree()));
+    expect(state.hubIds).toEqual(["marketing-os"]);
+    expect(stateToLayout(state).hubs).toEqual({ "other-hub": cards, "marketing-os": [] });
+    // Even with no hub installed at all.
+    const none = layoutToState(layout({ hubs: { "marketing-os": cards } }), buildPool(tree(false)));
+    expect(stateToLayout(none).hubs).toEqual({ "marketing-os": cards });
   });
 
   it("writes no hubs field when no hub is installed", () => {
@@ -146,7 +157,14 @@ describe("hub card helpers", () => {
     expect(hubCardError({ key: "link:x", label: "X", url: "//evil.example.org" })).toMatch(/https/);
     expect(hubCardError({ key: "link:x", label: "X", url: "https://example.org" })).toBeNull();
     expect(hubCardError({ key: "link:x", label: "X", comingSoon: true })).toBeNull();
+    expect(hubCardError({ key: "link:x", label: "   ", url: "/x" })).toMatch(/title/);
     expect(hubCardError({ key: "people" })).toBeNull();
+    expect(hubCardError({ key: "people", tags: ["a".repeat(41)] })).toMatch(/40 characters/);
+    expect(hubCardError({ key: "people", tags: ["a".repeat(40)] })).toBeNull();
+  });
+
+  it("caps a derived link key's slug at 48 characters", () => {
+    expect(newLinkKey("a".repeat(80), [])).toBe(`link:${"a".repeat(48)}`);
   });
 
   it("drops empty fields, trims text, and keeps url and newTab on custom cards only", () => {
@@ -161,6 +179,11 @@ describe("hub card helpers", () => {
         comingSoon: false,
       }),
     ).toEqual({ key: "people", description: "Find people", tags: ["CRM"] });
+    expect(compactCard({ key: "people", accent: "teal", eyebrow: " Agent 2 " })).toEqual({
+      key: "people",
+      accent: "teal",
+      eyebrow: "Agent 2",
+    });
     expect(compactCard({ key: "link:x", label: "X", url: " /x ", newTab: true })).toEqual({
       key: "link:x",
       label: "X",

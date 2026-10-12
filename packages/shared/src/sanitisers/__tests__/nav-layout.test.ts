@@ -147,6 +147,16 @@ describe('sanitizeNavLayout', () => {
       expect(hub([{ key: 'k', accent: 'constructor' }])![0]).not.toHaveProperty('accent');
     });
 
+    it('keeps only true booleans, and caps the line above the title and each tag', () => {
+      const [card] = hub([
+        { key: 'link:x', label: 'X', url: '/x', comingSoon: 'yes', newTab: 1, eyebrow: 'e'.repeat(100), tags: ['t'.repeat(100)] },
+      ])!;
+      expect(card).not.toHaveProperty('comingSoon');
+      expect(card).not.toHaveProperty('newTab');
+      expect(card.eyebrow).toHaveLength(60);
+      expect(card.tags![0]).toHaveLength(40);
+    });
+
     it('keeps one card per key', () => {
       expect(hub([{ key: 'k', label: 'first' }, { key: 'k', label: 'second' }])).toEqual([{ key: 'k', label: 'first' }]);
     });
@@ -189,6 +199,11 @@ describe('sanitizeNavLayout', () => {
       '//evil.example.org/x',
       '/\\evil.example.org',
       'https://user:pass@example.org',
+      'https://user@example.org',
+      'https://:pass@example.org',
+      'https:evil.example.org',
+      'http:/evil.example.org',
+      'HTTPS:evil.example.org',
       'https://exa mple.org',
       '/path\nwith-newline',
       'mailto:a@b.c',

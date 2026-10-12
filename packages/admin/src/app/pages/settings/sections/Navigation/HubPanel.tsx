@@ -75,6 +75,7 @@ export function HubPanel({
               <HubCardRow
                 key={card.key}
                 card={card}
+                unavailable={!isCustomCard(card) && !pool.items.has(card.key)}
                 fallbackTitle={defaultsFor(card).title}
                 fallbackIcon={defaultsFor(card).icon}
                 onEdit={() => setEditing(i)}
@@ -125,7 +126,7 @@ export function HubPanel({
       {editingCard && (
         <HubCardDialog
           card={editingCard}
-          index={editing === "new" ? cards.length : (editing as number)}
+          index={typeof editing === "number" ? editing : cards.length}
           defaults={defaultsFor(editingCard)}
           onClose={() => setEditing(null)}
           onSave={(saved) => {
@@ -144,12 +145,15 @@ export function HubPanel({
 
 function HubCardRow({
   card,
+  unavailable,
   fallbackTitle,
   fallbackIcon,
   onEdit,
   onRemove,
 }: {
   card: NavLayoutItem;
+  /** A module card whose module isn't installed or enabled right now. */
+  unavailable: boolean;
   fallbackTitle?: string;
   fallbackIcon?: string;
   onEdit: () => void;
@@ -183,6 +187,14 @@ function HubCardRow({
       {custom && (
         <span className="max-w-[40%] truncate rounded bg-[var(--accent-a3)] px-1 text-[10px] text-[var(--accent-11)]" title={card.url}>
           {card.url ?? "custom"}
+        </span>
+      )}
+      {unavailable && (
+        <span
+          className="rounded bg-[var(--amber-a3)] px-1 text-[10px] text-[var(--amber-11)]"
+          title="This module isn't enabled, so the card is hidden. It comes back when the module is enabled."
+        >
+          module not enabled
         </span>
       )}
       {card.comingSoon && (
