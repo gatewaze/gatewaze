@@ -60,6 +60,7 @@ describe('host-session auth shim: session', () => {
     expect(fetchMock).toHaveBeenCalledWith('/bff/me', {
       credentials: 'include',
       headers: { apikey: 'anon-key' },
+      signal: expect.any(AbortSignal),
     })
   })
 
@@ -616,5 +617,90 @@ describe('host-session auth shim: pinned details', () => {
     await makeAuth().signInWithOAuth({ provider: 'custom:lfid' })
 
     expect(assign).toHaveBeenCalledWith('/bff/login?return_to=%2F')
+  })
+})
+
+describe('host-session auth shim: access arriving', () => {
+  it('Retry-After: 0 falls back to the 2s default', async () => {
+    fetchMock.mockResolvedValueOnce(json(503, { error: 'admin_check_pending' }, { 'retry-after': '0' }))
+
+    await expect(makeAuth().me()).resolves.toEqual({ status: 'pending', retryAfterMs: 2000 })
+  })
+
+  it.each([
+    ['pending', () => json(503, { error: 'admin_check_pending' }, { 'retry-after': '1' })],
+    ['unavailable', () => json(502, {})],
+  ])('emits SIGNED_IN when %s turns ok', async (_label, first) => {
+    fetchMock.mockResolvedValueOnce(first()).mockResolvedValueOnce(json(200, { user: USER }))
+    const auth = makeAuth()
+    const listener = vi.fn()
+    auth.onAuthStateChange(listener)
+    await flush()
+
+    await auth.me()
+
+    expect(listener).toHaveBeenCalledWith('SIGNED_IN', expect.objectContaining({ access_token: HOST_SESSION_TOKEN, user: USER }))
+  })
+
+  it('emits SIGNED_IN when a re-checked not_admin turns ok', async () => {
+    vi.useFakeTimers()
+    try {
+      fetchMock.mockResolvedValueOnce(json(403, { error: 'not_admin' })).mockResolvedValueOnce(json(200, { user: USER }))
+      const auth = makeAuth()
+      const listener = vi.fn()
+      auth.onAuthStateChange(listener)
+      await vi.advanceTimersByTimeAsync(0)
+      vi.advanceTimersByTime(NOT_ADMIN_CACHE_MS)
+
+      await auth.me()
+
+      expect(listener).toHaveBeenCalledWith('SIGNED_IN', expect.anything())
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not emit SIGNED_IN for an ok on the first answer', async () => {
+    fetchMock.mockResolvedValueOnce(json(200, { user: USER }))
+    const auth = makeAuth()
+    const listener = vi.fn()
+    auth.onAuthStateChange(listener)
+    await flush()
+    await auth.me()
+
+    expect(listener).not.toHaveBeenCalledWith('SIGNED_IN', expect.anything())
+  })
+})
+
+describe('host-session auth shim: bounded /me and the in-flight guard', () => {
+  it('abandons a hung /me after the timeout and reports unavailable', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    fetchMock.mockImplementationOnce(
+      (_url: string, init: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () => reject(init.signal?.reason))
+        }),
+    )
+    const auth = makeAuth({ meTimeoutMs: 20 })
+
+    await expect(auth.me()).resolves.toEqual({ status: 'unavailable' })
+  })
+
+  it('an ok that lands after signOut() does not emit SIGNED_IN', async () => {
+    let resolveMe: (r: Response) => void = () => {}
+    fetchMock
+      .mockResolvedValueOnce(json(503, { error: 'admin_check_pending' }, { 'retry-after': '1' }))
+      .mockReturnValueOnce(new Promise<Response>((resolve) => (resolveMe = resolve)))
+    const auth = makeAuth()
+    const listener = vi.fn()
+    auth.onAuthStateChange(listener)
+    await flush()
+
+    const inFlight = auth.me()
+    auth.signedOut()
+    resolveMe(json(200, { user: USER }))
+    await inFlight
+
+    expect(listener).not.toHaveBeenCalledWith('SIGNED_IN', expect.anything())
   })
 })

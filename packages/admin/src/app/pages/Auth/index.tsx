@@ -11,18 +11,17 @@ import { useAuthContext } from "@/app/contexts/auth/context";
 import { AuthFormValues, schema } from "./schema";
 import { Page } from "@/components/shared/Page";
 import GradientBackground from "@/components/shared/GradientBackground";
-import { getHostStatus, getSupabase, isHostSession, signInUrl, type HostStatus } from "@/lib/supabase";
-import { NOT_ADMIN_CACHE_MS, safeReturnTo } from "@/lib/hostSession";
+import { getSupabase, isHostSession, signInUrl } from "@/lib/supabase";
+import { safeReturnTo } from "@/lib/hostSession";
+import { useHostAccessCheck } from "@/hooks/useHostAccessCheck";
+import { HostAccessStatusView } from "@/components/auth/HostAccessStatusView";
+import { LiveAnnouncement } from "@/components/auth/LiveAnnouncement";
 import { REDIRECT_URL_KEY } from "@/constants/app";
 import { ModuleSlot } from "@/components/ModuleSlot";
 import { useModuleSlots } from "@/hooks/useModuleSlots";
-import { signInErrorMessage } from "./signInErrors";
+import { SIGN_IN_UNAVAILABLE_MESSAGE, signInErrorMessage } from "./signInErrors";
 
 // ----------------------------------------------------------------------
-
-// How many times a pending admin check is polled before the page gives up
-// and offers a manual retry.
-const MAX_PENDING_CHECKS = 5;
 
 function readQueryParam(name: string): string | null {
   return new URLSearchParams(window.location.search).get(name);
@@ -32,16 +31,24 @@ export default function SignIn() {
   // Host-session mode: the session holder owns sign-in, so this page offers
   // one button that starts its flow, and explains a signed-in non-admin.
   const hostMode = isHostSession();
-  const [hostStatus, setHostStatus] = useState<HostStatus | null>(null);
-  // Bumped to ask the session holder again (a pending poll, the one not_admin
-  // re-check, or the Retry button).
-  const [hostCheck, setHostCheck] = useState(0);
-  const pendingChecks = useRef(0);
-  const notAdminRechecked = useRef(false);
-  // Only a check that turns ok after an earlier answer that was not ok
-  // navigates; an ok on first load leaves the page as it is, so a Provider
-  // that disagrees cannot cause a reload loop.
-  const sawNotOk = useRef(false);
+  // Polling, the not_admin re-check and the pending cap live in the shared
+  // hook (the embed's access gate uses the same one). Access that arrives
+  // after an answer that withheld it goes to the requested page; an ok on
+  // the first check does not navigate, so a Provider that disagrees cannot
+  // cause a reload loop.
+  const {
+    status: hostStatus,
+    setStatus: setHostStatus,
+    retry: retryHostStatus,
+  } = useHostAccessCheck({
+    enabled: hostMode,
+    onAccessGranted: () => {
+      window.location.assign(safeReturnTo(readQueryParam(REDIRECT_URL_KEY) ?? "/"));
+    },
+  });
+  const [signingOut, setSigningOut] = useState(false);
+  // Focus target when the focused button disappears (Retry, Sign out).
+  const headingRef = useRef<HTMLParagraphElement>(null);
   const hostErrorCode = hostMode ? readQueryParam("error") : null;
   const hostError = hostErrorCode ? signInErrorMessage(hostErrorCode) : null;
   const { login, errorMessage, isLoading } = useAuthContext();
@@ -101,55 +108,6 @@ export default function SignIn() {
   const [enabledFeatures, setEnabledFeatures] = useState<string[]>([]);
 
   useEffect(() => {
-    if (!hostMode) return;
-    let live = true;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const checkAgainAfter = (ms: number) => {
-      timer = setTimeout(() => {
-        if (live) setHostCheck((n) => n + 1);
-      }, ms);
-    };
-    getHostStatus()
-      .then((status) => {
-        if (!live) return;
-        if (status.status === "ok") {
-          if (sawNotOk.current) {
-            window.location.assign(safeReturnTo(readQueryParam(REDIRECT_URL_KEY) ?? "/"));
-            return;
-          }
-          setHostStatus(status);
-          return;
-        }
-        sawNotOk.current = true;
-        if (status.status === "pending") {
-          pendingChecks.current += 1;
-          if (pendingChecks.current > MAX_PENDING_CHECKS) {
-            setHostStatus({ status: "unavailable" });
-            return;
-          }
-          setHostStatus(status);
-          checkAgainAfter(status.retryAfterMs);
-          return;
-        }
-        if (status.status === "not_admin" && !notAdminRechecked.current) {
-          // A retrying check answers 503 admin_check_pending, so not_admin
-          // should be final; looking once more after the cache window is
-          // defence in depth (access granted moments ago, or a 403 sent early).
-          notAdminRechecked.current = true;
-          checkAgainAfter(NOT_ADMIN_CACHE_MS);
-        }
-        setHostStatus(status);
-      })
-      .catch(() => {
-        if (live) setHostStatus({ status: "unavailable" });
-      });
-    return () => {
-      live = false;
-      if (timer) clearTimeout(timer);
-    };
-  }, [hostMode, hostCheck]);
-
-  useEffect(() => {
     // Host-session mode hides the provider slot, so there is nothing to discover.
     if (hostMode) return;
     async function fetchProviders() {
@@ -181,21 +139,49 @@ export default function SignIn() {
   };
 
   const retryHostCheck = () => {
-    pendingChecks.current = 0;
-    setHostStatus(null);
-    setHostCheck((n) => n + 1);
+    retryHostStatus();
+    headingRef.current?.focus();
   };
 
   const hostSignOut = async () => {
-    const { error } = await getSupabase().auth.signOut();
-    if (error) {
-      // The session holder's session may still be live; do not show the
-      // signed-out view as if it worked.
-      toast.error("Sign-out did not complete. Please try again.");
-      return;
+    setSigningOut(true);
+    try {
+      const { error } = await getSupabase().auth.signOut();
+      if (error) {
+        // The session holder's session may still be live; do not show the
+        // signed-out view as if it worked.
+        toast.error("Sign-out did not complete. Please try again.");
+        return;
+      }
+      setHostStatus({ status: "signed_out" });
+      headingRef.current?.focus();
+    } finally {
+      setSigningOut(false);
     }
-    setHostStatus({ status: "signed_out" });
   };
+
+  // Host mode: the heading and the announcement follow the access state.
+  // null is a check in flight (first load, or just after Retry).
+  const hostView: "checking" | "unavailable" | "not_admin" | "sign_in" =
+    hostStatus === null || hostStatus.status === "pending"
+      ? "checking"
+      : hostStatus.status === "unavailable"
+        ? "unavailable"
+        : hostStatus.status === "not_admin"
+          ? "not_admin"
+          : "sign_in";
+  const hostHeading = {
+    checking: "Checking your access",
+    unavailable: "Sign-in unavailable",
+    not_admin: "No admin access",
+    sign_in: "Sign in to continue",
+  }[hostView];
+  const hostAnnouncement = {
+    checking: "Checking your access…",
+    unavailable: SIGN_IN_UNAVAILABLE_MESSAGE,
+    not_admin: "Your account does not have admin access.",
+    sign_in: hostError ?? "",
+  }[hostView];
 
   const onSubmit = async (data: AuthFormValues) => {
     try {
@@ -220,9 +206,9 @@ export default function SignIn() {
               )
             )}
             <div className="mt-4">
-              <p className="text-black dark:text-white">
+              <p ref={headingRef} tabIndex={-1} className="text-black outline-none dark:text-white">
                 {hostMode
-                  ? "Sign in to continue"
+                  ? hostHeading
                   : hasSsoProvider
                   ? "Sign in to continue"
                   : magicLinkSent
@@ -233,25 +219,10 @@ export default function SignIn() {
             </div>
           </div>
           <Card className="mt-5 rounded-lg p-5 lg:p-7">
+            {hostMode && <LiveAnnouncement message={hostAnnouncement} />}
             {hostMode ? (
-              hostStatus?.status === "pending" ? (
-                <p className="text-center text-sm text-black dark:text-white" role="status">
-                  Checking your access…
-                </p>
-              ) : hostStatus?.status === "unavailable" ? (
-                <div className="space-y-4 text-center">
-                  <p className="text-sm text-black dark:text-white" role="status">
-                    Sign-in is temporarily unavailable.
-                  </p>
-                  <Button
-                    type="button"
-                    style={{ width: "100%" }}
-                    color="cyan"
-                    onClick={retryHostCheck}
-                  >
-                    Retry
-                  </Button>
-                </div>
+              hostView === "checking" || hostView === "unavailable" ? (
+                <HostAccessStatusView state={hostView} onRetry={retryHostCheck} />
               ) : hostStatus?.status === "not_admin" ? (
                 <div className="space-y-4 text-center">
                   <p className="text-sm text-black dark:text-white">
@@ -264,14 +235,15 @@ export default function SignIn() {
                     style={{ width: "100%" }}
                     color="gray"
                     onClick={hostSignOut}
+                    disabled={signingOut}
                   >
-                    Sign out
+                    {signingOut ? "Signing out…" : "Sign out"}
                   </Button>
                 </div>
               ) : (
                 <>
                   {hostError && (
-                    <div className="mb-4">
+                    <div className="mb-4 text-center">
                       <InputErrorMsg when={true}>{hostError}</InputErrorMsg>
                     </div>
                   )}

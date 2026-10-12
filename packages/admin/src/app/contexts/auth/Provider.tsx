@@ -1,11 +1,11 @@
 // Import Dependencies
-import { useEffect, useReducer, useRef, ReactNode } from "react";
+import { useCallback, useEffect, useReducer, useRef, ReactNode } from "react";
 
 // Local Imports
 import { SupabaseAuthService, AdminUser } from "@/utils/supabaseAuth";
 import { AuthProvider as AuthContextProvider, AuthContextType } from "./context";
 import { User } from "@/@types/user";
-import { isHostSession, supabase } from "@/lib/supabase";
+import { getHostStatus, isHostSession, supabase, type HostStatus } from "@/lib/supabase";
 import { isEmbedded } from "@/embed/embedMode";
 import { ImpersonationService } from "@/utils/impersonationService";
 
@@ -73,6 +73,7 @@ const reducerHandlers: Record<
     user: action.payload?.user ?? null,
     errorMessage: action.payload?.errorMessage ?? null,
     accessDenied: action.payload?.accessDenied ?? false,
+    hostAccess: action.payload?.hostAccess,
   }),
 
   LOGIN_REQUEST: (state) => ({
@@ -107,6 +108,7 @@ const reducerHandlers: Record<
       user: incoming,
       errorMessage: null,
       accessDenied: false,
+      hostAccess: undefined,
       impersonation: NO_IMPERSONATION,
     };
   },
@@ -126,6 +128,7 @@ const reducerHandlers: Record<
     user: null,
     errorMessage: null,
     accessDenied: action.payload?.accessDenied ?? false,
+    hostAccess: undefined,
     impersonation: {
       isImpersonating: false,
       originalUser: null,
@@ -170,6 +173,98 @@ const adminUserToUser = (adminUser: AdminUser): User => ({
   avatarUrl: adminUser.avatar_url,
 });
 
+type AuthDispatch = (action: AuthAction) => void;
+type SessionUser = { id: string; email?: string | null };
+type ResolveOutcome = "authenticated" | "not_admin" | "no_user" | "lookup_failed";
+
+const basicSessionUser = (sessionUser: SessionUser): User => ({
+  id: sessionUser.id,
+  name: sessionUser.email || 'Admin User',
+  email: sessionUser.email || '',
+  role: 'admin', // Default role
+  avatarUrl: undefined,
+});
+
+/**
+ * Turns a signed-in auth user into auth state: looks up the admin profile
+ * and dispatches INITIALIZE. Shared by start-up and by recheckAccess() (the
+ * embed's access gate), so both reach the same outcome for the same answer.
+ *
+ * - profile found: signed in.
+ * - not_admin / no_user: a definite answer, so signed out. This used to fall
+ *   through to the fallback and let a signed-in non-admin into the UI with a
+ *   default 'admin' role, where RLS refused its data and the feature guards,
+ *   finding no permissions, sent it to /unauthorized. Now standalone it stays
+ *   signed out and the sign-in page shows why (errorMessage); embedded,
+ *   accessDenied makes FeatureGuard send it to /unauthorized as before, not
+ *   to /login. Deliberate behaviour change for a signed-in non-admin.
+ * - lookup failed (network, a transient database error): with
+ *   fallbackOnFailure (start-up), sign in with basic session info and let the
+ *   auth listener correct it; without it (recheckAccess), dispatch nothing
+ *   and report it, so the caller can offer Retry.
+ *
+ * Nothing is dispatched once isLive() is false (the provider unmounted).
+ */
+async function resolveSessionUser(
+  sessionUser: SessionUser,
+  {
+    dispatch,
+    authUserIdRef,
+    isLive,
+    fallbackOnFailure,
+  }: {
+    dispatch: AuthDispatch;
+    authUserIdRef: { current: string | null };
+    isLive: () => boolean;
+    fallbackOnFailure: boolean;
+  },
+): Promise<ResolveOutcome> {
+  let result: Awaited<ReturnType<typeof SupabaseAuthService.getCurrentUser>>;
+  try {
+    result = await SupabaseAuthService.getCurrentUser();
+  } catch (profileError) {
+    console.error('Auth Provider - Error getting user profile:', profileError);
+    result = { user: null, error: null, reason: 'lookup_failed' };
+  }
+  if (!isLive()) return result.user ? "authenticated" : (result.reason ?? "lookup_failed");
+  const { user: adminUser, error, reason } = result;
+
+  if (adminUser && !error) {
+    authUserIdRef.current = sessionUser.id;
+    dispatch({
+      type: "INITIALIZE",
+      payload: { isAuthenticated: true, user: adminUserToUser(adminUser), errorMessage: null },
+    });
+    return "authenticated";
+  }
+  if (reason === "not_admin" || reason === "no_user") {
+    dispatch({
+      type: "INITIALIZE",
+      payload: {
+        isAuthenticated: false,
+        user: null,
+        errorMessage: reason === "not_admin" ? error : null,
+        accessDenied: reason === "not_admin",
+      },
+    });
+    return reason;
+  }
+  if (!fallbackOnFailure) return "lookup_failed";
+  console.warn('Auth Provider - admin profile lookup failed; using basic session info', error);
+  authUserIdRef.current = sessionUser.id;
+  dispatch({
+    type: "INITIALIZE",
+    payload: { isAuthenticated: true, user: basicSessionUser(sessionUser), errorMessage: error || null },
+  });
+  return "lookup_failed";
+}
+
+// How long recheckAccess() waits for the admin profile lookup before
+// reporting the session holder's ok as unusable (so the gate offers Retry).
+// SupabaseAuthService's own listener gives up after 1.5s; this is longer
+// because the gate is the only way in.
+const RECHECK_LOOKUP_TIMEOUT_MS = 8000;
+
 // The local client reads its session from localStorage, so 3s is generous.
 // In host-session mode the first getSession() is a round trip to the session
 // holder, which may refresh the GoTrue session before answering.
@@ -188,6 +283,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // state.user.id, which is the admin profile id. Lets the listener tell
   // whether an event whose profile lookup failed is about this user.
   const authUserIdRef = useRef<string | null>(null);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  /**
+   * Host-session mode: ask the session holder again and, if it now says ok,
+   * resolve the user into auth state. Used by the embed's access gate, so it
+   * does not depend on the SIGNED_IN event chain (which drops a slow or
+   * failed profile lookup). Always settles: an ok whose profile lookup fails
+   * or takes longer than RECHECK_LOOKUP_TIMEOUT_MS comes back as
+   * unavailable, so the gate shows Retry rather than spinning.
+   */
+  const recheckAccess = useCallback(async (): Promise<HostStatus> => {
+    const status = await getHostStatus();
+    if (status.status !== "ok") return status;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timedOut = new Promise<"lookup_failed">((resolve) => {
+      timer = setTimeout(() => resolve("lookup_failed"), RECHECK_LOOKUP_TIMEOUT_MS);
+    });
+    const outcome = await Promise.race([
+      resolveSessionUser(status.user, {
+        dispatch,
+        authUserIdRef,
+        isLive: () => mountedRef.current,
+        fallbackOnFailure: false,
+      }),
+      timedOut,
+    ]);
+    clearTimeout(timer);
+    if (outcome === "authenticated") return status;
+    if (outcome === "not_admin") return { status: "not_admin" };
+    if (outcome === "no_user") return { status: "signed_out" };
+    return { status: "unavailable" };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -204,6 +337,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             isAuthenticated: false,
             user: null,
             errorMessage: null, // Don't show timeout error to user
+            // Host-session: the session holder never answered, which is not a
+            // sign-out. An embed shows Retry instead of handing the host /login.
+            hostAccess: isHostSession() ? { status: "unavailable" } : undefined,
           }
         });
         isInitializing = false;
@@ -217,86 +353,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { data: { session } } = await supabase.auth.getSession()
 
         if (!mounted) return;
-        clearTimeout(initializeTimeout);
+        const live = { dispatch, authUserIdRef, isLive: () => mounted, fallbackOnFailure: true };
 
         if (session?.user) {
-          // We have a session, get the full user profile
-          try {
-            const { user: adminUser, error, reason } = await SupabaseAuthService.getCurrentUser();
-
-            if (adminUser && !error) {
-              authUserIdRef.current = session.user.id;
-              dispatch({
-                type: "INITIALIZE",
-                payload: {
-                  isAuthenticated: true,
-                  user: adminUserToUser(adminUser),
-                  errorMessage: null,
-                }
-              });
-            } else if (reason === "not_admin" || reason === "no_user") {
-              // A definite answer: no admin profile, or no user behind the
-              // session. This used to fall through to the fallback below and
-              // let a signed-in non-admin into the UI with a default 'admin'
-              // role, where RLS refused its data and the feature guards,
-              // finding no permissions, sent it to /unauthorized. Now:
-              // - standalone, the user stays signed out and the sign-in page
-              //   shows why (errorMessage);
-              // - embedded, accessDenied makes FeatureGuard send the user to
-              //   /unauthorized as before, not to /login, so the host is not
-              //   sent round a sign-in loop.
-              // Deliberate behaviour change for a signed-in non-admin.
-              dispatch({
-                type: "INITIALIZE",
-                payload: {
-                  isAuthenticated: false,
-                  user: null,
-                  errorMessage: reason === "not_admin" ? error : null,
-                  accessDenied: reason === "not_admin",
-                }
-              });
-            } else {
-              // The lookup itself failed (network, a transient database
-              // error): fall back to basic session info and let the auth
-              // listener correct it.
-              console.warn('Auth Provider - admin profile lookup failed; using basic session info', error);
-              authUserIdRef.current = session.user.id;
-              // Fallback to basic session info if profile fetch fails
-              dispatch({
-                type: "INITIALIZE",
-                payload: {
-                  isAuthenticated: true,
-                  user: {
-                    id: session.user.id,
-                    name: session.user.email || 'Admin User',
-                    email: session.user.email || '',
-                    role: 'admin', // Default role
-                    avatarUrl: undefined,
-                  },
-                  errorMessage: error || null,
-                }
-              });
-            }
-          } catch (profileError) {
-            console.error('Auth Provider - Error getting user profile:', profileError);
-            authUserIdRef.current = session.user.id;
-            // Fallback to basic session info
+          clearTimeout(initializeTimeout);
+          await resolveSessionUser(session.user, live);
+        } else if (isHostSession()) {
+          // Host-session mode: the shim returns no session for every answer
+          // but ok, so ask the session holder which one it was. The failsafe
+          // stays armed across this call (it is cleared only once it
+          // answers), and the shim bounds each /me with a timeout.
+          // - ok (the admin check finished between the two calls): resolve
+          //   the user exactly as for a session above.
+          // - not_admin: accessDenied (embedded: /unauthorized; standalone:
+          //   /login, whose page shows the not-admin view).
+          // - pending / unavailable: hostAccess, so an embed waits in place
+          //   instead of handing the host a /login it cannot satisfy.
+          const hostStatus = await getHostStatus();
+          if (!mounted) return;
+          clearTimeout(initializeTimeout);
+          if (hostStatus.status === "ok") {
+            await resolveSessionUser(hostStatus.user, live);
+          } else {
             dispatch({
               type: "INITIALIZE",
               payload: {
-                isAuthenticated: true,
-                user: {
-                  id: session.user.id,
-                  name: session.user.email || 'Admin User',
-                  email: session.user.email || '',
-                  role: 'admin', // Default role
-                  avatarUrl: undefined,
-                },
+                isAuthenticated: false,
+                user: null,
                 errorMessage: null,
+                accessDenied: hostStatus.status === "not_admin",
+                hostAccess:
+                  hostStatus.status === "pending" || hostStatus.status === "unavailable"
+                    ? hostStatus
+                    : undefined,
               }
             });
           }
         } else {
+          clearTimeout(initializeTimeout);
           dispatch({
             type: "INITIALIZE",
             payload: {
@@ -306,6 +400,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
           });
         }
+        if (!mounted) return;
 
         // Mark initialization as complete
         isInitializing = false;
@@ -554,6 +649,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const contextValue: AuthContextType = {
     ...state,
+    recheckAccess,
     login,
     logout,
     startImpersonation,

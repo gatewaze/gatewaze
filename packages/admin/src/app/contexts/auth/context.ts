@@ -1,4 +1,5 @@
 import { User } from "@/@types/user";
+import type { HostStatus } from "@/lib/hostSession";
 import { createSafeContext } from "@/utils/createSafeContext";
 
 export interface ImpersonationState {
@@ -27,11 +28,30 @@ export interface AuthContextType {
   isInitialized: boolean;
   errorMessage: string | null;
   /**
-   * True when the user is signed in but has no admin access (a definite
-   * not_admin). Guards use it to send an embedded user to /unauthorized
-   * instead of /login, so the host is not sent round a sign-in loop.
+   * True when the user is signed in but has no admin access: a definite
+   * not_admin, from the admin profile lookup (local mode) or from the
+   * session holder's /me (host-session mode). Set by INITIALIZE and by a
+   * not_admin LOGOUT; any other INITIALIZE, LOGOUT or a new sign-in clears
+   * it. FeatureGuard uses it to send an embedded user to /unauthorized
+   * instead of /login, so the host is not handed a sign-in it cannot satisfy.
+   * Standalone, the user still goes to /login, whose page explains it.
    */
   accessDenied?: boolean;
+  /**
+   * Host-session mode only: the session holder has not decided yet
+   * (pending, its admin check is still running; carries Retry-After) or
+   * could not answer (unavailable, including a start-up that timed out).
+   * Embedded, FeatureGuard shows an in-embed "Checking your access" or
+   * "Retry" state, seeded with this answer, instead of sending the user to
+   * /login. Cleared by any later INITIALIZE, LOGOUT or sign-in.
+   */
+  hostAccess?: Extract<HostStatus, { status: "pending" } | { status: "unavailable" }>;
+  /**
+   * Host-session mode: ask the session holder again and, on ok, resolve the
+   * user into auth state. Settles to the resulting status; a profile lookup
+   * that fails or times out comes back as unavailable.
+   */
+  recheckAccess?: () => Promise<HostStatus>;
   user: User | null;
   adminProfile?: AdminProfile;
   isAdmin?: boolean;
