@@ -42,9 +42,17 @@ write_runtime_config() {
   # VITE_AUTH_MODE flips. Every path that copies a fresh index.html into
   # place calls this function afterwards, so the stamp is never lost.
   html_index="$(dirname "$out_path")/index.html"
+  # Best effort: a missing stamp only loses the cache-bust (the file is
+  # still served no-cache), so it warns rather than stopping the pod.
   if [ -f "$html_index" ]; then
-    config_hash=$(sha256sum "$out_path" | cut -c1-12)
-    sed -i -E "s#/runtime-config\.js(\?v=[0-9a-f]*)?\"#/runtime-config.js?v=${config_hash}\"#" "$html_index"
+    config_hash=$(sha256sum "$out_path" | cut -c1-12) || config_hash=""
+    if [ -n "$config_hash" ] \
+      && sed -i -E "s#/runtime-config\.js(\?v=[0-9a-f]*)?\"#/runtime-config.js?v=${config_hash}\"#" "$html_index" \
+      && grep -q "/runtime-config.js?v=${config_hash}\"" "$html_index"; then
+      :
+    else
+      echo "[admin] WARNING: could not stamp runtime-config.js?v= into ${html_index}" >&2
+    fi
   fi
 }
 
@@ -304,7 +312,11 @@ NODE_HEAP_MB="${ADMIN_NODE_HEAP_MB:-2560}"
 echo "[admin] Node heap cap: ${NODE_HEAP_MB}MB"
 cd /app/packages/admin && NODE_OPTIONS="--max-old-space-size=${NODE_HEAP_MB}" npx vite build
 
-# Copy built assets to nginx html directory
+# Copy built assets to nginx html directory. Write the real config (and
+# stamp index.html) inside dist first: during the boot refresh nginx is
+# already serving, and copying first would briefly serve an unstamped
+# index.html and the placeholder config.
+write_runtime_config /app/packages/admin/dist/runtime-config.js
 cp -r /app/packages/admin/dist/* /usr/share/nginx/html/
 write_runtime_config /usr/share/nginx/html/runtime-config.js
 build_embed
