@@ -11,6 +11,9 @@ const SECRET = 'ab'.repeat(32);
 const base = ['--set', 'redis.password=pw', '--set', 'supabase.url=https://sb.example.test', '--set', 'supabase.anonKey=anon'];
 const ingress = ['--set', 'ingress.enabled=true', '--set', 'ingress.hosts.admin=admin.example.test'];
 
+// Escapes every regex metacharacter, including backslash, for building patterns from literals.
+const escapeRe = (v: string): string => v.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+
 function render(args: string[]): string {
   return execFileSync('helm', ['template', 'gw', chart, ...base, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
 }
@@ -66,12 +69,12 @@ describe.skipIf(!hasHelm)('helm: adminBff', () => {
     const on = render([...ingress, '--set', 'adminBff.enabled=true', '--set', 'adminBff.switchAdmin=true', '--set', `adminBff.sessionSecret=${SECRET}`]);
     const admin = doc(on, 'Deployment', 'gatewaze-admin');
     expect(admin).toMatch(/name: VITE_AUTH_MODE\s+value: "host-session"/);
-    expect(admin).toMatch(/name: VITE_SUPABASE_URL\s+value: "https:\/\/admin.example.test"/);
-    expect(admin).toMatch(/name: VITE_SUPABASE_PUBLIC_URL\s+value: "https:\/\/sb.example.test"/);
-    expect(admin).toMatch(/name: VITE_API_URL\s+value: "https:\/\/admin.example.test"/);
+    expect(admin).toMatch(/name: VITE_SUPABASE_URL\s+value: "https:\/\/admin\.example\.test"/);
+    expect(admin).toMatch(/name: VITE_SUPABASE_PUBLIC_URL\s+value: "https:\/\/sb\.example\.test"/);
+    expect(admin).toMatch(/name: VITE_API_URL\s+value: "https:\/\/admin\.example\.test"/);
     const ing = doc(on, 'Ingress', 'gatewaze');
     for (const p of ['/bff', '/rest/v1', '/storage/v1', '/functions/v1', '/realtime/v1', '/api']) {
-      expect(ing).toMatch(new RegExp(`path: ${p.replace(/\//g, '\\/')}\\s+pathType: Prefix\\s+backend:\\s+service:\\s+name: gatewaze-admin-bff`));
+      expect(ing).toMatch(new RegExp(`path: ${escapeRe(p)}\\s+pathType: Prefix\\s+backend:\\s+service:\\s+name: gatewaze-admin-bff`));
     }
     // "/" stays on the admin nginx.
     expect(ing).toMatch(/path: \/\s+pathType: Prefix\s+backend:\s+service:\s+name: gatewaze-admin\s/);
@@ -101,7 +104,7 @@ describe.skipIf(!hasHelm)('helm: adminBff', () => {
   it('defaults SUPABASE_INTERNAL_URL to supabase.url, rolls with maxUnavailable 0 and passes the TTL', () => {
     const on = ['--set', 'adminBff.enabled=true', '--set', `adminBff.sessionSecret=${SECRET}`];
     const d = doc(render(on), 'Deployment', 'gatewaze-admin-bff');
-    expect(d).toMatch(/name: SUPABASE_INTERNAL_URL\s+value: "https:\/\/sb.example.test"/);
+    expect(d).toMatch(/name: SUPABASE_INTERNAL_URL\s+value: "https:\/\/sb\.example\.test"/);
     expect(d).toContain('maxUnavailable: 0');
     expect(d).toMatch(/name: ADMIN_BFF_SESSION_TTL_SECONDS\s+value: "604800"/);
     const custom = doc(render([...on, '--set', 'adminBff.supabaseInternalUrl=http://kong:8000', '--set', 'adminBff.sessionTtlSeconds=120']), 'Deployment', 'gatewaze-admin-bff');
@@ -128,7 +131,7 @@ describe.skipIf(!hasHelm)('helm: adminBff', () => {
     expect(d).toContain('allowPrivilegeEscalation: false');
     expect(d).toMatch(/capabilities:\s+drop: \["ALL"\]/);
     const svc = doc(on, 'Service', 'gatewaze-admin-bff');
-    expect(svc).toMatch(/selector:[\s\S]*app.kubernetes.io\/component: admin-bff/);
+    expect(svc).toMatch(/selector:[\s\S]*app\.kubernetes\.io\/component: admin-bff/);
     const svcPort = svc.match(/- port: (\d+)/)![1];
     const ingPorts = [...doc(on, 'Ingress', 'gatewaze').matchAll(/name: gatewaze-admin-bff\s+port:\s+number: (\d+)/g)].map((m) => m[1]);
     expect(ingPorts).toHaveLength(6);
