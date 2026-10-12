@@ -37,6 +37,17 @@ changes on the next page load, with no release of its own. Only a change to the 
 until then a newer bundle is loaded as-is, and an incompatible one is refused with
 `gw_embed_contract_mismatch` rather than mounted.
 
+Optional features are listed in the manifest's `capabilities` array instead of changing the
+contract. When your context sets `session: { mode: 'host', ... }` (the host holds the Gatewaze
+session), the loader checks that the manifest lists `host-session`. A deployment built before that
+feature is refused with `gw_embed_capability_missing`, so the embed never falls back to keeping a
+session in the browser's localStorage. Manifests without `capabilities` still load in the default
+mode.
+
+In host-session mode `supabase.url` is your own proxy, so also pass `supabase.publicUrl`, the real
+Supabase project URL (https, or http on localhost). The embed uses it for public storage URLs and
+OAuth redirect URIs, so image URLs that modules save point at Supabase rather than at your proxy.
+
 ## Stylesheet
 
 The stylesheet is fetched and injected as a `<style>` element (in `document.head` unless

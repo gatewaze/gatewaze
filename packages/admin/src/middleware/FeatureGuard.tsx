@@ -9,6 +9,7 @@ import { isEmbedded } from '../embed/embedMode';
 import { useAuthContext as useAuth } from '@/app/contexts/auth/context';
 import { useHasPermission } from '@/hooks/usePermissions';
 import { AccessDeniedRedirect } from '@/app/router/AccessDeniedRedirect';
+import { HostAccessGate } from '@/components/auth/HostAccessGate';
 import type { AdminFeature } from '@/lib/permissions/types';
 
 interface FeatureGuardProps {
@@ -50,7 +51,7 @@ export function FeatureGuard({
   // field is `isLoading`. Reading `loading` alone made authLoading permanently undefined, so the
   // loading gate below never engaged and an unauthenticated *first render* (which is every render
   // before async auth init finishes) fell straight through to <Navigate to="/login">.
-  const { user, isLoading, loading } = useAuth();
+  const { user, isLoading, loading, accessDenied, hostAccess } = useAuth();
   const authLoading = isLoading ?? loading;
   const { hasPermission, loading: permissionLoading } = useHasPermission(
     feature as AdminFeature,
@@ -78,9 +79,14 @@ export function FeatureGuard({
     );
   }
 
-  // Not authenticated
+  // Not authenticated. Embedded, /login would hand the host a sign-in it
+  // cannot satisfy, so: a signed-in user with no admin access goes to
+  // /unauthorized (as it did when such a user was let in with no
+  // permissions), and a host-session user whose access is still being
+  // decided waits here ("Checking your access", or Retry).
   if (!user) {
-    return <Navigate to="/login" replace />;
+    if (isEmbedded() && hostAccess) return <HostAccessGate />;
+    return <Navigate to={isEmbedded() && accessDenied ? "/unauthorized" : "/login"} replace />;
   }
 
   // No permission - show fallback, redirect to an explicit target, or (default)
