@@ -4,7 +4,7 @@ import { dashboardItems } from '@/app/navigation/segments/dashboards';
 import { admin as staticAdmin } from '@/app/navigation/segments/admin';
 import { moduleNavItems as staticModuleNavItems } from '@/app/navigation/segments/modules';
 import { getModuleNavItemsFromRows, getModuleAdminNavItemsFromRows } from '@/app/navigation/segments/modules';
-import { applyNavLayout, seedLayoutFromTree } from '@/app/navigation/resolveNavLayout';
+import { applyNavLayout, resolveNavigation, seedLayoutFromTree } from '@/app/navigation/resolveNavLayout';
 import { useNavLayout } from '@/hooks/useNavLayout';
 import type { NavigationTree } from '@/@types/navigation';
 
@@ -68,4 +68,28 @@ export function useNavigation(): NavigationTree[] {
     const effective = layout ?? seedLayoutFromTree(baseTree);
     return applyNavLayout(baseTree, effective);
   }, [baseTree, layout, layoutReady]);
+}
+
+/**
+ * Items filed onto each installed module hub page under the active layout,
+ * keyed by hub id, before permission filtering. Hub items sit outside the
+ * tree {@link useNavigation} returns (they leave the sidebar), so consumers
+ * that must still reach them — search, the hub pages themselves — read them
+ * here.
+ */
+export function useNavHubs(): {
+  hubs: Record<string, NavigationTree[]>;
+  ready: boolean;
+  error: Error | null;
+  reload: () => void;
+} {
+  const baseTree = useBaseNavigation();
+  const { layout, ready, error, reload } = useNavLayout();
+
+  const hubs = useMemo(() => {
+    if (!ready) return {};
+    return resolveNavigation(baseTree, layout ?? seedLayoutFromTree(baseTree)).hubs;
+  }, [baseTree, layout, ready]);
+
+  return { hubs, ready, error, reload };
 }

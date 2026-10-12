@@ -5,6 +5,7 @@ import {
   applyNavLayout,
   resolveNavigation,
   seedLayoutFromTree,
+  buildPool,
   SETTINGS_ROOT_ID,
 } from "../resolveNavLayout";
 
@@ -242,3 +243,104 @@ describe("resolveNavigation", () => {
     expect(sidebar).toHaveLength(0);
   });
 });
+
+describe("module hub pages", () => {
+  const HUB_KEY = "module.marketing-os..marketing-os";
+
+  function treeWithHub(): NavigationTree[] {
+    const tree = baseTree();
+    tree.splice(3, 0, {
+      id: HUB_KEY,
+      type: "item",
+      path: "/marketing-os",
+      title: "Marketing OS",
+      icon: "RocketLaunch",
+      requiredFeature: "marketing-os",
+      hub: "marketing-os",
+    });
+    return tree;
+  }
+
+  function layout(hubs: NavLayout["hubs"]): NavLayout {
+    return {
+      version: 1,
+      sidebar: [{ id: "main", items: [{ key: "inbox" }, { key: HUB_KEY }] }],
+      settings: [],
+      hubs,
+      hidden: [],
+    };
+  }
+
+  it("resolves items filed onto an installed hub, in order, and keeps them out of the sidebar and unsorted", () => {
+    const { sidebar, hubs, unsorted } = resolveNavigation(
+      treeWithHub(),
+      layout({ "marketing-os": [{ key: "module.newsletter.admin.newsletter", label: "Newsletters" }, { key: "people" }] }),
+    );
+    expect(hubs["marketing-os"].map((n) => n.id)).toEqual(["module.newsletter.admin.newsletter", "people"]);
+    expect(hubs["marketing-os"][0].title).toBe("Newsletters");
+    expect(sidebar.map((n) => n.id)).toEqual(["inbox", HUB_KEY]);
+    expect(unsorted.some((n) => n.id === "people")).toBe(false);
+  });
+
+  it("gives every installed hub an entry, empty when nothing is filed", () => {
+    const { hubs } = resolveNavigation(treeWithHub(), layout(undefined));
+    expect(hubs).toEqual({ "marketing-os": [] });
+  });
+
+  it("never lists a hub's own page on that hub", () => {
+    const l = layout({ "marketing-os": [{ key: HUB_KEY }, { key: "people" }] });
+    l.sidebar = [{ id: "main", items: [{ key: "inbox" }] }];
+    const { hubs, unsorted } = resolveNavigation(treeWithHub(), l);
+    expect(hubs["marketing-os"].map((n) => n.id)).toEqual(["people"]);
+    expect(unsorted.map((n) => n.id)).toContain(HUB_KEY);
+  });
+
+  it("sends items filed under an uninstalled hub to unsorted", () => {
+    const { hubs, unsorted } = resolveNavigation(baseTree(), layout({ "marketing-os": [{ key: "people" }] }));
+    expect(hubs).toEqual({});
+    expect(unsorted.map((n) => n.id)).toContain("people");
+  });
+
+  it("lets hidden win over a hub placement", () => {
+    const l = layout({ "marketing-os": [{ key: "people" }] });
+    l.hidden = ["people"];
+    const { hubs } = resolveNavigation(treeWithHub(), l);
+    expect(hubs["marketing-os"]).toEqual([]);
+  });
+
+  it("does not render hub items in the sidebar tree", () => {
+    const out = applyNavLayout(treeWithHub(), layout({ "marketing-os": [{ key: "people" }] }));
+    const ids = out.flatMap((n) => [n.id, ...(n.childs ?? []).map((c) => c.id)]);
+    expect(ids).not.toContain("people");
+  });
+
+  it("lets settings win over a hub when an item is filed on both", () => {
+    const l = layout({ "marketing-os": [{ key: "admin.users" }] });
+    l.settings = [{ key: "admin.users" }];
+    const { settings, hubs } = resolveNavigation(treeWithHub(), l);
+    expect(settings.map((n) => n.id)).toEqual(["admin.users"]);
+    expect(hubs["marketing-os"]).toEqual([]);
+  });
+
+  it("gives a hub id declared twice to the first declarer, and keeps both pages off that hub", () => {
+    const tree = treeWithHub();
+    tree.splice(4, 0, { id: "module.other..other", type: "item", path: "/other", title: "Other", hub: "marketing-os" });
+    expect(buildPool(tree).hubs.get("marketing-os")?.id).toBe(HUB_KEY);
+    const { hubs } = resolveNavigation(tree, layout({ "marketing-os": [{ key: "module.other..other" }, { key: "people" }] }));
+    expect(hubs["marketing-os"].map((n) => n.id)).toEqual(["people"]);
+  });
+
+  it("ignores a hub id the layout sanitiser would reject", () => {
+    const tree = treeWithHub();
+    tree[3] = { ...tree[3], hub: "MarketingOS" };
+    expect(buildPool(tree).hubs.size).toBe(0);
+    expect(resolveNavigation(tree, layout({ MarketingOS: [{ key: "people" }] })).hubs).toEqual({});
+  });
+
+  it("does not read inherited keys of the hubs record", () => {
+    const tree = treeWithHub();
+    tree[3] = { ...tree[3], hub: "constructor" };
+    expect(resolveNavigation(tree, layout({})).hubs).toEqual({ constructor: [] });
+  });
+});
+
