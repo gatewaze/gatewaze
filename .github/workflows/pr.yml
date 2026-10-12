@@ -49,6 +49,8 @@ jobs:
         run: pnpm --filter @gatewaze/api typecheck
       - name: Typecheck (shared)
         run: pnpm --filter @gatewaze/shared typecheck
+      - name: Typecheck (admin-bff)
+        run: pnpm --filter @gatewaze/admin-bff typecheck
       # admin + portal both import module pages/services from the gatewaze-modules
       # sibling repo, which CI does not clone — so a standalone typecheck reports
       # TS2307 for those dynamic imports (and TS6305 until shared/dist exists).
@@ -77,6 +79,19 @@ jobs:
     name: Vitest
     needs: [setup]
     runs-on: ubuntu-latest
+    # Valkey for the admin-bff Redis integration tests (SET NX/XX, the
+    # compare-and-delete lock release, TTLs, pub/sub). Pinned by digest, like
+    # the admin-bff base image. No password: it is reachable only from this job.
+    services:
+      valkey:
+        image: valkey/valkey:8-alpine@sha256:081c2f5cb575efc901aa80ff9cdbd1ec6a301682fd35e1ebb4b0990a4a4a8507
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "valkey-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
@@ -93,6 +108,11 @@ jobs:
         run: pnpm --filter @gatewaze/api test
       - name: shared tests
         run: pnpm --filter @gatewaze/shared test
+      # Includes the chart checks in test/helm.test.ts (helm is on the runner).
+      - name: admin-bff tests
+        env:
+          REDIS_TEST_URL: redis://127.0.0.1:6379
+        run: pnpm --filter @gatewaze/admin-bff test
       - name: portal tests
         run: pnpm --filter @gatewaze/portal test
       - name: admin tests
