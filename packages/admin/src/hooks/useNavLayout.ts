@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getSupabase } from "@/lib/supabase";
 import type { NavLayout } from "@gatewaze/shared/modules";
 
@@ -25,6 +25,25 @@ export interface UseNavLayoutResult {
   layout: NavLayout | null;
   /** True once both reads have settled (success or failure). */
   ready: boolean;
+  /**
+   * Set when either layer failed to load. `layout` then holds whatever did
+   * load (possibly null), so it may not be the layout the user really has.
+   * The sidebar ignores this and falls back quietly; a page that would
+   * mislead without the layout, such as a hub page, should show it.
+   */
+  error: Error | null;
+  /** Re-run both reads. */
+  reload: () => void;
+}
+
+function failure(res: PromiseSettledResult<{ error: unknown }>): Error | null {
+  if (res.status === "rejected") {
+    return res.reason instanceof Error ? res.reason : new Error(String(res.reason));
+  }
+  const err = res.value.error;
+  if (!err) return null;
+  const message = (err as { message?: unknown }).message;
+  return new Error(typeof message === "string" ? message : "Failed to load navigation layout");
 }
 
 /**
@@ -35,9 +54,13 @@ export interface UseNavLayoutResult {
 export function useNavLayout(): UseNavLayoutResult {
   const [layout, setLayout] = useState<NavLayout | null>(null);
   const [ready, setReady] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const reload = useCallback(() => setAttempt((n) => n + 1), []);
 
   useEffect(() => {
     let cancelled = false;
+    setReady(false);
 
     (async () => {
       try {
@@ -62,9 +85,15 @@ export function useNavLayout(): UseNavLayoutResult {
           userRes.status === "fulfilled"
             ? parseLayout(userRes.value.data?.nav_layout)
             : null;
-        if (!cancelled) setLayout(user ?? org);
-      } catch {
-        if (!cancelled) setLayout(null);
+        if (!cancelled) {
+          setLayout(user ?? org);
+          setError(failure(orgRes) ?? failure(userRes));
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setLayout(null);
+          setError(err instanceof Error ? err : new Error(String(err)));
+        }
       } finally {
         if (!cancelled) setReady(true);
       }
@@ -73,7 +102,7 @@ export function useNavLayout(): UseNavLayoutResult {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [attempt]);
 
-  return { layout, ready };
+  return { layout, ready, error, reload };
 }

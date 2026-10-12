@@ -22,4 +22,6 @@ export interface NavigationTree {
   defaultSection?: string;
   /** Declared sort weight within a section (lower first). */
   order?: number;
+  /** Hub id when this item's page is a module hub (see NavigationItem.hub). */
+  hub?: string;
 }

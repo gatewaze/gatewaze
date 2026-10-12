@@ -360,6 +360,14 @@ export interface NavigationItem {
    * layout; an org/user layout may move the item to any section.
    */
   defaultSection?: string;
+  /**
+   * Declares this item's page a **hub**: a launcher page, like Settings, that
+   * lists other nav items. The value is the hub id (e.g. 'marketing-os'). The
+   * Navigation editor gives each installed hub its own container, items filed
+   * there are stored under `NavLayout.hubs[<id>]`, and the hub page reads them
+   * back with `useNavHub(<id>)`.
+   */
+  hub?: string;
 }
 
 /** Where a nav item lives: the left sidebar, or the Settings page. */
@@ -390,6 +398,12 @@ export interface NavLayout {
   sidebar: NavLayoutSection[];
   /** Items relocated onto the Settings page, in order. */
   settings: NavLayoutItem[];
+  /**
+   * Items filed onto a module hub page, keyed by hub id (see
+   * {@link NavigationItem.hub}), in order. Optional so layouts saved before
+   * hubs existed stay valid.
+   */
+  hubs?: Record<string, NavLayoutItem[]>;
   /** Stable keys hidden from every surface. */
   hidden: string[];
   /** Stable key (or route path) of the default landing page after login. */
@@ -762,6 +776,7 @@ export interface InstalledModuleRow {
     order?: number;
     defaultLocation?: NavLocation;
     defaultSection?: string;
+    hub?: string;
   }> | null;
   edge_functions_hash?: string | null;
   source_id?: string | null;
