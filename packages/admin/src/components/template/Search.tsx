@@ -24,7 +24,7 @@ import { Avatar, Button, Input } from "@/components/ui";
 import { useDisclosure, useFuse } from "@/hooks";
 import { useThemeContext } from "@/app/contexts/theme/context";
 import { createScopedKeydownHandler } from "@/utils/dom/createScopedKeydownHandler";
-import { useNavigation } from "@/hooks/useNavigation";
+import { useNavHubs, useNavigation } from "@/hooks/useNavigation";
 import { Highlight } from "@/components/shared/Highlight";
 import { settings } from "@/app/navigation/segments/settings";
 import { ColorType } from "@/constants/app";
@@ -163,7 +163,12 @@ export function Search({ renderButton }: SearchProps) {
 export function SearchDialog({ close }: SearchDialogProps) {
   const { isDark } = useThemeContext();
   const navigation = useNavigation();
-  const data = useMemo(() => flattenNav([...navigation, settings]), [navigation]);
+  // Pages filed onto a module hub leave the sidebar tree but stay searchable.
+  const { hubs } = useNavHubs();
+  const data = useMemo(
+    () => flattenNav([...navigation, settings, ...Object.values(hubs).flat()]),
+    [navigation, hubs],
+  );
   const searchInputId = useRef(
     `search-input-${Math.random().toString(36).substring(2, 11)}`,
   ).current;
