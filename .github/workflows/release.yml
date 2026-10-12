@@ -41,8 +41,8 @@ jobs:
       id-token: write      # keyless (Sigstore/Fulcio) provenance signing
       attestations: write  # record SLSA build provenance
     strategy:
-      # One image failing must not cancel the other seven. A release that
-      # pushes 7/8 images and names the one that broke is easier to recover
+      # One image failing must not cancel the other eight. A release that
+      # pushes 8/9 images and names the one that broke is easier to recover
       # than a release that cancels mid-flight.
       fail-fast: false
       matrix:
@@ -101,6 +101,15 @@ jobs:
             context: .
             file: docker/se-runner/Dockerfile
             pat: true
+            no_cache: false
+
+          # Session holder for the admin SPA in host-session mode
+          # (docs/admin-bff.md). Only external npm deps, installed from the
+          # committed lockfile — no module sources or PAT needed.
+          - image: admin-bff
+            context: .
+            file: docker/admin-bff/Dockerfile
+            pat: false
             no_cache: false
 
           # Self-contained npm build (only external deps) — no module
