@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import svgr from "vite-plugin-svgr";
 import path from "path";
@@ -11,7 +11,26 @@ import {
   buildSharedAlias,
 } from "./vite-shared-config";
 
-export default defineConfig(({ command }) => ({
+// Host-session mode in `vite dev`: the session-holding BFF owns sign-in and
+// every Supabase and API path, so the dev server forwards them to it. Only
+// added when VITE_AUTH_MODE=host-session, so local mode's dev server is
+// unchanged. The Host header is kept (no changeOrigin) because the BFF checks
+// Origin against its site URL and issues its cookie for this origin.
+function hostSessionDevProxy(mode: string): Record<string, { target: string; changeOrigin: boolean; ws?: boolean }> {
+  const env = { ...loadEnv(mode, __dirname, "VITE_"), ...process.env };
+  if (env.VITE_AUTH_MODE !== "host-session") return {};
+  const target = process.env.ADMIN_BFF_PROXY_TARGET || "http://localhost:3001";
+  return {
+    "/bff": { target, changeOrigin: false },
+    "/rest/v1": { target, changeOrigin: false },
+    "/storage/v1": { target, changeOrigin: false },
+    "/functions/v1": { target, changeOrigin: false },
+    "/realtime/v1": { target, changeOrigin: false, ws: true },
+    "/api": { target, changeOrigin: false },
+  };
+}
+
+export default defineConfig(({ command, mode }) => ({
   // Only swap to the runtime-config global on `vite build`. `vite dev`
   // and vitest keep Vite's default .env resolution so local development
   // is unaffected. See vite-shared-config.ts's buildRuntimeConfigDefine
@@ -65,6 +84,9 @@ export default defineConfig(({ command }) => ({
         changeOrigin: true,
         secure: false,
       },
+      // Replaces '/api' above in host-session mode: the BFF forwards it to
+      // the API with the real token.
+      ...hostSessionDevProxy(mode),
     },
   },
   optimizeDeps: {
