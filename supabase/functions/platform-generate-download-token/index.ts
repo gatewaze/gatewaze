@@ -79,7 +79,8 @@ async function handler(req: Request) {
 
     // Look up the resource from the database
     const { data: resource, error: resourceError } = await supabase
-      .from('offer_resources')
+      // Owned by the offers module.
+      .from('integrations_offer_resources')
       .select('id, offer_id, file_id, storage_path, download_filename, is_active')
       .eq('file_id', file_id)
       .maybeSingle()
@@ -120,10 +121,14 @@ async function handler(req: Request) {
     console.log(`Generating download token for: ${email}, file: ${file_id}`)
 
     // Optional: Verify the user exists in our system
+    // ilike for a case-insensitive match, with the LIKE wildcards escaped so a
+    // submitted address containing % or _ cannot match some other person.
+    const emailPattern = email.replace(/[\\%_]/g, (c: string) => `\\${c}`)
     const { data: person } = await supabase
       .from('people')
       .select('id, email')
-      .ilike('email', email)
+      .ilike('email', emailPattern)
+      .limit(1)
       .maybeSingle()
 
     if (!person) {
@@ -134,7 +139,7 @@ async function handler(req: Request) {
     // Log the download request for tracking
     try {
       await supabase
-        .from('download_logs')
+        .from('integrations_download_logs')
         .insert({
           email: email.toLowerCase(),
           file_id: file_id,
