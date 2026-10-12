@@ -25,20 +25,21 @@ import { WorkspaceLayout } from "@/components/ui";
 import type { Tab } from "@/components/ui/Tabs";
 import { useBaseNavigation } from "@/hooks/useNavigation";
 import { useFeaturePermissions } from "@/hooks/useFeaturePermissions";
+import { useModulesContext } from "@/app/contexts/modules/context";
 import { buildPool, seedLayoutFromTree } from "@/app/navigation/resolveNavLayout";
 import { navigationIcons } from "@/app/navigation/icons";
 import { navLayoutService } from "@/utils/navLayoutService";
 import { IconPicker } from "./IconPicker";
+import { HubPanel } from "./HubPanel";
 import {
   HIDDEN,
   SETTINGS,
   UNSORTED,
-  canDropInto,
   findContainerIn,
-  hubContainerId,
   layoutToState,
   secId,
   stateToLayout,
+  withHubCards,
   type Containers,
   type EditorState,
   type Override,
@@ -136,6 +137,12 @@ function Container({
 export default function NavigationSettings() {
   const baseTree = useBaseNavigation();
   const { isSuperAdmin } = useFeaturePermissions();
+  const { rows } = useModulesContext();
+  const moduleDescriptions = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const row of rows) if (row.description) map.set(row.id, row.description);
+    return map;
+  }, [rows]);
 
   const pool = useMemo(() => buildPool(baseTree), [baseTree]);
 
@@ -195,7 +202,6 @@ export default function NavigationSettings() {
       const from = prev.containers[activeId] ? activeId : findContainerIn(prev, activeId);
       const to = prev.containers[overId] ? overId : findContainerIn(prev, overId);
       if (!from || !to || from === to) return prev;
-      if (!canDropInto(to, pool.items.get(activeId))) return prev;
       const next = { ...prev, containers: { ...prev.containers } };
       next.containers[from] = next.containers[from].filter((k) => k !== activeId);
       const overItems = [...next.containers[to]];
@@ -412,7 +418,7 @@ export default function NavigationSettings() {
       >
         <p className="mb-4 text-sm text-[var(--gray-11)]">
           {scope === "org"
-            ? "Arrange the navigation for everyone in the organization. Settings and Sign Out stay pinned; Unsorted items are hidden until you file them. Items filed onto a module hub page show on that page instead of the sidebar."
+            ? "Arrange the navigation for everyone in the organization. Settings and Sign Out stay pinned; Unsorted items are hidden until you file them. Module hub pages, such as a launcher of cards, have their own card lists below; a page can be in the sidebar and on a hub at once."
             : "Arrange your personal navigation. It overrides the organization default until you reset it. Settings and Sign Out stay pinned."}
         </p>
 
@@ -532,19 +538,9 @@ export default function NavigationSettings() {
                     {state.containers[SETTINGS].map(renderItem)}
                   </Container>
                 </div>
-                {state.hubIds.map((id) => (
-                  <div key={id}>
-                    <h2 className="mb-1.5 text-sm font-semibold uppercase tracking-wide text-[var(--gray-11)]">
-                      {pool.hubs.get(id)?.title ?? id} page
-                    </h2>
-                    <Container id={hubContainerId(id)} keys={state.containers[hubContainerId(id)] ?? []}>
-                      {(state.containers[hubContainerId(id)] ?? []).map(renderItem)}
-                    </Container>
-                  </div>
-                ))}
                 <div>
                   <h2 className="mb-1.5 text-sm font-semibold uppercase tracking-wide text-[var(--gray-11)]">
-                    Unsorted (hidden)
+                    Unsorted (not in the sidebar)
                   </h2>
                   <Container id={UNSORTED} keys={state.containers[UNSORTED]}>
                     {state.containers[UNSORTED].map(renderItem)}
@@ -552,7 +548,7 @@ export default function NavigationSettings() {
                 </div>
                 <div>
                   <h2 className="mb-1.5 text-sm font-semibold uppercase tracking-wide text-[var(--gray-11)]">
-                    Hidden
+                    Hidden from the sidebar
                   </h2>
                   <Container id={HIDDEN} keys={state.containers[HIDDEN]}>
                     {state.containers[HIDDEN].map(renderItem)}
@@ -569,6 +565,23 @@ export default function NavigationSettings() {
               ) : null}
             </DragOverlay>
           </DndContext>
+        )}
+
+        {/* Module hub pages: card lists, independent of the sidebar. */}
+        {state && !loading && state.hubIds.length > 0 && (
+          <div className="mt-6 space-y-4">
+            {state.hubIds.map((id) => (
+              <HubPanel
+                key={id}
+                hubId={id}
+                title={pool.hubs.get(id)?.title ?? id}
+                cards={state.hubCards[id] ?? []}
+                pool={pool}
+                moduleDescriptions={moduleDescriptions}
+                onChange={(cards) => mutate((s) => withHubCards(s, id, cards))}
+              />
+            ))}
+          </div>
         )}
 
         {/* Default landing page */}

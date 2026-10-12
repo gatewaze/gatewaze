@@ -18,6 +18,7 @@ import { configureEmbedSupabase, configureHostSession } from '@/lib/supabase';
 import { getCompiledFeatures, getCompiledModuleIds } from './embed/compiledModules';
 import { EmbedApp } from './embed/EmbedApp';
 import { setHostNotify } from './embed/hostNotify';
+import { setHostNavigate } from './embed/hostNavigate';
 import { setEmbeddedMode } from './embed/embedMode';
 import { setEmbedPortalContainer } from './embed/portalContainer';
 import { deregisterMount, tryRegisterMount } from './embed/registry';
@@ -152,6 +153,7 @@ export function mount(el: HTMLElement, ctx: GwHostContext): { unmount(): void } 
     setEmbeddedMode(true);
     setEmbedPortalContainer(validCtx.portalContainer);
     setHostNotify(validCtx.notify);
+    setHostNavigate(validCtx.navigateHost);
 
     if (hostSession) {
       // storageKeySuffix is ignored: nothing is stored in the page.
@@ -196,6 +198,7 @@ export function mount(el: HTMLElement, ctx: GwHostContext): { unmount(): void } 
         // would keep it alive and would hand a stale container to the next mount.
         setEmbedPortalContainer(null);
         setHostNotify(null);
+        setHostNavigate(null);
       },
     };
     return handle;

@@ -1,18 +1,22 @@
 import { useCallback, useEffect, useState } from "react";
 import { getSupabase } from "@/lib/supabase";
+import { sanitizeNavLayout } from "@gatewaze/shared";
 import type { NavLayout } from "@gatewaze/shared/modules";
 
 /** platform_settings key holding the org-wide layout (JSON string). */
 export const ORG_NAV_LAYOUT_KEY = "admin_nav_layout";
 
-/** Narrow an untyped value into a NavLayout, or null when absent/malformed. */
+/**
+ * Parse a stored layout through the same sanitiser the API write path uses,
+ * or return null when absent/malformed. The stored layout is read straight
+ * from the database, and not every write path goes through the API (RLS lets
+ * an admin write platform_settings directly), so it is untrusted here too.
+ */
 function parseLayout(raw: unknown): NavLayout | null {
   if (raw == null) return null;
   try {
     const obj = typeof raw === "string" ? JSON.parse(raw) : raw;
-    if (obj && typeof obj === "object" && Array.isArray((obj as NavLayout).sidebar)) {
-      return obj as NavLayout;
-    }
+    return sanitizeNavLayout(obj);
   } catch {
     // A malformed stored layout must never break navigation — fall back to
     // module defaults rather than throwing.

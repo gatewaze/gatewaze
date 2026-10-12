@@ -163,12 +163,20 @@ export function Search({ renderButton }: SearchProps) {
 export function SearchDialog({ close }: SearchDialogProps) {
   const { isDark } = useThemeContext();
   const navigation = useNavigation();
-  // Pages filed onto a module hub leave the sidebar tree but stay searchable.
+  // A page can be on a module hub without being in the sidebar; keep it
+  // searchable, once.
   const { hubs } = useNavHubs();
-  const data = useMemo(
-    () => flattenNav([...navigation, settings, ...Object.values(hubs).flat()]),
-    [navigation, hubs],
-  );
+  const data = useMemo(() => {
+    const hubNodes = Object.values(hubs)
+      .flat()
+      .flatMap((card) => (card.node ? [card.node] : []));
+    const seen = new Set<string>();
+    return flattenNav([...navigation, settings, ...hubNodes]).filter((item) => {
+      if (seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    });
+  }, [navigation, hubs]);
   const searchInputId = useRef(
     `search-input-${Math.random().toString(36).substring(2, 11)}`,
   ).current;
