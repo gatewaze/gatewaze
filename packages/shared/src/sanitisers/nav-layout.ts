@@ -23,7 +23,16 @@ export class NavLayoutValidationError extends Error {
 const MAX_SECTIONS = 50;
 const MAX_ITEMS_PER_SECTION = 300;
 const MAX_HIDDEN = 1000;
+const MAX_HUBS = 20;
 const MAX_STR = 200;
+
+/**
+ * Valid hub id (see NavigationItem.hub): a lowercase slug. The admin resolver
+ * ignores hubs whose id fails this, so the editor never offers a hub whose
+ * items this sanitiser would drop on save. It also keeps prototype keys such
+ * as `__proto__` out of the `hubs` record.
+ */
+export const NAV_HUB_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
 function str(value: unknown, max = MAX_STR): string | undefined {
   if (typeof value !== 'string') return undefined;
@@ -105,6 +114,16 @@ export function sanitizeNavLayout(input: unknown): NavLayout {
     : [];
 
   const layout: NavLayout = { version: 1, sidebar, settings, hidden };
+
+  // Hub pages hold flat lists, like the settings page — no nested groups.
+  if (raw.hubs && typeof raw.hubs === 'object' && !Array.isArray(raw.hubs)) {
+    const hubs: Record<string, NavLayoutItem[]> = {};
+    for (const [id, items] of Object.entries(raw.hubs as Record<string, unknown>).slice(0, MAX_HUBS)) {
+      if (!NAV_HUB_ID_PATTERN.test(id)) continue;
+      hubs[id] = sanitizeItems(items, false);
+    }
+    if (Object.keys(hubs).length > 0) layout.hubs = hubs;
+  }
 
   const defaultRoute = str(raw.defaultRoute, 512);
   if (defaultRoute) layout.defaultRoute = defaultRoute;
