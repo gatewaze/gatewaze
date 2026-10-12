@@ -69,13 +69,13 @@ export function DiscountCard({ discount, index }: { discount: DiscountWithCode; 
       if (isDynamic) {
         // For dynamic discounts with a max_codes limit, fetch the issued count
         if (discount.max_codes == null) return
+        // Issued codes (and the emails they went to) are not publicly
+        // readable, so the count comes from a definer RPC.
         const supabase = getSupabaseClient()
-        const { count } = await supabase
-          .from('events_discount_codes')
-          .select('*', { count: 'exact', head: true })
-          .eq('discount_id', discount.id)
-          .eq('issued', true)
-        const issued = count ?? 0
+        const { data: issuedCount } = await supabase.rpc('events_get_issued_codes_count', {
+          p_discount_id: discount.id,
+        })
+        const issued = Number(issuedCount ?? 0)
         setAvailableCount(Math.max(0, discount.max_codes - issued))
       } else {
         const count = await getAvailableCount(eventId)
@@ -352,11 +352,17 @@ export function DiscountsContent() {
 
   useEffect(() => {
     async function fetchDiscounts() {
+      // events_discounts.event_id is the uuid FK to events.id.
+      if (!event.id) {
+        setDiscounts([])
+        setIsLoading(false)
+        return
+      }
       const supabase = getSupabaseClient()
       const { data } = await supabase
         .from('events_discounts')
         .select('*')
-        .eq('event_id', event.event_id)
+        .eq('event_id', event.id)
         .eq('status', 'active')
         .order('sort_order', { ascending: true })
 
@@ -364,7 +370,7 @@ export function DiscountsContent() {
       setIsLoading(false)
     }
     fetchDiscounts()
-  }, [event.event_id])
+  }, [event.id])
 
   const panelTheme = useMemo(() => ({
     panelBg: useDarkText ? 'bg-gray-900/15' : 'bg-white/15',
