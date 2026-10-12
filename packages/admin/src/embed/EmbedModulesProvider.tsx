@@ -21,7 +21,7 @@ interface HostEnablement {
  * ModulesProvider ancestor regardless — this is that ancestor, not a
  * bypass of it.
  */
-function EmbedModulesGate({ overlay, children }: { overlay: HostEnablement; children: ReactNode }) {
+export function EmbedModulesGate({ overlay, children }: { overlay: HostEnablement; children: ReactNode }) {
   const base = useModulesContext();
   const moduleIdOverlay = useMemo(() => new Set(overlay.moduleIds), [overlay.moduleIds]);
   const featureOverlay = useMemo(() => new Set(overlay.features), [overlay.features]);
@@ -31,9 +31,12 @@ function EmbedModulesGate({ overlay, children }: { overlay: HostEnablement; chil
       ...base,
       isModuleEnabled: (id: string) => moduleIdOverlay.has(id) && base.isModuleEnabled(id),
       isFeatureEnabled: (f: string) => featureOverlay.has(f) && base.isFeatureEnabled(f),
-      allModuleFeatures: new Set(
-        Array.from(base.allModuleFeatures).filter((f) => featureOverlay.has(f)),
-      ),
+      // Left unnarrowed on purpose. Nav filtering reads this set to tell
+      // module-owned features (checked via isFeatureEnabled, which applies the
+      // host overlay) from core ones (always shown). Narrowing it to the
+      // overlay made a feature the host left out look like a core feature, so
+      // its nav items showed anyway.
+      allModuleFeatures: base.allModuleFeatures,
     }),
     [base, moduleIdOverlay, featureOverlay],
   );
