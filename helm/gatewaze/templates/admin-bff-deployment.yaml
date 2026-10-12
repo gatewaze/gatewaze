@@ -1,0 +1,189 @@
+{{- if and .Values.adminBff.switchAdmin (not .Values.adminBff.enabled) }}
+{{- fail "adminBff.switchAdmin=true needs adminBff.enabled=true: the admin would send every Supabase and API call to a BFF that is not deployed" }}
+{{- end }}
+{{- if and .Values.adminBff.switchAdmin (not .Values.ingress.enabled) }}
+{{- fail "adminBff.switchAdmin=true needs ingress.enabled=true: the BFF is reached through the admin host's ingress rule" }}
+{{- end }}
+{{- if .Values.adminBff.enabled }}
+###############################################################################
+# admin-bff — the session holder for the admin SPA in host-session mode
+# (packages/admin-bff, docs/admin-bff.md). It runs the LFID sign-in through
+# GoTrue, keeps the Supabase session in Redis behind an encrypted HttpOnly
+# cookie, and proxies /rest/v1, /storage/v1, /functions/v1, /api and the
+# /realtime/v1 WebSocket with the real token attached.
+#
+# adminBff.enabled deploys it; adminBff.switchAdmin points the admin SPA and
+# the admin host's ingress at it. Both default to false, and with both false
+# the chart renders exactly what it did before this template existed.
+#
+# Only the three secrets it needs are mounted, one key each: it never sees
+# the service-role key or the rest of the chart Secret.
+###############################################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "gatewaze.fullname" . }}-admin-bff
+  labels:
+    {{- include "gatewaze.labels" . | nindent 4 }}
+    app.kubernetes.io/component: admin-bff
+spec:
+  replicas: {{ .Values.adminBff.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "gatewaze.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: admin-bff
+  template:
+    metadata:
+      labels:
+        {{- include "gatewaze.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: admin-bff
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "gatewaze.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: admin-bff
+          image: "{{ .Values.image.registry }}/admin-bff:{{ include "gatewaze.imageTag" . }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - name: http
+              containerPort: 3001
+              protocol: TCP
+          env:
+            - name: PORT
+              value: "3001"
+            - name: LOG_LEVEL
+              value: {{ .Values.logLevel | default "info" | quote }}
+            # Public origin of the admin SPA; the BFF serves the same host.
+            - name: ADMIN_URL
+              value: {{ printf "https://%s" .Values.ingress.hosts.admin | quote }}
+            # Supabase as the BFF reaches it (in-cluster Kong for self-hosted)
+            # and as the browser reaches it (for the GoTrue authorize URL).
+            - name: SUPABASE_INTERNAL_URL
+              value: {{ .Values.adminBff.supabaseInternalUrl | default .Values.supabase.url | quote }}
+            - name: SUPABASE_PUBLIC_URL
+              value: {{ .Values.supabase.url | quote }}
+            - name: GATEWAZE_API_URL
+              value: "http://{{ include "gatewaze.fullname" . }}-api:3002"
+            - name: OIDC_IDENTIFIER
+              value: {{ .Values.adminBff.provider | quote }}
+            - name: ADMIN_BFF_SESSION_TTL_SECONDS
+              value: {{ .Values.adminBff.sessionTtlSeconds | quote }}
+            {{- with .Values.adminBff.trustProxy }}
+            - name: ADMIN_BFF_TRUST_PROXY
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.adminBff.signInRateLimit }}
+            - name: ADMIN_BFF_SIGNIN_RATE_LIMIT
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.adminBff.upstreamTimeoutMs }}
+            - name: ADMIN_BFF_UPSTREAM_TIMEOUT_MS
+              value: {{ . | quote }}
+            {{- end }}
+            - name: SUPABASE_ANON_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "gatewaze.secretName" . }}
+                  key: SUPABASE_ANON_KEY
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "gatewaze.secretName" . }}
+                  key: REDIS_URL
+            - name: ADMIN_BFF_SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "gatewaze.secretName" . }}
+                  key: ADMIN_BFF_SESSION_SECRET
+          startupProbe:
+            httpGet:
+              path: /bff/healthz
+              port: http
+            periodSeconds: 2
+            timeoutSeconds: 3
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /bff/healthz
+              port: http
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /bff/healthz
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.adminBff.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "gatewaze.fullname" . }}-admin-bff
+  labels:
+    {{- include "gatewaze.labels" . | nindent 4 }}
+    app.kubernetes.io/component: admin-bff
+spec:
+  type: ClusterIP
+  # No session affinity: sessions live in Redis, so any replica can serve
+  # any request, and a sign-out on one closes Realtime sockets on all.
+  ports:
+    - port: 3001
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "gatewaze.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: admin-bff
+{{- if .Values.podDisruptionBudget.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "gatewaze.fullname" . }}-admin-bff
+  labels:
+    {{- include "gatewaze.labels" . | nindent 4 }}
+    app.kubernetes.io/component: admin-bff
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "gatewaze.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: admin-bff
+{{- end }}
+{{- end }}

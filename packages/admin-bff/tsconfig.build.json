@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  // Tests are vitest's concern and never ship in the image.
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts"]
+}

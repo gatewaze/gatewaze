@@ -369,6 +369,7 @@ with both the version and `latest`.
 | Image | What it is |
 |---|---|
 | `ghcr.io/gatewaze/admin` | The administrator interface, React served by NGINX. |
+| `ghcr.io/gatewaze/admin-bff` | The optional session holder for the administrator interface in host-session mode. See [Admin BFF](./admin-bff.md). |
 | `ghcr.io/gatewaze/portal` | The public website, Next.js rendered on the server. |
 | `ghcr.io/gatewaze/api` | The Express API server. |
 | `ghcr.io/gatewaze/worker` | The background job runner. Carries Chromium for the scrapers, so it is the largest image. |
