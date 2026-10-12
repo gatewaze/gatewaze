@@ -122,14 +122,20 @@ async function handler(req: Request) {
 
     // Optional: Verify the user exists in our system
     // ilike for a case-insensitive match, with the LIKE wildcards escaped so a
-    // submitted address containing % or _ cannot match some other person.
-    const emailPattern = email.replace(/[\\%_]/g, (c: string) => `\\${c}`)
-    const { data: person } = await supabase
-      .from('people')
-      .select('id, email')
-      .ilike('email', emailPattern)
-      .limit(1)
-      .maybeSingle()
+    // submitted address cannot match some other person. PostgREST also treats
+    // `*` as `%` in like patterns and gives it no escape, so an address
+    // containing `*` (legal, but vanishingly rare) is simply not matched.
+    let person: { id: string; email: string } | null = null
+    if (!email.includes('*')) {
+      const emailPattern = email.replace(/[\\%_]/g, (c: string) => `\\${c}`)
+      const { data } = await supabase
+        .from('people')
+        .select('id, email')
+        .ilike('email', emailPattern)
+        .limit(1)
+        .maybeSingle()
+      person = data
+    }
 
     if (!person) {
       console.warn(`Download requested for unknown email: ${email}`)
