@@ -36,6 +36,16 @@ write_runtime_config() {
   ' > "$out_path"
   vite_count=$(grep -oE 'VITE_[A-Z0-9_]+' "$out_path" | sort -u | wc -l | tr -d ' ')
   echo "[admin] Wrote runtime-config.js with ${vite_count} VITE_* values to ${out_path}"
+  # Point index.html at this exact config: ?v=<content hash>. A browser that
+  # cached an older runtime-config.js (it used to be served as immutable for
+  # a year) then fetches the new one as soon as the config changes, e.g. when
+  # VITE_AUTH_MODE flips. Every path that copies a fresh index.html into
+  # place calls this function afterwards, so the stamp is never lost.
+  html_index="$(dirname "$out_path")/index.html"
+  if [ -f "$html_index" ]; then
+    config_hash=$(sha256sum "$out_path" | cut -c1-12)
+    sed -i -E "s#/runtime-config\.js(\?v=[0-9a-f]*)?\"#/runtime-config.js?v=${config_hash}\"#" "$html_index"
+  fi
 }
 
 # Hosted embed: a library build of the admin that a host application loads at
