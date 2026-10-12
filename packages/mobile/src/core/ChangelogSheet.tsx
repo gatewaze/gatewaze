@@ -14,6 +14,7 @@ import { GlassCircleButton } from '../components/GlassCircleButton';
 import { Body, Caps, Caption, CardTitle } from '../components/primitives';
 import { useTheme, radius, spacing } from '../theme/tokens';
 import { changelogReleases } from './changelog';
+import { formatVersionBuild } from './appInfo';
 
 export function ChangelogSheet({ onClose }: { onClose: () => void }) {
   const theme = useTheme();
@@ -36,8 +37,8 @@ export function ChangelogSheet({ onClose }: { onClose: () => void }) {
               <Caption>Nothing recorded yet.</Caption>
             ) : (
               releases.map((r) => (
-                <View key={`${r.version}:${r.build}`} style={styles.group}>
-                  <Caps>{`v${r.version} · Build ${r.build} · ${r.date}`}</Caps>
+                <View key={`${r.version}:${r.build ?? 'unknown'}`} style={styles.group}>
+                  <Caps>{`v${formatVersionBuild(r.version, r.build)} · ${r.date}`}</Caps>
                   {r.changes.map((c, i) => (
                     <Body key={i}>{`${c.kind === 'feature' ? '✦' : '✓'} ${c.text}`}</Body>
                   ))}

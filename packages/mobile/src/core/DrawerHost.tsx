@@ -40,7 +40,7 @@ import { useSession } from './auth/session';
 import { CoachHome } from './CoachHome';
 import { BugReportSheet } from './BugReport';
 import { ChangelogSheet } from './ChangelogSheet';
-import { appBuildNumber, appVersion } from './appInfo';
+import { appBuildNumber, appVersion, formatVersionBuild } from './appInfo';
 import { brandLogo, feedbackPath, feedbackHistoryPath } from './registry';
 import { config } from './config';
 import { useTextScale } from './textScale';
@@ -404,7 +404,7 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
 
           <View style={[styles.drawerFoot, { borderColor: theme.border }]}>
             <Caption style={{ textAlign: 'center' }}>
-              {`Version ${appVersion()} · Build ${appBuildNumber()}`}
+              {`Version ${formatVersionBuild(appVersion(), appBuildNumber())}`}
             </Caption>
             <DrawerRow
               icon="history"
