@@ -115,6 +115,9 @@ export class FakeSupabase {
   refreshRawBody: string | null = null;
   // Delay before answering PostgREST/Storage/functions paths.
   restDelayMs = 0;
+  // The Location /redirect-to answers with. Set by the test, never taken
+  // from the request, so the fake is not an open redirect.
+  redirectLocation = '';
   // Requests to non-auth paths that the client abandoned before an answer.
   aborted: string[] = [];
   private seq = 0;
@@ -260,7 +263,7 @@ export class FakeSupabase {
       return;
     }
     if (url.pathname.endsWith('/redirect-to')) {
-      res.writeHead(302, { location: url.searchParams.get('to') ?? '' }).end();
+      res.writeHead(302, { location: this.redirectLocation }).end();
       return;
     }
     if (url.pathname.endsWith('/redirect-external')) {

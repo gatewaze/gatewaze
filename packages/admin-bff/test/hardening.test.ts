@@ -92,7 +92,10 @@ describe('header and redirect hygiene', () => {
     expect(internal.headers.location).toBe('/storage/v1/object/public/b/k.png?v=1');
   });
 
-  const redirectTo = (to: string) => call(h.base, 'GET', `/functions/v1/f/redirect-to?to=${encodeURIComponent(to)}`, {});
+  const redirectTo = (to: string) => {
+    h.supabase.redirectLocation = to;
+    return call(h.base, 'GET', '/functions/v1/f/redirect-to', {});
+  };
 
   it('passes an https redirect to another host through (module OAuth)', async () => {
     const google = 'https://accounts.google.com/o/oauth2/v2/auth?client_id=x&redirect_uri=y';
