@@ -17,4 +17,13 @@ export {
   DOMPURIFY_TRUSTED_HTML_ALLOWED_ATTR,
 } from './dompurify-config';
 
-export { sanitizeNavLayout, NavLayoutValidationError, NAV_HUB_ID_PATTERN } from './nav-layout';
+export {
+  sanitizeNavLayout,
+  NavLayoutValidationError,
+  NAV_HUB_ID_PATTERN,
+  NAV_HUB_LINK_PREFIX,
+  NAV_HUB_LINK_KEY_PATTERN,
+  NAV_HUB_ACCENTS,
+  isNavHubAccent,
+  isSafeHubUrl,
+} from './nav-layout';

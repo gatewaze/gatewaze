@@ -1,19 +1,23 @@
 /**
  * Navigation editor model: converts between a saved NavLayout and the editor's
- * container state, and holds the drop rules. Kept free of React so it can be
+ * state, and holds the hub card rules. Kept free of React so it can be
  * unit-tested.
  */
 
-import type { NavLayout } from "@gatewaze/shared/modules";
+import { NAV_HUB_LINK_PREFIX, isSafeHubUrl } from "@gatewaze/shared";
+import type { NavLayout, NavLayoutItem } from "@gatewaze/shared/modules";
 import type { NavigationTree } from "@/@types/navigation";
 import type { NavPool } from "@/app/navigation/resolveNavLayout";
 
 // ── Editor model ────────────────────────────────────────────────────────────
 // Containers hold ordered item keys. Section containers are id'd `sec:<id>`;
 // the fixed containers are `settings`, `hidden`, and `unsorted` (the source
-// pool of not-yet-placed items, kept out of every live surface). Each
-// installed module hub page (an item declaring `hub`) adds a `hub:<id>`
-// container.
+// pool of not-yet-placed items, kept out of the sidebar). Every pool item is
+// in exactly one container.
+//
+// Hub cards live apart from the containers, in `hubCards`, because they are
+// independent of them: a page can be in the sidebar and on a hub at once, and
+// a hub can also hold custom link cards that aren't pool items at all.
 
 export type Containers = Record<string, string[]>;
 export type Override = { label?: string; icon?: string };
@@ -22,7 +26,6 @@ export const SETTINGS = "settings";
 export const HIDDEN = "hidden";
 export const UNSORTED = "unsorted";
 export const secId = (id: string) => `sec:${id}`;
-export const hubContainerId = (id: string) => `hub:${id}`;
 
 // A collapsible group is a container whose id IS its synthetic `group:*` key
 // (already unique + namespaced; no pool item ever collides). It belongs to a
@@ -36,6 +39,7 @@ export interface EditorState {
   sectionGroups: Record<string, string[]>; // section id -> ordered group keys
   overrides: Record<string, Override>;
   hubIds: string[]; // installed hub ids, in pool order
+  hubCards: Record<string, NavLayoutItem[]>; // hub id -> its cards, in order
   defaultRoute?: string;
 }
 
@@ -49,7 +53,6 @@ export function layoutToState(layout: NavLayout, pool: NavPool): EditorState {
   const inPool = new Set(poolKeys);
   const containers: Containers = { [SETTINGS]: [], [HIDDEN]: [], [UNSORTED]: [] };
   const hubIds = [...pool.hubs.keys()];
-  for (const id of hubIds) containers[hubContainerId(id)] = [];
   const sectionOrder: string[] = [];
   const sectionMeta: EditorState["sectionMeta"] = {};
   const groups: EditorState["groups"] = {};
@@ -97,16 +100,18 @@ export function layoutToState(layout: NavLayout, pool: NavPool): EditorState {
       recordOverride(item.key, item.icon, item.label);
     }
   }
+  const hubCards: EditorState["hubCards"] = {};
   for (const id of hubIds) {
     const filed = layout.hubs && Object.hasOwn(layout.hubs, id) ? layout.hubs[id] : [];
-    for (const item of filed) {
-      // A hub never lists its own page; leave it for the sidebar/unsorted.
-      if (!canFileOntoHub(pool.items.get(item.key), id)) continue;
-      if (take(item.key)) {
-        containers[hubContainerId(id)].push(item.key);
-        recordOverride(item.key, item.icon, item.label);
-      }
-    }
+    const seen = new Set<string>();
+    hubCards[id] = filed.filter((card) => {
+      if (seen.has(card.key)) return false;
+      // Custom cards stay as they are. A module card needs its module
+      // installed, and a hub never lists its own page.
+      const keep = isCustomCard(card) || (inPool.has(card.key) && canFileOntoHub(pool.items.get(card.key), id));
+      if (keep) seen.add(card.key);
+      return keep;
+    });
   }
   for (const key of layout.hidden) {
     if (take(key)) containers[HIDDEN].push(key);
@@ -121,7 +126,17 @@ export function layoutToState(layout: NavLayout, pool: NavPool): EditorState {
     containers[secId("main")] = [];
     sectionGroups.main = [];
   }
-  return { containers, sectionOrder, sectionMeta, groups, sectionGroups, overrides, hubIds, defaultRoute: layout.defaultRoute };
+  return {
+    containers,
+    sectionOrder,
+    sectionMeta,
+    groups,
+    sectionGroups,
+    overrides,
+    hubIds,
+    hubCards,
+    defaultRoute: layout.defaultRoute,
+  };
 }
 
 export function stateToLayout(state: EditorState): NavLayout {
@@ -148,33 +163,103 @@ export function stateToLayout(state: EditorState): NavLayout {
     })),
     settings: (state.containers[SETTINGS] ?? []).map(itemRef),
     ...(state.hubIds.length > 0
-      ? {
-          hubs: Object.fromEntries(
-            state.hubIds.map((id) => [id, (state.containers[hubContainerId(id)] ?? []).map(itemRef)]),
-          ),
-        }
+      ? { hubs: Object.fromEntries(state.hubIds.map((id) => [id, state.hubCards[id] ?? []])) }
       : {}),
     hidden: state.containers[HIDDEN] ?? [],
-    // A page filed onto a hub has no sidebar entry to land on, so it can't be
-    // the default page; drop it rather than save a default that silently
-    // falls back to the first route.
-    ...(state.defaultRoute && !isOnHub(state, state.defaultRoute) ? { defaultRoute: state.defaultRoute } : {}),
+    // A default page that isn't in the sidebar or settings (e.g. one that is
+    // only on a hub) has nowhere to land after login; drop it rather than save
+    // a default that silently falls back to the first route.
+    ...(state.defaultRoute && !isOffSidebar(state, state.defaultRoute) ? { defaultRoute: state.defaultRoute } : {}),
   };
 }
 
-function isOnHub(state: EditorState, key: string): boolean {
-  return state.hubIds.some((id) => (state.containers[hubContainerId(id)] ?? []).includes(key));
+function isOffSidebar(state: EditorState, key: string): boolean {
+  return (state.containers[UNSORTED] ?? []).includes(key) || (state.containers[HIDDEN] ?? []).includes(key);
+}
+
+// ── Hub cards ────────────────────────────────────────────────────────────────
+
+/** Whether a hub card is a custom link card rather than a nav item's page. */
+export function isCustomCard(card: Pick<NavLayoutItem, "key">): boolean {
+  return card.key.startsWith(NAV_HUB_LINK_PREFIX);
+}
+
+/** Pool items that can still be added to hub `hubId`, given its current cards. */
+export function addableItems(pool: NavPool, hubId: string, cards: NavLayoutItem[]): NavigationTree[] {
+  const onHub = new Set(cards.map((c) => c.key));
+  return poolKeysOf(pool)
+    .map((key) => pool.items.get(key))
+    .filter((node): node is NavigationTree => !!node && !onHub.has(node.id) && canFileOntoHub(node, hubId));
+}
+
+/**
+ * A new, unused custom card key derived from the title: `link:` plus a slug,
+ * with a numeric suffix when the slug is taken.
+ */
+export function newLinkKey(title: string, cards: NavLayoutItem[]): string {
+  const base =
+    title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 48) || "card";
+  const taken = new Set(cards.map((c) => c.key));
+  let key = `${NAV_HUB_LINK_PREFIX}${base}`;
+  for (let n = 2; taken.has(key); n++) key = `${NAV_HUB_LINK_PREFIX}${base}-${n}`;
+  return key;
+}
+
+/**
+ * Why a card can't be saved, or null when it can. Mirrors what the layout
+ * sanitiser would drop, so the editor never shows a card that vanishes on save.
+ */
+export function hubCardError(card: NavLayoutItem): string | null {
+  if (!isCustomCard(card)) return null;
+  if (!card.label?.trim()) return "Give the card a title.";
+  if (card.url) {
+    if (!isSafeHubUrl(card.url)) {
+      return "Use a full https:// (or http://) address, or a path that starts with a single /.";
+    }
+    return null;
+  }
+  return card.comingSoon ? null : "Add a link, or mark the card as coming soon.";
+}
+
+/** Copy of `state` with hub `hubId`'s cards replaced. */
+export function withHubCards(state: EditorState, hubId: string, cards: NavLayoutItem[]): EditorState {
+  return { ...state, hubCards: { ...state.hubCards, [hubId]: cards } };
+}
+
+/**
+ * Drop empty optional fields from a card the editor built, so saved layouts
+ * hold only what was set.
+ */
+export function compactCard(card: NavLayoutItem): NavLayoutItem {
+  const out: NavLayoutItem = { key: card.key };
+  const text = (v?: string) => (v && v.trim() ? v.trim() : undefined);
+  const label = text(card.label);
+  const icon = text(card.icon);
+  const description = text(card.description);
+  const eyebrow = text(card.eyebrow);
+  const tags = (card.tags ?? []).map((t) => t.trim()).filter(Boolean);
+  if (label) out.label = label;
+  if (icon) out.icon = icon;
+  if (description) out.description = description;
+  if (eyebrow) out.eyebrow = eyebrow;
+  if (tags.length > 0) out.tags = [...new Set(tags)];
+  if (card.accent) out.accent = card.accent;
+  if (card.comingSoon) out.comingSoon = true;
+  if (isCustomCard(card)) {
+    const url = text(card.url);
+    if (url) out.url = url;
+    if (url && card.newTab) out.newTab = true;
+  }
+  return out;
 }
 
 /** False when `node` is a page declaring hub `hubId`: a hub never lists itself. */
 export function canFileOntoHub(node: NavigationTree | undefined, hubId: string): boolean {
   return node?.hub !== hubId;
-}
-
-/** Whether the item `node` may be dropped into the container `containerId`. */
-export function canDropInto(containerId: string, node: NavigationTree | undefined): boolean {
-  if (!containerId.startsWith("hub:")) return true;
-  return canFileOntoHub(node, containerId.slice("hub:".length));
 }
 
 export function findContainerIn(state: EditorState, key: string): string | undefined {

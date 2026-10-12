@@ -49,6 +49,7 @@ export type {
   NavLayout,
   NavLayoutSection,
   NavLayoutItem,
+  NavHubAccent,
   PortalRouteDefinition,
   WorkerDefinition,
   SchedulerDefinition,
