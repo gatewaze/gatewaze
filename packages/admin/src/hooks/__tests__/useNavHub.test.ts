@@ -41,6 +41,22 @@ describe("useNavHub", () => {
     expect(result.current.cards.map((c) => c.key)).toEqual(["module.newsletters..newsletters", "link:events"]);
   });
 
+  it("still offers the deprecated items list, built from module cards", () => {
+    state.error = null;
+    state.cards = [
+      card("module.newsletters..newsletters", {
+        title: "Weekly digest",
+        icon: "Envelope",
+        node: { id: "n", type: "item", path: "/newsletters", title: "Newsletters", requiredFeature: "newsletters" },
+      }),
+      card("link:events", { url: "/foundation/events" }),
+    ];
+    const { result } = renderHook(() => useNavHub("marketing-os"));
+    expect(result.current.items).toEqual([
+      { id: "n", type: "item", path: "/newsletters", title: "Weekly digest", icon: "Envelope", requiredFeature: "newsletters" },
+    ]);
+  });
+
   it("returns no cards when the layout failed to load", () => {
     state.error = new Error("boom");
     state.cards = [card("link:events", { url: "/x" })];

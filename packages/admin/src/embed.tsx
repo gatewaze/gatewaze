@@ -153,7 +153,7 @@ export function mount(el: HTMLElement, ctx: GwHostContext): { unmount(): void } 
     setEmbeddedMode(true);
     setEmbedPortalContainer(validCtx.portalContainer);
     setHostNotify(validCtx.notify);
-    setHostNavigate(validCtx.navigateHost);
+    setHostNavigate(typeof validCtx.navigateHost === 'function' ? validCtx.navigateHost : null);
 
     if (hostSession) {
       // storageKeySuffix is ignored: nothing is stored in the page.

@@ -36,6 +36,35 @@ describe("useNavLayout", () => {
     expect(result.current.layout).toEqual(orgLayout);
   });
 
+  it("runs a stored layout through the sanitiser, dropping unsafe cards", async () => {
+    const stored = {
+      ...orgLayout,
+      hubs: {
+        "marketing-os": [
+          { key: "link:ok", label: "OK", url: "/ok" },
+          { key: "link:bad", label: "Bad", url: "javascript:alert(1)" },
+        ],
+        __proto__: [],
+      },
+    };
+    results.platform_settings.push({ data: { value: JSON.stringify(stored) }, error: null });
+    results.admin_ui_preferences.push({ data: null, error: null });
+    const { result } = renderHook(() => useNavLayout());
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    expect(result.current.layout?.hubs).toEqual({ "marketing-os": [{ key: "link:ok", label: "OK", url: "/ok" }] });
+  });
+
+  it("ignores a stored layout that fails validation, and says so", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    results.platform_settings.push({ data: { value: JSON.stringify({ sidebar: "nope" }) }, error: null });
+    results.admin_ui_preferences.push({ data: null, error: null });
+    const { result } = renderHook(() => useNavLayout());
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    expect(result.current.layout).toBeNull();
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
   it("reports a failed layer, keeps what did load, and recovers on reload", async () => {
     results.platform_settings.push({ data: { value: JSON.stringify(orgLayout) }, error: null });
     results.admin_ui_preferences.push({ data: null, error: { message: "permission denied" } });

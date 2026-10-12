@@ -222,7 +222,8 @@ function resolveItem(
 
 /**
  * Resolve a layout into its surfaces (sidebar, settings, hub pages). Items the layout never references
- * land in `unsorted` (hidden until filed). Exposed for the layout editor; the
+ * land in `unsorted` (kept out of the sidebar and settings until filed; a hub
+ * card can still show one). Exposed for the layout editor; the
  * render path uses {@link applyNavLayout}.
  */
 export function resolveNavigation(
@@ -310,8 +311,9 @@ function resolveHubCard(ref: NavLayoutItem, hubId: string, pool: NavPool): NavHu
   }
 
   const node = pool.items.get(ref.key);
-  // A hub never lists its own page (nor a duplicate declarer of its id).
-  if (!node || node.hub === hubId) return null;
+  // A hub never lists its own page (nor a duplicate declarer of its id), and
+  // an item with no route has nothing to open.
+  if (!node || !node.path || node.hub === hubId) return null;
   return {
     ...common,
     title: ref.label ?? node.title ?? ref.key,
@@ -326,7 +328,7 @@ function resolveHubCard(ref: NavLayoutItem, hubId: string, pool: NavPool): NavHu
  * Apply a layout to the base tree, returning the legacy `[...sidebar,
  * settingsRoot]` shape that `useNavigation` consumers expect. A `null` layout
  * is a passthrough, so the sidebar renders exactly as it did before the
- * feature existed. `unsorted` items are omitted (hidden from live surfaces).
+ * feature existed. `unsorted` items are left out of the sidebar and settings.
  */
 export function applyNavLayout(
   baseTree: NavigationTree[],

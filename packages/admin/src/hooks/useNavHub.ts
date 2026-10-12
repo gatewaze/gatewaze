@@ -4,6 +4,7 @@ import { useNavHubs } from '@/hooks/useNavigation';
 import { useFeaturePermissions } from '@/hooks/useFeaturePermissions';
 import { filterNavigationByPermissions } from '@/utils/navigationPermissions';
 import type { NavHubCard } from '@/app/navigation/resolveNavLayout';
+import type { NavigationTree } from '@/@types/navigation';
 
 export interface UseNavHubResult {
   /** This hub's cards, in layout order. Module cards the user can't see are removed. */
@@ -17,6 +18,12 @@ export interface UseNavHubResult {
   error: Error | null;
   /** Retry loading the nav layout. */
   reload: () => void;
+  /**
+   * @deprecated Use `cards`. The module cards as nav items, with the card's
+   * title and icon applied. Kept for one release so a hub page built against
+   * the earlier `items` shape keeps working until its module is updated.
+   */
+  items: NavigationTree[];
 }
 
 /**
@@ -48,5 +55,10 @@ export function useNavHub(hubId: string): UseNavHubResult {
     );
   }, [ready, error, hubs, hubId, permissions, isSuperAdmin, isFeatureEnabled, allModuleFeatures]);
 
-  return { cards, ready, error, reload };
+  const items = useMemo(
+    () => cards.flatMap((card) => (card.node ? [{ ...card.node, title: card.title, icon: card.icon }] : [])),
+    [cards],
+  );
+
+  return { cards, items, ready, error, reload };
 }

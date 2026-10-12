@@ -26,6 +26,20 @@ describe("openHostPath", () => {
     expect(navigate).not.toHaveBeenCalled();
   });
 
+  it.each(["javascript:alert(1)", "//evil.example.org", "https://example.org", "/a b"])(
+    "ignores %s",
+    (path) => {
+      const navigate = vi.fn();
+      const navigateHost = vi.fn();
+      openHostPath(path, navigate);
+      setEmbeddedMode(true);
+      setHostNavigate(navigateHost);
+      openHostPath(path, navigate);
+      expect(navigate).not.toHaveBeenCalled();
+      expect(navigateHost).not.toHaveBeenCalled();
+    },
+  );
+
   it("falls back to a full page load when embedded without navigateHost", () => {
     const assign = vi.fn();
     vi.stubGlobal("location", { ...window.location, assign });

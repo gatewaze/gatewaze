@@ -25,6 +25,7 @@ import { useDisclosure, useFuse } from "@/hooks";
 import { useThemeContext } from "@/app/contexts/theme/context";
 import { createScopedKeydownHandler } from "@/utils/dom/createScopedKeydownHandler";
 import { useNavHubs, useNavigation } from "@/hooks/useNavigation";
+import { buildSearchItems } from "./searchItems";
 import { Highlight } from "@/components/shared/Highlight";
 import { settings } from "@/app/navigation/segments/settings";
 import { ColorType } from "@/constants/app";
@@ -170,12 +171,7 @@ export function SearchDialog({ close }: SearchDialogProps) {
     const hubNodes = Object.values(hubs)
       .flat()
       .flatMap((card) => (card.node ? [card.node] : []));
-    const seen = new Set<string>();
-    return flattenNav([...navigation, settings, ...hubNodes]).filter((item) => {
-      if (seen.has(item.id)) return false;
-      seen.add(item.id);
-      return true;
-    });
+    return buildSearchItems([...navigation, settings, ...hubNodes]);
   }, [navigation, hubs]);
   const searchInputId = useRef(
     `search-input-${Math.random().toString(36).substring(2, 11)}`,
@@ -300,19 +296,4 @@ export function SearchDialog({ close }: SearchDialogProps) {
       )}
     </div>
   );
-}
-
-function flattenNav(items: NavigationTree[]): NavigationTree[] {
-  let flatArray: NavigationTree[] = [];
-  items.forEach((item) => {
-    if (item.path && item.type !== "collapse") {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { transKey, ...filteredItem } = item;
-      flatArray.push(filteredItem);
-    }
-    if (item.childs) {
-      flatArray = flatArray.concat(flattenNav(item.childs));
-    }
-  });
-  return flatArray;
 }
