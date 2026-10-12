@@ -49,7 +49,13 @@ vi.mock('@/components/ModuleSlot', () => ({
 vi.mock('@/components/shared/GradientBackground', () => ({ default: () => null }));
 
 const { default: SignIn } = await import('../index');
-const { signInErrorMessage } = await import('../signInErrors');
+const { SIGN_IN_UNAVAILABLE_MESSAGE, signInErrorMessage } = await import('../signInErrors');
+
+// The page also mounts a screen-reader-only live region that repeats the
+// status, so text queries target the visible copy.
+const VISIBLE = { selector: 'p:not([role="status"])' };
+// ?error= messages render in an InputErrorMsg <span>.
+const ERROR_TEXT = { selector: 'span' };
 
 let assign: ReturnType<typeof vi.fn>;
 
@@ -126,7 +132,7 @@ describe('SignIn page, host-session mode', () => {
     getHostStatus.mockResolvedValue({ status: 'signed_out' });
     const { container } = render(<SignIn />);
 
-    expect(await screen.findByText('Sign-in failed. Please try again.')).toBeInTheDocument();
+    expect(await screen.findByText('Sign-in failed. Please try again.', ERROR_TEXT)).toBeInTheDocument();
     expect(container.textContent).not.toContain('evil.example');
     expect(container.querySelector('img[src="x"]')).toBeNull();
   });
@@ -136,14 +142,14 @@ describe('SignIn page, host-session mode', () => {
     getHostStatus.mockResolvedValue({ status: 'signed_out' });
     render(<SignIn />);
 
-    expect(await screen.findByText('Sign-in was cancelled or denied.')).toBeInTheDocument();
+    expect(await screen.findByText('Sign-in was cancelled or denied.', ERROR_TEXT)).toBeInTheDocument();
   });
 
   it('shows the unavailable state when the status check rejects', async () => {
     getHostStatus.mockRejectedValue(new Error('offline'));
     render(<SignIn />);
 
-    expect(await screen.findByText('Sign-in is temporarily unavailable.')).toBeInTheDocument();
+    expect(await screen.findByText(SIGN_IN_UNAVAILABLE_MESSAGE, VISIBLE)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Sign in' })).not.toBeInTheDocument();
   });
 
@@ -154,14 +160,14 @@ describe('SignIn page, host-session mode', () => {
         .mockResolvedValueOnce({ status: 'not_admin', email: 'someone@example.org' })
         .mockRejectedValueOnce(new Error('offline'));
       render(<SignIn />);
-      await screen.findByText(/does not have admin access/);
+      await screen.findByText(/does not have admin access/, VISIBLE);
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(NOT_ADMIN_CACHE_MS);
       });
 
-      expect(await screen.findByText('Sign-in is temporarily unavailable.')).toBeInTheDocument();
-      expect(screen.queryByText(/does not have admin access/)).not.toBeInTheDocument();
+      expect(await screen.findByText(SIGN_IN_UNAVAILABLE_MESSAGE, VISIBLE)).toBeInTheDocument();
+      expect(screen.queryByText(/does not have admin access/, VISIBLE)).not.toBeInTheDocument();
     } finally {
       vi.useRealTimers();
     }
@@ -193,7 +199,7 @@ describe('SignIn page, host-session mode', () => {
         .mockResolvedValue({ status: 'ok', user: { id: 'u1' } as never });
       render(<SignIn />);
 
-      expect(await screen.findByText('Checking your access…')).toBeInTheDocument();
+      expect(await screen.findByText('Checking your access…', VISIBLE)).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Sign out' })).not.toBeInTheDocument();
       expect(getHostStatus).toHaveBeenCalledTimes(1);
 
@@ -207,7 +213,7 @@ describe('SignIn page, host-session mode', () => {
     it('pending: gives up after 5 polls and offers Retry', async () => {
       getHostStatus.mockResolvedValue({ status: 'pending', retryAfterMs: 1000 });
       render(<SignIn />);
-      await screen.findByText('Checking your access…');
+      await screen.findByText('Checking your access…', VISIBLE);
 
       for (let i = 0; i < 6; i += 1) {
         await act(async () => {
@@ -220,12 +226,50 @@ describe('SignIn page, host-session mode', () => {
       expect(assign).not.toHaveBeenCalled();
     });
 
+    it('pending then ok never navigates off-site (?redirect=//evil.example goes to /)', async () => {
+      setUrl('?redirect=%2F%2Fevil.example');
+      getHostStatus
+        .mockResolvedValueOnce({ status: 'pending', retryAfterMs: 1000 })
+        .mockResolvedValue({ status: 'ok', user: { id: 'u1' } as never });
+      render(<SignIn />);
+      await screen.findByText('Checking your access…', VISIBLE);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+
+      await waitFor(() => expect(assign).toHaveBeenCalledWith('/'));
+    });
+
+    it('Retry starts a fresh pending budget', async () => {
+      getHostStatus.mockResolvedValue({ status: 'pending', retryAfterMs: 1000 });
+      render(<SignIn />);
+      await screen.findByText('Checking your access…', VISIBLE);
+      for (let i = 0; i < 6; i += 1) {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(1000);
+        });
+      }
+      expect(getHostStatus).toHaveBeenCalledTimes(6);
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Retry' }));
+      await screen.findByText('Checking your access…', VISIBLE);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+
+      // Without the reset, the first check after Retry would exceed the cap
+      // and go straight back to Retry without polling again.
+      expect(getHostStatus).toHaveBeenCalledTimes(8);
+      expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
+    });
+
     it('not_admin: re-checks once after the cache window, then navigates if access arrived', async () => {
       getHostStatus
         .mockResolvedValueOnce({ status: 'not_admin', email: 'someone@example.org' })
         .mockResolvedValue({ status: 'ok', user: { id: 'u1' } as never });
       render(<SignIn />);
-      await screen.findByText(/does not have admin access/);
+      await screen.findByText(/does not have admin access/, VISIBLE);
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(NOT_ADMIN_CACHE_MS);
@@ -237,15 +281,87 @@ describe('SignIn page, host-session mode', () => {
     it('not_admin: re-checks only once, then settles', async () => {
       getHostStatus.mockResolvedValue({ status: 'not_admin', email: 'someone@example.org' });
       render(<SignIn />);
-      await screen.findByText(/does not have admin access/);
+      await screen.findByText(/does not have admin access/, VISIBLE);
 
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(NOT_ADMIN_CACHE_MS * 3);
-      });
+      // Three separate windows, so a guard that re-armed after every
+      // not_admin would show up as extra checks.
+      for (let i = 0; i < 3; i += 1) {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(NOT_ADMIN_CACHE_MS);
+        });
+      }
 
       expect(getHostStatus).toHaveBeenCalledTimes(2);
       expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
     });
+  });
+
+  it('shows a neutral checking state, not the Sign in button, while the first check runs', async () => {
+    getHostStatus.mockReturnValue(new Promise(() => {}));
+    render(<SignIn />);
+
+    expect(await screen.findByText('Checking your access…', VISIBLE)).toBeInTheDocument();
+    expect(screen.getByText('Checking your access', { selector: 'p' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Sign in' })).not.toBeInTheDocument();
+  });
+
+  it('does not navigate when the first check is already ok', async () => {
+    getHostStatus.mockResolvedValue({ status: 'ok', user: { id: 'u1' } as never });
+    render(<SignIn />);
+
+    expect(await screen.findByRole('button', { name: 'Sign in' })).toBeInTheDocument();
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['not_admin', { status: 'not_admin' as const }, 'No admin access'],
+    ['unavailable', { status: 'unavailable' as const }, 'Sign-in unavailable'],
+    ['signed_out', { status: 'signed_out' as const }, 'Sign in to continue'],
+  ])('the heading matches the %s state', async (_label, status, heading) => {
+    getHostStatus.mockResolvedValue(status);
+    render(<SignIn />);
+
+    expect(await screen.findByText(heading, { selector: 'p' })).toBeInTheDocument();
+  });
+
+  it('announces the state through a live region', async () => {
+    getHostStatus.mockResolvedValue({ status: 'unavailable' });
+    render(<SignIn />);
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(SIGN_IN_UNAVAILABLE_MESSAGE));
+    expect(screen.getByRole('status')).toHaveAttribute('aria-live', 'polite');
+  });
+
+  it('moves focus to the heading after Retry removes the focused button', async () => {
+    getHostStatus.mockResolvedValueOnce({ status: 'unavailable' }).mockReturnValue(new Promise(() => {}));
+    render(<SignIn />);
+    const retry = await screen.findByRole('button', { name: 'Retry' });
+    retry.focus();
+
+    fireEvent.click(retry);
+
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByText('Checking your access', { selector: 'p' })));
+  });
+
+  it('shows a busy Sign out while the call runs, then focuses the heading', async () => {
+    getHostStatus.mockResolvedValue({ status: 'not_admin', email: 'someone@example.org' });
+    let finish: (v: { error: Error | null }) => void = () => {};
+    signOut.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    render(<SignIn />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign out' }));
+
+    const busy = await screen.findByRole('button', { name: 'Signing out…' });
+    expect(busy).toBeDisabled();
+
+    await act(async () => finish({ error: null }));
+
+    expect(await screen.findByRole('button', { name: 'Sign in' })).toBeInTheDocument();
+    expect(document.activeElement).toBe(screen.getByText('Sign in to continue', { selector: 'p' }));
+  });
+
+  it('uses one wording for "unavailable" in the view and for ?error=server_error', async () => {
+    expect(signInErrorMessage('server_error')).toBe(SIGN_IN_UNAVAILABLE_MESSAGE);
   });
 
   it('keeps the not-admin view and tells the user when sign-out fails', async () => {
@@ -286,7 +402,7 @@ describe('signInErrorMessage', () => {
     ['login_failed', 'Sign-in did not complete. Please try again.'],
     ['callback_invalid', 'Your sign-in link expired or was already used. Please try again.'],
     ['not_admin', 'Your account does not have admin access.'],
-    ['server_error', 'Sign-in is unavailable right now. Please try again later.'],
+    ['server_error', 'Sign-in is temporarily unavailable. Please try again.'],
   ])('maps %s', (code, message) => {
     expect(signInErrorMessage(code)).toBe(message);
   });

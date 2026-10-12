@@ -41,7 +41,16 @@ export type HostStatus =
 type AuthEvent = 'INITIAL_SESSION' | 'SIGNED_IN' | 'SIGNED_OUT'
 type Listener = (event: AuthEvent, session: Session | null) => void | Promise<void>
 
+/**
+ * How long one /me request may take before it is abandoned and reported as
+ * unavailable. Without it a hung session holder would leave the auth context
+ * loading for ever (the embed blank).
+ */
+export const ME_TIMEOUT_MS = 8_000
+
 export interface HostAuthOptions {
+  /** Overrides ME_TIMEOUT_MS (tests). */
+  meTimeoutMs?: number
   meUrl: string
   logoutUrl: string
   anonKey: string
@@ -55,6 +64,9 @@ export interface HostAuthOptions {
 }
 
 const STANDALONE_LOGIN_PATH = '/bff/login'
+
+/** Answers that keep a signed-in user out for now, but may later turn ok. */
+const WITHHELD: ReadonlySet<HostStatus['status']> = new Set(['pending', 'unavailable', 'not_admin'])
 
 /**
  * How long a not_admin answer from the session holder is reused. A session
@@ -144,7 +156,7 @@ function throwing(name: string) {
  * loudly for anything else.
  */
 export function createHostAuth(options: HostAuthOptions) {
-  const { meUrl, logoutUrl, anonKey, getHostHook, embedded } = options
+  const { meUrl, logoutUrl, anonKey, getHostHook, embedded, meTimeoutMs = ME_TIMEOUT_MS } = options
   const listeners = new Set<Listener>()
   let me: Promise<HostStatus> | null = null
   // When the cached `me` stops being valid; null means for the page's life.
@@ -156,9 +168,13 @@ export function createHostAuth(options: HostAuthOptions) {
   const fetchMe = async (): Promise<{ result: HostStatus; cache: boolean | number }> => {
     let res: Response
     try {
-      res = await fetch(meUrl, { credentials: 'include', headers: { apikey: anonKey } })
+      res = await fetch(meUrl, {
+        credentials: 'include',
+        headers: { apikey: anonKey },
+        signal: AbortSignal.timeout(meTimeoutMs),
+      })
     } catch (err) {
-      // Network failure: says nothing about the session. Not cached.
+      // Network failure or the timeout: says nothing about the session. Not cached.
       console.warn('[host-session] session check failed', err)
       return { result: { status: 'unavailable' }, cache: false }
     }
@@ -192,6 +208,9 @@ export function createHostAuth(options: HostAuthOptions) {
     return { result: { status: 'unavailable' }, cache: false }
   }
 
+  // The last answer the session holder gave, to spot access arriving.
+  let lastStatus: HostStatus['status'] | null = null
+
   const loadMe = (): Promise<HostStatus> => {
     if (me && meExpiresAt !== null && Date.now() >= meExpiresAt) {
       me = null
@@ -204,6 +223,18 @@ export function createHostAuth(options: HostAuthOptions) {
         if (me === pending) {
           if (cache === false) me = null
           else if (typeof cache === 'number') meExpiresAt = Date.now() + cache
+          // Access arrived after an answer that withheld it (a pending
+          // admin check, an unavailable session holder, a not_admin that was
+          // re-checked): tell listeners, as supabase-js does on sign-in, so
+          // the auth context's listener picks the user up without a reload.
+          // (The embed's access gate does not rely on this: it resolves the
+          // user itself through recheckAccess, which also covers a profile
+          // lookup the listener would drop.) Inside the `me === pending`
+          // guard, so an ok that lands after a sign-out is not announced.
+          if (result.status === 'ok' && lastStatus !== null && WITHHELD.has(lastStatus)) {
+            emit('SIGNED_IN', syntheticSession(result.user))
+          }
+          lastStatus = result.status
         }
         return result
       })
@@ -350,6 +381,7 @@ export function createHostAuth(options: HostAuthOptions) {
       signedOutEmitted = false
       me = null
       meExpiresAt = null
+      lastStatus = null
     },
   }
 
