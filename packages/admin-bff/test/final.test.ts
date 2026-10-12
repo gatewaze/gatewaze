@@ -8,6 +8,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import WebSocket from 'ws';
 import { DEFAULT_SIGN_IN_RATE_LIMIT } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
+import { appOptionsFromEnv, storeOptionsFromEnv } from '../src/wiring.js';
 import { deriveKeys, open, seal } from '../src/core/keys.js';
 import { rewriteLocation, upstreamHeaders } from '../src/core/proxy.js';
 import { bridgeRealtime } from '../src/core/realtime.js';
@@ -42,11 +43,33 @@ const sameOrigin = { origin: SITE, apikey: ANON };
 const UP = 'http://supabase-kong:8000';
 
 describe('Location filtering', () => {
-  for (const loc of ['//evil.example/x', '/\\evil.test', '\\\\evil.test', '/\t/evil.test', 'javascript:alert(1)', 'ftp://x', 'https://evil.example/x', '/a\nb']) {
+  const SITE_ORIGIN = 'https://admin.example.test';
+  for (const loc of [
+    '//evil.example/x',
+    '/\\evil.test',
+    '\\\\evil.test',
+    '/\t/evil.test',
+    'javascript:alert(1)',
+    'data:text/html,x',
+    'ftp://x',
+    'http://evil.example/x',
+    '/a\nb',
+    `${UP}//evil.example/x`,
+    `${UP}/a/..//evil.example`,
+    `${SITE_ORIGIN}//evil.example/x`,
+  ]) {
     it(`drops ${JSON.stringify(loc)}`, () => {
-      expect(rewriteLocation(loc, UP)).toBeNull();
+      expect(rewriteLocation(loc, UP, SITE_ORIGIN)).toBeNull();
     });
   }
+  it('passes other https hosts and local http through unchanged', () => {
+    expect(rewriteLocation('https://accounts.google.com/o/oauth2/v2/auth?x=1', UP, SITE_ORIGIN)).toBe('https://accounts.google.com/o/oauth2/v2/auth?x=1');
+    expect(rewriteLocation('http://localhost:5274/x', UP, SITE_ORIGIN)).toBe('http://localhost:5274/x');
+    expect(rewriteLocation('http://admin.gatewaze.localhost/x', UP, SITE_ORIGIN)).toBe('http://admin.gatewaze.localhost/x');
+  });
+  it('makes the admin origin relative', () => {
+    expect(rewriteLocation(`${SITE_ORIGIN}/settings?x=1`, UP, SITE_ORIGIN)).toBe('/settings?x=1');
+  });
   it('keeps a same-origin relative path and relativises a same-origin absolute URL', () => {
     expect(rewriteLocation('/storage/v1/object/x?y=1', UP)).toBe('/storage/v1/object/x?y=1');
     expect(rewriteLocation('x/y', UP)).toBe('x/y');
@@ -97,6 +120,13 @@ describe('Realtime socket slots', () => {
     const ok = await upgrade(s.cookie);
     expect(ok.status).toBe(101);
     ok.ws?.close();
+  });
+
+  it('an aborted upgrade leaves no sign-out listener behind', async () => {
+    const s = await h.signIn('u-admin');
+    await Promise.all(Array.from({ length: 5 }, () => rawRequest(s.cookie, { key: false, fin: false })));
+    const listeners = (h.store as unknown as { logoutListeners: Map<string, Set<unknown>> }).logoutListeners;
+    expect(listeners.has(s.sid)).toBe(false);
   });
 
   it('a client that half-closes while the session loads gives its slot back', async () => {
@@ -519,6 +549,22 @@ describe('config wiring', () => {
     expect(c.trustProxy).toBe('10.0.0.0/8');
     expect(c.signInRateLimit).toBe(7);
     expect(c.upstreamTimeoutMs).toBe(1234);
+  });
+  it('passes them, and the rest of the environment, into buildApp and the store', () => {
+    const c = loadConfig({ ...env, ADMIN_BFF_TRUST_PROXY: '10.0.0.0/8', ADMIN_BFF_SIGNIN_RATE_LIMIT: '7', ADMIN_BFF_UPSTREAM_TIMEOUT_MS: '1234', ADMIN_BFF_SESSION_TTL_SECONDS: '99' });
+    const fakeStore = {} as SessionStore;
+    const o = appOptionsFromEnv(c, fakeStore);
+    expect(o.trustProxy).toBe('10.0.0.0/8');
+    expect(o.signInRateLimit).toBe(7);
+    expect(o.upstreamTimeoutMs).toBe(1234);
+    expect(o.sessionTtlSeconds).toBe(99);
+    expect(o.store).toBe(fakeStore);
+    expect(o.cfg).toBe(c.cfg);
+    expect(o.apiUrl).toBe('http://api:3002');
+    expect(o.sessionKeys).toBe(c.sessionKeys);
+    const so = storeOptionsFromEnv(c);
+    expect(so.ttlSeconds).toBe(99);
+    expect(so.keys[0].equals(deriveKeys(c.sessionKeys, 'store')[0])).toBe(true);
   });
   it('uses the defaults when they are empty', () => {
     const c = loadConfig({ ...env, ADMIN_BFF_TRUST_PROXY: '', ADMIN_BFF_SIGNIN_RATE_LIMIT: '', ADMIN_BFF_UPSTREAM_TIMEOUT_MS: '' });

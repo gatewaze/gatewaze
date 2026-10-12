@@ -102,33 +102,61 @@ export interface ProxyOptions {
   // True when the request carried the user's session: the response is then
   // marked Cache-Control: private and Vary: Cookie.
   privateResponse?: boolean;
+  // The admin's public origin: a Location on it is made relative too.
+  siteOrigin?: string;
   log?: CoreLogger;
 }
 
-// An upstream redirect to its own (internal) origin is made relative, so the
-// browser never sees, or follows, an in-cluster host name. Any other
-// Location returns null and is dropped: an absolute URL to another host or
-// scheme, a protocol-relative one, and anything with a backslash or a
-// control character (browsers read "/\host" and "/<TAB>/host" as another
-// host). A relative path that stays on the same origin passes through.
+// Filters an upstream Location header before it reaches the browser.
+//
+// - A redirect to the upstream's own (internal) origin, or to the admin's
+//   public origin, is made relative, so the browser never sees an in-cluster
+//   host name. The resulting path then gets the relative checks below.
+// - A relative Location must not start with "//" and must resolve back to
+//   the origin it is relative to.
+// - Any other absolute https: URL passes through unchanged. Edge functions
+//   own their redirect targets (e.g. google-sheets-oauth/authorize sends the
+//   browser to accounts.google.com), exactly as when they are called directly.
+// - http: passes only to localhost names, for local development.
+// - Everything else is dropped (null): other schemes such as javascript: or
+//   data:, and any value with a backslash or a control character, because
+//   browsers read "/\host" and "/<TAB>/host" as another host.
 // eslint-disable-next-line no-control-regex -- matching control characters is the point
 const UNSAFE_LOCATION = /[\\\x00-\x1f\x7f]/;
 const PLACEHOLDER_ORIGIN = 'https://bff.invalid';
 
-export function rewriteLocation(location: string, upstreamOrigin: string): string | null {
-  if (UNSAFE_LOCATION.test(location)) return null;
-  const absolute = /^[a-z][a-z0-9+.-]*:/i.test(location);
+function safeRelative(path: string): string | null {
+  // "//host" would also fail the origin check below; it is refused by name
+  // too so the rule does not rest on URL parsing alone.
+  if (UNSAFE_LOCATION.test(path) || path.startsWith('//')) return null;
   try {
-    if (absolute) {
-      const u = new URL(location);
-      return u.origin === upstreamOrigin ? `${u.pathname}${u.search}${u.hash}` : null;
-    }
-    // Relative: it must resolve to the same origin it is relative to.
-    return new URL(location, PLACEHOLDER_ORIGIN).origin === PLACEHOLDER_ORIGIN ? location : null;
+    return new URL(path, PLACEHOLDER_ORIGIN).origin === PLACEHOLDER_ORIGIN ? path : null;
   } catch {
     // Unparseable: dropped.
     return null;
   }
+}
+
+function isLocalHostname(hostname: string): boolean {
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.localhost');
+}
+
+export function rewriteLocation(location: string, upstreamOrigin: string, siteOrigin?: string): string | null {
+  if (UNSAFE_LOCATION.test(location)) return null;
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(location)) return safeRelative(location);
+  let u: URL;
+  try {
+    u = new URL(location);
+  } catch {
+    // Unparseable absolute URL: dropped.
+    return null;
+  }
+  if (u.origin === upstreamOrigin || (siteOrigin !== undefined && u.origin === siteOrigin)) {
+    return safeRelative(`${u.pathname}${u.search}${u.hash}`);
+  }
+  if (u.protocol === 'https:') return location;
+  if (u.protocol === 'http:' && isLocalHostname(u.hostname)) return location;
+  return null;
 }
 
 function appendVary(existing: string | string[] | undefined, name: string): string {
@@ -172,9 +200,9 @@ export function proxyRequest(
           if (v !== undefined && forwardResponseHeader(k)) headers[k] = v;
         }
         if (typeof headers.location === 'string') {
-          const location = rewriteLocation(headers.location, target.origin);
+          const location = rewriteLocation(headers.location, target.origin, opts.siteOrigin);
           if (location === null) {
-            opts.log?.warn({ status: res.statusCode, path: target.pathname }, 'dropped an upstream redirect to another host');
+            opts.log?.warn({ status: res.statusCode, path: target.pathname }, 'dropped an unsafe upstream redirect');
             delete headers.location;
           } else headers.location = location;
         }

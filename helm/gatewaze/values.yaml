@@ -832,10 +832,14 @@ adminBff:
   # CIDR if anything else in the cluster can reach the BFF.
   trustProxy: ""
   # -- Requests per minute per client address to /bff/login and to
-  # /bff/callback. Empty = the BFF default, 30.
+  # /bff/callback. Empty = the BFF default, 30. Each replica counts on its
+  # own, so with replicaCount 2 one address can make about twice this many.
   signInRateLimit: ""
   # -- Idle timeout in milliseconds for a proxied request. Empty = the BFF
-  # default, 300000.
+  # default, 300000. ingress-nginx closes an idle request after 60s by
+  # default, which caps this for long edge function calls. To raise it, add
+  # nginx.ingress.kubernetes.io/proxy-read-timeout: "300" (and
+  # proxy-send-timeout) to ingress.annotations; they apply to every host.
   upstreamTimeoutMs: ""
   resources:
     requests:

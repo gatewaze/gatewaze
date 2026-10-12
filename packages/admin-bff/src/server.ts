@@ -1,33 +1,22 @@
 // Entry point: reads the environment, connects the session store, and serves
 // the BFF until SIGTERM/SIGINT.
 import type { FastifyBaseLogger } from 'fastify';
-import { buildApp, loggerOptions } from './app.js';
+import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
-import { deriveKeys } from './core/keys.js';
 import { SessionStore } from './core/store.js';
+import { appOptionsFromEnv, storeOptionsFromEnv } from './wiring.js';
 
 const env = loadConfig();
 
 // Redis errors can arrive before the app (and its logger) exists.
 const logRef: { current?: FastifyBaseLogger } = {};
 const store = await SessionStore.connect(env.cfg, env.redisUrl, {
-  ttlSeconds: env.sessionTtlSeconds,
-  keys: deriveKeys(env.sessionKeys, 'store'),
+  ...storeOptionsFromEnv(env),
   onError: (err) =>
     logRef.current ? logRef.current.error({ err: err.message }, 'redis error') : console.error('redis error:', err.message),
 });
 
-const app = await buildApp({
-  cfg: env.cfg,
-  apiUrl: env.apiUrl,
-  store,
-  sessionKeys: env.sessionKeys,
-  sessionTtlSeconds: env.sessionTtlSeconds,
-  upstreamTimeoutMs: env.upstreamTimeoutMs,
-  trustProxy: env.trustProxy,
-  signInRateLimit: env.signInRateLimit,
-  logger: loggerOptions(env.logLevel),
-});
+const app = await buildApp(appOptionsFromEnv(env, store));
 logRef.current = app.log;
 
 const shutdown = async (signal: string) => {

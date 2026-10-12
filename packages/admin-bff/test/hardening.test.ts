@@ -92,10 +92,24 @@ describe('header and redirect hygiene', () => {
     expect(internal.headers.location).toBe('/storage/v1/object/public/b/k.png?v=1');
   });
 
-  it('drops an upstream redirect to any other host', async () => {
-    const external = await call(h.base, 'GET', '/storage/v1/object/x/redirect-external', {});
-    expect(external.status).toBe(302);
-    expect(external.headers.location).toBeUndefined();
+  const redirectTo = (to: string) => call(h.base, 'GET', `/functions/v1/f/redirect-to?to=${encodeURIComponent(to)}`, {});
+
+  it('passes an https redirect to another host through (module OAuth)', async () => {
+    const google = 'https://accounts.google.com/o/oauth2/v2/auth?client_id=x&redirect_uri=y';
+    expect((await redirectTo(google)).headers.location).toBe(google);
+    expect((await call(h.base, 'GET', '/storage/v1/object/x/redirect-external', {})).headers.location).toBe('https://cdn.example.test/k.png');
+  });
+
+  it('makes a redirect to the admin origin relative', async () => {
+    expect((await redirectTo(`${SITE}/settings/integrations?slack=ok`)).headers.location).toBe('/settings/integrations?slack=ok');
+  });
+
+  it('drops javascript:, data:, plain http to another host, and // paths on the internal origin', async () => {
+    for (const to of ['javascript:alert(1)', 'data:text/html,x', 'http://evil.example/x', `${h.supabase.url}//evil.example/x`, `${h.supabase.url}/a/..//evil.example`]) {
+      const r = await redirectTo(to);
+      expect(r.status, to).toBe(302);
+      expect(r.headers.location, to).toBeUndefined();
+    }
   });
 });
 
