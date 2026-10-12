@@ -26,6 +26,12 @@ export interface AuthContextType {
   loading?: boolean;
   isInitialized: boolean;
   errorMessage: string | null;
+  /**
+   * True when the user is signed in but has no admin access (a definite
+   * not_admin). Guards use it to send an embedded user to /unauthorized
+   * instead of /login, so the host is not sent round a sign-in loop.
+   */
+  accessDenied?: boolean;
   user: User | null;
   adminProfile?: AdminProfile;
   isAdmin?: boolean;

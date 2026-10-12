@@ -1,11 +1,12 @@
 // Import Dependencies
-import { useEffect, useReducer, ReactNode } from "react";
+import { useEffect, useReducer, useRef, ReactNode } from "react";
 
 // Local Imports
 import { SupabaseAuthService, AdminUser } from "@/utils/supabaseAuth";
 import { AuthProvider as AuthContextProvider, AuthContextType } from "./context";
 import { User } from "@/@types/user";
-import { supabase } from "@/lib/supabase";
+import { isHostSession, supabase } from "@/lib/supabase";
+import { isEmbedded } from "@/embed/embedMode";
 import { ImpersonationService } from "@/utils/impersonationService";
 
 // ----------------------------------------------------------------------
@@ -41,6 +42,24 @@ const initialState: AuthContextType = {
   stopImpersonation: async () => false,
 };
 
+const NO_IMPERSONATION: AuthContextType["impersonation"] = {
+  isImpersonating: false,
+  originalUser: null,
+  impersonatedUser: null,
+  sessionId: null,
+};
+
+function sameProfile(a: User | null, b: User): boolean {
+  return (
+    !!a &&
+    a.id === b.id &&
+    a.name === b.name &&
+    a.email === b.email &&
+    a.role === b.role &&
+    a.avatarUrl === b.avatarUrl
+  );
+}
+
 // Reducer handlers
 const reducerHandlers: Record<
   AuthAction["type"],
@@ -53,6 +72,7 @@ const reducerHandlers: Record<
     isLoading: false,
     user: action.payload?.user ?? null,
     errorMessage: action.payload?.errorMessage ?? null,
+    accessDenied: action.payload?.accessDenied ?? false,
   }),
 
   LOGIN_REQUEST: (state) => ({
@@ -61,13 +81,35 @@ const reducerHandlers: Record<
     errorMessage: null,
   }),
 
-  LOGIN_SUCCESS: (state, action) => ({
-    ...state,
-    isAuthenticated: true,
-    isLoading: false,
-    user: action.payload?.user ?? null,
-    errorMessage: null,
-  }),
+  LOGIN_SUCCESS: (state, action) => {
+    const incoming = action.payload?.user ?? null;
+    const impersonating = state.impersonation.isImpersonating;
+    // The signed-in (not impersonated) user is originalUser while
+    // impersonating, otherwise user.
+    const signedIn = impersonating ? state.impersonation.originalUser : state.user;
+    if (state.isAuthenticated && incoming && signedIn?.id === incoming.id) {
+      // auth-js re-emits SIGNED_IN for the same user (tab focus, token
+      // refresh). Nothing changed: keep the same state object so React
+      // skips the re-render.
+      if (sameProfile(signedIn, incoming)) return state;
+      // Same user, edited profile (name, role, avatar): apply it without
+      // touching an active impersonation.
+      return impersonating
+        ? { ...state, impersonation: { ...state.impersonation, originalUser: incoming } }
+        : { ...state, user: incoming };
+    }
+    // A different user (or a first sign-in): a new identity. Any
+    // impersonation belonged to the previous user, so it ends, as on LOGOUT.
+    return {
+      ...state,
+      isAuthenticated: true,
+      isLoading: false,
+      user: incoming,
+      errorMessage: null,
+      accessDenied: false,
+      impersonation: NO_IMPERSONATION,
+    };
+  },
 
   LOGIN_ERROR: (state, action) => ({
     ...state,
@@ -77,12 +119,13 @@ const reducerHandlers: Record<
     user: null,
   }),
 
-  LOGOUT: (state) => ({
+  LOGOUT: (state, action) => ({
     ...state,
     isAuthenticated: false,
     isLoading: false,
     user: null,
     errorMessage: null,
+    accessDenied: action.payload?.accessDenied ?? false,
     impersonation: {
       isImpersonating: false,
       originalUser: null,
@@ -127,8 +170,24 @@ const adminUserToUser = (adminUser: AdminUser): User => ({
   avatarUrl: adminUser.avatar_url,
 });
 
+// The local client reads its session from localStorage, so 3s is generous.
+// In host-session mode the first getSession() is a round trip to the session
+// holder, which may refresh the GoTrue session before answering.
+const LOCAL_INIT_TIMEOUT_MS = 3000;
+const HOST_SESSION_INIT_TIMEOUT_MS = 10000;
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  // The auth listener below is registered once, in a mount-only effect, so
+  // it must not read `state` (that closure would see the first render's
+  // isInitialized=false forever and drop every later sign-in or sign-out).
+  // It reads this ref instead, set in the same step as the INITIALIZE
+  // dispatch so there is no window between the two.
+  const isInitializedRef = useRef(false);
+  // The auth (GoTrue) user id behind the current state, as opposed to
+  // state.user.id, which is the admin profile id. Lets the listener tell
+  // whether an event whose profile lookup failed is about this user.
+  const authUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -148,8 +207,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         });
         isInitializing = false;
+        isInitializedRef.current = true;
       }
-    }, 3000);
+    }, isHostSession() ? HOST_SESSION_INIT_TIMEOUT_MS : LOCAL_INIT_TIMEOUT_MS);
 
     const initialize = async () => {
       try {
@@ -162,9 +222,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (session?.user) {
           // We have a session, get the full user profile
           try {
-            const { user: adminUser, error } = await SupabaseAuthService.getCurrentUser();
+            const { user: adminUser, error, reason } = await SupabaseAuthService.getCurrentUser();
 
             if (adminUser && !error) {
+              authUserIdRef.current = session.user.id;
               dispatch({
                 type: "INITIALIZE",
                 payload: {
@@ -173,7 +234,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                   errorMessage: null,
                 }
               });
+            } else if (reason === "not_admin" || reason === "no_user") {
+              // A definite answer: no admin profile, or no user behind the
+              // session. This used to fall through to the fallback below and
+              // let a signed-in non-admin into the UI with a default 'admin'
+              // role, where RLS refused its data and the feature guards,
+              // finding no permissions, sent it to /unauthorized. Now:
+              // - standalone, the user stays signed out and the sign-in page
+              //   shows why (errorMessage);
+              // - embedded, accessDenied makes FeatureGuard send the user to
+              //   /unauthorized as before, not to /login, so the host is not
+              //   sent round a sign-in loop.
+              // Deliberate behaviour change for a signed-in non-admin.
+              dispatch({
+                type: "INITIALIZE",
+                payload: {
+                  isAuthenticated: false,
+                  user: null,
+                  errorMessage: reason === "not_admin" ? error : null,
+                  accessDenied: reason === "not_admin",
+                }
+              });
             } else {
+              // The lookup itself failed (network, a transient database
+              // error): fall back to basic session info and let the auth
+              // listener correct it.
+              console.warn('Auth Provider - admin profile lookup failed; using basic session info', error);
+              authUserIdRef.current = session.user.id;
               // Fallback to basic session info if profile fetch fails
               dispatch({
                 type: "INITIALIZE",
@@ -192,6 +279,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
           } catch (profileError) {
             console.error('Auth Provider - Error getting user profile:', profileError);
+            authUserIdRef.current = session.user.id;
             // Fallback to basic session info
             dispatch({
               type: "INITIALIZE",
@@ -221,6 +309,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         // Mark initialization as complete
         isInitializing = false;
+        isInitializedRef.current = true;
 
       } catch (error) {
         if (!mounted) return;
@@ -237,12 +326,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
         // Mark initialization as complete even on error
         isInitializing = false;
+        isInitializedRef.current = true;
       }
     };
 
     // Set up auth state listener - but only act on explicit sign in/out events
     const { data: { subscription } } = SupabaseAuthService.onAuthStateChange(
-      async (adminUser) => {
+      async (adminUser, outcome, sessionUserId) => {
         if (!mounted) return;
 
         try {
@@ -252,26 +342,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
 
           // Only process auth state changes after initial setup is complete
-          if (!state.isInitialized) {
+          if (!isInitializedRef.current) {
             return;
           }
 
           if (adminUser) {
+            authUserIdRef.current = sessionUserId ?? authUserIdRef.current;
             dispatch({
               type: "LOGIN_SUCCESS",
               payload: {
                 user: adminUserToUser(adminUser),
               }
             });
-          } else {
+          } else if (outcome === "signed_out" || outcome === "not_admin") {
+            authUserIdRef.current = null;
+            dispatch({ type: "LOGOUT", payload: { accessDenied: outcome === "not_admin" } });
+          } else if (
+            outcome === "lookup_failed" &&
+            sessionUserId &&
+            authUserIdRef.current &&
+            sessionUserId !== authUserIdRef.current
+          ) {
+            // A different user signed in and the check for them failed:
+            // never keep showing the previous user's identity. (A check that
+            // takes longer than SupabaseAuthService's 1.5s timeout never
+            // reaches this listener at all; that skip is pre-existing.)
+            authUserIdRef.current = null;
             dispatch({ type: "LOGOUT" });
           }
+          // Otherwise 'lookup_failed' for the same user: the check itself
+          // failed (network, a transient database error), which says nothing
+          // about the session, so the current state stands.
         } catch (error) {
+          // Never sign the user out because handling an event failed.
           console.error('Auth state change handling error:', error)
-          // Only logout if we're initialized to avoid interfering with init
-          if (state.isInitialized) {
-            dispatch({ type: "LOGOUT" });
-          }
         }
       }
     );
@@ -340,8 +444,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await stopImpersonation();
       }
 
-      await SupabaseAuthService.signOut();
+      const { error: signOutError } = await SupabaseAuthService.signOut();
       // The auth state listener will handle the logout dispatch
+
+      // Host-session sign-out that did not reach the session holder: the
+      // service has told the user. Do not reload into /login, which would
+      // drop that message and could sign them straight back in; the shim's
+      // SIGNED_OUT already moved this page to the signed-out state.
+      if (signOutError && isHostSession()) {
+        dispatch({ type: "LOGOUT" });
+        return;
+      }
+
+      // Embedded with a host-held session, /login is a host route, not ours.
+      // The shim's signOut() has already handed the sign-out to the host's
+      // hook, so there is nothing to navigate to here.
+      if (isEmbedded() && isHostSession()) {
+        dispatch({ type: "LOGOUT" });
+        return;
+      }
 
       // Redirect to login page
       window.location.href = '/login';
@@ -349,6 +470,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('Logout error:', error);
       // Force logout even if signOut fails
       dispatch({ type: "LOGOUT" });
+      if (isEmbedded() && isHostSession()) return;
       // Still redirect to login
       window.location.href = '/login';
     }

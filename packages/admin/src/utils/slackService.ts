@@ -3,7 +3,7 @@
  * Handles Slack API interactions for notifications
  */
 
-import { supabase } from '@/lib/supabase';
+import { getSupabasePublicUrl, supabase } from '@/lib/supabase';
 
 // =============================================================================
 // Types
@@ -149,7 +149,9 @@ export function getBrandDefaultInfo(): BrandDefaultInfo | null {
  */
 export function getSlackOAuthUrl(eventId: string): string {
   const clientId = import.meta.env.VITE_SLACK_CLIENT_ID;
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  // Slack calls this redirect URI itself, so it must be the real Supabase
+  // URL, not the admin origin that VITE_SUPABASE_URL is in host-session mode.
+  const supabaseUrl = getSupabasePublicUrl();
 
   if (!clientId || !supabaseUrl) {
     throw new Error('Slack OAuth not configured. Missing VITE_SLACK_CLIENT_ID or VITE_SUPABASE_URL.');

@@ -1,4 +1,5 @@
-import { supabase } from '@/lib/supabase'
+import { toast } from 'sonner'
+import { isHostSession, supabase } from '@/lib/supabase'
 import { getSupabaseConfig } from '@/config/brands'
 import { toPublicUrl } from '@gatewaze/shared'
 
@@ -19,7 +20,16 @@ export interface AdminUser {
 export interface AuthResponse {
   user: AdminUser | null
   error: string | null
+  /**
+   * Why `user` is null: 'no_user' (no signed-in user), 'not_admin' (signed
+   * in, no active admin profile) or 'lookup_failed' (the check itself failed,
+   * so nothing is known). Absent when `user` is set.
+   */
+  reason?: 'no_user' | 'not_admin' | 'lookup_failed'
 }
+
+/** What a SIGNED_IN / SIGNED_OUT event resolved to, for the auth listener. */
+export type AuthChangeOutcome = 'signed_in' | 'signed_out' | 'not_admin' | 'lookup_failed'
 
 export interface MagicLinkResponse {
   success: boolean
@@ -373,7 +383,13 @@ export class SupabaseAuthService {
 
       if (authError || !authUser) {
         console.log('SupabaseAuthService - No auth user found')
-        return { user: null, error: null }
+        // A missing session, or GoTrue rejecting the token (401/403), is a
+        // definite answer; any other auth error (the network, GoTrue
+        // unavailable) is not.
+        const status = (authError as { status?: number } | null)?.status
+        const definite =
+          !authError || authError.name === 'AuthSessionMissingError' || status === 401 || status === 403
+        return { user: null, error: null, reason: definite ? 'no_user' : 'lookup_failed' }
       }
 
       console.log('SupabaseAuthService - Auth user found:', authUser.email)
@@ -396,7 +412,9 @@ export class SupabaseAuthService {
         console.warn('SupabaseAuthService - No admin profile found for user')
         return {
           user: null,
-          error: 'You do not have admin access. Please contact your administrator.'
+          error: 'You do not have admin access. Please contact your administrator.',
+          // A query error says nothing about admin status; only "no row" does.
+          reason: profileError ? 'lookup_failed' : 'not_admin',
         }
       }
 
@@ -417,7 +435,8 @@ export class SupabaseAuthService {
       console.error('Get current user error:', error)
       return {
         user: null,
-        error: error instanceof Error ? error.message : 'Failed to get user'
+        error: error instanceof Error ? error.message : 'Failed to get user',
+        reason: 'lookup_failed',
       }
     }
   }
@@ -425,18 +444,28 @@ export class SupabaseAuthService {
   /**
    * Sign out current user
    */
-  static async signOut(): Promise<void> {
+  static async signOut(): Promise<{ error: string | null }> {
     try {
-      await supabase.auth.signOut()
+      const { error } = await supabase.auth.signOut()
+      if (error && isHostSession()) {
+        // In host-session mode a failed sign-out leaves the session holder's
+        // session live, so the user must not be told they are signed out.
+        // Local mode keeps its previous, silent behaviour.
+        toast.error('Sign-out did not complete. You may still be signed in; please try again.')
+      }
+      return { error: error ? error.message : null }
     } catch (error) {
       console.error('Sign out error:', error)
+      return { error: error instanceof Error ? error.message : 'Sign-out failed' }
     }
   }
 
   /**
    * Listen to auth state changes
    */
-  static onAuthStateChange(callback: (user: AdminUser | null) => void) {
+  static onAuthStateChange(
+    callback: (user: AdminUser | null, outcome: AuthChangeOutcome, sessionUserId?: string) => void,
+  ) {
     return supabase.auth.onAuthStateChange(async (event, session) => {
       try {
         console.log('SupabaseAuthService - Auth state change:', {
@@ -455,13 +484,19 @@ export class SupabaseAuthService {
             })
 
             const userPromise = this.getCurrentUser()
-            const { user } = await Promise.race([userPromise, timeoutPromise])
+            const { user, reason } = await Promise.race([userPromise, timeoutPromise])
 
             console.log('SupabaseAuthService - getCurrentUser result:', {
               hasUser: !!user,
               email: user?.email
             })
-            callback(user)
+            // The auth user id rides along so the listener can tell whether
+            // a failed lookup was for the user it already has.
+            const sessionUserId = session.user.id
+            if (user) callback(user, 'signed_in', sessionUserId)
+            else if (reason === 'not_admin') callback(null, 'not_admin', sessionUserId)
+            else if (reason === 'no_user') callback(null, 'signed_out', sessionUserId)
+            else callback(null, 'lookup_failed', sessionUserId)
           } catch (timeoutError) {
             console.warn('SupabaseAuthService - getCurrentUser timed out during auth state change, skipping')
             // Don't call callback to avoid logout during initialization
@@ -469,7 +504,7 @@ export class SupabaseAuthService {
           }
         } else if (event === 'SIGNED_OUT') {
           console.log('SupabaseAuthService - SIGNED_OUT event')
-          callback(null)
+          callback(null, 'signed_out')
         } else {
           console.log('SupabaseAuthService - Other auth event:', event)
           // Don't call callback for other events to avoid unnecessary state changes

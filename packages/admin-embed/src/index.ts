@@ -10,7 +10,8 @@
  * Because the bundle comes from the deployment the host talks to, the host
  * never needs a new release to pick up an admin change — the embed moves
  * with the backend it was built for. The host only upgrades this package
- * when EMBED_CONTRACT changes.
+ * when EMBED_CONTRACT changes, or to use an optional capability the
+ * manifest advertises (e.g. 'host-session').
  */
 // The contract is the admin's own file, imported by path so the loader can
 // never drift from what the embed implements. Type-only, so nothing is
@@ -80,7 +81,16 @@ export interface GwEmbedManifest {
   /** Module ids compiled into this bundle. */
   modules: string[];
   builtAt: string;
+  /**
+   * Optional features the bundle supports (the admin's EMBED_CAPABILITIES),
+   * e.g. 'host-session'. Absent on bundles built before it existed, which
+   * support none.
+   */
+  capabilities?: string[];
 }
+
+/** Manifest capability a bundle needs to honour GwHostContext.session. */
+export const HOST_SESSION_CAPABILITY = 'host-session';
 
 export interface GwLoaderHandle extends GwEmbedHandle {
   /**
@@ -103,7 +113,9 @@ function isAllowedBaseUrl(value: unknown): value is string {
   try {
     const u = new URL(value);
     if (u.protocol === 'https:') return true;
-    return u.protocol === 'http:' && (u.hostname === 'localhost' || u.hostname === '127.0.0.1');
+    // http only for local development: localhost, 127.0.0.1 and *.localhost
+    // (e.g. supabase.gatewaze.localhost), which browsers resolve to loopback.
+    return u.protocol === 'http:' && (u.hostname === 'localhost' || u.hostname === '127.0.0.1' || u.hostname.endsWith('.localhost'));
   } catch {
     return false;
   }
@@ -121,7 +133,9 @@ function isManifest(v: unknown): v is GwEmbedManifest {
     typeof m.contract === 'number' &&
     typeof m.version === 'string' &&
     typeof m.entry === 'string' && m.entry !== '' &&
-    typeof m.stylesheet === 'string' && m.stylesheet !== ''
+    typeof m.stylesheet === 'string' && m.stylesheet !== '' &&
+    (m.capabilities === undefined ||
+      (Array.isArray(m.capabilities) && m.capabilities.every((c) => typeof c === 'string')))
   );
 }
 
@@ -185,7 +199,7 @@ export function mount(el: HTMLElement, ctx: GwLoaderContext): GwLoaderHandle {
     fatal(ctx ?? {}, {
       error_type: 'config_invalid',
       code: 'gw_ctx_source_invalid',
-      message: 'source.baseUrl must be an absolute https URL (http only for localhost)',
+      message: 'source.baseUrl must be an absolute https URL (http only for localhost, 127.0.0.1 or *.localhost)',
       field: 'source.baseUrl',
       recoverable: false,
     });
@@ -219,6 +233,20 @@ export function mount(el: HTMLElement, ctx: GwLoaderContext): GwLoaderHandle {
       return null;
     }
 
+    // A bundle that predates host-session mode would ignore `session` and keep
+    // a localStorage session instead, so a host-session host must not mount it.
+    // Keyed on `session !== undefined`, the same test the bundle's own
+    // validation uses, so a malformed session can never slip past this check.
+    if (hostCtx.session !== undefined && !(manifest.capabilities ?? []).includes(HOST_SESSION_CAPABILITY)) {
+      fatal(hostCtx, {
+        error_type: 'import_failed',
+        code: 'gw_embed_capability_missing',
+        message: `The hosted embed (${manifest.version}) does not support host-session mode. Upgrade the Gatewaze deployment.`,
+        recoverable: false,
+      });
+      return null;
+    }
+
     let entry: EmbedEntryModule;
     try {
       // Stylesheet first so the first paint is styled. Both URLs are
@@ -233,6 +261,12 @@ export function mount(el: HTMLElement, ctx: GwLoaderContext): GwLoaderHandle {
         VITE_SUPABASE_URL: hostCtx.supabase.url,
         VITE_SUPABASE_ANON_KEY: hostCtx.supabase.anonKey,
         VITE_API_URL: hostCtx.apiBaseUrl === '' ? '/api/gw' : hostCtx.apiBaseUrl,
+        ...(hostCtx.session !== undefined ? { VITE_AUTH_MODE: 'host-session' } : {}),
+        // Only a URL that passes the bundle's own rule; the bundle validates
+        // the full context at mount and rejects anything else.
+        ...(typeof hostCtx.supabase.publicUrl === 'string' && isAllowedBaseUrl(hostCtx.supabase.publicUrl)
+          ? { VITE_SUPABASE_PUBLIC_URL: hostCtx.supabase.publicUrl }
+          : {}),
       };
       const entryUrl = sameOriginFile(manifest.entry, base).href;
       // Not a bundler-time import: the URL is only known at runtime, and the
