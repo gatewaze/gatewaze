@@ -56,7 +56,10 @@ function AboutEventContentInner() {
 
   // Fetch competition details for countdown
   useEffect(() => {
-    if (competitionCount === 0) return
+    // events_competitions.event_id is the uuid FK to events.id, not the
+    // short text event_id; without the uuid there is nothing to filter on.
+    if (competitionCount === 0 || !event.id) return
+    const eventUuid = event.id
     async function fetchCompetitions() {
       try {
         // Singleton client — see Header.tsx for the leak story.
@@ -64,7 +67,7 @@ function AboutEventContentInner() {
         const { data } = await supabase
           .from('events_competitions')
           .select('id, title, value, intro, close_date, close_display')
-          .eq('event_id', event.event_id)
+          .eq('event_id', eventUuid)
           .eq('status', 'active')
           .order('sort_order', { ascending: true })
         if (data) setCompetitions(data)
@@ -75,18 +78,20 @@ function AboutEventContentInner() {
       }
     }
     fetchCompetitions()
-  }, [competitionCount, event.event_id])
+  }, [competitionCount, event.id])
 
   // Fetch discount details for inline display
   useEffect(() => {
-    if (discountCount === 0) return
+    // events_discounts.event_id is the uuid FK to events.id.
+    if (discountCount === 0 || !event.id) return
+    const eventUuid = event.id
     async function fetchDiscounts() {
       try {
         const supabase = getSupabaseClient()
         const { data } = await supabase
           .from('events_discounts')
           .select('*')
-          .eq('event_id', event.event_id)
+          .eq('event_id', eventUuid)
           .eq('status', 'active')
           .order('sort_order', { ascending: true })
         if (data) {
@@ -100,7 +105,7 @@ function AboutEventContentInner() {
       }
     }
     fetchDiscounts()
-  }, [discountCount, event.event_id, showDiscountParam, session])
+  }, [discountCount, event.id, showDiscountParam, session])
 
   // Sync calendar state from fetched registration data
   useEffect(() => {

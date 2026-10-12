@@ -173,6 +173,32 @@ describe('Portal Events API (public reads)', () => {
     });
   });
 
+  // events_discounts, events_competitions and events_sponsors key on the
+  // events.id uuid. Filtering them by the short text event_id makes PostgREST
+  // reject the uuid cast, which turned the list endpoints into 500s and every
+  // count into a silent 0.
+  describe('discount, competition and sponsor lookups use the event uuid', () => {
+    const event = { id: 'a1b2c3d4-0000-0000-0000-000000000001', event_id: 'EVT-1', event_slug: 'evt-1' };
+
+    it.each(['discounts', 'competitions'])('GET /:identifier/%s filters by the uuid', async (kind) => {
+      mockSupabase.mockResultsSequence([
+        { data: event, error: null },
+        { data: [], error: null },
+      ]);
+      const res = await request(app).get(`/api/portal/events/evt-1/${kind}`);
+      expect(res.status).toBe(200);
+      expect(mockSupabase.client.eq).toHaveBeenCalledWith('event_id', event.id);
+      expect(mockSupabase.client.eq).not.toHaveBeenCalledWith('event_id', event.event_id);
+    });
+
+    it('the counts endpoint filters sponsors, competitions and discounts by the uuid', async () => {
+      mockSupabase.mockResult({ id: event.id, event_id: event.event_id }, null, 0);
+      await request(app).get('/api/portal/events/EVT-1/counts');
+      expect(mockSupabase.client.eq).toHaveBeenCalledWith('event_id', event.id);
+      expect(mockSupabase.client.eq).not.toHaveBeenCalledWith('event_id', event.event_id);
+    });
+  });
+
   describe('cache headers — defence in depth', () => {
     it('Vary includes Authorization so CDN never serves an authed response to anon', async () => {
       mockSupabase.mockResult([], null, 0);

@@ -412,17 +412,17 @@ portalEventsRouter.get('/:identifier/counts', async (req, res) => {
       supabase
         .from('events_sponsors')
         .select('*', { count: 'exact', head: true })
-        .eq('event_id', eventId)
+        .eq('event_id', eventUuid)
         .eq('is_active', true),
       supabase
         .from('events_competitions')
         .select('*', { count: 'exact', head: true })
-        .eq('event_id', eventId)
+        .eq('event_id', eventUuid)
         .eq('status', 'active'),
       supabase
         .from('events_discounts')
         .select('*', { count: 'exact', head: true })
-        .eq('event_id', eventId)
+        .eq('event_id', eventUuid)
         .eq('status', 'active'),
       // SERVICE-ROLE OK: events_media is retired; public event photos live
       // in the event-media module's host_media table, which has no anon
@@ -614,7 +614,8 @@ portalEventsRouter.get('/:identifier/competitions', async (req, res) => {
     const { data, error } = await supabase
       .from('events_competitions')
       .select('*')
-      .eq('event_id', eventId)
+      // event_id here is the uuid FK to events.id, not the short text id.
+      .eq('event_id', event.id as string)
       .eq('status', 'active')
       .order('created_at', { ascending: false });
     if (error) throw error;
@@ -641,7 +642,8 @@ portalEventsRouter.get('/:identifier/discounts', async (req, res) => {
     const { data, error } = await supabase
       .from('events_discounts')
       .select('*')
-      .eq('event_id', eventId)
+      // event_id here is the uuid FK to events.id, not the short text id.
+      .eq('event_id', event.id as string)
       .eq('status', 'active')
       .order('created_at', { ascending: false });
     if (error) throw error;
