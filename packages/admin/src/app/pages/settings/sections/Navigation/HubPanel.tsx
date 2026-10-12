@@ -57,7 +57,7 @@ export function HubPanel({
   };
 
   const editingCard: NavLayoutItem | null =
-    editing === "new" ? { key: "link:new" } : editing !== null ? (cards[editing] ?? null) : null;
+    editing === "new" ? { key: "link:new", icon: "Link" } : editing !== null ? (cards[editing] ?? null) : null;
 
   return (
     <section className="rounded-lg border border-[var(--gray-a6)] p-3">
@@ -182,7 +182,7 @@ function HubCardRow({
       <span className="min-w-0 flex-1 truncate text-[var(--gray-12)]">{title}</span>
       {custom && (
         <span className="max-w-[40%] truncate rounded bg-[var(--accent-a3)] px-1 text-[10px] text-[var(--accent-11)]" title={card.url}>
-          {card.url ?? "link"}
+          {card.url ?? "custom"}
         </span>
       )}
       {card.comingSoon && (

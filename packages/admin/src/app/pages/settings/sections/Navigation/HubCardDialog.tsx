@@ -180,7 +180,7 @@ export function HubCardDialog({
             </label>
           </div>
 
-          <div>
+          <div className="self-start">
             <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-[var(--gray-10)]">Preview</p>
             <NavHubCardTile
               preview
