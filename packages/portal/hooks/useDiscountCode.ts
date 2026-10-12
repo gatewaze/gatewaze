@@ -150,11 +150,27 @@ export function useDiscountCode(): UseDiscountCodeReturn {
     try {
       const normalizedEmail = email.toLowerCase().trim()
       const config = getClientBrandConfig()
-      const edgeFunctionUrl = `${config.supabaseUrl}/functions/v1/issue-luma-discount-code`
+      // Deployed by the luma module under this name.
+      const edgeFunctionUrl = `${config.supabaseUrl}/functions/v1/integrations-luma-issue-discount`
+
+      // Minting a Luma coupon is gated on the signed-in account: the function
+      // takes the email from this verified token, not from the request body.
+      const {
+        data: { session },
+      } = await getSupabaseClient().auth.getSession()
+      if (!session?.access_token) {
+        const message = 'Sign in to claim a code'
+        setError(message)
+        setIsClaiming(false)
+        return { success: false, code: null, message }
+      }
 
       const response = await fetch(edgeFunctionUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({ email: normalizedEmail, discount_id: discountId }),
       })
 
