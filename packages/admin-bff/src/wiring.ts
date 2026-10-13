@@ -3,8 +3,7 @@
 // check the wiring without starting a server or connecting to Redis.
 import { type AppOptions, loggerOptions } from './app.js';
 import type { BffEnv } from './config.js';
-import { deriveKeys } from './core/keys.js';
-import type { SessionStore, SessionStoreOptions } from './core/store.js';
+import { type SessionStore, type SessionStoreOptions, deriveKeys } from '@gatewaze/host-session';
 
 export function storeOptionsFromEnv(env: BffEnv): SessionStoreOptions & { keys: Buffer[] } {
   return { ttlSeconds: env.sessionTtlSeconds, keys: deriveKeys(env.sessionKeys, 'store') };

@@ -104,8 +104,9 @@ jobs:
             no_cache: false
 
           # Session holder for the admin SPA in host-session mode
-          # (docs/admin-bff.md). Only external npm deps, installed from the
-          # committed lockfile — no module sources or PAT needed.
+          # (docs/admin-bff.md). External npm deps from the committed
+          # lockfile plus packages/host-session, built from the workspace —
+          # no module sources or PAT needed.
           - image: admin-bff
             context: .
             file: docker/admin-bff/Dockerfile

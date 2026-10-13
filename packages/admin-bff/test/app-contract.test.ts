@@ -6,8 +6,7 @@
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { HOST_SESSION } from '../src/core/host-session.js';
-import { ADMIN_RECHECK_SECONDS, REFRESH_SKEW_SECONDS, RefreshUnavailableError, refreshSession } from '../src/core/session.js';
+import { ADMIN_RECHECK_SECONDS, HOST_SESSION, REFRESH_SKEW_SECONDS, refreshSession, RefreshUnavailableError } from '@gatewaze/host-session';
 import { call, type Response } from './helpers/fakes.js';
 import { ANON, type Harness, SITE, startHarness } from './helpers/harness.js';
 

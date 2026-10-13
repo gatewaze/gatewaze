@@ -1,11 +1,11 @@
-// Framework-free proxying for the admin BFF, on Node's http and https modules.
+// Framework-free proxying for a session holder, on Node's http and https modules.
 // The browser never holds a Supabase token: every proxied request gets the
 // session's access token (or, without a session, the anon key) attached here,
 // replacing whatever the browser sent. Ported from the PoC's
 // admin/server/core/proxy.ts.
 import http, { type IncomingHttpHeaders, type IncomingMessage, type ServerResponse } from 'node:http';
 import https from 'node:https';
-import type { Duplex } from 'node:stream';
+import type { Duplex, Readable } from 'node:stream';
 import type { CoreLogger } from './session.js';
 import { connectionHeaders, forwardRequestHeader, forwardResponseHeader, privateCacheControl, stripQueryTokens } from './host-session.js';
 
@@ -43,6 +43,22 @@ export interface ProxyCredentials {
 }
 
 export class UpstreamPathError extends Error {}
+
+// True for Supabase's newer publishable keys (sb_publishable_...). They are
+// not JWTs, so they are sent only in `apikey`: Supabase may reject one sent
+// as `Authorization: Bearer`, which it would try to verify as a JWT.
+export function isPublishableKey(anonKey: string): boolean {
+  return anonKey.startsWith('sb_publishable_');
+}
+
+// Credentials for a request forwarded without the user's session. Supabase
+// upstreams get the anon key in `apikey`, and also as the bearer when it is a
+// legacy JWT anon key (exactly what supabase-js sends signed out). Other
+// upstreams get neither.
+export function anonCredentials(anonKey: string, supabase: boolean): ProxyCredentials {
+  if (!supabase) return { bearer: null, apikey: null };
+  return { bearer: isPublishableKey(anonKey) ? null : anonKey, apikey: anonKey };
+}
 
 // Resolves the browser's path against the upstream and checks that it is
 // still under the matched prefix after normalisation, so "/rest/v1/../../x",
@@ -104,6 +120,11 @@ export interface ProxyOptions {
   privateResponse?: boolean;
   // The admin's public origin: a Location on it is made relative too.
   siteOrigin?: string;
+  // The request body to send instead of `req` itself, for a host that wraps
+  // the stream (a byte limit, for example). It is piped as-is; an error it
+  // emits aborts the upstream request and rejects with that error. Whether
+  // the browser went away is still read from `req`.
+  body?: Readable;
   log?: CoreLogger;
 }
 
@@ -221,7 +242,10 @@ export function proxyRequest(
     opts.downstream?.on('close', () => {
       if (!opts.downstream?.writableFinished) up.destroy();
     });
-    req.pipe(up);
+    if (opts.body) {
+      opts.body.on('error', (e) => up.destroy(e));
+      opts.body.pipe(up);
+    } else req.pipe(up);
   });
 }
 

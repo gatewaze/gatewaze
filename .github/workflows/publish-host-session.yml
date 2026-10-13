@@ -1,0 +1,149 @@
+name: Publish host-session
+
+# Publishes @gatewaze/host-session to npm at whatever version
+# packages/host-session/package.json currently declares.
+#
+# The package is the framework-free session-holder core that the admin BFF
+# (packages/admin-bff) and other hosts (LFX One) wrap with their own HTTP
+# framework. Its only runtime dependencies are ws and ioredis.
+#
+# Deliberately NOT tied to the `v*` release tags: the package changes only
+# when the host contract does, while images ship constantly. The admin-bff
+# image builds it from the workspace and never installs it from npm.
+#
+# Bump the version in packages/host-session/package.json, merge, then run
+# this workflow on main.
+#
+# Two jobs, so the code that installs dependencies and runs the build never
+# holds the npm token or an OIDC token:
+#   build   - narrowed workspace, frozen lockfile, no install scripts; tests,
+#             builds and packs the tarball, and uploads it as an artifact.
+#   publish - in the protected `npm` environment, with id-token: write;
+#             publishes that exact tarball with provenance. It checks out
+#             nothing and installs nothing.
+#
+# npm trusted publishing (OIDC, no token) would remove NPM_TOKEN, but it is
+# configured per package on npmjs.com and needs the package to exist first.
+# Until that is set up, the publish job uses NPM_TOKEN from the environment.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Build and pack only, do not publish'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and pack @gatewaze/host-session
+    # Only from main: a release is cut from merged code.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.pack.outputs.version }}
+      tarball: ${{ steps.pack.outputs.tarball }}
+      sha256: ${{ steps.pack.outputs.sha256 }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      # The workspace is narrowed to this package, as in
+      # docker/admin-bff/Dockerfile, so the committed lockfile installs
+      # frozen without the sibling gatewaze-modules checkout.
+      - name: Narrow the workspace
+        run: printf 'packages:\n  - "packages/host-session"\n' > pnpm-workspace.yaml
+
+      - name: Install
+        run: pnpm install --frozen-lockfile --filter "@gatewaze/host-session..." --ignore-scripts
+
+      # The unit tests only; the Redis integration tests run in PR CI.
+      - name: Test
+        run: pnpm --filter @gatewaze/host-session test
+
+      - name: Build
+        run: pnpm --filter @gatewaze/host-session build
+
+      - name: Pack
+        id: pack
+        working-directory: packages/host-session
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          mkdir -p "$GITHUB_WORKSPACE/pack"
+          TARBALL="$(npm pack --pack-destination "$GITHUB_WORKSPACE/pack" | tail -n 1)"
+          tar -tzf "$GITHUB_WORKSPACE/pack/$TARBALL"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          SHA256="$(sha256sum "$GITHUB_WORKSPACE/pack/$TARBALL" | cut -d' ' -f1)"
+          echo "tarball=$TARBALL" >> "$GITHUB_OUTPUT"
+          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
+          echo "::notice::packed @gatewaze/host-session@$VERSION as $TARBALL"
+
+      - name: Upload the tarball
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: host-session-tarball
+          path: pack/${{ steps.pack.outputs.tarball }}
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish @gatewaze/host-session
+    needs: build
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    # Protected environment: holds NPM_TOKEN and its reviewers gate the run.
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write # npm publish --provenance (keyless SLSA provenance)
+    steps:
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Download the tarball
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: host-session-tarball
+          path: pack
+
+      - name: Publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          VERSION: ${{ needs.build.outputs.version }}
+          TARBALL: ${{ needs.build.outputs.tarball }}
+          SHA256: ${{ needs.build.outputs.sha256 }}
+        run: |
+          # Publish exactly the tarball the build job packed.
+          echo "$SHA256  pack/$TARBALL" | sha256sum -c -
+
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "::error::NPM_TOKEN is not configured in the npm environment — cannot publish"
+            exit 1
+          fi
+
+          # Re-run safety: npm rejects a duplicate version anyway, but failing
+          # here says why rather than surfacing a registry error.
+          if npm view "@gatewaze/host-session@$VERSION" version > /dev/null 2>&1; then
+            echo "::error::@gatewaze/host-session@$VERSION is already published — bump the version first"
+            exit 1
+          fi
+
+          npm publish "pack/$TARBALL" --access public --provenance

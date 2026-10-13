@@ -2,8 +2,7 @@
 // requests arrive at once (poc-stack.md "Concurrent refresh"), the
 // admin_profiles re-check, and what happens when GoTrue says no or is down.
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { SessionStore } from '../src/core/store.js';
-import { RefreshUnavailableError, type GwSession } from '../src/core/session.js';
+import { type GwSession, RefreshUnavailableError, SessionStore } from '@gatewaze/host-session';
 import { MemoryKeyValue, call } from './helpers/fakes.js';
 import { ANON, type Harness, SITE, startHarness } from './helpers/harness.js';
 

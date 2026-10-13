@@ -6,8 +6,7 @@ import http from 'node:http';
 import net from 'node:net';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { HOST_SESSION } from '../src/core/host-session.js';
-import { proxyRequest } from '../src/core/proxy.js';
+import { HOST_SESSION, proxyRequest } from '@gatewaze/host-session';
 import { call } from './helpers/fakes.js';
 import { ANON, type Harness, SITE, startHarness } from './helpers/harness.js';
 

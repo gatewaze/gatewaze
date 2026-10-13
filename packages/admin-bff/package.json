@@ -9,10 +9,6 @@
     ".": {
       "types": "./dist/app.d.ts",
       "default": "./dist/app.js"
-    },
-    "./core": {
-      "types": "./dist/core/index.d.ts",
-      "default": "./dist/core/index.js"
     }
   },
   "scripts": {
@@ -27,6 +23,7 @@
   "dependencies": {
     "@fastify/rate-limit": "11.2.0",
     "@fastify/secure-session": "^8.4.1",
+    "@gatewaze/host-session": "workspace:*",
     "@supabase/supabase-js": "^2.108.1",
     "fastify": "^5.12.5",
     "ioredis": "^5.10.1",

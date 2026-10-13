@@ -12,7 +12,19 @@ name: Publish admin-embed
 # when the host contract does, which is rare, while images ship constantly.
 #
 # Bump the version in packages/admin-embed/package.json, merge, then run
-# this workflow against that ref.
+# this workflow on main.
+#
+# Two jobs, so the code that installs dependencies and runs the build never
+# holds the npm token or an OIDC token:
+#   build   - narrowed workspace, frozen lockfile, no install scripts;
+#             builds and packs the tarball, and uploads it as an artifact.
+#   publish - in the protected `npm` environment, with id-token: write;
+#             publishes that exact tarball with provenance. It checks out
+#             nothing and installs nothing.
+#
+# npm trusted publishing (OIDC, no token) would remove NPM_TOKEN. It is
+# configured per package on npmjs.com; until that is set up, the publish job
+# uses NPM_TOKEN from the environment.
 
 on:
   workflow_dispatch:
@@ -26,15 +38,22 @@ permissions:
   contents: read
 
 jobs:
-  publish:
-    name: Build and publish @gatewaze/admin-embed
+  build:
+    name: Build and pack @gatewaze/admin-embed
+    # Only from main: a release is cut from merged code.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write # npm publish --provenance (keyless SLSA provenance)
+    outputs:
+      version: ${{ steps.pack.outputs.version }}
+      tarball: ${{ steps.pack.outputs.tarball }}
+      sha256: ${{ steps.pack.outputs.sha256 }}
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
@@ -43,34 +62,80 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
-          registry-url: https://registry.npmjs.org
 
-      # Not --frozen-lockfile: the workspace spans two repositories, so the
-      # lockfile can legitimately disagree with the modules repo even when
-      # this job never touches it.
+      # The workspace is narrowed, as in docker/admin-bff/Dockerfile, so the
+      # committed lockfile installs frozen without the sibling
+      # gatewaze-modules checkout. The loader declares no dependencies: its
+      # build compiles with the admin package's TypeScript and reads the
+      # embed contract from packages/admin/src/embed, so admin (and shared,
+      # which admin depends on) stay in the workspace and admin's
+      # dependencies are installed.
+      - name: Narrow the workspace
+        run: printf 'packages:\n  - "packages/admin-embed"\n  - "packages/admin"\n  - "packages/shared"\n' > pnpm-workspace.yaml
+
       - name: Install
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile --filter "@gatewaze/admin-embed..." --filter "@gatewaze/admin" --ignore-scripts
 
       - name: Build the loader
         run: node packages/admin-embed/scripts/build.mjs
 
-      - name: Publish
+      - name: Pack
+        id: pack
         working-directory: packages/admin-embed
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          DRY_RUN: ${{ inputs.dry_run }}
         run: |
           VERSION="$(node -p "require('./package.json').version")"
-          echo "Resolved version: $VERSION"
+          mkdir -p "$GITHUB_WORKSPACE/pack"
+          TARBALL="$(npm pack --pack-destination "$GITHUB_WORKSPACE/pack" | tail -n 1)"
+          tar -tzf "$GITHUB_WORKSPACE/pack/$TARBALL"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          SHA256="$(sha256sum "$GITHUB_WORKSPACE/pack/$TARBALL" | cut -d' ' -f1)"
+          echo "tarball=$TARBALL" >> "$GITHUB_OUTPUT"
+          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
+          echo "::notice::packed @gatewaze/admin-embed@$VERSION as $TARBALL"
 
-          if [ "$DRY_RUN" = "true" ]; then
-            npm pack --dry-run
-            echo "::notice::dry_run — built and packed @gatewaze/admin-embed@$VERSION without publishing"
-            exit 0
-          fi
+      - name: Upload the tarball
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: admin-embed-tarball
+          path: pack/${{ steps.pack.outputs.tarball }}
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish @gatewaze/admin-embed
+    needs: build
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    # Protected environment: holds NPM_TOKEN and its reviewers gate the run.
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write # npm publish --provenance (keyless SLSA provenance)
+    steps:
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Download the tarball
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: admin-embed-tarball
+          path: pack
+
+      - name: Publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          VERSION: ${{ needs.build.outputs.version }}
+          TARBALL: ${{ needs.build.outputs.tarball }}
+          SHA256: ${{ needs.build.outputs.sha256 }}
+        run: |
+          # Publish exactly the tarball the build job packed.
+          echo "$SHA256  pack/$TARBALL" | sha256sum -c -
 
           if [ -z "$NODE_AUTH_TOKEN" ]; then
-            echo "::error::NPM_TOKEN is not configured — cannot publish"
+            echo "::error::NPM_TOKEN is not configured in the npm environment — cannot publish"
             exit 1
           fi
 
@@ -81,4 +146,4 @@ jobs:
             exit 1
           fi
 
-          npm publish --access public --provenance
+          npm publish "pack/$TARBALL" --access public --provenance

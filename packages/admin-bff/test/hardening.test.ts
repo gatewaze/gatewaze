@@ -2,8 +2,7 @@
 // privacy, header and redirect hygiene, refresh status handling, logout
 // ordering, query validation and stored-session shape.
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { ADMIN_CHECK_TIMEOUT_MS, REFRESH_TIMEOUT_MS, type GwSession } from '../src/core/session.js';
-import { LOCK_MS, SessionStore } from '../src/core/store.js';
+import { ADMIN_CHECK_TIMEOUT_MS, type GwSession, LOCK_MS, REFRESH_TIMEOUT_MS, SessionStore } from '@gatewaze/host-session';
 import { MemoryKeyValue, call, type Response } from './helpers/fakes.js';
 import { ANON, type Harness, SITE, startHarness } from './helpers/harness.js';
 

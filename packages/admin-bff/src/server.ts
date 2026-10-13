@@ -3,7 +3,7 @@
 import type { FastifyBaseLogger } from 'fastify';
 import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
-import { SessionStore } from './core/store.js';
+import { SessionStore } from '@gatewaze/host-session';
 import { appOptionsFromEnv, storeOptionsFromEnv } from './wiring.js';
 
 const env = loadConfig();
