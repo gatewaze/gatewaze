@@ -51,6 +51,34 @@ describe('JWT enforcement on admin routers', () => {
     });
   }
 
+  // The module gate skips auth for /api/modules/<id>/internal/* (service-to-
+  // service routes that authenticate themselves). It used to test the whole
+  // originalUrl, so a query string containing "/internal/" skipped auth on
+  // every module route.
+  describe('module /internal/ skip is path-only', () => {
+    it.each([
+      '/api/modules/bootstrap-check?x=/internal/',
+      '/api/modules/bootstrap-check?x=%2Finternal%2F',
+      '/api/modules/bootstrap-check?a=1&b=/internal/x',
+    ])('GET %s still returns 401', async (url) => {
+      const res = await request(app).get(url);
+      expect(res.status).toBe(401);
+      expect(res.body?.error?.code).toBe('unauthenticated');
+    });
+
+    it('does not skip when /internal/ is deeper than the module id', async () => {
+      const res = await request(app).get('/api/modules/some-module/admin/internal/x');
+      expect(res.status).toBe(401);
+    });
+
+    it('still skips the JWT gate for a genuine module internal path', async () => {
+      // No module mounts this in tests, so it falls through to 404 — the
+      // point is that the gate let it past instead of answering 401.
+      const res = await request(app).get('/api/modules/some-module/internal/ping');
+      expect(res.status).not.toBe(401);
+    });
+  });
+
   it('GET /api/health (public) does NOT require a JWT', async () => {
     const res = await request(app).get('/api/health');
     // It may be 'degraded' if Redis isn't configured in tests — what we
