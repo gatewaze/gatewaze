@@ -1,5 +1,5 @@
 -- platform_settings keys that only a super_admin may write: the tracking
--- keys (00028) and the org navigation layout (00049). Other keys stay
+-- keys (00028) and the org navigation layout (00050). Other keys stay
 -- writable by any admin.
 
 BEGIN;
