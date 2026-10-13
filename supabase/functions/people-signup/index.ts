@@ -380,12 +380,23 @@ async function handler(req: Request) {
     // hazard as Step 1: maybeSingle() errors when case-variant duplicates
     // exist, which read as "no person" and inserted another duplicate. Fetch
     // all matches and pick deterministically (auth-linked first, else oldest).
-    const { data: recordMatches } = await supabase
-      .from('people')
-      .select('id, cio_id, email, auth_user_id, attributes')
-      .or(`email.ilike.${emailPattern},cio_id.eq.${cioId}`)
-      .order('created_at', { ascending: true })
-    const existingPersonRecord = recordMatches?.find((p) => p.auth_user_id) ?? recordMatches?.[0] ?? null
+    //
+    // Two plain lookups, never one .or() filter: the email is caller-supplied,
+    // and a comma or parenthesis in it would add clauses to an .or() string
+    // and match (then overwrite) an unrelated person's row.
+    const [{ data: byEmail }, { data: byCioId }] = await Promise.all([
+      supabase
+        .from('people')
+        .select('id, cio_id, email, auth_user_id, attributes, created_at')
+        .ilike('email', emailPattern),
+      supabase
+        .from('people')
+        .select('id, cio_id, email, auth_user_id, attributes, created_at')
+        .eq('cio_id', cioId),
+    ])
+    const recordMatches = [...new Map([...(byEmail ?? []), ...(byCioId ?? [])].map((p) => [p.id, p])).values()]
+      .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))
+    const existingPersonRecord = recordMatches.find((p) => p.auth_user_id) ?? recordMatches[0] ?? null
 
     let person
 
@@ -400,7 +411,9 @@ async function handler(req: Request) {
           auth_user_id: authUserId,
           attributes: {
             ...existingPersonRecord.attributes,
-            ...attributes
+            ...attributes,
+            // A signup never overrides an explicit opt-out.
+            ...(existingPersonRecord.attributes?.marketing_consent === false ? { marketing_consent: false } : {}),
           },
           last_synced_at: new Date().toISOString()
         })
