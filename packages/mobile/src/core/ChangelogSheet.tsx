@@ -32,7 +32,7 @@ export function ChangelogSheet({ onClose }: { onClose: () => void }) {
             <CardTitle>Change log</CardTitle>
             <GlassCircleButton icon="close" onPress={onClose} accessibilityLabel="Close change log" />
           </View>
-          <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator>
+          <ScrollView style={styles.scroll} contentContainerStyle={styles.body} showsVerticalScrollIndicator>
             {releases.length === 0 ? (
               <Caption>Nothing recorded yet.</Caption>
             ) : (
@@ -40,7 +40,10 @@ export function ChangelogSheet({ onClose }: { onClose: () => void }) {
                 <View key={`${r.version}:${r.build ?? 'unknown'}`} style={styles.group}>
                   <Caps>{`v${formatVersionBuild(r.version, r.build)} · ${r.date}`}</Caps>
                   {r.changes.map((c, i) => (
-                    <Body key={i}>{`${c.kind === 'feature' ? '✦' : '✓'} ${c.text}`}</Body>
+                    <View key={i} style={styles.change}>
+                      <Body>{`${c.kind === 'feature' ? '✦' : '✓'} ${c.text}`}</Body>
+                      {c.reporter ? <Caption>{`Reported by ${c.reporter}`}</Caption> : null}
+                    </View>
                   ))}
                 </View>
               ))
@@ -56,18 +59,20 @@ const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.62)',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     padding: spacing.lg,
     zIndex: 41,
   },
-  sheetWrap: { width: '100%', maxHeight: '80%' },
-  sheet: { borderRadius: radius.lg, borderWidth: 1, overflow: 'hidden' },
+  sheetWrap: { width: '100%', height: '80%' },
+  sheet: { borderRadius: radius.lg, borderWidth: 1, overflow: 'hidden', flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: spacing.lg,
   },
+  scroll: { flex: 1 },
   body: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg, gap: spacing.lg },
   group: { gap: spacing.xs },
+  change: { gap: 2 },
 });

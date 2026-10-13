@@ -14,11 +14,26 @@
  * not read its own build," and a changelog entry is never the running app,
  * so `0` on a changelog entry can only ever be a leftover placeholder, not
  * a real value (see spec issue #93).
+ *
+ * Per-change `reporter` credit (spec issue #92, §5.3) follows the same
+ * rule: only ever a name already recorded on the corresponding GitHub
+ * issue's "Reporter" line, never fabricated and never a raw contact
+ * identifier. The two changes below predate that convention and have no
+ * confirmed reporter name on file, so `reporter` is left unset rather than
+ * guessed.
  */
 
 export interface ChangelogChange {
   kind: 'feature' | 'fix';
   text: string;
+  /**
+   * Safe display name of the person who suggested or reported this change,
+   * if and only if one is already on record on the corresponding GitHub
+   * issue's "Reporter" line. Never a phone number, account ID, or other
+   * private identifier, and never filled in when no name is on record —
+   * same "never invent" rule as the changes themselves (see module doc).
+   */
+  reporter?: string;
 }
 
 export interface ChangelogRelease {
