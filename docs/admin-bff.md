@@ -162,7 +162,7 @@ The admin itself needs these values in host-session mode:
 |---|---|
 | `VITE_AUTH_MODE` | `host-session` |
 | `VITE_SUPABASE_URL` | The admin's own origin |
-| `VITE_SUPABASE_PUBLIC_URL` | The real Supabase URL, for OAuth redirect URIs and share links |
+| `VITE_SUPABASE_PUBLIC_URL` | The real Supabase URL, for OAuth redirect URIs, links in emails and storage URLs that get saved |
 | `VITE_API_URL` | The admin's own origin, so `/api` calls stay on the admin origin |
 
 GoTrue must allow `<ADMIN_URL>/bff/callback` as a redirect URL. For self-hosted Supabase, add it to `ADDITIONAL_REDIRECT_URLS`. The provider in `OIDC_IDENTIFIER` must be registered in GoTrue. Custom OIDC providers such as `custom:lfid` need Supabase Auth v2.187 or later.

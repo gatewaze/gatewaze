@@ -12,6 +12,7 @@
  */
 
 import type { Request, Response, NextFunction } from 'express';
+import { type RateLimiterAbstract, RateLimiterMemory, RateLimiterRedis } from 'rate-limiter-flexible';
 import { getRedisConnection } from './queue/index.js';
 import { logger } from './logger.js';
 
@@ -129,6 +130,91 @@ export function rateLimiter(config: RateLimitConfig) {
       logger.warn({ err: (err as Error).message }, 'rate-limiter: redis failure — failing open');
       next();
     }
+  };
+}
+
+/**
+ * Options for {@link ipRateLimiter}.
+ */
+interface IpRateLimitConfig {
+  /** Max requests per window, per client IP. */
+  points: number;
+  /** Window in seconds. */
+  durationSecs: number;
+  /** Key namespace, so routers don't share a counter. */
+  bucket: string;
+}
+
+function createIpStore(config: IpRateLimitConfig): RateLimiterAbstract {
+  const options = {
+    keyPrefix: `${KEY_PREFIX}ip:${config.bucket}`,
+    points: config.points,
+    duration: config.durationSecs,
+  };
+  try {
+    return new RateLimiterRedis({ ...options, storeClient: getRedisConnection() });
+  } catch {
+    // Redis isn't configured. Unlike rateLimiter() above, don't fall
+    // through to no limit at all: a per-process counter still caps a
+    // single replica, and single-replica is the only shape a deployment
+    // without Redis can have.
+    logger.warn('ip-rate-limiter: Redis not configured — counting in-process (single replica only)');
+    return new RateLimiterMemory(options);
+  }
+}
+
+/**
+ * Per-IP rate limiting that runs *in front of* authentication.
+ *
+ * {@link rateLimiter} keys on `req.userId`, so it can only be installed
+ * after `requireJwt()` has resolved one. That leaves the authentication
+ * itself unthrottled, and authentication is the expensive half of a
+ * request here: for cloud-issued ES256 tokens `requireJwt()` calls
+ * `supabase.auth.getUser()`, an outbound round trip, and
+ * `resolveActiveAccount()` then reads `accounts_users`. Both run before a
+ * per-user limiter is ever reached, so anyone who can send bytes — with
+ * a junk token, even — can drive them.
+ *
+ * The client IP is the only identity available before a token is
+ * verified. Install this as a router's first middleware so nothing
+ * expensive runs ahead of it, and keep the per-user limiter behind
+ * `requireJwt()` for the work that only a signed-in caller can reach.
+ *
+ * Failing open on a store error matches {@link rateLimiter}: a Redis
+ * outage should not take the API down with it.
+ *
+ * The returned middleware is named so a router's layer stack can be read
+ * back (Express copies `fn.name` onto the layer) — see
+ * `src/lib/__tests__/rate-limiter.test.ts`, which pins the ordering this
+ * whole function exists for.
+ */
+export function ipRateLimiter(config: IpRateLimitConfig) {
+  const store = createIpStore(config);
+
+  return function ipRateLimit(req: Request, res: Response, next: NextFunction): void {
+    // `trust proxy` is set in server.ts, so req.ip is the real client
+    // address rather than the ingress one.
+    const key = req.ip ?? 'unknown';
+    store.consume(key, 1).then(
+      () => next(),
+      (rejection: unknown) => {
+        if (rejection instanceof Error) {
+          logger.warn({ err: rejection.message }, 'ip-rate-limiter: store failure — failing open');
+          next();
+          return;
+        }
+        const msBeforeNext = (rejection as { msBeforeNext?: number }).msBeforeNext ?? config.durationSecs * 1000;
+        const retryAfter = Math.max(1, Math.ceil(msBeforeNext / 1000));
+        res.setHeader('Retry-After', String(retryAfter));
+        res.status(429).json({
+          error: {
+            code: 'rate_limited',
+            message: `Rate limit exceeded. Try again in ${retryAfter} seconds.`,
+            details: { retryAfter },
+          },
+        });
+      },
+    );
   };
 }
 

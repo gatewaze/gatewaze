@@ -117,6 +117,67 @@ and bound concurrency with a semaphore for anything that forks.
 
 ---
 
+## `network-and-resource-limits/per-user-limiter-cannot-cover-authentication` — HARD
+
+**Pattern:** an Express router installs `requireJwt()` first and a per-user limiter
+second. A per-user limiter cannot be installed any earlier, because there is no user
+until the token has been verified. So the verification itself runs unthrottled on
+every request, including requests carrying a junk token. On this API that
+verification is the expensive half. A cloud-issued ES256 token sends
+`requireJwt()` down the `supabase.auth.getUser()` path, which is an outbound round
+trip, and `resolveActiveAccount()` then reads `accounts_users`.
+
+**Detect:** for each router in `packages/api/src/routes/`, read the order of the
+`.use()` calls and the per-route middleware arguments. If the first thing installed
+is `requireJwt()`, nothing throttles authentication.
+
+**Empirical citation:** `packages/api/src/routes/app-releases.ts` (2026-10-13,
+issue #94). The first attempt at this route added `rateLimiter({ perUserRate: 30,
+... })` as per-route middleware on `GET /latest`, behind `appReleasesRouter.use(
+requireJwt())`. CodeQL reported it as two `js/missing-rate-limiting` alerts on the
+pull request, one for "This route handler performs authorization, but is not
+rate-limited" at the `requireJwt()` argument, and one for "a database access" at the
+limiter argument, because the hand-rolled limiter in
+`packages/api/src/lib/rate-limiter.ts` talks to Redis through ioredis.
+
+**Failure message:** The only limiter on this router runs behind `requireJwt()`, so
+token verification is unthrottled.
+
+**Fix:** add `ipRateLimiter()` from `packages/api/src/lib/rate-limiter.ts` as the
+router's first `.use()`, and keep the per-user limiter where it is for the work only
+a signed-in caller can reach. Size the per-IP cap to clear a whole office or carrier
+NAT, not one device.
+
+**Note on the CodeQL half.** CodeQL recognises rate limiting only from
+`express-rate-limit`, `express-brute`, `express-limiter`, `rate-limiter-flexible`,
+and `@fastify/rate-limit`. See `MissingRateLimiting.qll` in the `codeql/javascript`
+pack. A hand-rolled limiter is invisible to it, so `rateLimiter()` will never clear
+the alert no matter where it is installed, and adding it to a route in fact adds a
+second alert at the limiter itself. `ipRateLimiter()` wraps
+`rate-limiter-flexible`'s `RateLimiterRedis`, in the middleware shape the query
+matches, which is why installing it first clears every alert on the router behind
+it. Keep the `store.consume(req.ip ...)` call inside the returned middleware if you
+change that function. Moving the read of `req.ip` out of it breaks the match and the
+alerts come back.
+
+**Verify locally before pushing.** The pull request check is the only place this
+query normally runs, and a round trip through CI per attempt is slow. The CodeQL CLI
+reproduces it in about twenty seconds:
+
+```bash
+codeql database create /tmp/cqdb --language=javascript-typescript \
+  --build-mode=none --source-root=packages/api
+codeql database analyze /tmp/cqdb --format=csv --output=/tmp/alerts.csv \
+  codeql/javascript-queries:Security/CWE-770/MissingRateLimiting.ql
+```
+
+Run it on the parent commit too. Roughly twenty of these alerts are already open on
+`main`, one per authenticated router, so the number that matters is the difference
+rather than the total. The pull request check only reports alerts whose location is
+inside the diff.
+
+---
+
 ## `network-and-resource-limits/shared-quota-exhausted-by-one-caller` — SHOULD
 
 **Pattern:** a per-caller limit exists, but the resource behind it is shared and much

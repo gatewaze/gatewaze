@@ -5,7 +5,7 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import { Caption, Card, Heading, ListItem, Screen } from '../../src/components/primitives';
 import { LazyThunk } from '../../src/components/LazyThunk';
 import { allSettingsSections } from '../../src/core/registry';
-import { appBuildNumber, appVersion } from '../../src/core/appInfo';
+import { appBuildNumber, appVersion, formatVersionBuild } from '../../src/core/appInfo';
 import { loadPersistedEntitlement } from '../../src/core/entitlement';
 import { onOutboxChange, outboxCounts } from '../../src/core/outbox';
 import { useSession } from '../../src/core/auth/session';
@@ -105,7 +105,7 @@ export default function Settings() {
         onPress={() => router.push('/settings/delete')}
       />
       <Caption style={{ textAlign: 'center' }}>
-        {`Version ${appVersion()} · Build ${appBuildNumber()}`}
+        {`Version ${formatVersionBuild(appVersion(), appBuildNumber())}`}
       </Caption>
     </Screen>
   );

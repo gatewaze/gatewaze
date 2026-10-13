@@ -64,3 +64,43 @@ export function navChildrenFrom(body: unknown, href: string): NavChild[] {
 export function isOwnEndpoint(endpoint: string): boolean {
   return /^\/[^/]/.test(endpoint)
 }
+
+/**
+ * Whether a page's endpoint says the page has anything on it.
+ *
+ * Used to decide whether to offer the page at all. A module page is
+ * contributed to every event by its module being enabled, which is the
+ * right unit for "is this feature switched on" and the wrong one for
+ * "is there anything here": the Photos page appeared on all 994 AAIF
+ * events the day the media module was enabled, every one of them empty
+ * (reported 2026-10-13).
+ *
+ * Positive only. This returns true when it can SEE something, so an
+ * endpoint that is missing, slow, unauthorised, rate-limited or
+ * answering in a shape nobody here recognises leaves the page hidden
+ * rather than offered. Hiding a page that does have content is a
+ * recoverable disappointment; offering one that has none is the bug
+ * being fixed.
+ *
+ * Shapes accepted, because modules answer in whichever suits them:
+ *   { nav: [...] }     the children shape navChildrenFrom already reads
+ *   { items: [...] }   a page of rows
+ *   { photos: [...] } / { albums: [...] } / { videos: [...] }
+ *   [ ... ]            a bare list
+ *   { count: n } / { total: n }   a tally
+ */
+export function hasContentFrom(body: unknown): boolean {
+  if (Array.isArray(body)) return body.length > 0
+  if (!body || typeof body !== 'object') return false
+  const b = body as Record<string, unknown>
+
+  for (const key of ['nav', 'items', 'photos', 'albums', 'videos', 'results']) {
+    const v = b[key]
+    if (Array.isArray(v) && v.length > 0) return true
+  }
+  for (const key of ['count', 'total']) {
+    const v = b[key]
+    if (typeof v === 'number' && Number.isFinite(v) && v > 0) return true
+  }
+  return false
+}

@@ -26,6 +26,28 @@ export const FEATURE_MARKERS = {
       { label: 'renders <ChangelogSheet', test: (src) => /<ChangelogSheet\b/.test(src) },
     ],
   },
+  'update-check': {
+    file: 'core/DrawerHost.tsx',
+    checks: [
+      { label: "imports checkForUpdate from './updateCheck'", test: (src) => /from\s+['"]\.\/updateCheck['"]/.test(src) },
+      { label: 'calls checkForUpdate()', test: (src) => /checkForUpdate\(\)/.test(src) },
+    ],
+  },
+  'changelog-build-numbers': {
+    file: 'core/changelog.ts',
+    // issue #93: a changelog entry's `build` must never be the literal placeholder `0` — that
+    // digit is reserved by appInfo.ts for "the running app could not read its own build," and
+    // changelog.ts is hand-authored data, not a running app, so `build: 0` here can only ever
+    // be a leftover placeholder. A real-but-not-yet-known build must be written as `null`
+    // instead, which the display (formatVersionBuild) honestly renders as "build unknown"
+    // rather than a fabricated zero patch version.
+    checks: [
+      {
+        label: 'no changelog entry still carries the placeholder build: 0 (fill in the real APP_BUILD_NUMBER, or use null if genuinely not yet known)',
+        test: (src) => !/build:\s*0\s*,/.test(src),
+      },
+    ],
+  },
   'bug-report-mic': {
     file: 'core/BugReport.tsx',
     // No real marker exists yet: PR #146 (mic/dictation UI) is open and unmerged as of this writing.
