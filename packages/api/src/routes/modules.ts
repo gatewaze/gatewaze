@@ -68,12 +68,25 @@ const upload = multer({
 export const modulesRouter = labeledRouter('jwt');
 // Module `/internal/*` routes are service-to-service: they authenticate with
 // a per-route internal key (x-gatewaze-internal-key, constant-time compared to
-// SUPABASE_SERVICE_ROLE_KEY) rather than a user JWT — e.g. the gatewaze-wiki-mcp
-// calling /api/modules/ai/internal/wiki/*. Skip the user-JWT gate for the
-// `internal` path segment; every such route MUST run its own internalAuth().
+// SUPABASE_SERVICE_ROLE_KEY) or a signed webhook rather than a user JWT —
+// e.g. the gatewaze-wiki-mcp calling /api/modules/ai/internal/wiki/*. Skip the
+// user-JWT gate for those; every such route MUST authenticate itself.
+//
+// The test is on the PATH and is anchored to the segment straight after the
+// module id: /api/modules/<id>/internal/... It used to run over
+// req.originalUrl, which includes the query string, so appending
+// "?x=/internal/" to ANY module route skipped both this gate and the
+// super_admin gate below. req.path is relative to this router's mount and
+// never carries the query. It is case-sensitive on purpose: Express routes
+// case-insensitively, so /INTERNAL/ still reaches an internal handler but
+// keeps the gate, which fails closed.
+export function isModuleInternalPath(path: string): boolean {
+  return /^\/[^/]+\/internal(?:\/|$)/.test(path);
+}
+
 const _moduleJwt = requireJwt();
 modulesRouter.use((req, res, next) => {
-  if (/\/internal\//.test(req.originalUrl)) return next();
+  if (isModuleInternalPath(req.path)) return next();
   return _moduleJwt(req, res, next);
 });
 
@@ -90,7 +103,7 @@ modulesRouter.use((req, res, next) => {
 // its own internalAuth().
 const _moduleSuperAdmin = requireSuperAdmin();
 modulesRouter.use((req, res, next) => {
-  if (/\/internal\//.test(req.originalUrl)) return next();
+  if (isModuleInternalPath(req.path)) return next();
   return _moduleSuperAdmin(req, res, next);
 });
 
