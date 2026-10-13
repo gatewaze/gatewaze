@@ -121,7 +121,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   switch (row?.status) {
     case 'claimed':
       after(() =>
-        ensurePerson(email, isIP(ip) ? ip : null).catch((err) =>
+        ensurePerson(email, isIP(ip) && !ip.includes('%') ? ip : null).catch((err) =>
           console.error('[offer-claim] ensurePerson threw', err instanceof Error ? err.message : err),
         ),
       )
