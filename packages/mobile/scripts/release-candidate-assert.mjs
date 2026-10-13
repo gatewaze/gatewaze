@@ -26,6 +26,13 @@ export const FEATURE_MARKERS = {
       { label: 'renders <ChangelogSheet', test: (src) => /<ChangelogSheet\b/.test(src) },
     ],
   },
+  'update-check': {
+    file: 'core/DrawerHost.tsx',
+    checks: [
+      { label: "imports checkForUpdate from './updateCheck'", test: (src) => /from\s+['"]\.\/updateCheck['"]/.test(src) },
+      { label: 'calls checkForUpdate()', test: (src) => /checkForUpdate\(\)/.test(src) },
+    ],
+  },
   'bug-report-mic': {
     file: 'core/BugReport.tsx',
     // No real marker exists yet: PR #146 (mic/dictation UI) is open and unmerged as of this writing.

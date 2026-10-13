@@ -137,7 +137,7 @@ echo "==> Uploaded ${SCHEME} ${MARKETING_VERSION} (${BUILD_NUMBER})."
 # release is one command.
 if [[ -n "${APP_STORE_APP_ID:-}" ]]; then
   echo "==> Waiting for processing, then releasing to testers"
-  node scripts/testflight-release-build.mjs "$APP_STORE_APP_ID" "$BUILD_NUMBER" "${APP_BETA_GROUP:-Internal Testers}"
+  node scripts/testflight-release-build.mjs "$APP_STORE_APP_ID" "$BUILD_NUMBER" "${APP_BETA_GROUP:-Internal Testers}" "$MARKETING_VERSION"
 else
   echo "==> Set APP_STORE_APP_ID in .env to auto-release to TestFlight testers."
 fi

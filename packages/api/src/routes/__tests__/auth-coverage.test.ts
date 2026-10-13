@@ -39,6 +39,7 @@ describe('JWT enforcement on admin routers', () => {
     'GET  /api/redirects',
     'GET  /api/api-keys',
     'GET  /api/modules/bootstrap-check',
+    'GET  /api/app-releases/latest',
   ];
 
   for (const spec of jwtPaths) {

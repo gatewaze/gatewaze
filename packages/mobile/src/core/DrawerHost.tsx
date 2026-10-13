@@ -11,7 +11,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { PanResponder, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Linking, PanResponder, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -41,6 +41,7 @@ import { CoachHome } from './CoachHome';
 import { BugReportSheet } from './BugReport';
 import { ChangelogSheet } from './ChangelogSheet';
 import { appBuildNumber, appVersion } from './appInfo';
+import { checkForUpdate, type AvailableUpdate } from './updateCheck';
 import { brandLogo, feedbackPath, feedbackHistoryPath } from './registry';
 import { config } from './config';
 import { useTextScale } from './textScale';
@@ -118,6 +119,10 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
   const [bugShot, setBugShot] = useState<string | null>(null);
   const [bugOpen, setBugOpen] = useState(false);
   const [changelogOpen, setChangelogOpen] = useState(false);
+  // Issue #94: a newer build than this one, if the release pipeline has
+  // recorded one. Checked once per cold start — see the useEffect below.
+  const [availableUpdate, setAvailableUpdate] = useState<AvailableUpdate | null>(null);
+  const [updateDismissed, setUpdateDismissed] = useState(false);
   /**
    * The screen a report is about, when it came from a pushed one.
    *
@@ -137,6 +142,14 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
   }, [open, progress]);
 
   useEffect(() => onOutboxChange(() => setFailedCount(outboxCounts().failed)), []);
+
+  // Once per cold start: this host is the root of the authenticated app
+  // shell, so "once per mount" already means "once per launch" — plenty
+  // for something that changes at most a few times a week during active
+  // TestFlight iteration.
+  useEffect(() => {
+    void checkForUpdate().then(setAvailableUpdate);
+  }, []);
 
   // A module screen's header asks for the drawer as it navigates back here,
   // because it cannot reach this state from above in the stack. Acting on
@@ -500,6 +513,28 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
           />
           ) : null}
         </LinearGradient>
+
+        {/* Issue #94: a newer build is available than the one installed.
+            Lives in headerWrap (not inside styles.surface's slide/scale
+            animation) so it shows on the coach home without the drawer
+            open, and is hidden along with the rest of the header when a
+            pushed module screen's own header is showing instead. */}
+        {availableUpdate && !updateDismissed ? (
+          <View style={[styles.updateBanner, { backgroundColor: theme.sheet, borderColor: theme.border }]}>
+            <Caption style={{ flex: 1 }}>
+              {`Version ${availableUpdate.version} (build ${availableUpdate.build}) is available. Install it from TestFlight.`}
+            </Caption>
+            <Pressable
+              onPress={() => { void Linking.openURL('itms-beta://'); }}
+              accessibilityLabel="Open TestFlight"
+            >
+              <Caption style={{ color: theme.accent, fontWeight: '600' }}>Open TestFlight</Caption>
+            </Pressable>
+            <Pressable onPress={() => setUpdateDismissed(true)} accessibilityLabel="Dismiss">
+              <Icon name="close" size={16} color={theme.textSecondary} />
+            </Pressable>
+          </View>
+        ) : null}
         </View>
 
         {/* The header floats over everything, so its height is published
@@ -644,4 +679,14 @@ const styles = StyleSheet.create({
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 11 },
   dot: { position: 'absolute', top: 4, right: 4, width: 9, height: 9, borderRadius: 5 },
+  updateBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginHorizontal: layout.headerPaddingH,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.md,
+  },
 });
