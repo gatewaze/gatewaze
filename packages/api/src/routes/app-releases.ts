@@ -14,9 +14,20 @@ import { type Request, type Response } from 'express';
 import { labeledRouter } from '../lib/router-registry.js';
 import { requireJwt } from '../lib/auth/require-jwt.js';
 import { getServiceSupabase } from '../lib/supabase.js';
-import { rateLimiter } from '../lib/rate-limiter.js';
+import { ipRateLimiter, rateLimiter } from '../lib/rate-limiter.js';
 
 export const appReleasesRouter = labeledRouter('jwt');
+
+// Ahead of requireJwt(), because requireJwt() is the expensive part: an
+// ES256 token costs an outbound supabase.auth.getUser() round trip, and a
+// junk token costs it too. A per-user limiter cannot cover that — there is
+// no user until the token has already been verified.
+//
+// Keyed per IP, so the ceiling has to clear a whole office or carrier NAT
+// rather than one device. 300 a minute is far above a handful of devices
+// each asking on launch and on foreground, and far below what it takes to
+// make the auth round trip hurt.
+appReleasesRouter.use(ipRateLimiter({ points: 300, durationSecs: 60, bucket: 'app-releases' }));
 appReleasesRouter.use(requireJwt());
 
 const PLATFORMS = new Set(['ios', 'android']);
@@ -24,7 +35,7 @@ const PLATFORMS = new Set(['ios', 'android']);
 // A device asks on launch and when it returns to the foreground, so a
 // handful a minute is already generous. The cap stops one account's token
 // from turning this read into a load generator against the service-role
-// client.
+// client, from however many IPs it is spread across.
 const latestReleaseRateLimiter = rateLimiter({
   perUserRate: 30,
   windowSecs: 60,

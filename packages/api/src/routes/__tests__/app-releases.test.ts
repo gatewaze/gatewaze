@@ -11,6 +11,7 @@ vi.mock('../../lib/supabase.js', () => ({
 }));
 
 const { default: app } = await import('../../server.js');
+const { appReleasesRouter } = await import('../app-releases.js');
 
 // GATEWAZE_TEST_DISABLE_AUTH=1 (set in test/setup.ts) makes requireJwt()
 // inject this fixed account id for every request in this suite.
@@ -62,6 +63,19 @@ describe('GET /api/app-releases/latest', () => {
 
     expect(mockSupabase.client.eq).toHaveBeenCalledWith('account_id', TEST_ACCOUNT_ID);
     expect(mockSupabase.client.eq).not.toHaveBeenCalledWith('account_id', 'someone-elses-account');
+  });
+
+  it('rate-limits by IP before requireJwt() gets a look at the token', async () => {
+    // requireJwt() is the expensive half of this request — an ES256 token
+    // costs an outbound supabase.auth.getUser() round trip, and a junk
+    // token costs it too. The IP limiter only protects that if it is the
+    // very first thing the router runs, so pin the position rather than
+    // the mere presence of a limiter. Express copies the middleware's
+    // function name onto the layer; router-registry.ts reads the same
+    // stack.
+    const layers = (appReleasesRouter as unknown as { stack: Array<{ name: string }> }).stack;
+
+    expect(layers[0].name).toBe('ipRateLimit');
   });
 
   it('returns a 500 envelope on a database failure', async () => {
