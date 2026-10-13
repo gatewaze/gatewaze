@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isOwnEndpoint, navChildrenFrom } from '@/lib/nav-children'
+import { hasContentFrom, isOwnEndpoint, navChildrenFrom } from '@/lib/nav-children'
 
 const HREF = '/events/dan-sarah/photos'
 
@@ -64,5 +64,50 @@ describe('which endpoints the portal will ask', () => {
     for (const bad of ['https://evil.example/x', '//evil.example/x', 'api/x', '', '/']) {
       expect(isOwnEndpoint(bad)).toBe(false)
     }
+  })
+})
+
+describe('whether a page has anything behind it', () => {
+  // The Photos page appeared on all 994 AAIF events the day the media
+  // module was enabled, every one of them empty. Enablement says the
+  // feature is on; only the module can say whether this event has any.
+
+  it('is true when it can see something', () => {
+    expect(hasContentFrom({ nav: [{ label: 'Day one', path: 'day-one' }] })).toBe(true)
+    expect(hasContentFrom({ items: [1] })).toBe(true)
+    expect(hasContentFrom({ photos: [{ id: 'a' }] })).toBe(true)
+    expect(hasContentFrom({ albums: [{ id: 'a' }] })).toBe(true)
+    expect(hasContentFrom({ videos: [{ id: 'a' }] })).toBe(true)
+    expect(hasContentFrom({ results: [{ id: 'a' }] })).toBe(true)
+    expect(hasContentFrom({ count: 1 })).toBe(true)
+    expect(hasContentFrom({ total: 42 })).toBe(true)
+    expect(hasContentFrom([{ id: 'a' }])).toBe(true)
+  })
+
+  it('is false for an empty answer', () => {
+    expect(hasContentFrom({ nav: [] })).toBe(false)
+    expect(hasContentFrom({ items: [] })).toBe(false)
+    expect(hasContentFrom({ count: 0 })).toBe(false)
+    expect(hasContentFrom({ total: 0 })).toBe(false)
+    expect(hasContentFrom([])).toBe(false)
+    expect(hasContentFrom({})).toBe(false)
+  })
+
+  it('is false for an endpoint that failed, rather than optimistic', () => {
+    // A null body is what the sidebar passes when the fetch was not ok,
+    // which includes the 404 the gallery endpoint currently returns for
+    // every AAIF event. Hidden is the right answer to "I do not know".
+    expect(hasContentFrom(null)).toBe(false)
+    expect(hasContentFrom(undefined)).toBe(false)
+    expect(hasContentFrom({ error: 'event_not_found', message: 'unknown event' })).toBe(false)
+  })
+
+  it('is false for a shape it does not recognise, rather than guessing', () => {
+    expect(hasContentFrom('lots')).toBe(false)
+    expect(hasContentFrom(7)).toBe(false)
+    expect(hasContentFrom({ nav: 'lots' })).toBe(false)
+    expect(hasContentFrom({ count: 'many' })).toBe(false)
+    expect(hasContentFrom({ count: Infinity })).toBe(false)
+    expect(hasContentFrom({ count: -1 })).toBe(false)
   })
 })
