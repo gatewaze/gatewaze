@@ -132,6 +132,11 @@ jobs:
           SHA256: ${{ needs.build.outputs.sha256 }}
         run: |
           # Publish exactly the tarball the build job packed.
+          # The tarball must be the package and version this run is publishing.
+          case "$TARBALL" in
+            "gatewaze-admin-embed-$VERSION.tgz") ;;
+            *) echo "::error::unexpected tarball '$TARBALL' for gatewaze-admin-embed $VERSION"; exit 1 ;;
+          esac
           echo "$SHA256  pack/$TARBALL" | sha256sum -c -
 
           if [ -z "$NODE_AUTH_TOKEN" ]; then
@@ -146,4 +151,6 @@ jobs:
             exit 1
           fi
 
-          npm publish "pack/$TARBALL" --access public --provenance
+          # "./" makes npm treat this as a local file. Without it npm reads
+          # pack/<name>.tgz as GitHub shorthand and tries git ls-remote.
+          npm publish "./pack/$TARBALL" --access public --provenance
