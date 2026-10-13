@@ -123,6 +123,36 @@ check(
 );
 
 check(
+  'checkFeature: changelog-build-numbers passes against the real checked-out source (placeholder build: 0 was replaced with null)',
+  checkFeature('changelog-build-numbers').ok === true,
+);
+
+check(
+  'checkFeature: changelog-build-numbers FAILS when an entry still carries the placeholder build: 0',
+  (() => {
+    const readFile = () => `export const CHANGELOG = [\n  { version: '0.1.0', build: 0, date: '2026-10-09', changes: [] },\n];\n`;
+    const result = checkFeature('changelog-build-numbers', readFile);
+    return result.ok === false && result.failures.some((f) => f.includes('placeholder build: 0'));
+  })(),
+);
+
+check(
+  'checkFeature: changelog-build-numbers PASSES for a real recorded build number',
+  (() => {
+    const readFile = () => `export const CHANGELOG = [\n  { version: '0.1.0', build: 1252, date: '2026-10-09', changes: [] },\n];\n`;
+    return checkFeature('changelog-build-numbers', readFile).ok === true;
+  })(),
+);
+
+check(
+  'checkFeature: changelog-build-numbers PASSES for an honest null build',
+  (() => {
+    const readFile = () => `export const CHANGELOG = [\n  { version: '0.1.0', build: null, date: '2026-10-09', changes: [] },\n];\n`;
+    return checkFeature('changelog-build-numbers', readFile).ok === true;
+  })(),
+);
+
+check(
   'checkFeature: an import with no render call is rejected (dead-code guard)',
   (() => {
     const readFile = () => `import { ChangelogSheet } from './ChangelogSheet';\n// never rendered\n`;

@@ -13,7 +13,8 @@ import {
   buildSharedAlias,
 } from "./vite-shared-config";
 
-import { EMBED_CONTRACT } from "./src/embed/contract";
+import { EMBED_CAPABILITIES, EMBED_CONTRACT } from "./src/embed/contract";
+import { buildEmbedManifest } from "./src/embed/manifest";
 
 // Which modules the embed compiles in is the deployment's decision, not the
 // repo's: ADMIN_EMBED_MODULES is a comma-separated allow-list (a module and
@@ -57,16 +58,15 @@ function embedManifestPlugin(): Plugin {
       const stylesheet = files.find((f) => /^admin-embed-[\w-]+\.css$/.test(f));
       if (!entry) throw new Error("[vite-embed-config] no entry chunk in the embed bundle");
       if (!stylesheet) throw new Error("[vite-embed-config] no stylesheet in the embed bundle");
-      const manifest = {
-        contract: EMBED_CONTRACT,
-        version: embedVersion,
+      const manifest = buildEmbedManifest({
         entry,
         stylesheet,
         modules: embedModules,
+        version: embedVersion,
         builtAt: new Date().toISOString(),
-      };
+      });
       fs.writeFileSync(path.join(outDir, "manifest.json"), JSON.stringify(manifest, null, 2) + "\n");
-      console.log(`[vite-embed-config] manifest: ${entry} + ${stylesheet} (contract ${EMBED_CONTRACT}, version ${embedVersion})`);
+      console.log(`[vite-embed-config] manifest: ${entry} + ${stylesheet} (contract ${EMBED_CONTRACT}, capabilities ${EMBED_CAPABILITIES.join(",") || "none"}, version ${embedVersion})`);
     },
   };
 }

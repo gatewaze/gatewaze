@@ -38,6 +38,24 @@ spec:
             {{- with .Values.extraEnvFrom }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+          {{- if .Values.adminBff.switchAdmin }}
+          # Host-session mode (docs/admin-bff.md): the SPA talks only to its
+          # own origin, where the ingress sends the Supabase and API prefixes
+          # to admin-bff. `env` wins over the envFrom ConfigMap above.
+          env:
+            - name: VITE_AUTH_MODE
+              value: "host-session"
+            - name: VITE_SUPABASE_URL
+              value: {{ printf "https://%s" .Values.ingress.hosts.admin | quote }}
+            # URLs that leave the admin (OAuth redirect URIs, links in emails,
+            # saved storage URLs) still use the real Supabase URL.
+            - name: VITE_SUPABASE_PUBLIC_URL
+              value: {{ .Values.supabase.url | quote }}
+            # The admin origin: /api calls stay same-origin and reach the API
+            # via the BFF.
+            - name: VITE_API_URL
+              value: {{ printf "https://%s" .Values.ingress.hosts.admin | quote }}
+          {{- end }}
           startupProbe:
             # nginx only binds once a bundle exists to serve, so /healthz
             # answering IS "startup finished" — on the fast path (bundle baked

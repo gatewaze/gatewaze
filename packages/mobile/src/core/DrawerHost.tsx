@@ -40,7 +40,7 @@ import { useSession } from './auth/session';
 import { CoachHome } from './CoachHome';
 import { BugReportSheet } from './BugReport';
 import { ChangelogSheet } from './ChangelogSheet';
-import { appBuildNumber, appVersion } from './appInfo';
+import { appBuildNumber, appVersion, formatVersionBuild } from './appInfo';
 import { checkForUpdate, type AvailableUpdate } from './updateCheck';
 import { brandLogo, feedbackPath, feedbackHistoryPath } from './registry';
 import { config } from './config';
@@ -88,7 +88,12 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
    * the eye. The one underneath is the one that goes.
    */
   const pathname = usePathname();
-  const isVisibleRoute = pathname === '/' || pathname === '/index';
+  // Strip a query string and any trailing slash before comparing: a deep
+  // link, a resumed-from-background value, or a route reached with a
+  // trailing slash all mean "the index route," but would otherwise defeat
+  // an exact match and hide this header along with it.
+  const normalizedPathname = (pathname ?? '').split('?')[0].replace(/\/+$/, '') || '/';
+  const isVisibleRoute = normalizedPathname === '/' || normalizedPathname === '/index';
   const theme = useTheme();
   const { scale } = useTextScale();
   const router = useRouter();
@@ -133,6 +138,17 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
   // Measured, not assumed: the bar's height depends on the mode track, which
   // depends on which modules the member has.
   const [coachBarHeight, setCoachBarHeight] = useState(0);
+  // Measured, not assumed, the same way: `headerHeight()` is a reasonable
+  // floor built from fixed constants, but a module destination's title runs
+  // through a plain Text that scales with the system's font size setting. At
+  // the larger end of Dynamic Type (Larger Accessibility Sizes) the title can
+  // render taller than the `headerButton` constant the formula assumes, so
+  // the header's real on-screen height grows past what every destination
+  // pads for and the bottom of the header overlaps the top of the content.
+  // Taking the larger of the two keeps the formula as the pre-layout default
+  // (nothing changes at ordinary text sizes) and corrects it once the header
+  // has actually measured itself.
+  const [headerMeasuredHeight, setHeaderMeasuredHeight] = useState(0);
   const [failedCount, setFailedCount] = useState(() => outboxCounts().failed);
 
   const insets = useSafeAreaInsets();
@@ -401,7 +417,7 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
 
           <View style={[styles.drawerFoot, { borderColor: theme.border }]}>
             <Caption style={{ textAlign: 'center' }}>
-              {`Version ${appVersion()} · Build ${appBuildNumber()}`}
+              {`Version ${formatVersionBuild(appVersion(), appBuildNumber())}`}
             </Caption>
             <DrawerRow
               icon="history"
@@ -443,6 +459,7 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
             withAlpha(theme.headerScrim, layout.headerFadeStops[2]),
           ]}
           locations={headerFadeLocations(insets.top)}
+          onLayout={(e) => setHeaderMeasuredHeight(e.nativeEvent.layout.height)}
           style={[
             styles.header,
             { paddingTop: insets.top + layout.headerTopGap, paddingBottom: layout.headerFadeDrop },
@@ -466,7 +483,17 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
               so the wordmark takes the slot rather than leaving the two
               controls floating at the edges with a gap between them. */}
           {destination.kind === 'module' ? (
-            <Text style={[scaled(type.cardTitle, scale), { color: theme.text }]}>{title}</Text>
+            /* Scaled AND truncated. The scale comes from the text-size
+               setting, and the single line with an ellipsis is what keeps a
+               long title from pushing the header controls off the edge —
+               which matters more, not less, once the text can grow. */
+            <Text
+              style={[scaled(type.cardTitle, scale), { color: theme.text, flexShrink: 1 }]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              {title}
+            </Text>
           ) : (
             /* The dark glow keeps the white letters legible when a light
                coach bubble scrolls behind the transparent header. A view
@@ -542,7 +569,11 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
             its scroll content, which lets content pass under the header and
             fade instead of being clipped at a padded edge. */}
         <ChromeInsetsProvider
-          top={destination.kind === 'coach' ? 0 : headerHeight(insets.top)}
+          top={
+            destination.kind === 'coach'
+              ? 0
+              : Math.max(headerHeight(insets.top), headerMeasuredHeight)
+          }
           // The coach draws its own composer inside its content area. Every
           // other destination has the bar floating over it, so it publishes
           // the bar's height and screens keep their last row clear of it.

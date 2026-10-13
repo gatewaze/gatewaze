@@ -25,6 +25,7 @@ interface ModuleNavItem {
   order?: number;
   defaultSection?: string;
   defaultLocation?: "sidebar" | "settings";
+  hub?: string;
 }
 
 function buildNavItem(modId: string, navItem: ModuleNavItem): NavigationTree {
@@ -37,6 +38,7 @@ function buildNavItem(modId: string, navItem: ModuleNavItem): NavigationTree {
     requiredFeature: navItem.requiredFeature,
     defaultSection: navItem.defaultSection,
     order: navItem.order,
+    ...(navItem.hub ? { hub: navItem.hub } : {}),
   };
 }
 

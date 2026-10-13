@@ -17,4 +17,4 @@ export {
   DOMPURIFY_TRUSTED_HTML_ALLOWED_ATTR,
 } from './dompurify-config';
 
-export { sanitizeNavLayout, NavLayoutValidationError } from './nav-layout';
+export { sanitizeNavLayout, NavLayoutValidationError, NAV_HUB_ID_PATTERN } from './nav-layout';

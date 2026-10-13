@@ -147,6 +147,7 @@ overrides:
   vue@<3.5.42: '>=3.5.42'
   shell-quote@<1.11.0: '>=1.11.0'
   sharp@<0.35.5: '>=0.35.5'
+  jsdom@>=30.0.0 <31.0.0: ^29.0.0
 
 importers:
 
@@ -179,7 +180,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.4
@@ -188,7 +189,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: workspace:*
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
 
   ../gatewaze-modules/modules/ai:
     dependencies:
@@ -200,7 +201,7 @@ importers:
         version: 0.40.1
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.98.0
@@ -276,7 +277,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
     devDependencies:
       typescript:
         specifier: ^5.9.0
@@ -289,19 +290,19 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
 
   ../gatewaze-modules/modules/badge-scanning:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
 
   ../gatewaze-modules/modules/blog:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.98.0
@@ -319,7 +320,7 @@ importers:
         version: link:../ai
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -368,13 +369,13 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
 
   ../gatewaze-modules/modules/calendars:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
     devDependencies:
       vitest:
         specifier: ^4.0.0
@@ -384,25 +385,25 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
 
   ../gatewaze-modules/modules/competitions:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
 
   ../gatewaze-modules/modules/compliance:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
 
   ../gatewaze-modules/modules/content-platform:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.4
@@ -411,7 +412,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: workspace:*
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
 
   ../gatewaze-modules/modules/conversations: {}
 
@@ -419,7 +420,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.4
@@ -428,7 +429,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.6
@@ -437,7 +438,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
 
   ../gatewaze-modules/modules/editor-ai-copilot:
     dependencies:
@@ -495,7 +496,7 @@ importers:
     devDependencies:
       '@gatewaze/shared':
         specifier: workspace:*
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
       '@types/express':
         specifier: ^4.17.21
         version: 4.17.25
@@ -527,25 +528,25 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
 
   ../gatewaze-modules/modules/event-agenda:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
 
   ../gatewaze-modules/modules/event-budget:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
 
   ../gatewaze-modules/modules/event-invites:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.6
@@ -554,7 +555,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
       express-rate-limit:
         specifier: ^8.5.2
         version: 8.7.0(express@5.2.1)
@@ -576,13 +577,13 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
 
   ../gatewaze-modules/modules/event-seating:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.6
@@ -591,7 +592,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
       '@supabase/supabase-js':
         specifier: ^2.106.0
         version: 2.108.1
@@ -622,25 +623,25 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
 
   ../gatewaze-modules/modules/event-topics:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
 
   ../gatewaze-modules/modules/event-tracking:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
 
   ../gatewaze-modules/modules/events:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.4
@@ -653,7 +654,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.98.0
@@ -668,7 +669,7 @@ importers:
     devDependencies:
       '@gatewaze/shared':
         specifier: workspace:*
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
       '@mozilla/readability':
         specifier: '>=0.6.0'
         version: 0.6.0
@@ -713,19 +714,19 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
 
   ../gatewaze-modules/modules/gradual:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
 
   ../gatewaze-modules/modules/host-media:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.4
@@ -744,19 +745,19 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
 
   ../gatewaze-modules/modules/luma:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
 
   ../gatewaze-modules/modules/monitoring:
     devDependencies:
       '@gatewaze/shared':
         specifier: workspace:*
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
       typescript:
         specifier: ^5.9.0
         version: 5.9.3
@@ -774,7 +775,7 @@ importers:
         version: 7.29.0
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
       '@puckeditor/core':
         specifier: ~0.21.3
         version: 0.21.3(@floating-ui/dom@1.7.6)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(immer@10.2.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(use-sync-external-store@1.6.0(react@19.2.6))
@@ -799,25 +800,25 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
 
   ../gatewaze-modules/modules/newsletters-output-substack:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
 
   ../gatewaze-modules/modules/offers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
 
   ../gatewaze-modules/modules/people-enrichment:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.6
@@ -826,7 +827,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.6
@@ -835,25 +836,25 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
 
   ../gatewaze-modules/modules/redirects:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
 
   ../gatewaze-modules/modules/redirects-bitly:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
 
   ../gatewaze-modules/modules/redirects-shortio:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
 
   ../gatewaze-modules/modules/redirects-umami: {}
 
@@ -861,7 +862,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -874,7 +875,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -892,7 +893,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: workspace:*
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
 
   ../gatewaze-modules/modules/scrapers:
     dependencies:
@@ -901,7 +902,7 @@ importers:
         version: 0.39.0
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
       '@supabase/supabase-js':
         specifier: ^2.106.0
         version: 2.108.1
@@ -925,13 +926,13 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
 
   ../gatewaze-modules/modules/send-testing:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -943,7 +944,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -955,7 +956,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -976,7 +977,7 @@ importers:
         version: link:../templates
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
       '@puckeditor/core':
         specifier: ~0.21.3
         version: 0.21.3(@floating-ui/dom@1.7.6)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(immer@10.2.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(use-sync-external-store@1.6.0(react@19.2.6))
@@ -1013,7 +1014,7 @@ importers:
         version: link:../sites
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
     devDependencies:
       vitest:
         specifier: ^4.0.0
@@ -1026,7 +1027,7 @@ importers:
         version: link:../sites
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
     devDependencies:
       vitest:
         specifier: ^4.0.0
@@ -1036,7 +1037,17 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.5
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.0
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.2.0(@types/node@22.20.5)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
 
   ../gatewaze-modules/modules/software-engineer:
     dependencies:
@@ -1045,7 +1056,7 @@ importers:
         version: 0.3.220(@anthropic-ai/sdk@0.91.1(zod@3.25.76))(@modelcontextprotocol/sdk@1.32.1(zod@3.25.76))(zod@3.25.76)
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -1089,7 +1100,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.6
@@ -1101,13 +1112,13 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
 
   ../gatewaze-modules/modules/tasks:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
     devDependencies:
       '@supabase/supabase-js':
         specifier: ^2.45.0
@@ -1144,7 +1155,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.4
@@ -1157,7 +1168,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -1194,7 +1205,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -1222,7 +1233,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze/packages/shared
+        version: link:../../../gatewaze-wt-media-retire/packages/shared
       pg:
         specifier: ^8.11.0
         version: 8.20.0
@@ -1615,6 +1626,49 @@ importers:
       vite:
         specifier: '>=7.3.5'
         version: 8.2.0(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)
+
+  packages/admin-bff:
+    dependencies:
+      '@fastify/rate-limit':
+        specifier: 11.2.0
+        version: 11.2.0
+      '@fastify/secure-session':
+        specifier: ^8.4.1
+        version: 8.4.1(bare-events@2.8.3)(bare-url@2.4.3)
+      '@supabase/supabase-js':
+        specifier: ^2.108.1
+        version: 2.108.1
+      fastify:
+        specifier: ^5.12.5
+        version: 5.12.5
+      ioredis:
+        specifier: ^5.10.1
+        version: 5.10.1
+      ws:
+        specifier: ^8.21.1
+        version: 8.21.1
+    devDependencies:
+      '@eslint/js':
+        specifier: ^9.33.0
+        version: 9.39.4
+      '@types/node':
+        specifier: ^22.19.15
+        version: 22.20.5
+      '@types/ws':
+        specifier: ^8.18.1
+        version: 8.18.1
+      eslint:
+        specifier: ^9.33.0
+        version: 9.39.4(jiti@2.6.1)
+      typescript:
+        specifier: ~5.9.2
+        version: 5.9.3
+      typescript-eslint:
+        specifier: ^8.39.1
+        version: 8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3)
+      vitest:
+        specifier: ^4.1.0
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.2.0(@types/node@22.20.5)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
 
   packages/admin-embed: {}
 
@@ -4055,10 +4109,41 @@ packages:
     resolution: {integrity: sha512-J3eL4n4h5QTwfD0SIz8OIk6/+sOL/hFZAMacgCM07UNlxBQfJipEpIC2AQxvGkbYeStByJ0TVhQAJo+DeNgaSQ==}
     hasBin: true
 
+  '@fastify/ajv-compiler@4.0.7':
+    resolution: {integrity: sha512-VP0yIfwlc1ohj733keYDqyHm1VWeP9VQxYomunhr90jkC4aNNibbkrRiaNgPgqj1ORxUenILR4qzA/ppYBNAtQ==}
+
+  '@fastify/cookie@11.1.3':
+    resolution: {integrity: sha512-RBhlMNsmSG6C5KGiTkhSXBF75xIrUMSytDDBcpnVewhJ8XVYnJTu+SV6FYKXClIRsBuRjOfKbBSULvnPD3X/mg==}
+
+  '@fastify/deepmerge@3.2.2':
+    resolution: {integrity: sha512-155eqA/WMQdN6gUD4RrhS2K0Pcz2Ou9pQ86L0sipOpP9ONbTA6oYw/hW4VdBjR4egcDHqmWUK9x80oUX7S1mDQ==}
+
+  '@fastify/error@4.2.1':
+    resolution: {integrity: sha512-MYBumuIwP+5MIpXSyKm6/o1Eigcoij186lWUssX3LH5U8KWqU0ktZhzC4CErIX9EJeQeRGI+zJZQWakBlFbUcg==}
+
+  '@fastify/fast-json-stringify-compiler@5.1.1':
+    resolution: {integrity: sha512-pyxRKk7UpUnnrztP9pF4+ZYxusEQ4LifTyzRdiXmyql1QezNHxO02D25MVU2o4kMeAMYWAjG6RKRlojgkbiDAw==}
+
+  '@fastify/forwarded@3.1.1':
+    resolution: {integrity: sha512-XfDtW2Icvhqi6DP1YHFK4q/E8WpNd3+raBdzAyVZxmTInbFTtnEEKvEAMMOVdFuRyv+ynYipaA9D8FvjPqACkw==}
+
+  '@fastify/merge-json-schemas@0.2.2':
+    resolution: {integrity: sha512-d/gx9sRbUCVgGRGzma46wLcwiY8noTqO2Nmjg/vbTARxHRE5bdh5PIL8s97Lt1X7ScRWRW52eVYxwIoPwIdVUA==}
+
   '@fastify/otel@0.18.0':
     resolution: {integrity: sha512-3TASCATfw+ctICSb4ymrv7iCm0qJ0N9CarB+CZ7zIJ7KqNbwI5JjyDL1/sxoC0ccTO1Zyd1iQ+oqncPg5FJXaA==}
     peerDependencies:
       '@opentelemetry/api': ^1.9.0
+
+  '@fastify/proxy-addr@5.1.2':
+    resolution: {integrity: sha512-uqB4QsgVoro0XDC+DIftIMGXHdBPn+lK6Ek3xXAIxPMCJfqxnbtyEoMCm2KPUVOuIosd7Cyw9HawEqMFM/UA+g==}
+
+  '@fastify/rate-limit@11.2.0':
+    resolution: {integrity: sha512-X7osJd4XSvMoejYrnJkSZYYjY1eNYoBqhjlzf1RakC2204qExFqZFTKj5+T7VuzA/iUI9Z3UoSqQRkB2HpG0oQ==}
+
+  '@fastify/secure-session@8.4.1':
+    resolution: {integrity: sha512-V9khuSlcbpupL3ZVKvAsnPtxFWDj41946W17vmRYvL4Ov57lh7ZVyYYioB4SYNf7xdV8qa+ZRQ86Ni9sBE2oQQ==}
+    hasBin: true
 
   '@floating-ui/core@1.7.5':
     resolution: {integrity: sha512-1Ih4WTWyw0+lKyFMcBHGbb5U5FtuHJuujoyyr5zTaWS5EYMeT6Jb2AuDeftsCsEuchO+mM2ij5+q9crhydzLhQ==}
@@ -4455,6 +4540,10 @@ packages:
 
   '@lezer/yaml@1.0.4':
     resolution: {integrity: sha512-2lrrHqxalACEbxIbsjhqGpSW8kWpUKuY6RHgnSAFZa6qK62wvnPxA8hGOwOoDbwHcOFs5M4o27mjGu+P7TvBmw==}
+
+  '@lukeed/ms@2.0.2':
+    resolution: {integrity: sha512-9I2Zn6+NJLfaGoz9jN3lpwDgAYvfGeNYdbAIjJOqzs4Tpc+VU3Jqq4IofSUBKajiDS8k9fZIg18/z13mpk1bsA==}
+    engines: {node: '>=8'}
 
   '@marijn/find-cluster-break@1.0.2':
     resolution: {integrity: sha512-l0h88YhZFyKdXIFNfSWpyjStDjGHwZ/U7iobcK1cQQD8sejsONdQtTVU+1wVN1PBw40PiiHB1vA5S7VTfQiP9g==}
@@ -8762,6 +8851,9 @@ packages:
     resolution: {integrity: sha512-h8lQ8tacZYnR3vNQTgibj+tODHI5/+l06Au2Pcriv/Gmet0eaj4TwWH41sO9wnHDiQsEj19q0drzdWdeAHtweg==}
     engines: {node: '>=6.5'}
 
+  abstract-logging@2.0.1:
+    resolution: {integrity: sha512-2BjRTZxTPvheOvGbBslFSYOUkr+SjPtOnrLP33f+VIWLzezQpZcqVg7ja3L4dBXmzzgwT+a029jRx5PCi3JuiA==}
+
   accepts@1.3.8:
     resolution: {integrity: sha512-PYAthTa2m2VKxuvSD3DPC/Gy+U+sOA1LAuT8mkmRuvw+NACSaeXEQ+NHcVF7rONl6qcaxV3Uuemwawk+7+SJLw==}
     engines: {node: '>= 0.6'}
@@ -9029,6 +9121,9 @@ packages:
     resolution: {integrity: sha512-wvUjBtSGN7+7SjNpq/9M2Tg350UZD3q62IFZLbRAR1bSMlCo1ZaeW+BJ+D090e4hIIZLBcTDWe4Mh4jvUDajzQ==}
     engines: {node: '>= 0.4'}
 
+  avvio@9.3.1:
+    resolution: {integrity: sha512-QyTKW61/qlba+cUQBm/sT9X8lri4UdomqSDwCnrnj1IvLVDRRiXRkz4CgBRWB+/cmfC7SK5WQc8T1vSdGvaUcQ==}
+
   await-lock@2.2.2:
     resolution: {integrity: sha512-aDczADvlvTGajTDjcjpJMqRkOF6Qdz3YbPZm/PyW6tKPkx2hlYBzxMhEywM/tU72HrVZjgl5VCdRuMlA7pZ8Gw==}
 
@@ -9151,6 +9246,25 @@ packages:
   barcode-detector@3.2.2:
     resolution: {integrity: sha512-/4QOrrNrCRmDSBWiiP4aC72dnkuXUEdcFRidHgbPRXUpy82XcCMvJssI6fEs6JT42LS7DvBVZO70qasJbYKyrA==}
 
+  bare-addon-resolve@1.11.0:
+    resolution: {integrity: sha512-bTUBSqBjzQQzo2/iIk6KxAClZfahy38EPsJV2bPJ+p2+kS8h+hT5TE5QggpkFUrCnLL4HDTA4DDM+YiNdyol0w==}
+    peerDependencies:
+      bare-url: '*'
+    peerDependenciesMeta:
+      bare-url:
+        optional: true
+
+  bare-ansi-escapes@2.2.3:
+    resolution: {integrity: sha512-02ES4/E2RbrtZSnHJ9LntBhYkLA6lPpSEeP8iqS3MccBIVhVBlEmruF1I7HZqx5Q8aiTeYfQVeqmrU9YO2yYoQ==}
+    peerDependencies:
+      bare-buffer: '*'
+    peerDependenciesMeta:
+      bare-buffer:
+        optional: true
+
+  bare-assert@1.3.0:
+    resolution: {integrity: sha512-tF3A1xa5WHzOwn2Y6Pm+mV1NGOztWUKyUQycmtMCnIcEx/0xv5MMgv2qerXQVvhkv6IZJNaEbiGBJNFD6RmunA==}
+
   bare-events@2.8.3:
     resolution: {integrity: sha512-HdUm8EMQBLaJvGUdidNNbqpA1kYkwNcb+MYxkxCLAPJGQzlv9J0C24h8V65Z4c5GLd/JEALDvpFCQgpLJqc0zw==}
     peerDependencies:
@@ -9168,12 +9282,27 @@ packages:
       bare-buffer:
         optional: true
 
+  bare-inspect@3.1.10:
+    resolution: {integrity: sha512-Qu01XZNTIT2/bS9k7c6A3OXuAzBnWwDCejGri76BUltdFqVe6Et/IxVOSSbcDpreSSWwqQ5pAu/bxFE6hPDWRQ==}
+    engines: {bare: '>=1.18.0'}
+
+  bare-module-resolve@1.12.6:
+    resolution: {integrity: sha512-tsoOqHmtF6VmNX4LYDBZwvQVkSmEagnbykNjK31LMxz/amyKfjCs4K976n7uJd1bvWfxbpLQ3Fy7qq8an6jR6Q==}
+    peerDependencies:
+      bare-url: '*'
+    peerDependenciesMeta:
+      bare-url:
+        optional: true
+
   bare-os@3.9.1:
     resolution: {integrity: sha512-6M5XjcnsygQNPMCMPXSK379xrJFiZ/AEMNBmFEmQW8d/789VQATvriyi5r0HYTL9TkQ26rn3kgdTG3aisbrXkQ==}
     engines: {bare: '>=1.14.0'}
 
   bare-path@3.0.0:
     resolution: {integrity: sha512-tyfW2cQcB5NN8Saijrhqn0Zh7AnFNsnczRcuWODH0eYAXBsJ5gVxAUuNr7tsHSC6IZ77cA0SitzT+s47kot8Mw==}
+
+  bare-semver@1.1.0:
+    resolution: {integrity: sha512-1Hw5qJ7hXdVt3uPUqjeFTuxyvBUJauvz5A1I2jk8gzjZMHp04n//6nV9MDbG9CMw78JHY2lGV0w6s//LrASm2w==}
 
   bare-stream@2.13.1:
     resolution: {integrity: sha512-Vp0cnjYyrEC4whYTymQ+YZi6pBpfiICZO3cfRG8sy67ZNWe951urv1x4eW1BKNngw3U+3fPYb5JQvHbCtxH7Ow==}
@@ -9188,6 +9317,10 @@ packages:
         optional: true
       bare-events:
         optional: true
+
+  bare-type@1.4.0:
+    resolution: {integrity: sha512-6anDbVGruQLK8m6zxlCPNkUuxXnzChT1aOmJbFRjEGn8MWZqviFP6vGi9NAnG8aRXyRAfXIGLlBJwYGa4Ylcug==}
+    engines: {bare: '>=1.32.0'}
 
   bare-url@2.4.3:
     resolution: {integrity: sha512-Kccpc7ACfXaxfeInfqKcZtW4pT5YBn1mesc4sCsun6sRwtbJ4h+sNOaksUpYEJUKfN65YWC6Bw2OJEFiKxq8nQ==}
@@ -9629,6 +9762,10 @@ packages:
   cookie@1.1.1:
     resolution: {integrity: sha512-ei8Aos7ja0weRpFzJnEA9UHJ/7XQmqglbRwnf2ATjcB9Wq874VKH9kfjjirM6UhU2/E5fFYadylyhFldcqSidQ==}
     engines: {node: '>=18'}
+
+  cookie@2.0.1:
+    resolution: {integrity: sha512-yuToqVvRrj6pfDXREyQAAv8SkAEk/8GS3jQRTiUMm66TVtBYmqQeoEjL2Lmq8Rpo6271vH76InTChTitEAm65w==}
+    engines: {node: '>=22'}
 
   cookiejar@2.1.4:
     resolution: {integrity: sha512-LDx6oHrK+PhzLKJU9j5S7/Y3jM/mUHvD/DeI1WQmJn652iPC5Y4TBzC9l+5OMOXlyTTA+SmVUPm0HQUwpD5Jqw==}
@@ -10570,6 +10707,9 @@ packages:
     resolution: {integrity: sha512-NsZRtqvSSoCP0HbNjUD+r1JH8zqZalyp6gLY9e7OYs7NK9b6AHOs2baBFeBG7bVNsuoukh89x2Yg3rPsul8ziQ==}
     engines: {node: '>=12.17.0'}
 
+  fast-decode-uri-component@1.0.1:
+    resolution: {integrity: sha512-WKgKWg5eUxvRZGwW8FvfbaH7AXSh2cL+3j5fMGzUMCxWBJ3dV3a7Wz8y2f/uQ0e3B6WmodD3oS54jTQ9HVTIIg==}
+
   fast-deep-equal@3.1.3:
     resolution: {integrity: sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==}
 
@@ -10595,8 +10735,14 @@ packages:
   fast-json-stable-stringify@2.1.0:
     resolution: {integrity: sha512-lhd/wF+Lk98HZoTCtlVraHtfh5XYijIjalXck7saUtuanSDyLMxnHhSXEDJqHxD7msR8D0uCmqlkwjCV8xvwHw==}
 
+  fast-json-stringify@7.1.0:
+    resolution: {integrity: sha512-wAhAQ+es0aH+x5OofdCHlZZFdqwtiM6lpEosaRIwfg271WYeEQ/tPcXdu5vpzlqZpbJ4WNqaW4QR5UjfG4Dc2w==}
+
   fast-levenshtein@2.0.6:
     resolution: {integrity: sha512-DCXu6Ifhqcks7TZKY3Hxp3y6qphY5SJZmrWMDrKcERSOXWQdMhU9Ig/PYrzyw/ul9jOIyh0N4M0tbC5hodg8dw==}
+
+  fast-querystring@1.1.2:
+    resolution: {integrity: sha512-g6KuKWmFXc0fID8WWH0jit4g0AGBoJhCkJMb1RmbsSEUNvQ+ZC8D6CUZ+GtF8nMzSPXnhiePyyqqipzNNEnHjg==}
 
   fast-safe-stringify@2.1.1:
     resolution: {integrity: sha512-W+KJc2dmILlPplD/H4K9l9LcAHAfPtP6BY84uVLXQ6Evcz9Lcg33Y2z1IVblT6xdY54PXYVHEv+0Wpq8Io6zkA==}
@@ -10617,6 +10763,12 @@ packages:
   fast-xml-parser@5.7.3:
     resolution: {integrity: sha512-C0AaNuC+mscy6vrAQKAc/rMq+zAPHodfHGZu4sGVehvAQt/JLG1O5zEcYcXSY5zSqr4YVgxsB+pHXTq0i7eDlg==}
     hasBin: true
+
+  fastify-plugin@6.0.1:
+    resolution: {integrity: sha512-4wW4RxSmvPXLrh5mgQEiu43qU3bw44N2ss4FTkTkQIbprUhE+/s43QX0j/ttcztdWK7PEkHqVthdc5GdEGDvjA==}
+
+  fastify@5.12.5:
+    resolution: {integrity: sha512-OB2k1dlxs5/NAABqeKV2FUHkSD2BbENsCak8yULVcymn3fHIPDVa9TI3SDnJSWYSllZmSYuZXy2gTnsT+Sut1A==}
 
   fastq@1.20.1:
     resolution: {integrity: sha512-GGToxJ/w1x32s/D2EKND7kTil4n8OVk/9mycTc4VDza13lOvpUZTGX3mFSCtV9ksdGBVzvsyAVLM6mHFThxXxw==}
@@ -10699,6 +10851,10 @@ packages:
   finalhandler@2.1.1:
     resolution: {integrity: sha512-S8KoZgRZN+a5rNwqTxlZZePjT/4cnm0ROV70LedRHZ0p8u9fRID0hJUZQpkKLzro8LfmC8sx23bY6tVNxv8pQA==}
     engines: {node: '>= 18.0.0'}
+
+  find-my-way@9.10.0:
+    resolution: {integrity: sha512-eru+uCPQ2g+nLBkf84MHP/KyNNMar0BDy0j+i8Fb72GF9/YHBZ58q7FODUtfVV7XU9nfRUHXSmaM8NmZcIbZ4Q==}
+    engines: {node: '>=20'}
 
   find-up@4.1.0:
     resolution: {integrity: sha512-PpOwAdQ/YlXQ2vj8a3h8IipDuYRi3wceVQQGYWxNINccq40Anw7BlsEXCMbt1Zt+OLA6Fq9suIpIWD0OsnISlw==}
@@ -11300,6 +11456,10 @@ packages:
     resolution: {integrity: sha512-0KI/607xoxSToH7GjN1FfSbLoU0+btTicjsQSWQlh/hZykN8KpmMf7uYwPW3R+akZ6R/w18ZlXSHBYXiYUPO3g==}
     engines: {node: '>= 0.10'}
 
+  ipaddr.js@2.5.0:
+    resolution: {integrity: sha512-aq+t5NAc+cS6rZQQVWC2x98CPqGtKKTMDd4Gaodv0wShnItdKg/51djkGJ1hqH+Oy0ivDftCbSLCQob8zso01w==}
+    engines: {node: '>= 10'}
+
   is-absolute-url@4.0.1:
     resolution: {integrity: sha512-/51/TKE88Lmm7Gc4/8btclNXWS+g50wXhYJq8HWIBAGUBnoAdRu1aXeh364t/O7wXDAcTJDP8PNuNKWUDWie+A==}
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
@@ -11672,6 +11832,9 @@ packages:
   json-parse-even-better-errors@2.3.1:
     resolution: {integrity: sha512-xyFwyhro/JEof6Ghe2iz2NcXoj2sloNsWr/XsERDK/oiPCfaNhl5ONfp+jQdAZRQQ0IJWNzH9zIZF7li91kh2w==}
 
+  json-schema-ref-resolver@3.0.1:
+    resolution: {integrity: sha512-w+HwgljXpVwZ3IidoUR1qPZxSOQ+NRQWuVe6a5pe8XbHsNZE4UAwVPUvzZagn7yBKbJtt6UJnRFYbNTRPZI45Q==}
+
   json-schema-to-ts@3.1.1:
     resolution: {integrity: sha512-+DWg8jCJG2TEnpy7kOm/7/AxaYoaRbjVB4LFZLySZlWn8exGs3A4OLJR966cVvU26N7X9TWxl+Jsw7dzAqKT6g==}
     engines: {node: '>=16'}
@@ -11766,6 +11929,9 @@ packages:
 
   lie@3.3.0:
     resolution: {integrity: sha512-UaiMJzeWRlEujzAuw5LokY1L5ecNQYZKfmyZ9L7wDHb/p5etKaxXhohBcrw0EYby+G/NA52vRSN4N39dxHAIwQ==}
+
+  light-my-request@6.8.0:
+    resolution: {integrity: sha512-5Q8PjoSEdtGIB8fikZsTem5vgRo4F2mR6vUKTDW/H1g6MtAt8e3duQbg/QxL5yzg6BZhor2KOUm3hhWMWLTZwg==}
 
   lighthouse-logger@1.4.2:
     resolution: {integrity: sha512-gPWxznF6TKmUHrOQjlVo2UbaL2EJ71mb2CCeRs/2qBpi4L/g4LUVc9+3lKQ6DTUZwJswfM7ainGrLO1+fOqa2g==}
@@ -13139,6 +13305,9 @@ packages:
   process-warning@5.0.0:
     resolution: {integrity: sha512-a39t9ApHNx2L4+HBnQKqxxHNs1r7KF+Intd8Q/g1bUh6q0WIp9voPXJ/x0j+ZL45KF1pJd9+q2jLIRMfvEshkA==}
 
+  process-warning@5.1.1:
+    resolution: {integrity: sha512-oCkNVj4OKnKEcocVBcDfiIugN1/cE6rgfT3nCtzeqZPA8+rIxMaQ0xXzIkGP8Gj2qUaP1UR7uhJ1VD8lUCpzCg==}
+
   progress@2.0.3:
     resolution: {integrity: sha512-7PiHtLll5LdnKIMw100I+8xJXR5gW2QwWYkT6iJva0bXitZKa/XMrSbdmg3r2Xnaidz9Qumd0VPaMrZlF9V9sA==}
     engines: {node: '>=0.4.0'}
@@ -13742,6 +13911,10 @@ packages:
   remove-accents@0.5.0:
     resolution: {integrity: sha512-8g3/Otx1eJaVD12e31UbJj1YzdtVvzH85HV7t+9MJYk/u3XmkOUJ5Ys9wQrf9PCPK8+xn4ymzqYCiZl6QWKn+A==}
 
+  require-addon@1.3.0:
+    resolution: {integrity: sha512-j8pifaPNZI7ShKY3ihXZwF0qaEjua8zmlqPvDil0a8SBnyRvjCbAiEQuzO0UcoXH1sqU5U/ilXSjYd1W5NYwAA==}
+    engines: {bare: '>=1.10.0'}
+
   require-directory@2.1.1:
     resolution: {integrity: sha512-fGxEI7+wsG9xrvdjsrlmL22OMTTiHRwAMroiEeMgq8gzoLC/PQr7RsRDSTLUg/bZAZtF+TVIkHc6/4RIKrui+Q==}
     engines: {node: '>=0.10.0'}
@@ -13795,6 +13968,10 @@ packages:
   restore-cursor@5.1.0:
     resolution: {integrity: sha512-oMA2dcrw6u0YfxJQXm342bFKX/E4sG9rbTzO9ptUcR/e8A33cHuvStiYOwH7fszkZlZ1z/ta9AAoPk2F4qIOHA==}
     engines: {node: '>=18'}
+
+  ret@0.5.0:
+    resolution: {integrity: sha512-I1XxrZSQ+oErkRR4jYbAyEEu2I0avBvvMM5JN+6EBprOGRCs63ENqZ3vjavq8fBw2+62G5LF5XelKwuJpcvcxw==}
+    engines: {node: '>=10'}
 
   reusify@1.1.0:
     resolution: {integrity: sha512-g6QUff04oZpHs0eG5p83rFLhHeV00ug/Yf9nZM6fLeUrPguBTkTQOdpAWWspMh55TZfVQDPaN3NQJfbVRAxdIw==}
@@ -13857,6 +14034,10 @@ packages:
   safe-regex-test@1.1.0:
     resolution: {integrity: sha512-x/+Cz4YrimQxQccJf5mKEbIa1NzeCRNI5Ecl/ekmlYaampdNLPalVyIcCZNNH3MvmqBugV5TMYZXv0ljslUlaw==}
     engines: {node: '>= 0.4'}
+
+  safe-regex2@5.1.2:
+    resolution: {integrity: sha512-tAtCGFPPP02VroDVzp4daGi6bC7jWG+41D47GKf18FeH/ubvKQHT9VmhAkvtjNOmJwqtApzWeUpEhkyEYULvmw==}
+    hasBin: true
 
   safe-stable-stringify@2.5.0:
     resolution: {integrity: sha512-b3rppTKm9T+PsVCBEOUR46GWI7fdOs00VKZ1+9c1EWDaDMvjQc6tUwuFyIprgGgTcWoVHSKrU8H31ZHA2e0RHA==}
@@ -14080,6 +14261,10 @@ packages:
   socks@2.8.9:
     resolution: {integrity: sha512-LJhUYUvItdQ0LkJTmPeaEObWXAqFyfmP85x0tch/ez9cahmhlBBLbIqDFnvBnUJGagb0JbIQrkBs1wJ+yRYpEw==}
     engines: {node: '>= 10.0.0', npm: '>= 3.0.0'}
+
+  sodium-native@5.1.0:
+    resolution: {integrity: sha512-3RxgyWyJlhTsABPnJVpCI5CoTDANZTqqFrEPqr+kjfnRaBihpVtMUE3yTF40ukdoB1APXeoBNKF3MzZAIHg39g==}
+    engines: {bare: '>=1.16.0'}
 
   sonic-boom@4.2.1:
     resolution: {integrity: sha512-w6AxtubXa2wTXAUsZMMWERrsIRAdrK0Sc+FUytWvYAhBJLyuI4llrMIC1DtlNSdI99EI86KZum2MMq3EAZlF9Q==}
@@ -14557,6 +14742,10 @@ packages:
     resolution: {integrity: sha512-65P7iz6X5yEr1cwcgvQxbbIw7Uk3gOy5dIdtZ4rDveLqhrdJP+Li/Hx6tyK0NEb+2GCyneCMJiGqrADCSNk8sQ==}
     engines: {node: '>=8.0'}
 
+  toad-cache@3.7.4:
+    resolution: {integrity: sha512-m1TdR/rvT7kgGJZhspNtXdsdYk0fddFpJJFlG5s+UkPFo6lkLoZ3YLOaovPYjq1R75NP5JfeTlSHaOsE09peCg==}
+    engines: {node: '>=20'}
+
   toidentifier@1.0.1:
     resolution: {integrity: sha512-o5sSPKEkg/DIQNmH43V0/uerLrpzVedkUh8tGNvaeXpfpuwjKenlSox/2O/BTlZUtEe+JG7s5YhEz608PlAHRA==}
     engines: {node: '>=0.6'}
@@ -15000,7 +15189,7 @@ packages:
       '@vitest/browser-webdriverio': 4.1.0
       '@vitest/ui': 4.1.0
       happy-dom: '*'
-      jsdom: '*'
+      jsdom: ^29.0.0
       vite: '>=7.3.5'
     peerDependenciesMeta:
       '@edge-runtime/vm':
@@ -15195,6 +15384,9 @@ packages:
 
   which-module@2.0.1:
     resolution: {integrity: sha512-iBdZ57RDvnOR9AGBhML2vFZf7h8vmBjhoaZqODJBFWHVtKkDmKuHai3cx5PgVMrX5YDNp27AofYbAwctSS+vhQ==}
+
+  which-runtime@1.4.0:
+    resolution: {integrity: sha512-0ugbP4CJW4e2D20jvEcC4973dCgIaHI4Rw1PT+26U9zEve7FyYdWAIwUnoeOYvoCfn+wXHoHTKb1KhkYlb60Pw==}
 
   which-typed-array@1.1.22:
     resolution: {integrity: sha512-fvO4ExWMFsqyhG3AiPAObMuY1lxaqgYcxbc49CNdWDDECOJNgQyvsOWVwbZc+qf3rzRtxojBK+CMEv0Ld5CYpw==}
@@ -18247,6 +18439,31 @@ snapshots:
       chalk: 4.1.2
       js-yaml: 5.2.2
 
+  '@fastify/ajv-compiler@4.0.7':
+    dependencies:
+      ajv: 8.20.0
+      ajv-formats: 3.0.1(ajv@8.20.0)
+      fast-uri: 4.2.1
+
+  '@fastify/cookie@11.1.3':
+    dependencies:
+      cookie: 2.0.1
+      fastify-plugin: 6.0.1
+
+  '@fastify/deepmerge@3.2.2': {}
+
+  '@fastify/error@4.2.1': {}
+
+  '@fastify/fast-json-stringify-compiler@5.1.1':
+    dependencies:
+      fast-json-stringify: 7.1.0
+
+  '@fastify/forwarded@3.1.1': {}
+
+  '@fastify/merge-json-schemas@0.2.2':
+    dependencies:
+      dequal: 2.0.3
+
   '@fastify/otel@0.18.0(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
@@ -18256,6 +18473,30 @@ snapshots:
       minimatch: 10.2.4
     transitivePeerDependencies:
       - supports-color
+
+  '@fastify/proxy-addr@5.1.2':
+    dependencies:
+      '@fastify/forwarded': 3.1.1
+      ipaddr.js: 2.5.0
+
+  '@fastify/rate-limit@11.2.0':
+    dependencies:
+      '@lukeed/ms': 2.0.2
+      fastify-plugin: 6.0.1
+      ip-address: 10.7.3
+      toad-cache: 3.7.4
+
+  '@fastify/secure-session@8.4.1(bare-events@2.8.3)(bare-url@2.4.3)':
+    dependencies:
+      '@fastify/cookie': 11.1.3
+      fastify-plugin: 6.0.1
+      sodium-native: 5.1.0(bare-events@2.8.3)(bare-url@2.4.3)
+    transitivePeerDependencies:
+      - bare-abort-controller
+      - bare-buffer
+      - bare-events
+      - bare-url
+      - react-native-b4a
 
   '@floating-ui/core@1.7.5':
     dependencies:
@@ -18508,7 +18749,7 @@ snapshots:
     dependencies:
       '@jest/fake-timers': 29.7.0
       '@jest/types': 29.6.3
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
       jest-mock: 29.7.0
 
   '@jest/expect-utils@30.3.0':
@@ -18519,7 +18760,7 @@ snapshots:
     dependencies:
       '@jest/types': 29.6.3
       '@sinonjs/fake-timers': 10.3.0
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
       jest-message-util: 29.7.0
       jest-mock: 29.7.0
       jest-util: 29.7.0
@@ -18528,7 +18769,7 @@ snapshots:
 
   '@jest/pattern@30.0.1':
     dependencies:
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
       jest-regex-util: 30.0.1
 
   '@jest/schemas@29.6.3':
@@ -18564,7 +18805,7 @@ snapshots:
       '@jest/schemas': 29.6.3
       '@types/istanbul-lib-coverage': 2.0.6
       '@types/istanbul-reports': 3.0.4
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
       '@types/yargs': 17.0.35
       chalk: 4.1.2
 
@@ -18574,7 +18815,7 @@ snapshots:
       '@jest/schemas': 30.0.5
       '@types/istanbul-lib-coverage': 2.0.6
       '@types/istanbul-reports': 3.0.4
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
       '@types/yargs': 17.0.35
       chalk: 4.1.2
 
@@ -18660,6 +18901,8 @@ snapshots:
       '@lezer/common': 1.5.2
       '@lezer/highlight': 1.2.3
       '@lezer/lr': 1.4.10
+
+  '@lukeed/ms@2.0.2': {}
 
   '@marijn/find-cluster-break@1.0.2': {}
 
@@ -23725,7 +23968,7 @@ snapshots:
 
   '@types/adm-zip@0.5.8':
     dependencies:
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
 
   '@types/aes-js@3.1.4': {}
 
@@ -23757,11 +24000,11 @@ snapshots:
   '@types/body-parser@1.19.6':
     dependencies:
       '@types/connect': 3.4.38
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
 
   '@types/bunyan@1.8.11':
     dependencies:
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
 
   '@types/chai@5.2.3':
     dependencies:
@@ -23774,13 +24017,13 @@ snapshots:
 
   '@types/connect@3.4.38':
     dependencies:
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
 
   '@types/cookiejar@2.1.5': {}
 
   '@types/cors@2.8.19':
     dependencies:
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
 
   '@types/debug@4.1.12':
     dependencies:
@@ -23816,14 +24059,14 @@ snapshots:
 
   '@types/express-serve-static-core@4.19.8':
     dependencies:
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
       '@types/qs': 6.15.0
       '@types/range-parser': 1.2.7
       '@types/send': 1.2.1
 
   '@types/express-serve-static-core@5.1.1':
     dependencies:
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
       '@types/qs': 6.15.0
       '@types/range-parser': 1.2.7
       '@types/send': 1.2.1
@@ -23845,7 +24088,7 @@ snapshots:
 
   '@types/graceful-fs@4.1.9':
     dependencies:
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
 
   '@types/har-format@1.2.16': {}
 
@@ -23892,7 +24135,7 @@ snapshots:
   '@types/jsonwebtoken@9.0.10':
     dependencies:
       '@types/ms': 2.1.0
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
 
   '@types/leaflet@1.9.21':
     dependencies:
@@ -23917,7 +24160,7 @@ snapshots:
 
   '@types/memcached@2.2.10':
     dependencies:
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
 
   '@types/methods@1.1.4': {}
 
@@ -23931,11 +24174,11 @@ snapshots:
 
   '@types/mysql@2.15.27':
     dependencies:
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
 
   '@types/node-fetch@2.6.13':
     dependencies:
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
       form-data: 4.0.6
 
   '@types/node@10.17.60': {}
@@ -23968,7 +24211,7 @@ snapshots:
 
   '@types/oracledb@6.5.2':
     dependencies:
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
 
   '@types/pdf-parse@1.1.5':
     dependencies:
@@ -23980,13 +24223,13 @@ snapshots:
 
   '@types/pg@8.15.6':
     dependencies:
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
       pg-protocol: 1.13.0
       pg-types: 2.2.0
 
   '@types/pg@8.20.0':
     dependencies:
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
       pg-protocol: 1.13.0
       pg-types: 2.2.0
 
@@ -24019,22 +24262,22 @@ snapshots:
   '@types/send@0.17.6':
     dependencies:
       '@types/mime': 1.3.5
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
 
   '@types/send@1.2.1':
     dependencies:
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
 
   '@types/serve-static@1.15.10':
     dependencies:
       '@types/http-errors': 2.0.5
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
       '@types/send': 0.17.6
 
   '@types/serve-static@2.2.0':
     dependencies:
       '@types/http-errors': 2.0.5
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
 
   '@types/stack-utils@2.0.3': {}
 
@@ -24044,7 +24287,7 @@ snapshots:
     dependencies:
       '@types/cookiejar': 2.1.5
       '@types/methods': 1.1.4
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
       form-data: 4.0.6
 
   '@types/supertest@6.0.3':
@@ -24059,7 +24302,7 @@ snapshots:
 
   '@types/tedious@4.0.14':
     dependencies:
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
 
   '@types/three@0.182.0':
     dependencies:
@@ -24106,7 +24349,7 @@ snapshots:
 
   '@types/yauzl@2.10.3':
     dependencies:
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
     optional: true
 
   '@typescript-eslint/eslint-plugin@8.57.0(@typescript-eslint/parser@8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3)':
@@ -24324,6 +24567,14 @@ snapshots:
       magic-string: 0.30.21
     optionalDependencies:
       vite: 8.2.0(@types/node@22.20.4)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)
+
+  '@vitest/mocker@4.1.0(vite@8.2.0(@types/node@22.20.5)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))':
+    dependencies:
+      '@vitest/spy': 4.1.0
+      estree-walker: 3.0.3
+      magic-string: 0.30.21
+    optionalDependencies:
+      vite: 8.2.0(@types/node@22.20.5)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)
 
   '@vitest/mocker@4.1.0(vite@8.2.0(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))':
     dependencies:
@@ -24617,6 +24868,8 @@ snapshots:
     dependencies:
       event-target-shim: 5.0.1
 
+  abstract-logging@2.0.1: {}
+
   accepts@1.3.8:
     dependencies:
       mime-types: 2.1.35
@@ -24898,6 +25151,11 @@ snapshots:
     dependencies:
       possible-typed-array-names: 1.1.0
 
+  avvio@9.3.1:
+    dependencies:
+      '@fastify/error': 4.2.1
+      fastq: 1.20.1
+
   await-lock@2.2.2: {}
 
   aws4fetch@1.0.20: {}
@@ -25106,6 +25364,31 @@ snapshots:
     transitivePeerDependencies:
       - '@types/emscripten'
 
+  bare-addon-resolve@1.11.0(bare-url@2.4.3):
+    dependencies:
+      bare-module-resolve: 1.12.6(bare-url@2.4.3)
+      bare-semver: 1.1.0
+    optionalDependencies:
+      bare-url: 2.4.3
+
+  bare-ansi-escapes@2.2.3(bare-events@2.8.3):
+    dependencies:
+      bare-stream: 2.13.1(bare-events@2.8.3)
+    transitivePeerDependencies:
+      - bare-abort-controller
+      - bare-events
+      - react-native-b4a
+
+  bare-assert@1.3.0(bare-events@2.8.3):
+    dependencies:
+      bare-inspect: 3.1.10(bare-events@2.8.3)
+      bare-type: 1.4.0
+    transitivePeerDependencies:
+      - bare-abort-controller
+      - bare-buffer
+      - bare-events
+      - react-native-b4a
+
   bare-events@2.8.3: {}
 
   bare-fs@4.7.1:
@@ -25119,11 +25402,29 @@ snapshots:
       - bare-abort-controller
       - react-native-b4a
 
+  bare-inspect@3.1.10(bare-events@2.8.3):
+    dependencies:
+      bare-ansi-escapes: 2.2.3(bare-events@2.8.3)
+      bare-type: 1.4.0
+    transitivePeerDependencies:
+      - bare-abort-controller
+      - bare-buffer
+      - bare-events
+      - react-native-b4a
+
+  bare-module-resolve@1.12.6(bare-url@2.4.3):
+    dependencies:
+      bare-semver: 1.1.0
+    optionalDependencies:
+      bare-url: 2.4.3
+
   bare-os@3.9.1: {}
 
   bare-path@3.0.0:
     dependencies:
       bare-os: 3.9.1
+
+  bare-semver@1.1.0: {}
 
   bare-stream@2.13.1(bare-events@2.8.3):
     dependencies:
@@ -25133,6 +25434,8 @@ snapshots:
       bare-events: 2.8.3
     transitivePeerDependencies:
       - react-native-b4a
+
+  bare-type@1.4.0: {}
 
   bare-url@2.4.3:
     dependencies:
@@ -25363,7 +25666,7 @@ snapshots:
 
   chrome-launcher@0.15.2:
     dependencies:
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
       escape-string-regexp: 4.0.0
       is-wsl: 2.2.0
       lighthouse-logger: 1.4.2
@@ -25380,7 +25683,7 @@ snapshots:
 
   chromium-edge-launcher@0.2.0:
     dependencies:
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
       escape-string-regexp: 4.0.0
       is-wsl: 2.2.0
       lighthouse-logger: 1.4.2
@@ -25584,6 +25887,8 @@ snapshots:
   cookie@0.7.2: {}
 
   cookie@1.1.1: {}
+
+  cookie@2.0.1: {}
 
   cookiejar@2.1.4: {}
 
@@ -26969,6 +27274,8 @@ snapshots:
     dependencies:
       pure-rand: 8.4.0
 
+  fast-decode-uri-component@1.0.1: {}
+
   fast-deep-equal@3.1.3: {}
 
   fast-equals@5.2.2: {}
@@ -26995,7 +27302,20 @@ snapshots:
 
   fast-json-stable-stringify@2.1.0: {}
 
+  fast-json-stringify@7.1.0:
+    dependencies:
+      '@fastify/merge-json-schemas': 0.2.2
+      ajv: 8.20.0
+      ajv-formats: 3.0.1(ajv@8.20.0)
+      fast-uri: 4.2.1
+      json-schema-ref-resolver: 3.0.1
+      rfdc: 1.4.1
+
   fast-levenshtein@2.0.6: {}
+
+  fast-querystring@1.1.2:
+    dependencies:
+      fast-decode-uri-component: 1.0.1
 
   fast-safe-stringify@2.1.1: {}
 
@@ -27021,6 +27341,26 @@ snapshots:
       fast-xml-builder: 1.2.0
       path-expression-matcher: 1.5.0
       strnum: 2.2.3
+
+  fastify-plugin@6.0.1: {}
+
+  fastify@5.12.5:
+    dependencies:
+      '@fastify/ajv-compiler': 4.0.7
+      '@fastify/error': 4.2.1
+      '@fastify/fast-json-stringify-compiler': 5.1.1
+      '@fastify/proxy-addr': 5.1.2
+      abstract-logging: 2.0.1
+      avvio: 9.3.1
+      fast-json-stringify: 7.1.0
+      find-my-way: 9.10.0
+      light-my-request: 6.8.0
+      pino: 9.14.0
+      process-warning: 5.1.1
+      rfdc: 1.4.1
+      secure-json-parse: 4.1.0
+      semver: 7.8.5
+      toad-cache: 3.7.4
 
   fastq@1.20.1:
     dependencies:
@@ -27126,6 +27466,12 @@ snapshots:
       statuses: 2.0.2
     transitivePeerDependencies:
       - supports-color
+
+  find-my-way@9.10.0:
+    dependencies:
+      fast-deep-equal: 3.1.3
+      fast-querystring: 1.1.2
+      safe-regex2: 5.1.2
 
   find-up@4.1.0:
     dependencies:
@@ -27399,7 +27745,7 @@ snapshots:
 
   happy-dom@20.9.0:
     dependencies:
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
       '@types/whatwg-mimetype': 3.0.2
       '@types/ws': 8.18.1
       entities: 7.0.1
@@ -27859,6 +28205,8 @@ snapshots:
 
   ipaddr.js@1.9.1: {}
 
+  ipaddr.js@2.5.0: {}
+
   is-absolute-url@4.0.1: {}
 
   is-alphabetical@2.0.1: {}
@@ -28110,7 +28458,7 @@ snapshots:
       '@jest/environment': 29.7.0
       '@jest/fake-timers': 29.7.0
       '@jest/types': 29.6.3
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
       jest-mock: 29.7.0
       jest-util: 29.7.0
 
@@ -28120,7 +28468,7 @@ snapshots:
     dependencies:
       '@jest/types': 29.6.3
       '@types/graceful-fs': 4.1.9
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
       anymatch: 3.1.3
       fb-watchman: 2.0.2
       graceful-fs: 4.2.11
@@ -28173,13 +28521,13 @@ snapshots:
   jest-mock@29.7.0:
     dependencies:
       '@jest/types': 29.6.3
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
       jest-util: 29.7.0
 
   jest-mock@30.3.0:
     dependencies:
       '@jest/types': 30.3.0
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
       jest-util: 30.3.0
 
   jest-regex-util@29.6.3: {}
@@ -28189,7 +28537,7 @@ snapshots:
   jest-util@29.7.0:
     dependencies:
       '@jest/types': 29.6.3
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
       chalk: 4.1.2
       ci-info: 3.9.0
       graceful-fs: 4.2.11
@@ -28198,7 +28546,7 @@ snapshots:
   jest-util@30.3.0:
     dependencies:
       '@jest/types': 30.3.0
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
       chalk: 4.1.2
       ci-info: 4.4.0
       graceful-fs: 4.2.11
@@ -28221,7 +28569,7 @@ snapshots:
 
   jest-worker@29.7.0:
     dependencies:
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
       jest-util: 29.7.0
       merge-stream: 2.0.0
       supports-color: 8.1.1
@@ -28333,6 +28681,10 @@ snapshots:
 
   json-parse-even-better-errors@2.3.1: {}
 
+  json-schema-ref-resolver@3.0.1:
+    dependencies:
+      dequal: 2.0.3
+
   json-schema-to-ts@3.1.1:
     dependencies:
       '@babel/runtime': 7.28.6
@@ -28428,6 +28780,13 @@ snapshots:
   lie@3.3.0:
     dependencies:
       immediate: 3.0.6
+
+  light-my-request@6.8.0:
+    dependencies:
+      '@fastify/deepmerge': 3.2.2
+      cookie: 2.0.1
+      process-warning: 5.1.1
+      set-cookie-parser: 3.1.0
 
   lighthouse-logger@1.4.2:
     dependencies:
@@ -30102,6 +30461,8 @@ snapshots:
 
   process-warning@5.0.0: {}
 
+  process-warning@5.1.1: {}
+
   progress@2.0.3: {}
 
   prom-client@15.1.3:
@@ -31123,6 +31484,12 @@ snapshots:
 
   remove-accents@0.5.0: {}
 
+  require-addon@1.3.0(bare-url@2.4.3):
+    dependencies:
+      bare-addon-resolve: 1.11.0(bare-url@2.4.3)
+    transitivePeerDependencies:
+      - bare-url
+
   require-directory@2.1.1: {}
 
   require-from-string@2.0.2: {}
@@ -31175,6 +31542,8 @@ snapshots:
     dependencies:
       onetime: 7.0.0
       signal-exit: 4.1.0
+
+  ret@0.5.0: {}
 
   reusify@1.1.0: {}
 
@@ -31284,6 +31653,10 @@ snapshots:
       call-bound: 1.0.4
       es-errors: 1.3.0
       is-regex: 1.2.1
+
+  safe-regex2@5.1.2:
+    dependencies:
+      ret: 0.5.0
 
   safe-stable-stringify@2.5.0: {}
 
@@ -31629,6 +32002,18 @@ snapshots:
       ip-address: 10.4.0
       smart-buffer: 4.2.0
 
+  sodium-native@5.1.0(bare-events@2.8.3)(bare-url@2.4.3):
+    dependencies:
+      bare-assert: 1.3.0(bare-events@2.8.3)
+      require-addon: 1.3.0(bare-url@2.4.3)
+      which-runtime: 1.4.0
+    transitivePeerDependencies:
+      - bare-abort-controller
+      - bare-buffer
+      - bare-events
+      - bare-url
+      - react-native-b4a
+
   sonic-boom@4.2.1:
     dependencies:
       atomic-sleep: 1.0.0
@@ -31833,7 +32218,7 @@ snapshots:
 
   stripe@17.7.0:
     dependencies:
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
       qs: 6.15.3
 
   strnum@2.2.3: {}
@@ -32098,6 +32483,8 @@ snapshots:
   to-regex-range@5.0.1:
     dependencies:
       is-number: 7.0.0
+
+  toad-cache@3.7.4: {}
 
   toidentifier@1.0.1: {}
 
@@ -32640,6 +33027,22 @@ snapshots:
       tsx: 4.21.0
       yaml: 2.8.3
 
+  vite@8.2.0(@types/node@22.20.5)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3):
+    dependencies:
+      lightningcss: 1.33.0
+      picomatch: 4.0.5
+      postcss: 8.5.25
+      rolldown: 1.2.1
+      tinyglobby: 0.2.17
+    optionalDependencies:
+      '@types/node': 22.20.5
+      esbuild: 0.28.1
+      fsevents: 2.3.3
+      jiti: 2.6.1
+      terser: 5.51.2
+      tsx: 4.21.0
+      yaml: 2.8.3
+
   vite@8.2.0(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3):
     dependencies:
       lightningcss: 1.33.0
@@ -32771,6 +33174,36 @@ snapshots:
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
       '@types/node': 22.20.4
+      happy-dom: 20.9.0
+      jsdom: 29.0.0(@noble/hashes@1.8.0)
+    transitivePeerDependencies:
+      - msw
+
+  vitest@4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.2.0(@types/node@22.20.5)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)):
+    dependencies:
+      '@vitest/expect': 4.1.0
+      '@vitest/mocker': 4.1.0(vite@8.2.0(@types/node@22.20.5)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+      '@vitest/pretty-format': 4.1.0
+      '@vitest/runner': 4.1.0
+      '@vitest/snapshot': 4.1.0
+      '@vitest/spy': 4.1.0
+      '@vitest/utils': 4.1.0
+      es-module-lexer: 2.0.0
+      expect-type: 1.3.0
+      magic-string: 0.30.21
+      obug: 2.1.1
+      pathe: 2.0.3
+      picomatch: 4.0.4
+      std-env: 4.0.0
+      tinybench: 2.9.0
+      tinyexec: 1.0.4
+      tinyglobby: 0.2.15
+      tinyrainbow: 3.1.0
+      vite: 8.2.0(@types/node@22.20.5)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)
+      why-is-node-running: 2.3.0
+    optionalDependencies:
+      '@opentelemetry/api': 1.9.1
+      '@types/node': 22.20.5
       happy-dom: 20.9.0
       jsdom: 29.0.0(@noble/hashes@1.8.0)
     transitivePeerDependencies:
@@ -33036,6 +33469,8 @@ snapshots:
       is-weakset: 2.0.4
 
   which-module@2.0.1: {}
+
+  which-runtime@1.4.0: {}
 
   which-typed-array@1.1.22:
     dependencies:

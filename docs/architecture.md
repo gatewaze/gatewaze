@@ -475,6 +475,7 @@ both the version and `latest`:
 
 ```
 ghcr.io/gatewaze/admin
+ghcr.io/gatewaze/admin-bff
 ghcr.io/gatewaze/portal
 ghcr.io/gatewaze/api
 ghcr.io/gatewaze/worker

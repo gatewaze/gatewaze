@@ -5,6 +5,7 @@
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { getBrandConfig, getSupabaseConfig, isSupabaseConfigured, getAuthConfig } from '@/config/brands';
+import { getSupabase, isHostSession } from '@/lib/supabase';
 
 // Cache for Supabase clients per brand
 const supabaseClients: Map<string, SupabaseClient | null> = new Map();
@@ -14,6 +15,11 @@ const supabaseClients: Map<string, SupabaseClient | null> = new Map();
  * @returns Supabase client instance or null if not configured
  */
 export function getBrandSupabase(): SupabaseClient | null {
+  // In host-session mode there is one session, held by the session holder,
+  // and a second client with its own localStorage session would hold a real
+  // token in the page. Hand back the host-session client instead.
+  if (isHostSession()) return getSupabase();
+
   const brandConfig = getBrandConfig();
   const brandId = brandConfig.id;
 

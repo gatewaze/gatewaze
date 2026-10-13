@@ -388,10 +388,17 @@ services:
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-admin.entrypoints=web"
       - "traefik.http.services.${COMPOSE_PROJECT_NAME:-gatewaze}-admin.loadbalancer.server.port=80"
     environment:
-      VITE_SUPABASE_URL: ${SUPABASE_URL:-http://supabase.gatewaze.localhost}
+      # Host-session mode (docs/admin-bff.md) overrides the first and third
+      # with ADMIN_VITE_SUPABASE_URL / ADMIN_VITE_API_URL, both set to the
+      # admin's own URL. Unset or empty, both are what they always were.
+      VITE_SUPABASE_URL: ${ADMIN_VITE_SUPABASE_URL:-${SUPABASE_URL:-http://supabase.gatewaze.localhost}}
       VITE_SUPABASE_ANON_KEY: ${ANON_KEY}
-      VITE_API_URL: ${API_URL:-http://api.gatewaze.localhost}
+      VITE_API_URL: ${ADMIN_VITE_API_URL:-${API_URL:-http://api.gatewaze.localhost}}
       VITE_SUPABASE_FLOW_TYPE: ${VITE_SUPABASE_FLOW_TYPE:-implicit}
+      # Empty (the default) keeps today's in-browser session. host-session
+      # needs the admin-bff service below (--profile host-session).
+      VITE_AUTH_MODE: ${VITE_AUTH_MODE:-}
+      VITE_SUPABASE_PUBLIC_URL: ${SUPABASE_URL:-http://supabase.gatewaze.localhost}
       VITE_PORTAL_DOMAIN: ${PORTAL_HOST:-app.gatewaze.localhost}
       VITE_APP_URL: http://${PORTAL_HOST:-app.gatewaze.localhost}
       VITE_APP_NAME: ${GW_APP_NAME:-}
@@ -419,6 +426,58 @@ services:
       - gatewaze-module-sources:/var/lib/gatewaze/sources:ro
       - gatewaze-module-live:/var/lib/gatewaze/modules
     depends_on:
+      supabase-kong:
+        condition: service_started
+    networks:
+      - gatewaze
+      - traefik
+
+  # Session holder for the admin in host-session mode (docs/admin-bff.md).
+  # Opt-in: `docker compose --profile host-session up`, with VITE_AUTH_MODE,
+  # ADMIN_VITE_SUPABASE_URL, ADMIN_VITE_API_URL and ADMIN_BFF_SESSION_SECRET
+  # set in docker/.env. Traefik sends /bff and the proxied prefixes on the
+  # admin host here (higher priority than the admin router); the rest of the
+  # admin host stays on the admin container.
+  admin-bff:
+    profiles: [host-session]
+    build:
+      context: ..
+      dockerfile: docker/admin-bff/Dockerfile
+    container_name: ${COMPOSE_PROJECT_NAME:-gatewaze}-admin-bff
+    restart: unless-stopped
+    environment:
+      # http on a .localhost name: the BFF uses plain cookie names without
+      # Secure here, and __Host- names on https.
+      ADMIN_URL: http://${ADMIN_HOST:-admin.gatewaze.localhost}
+      SUPABASE_INTERNAL_URL: http://supabase-kong:8000
+      SUPABASE_PUBLIC_URL: ${SUPABASE_URL:-http://supabase.gatewaze.localhost}
+      SUPABASE_ANON_KEY: ${ANON_KEY}
+      GATEWAZE_API_URL: http://api:3002
+      REDIS_URL: redis://:${REDIS_PASSWORD:-gatewaze}@redis:6379
+      # openssl rand -hex 32. Not `:?`: that would fail every compose
+      # command, profile or not. The BFF refuses to start without it.
+      ADMIN_BFF_SESSION_SECRET: ${ADMIN_BFF_SESSION_SECRET:-}
+      OIDC_IDENTIFIER: ${ADMIN_BFF_PROVIDER:-custom:lfid}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Optional; empty uses the BFF defaults (docs/admin-bff.md).
+      ADMIN_BFF_TRUST_PROXY: ${ADMIN_BFF_TRUST_PROXY:-}
+      ADMIN_BFF_SIGNIN_RATE_LIMIT: ${ADMIN_BFF_SIGNIN_RATE_LIMIT:-}
+      ADMIN_BFF_UPSTREAM_TIMEOUT_MS: ${ADMIN_BFF_UPSTREAM_TIMEOUT_MS:-}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-admin-bff.rule=Host(`${ADMIN_HOST:-admin.gatewaze.localhost}`) && (PathPrefix(`/bff`) || PathPrefix(`/rest/v1`) || PathPrefix(`/storage/v1`) || PathPrefix(`/functions/v1`) || PathPrefix(`/realtime/v1`) || PathPrefix(`/api`))"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-admin-bff.priority=100"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-gatewaze}-admin-bff.entrypoints=web"
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME:-gatewaze}-admin-bff.loadbalancer.server.port=3001"
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/bff/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      redis:
+        condition: service_healthy
       supabase-kong:
         condition: service_started
     networks:
@@ -596,6 +655,11 @@ services:
       # to encrypt user-supplied secrets at rest (e.g. AI skill source auth
       # tokens for private git repos). 32 bytes base64-encoded.
       GATEWAZE_SECRETS_KEY: ${GATEWAZE_SECRETS_KEY:-}
+      # Bunny pull zone for browser-facing media URLs (event-media lib/cdn.ts
+      # and the conference-recap gallery bake share this convention). Unset =
+      # plain Supabase storage URLs — the local default.
+      BUNNY_PULLZONE_URL: ${BUNNY_PULLZONE_URL:-}
+      BUNNY_CDN_ENABLED: ${BUNNY_CDN_ENABLED:-}
       SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
@@ -706,6 +770,11 @@ services:
       # Mirror of the api service's key so worker-run skill syncs can
       # decrypt auth tokens stored on ai_skill_sources rows.
       GATEWAZE_SECRETS_KEY: ${GATEWAZE_SECRETS_KEY:-}
+      # Bunny pull zone for browser-facing media URLs (event-media lib/cdn.ts
+      # and the conference-recap gallery bake share this convention). Unset =
+      # plain Supabase storage URLs — the local default.
+      BUNNY_PULLZONE_URL: ${BUNNY_PULLZONE_URL:-}
+      BUNNY_CDN_ENABLED: ${BUNNY_CDN_ENABLED:-}
       # Internal API base the gatewaze-wiki MCP uses to reach the AI module's
       # /api/modules/ai/internal/wiki/* routes (service-to-service, internal-key
       # authed). spec-ai-memory-wiki.md §5.1.
@@ -746,6 +815,10 @@ services:
       # their existing Puppeteer paths.
       SCRAPLING_FETCHER_URL: http://scrapling-fetcher:8080
       SCRAPLING_INTERNAL_TOKEN: ${SCRAPLING_INTERNAL_TOKEN:-}
+      # Residential-egress toggle for conference-recap transcript fetching —
+      # same switch prod sets in k8s values (CONFERENCE_RECAP_RESIDENTIAL_EGRESS).
+      # Needs the residential-egress module enabled+configured to take effect.
+      CONFERENCE_RECAP_RESIDENTIAL_EGRESS: ${CONFERENCE_RECAP_RESIDENTIAL_EGRESS:-}
       # Let the recipe executor reach the internal browser-mcp HTTP service
       # (http://browser-mcp:8080) past the streamable_http SSRF guard.
       AI_MCP_HTTP_ALLOW_PRIVATE: ${AI_MCP_HTTP_ALLOW_PRIVATE:-}
