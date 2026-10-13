@@ -71,9 +71,11 @@ describe('POST /api/offers/[slug]/claim', () => {
     const [url, init] = fetchMock.mock.calls[0]
     expect(url).toBe('https://project.supabase.co/functions/v1/people-signup')
     const body = JSON.parse(init.body)
-    expect(body).toEqual({ email: 'new@example.com', source: 'discount_offer_claim' })
+    expect(body).toEqual({ email: 'new@example.com', source: 'discount_offer_claim', client_ip: '198.51.100.7' })
     expect(body).not.toHaveProperty('app') // app: 'portal' would send a magic link
-    expect(init.headers['x-forwarded-for']).toBe('198.51.100.7')
+    // Service role: people-signup only honours client_ip from a service-role
+    // caller (the gateway overwrites X-Forwarded-For with this server's IP).
+    expect(init.headers.Authorization).toBe('Bearer service-key')
   })
 
   it('escapes LIKE wildcards in the existing-person lookup', async () => {
@@ -83,11 +85,16 @@ describe('POST /api/offers/[slug]/claim', () => {
     expect(lastPattern).toBe('first\\_last@example.com')
   })
 
-  it('does not forward a forwarded-for value that is not an IP address', async () => {
+  it.each([
+    ['not an IP address', 'not-an-ip'],
+    ['the NodeBalancer private address', '192.168.255.136'],
+    ['a cluster pod address', '10.2.0.21'],
+    ['IPv6 loopback', '::1'],
+  ])('does not send a client IP that is %s', async (_label, ip) => {
     rpc.mockResolvedValue({ data: [{ status: 'claimed', code: 'FREE2026' }], error: null })
-    await call('free-tickets', { email: 'new@example.com' }, 'not-an-ip')
+    await call('free-tickets', { email: 'new@example.com' }, ip)
     await Promise.all(pending)
-    expect(fetchMock.mock.calls[0][1].headers).not.toHaveProperty('x-forwarded-for')
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).not.toHaveProperty('client_ip')
   })
 
   it('leaves a known person with an auth user alone', async () => {
