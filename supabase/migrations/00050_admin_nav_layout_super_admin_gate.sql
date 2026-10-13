@@ -1,5 +1,5 @@
 -- =============================================================================
--- 00049_admin_nav_layout_super_admin_gate.sql
+-- 00050_admin_nav_layout_super_admin_gate.sql
 --
 -- The org-wide admin navigation layout lives on platform_settings as the
 -- row key = 'admin_nav_layout'. The API only lets a super_admin change it
