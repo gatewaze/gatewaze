@@ -1,7 +1,7 @@
 'use client'
 
 import { usePathname, useSearchParams } from 'next/navigation'
-import { isOwnEndpoint, navChildrenFrom, type NavChild } from '@/lib/nav-children'
+import { hasContentFrom, isOwnEndpoint, navChildrenFrom, type NavChild } from '@/lib/nav-children'
 import Link from 'next/link'
 import { Suspense, useMemo, useState, useRef, useEffect, useCallback } from 'react'
 import type { Event } from '@/types/event'
@@ -32,6 +32,12 @@ interface NavItem {
   children?: NavChild[]
   /** Where to ask for those children; see the module registry. */
   subNav?: string
+  /**
+   * An endpoint that decides whether this item is offered at all. The
+   * item stays hidden until it answers with something; see
+   * hasContentFrom.
+   */
+  requiresContent?: string
   /**
    * When true, the item links to an external URL (typically populated
    * from event.source_details.action_links). Renders as <a target="_blank">
@@ -129,6 +135,50 @@ function useNavChildren(items: NavItem[], eventIdentifier: string): NavItem[] {
   return items.map((i) => (children[i.href]?.length ? { ...i, children: children[i.href] } : i))
 }
 
+/**
+ * Which items have something behind them.
+ *
+ * Shaped like useNavChildren on purpose, and separate from it on
+ * purpose: that one decides what lies BENEATH an item and leaves the
+ * item alone when there is nothing, which is right for a list of albums
+ * and wrong for the question of whether to offer the page. An item
+ * declaring `requiresContent` is withheld until its endpoint says yes.
+ *
+ * Nothing here knows about any particular module. An endpoint that
+ * fails, 404s or answers in an unrecognised shape leaves its page
+ * hidden, because the alternative is what this fixes.
+ */
+function useItemsWithContent(items: NavItem[], eventIdentifier: string): NavItem[] {
+  const [verdict, setVerdict] = useState<Record<string, boolean>>({})
+
+  const asks = useMemo(() => {
+    const out: Record<string, string> = {}
+    for (const i of items) {
+      if (i.requiresContent && isOwnEndpoint(i.requiresContent)) out[i.href] = i.requiresContent
+    }
+    return out
+  }, [items])
+  const asksKey = JSON.stringify(asks)
+
+  useEffect(() => {
+    let cancelled = false
+    if (!eventIdentifier) return
+    for (const [href, endpoint] of Object.entries(JSON.parse(asksKey) as Record<string, string>)) {
+      const url = endpoint.replace('{identifier}', encodeURIComponent(eventIdentifier))
+      fetch(url)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((body: unknown) => {
+          if (cancelled) return
+          if (hasContentFrom(body)) setVerdict((prev) => ({ ...prev, [href]: true }))
+        })
+        .catch(() => { /* hidden is the safe answer */ })
+    }
+    return () => { cancelled = true }
+  }, [asksKey, eventIdentifier])
+
+  return items.filter((i) => !i.requiresContent || verdict[i.href] === true)
+}
+
 function useModuleNavItems(basePath: string, hasVirtualEvent: boolean) {
   const [items, setItems] = useState<NavItem[]>([])
   const isAdmin = useIsAdmin()
@@ -168,6 +218,7 @@ function useModuleNavItems(basePath: string, hasVirtualEvent: boolean) {
           href: `${basePath}/${page.slug}`,
           show: true,
           subNav: page.subNav,
+          requiresContent: page.requiresContent,
           icon: (
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
@@ -189,7 +240,11 @@ function useNavItems(event: Event, basePath: string, eventIdentifier: string, sp
   // it: on a custom domain the base path is empty -- the host is the
   // event -- so taking the last part of it asked the server about an
   // event with no name (reported 2026-09-28).
-  const withChildren = useNavChildren(moduleNavItems, eventIdentifier)
+  // Withhold any page whose module says it is empty for this event,
+  // BEFORE asking what lies beneath the ones that remain: a page nobody
+  // is being offered has no children worth fetching.
+  const offered = useItemsWithContent(moduleNavItems, eventIdentifier)
+  const withChildren = useNavChildren(offered, eventIdentifier)
 
   // A scraped speak action link can point BACK at this very portal — aaif.io's
   // event pages link their Speak button to our /talks page, and the scraper
