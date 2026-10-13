@@ -43,8 +43,8 @@ function getSupabase() {
  */
 async function ensurePerson(email: string, clientIp: string | null): Promise<void> {
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  if (!supabaseUrl || !anonKey) return
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!supabaseUrl || !serviceKey) return
 
   // Case-insensitive, as people-signup matches; escape the LIKE wildcards
   // that EMAIL_RE still allows (_).
@@ -61,17 +61,34 @@ async function ensurePerson(email: string, clientIp: string | null): Promise<voi
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      apikey: anonKey,
-      Authorization: `Bearer ${anonKey}`,
-      // So people-signup geolocates the visitor, not the portal server.
-      ...(clientIp ? { 'x-forwarded-for': clientIp } : {}),
+      // Service role, so people-signup accepts client_ip: the Supabase gateway
+      // replaces X-Forwarded-For with this server's address, which geolocated
+      // every claimant to the cluster's data centre.
+      apikey: serviceKey,
+      Authorization: `Bearer ${serviceKey}`,
     },
-    body: JSON.stringify({ email, source: 'discount_offer_claim' }),
+    body: JSON.stringify({ email, source: 'discount_offer_claim', ...(clientIp ? { client_ip: clientIp } : {}) }),
     signal: AbortSignal.timeout(10_000),
   })
   if (!res.ok) {
     console.error('[offer-claim] people-signup failed', res.status)
   }
+}
+
+/** A public address: not private, loopback, link-local or CGNAT (e.g. the
+ *  NodeBalancer's 192.168.x when proxy protocol is off). */
+function isPublicIp(ip: string): boolean {
+  const kind = isIP(ip)
+  if (kind === 4) {
+    const [a, b] = ip.split('.').map(Number)
+    return !(a === 0 || a === 10 || a === 127 || a >= 224 || (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) || (a === 169 && b === 254) || (a === 100 && b >= 64 && b <= 127))
+  }
+  if (kind === 6) {
+    const s = ip.toLowerCase()
+    return !(s.includes('%') || s === '::1' || s === '::' || s.startsWith('fc') || s.startsWith('fd') || /^fe[89ab]/.test(s))
+  }
+  return false
 }
 
 function json(body: Record<string, unknown>, status: number, headers?: Record<string, string>) {
@@ -121,7 +138,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   switch (row?.status) {
     case 'claimed':
       after(() =>
-        ensurePerson(email, isIP(ip) && !ip.includes('%') ? ip : null).catch((err) =>
+        ensurePerson(email, isPublicIp(ip) ? ip : null).catch((err) =>
           console.error('[offer-claim] ensurePerson threw', err instanceof Error ? err.message : err),
         ),
       )
