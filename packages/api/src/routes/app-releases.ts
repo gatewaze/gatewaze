@@ -14,18 +14,31 @@ import { type Request, type Response } from 'express';
 import { labeledRouter } from '../lib/router-registry.js';
 import { requireJwt } from '../lib/auth/require-jwt.js';
 import { getServiceSupabase } from '../lib/supabase.js';
+import { rateLimiter } from '../lib/rate-limiter.js';
 
 export const appReleasesRouter = labeledRouter('jwt');
 appReleasesRouter.use(requireJwt());
 
 const PLATFORMS = new Set(['ios', 'android']);
 
+// A device asks on launch and when it returns to the foreground, so a
+// handful a minute is already generous. The cap stops one account's token
+// from turning this read into a load generator against the service-role
+// client.
+const latestReleaseRateLimiter = rateLimiter({
+  perUserRate: 30,
+  windowSecs: 60,
+  perUserConcurrency: 2,
+  globalConcurrency: 50,
+  bucket: 'app-releases-latest',
+});
+
 interface AppReleaseRow {
   latest_version: string;
   latest_build: number;
 }
 
-appReleasesRouter.get('/latest', async (req: Request, res: Response) => {
+appReleasesRouter.get('/latest', latestReleaseRateLimiter, async (req: Request, res: Response) => {
   const platform = String(req.query.platform ?? '');
   if (!PLATFORMS.has(platform)) {
     return res.status(400).json({ error: { code: 'invalid_platform', message: 'platform must be ios or android' } });
