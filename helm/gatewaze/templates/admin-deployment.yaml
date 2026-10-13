@@ -47,8 +47,8 @@ spec:
               value: "host-session"
             - name: VITE_SUPABASE_URL
               value: {{ printf "https://%s" .Values.ingress.hosts.admin | quote }}
-            # Externally visible links (OAuth redirect URIs, share links)
-            # still use the real Supabase URL.
+            # URLs that leave the admin (OAuth redirect URIs, links in emails,
+            # saved storage URLs) still use the real Supabase URL.
             - name: VITE_SUPABASE_PUBLIC_URL
               value: {{ .Values.supabase.url | quote }}
             # The admin origin: /api calls stay same-origin and reach the API
