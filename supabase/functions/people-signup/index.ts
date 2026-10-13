@@ -40,6 +40,61 @@ interface SignupRequest {
   redirect_to?: string // Optional - callback URL for magic link redirect
   geo_refresh?: boolean // Geo-only refresh (portal visit): update IP/location, nothing else
   timezone?: string // Optional - browser IANA timezone, used as a fallback when IP geo yields none
+  client_ip?: string // Optional - the visitor's IP, honoured only from a service-role caller (see trustedClientIp)
+}
+
+/** A public IPv4/IPv6 address, not private, loopback, link-local or CGNAT. */
+function isPublicIp(value: unknown): value is string {
+  if (typeof value !== 'string' || value.length > 45) return false
+  const v4 = value.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/)
+  if (v4) {
+    const [a, b] = v4.slice(1, 3).map(Number)
+    if (v4.slice(1).some((n) => Number(n) > 255)) return false
+    if (a === 0 || a === 10 || a === 127 || a >= 224) return false
+    if (a === 172 && b >= 16 && b <= 31) return false
+    if (a === 192 && b === 168) return false
+    if (a === 169 && b === 254) return false
+    if (a === 100 && b >= 64 && b <= 127) return false
+    return true
+  }
+  const s = value.toLowerCase()
+  if (!/^[0-9a-f:]+$/.test(s) || (s.match(/:/g) || []).length < 2) return false
+  return !(s === '::1' || s === '::' || s.startsWith('fc') || s.startsWith('fd') || s.startsWith('ff') || /^fe[89ab]/.test(s))
+}
+
+/**
+ * A server-side caller (e.g. the portal's offer-claim route) cannot pass the
+ * visitor's IP in X-Forwarded-For: the Supabase gateway replaces it with the
+ * caller's own address, so every such signup was geolocated to the portal's
+ * data centre. Accept body.client_ip instead, but only from a service-role
+ * caller, proven by a call only a service-role key may make (works for both
+ * legacy JWT and sb_secret keys). Anyone else keeps the header-derived IP.
+ */
+async function trustedClientIp(token: string, clientIp: unknown): Promise<string | null> {
+  if (!token || !isPublicIp(clientIp)) return null
+  if (token === supabaseServiceKey) return clientIp
+  if (token === Deno.env.get('SUPABASE_ANON_KEY')) return null
+  // Only spend a round trip on tokens shaped like a service-role key: an
+  // sb_secret_ key, or a JWT whose (unverified) role claim says service_role.
+  // GoTrue's answer below is what actually decides.
+  let looksServiceRole = token.startsWith('sb_secret_')
+  if (!looksServiceRole) {
+    try {
+      const part = (token.split('.')[1] || '').replace(/-/g, '+').replace(/_/g, '/')
+      const payload = JSON.parse(atob(part + '='.repeat((4 - (part.length % 4)) % 4)))
+      looksServiceRole = payload?.role === 'service_role'
+    } catch {
+      looksServiceRole = false
+    }
+  }
+  if (!looksServiceRole) return null
+  try {
+    const caller = createClient(supabaseUrl, token, { auth: { autoRefreshToken: false, persistSession: false } })
+    const { error } = await caller.auth.admin.listUsers({ page: 1, perPage: 1 })
+    return error ? null : clientIp
+  } catch {
+    return null
+  }
 }
 
 interface SignupResponse {
@@ -87,8 +142,10 @@ async function handler(req: Request) {
     console.log(`Processing signup for: ${email} from source: ${source}`)
     console.log('User metadata:', user_metadata)
 
-    // Get IP-based location
-    const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    // Get IP-based location. A service-role caller may supply the visitor's IP.
+    const bearer = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '')
+    const clientIp = (await trustedClientIp(bearer, body.client_ip)) ||
+                     req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
                      req.headers.get('x-real-ip') ||
                      null
     const ipLocation = await getIpLocation(clientIp)
