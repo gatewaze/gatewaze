@@ -4,7 +4,14 @@
 // messages. The browser only ever sends the placeholder (or the anon key).
 // Ported from the PoC's admin/server/core/realtime.ts.
 import WebSocket from 'ws';
-import { type CoreLogger, REFRESH_SKEW_SECONDS, SessionUnavailableError, type GwSession, isAdminCheckPending } from './session.js';
+import {
+  type CoreLogger,
+  REFRESH_SKEW_SECONDS,
+  SessionUnavailableError,
+  type GwSession,
+  errorMessage,
+  isAdminCheckPending,
+} from './session.js';
 
 const BFF_REF_PREFIX = 'bff-';
 // When a refresh can't reach GoTrue, try again after this long, for as long
@@ -146,7 +153,7 @@ export function bridgeRealtime(client: WebSocket, opts: RealtimeBridgeOptions): 
         if (e instanceof SessionUnavailableError && session.expires_at * 1000 > Date.now() + retryMs) {
           return schedule(retryMs);
         }
-        opts.log?.warn({ err: (e as Error).message, user_id: session.user_id }, 'realtime: session refresh failed; closing');
+        opts.log?.warn({ err: errorMessage(e), user_id: session.user_id }, 'realtime: session refresh failed; closing');
         return close(1011, 'session refresh failed');
       }
       // The socket closed while the refresh ran: do nothing more.

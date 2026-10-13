@@ -1,7 +1,7 @@
 // Reads and validates the BFF's environment. Every problem is reported at
 // start-up rather than on the first request.
-import type { BffConfig } from './core/session.js';
-import { DEFAULT_SESSION_TTL_SECONDS } from './core/store.js';
+import { DEFAULT_SESSION_TTL_SECONDS } from '@gatewaze/host-session';
+import type { BffConfig } from './login.js';
 
 export interface BffEnv {
   cfg: BffConfig;

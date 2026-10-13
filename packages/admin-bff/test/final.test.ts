@@ -1,21 +1,17 @@
-// Final review pass: Location filtering, socket slot accounting, sign-out
-// during an upgrade, trust proxy and rate-limit defaults, admin check and
-// GoTrue /user classification, refresh details, encryption details, logout
-// and callback failure paths, bridge limits, header stripping and config.
-import { EventEmitter } from 'node:events';
+// Final review pass: socket slot accounting, sign-out during an upgrade,
+// trust proxy and rate-limit defaults, admin check and GoTrue /user
+// classification, refresh details, logout and callback failure paths and
+// config. Location filtering, encryption details, bridge limits and header
+// stripping moved to @gatewaze/host-session (test/core.test.ts).
 import net from 'node:net';
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
 import { DEFAULT_SIGN_IN_RATE_LIMIT } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { appOptionsFromEnv, storeOptionsFromEnv } from '../src/wiring.js';
-import { deriveKeys, open, seal } from '../src/core/keys.js';
-import { rewriteLocation, upstreamHeaders } from '../src/core/proxy.js';
-import { bridgeRealtime } from '../src/core/realtime.js';
-import { type GwSession, retryAfterSeconds } from '../src/core/session.js';
-import { SessionStore } from '../src/core/store.js';
-import { MemoryKeyValue, call } from './helpers/fakes.js';
-import { ANON, type Harness, KEY, SITE, startHarness } from './helpers/harness.js';
+import { deriveKeys, retryAfterSeconds, SessionStore } from '@gatewaze/host-session';
+import { call } from './helpers/fakes.js';
+import { ANON, type Harness, SITE, startHarness } from './helpers/harness.js';
 
 let h: Harness;
 beforeAll(async () => {
@@ -40,42 +36,6 @@ beforeEach(() => {
 
 const now = () => Math.floor(Date.now() / 1000);
 const sameOrigin = { origin: SITE, apikey: ANON };
-const UP = 'http://supabase-kong:8000';
-
-describe('Location filtering', () => {
-  const SITE_ORIGIN = 'https://admin.example.test';
-  for (const loc of [
-    '//evil.example/x',
-    '/\\evil.test',
-    '\\\\evil.test',
-    '/\t/evil.test',
-    'javascript:alert(1)',
-    'data:text/html,x',
-    'ftp://x',
-    'http://evil.example/x',
-    '/a\nb',
-    `${UP}//evil.example/x`,
-    `${UP}/a/..//evil.example`,
-    `${SITE_ORIGIN}//evil.example/x`,
-  ]) {
-    it(`drops ${JSON.stringify(loc)}`, () => {
-      expect(rewriteLocation(loc, UP, SITE_ORIGIN)).toBeNull();
-    });
-  }
-  it('passes other https hosts and local http through unchanged', () => {
-    expect(rewriteLocation('https://accounts.google.com/o/oauth2/v2/auth?x=1', UP, SITE_ORIGIN)).toBe('https://accounts.google.com/o/oauth2/v2/auth?x=1');
-    expect(rewriteLocation('http://localhost:5274/x', UP, SITE_ORIGIN)).toBe('http://localhost:5274/x');
-    expect(rewriteLocation('http://admin.gatewaze.localhost/x', UP, SITE_ORIGIN)).toBe('http://admin.gatewaze.localhost/x');
-  });
-  it('makes the admin origin relative', () => {
-    expect(rewriteLocation(`${SITE_ORIGIN}/settings?x=1`, UP, SITE_ORIGIN)).toBe('/settings?x=1');
-  });
-  it('keeps a same-origin relative path and relativises a same-origin absolute URL', () => {
-    expect(rewriteLocation('/storage/v1/object/x?y=1', UP)).toBe('/storage/v1/object/x?y=1');
-    expect(rewriteLocation('x/y', UP)).toBe('x/y');
-    expect(rewriteLocation(`${UP}/rest/v1/t?a=1#f`, UP)).toBe('/rest/v1/t?a=1#f');
-  });
-});
 
 describe('Realtime socket slots', () => {
   const wsBase = () => h.base.replace('http', 'ws');
@@ -304,54 +264,7 @@ describe('refresh details', () => {
   });
 });
 
-describe('encryption details', () => {
-  const cfg = { supabaseUrl: 'http://x', publicSupabaseUrl: 'http://x', anonKey: 'a', siteUrl: 'https://s', provider: 'p' };
-  const rec: GwSession = { access_token: 'at', refresh_token: 'rt', expires_at: now() + 3600, user_id: 'u', is_admin: true };
-
-  it('two seals of the same plaintext differ', () => {
-    const [k] = deriveKeys([KEY], 'store');
-    expect(seal([k], 'x', 'c')).not.toBe(seal([k], 'x', 'c'));
-  });
-
-  it('writes with the first key after rotation', async () => {
-    const kv = new MemoryKeyValue();
-    const [newer] = deriveKeys([KEY], 'store');
-    const [older] = deriveKeys([Buffer.alloc(32, 9)], 'store');
-    const store = new SessionStore(cfg, kv, { keys: [newer, older] });
-    const sid = await store.create(rec);
-    const sealed = kv.data.get(`gw:admin-bff:session:${sid}`)!.value;
-    expect(open([newer], sealed, sid)).not.toBeNull();
-    expect(open([older], sealed, sid)).toBeNull();
-  });
-
-  it('matches known HKDF-SHA256 outputs for each purpose', () => {
-    const k = Buffer.alloc(32, 7);
-    expect(deriveKeys([k], 'cookie:session')[0].toString('hex')).toBe('01594b43c87e70578ceb983f3d06b2f7ee4bbb34421f40409be32ae035c8f54b');
-    expect(deriveKeys([k], 'cookie:flow')[0].toString('hex')).toBe('13655e2cdfd653c491694c4e7919c103ee1280543c64a4084e6939f334335377');
-    expect(deriveKeys([k], 'store')[0].toString('hex')).toBe('228a8c80ea143a5f614533444c5736d63065b0d53594c5a1dc218b6e0d3968e3');
-  });
-
-  it('session IDs are 32 random bytes', async () => {
-    const store = new SessionStore(cfg, new MemoryKeyValue(), { keys: deriveKeys([KEY], 'store') });
-    const a = await store.create(rec);
-    const b = await store.create(rec);
-    expect(Buffer.from(a, 'base64url')).toHaveLength(32);
-    expect(a).not.toBe(b);
-  });
-
-  it('deletes and ignores a plaintext record when encryption is on', async () => {
-    const kv = new MemoryKeyValue();
-    const store = new SessionStore(cfg, kv, { keys: deriveKeys([KEY], 'store') });
-    await kv.set('gw:admin-bff:session:planted', JSON.stringify(rec), 3600);
-    expect(await store.get('planted')).toBeNull();
-    expect(await kv.get('gw:admin-bff:session:planted')).toBeNull();
-  });
-
-  it('refuses to build a store without keys unless the test flag is set', () => {
-    expect(() => new SessionStore(cfg, new MemoryKeyValue())).toThrow(/encryption keys/);
-    expect(() => new SessionStore(cfg, new MemoryKeyValue(), { insecureNoEncryptionForTests: true })).not.toThrow();
-  });
-
+describe('session secret length', () => {
   it('rejects a 63-character hex secret', () => {
     expect(() =>
       loadConfig({
@@ -397,140 +310,6 @@ describe('logout and callback failure paths', () => {
     const login = await call(h.base, 'GET', '/bff/login');
     await call(h.base, 'GET', '/bff/callback', { cookie: [login.headers['set-cookie'] ?? []].flat()[0].split(';')[0] });
     expect(h.supabase.requests.filter((r) => r.url.startsWith('/auth/v1/token'))).toHaveLength(0);
-  });
-});
-
-describe('Realtime bridge limits', () => {
-  // Socket stand-ins: the bridge only needs these members.
-  type FakeSocket = EventEmitter & { readyState: number; bufferedAmount: number; sent: unknown[]; send(d: unknown): void; close(code?: number): void };
-  const fakeSocket = (state = WebSocket.OPEN as number, buffered = 0): FakeSocket =>
-    Object.assign(new EventEmitter(), {
-      readyState: state,
-      bufferedAmount: buffered,
-      sent: [] as unknown[],
-      send(d: unknown) {
-        this.sent.push(d);
-      },
-      close(this: FakeSocket, code?: number) {
-        this.readyState = WebSocket.CLOSED;
-        this.emit('closed-with', code);
-      },
-    });
-  const live = (): GwSession => ({ access_token: 'a', refresh_token: 'r', expires_at: now() + 3600, user_id: 'u', is_admin: true });
-  const closedWith = (s: EventEmitter) => new Promise<number>((r) => s.once('closed-with', r));
-
-  it('closes with 4001 when the refresh is refused', async () => {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-    try {
-      const client = fakeSocket();
-      const upstream = fakeSocket();
-      const closed = closedWith(client);
-      bridgeRealtime(client as unknown as WebSocket, {
-        upstreamUrl: 'ws://x',
-        session: { ...live(), expires_at: now() + 61 },
-        fresh: async () => null,
-        onSignedOut: () => () => undefined,
-        connect: () => upstream as unknown as WebSocket,
-      });
-      await vi.advanceTimersByTimeAsync(1100);
-      expect(await closed).toBe(4001);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('reschedules after a successful refresh', async () => {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-    try {
-      let calls = 0;
-      bridgeRealtime(fakeSocket() as unknown as WebSocket, {
-        upstreamUrl: 'ws://x',
-        session: { ...live(), expires_at: now() + 61 },
-        fresh: async () => {
-          calls++;
-          return { ...live(), access_token: `a${calls}`, expires_at: Math.floor(Date.now() / 1000) + 61 };
-        },
-        onSignedOut: () => () => undefined,
-        connect: () => fakeSocket() as unknown as WebSocket,
-      });
-      await vi.advanceTimersByTimeAsync(3500);
-      expect(calls).toBeGreaterThanOrEqual(3);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('closes with 1008 past 100 joined channels', async () => {
-    const client = fakeSocket();
-    const closed = closedWith(client);
-    bridgeRealtime(client as unknown as WebSocket, {
-      upstreamUrl: 'ws://x',
-      session: live(),
-      fresh: async () => live(),
-      onSignedOut: () => () => undefined,
-      connect: () => fakeSocket() as unknown as WebSocket,
-    });
-    for (let i = 0; i < 101; i++) client.emit('message', Buffer.from(JSON.stringify([String(i), String(i), `realtime:t${i}`, 'phx_join', {}])), false);
-    expect(await closed).toBe(1008);
-  });
-
-  it('closes with 1003 on a binary frame', async () => {
-    const client = fakeSocket();
-    const upstream = fakeSocket();
-    const closed = closedWith(client);
-    bridgeRealtime(client as unknown as WebSocket, {
-      upstreamUrl: 'ws://x',
-      session: live(),
-      fresh: async () => live(),
-      onSignedOut: () => () => undefined,
-      connect: () => upstream as unknown as WebSocket,
-    });
-    client.emit('message', Buffer.from('{}'), true);
-    expect(await closed).toBe(1003);
-    expect(upstream.sent).toEqual([]);
-  });
-
-  it('closes with 1013 when Realtime has a backlog over 4 MiB', async () => {
-    const client = fakeSocket();
-    const upstream = fakeSocket(WebSocket.OPEN, 5 * 1024 * 1024);
-    const closed = closedWith(client);
-    bridgeRealtime(client as unknown as WebSocket, {
-      upstreamUrl: 'ws://x',
-      session: live(),
-      fresh: async () => live(),
-      onSignedOut: () => () => undefined,
-      connect: () => upstream as unknown as WebSocket,
-    });
-    client.emit('message', Buffer.from(JSON.stringify([null, '1', 'phoenix', 'heartbeat', {}])), false);
-    expect(await closed).toBe(1013);
-    expect(upstream.sent).toEqual([]);
-  });
-
-  it('closes with 1013 when the browser has a backlog over 4 MiB', async () => {
-    const client = fakeSocket(WebSocket.OPEN, 5 * 1024 * 1024);
-    const upstream = fakeSocket();
-    const closed = closedWith(client);
-    bridgeRealtime(client as unknown as WebSocket, {
-      upstreamUrl: 'ws://x',
-      session: live(),
-      fresh: async () => live(),
-      onSignedOut: () => () => undefined,
-      connect: () => upstream as unknown as WebSocket,
-    });
-    upstream.emit('message', Buffer.from(JSON.stringify([null, '1', 'phoenix', 'phx_reply', {}])), false);
-    expect(await closed).toBe(1013);
-    expect(client.sent).toEqual([]);
-  });
-});
-
-describe('request header stripping', () => {
-  it('drops host, referer, proxy-authorization and x-forwarded-port', () => {
-    const out = upstreamHeaders(
-      { host: 'admin', referer: 'https://admin/x', 'proxy-authorization': 'Basic x', 'x-forwarded-port': '443', accept: 'a' },
-      { bearer: 't', apikey: null },
-      '',
-    );
-    expect(Object.keys(out).sort()).toEqual(['accept', 'authorization']);
   });
 });
 

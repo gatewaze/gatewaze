@@ -2,9 +2,8 @@
 import type { AddressInfo } from 'node:net';
 import type { FastifyInstance, FastifyServerOptions } from 'fastify';
 import { buildApp, cookieNames } from '../../src/app.js';
-import type { BffConfig, GwSession } from '../../src/core/session.js';
-import { deriveKeys, seal } from '../../src/core/keys.js';
-import { SessionStore, type SessionStoreOptions } from '../../src/core/store.js';
+import { deriveKeys, type GwSession, seal, SessionStore, type SessionStoreOptions } from '@gatewaze/host-session';
+import type { BffConfig } from '../../src/login.js';
 import { FakeApi, FakeSupabase, MemoryKeyValue } from './fakes.js';
 
 export const SITE = 'https://admin.example.test';

@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    // The package ships no sources, so source maps would point at nothing.
+    "sourceMap": false
+  },
+  // Tests are vitest's concern and never ship in the package.
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts"]
+}
