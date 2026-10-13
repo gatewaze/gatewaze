@@ -502,6 +502,8 @@ interface EventPageDef {
   requiresAdmin?: boolean
   /** An endpoint listing the pages within this one; see EventModulePage. */
   subNav?: string
+  /** An endpoint deciding whether this page is offered at all. */
+  requiresContent?: string
 }
 
 /**
@@ -579,6 +581,9 @@ function discoverEventPages(sourceDirs: string[]): EventPageDef[] {
         // { nav: [{ label, path, count? }] }, where path is appended to
         // the page's own address. {identifier} is the event's.
         subNav?: string;
+        // An endpoint deciding whether to offer this page for an event
+        // at all. Withheld until it answers with something.
+        requiresContent?: string;
       }> = {}
       const metaPath = resolve(eventPagesDir, '_meta.json')
       if (existsSync(metaPath)) {
@@ -614,6 +619,11 @@ function discoverEventPages(sourceDirs: string[]): EventPageDef[] {
           // visitor's browser announce the event to it.
           subNav: typeof pageMeta.subNav === 'string' && /^\/[^/]/.test(pageMeta.subNav)
             ? pageMeta.subNav
+            : undefined,
+          // Same rule, same reason.
+          requiresContent: typeof pageMeta.requiresContent === 'string'
+            && /^\/[^/]/.test(pageMeta.requiresContent)
+            ? pageMeta.requiresContent
             : undefined,
         })
       }
@@ -887,10 +897,11 @@ export const adminModulePages: AdminModulePage[] = []
       requiresLocalStorage: ep.requiresLocalStorage ? asToken(ep.requiresLocalStorage, 'requiresLocalStorage') : undefined,
       requiresAdmin: ep.requiresAdmin === true,
       subNav: ep.subNav ? asPath(ep.subNav, 'subNav') : undefined,
+      requiresContent: ep.requiresContent ? asPath(ep.requiresContent, 'requiresContent') : undefined,
       componentPath: asFilePath(ep.componentPath, 'componentPath'),
     }
     eventPageEntries.push(
-      `  { slug: ${literal(page.slug)}, moduleId: ${literal(page.moduleId)}, label: ${literal(page.label)}, icon: ${literal(page.icon)}, order: ${page.order}, requiresLocalStorage: ${page.requiresLocalStorage ? literal(page.requiresLocalStorage) : 'undefined'}, requiresAdmin: ${page.requiresAdmin ? 'true' : 'false'}, subNav: ${page.subNav ? literal(page.subNav) : 'undefined'}, component: () => import(${literal(page.componentPath)}) },`
+      `  { slug: ${literal(page.slug)}, moduleId: ${literal(page.moduleId)}, label: ${literal(page.label)}, icon: ${literal(page.icon)}, order: ${page.order}, requiresLocalStorage: ${page.requiresLocalStorage ? literal(page.requiresLocalStorage) : 'undefined'}, requiresAdmin: ${page.requiresAdmin ? 'true' : 'false'}, subNav: ${page.subNav ? literal(page.subNav) : 'undefined'}, requiresContent: ${page.requiresContent ? literal(page.requiresContent) : 'undefined'}, component: () => import(${literal(page.componentPath)}) },`
     )
   }
 
@@ -913,6 +924,13 @@ export interface EventModulePage {
    * substituted with the event's. Absent for pages that have none.
    */
   subNav?: string
+  /**
+   * An endpoint deciding whether this page is offered for an event at
+   * all. The sidebar withholds the page until it answers with
+   * something, so a module contributed to every event does not put an
+   * empty page on every event. Absent for pages that are always shown.
+   */
+  requiresContent?: string
   component: () => Promise<{ default: ComponentType<any> }>
 }
 
