@@ -82,6 +82,27 @@ describe('mount / unmount', () => {
     expect(isMountLive()).toBe(false);
   });
 
+  it('hands the host navigateHost hook to the app on mount and clears it on unmount', async () => {
+    const { mount } = await import('../../embed');
+    const { getHostNavigate } = await import('../hostNavigate');
+    const navigateHost = vi.fn();
+    const handle = mount(document.createElement('div'), makeCtx({ navigateHost }));
+    expect(getHostNavigate()).toBe(navigateHost);
+    handle.unmount();
+    expect(getHostNavigate()).toBeNull();
+  });
+
+  it('ignores a navigateHost that is not a function', async () => {
+    const { mount } = await import('../../embed');
+    const { getHostNavigate } = await import('../hostNavigate');
+    const handle = mount(
+      document.createElement('div'),
+      makeCtx({ navigateHost: 'not a function' as unknown as (path: string) => void }),
+    );
+    expect(getHostNavigate()).toBeNull();
+    handle.unmount();
+  });
+
   it('refuses a second concurrent mount and reports gw_double_mount', async () => {
     const { mount } = await import('../../embed');
     const first = document.createElement('div');
