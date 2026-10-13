@@ -3,6 +3,7 @@ import { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { getServerBrand, getBrandConfigById } from '@/config/brand'
 import { createServerSupabase } from '@/lib/supabase/server'
+import { resolveEventImagesList } from '@/lib/storage-resolve'
 import { OfferClaimClient, type OfferLink } from './OfferClaimClient'
 
 /**
@@ -46,6 +47,7 @@ function isWebUrl(value: unknown): value is string {
 async function loadOffer(slug: string) {
   if (!SLUG_RE.test(slug) || slug.length > 120) return null
   const brand = await getServerBrand()
+  const brandConfig = await getBrandConfigById(brand)
   const supabase = await createServerSupabase(brand)
 
   const { data: offer } = await supabase
@@ -65,10 +67,14 @@ async function loadOffer(slug: string) {
 
   const { data: events } = await supabase
     .from('events')
-    .select('event_id, event_title, event_link, event_start, event_city, screenshot_url')
+    .select('event_id, event_title, event_link, event_start, event_city, screenshot_url, event_logo')
     .in('event_id', eventIds)
     .eq('is_live_in_production', true)
-  const byId = new Map((events ?? []).map((e) => [e.event_id as string, e]))
+  // Images uploaded in the admin are stored as bucket-relative paths
+  // (e.g. event-screenshots/<id>-screenshot.jpg); resolve them to full URLs
+  // as every other portal page does.
+  const resolved = resolveEventImagesList(events ?? [], brandConfig.storageBucketUrl)
+  const byId = new Map(resolved.map((e) => [e.event_id as string, e]))
 
   const links: OfferLink[] = []
   for (const l of raw) {
@@ -81,7 +87,7 @@ async function loadOffer(slug: string) {
       eventTitle: ev.event_title,
       eventStart: ev.event_start ?? null,
       eventCity: ev.event_city ?? null,
-      imageUrl: isWebUrl(ev.screenshot_url) ? ev.screenshot_url : null,
+      imageUrl: isWebUrl(ev.screenshot_url) ? ev.screenshot_url : isWebUrl(ev.event_logo) ? ev.event_logo : null,
       label: typeof l.label === 'string' && l.label.trim() ? l.label.trim().slice(0, 120) : `Register for ${ev.event_title}`,
       url,
     })
