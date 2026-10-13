@@ -14,8 +14,12 @@
 -- way 00028 did for the tracking keys.
 -- =============================================================================
 
+-- Idempotent: cloud projects get core migrations applied by hand through
+-- exec_sql, sometimes more than once.
 DROP POLICY IF EXISTS "admin_insert_platform_settings_non_tracking" ON public.platform_settings;
 DROP POLICY IF EXISTS "admin_update_platform_settings_non_tracking" ON public.platform_settings;
+DROP POLICY IF EXISTS "admin_insert_platform_settings_non_gated" ON public.platform_settings;
+DROP POLICY IF EXISTS "admin_update_platform_settings_non_gated" ON public.platform_settings;
 
 -- Admins keep write access to every other key. Without a WITH CHECK, the
 -- UPDATE policy's USING expression also applies to the new row, so an admin
