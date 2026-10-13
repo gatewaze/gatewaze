@@ -5,16 +5,18 @@
  * Uploading alone is not enough: a build only reaches testers once it is
  * linked to a beta group, and nothing does that automatically.
  *
- * Usage: node scripts/testflight-release-build.mjs <appId> <buildVersion> [groupName]
+ * Usage: node scripts/testflight-release-build.mjs <appId> <buildVersion> [groupName] [marketingVersion]
  * Env:   ASC_KEY_PATH, ASC_KEY_ID, ASC_ISSUER_ID
+ *        SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, APP_RELEASE_ACCOUNT_ID (optional — see end of file)
  */
 
 import { createSign, sign as cryptoSign } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { createClient } from '@supabase/supabase-js';
 
-const [appId, buildVersion, groupName = 'Internal Testers'] = process.argv.slice(2);
+const [appId, buildVersion, groupName = 'Internal Testers', marketingVersion] = process.argv.slice(2);
 if (!appId || !buildVersion) {
-  console.error('usage: testflight-release-build.mjs <appId> <buildVersion> [groupName]');
+  console.error('usage: testflight-release-build.mjs <appId> <buildVersion> [groupName] [marketingVersion]');
   process.exit(2);
 }
 
@@ -150,4 +152,37 @@ if (group.attributes?.hasAccessToAllBuilds) {
     body: JSON.stringify({ data: [{ type: 'builds', id: build.id }] }),
   });
   console.log(`build ${buildVersion} is VALID and released to "${groupName}"`);
+}
+
+/**
+ * Record the newly-released build so the app's in-app "update available"
+ * notice (issue #94) can find it. This runs AFTER the build is confirmed
+ * live for testers above — a failure here must not fail the release
+ * itself, because Apple already has the build live; a missing in-app
+ * notice is a degraded experience, not a reason to roll back.
+ */
+if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.APP_RELEASE_ACCOUNT_ID) {
+  try {
+    const db = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+    const { error } = await db.from('app_releases').upsert(
+      {
+        account_id: process.env.APP_RELEASE_ACCOUNT_ID,
+        platform: 'ios',
+        latest_version: marketingVersion || buildVersion,
+        latest_build: Number(buildVersion),
+        released_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'account_id,platform' },
+    );
+    if (error) {
+      console.error(`failed to record app_releases row (release still succeeded on Apple's side): ${error.message}`);
+    } else {
+      console.log(`recorded app_releases row for build ${buildVersion}`);
+    }
+  } catch (err) {
+    console.error(`failed to record app_releases row (release still succeeded on Apple's side): ${err.message}`);
+  }
+} else {
+  console.log('SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / APP_RELEASE_ACCOUNT_ID not set — skipping in-app update notice for this release.');
 }

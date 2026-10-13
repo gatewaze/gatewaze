@@ -26,6 +26,13 @@ export const FEATURE_MARKERS = {
       { label: 'renders <ChangelogSheet', test: (src) => /<ChangelogSheet\b/.test(src) },
     ],
   },
+  'update-check': {
+    file: 'core/DrawerHost.tsx',
+    checks: [
+      { label: "imports checkForUpdate from './updateCheck'", test: (src) => /from\s+['"]\.\/updateCheck['"]/.test(src) },
+      { label: 'calls checkForUpdate()', test: (src) => /checkForUpdate\(\)/.test(src) },
+    ],
+  },
   'changelog-build-numbers': {
     file: 'core/changelog.ts',
     // issue #93: a changelog entry's `build` must never be the literal placeholder `0` — that

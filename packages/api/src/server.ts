@@ -30,6 +30,7 @@ import { mcpEventsRouter } from './routes/mcp-events.js';
 import { adminNavLayoutRouter } from './routes/admin-nav-layout.js';
 import { internalRouter } from './routes/internal.js';
 import { portalEventsRouter } from './routes/portal-events.js';
+import { appReleasesRouter } from './routes/app-releases.js';
 import { hateoasMiddleware } from './lib/hateoas.js';
 import {
   mountLabeled,
@@ -162,6 +163,7 @@ mountLabeled(app, '/api/slack', slackRouter);
 mountLabeled(app, '/api/calendar', calendarProxyRouter);
 mountLabeled(app, '/api/modules', modulesRouter);
 mountLabeled(app, '/api/api-keys', apiKeysRouter);
+mountLabeled(app, '/api/app-releases', appReleasesRouter);
 // MCP authorization server (OAuth 2.1 + PKCE; login via LFID module or
 // magic link), admin access-model CRUD, and the pod's audit ingest.
 // mcpAuthRouter declares absolute paths (/.well-known/*, /api/mcp-auth/*),
