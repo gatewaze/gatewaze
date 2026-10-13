@@ -247,6 +247,12 @@ export function OfferClaimClient({
                   Get my code
                 </PortalButton>
                 {error && <p className="text-center text-sm text-red-600">{error}</p>}
+              {(!knownEmail || editing) && (
+                <p className="text-center text-xs text-gray-500">
+                  Claiming creates a free account with this address and signs you up for event offers by email.
+                  You can unsubscribe at any time.
+                </p>
+              )}
                 {closesOn && <p className="text-center text-xs text-gray-500">Offer closes {closesOn}</p>}
               </form>
             )}
