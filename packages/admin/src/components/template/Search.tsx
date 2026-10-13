@@ -25,6 +25,7 @@ import { useDisclosure, useFuse } from "@/hooks";
 import { useThemeContext } from "@/app/contexts/theme/context";
 import { createScopedKeydownHandler } from "@/utils/dom/createScopedKeydownHandler";
 import { useNavHubs, useNavigation } from "@/hooks/useNavigation";
+import { buildSearchItems } from "./searchItems";
 import { Highlight } from "@/components/shared/Highlight";
 import { settings } from "@/app/navigation/segments/settings";
 import { ColorType } from "@/constants/app";
@@ -163,12 +164,15 @@ export function Search({ renderButton }: SearchProps) {
 export function SearchDialog({ close }: SearchDialogProps) {
   const { isDark } = useThemeContext();
   const navigation = useNavigation();
-  // Pages filed onto a module hub leave the sidebar tree but stay searchable.
+  // A page can be on a module hub without being in the sidebar; keep it
+  // searchable, once.
   const { hubs } = useNavHubs();
-  const data = useMemo(
-    () => flattenNav([...navigation, settings, ...Object.values(hubs).flat()]),
-    [navigation, hubs],
-  );
+  const data = useMemo(() => {
+    const hubNodes = Object.values(hubs)
+      .flat()
+      .flatMap((card) => (card.node ? [card.node] : []));
+    return buildSearchItems([...navigation, settings, ...hubNodes]);
+  }, [navigation, hubs]);
   const searchInputId = useRef(
     `search-input-${Math.random().toString(36).substring(2, 11)}`,
   ).current;
@@ -292,19 +296,4 @@ export function SearchDialog({ close }: SearchDialogProps) {
       )}
     </div>
   );
-}
-
-function flattenNav(items: NavigationTree[]): NavigationTree[] {
-  let flatArray: NavigationTree[] = [];
-  items.forEach((item) => {
-    if (item.path && item.type !== "collapse") {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { transKey, ...filteredItem } = item;
-      flatArray.push(filteredItem);
-    }
-    if (item.childs) {
-      flatArray = flatArray.concat(flattenNav(item.childs));
-    }
-  });
-  return flatArray;
 }
