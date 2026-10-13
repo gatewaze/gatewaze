@@ -54,7 +54,8 @@ async function loadOffer(slug: string) {
     .eq('slug', slug)
     .is('event_id', null)
     .maybeSingle<OfferRow>()
-  if (!offer) return null
+  // A cancelled offer is withdrawn, not merely over: treat it as gone.
+  if (!offer || offer.status === 'cancelled') return null
 
   const raw = Array.isArray(offer.registration_links) ? offer.registration_links : []
   const eventIds = raw
@@ -104,6 +105,9 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     title,
     // Personal links from emails; keep them out of search results.
     robots: { index: false, follow: false },
+    // The link carries the recipient's encoded address; don't pass the full
+    // URL to the event sites and image hosts this page loads or links to.
+    referrer: 'same-origin',
     openGraph: { title, type: 'website', siteName: brandConfig.name },
   }
 }
