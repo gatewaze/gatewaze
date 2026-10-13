@@ -1,0 +1,51 @@
+{
+  "name": "@gatewaze/host-session",
+  "version": "1.0.0",
+  "description": "Framework-free session-holder core for Gatewaze host-session mode: GoTrue sign-in and refresh, an encrypted Redis session store, CSRF and token-rewriting rules, an HTTP proxy and a Realtime bridge.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "types": "./dist/index.d.ts",
+  "main": "./dist/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "eslint src/ test/",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "ioredis": "^5.10.1",
+    "ws": "^8.21.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.33.0",
+    "@types/node": "^22.19.15",
+    "@types/ws": "^8.18.1",
+    "eslint": "^9.33.0",
+    "typescript": "~5.9.2",
+    "typescript-eslint": "^8.39.1",
+    "vitest": "^4.1.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gatewaze/gatewaze.git",
+    "directory": "packages/host-session"
+  }
+}

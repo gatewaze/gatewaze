@@ -11,39 +11,34 @@ import secureSession from '@fastify/secure-session';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest, type FastifyServerOptions } from 'fastify';
 import { WebSocketServer } from 'ws';
 import {
+  type GwSession,
+  type RealtimeBridge,
   SESSION_EXPIRED,
   SESSION_HEADER,
-  carriesPlaceholder,
-  csrfDecision,
-  isPublicRead,
-  redactUrl,
-  safeReturnTo,
-} from './core/host-session.js';
-import {
+  SessionEndedError,
+  type SessionStore,
+  SessionUnavailableError,
   type Upstream,
   UpstreamPathError,
+  anonCredentials,
+  bridgeRealtime,
+  carriesPlaceholder,
+  csrfDecision,
+  deriveKeys,
   forwardedFor,
-  proxyRequest,
-  realtimeUpstreamUrl,
-  rejectUpgrade,
-  upstreamUrl,
-} from './core/proxy.js';
-import { type RealtimeBridge, bridgeRealtime } from './core/realtime.js';
-import {
-  type BffConfig,
-  type GwSession,
-  type LoginFlow,
-  SessionEndedError,
-  SessionUnavailableError,
-  finishLogin,
   getUser,
   isAdminCheckPending,
+  isPublicRead,
   logout,
+  proxyRequest,
+  realtimeUpstreamUrl,
+  redactUrl,
+  rejectUpgrade,
   retryAfterSeconds,
-  startLogin,
-} from './core/session.js';
-import { deriveKeys } from './core/keys.js';
-import type { SessionStore } from './core/store.js';
+  safeReturnTo,
+  upstreamUrl,
+} from '@gatewaze/host-session';
+import { type BffConfig, type LoginFlow, finishLogin, startLogin } from './login.js';
 
 declare module '@fastify/secure-session' {
   interface SessionData {
@@ -395,8 +390,10 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
         if (decision === 'reject') return reply.code(403).send({ error: 'cross_site' });
 
         // Without a session (no cookie, or a cross-site GET), Supabase gets
-        // the anon key as supabase-js would send it; the API gets nothing.
-        let bearer: string | null = upstream.supabase ? cfg.anonKey : null;
+        // the anon key as supabase-js would send it (a publishable key only
+        // in apikey); the API gets nothing.
+        const anon = anonCredentials(cfg.anonKey, upstream.supabase);
+        let bearer: string | null = anon.bearer;
         if (decision === 'session') {
           const found = await lookupSession(request);
           if (found.state === 'expired') return sendExpired(request, reply);
@@ -420,11 +417,11 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
         let res;
         try {
           res = await proxyRequest(request.raw, upstream, request.raw.url ?? '/', {
-            creds: { bearer, apikey: upstream.supabase ? cfg.anonKey : null },
+            creds: { bearer, apikey: anon.apikey },
             xff: forwardedFor(request.headers['x-forwarded-for'], request.socket.remoteAddress),
             timeoutMs,
             downstream: reply.raw,
-            privateResponse: bearer !== null && bearer !== cfg.anonKey,
+            privateResponse: bearer !== null && bearer !== anon.bearer,
             siteOrigin,
             log: request.log,
           });

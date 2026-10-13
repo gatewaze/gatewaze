@@ -1,16 +1,14 @@
 // Round-2 review: the pending admin check contract, socket slot accounting,
-// Redis failures, logout robustness, encryption at rest, cookie subkeys, the
-// sign-in rate limit, and the upgrade path surviving a reset connection.
+// Redis failures, logout robustness, cookie subkeys, the sign-in rate limit,
+// and the upgrade path surviving a reset connection. Encryption at rest moved
+// to @gatewaze/host-session (test/core.test.ts).
 import net from 'node:net';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import WebSocket, { WebSocketServer } from 'ws';
 import type { AddressInfo } from 'node:net';
-import { deriveKeys, open, seal } from '../src/core/keys.js';
-import { bridgeRealtime } from '../src/core/realtime.js';
-import type { GwSession } from '../src/core/session.js';
-import { SessionStore, isGwSession } from '../src/core/store.js';
-import { FakeSupabase, MemoryKeyValue, call } from './helpers/fakes.js';
-import { ANON, type Harness, KEY, SITE, startHarness } from './helpers/harness.js';
+import { bridgeRealtime, type GwSession, isGwSession } from '@gatewaze/host-session';
+import { FakeSupabase, call } from './helpers/fakes.js';
+import { ANON, type Harness, SITE, startHarness } from './helpers/harness.js';
 
 let h: Harness;
 beforeAll(async () => {
@@ -173,56 +171,6 @@ describe('Redis failures', () => {
       h.kv.get = realGet;
       h.kv.del = realDel;
     }
-  });
-});
-
-describe('session records are encrypted at rest', () => {
-  const cfg = { supabaseUrl: 'http://x', publicSupabaseUrl: 'http://x', anonKey: 'a', siteUrl: 'https://s', provider: 'p' };
-  const rec: GwSession = { access_token: 'AT-secret-value', refresh_token: 'RT-secret-value', expires_at: now() + 3600, user_id: 'u', is_admin: true };
-
-  it('stores no token in readable form', async () => {
-    const kv = new MemoryKeyValue();
-    const store = new SessionStore(cfg, kv, { keys: deriveKeys([KEY], 'store') });
-    const sid = await store.create(rec);
-    const raw = [...kv.data.values()].map((v) => v.value).join();
-    expect(raw).not.toContain('AT-secret-value');
-    expect(raw).not.toContain('RT-secret-value');
-    expect(raw).not.toContain('"is_admin"');
-    expect((await store.get(sid))!.access_token).toBe('AT-secret-value');
-  });
-
-  it('reads a record written with an older key after rotation', async () => {
-    const kv = new MemoryKeyValue();
-    const oldKey = Buffer.alloc(32, 9);
-    const before = new SessionStore(cfg, kv, { keys: deriveKeys([oldKey], 'store') });
-    const sid = await before.create(rec);
-    const after = new SessionStore(cfg, kv, { keys: deriveKeys([KEY, oldKey], 'store') });
-    expect((await after.get(sid))!.refresh_token).toBe('RT-secret-value');
-    const without = new SessionStore(cfg, kv, { keys: deriveKeys([KEY], 'store') });
-    expect(await without.get(sid)).toBeNull();
-  });
-
-  it('treats a tampered record, or one moved to another session ID, as missing', async () => {
-    const kv = new MemoryKeyValue();
-    const store = new SessionStore(cfg, kv, { keys: deriveKeys([KEY], 'store') });
-    const sid = await store.create(rec);
-    const key = `gw:admin-bff:session:${sid}`;
-    const sealed = kv.data.get(key)!.value;
-    const bytes = Buffer.from(sealed.slice(3), 'base64url');
-    bytes[bytes.length - 1] ^= 1;
-    kv.data.get(key)!.value = `v1:${bytes.toString('base64url')}`;
-    expect(await store.get(sid)).toBeNull();
-    const other = await store.create(rec);
-    kv.data.get(`gw:admin-bff:session:${other}`)!.value = sealed;
-    expect(await store.get(other)).toBeNull();
-  });
-
-  it('derives different subkeys per purpose', () => {
-    const [session] = deriveKeys([KEY], 'cookie:session');
-    const [flow] = deriveKeys([KEY], 'cookie:flow');
-    const [store] = deriveKeys([KEY], 'store');
-    expect(new Set([session.toString('hex'), flow.toString('hex'), store.toString('hex'), KEY.toString('hex')]).size).toBe(4);
-    expect(open([flow], seal([session], 'x', 'c'), 'c')).toBeNull();
   });
 });
 

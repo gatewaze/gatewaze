@@ -4,7 +4,7 @@
 // socket.
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
-import { HOST_SESSION } from '../src/core/host-session.js';
+import { HOST_SESSION } from '@gatewaze/host-session';
 import { call } from './helpers/fakes.js';
 import { ANON, type Harness, SITE, startHarness } from './helpers/harness.js';
 

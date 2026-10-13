@@ -5,8 +5,8 @@ import type { AddressInfo } from 'node:net';
 import { EventEmitter } from 'node:events';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import WebSocket, { WebSocketServer } from 'ws';
-import { bridgeRealtime } from '../src/core/realtime.js';
-import { RefreshUnavailableError, type GwSession } from '../src/core/session.js';
+import { bridgeRealtime } from '../src/realtime.js';
+import { RefreshUnavailableError, type GwSession } from '../src/session.js';
 import { FakeSupabase } from './helpers/fakes.js';
 
 const cleanups: Array<() => Promise<unknown> | void> = [];

@@ -49,6 +49,12 @@ jobs:
         run: pnpm --filter @gatewaze/api typecheck
       - name: Typecheck (shared)
         run: pnpm --filter @gatewaze/shared typecheck
+      - name: Typecheck (host-session)
+        run: pnpm --filter @gatewaze/host-session typecheck
+      # admin-bff imports @gatewaze/host-session, which resolves through its
+      # exports map to ./dist. Build it first, as shared is built above.
+      - name: Build host-session
+        run: pnpm --filter @gatewaze/host-session build
       - name: Typecheck (admin-bff)
         run: pnpm --filter @gatewaze/admin-bff typecheck
       # admin + portal both import module pages/services from the gatewaze-modules
@@ -79,8 +85,8 @@ jobs:
     name: Vitest
     needs: [setup]
     runs-on: ubuntu-latest
-    # Valkey for the admin-bff Redis integration tests (SET NX/XX, the
-    # compare-and-delete lock release, TTLs, pub/sub). Pinned by digest, like
+    # Valkey for the host-session Redis integration tests (SET NX/XX, the
+    # compare-and-delete lock release, the create script, TTLs, pub/sub). Pinned by digest, like
     # the admin-bff base image. No password: it is reachable only from this job.
     services:
       valkey:
@@ -108,10 +114,15 @@ jobs:
         run: pnpm --filter @gatewaze/api test
       - name: shared tests
         run: pnpm --filter @gatewaze/shared test
-      # Includes the chart checks in test/helm.test.ts (helm is on the runner).
-      - name: admin-bff tests
+      - name: host-session tests
         env:
           REDIS_TEST_URL: redis://127.0.0.1:6379
+        run: pnpm --filter @gatewaze/host-session test
+      # admin-bff resolves @gatewaze/host-session through its dist.
+      - name: Build host-session
+        run: pnpm --filter @gatewaze/host-session build
+      # Includes the chart checks in test/helm.test.ts (helm is on the runner).
+      - name: admin-bff tests
         run: pnpm --filter @gatewaze/admin-bff test
       - name: portal tests
         run: pnpm --filter @gatewaze/portal test

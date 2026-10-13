@@ -5,7 +5,7 @@
 import http, { type IncomingHttpHeaders } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { WebSocketServer, type WebSocket } from 'ws';
-import type { KeyValue } from '../../src/core/store.js';
+import type { KeyValue } from '@gatewaze/host-session';
 
 export class MemoryKeyValue implements KeyValue {
   data = new Map<string, { value: string; expiresAt: number }>();
@@ -37,6 +37,12 @@ export class MemoryKeyValue implements KeyValue {
   }
   async delIfEquals(key: string, value: string) {
     if (this.live(key)?.value === value) this.data.delete(key);
+  }
+  async setIfLockHeld(key: string, value: string, ttlSeconds: number, lockKey: string, lockValue: string, blockKey: string) {
+    if (this.live(blockKey)) return 'blocked' as const;
+    if (this.live(lockKey)?.value !== lockValue) return 'lock-lost' as const;
+    await this.set(key, value, ttlSeconds);
+    return 'ok' as const;
   }
   async publish(channel: string, message: string) {
     for (const fn of this.subscribers.get(channel) ?? []) fn(message);

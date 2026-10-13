@@ -145,7 +145,7 @@ Restarting or flushing Redis signs every admin out.
 | `ADMIN_URL` | yes | Public origin of the admin, e.g. `https://admin.example.org`. |
 | `SUPABASE_INTERNAL_URL` | yes | Supabase as the BFF reaches it, e.g. `http://supabase-kong:8000`. |
 | `SUPABASE_PUBLIC_URL` | yes | Supabase as the browser reaches it. The BFF uses it for the GoTrue authorize URL. |
-| `SUPABASE_ANON_KEY` | yes | The anon key. |
+| `SUPABASE_ANON_KEY` | yes | The anon key: a legacy JWT anon key or an `sb_publishable_` key. Requests forwarded as anon carry it in `apikey`, and also as `Authorization: Bearer` when it is a JWT. A publishable key is not a JWT, so it goes in `apikey` only. |
 | `GATEWAZE_API_URL` | yes | The Gatewaze API origin for `/api/*`. |
 | `REDIS_URL` | yes | `redis://:<password>@<host>:6379` or `rediss://...`. |
 | `ADMIN_BFF_SESSION_SECRET` | yes | 64 hex characters (`openssl rand -hex 32`). It encrypts the session cookies and the session records in Redis. To rotate, put the new key first and keep the old one after a comma. The first key encrypts and every key decrypts. Keep the old key for at least `ADMIN_BFF_SESSION_TTL_SECONDS` after rotating, or every session it encrypted ends early. |
@@ -210,7 +210,7 @@ Add `http://admin.gatewaze.localhost/bff/callback` to `ADDITIONAL_REDIRECT_URLS`
 
 ## Using the core from another server
 
-The package exports its framework-free core as `@gatewaze/admin-bff/core`. It contains the session handling, the Redis store, the request and cross-site rules, the proxy and the Realtime bridge. A host with its own server, e.g. LFX One's Express server, can wrap these in its own routes the way `src/app.ts` does for Fastify.
+The framework-free core lives in its own package, `@gatewaze/host-session` (`packages/host-session`), which the BFF depends on. It contains the session handling, the Redis store, the request and cross-site rules, the proxy and the Realtime bridge. A host with its own server, e.g. LFX One's Express server, can wrap these in its own routes the way `src/app.ts` does for Fastify. The package's README describes the host contract.
 
 ## Where this differs from the proof of concept
 
