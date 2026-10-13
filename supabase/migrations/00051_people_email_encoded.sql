@@ -30,7 +30,8 @@ DECLARE
   o bytea;
   i int;
 BEGIN
-  IF p_email IS NULL OR p_email = '' OR p_email !~ '^[ -~]+$' THEN
+  -- 320 is the longest valid address; the cap also bounds the loop.
+  IF p_email IS NULL OR p_email = '' OR length(p_email) > 320 OR p_email !~ '^[ -~]+$' THEN
     RETURN NULL;
   END IF;
   e := convert_to(lower(p_email), 'UTF8');
@@ -45,6 +46,11 @@ $$;
 
 COMMENT ON FUNCTION public.people_encode_email(text) IS
   'Legacy tech.tickets email link encoding (XOR "HideMe" + URL-safe base64). Same as portal lib/emailEncoding.ts encodeEmail.';
+
+-- The trigger runs as whoever writes people (admins through the API as
+-- authenticated, server code as service_role). Nobody needs it as anon.
+REVOKE ALL ON FUNCTION public.people_encode_email(text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.people_encode_email(text) TO authenticated, service_role;
 
 CREATE OR REPLACE FUNCTION public.people_set_email_encoded()
 RETURNS trigger
@@ -62,6 +68,10 @@ BEGIN
     v := public.people_encode_email(NEW.email);
     IF v IS NOT NULL THEN
       NEW.attributes := coalesce(NEW.attributes, '{}'::jsonb) || jsonb_build_object('email_encoded', v);
+    ELSIF TG_OP = 'UPDATE' AND NEW.email IS DISTINCT FROM OLD.email THEN
+      -- The new address cannot be encoded; don't keep one that decodes to
+      -- the old address.
+      NEW.attributes := coalesce(NEW.attributes, '{}'::jsonb) - 'email_encoded';
     END IF;
   END IF;
   RETURN NEW;
@@ -73,9 +83,12 @@ CREATE TRIGGER people_email_encoded
   BEFORE INSERT OR UPDATE OF email, attributes ON public.people
   FOR EACH ROW EXECUTE FUNCTION public.people_set_email_encoded();
 
--- Backfill people created without it.
-UPDATE public.people
-   SET attributes = coalesce(attributes, '{}'::jsonb)
-                    || jsonb_build_object('email_encoded', public.people_encode_email(email))
- WHERE NOT (coalesce(attributes, '{}'::jsonb) ? 'email_encoded')
-   AND public.people_encode_email(email) IS NOT NULL;
+-- Backfill people created without it. (This bumps updated_at on those rows.)
+SET LOCAL lock_timeout = '10s';
+UPDATE public.people p
+   SET attributes = coalesce(p.attributes, '{}'::jsonb) || jsonb_build_object('email_encoded', x.v)
+  FROM (SELECT id, public.people_encode_email(email) AS v
+          FROM public.people
+         WHERE NOT (coalesce(attributes, '{}'::jsonb) ? 'email_encoded')) x
+ WHERE p.id = x.id
+   AND x.v IS NOT NULL;
