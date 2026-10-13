@@ -362,10 +362,11 @@ export interface NavigationItem {
   defaultSection?: string;
   /**
    * Declares this item's page a **hub**: a launcher page, like Settings, that
-   * lists other nav items. The value is the hub id (e.g. 'marketing-os'). The
-   * Navigation editor gives each installed hub its own container, items filed
-   * there are stored under `NavLayout.hubs[<id>]`, and the hub page reads them
-   * back with `useNavHub(<id>)`.
+   * shows a grid of cards. The value is the hub id (e.g. 'marketing-os'). The
+   * Navigation editor gives each installed hub its own card list, stored under
+   * `NavLayout.hubs[<id>]`, and the hub page reads it back with
+   * `useNavHub(<id>)`. A card links to another nav item's page or, for a
+   * custom card, to a URL.
    */
   hub?: string;
 }
@@ -399,12 +400,15 @@ export interface NavLayout {
   /** Items relocated onto the Settings page, in order. */
   settings: NavLayoutItem[];
   /**
-   * Items filed onto a module hub page, keyed by hub id (see
-   * {@link NavigationItem.hub}), in order. Optional so layouts saved before
-   * hubs existed stay valid.
+   * Cards on each module hub page, keyed by hub id (see
+   * {@link NavigationItem.hub}), in order. A card either references a nav item
+   * by key or is a custom link card (key `link:<slug>`). Hub lists are
+   * independent of the sidebar, settings and hidden placements: an item can be
+   * on a hub and in the sidebar at once. Optional so layouts saved before hubs
+   * existed stay valid.
    */
   hubs?: Record<string, NavLayoutItem[]>;
-  /** Stable keys hidden from every surface. */
+  /** Stable keys hidden from the sidebar and the settings page. */
   hidden: string[];
   /** Stable key (or route path) of the default landing page after login. */
   defaultRoute?: string;
@@ -431,7 +435,10 @@ export interface NavLayoutSection {
  * references. Nesting is one level deep.
  */
 export interface NavLayoutItem {
-  /** Stable key of the underlying item, or a synthetic `group:<slug>` for a group. */
+  /**
+   * Stable key of the underlying item, a synthetic `group:<slug>` for a group,
+   * or a synthetic `link:<slug>` for a custom hub card.
+   */
   key: string;
   /** Override the module-declared icon when rendered (or the group's icon). */
   icon?: string;
@@ -439,7 +446,38 @@ export interface NavLayoutItem {
   label?: string;
   /** Present → this entry is a collapsible parent containing these leaf items. */
   children?: NavLayoutItem[];
+
+  // ── Hub card fields (entries in NavLayout.hubs only) ──────────────────────
+  /** Text under the title. Module cards default to the module's description. */
+  description?: string;
+  /** Short chips shown on the card. */
+  tags?: string[];
+  /** Small line above the title, e.g. "Agent 1". */
+  eyebrow?: string;
+  /** Card accent colour. Unset cards take a colour by position. */
+  accent?: NavHubAccent;
+  /** Shows the card greyed out with a "Coming soon" chip; it does not link anywhere. */
+  comingSoon?: boolean;
+  /**
+   * Custom cards only: an absolute http(s) URL, or a path starting with '/'.
+   * Inside the admin embed a path is a path in the host app (e.g. another
+   * part of LFX); in the standalone admin it is an admin route.
+   */
+  url?: string;
+  /** Custom cards only: open `url` in a new tab. */
+  newTab?: boolean;
 }
+
+/** Accent colours a hub card can use. Each is a Radix Themes colour scale. */
+export type NavHubAccent =
+  | 'violet'
+  | 'blue'
+  | 'green'
+  | 'amber'
+  | 'red'
+  | 'sky'
+  | 'purple'
+  | 'teal';
 
 export interface PortalRouteDefinition {
   path: string;

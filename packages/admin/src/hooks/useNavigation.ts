@@ -4,7 +4,7 @@ import { dashboardItems } from '@/app/navigation/segments/dashboards';
 import { admin as staticAdmin } from '@/app/navigation/segments/admin';
 import { moduleNavItems as staticModuleNavItems } from '@/app/navigation/segments/modules';
 import { getModuleNavItemsFromRows, getModuleAdminNavItemsFromRows } from '@/app/navigation/segments/modules';
-import { applyNavLayout, resolveNavigation, seedLayoutFromTree } from '@/app/navigation/resolveNavLayout';
+import { applyNavLayout, resolveNavigation, seedLayoutFromTree, type NavHubCard } from '@/app/navigation/resolveNavLayout';
 import { useNavLayout } from '@/hooks/useNavLayout';
 import type { NavigationTree } from '@/@types/navigation';
 
@@ -71,14 +71,13 @@ export function useNavigation(): NavigationTree[] {
 }
 
 /**
- * Items filed onto each installed module hub page under the active layout,
- * keyed by hub id, before permission filtering. Hub items sit outside the
- * tree {@link useNavigation} returns (they leave the sidebar), so consumers
- * that must still reach them — search, the hub pages themselves — read them
- * here.
+ * Cards on each installed module hub page under the active layout, keyed by
+ * hub id, before permission filtering. A page can be on a hub without being in
+ * the sidebar, so consumers that must still reach it, such as search, read the
+ * hubs here.
  */
 export function useNavHubs(): {
-  hubs: Record<string, NavigationTree[]>;
+  hubs: Record<string, NavHubCard[]>;
   ready: boolean;
   error: Error | null;
   reload: () => void;
