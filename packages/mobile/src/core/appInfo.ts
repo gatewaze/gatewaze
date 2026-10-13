@@ -40,6 +40,23 @@ export function appVersion(): string {
 }
 
 /**
+ * The version string for display: the marketing version's major.minor, with the real build
+ * as the patch component, e.g. ('0.1.0', 1252) -> '0.1.1252'. A build that is not a positive
+ * integer (appBuildNumber()'s 0-means-unreadable sentinel, or a changelog entry whose build
+ * has not yet been recorded) never renders as a fabricated zero patch — it renders as
+ * 'major.minor (build unknown)' instead. A version string that is not major.minor.patch (e.g.
+ * 'dev', from appVersion() when running unbuilt) is returned unchanged, since there is no
+ * major.minor to graft a build onto.
+ */
+export function formatVersionBuild(version: string, build: number | null): string {
+  const match = /^(\d+)\.(\d+)\.\d+$/.exec(version);
+  if (!match) return version;
+  const [, major, minor] = match;
+  if (typeof build !== 'number' || build <= 0) return `${major}.${minor} (build unknown)`;
+  return `${major}.${minor}.${build}`;
+}
+
+/**
  * The IANA timezone this device is set to.
  *
  * Here because nothing in the health family records one and the device is the
