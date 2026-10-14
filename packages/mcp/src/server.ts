@@ -639,6 +639,45 @@ const TOOLS: Tool[] = [
     description: 'Per-rule Signals telemetry: fires, dispatched/failed/suppressed counts, outcomes, clicks.',
     inputSchema: { type: 'object' as const, properties: {} },
   },
+  {
+    name: 'privacy_request_submit',
+    description:
+      "File a data subject privacy request (GDPR/CCPA) for one or more email addresses, e.g. a right-to-erasure request forwarded by the privacy team. Returns the request id and its due date (one month after received_at). Filing changes nothing; run privacy_request_preview next to see what an erasure would remove. Requires the compliance:write scope.",
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        emails: { type: 'array', items: { type: 'string' }, description: "The person's email addresses (max 10)" },
+        request_type: { type: 'string', enum: ['data_deletion', 'data_export', 'data_correction', 'data_portability', 'consent_withdrawal', 'processing_restriction'], description: "Default 'data_deletion' (erasure)" },
+        source: { type: 'string', description: 'Where the request came from, e.g. a ticket reference' },
+        received_at: { type: 'string', description: 'ISO date the person made the request. Defaults to now.' },
+        notes: { type: 'string' },
+      },
+      required: ['emails'],
+    },
+  },
+  {
+    name: 'privacy_request_status',
+    description:
+      "Status of privacy requests: pass id for one request, or email to list every request for that address. Shows the preview (tables and row counts, never row contents), the erasure, outside services, manual steps and due date. include_report=true adds the Markdown report for the reply to the person. Requires the compliance:read scope.",
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        id: { type: 'string', description: 'Request id (uuid)' },
+        email: { type: 'string', description: 'Exact email address' },
+        include_report: { type: 'boolean' },
+      },
+    },
+  },
+  {
+    name: 'privacy_request_preview',
+    description:
+      'Build the erasure preview for a data_deletion request: every table that holds the person, how many rows, whether each is deleted or kept with identifiers removed, and anything blocking the erasure. Changes nothing. Runs in the background; poll privacy_request_status. The erasure itself is run by a Gatewaze admin (or the API with the compliance:erase grant), not through MCP, so a person always confirms it. Requires the compliance:write scope.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: { id: { type: 'string', description: 'Request id (uuid)' } },
+      required: ['id'],
+    },
+  },
 ];
 
 // ── Handlers ─────────────────────────────────────────────────────────────
@@ -1054,6 +1093,9 @@ const OAUTH_TOOL_SCOPES: Record<string, string | null> = {
   my_segments: 'segments:people',
   segment_people: 'segments:people',
   segment_save: 'segments:write',
+  privacy_request_submit: 'compliance:write',
+  privacy_request_status: 'compliance:read',
+  privacy_request_preview: 'compliance:write',
   resources_collections_list: 'resources:write',
   resources_collection_get: 'resources:write',
   resources_collection_create: 'resources:write',
@@ -1135,6 +1177,23 @@ export function buildInstructions(brandName?: string, brandDescription?: string)
   return lines.join('\n\n');
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Privacy tool arguments name the data subject. The call log is kept for
+ * audit, so keep only fields that can't identify anyone and replace the rest.
+ */
+const PRIVACY_LOG_FIELDS = new Set(['id', 'request_type', 'include_report', 'received_at']);
+function redactPrivacyArgs(params: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(params)) {
+    out[k] = PRIVACY_LOG_FIELDS.has(k) ? v : Array.isArray(v) ? `[${v.length} redacted]` : '[redacted]';
+  }
+  return out;
+}
+
+const EMAIL_IN_TEXT = /[^\s@<>"'(),;:]+@[^\s@<>"'(),;:]+\.[a-z0-9-]{2,}/gi;
+
 export interface CallerIdentity {
   subject: string;
   email: string;
@@ -1211,7 +1270,7 @@ export function createGatewazeMcpServer(
     const base = {
       profile,
       tool: name,
-      args: truncate(JSON.stringify(params)),
+      args: truncate(JSON.stringify(name.startsWith('privacy_') ? redactPrivacyArgs(params) : params)),
       ...logMeta,
     };
 
@@ -1326,6 +1385,38 @@ export function createGatewazeMcpServer(
             result = await api.get('/segments/mine', { person_id: identity.personId });
           }
           break;
+        case 'privacy_request_submit':
+          result = await api.post('/privacy/requests', {
+            emails: params.emails,
+            request_type: params.request_type,
+            source: params.source,
+            requested_at: params.received_at,
+            notes: params.notes,
+            ...(identity ? { person_id: identity.personId } : {}),
+          });
+          break;
+        case 'privacy_request_status': {
+          if (params.id !== undefined) {
+            const id = String(params.id);
+            if (!UUID_RE.test(id)) { result = { error: 'id must be a uuid' }; break; }
+            result = await api.get(`/privacy/requests/${id}`);
+            if (params.include_report === true) {
+              const report = await api.get(`/privacy/requests/${id}/report`);
+              result = { ...(result as Record<string, unknown>), report };
+            }
+          } else if (typeof params.email === 'string' && params.email) {
+            result = await api.get('/privacy/requests', { email: params.email });
+          } else {
+            result = { error: 'pass id or email' };
+          }
+          break;
+        }
+        case 'privacy_request_preview': {
+          const id = String(params.id ?? '');
+          if (!UUID_RE.test(id)) { result = { error: 'id must be a uuid' }; break; }
+          result = await api.post(`/privacy/requests/${id}/preview`, identity ? { person_id: identity.personId } : {});
+          break;
+        }
         case 'segment_people':
           result = await api.get(`/segments/${params.id}/people`, params.limit ? { limit: Number(params.limit) } : {});
           break;
@@ -1447,7 +1538,7 @@ export function createGatewazeMcpServer(
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      emit({ ...base, outcome: 'error', error: truncate(message, 300), ms: Date.now() - startedAt });
+      emit({ ...base, outcome: 'error', error: truncate(name.startsWith('privacy_') ? message.replace(EMAIL_IN_TEXT, '[email]') : message, 300), ms: Date.now() - startedAt });
       return {
         content: [{ type: 'text', text: JSON.stringify({ error: message }) }],
         isError: true,
