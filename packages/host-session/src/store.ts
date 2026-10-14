@@ -57,7 +57,10 @@ export interface KeyValue {
   setIfAbsent(key: string, value: string, ttlMs: number): Promise<boolean>;
   del(key: string): Promise<void>;
   // Deletes key only while it still holds value (lock release).
-  delIfEquals(key: string, value: string): Promise<void>;
+  // Resolves true when it deleted the key and false when it did not. An
+  // implementation written for 1.0 that resolves nothing is still accepted;
+  // a guarded discard() then treats the delete as done.
+  delIfEquals(key: string, value: string): Promise<boolean | void>;
   // Atomically sets key (EX ttlSeconds) only while lockKey holds lockValue
   // and blockKey does not exist. Resolves 'ok' when written, 'blocked' when
   // blockKey exists, and 'lock-lost' when lockKey holds anything else.
@@ -120,7 +123,7 @@ export class RedisKeyValue implements KeyValue {
     await this.redis.del(key);
   }
   async delIfEquals(key: string, value: string) {
-    await this.redis.eval(RELEASE_LOCK, 1, key, value);
+    return (await this.redis.eval(RELEASE_LOCK, 1, key, value)) === 1;
   }
   async setIfLockHeld(key: string, value: string, ttlSeconds: number, lockKey: string, lockValue: string, blockKey: string) {
     const r = await this.redis.eval(SET_IF_LOCK_HELD, 3, key, lockKey, blockKey, value, lockValue, String(ttlSeconds));
@@ -182,6 +185,12 @@ export interface SessionStoreOptions {
   // How long acquire() lets one mint run. Default MINT_TIMEOUT_MS. Must be
   // less than CREATE_LOCK_MS.
   mintTimeoutMs?: number;
+}
+
+export interface DiscardOptions {
+  // Remove the record only while it still holds this access token: the
+  // token of the session the host saw refused.
+  onlyIfAccessToken?: string;
 }
 
 export interface SessionMatchOptions {
@@ -456,6 +465,21 @@ export class SessionStore {
       await this.kv.del(this.sessionKey(sid));
       return null;
     }
+    const parsed = this.decode(sid, stored);
+    if (!parsed) return null;
+    if (opts.expectedSub !== undefined && parsed.sub !== opts.expectedSub) {
+      this.cfg.log?.warn({ user_id: parsed.user_id }, 'stored session is for another IdP subject; ending it');
+      await this.revokeStored(parsed);
+      await this.discard(sid);
+      return null;
+    }
+    return parsed;
+  }
+
+  // Decrypts and checks a stored record. Returns null, and logs why, when it
+  // can't be used.
+  private decode(sid: string, stored: string): GwSession | null {
+    if (this.keys && !stored.startsWith(SEALED_PREFIX)) return null;
     const raw = this.keys ? open(this.keys, stored, sid) : stored;
     if (raw === null) {
       this.cfg.log?.warn({}, 'stored session does not decrypt (key removed or record altered); treating it as gone');
@@ -472,28 +496,49 @@ export class SessionStore {
       this.cfg.log?.warn({}, 'stored session has the wrong shape; treating it as gone');
       return null;
     }
-    if (opts.expectedSub !== undefined && parsed.sub !== opts.expectedSub) {
-      this.cfg.log?.warn({ user_id: parsed.user_id }, 'stored session is for another IdP subject; ending it');
-      await this.revokeStored(parsed);
-      await this.discard(sid);
-      return null;
-    }
     return parsed;
   }
 
   // Ends the session for a sign-out: deletes it, tells every instance to
   // close its Realtime connections for it, and blocks any mint already
-  // running for this sid from storing its result (see acquire()).
+  // running for this sid from storing its result (see acquire()). Use it
+  // for a real sign-out, e.g. the host's own logout, where the session
+  // must not come back on this sid.
   async delete(sid: string): Promise<void> {
     await this.kv.set(this.signedOutKey(sid), '1', SIGNED_OUT_TTL_SECONDS);
     await this.discard(sid);
   }
 
-  // Deletes the session and announces it, without the sign-out tombstone,
-  // so acquire() may mint again on this sid.
-  private async discard(sid: string): Promise<void> {
-    await this.kv.del(this.sessionKey(sid));
+  // Deletes the stored session and tells every instance to close its
+  // Realtime connections for it, like delete(), but writes no sign-out
+  // marker, so the next acquire() on this sid can mint straight away. It
+  // does not revoke the session at GoTrue; call logout() first if that is
+  // wanted. Use it to drop a record GoTrue no longer honours (e.g. /user
+  // refused the token), or to reconnect a user who stays signed in to the
+  // host. A mint already running for this sid can still store its result,
+  // so discard() must never stand in for a real sign-out.
+  //
+  // With onlyIfAccessToken, the record is removed only while it still holds
+  // that access token. A host should pass the token of the session it saw
+  // refused, so a stale tab can't wipe a session another tab has just
+  // minted on the same sid. The compare is atomic: the stored ciphertext
+  // is read and decrypted, and then deleted only if Redis still holds that
+  // exact ciphertext (every write seals with a new IV, so any write in
+  // between changes it). Resolves true when the record was removed.
+  async discard(sid: string, opts: DiscardOptions = {}): Promise<boolean> {
+    const key = this.sessionKey(sid);
+    if (opts.onlyIfAccessToken === undefined) {
+      await this.kv.del(key);
+      await this.kv.publish(this.logoutChannel, sid);
+      return true;
+    }
+    const stored = await this.kv.get(key);
+    if (!stored) return false;
+    const current = this.decode(sid, stored);
+    if (!current || current.access_token !== opts.onlyIfAccessToken) return false;
+    if ((await this.kv.delIfEquals(key, stored)) === false) return false;
     await this.kv.publish(this.logoutChannel, sid);
+    return true;
   }
 
   // Calls fn when the session is deleted on any instance.

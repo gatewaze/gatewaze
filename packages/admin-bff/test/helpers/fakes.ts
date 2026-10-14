@@ -35,8 +35,10 @@ export class MemoryKeyValue implements KeyValue {
   async del(key: string) {
     this.data.delete(key);
   }
-  async delIfEquals(key: string, value: string) {
-    if (this.live(key)?.value === value) this.data.delete(key);
+  async delIfEquals(key: string, value: string): Promise<boolean | void> {
+    if (this.live(key)?.value !== value) return false;
+    this.data.delete(key);
+    return true;
   }
   async setIfLockHeld(key: string, value: string, ttlSeconds: number, lockKey: string, lockValue: string, blockKey: string) {
     if (this.live(blockKey)) return 'blocked' as const;

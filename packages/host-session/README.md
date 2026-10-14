@@ -14,7 +14,7 @@ The package is ESM only and needs Node 20 or later. Its runtime dependencies are
 | Area | Exports |
 |---|---|
 | Sign-in and refresh | `signInWithIdToken`, `toGwSession`, `refreshSession`, `isAdmin`, `getUser`, `logout`, `needsRefresh`, `isAdminCheckPending`, `retryAfterSeconds`, `identitySubject`, `unverifiedJwtSubject` |
-| Session store | `SessionStore` (`create`, `put`, `acquire`, `get`, `fresh`, `delete`, `onDelete`, `start`, `close`), `RedisKeyValue`, the `KeyValue` interface, `isGwSession` |
+| Session store | `SessionStore` (`create`, `put`, `acquire`, `get`, `fresh`, `delete`, `discard`, `onDelete`, `start`, `close`), `RedisKeyValue`, the `KeyValue` interface, `isGwSession` |
 | Keys | `deriveKeys`, `seal`, `open` |
 | Request rules | `csrfDecision`, `carriesPlaceholder`, `isPublicRead`, `stripQueryTokens`, `safeReturnTo`, `redactUrl`, `forwardRequestHeader`, `forwardResponseHeader`, `privateCacheControl` |
 | Proxy | `proxyRequest`, `upstreamUrl`, `upstreamHeaders`, `forwardedFor`, `rewriteLocation`, `anonCredentials`, `isPublishableKey`, `rejectUpgrade`, `realtimeUpstreamUrl` |
@@ -22,7 +22,7 @@ The package is ESM only and needs Node 20 or later. Its runtime dependencies are
 | Errors | `SessionUnavailableError` and its subclasses `RefreshUnavailableError` and `IdTokenGrantUnavailableError`, `IdTokenGrantRefusedError`, `SessionEndedError`, `AdminCheckError`, `UpstreamPathError`, and `errorMessage` |
 | Constants | `HOST_SESSION`, `SESSION_HEADER`, `SESSION_EXPIRED`, `KEY_PREFIX`, `LOGOUT_CHANNEL`, `LOCK_MS`, `CREATE_LOCK_MS`, `MINT_TIMEOUT_MS`, `SIGNED_OUT_TTL_SECONDS`, `REFRESH_SKEW_SECONDS`, `DEFAULT_PROVIDER` and the timeouts |
 
-The types are `HostSessionConfig`, `GwSession`, `GoTrueUser`, `SessionStoreOptions`, `SessionMatchOptions`, `AcquireOptions`, `IdTokenGrantOptions`, `SetIfLockHeldResult`, `Upstream`, `ProxyCredentials`, `ProxyOptions`, `ProxyResult`, `RealtimeBridge`, `RealtimeBridgeOptions` and `CoreLogger`.
+The types are `HostSessionConfig`, `GwSession`, `GoTrueUser`, `SessionStoreOptions`, `SessionMatchOptions`, `AcquireOptions`, `DiscardOptions`, `IdTokenGrantOptions`, `SetIfLockHeldResult`, `Upstream`, `ProxyCredentials`, `ProxyOptions`, `ProxyResult`, `RealtimeBridge`, `RealtimeBridgeOptions` and `CoreLogger`.
 
 ## Signing in with an ID token
 
@@ -84,6 +84,16 @@ The store writes the minted session with a Lua script that writes it only while 
 
 `delete(sid)` is the sign-out. It deletes the session, tells every instance so `onDelete` listeners (open Realtime bridges) close, and writes a sign-out marker for 5 minutes. A mint already running for that ID then can't store its result, and any `acquire()` on that ID throws `SessionEndedError` until the marker expires.
 
+`discard(sid)` deletes the session and tells every instance in the same way, but writes no marker, so the next `acquire()` on that ID can mint straight away. It does not revoke the session at GoTrue. Call `logout()` first if you want that. It also does not stop a mint that is already running on that ID, and it does not clear a marker that `delete` wrote. A mint in flight can still store its result after `discard`, so `discard` must never stand in for a real sign-out.
+
+Pass `{ onlyIfAccessToken }` with the access token of the session you saw refused. `discard` then removes the record only while it still holds that token, and resolves `true` when it did. Without the guard, a stale browser tab that sees its old session refused could wipe a session another tab has just minted on the same ID, and that session would never be revoked. The check is atomic. The store decrypts the record, compares the token, and then deletes only if Redis still holds that exact ciphertext. Every write seals with a new IV, so any write in between makes the delete a no-op.
+
+Use them like this:
+
+- Use `delete` for a real sign-out, where the session must not come back on that ID, e.g. the host's own logout route.
+- Use `discard` to drop a record GoTrue no longer honours, e.g. when GoTrue's `/user` refuses the token, so the next request mints a new session. This applies to hosts that mint with `acquire()`. The admin BFF has no mint path and makes a new ID at every sign-in, so it correctly uses `delete` there.
+- Use `discard` for a reconnect, where the user stays signed in to the host but the Gatewaze session should end, e.g. a sign-out from inside the embedded admin.
+
 The marker only lasts 300 seconds. With a stateless cookie session (e.g. `express-openid-connect`'s encrypted `appSession`), an old copy of the cookie still carries the old ID after that, so a host must not rely on the marker alone. Rotate the ID at every sign-in, as the rules below say, so a signed-out ID is never used to mint again.
 
 ### Binding a session to the user
@@ -107,7 +117,7 @@ A host must do these things. The admin BFF's `src/app.ts` does each of them.
 5. Attach the session's token only when `is_admin` is true. A non-admin may still make `isPublicRead` requests, as anon. Otherwise answer 503 with `Retry-After` when the admin check is pending, and 403 when it is not.
 6. Forward with `proxyRequest`. Use `{ bearer: session.access_token, apikey: anonKey }` for a session, and `anonCredentials(anonKey, upstream.supabase)` without one. Set `privateResponse` when the session was attached. Answer `UpstreamPathError` with 400 and other errors with 502.
 7. For Realtime, check `Origin`, load the session, build the URL with `realtimeUpstreamUrl`, and hand the accepted socket to `bridgeRealtime` with `fresh: () => store.fresh(sid, { expectedSub })` and `onSignedOut: (fn) => store.onDelete(sid, fn)`.
-8. On sign-out, load the session (refreshing it if needed), call `logout(cfg, session)` to revoke the refresh token at GoTrue, then call `store.delete(sid)` and drop the session ID.
+8. On sign-out, load the session (refreshing it if needed), call `logout(cfg, session)` to revoke the refresh token at GoTrue, then call `store.delete(sid)` and drop the session ID. When the user stays signed in to the host and only the Gatewaze session ends, call `store.discard(sid)` instead, and keep the ID.
 
 ### Anon requests and publishable keys
 
@@ -255,6 +265,11 @@ app.post('/gw/logout', async (req, res) => {
 ```
 
 The proxied route must not run behind a body parser such as `express.json()`, because `proxyRequest` reads the raw request stream.
+
+The sign-out route uses `store.delete(sid)` because it ends the host session too. Two other cases call for `store.discard(sid)`:
+
+- When `getUser(cfg, s.access_token)` throws `SessionEndedError`, GoTrue no longer honours the session. Call `store.discard(sid, { onlyIfAccessToken: s.access_token })` and let the next `acquire()` mint a new one from a fresh ID token.
+- When the embedded admin signs out but the user stays signed in to LFX One, revoke with `logout(cfg, s)` and then call `store.discard(sid, { onlyIfAccessToken: s.access_token })`. The host keeps the same ID, and the next request mints again.
 
 ## Development
 
