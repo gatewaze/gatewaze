@@ -22,6 +22,7 @@ import { createClient } from '@supabase/supabase-js';
 import { labeledRouter } from '../lib/router-registry.js';
 import { getSupabase } from '../lib/supabase.js';
 import { getRedisConnection } from '../lib/queue/index.js';
+import { ipRateLimiter } from '../lib/rate-limiter.js';
 import { logger } from '../lib/logger.js';
 import { ensureAuthAndPerson } from '../lib/mcp-auth/provision.js';
 import { resolveAccess } from '../lib/mcp-auth/scopes.js';
@@ -403,7 +404,13 @@ function sendLfidError(res: Response, status: number, message: string): void {
   res.send(pageShell('Sign-in failed', `<h1>Sign-in failed</h1><p>${escapeHtml(message)}</p>`));
 }
 
-mcpAuthRouter.post('/api/mcp-auth/lfid/start', async (req, res) => {
+// Per client IP, shared by /lfid/start and the callback. One sign-in uses
+// two; the limit only stops a client hammering GoTrue through the API. It is
+// generous because behind an ingress without proxy protocol every client
+// shares one address.
+const lfidNativeRateLimit = ipRateLimiter({ points: 120, durationSecs: 60, bucket: 'mcp-auth-lfid' });
+
+mcpAuthRouter.post('/api/mcp-auth/lfid/start', lfidNativeRateLimit, async (req, res) => {
   try {
     const reqId = String((req.body as { req_id?: unknown } | undefined)?.req_id ?? '');
     if (!REQ_ID_RE.test(reqId)) return sendLfidError(res, 400, 'Bad request.');
@@ -433,7 +440,7 @@ mcpAuthRouter.post('/api/mcp-auth/lfid/start', async (req, res) => {
   }
 });
 
-mcpAuthRouter.get('/api/mcp-auth/lfid/callback/:reqId', async (req, res) => {
+mcpAuthRouter.get('/api/mcp-auth/lfid/callback/:reqId', lfidNativeRateLimit, async (req, res) => {
   const reqId = String(req.params.reqId ?? '');
   if (!REQ_ID_RE.test(reqId)) return sendLfidError(res, 400, 'Bad request.');
   let claimed = false;
@@ -509,7 +516,9 @@ mcpAuthRouter.get('/api/mcp-auth/lfid/callback/:reqId', async (req, res) => {
 mcpAuthRouter.post('/api/mcp-auth/magic/start', async (req, res) => {
   try {
     const { req_id: reqId, email } = (req.body ?? {}) as { req_id?: string; email?: string };
-    if (typeof reqId !== 'string' || !email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    // The length cap (RFC 5321's 254) also keeps the pattern below from
+    // backtracking for long on a crafted value.
+    if (typeof reqId !== 'string' || typeof email !== 'string' || email.length > 254 || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
       return res.status(400).send('valid email required');
     }
     const r = await redis();

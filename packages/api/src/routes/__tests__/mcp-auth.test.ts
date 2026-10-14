@@ -48,6 +48,15 @@ const supabase = {
 };
 vi.mock('../../lib/supabase.js', () => ({ getSupabase: () => supabase }));
 
+// Records which routes run the native-flow rate limiter.
+const rateLimited: string[] = [];
+vi.mock('../../lib/rate-limiter.js', () => ({
+  ipRateLimiter: (config: { bucket: string }) => (req: { path: string }, _res: unknown, next: () => void) => {
+    rateLimited.push(`${config.bucket} ${req.path}`);
+    next();
+  },
+}));
+
 const ensureAuthAndPerson = vi.fn();
 vi.mock('../../lib/mcp-auth/provision.js', () => ({ ensureAuthAndPerson }));
 const resolveAccess = vi.fn();
@@ -237,6 +246,16 @@ describe('native LFID flow', () => {
   beforeEach(() => {
     moduleRow = { status: 'enabled', config: {} };
     vi.stubEnv('LFID_SIGN_IN_MODE', 'native');
+  });
+
+  it('rate limits /lfid/start and the callback per client IP', async () => {
+    rateLimited.length = 0;
+    const { reqId, cookie } = await startedNative();
+    await callback(reqId, cookie);
+    expect(rateLimited).toEqual([
+      'mcp-auth-lfid /api/mcp-auth/lfid/start',
+      `mcp-auth-lfid /api/mcp-auth/lfid/callback/${reqId}`,
+    ]);
   });
 
   it('sets a request cookie that lasts as long as the request', async () => {
@@ -488,6 +507,16 @@ describe('login mode binding', () => {
 
     const bridge = await request(app).post('/api/mcp-auth/lfid-complete').send({ req_id: reqId, access_token: 't' });
     expect(bridge.status).toBe(200);
+  });
+
+  it('refuses an email over 254 characters on /magic/start, even one the pattern accepts', async () => {
+    await authorize();
+    const reqId = lastAuthReqId();
+    const email = `${'a'.repeat(250)}@b.co`;
+    expect(/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)).toBe(true);
+    const res = await request(app).post('/api/mcp-auth/magic/start').type('form').send({ req_id: reqId, email });
+    expect(res.status).toBe(400);
+    expect(res.text).toBe('valid email required');
   });
 
   it('refuses a stored request whose id is too short to be one this server made', async () => {
