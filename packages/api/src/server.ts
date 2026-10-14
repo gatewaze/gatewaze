@@ -10,6 +10,7 @@ import {
   logger as queueLogger,
 } from './lib/queue/index.js';
 import { healthRouter } from './routes/health.js';
+import { embedHandoffClaimRouter, embedHandoffDepositRouter } from './routes/embed-handoff.js';
 import { peopleRouter } from './routes/people.js';
 import { csvRouter } from './routes/csv.js';
 import { calendarsRouter } from './routes/calendars.js';
@@ -182,6 +183,11 @@ mountLabeled(app, '/api/internal', internalRouter);
 // the cdn.example.com Worker can apply portal-specific cache rules to
 // the whole prefix in one shot. Per spec-portal-on-cloudflare-workers §4.2.
 mountLabeled(app, '/api/portal/events', portalEventsRouter);
+
+// Sign-in handoff for portal embeds (/embed/<widget> iframes on other sites).
+// Reached through the portal's same-origin /api/public/* proxy.
+mountLabeled(app, '/api/public/embed-handoff/deposit', embedHandoffDepositRouter);
+mountLabeled(app, '/api/public/embed-handoff/claim', embedHandoffClaimRouter);
 
 // Deny-by-default self-check: every static route must be labeled
 // 'jwt' or 'public'. Throws on first miss → server fails to boot.
