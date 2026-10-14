@@ -48,6 +48,8 @@ export const logger = pino({
       '*.to',
       // Sensitive cookie payload (session tokens).
       'res.headers["set-cookie"]',
+      // Redirects can carry one-time codes, e.g. the MCP grant code.
+      'res.headers.location',
     ],
     censor: '[REDACTED]',
   },
@@ -77,8 +79,33 @@ declare global {
  * per-request log line emission and rely on its built-in genReqId
  * hook for header propagation.
  */
+// Paths whose query string carries a one-time credential and must not be
+// logged: GoTrue's ?code= on the MCP native LFID callback.
+const QUERY_REDACTED_PREFIXES = ['/api/mcp-auth/lfid/callback/'];
+
+/** The request URL for a log line, with the query replaced on those paths. */
+export function logSafeUrl(url: string | undefined): string | undefined {
+  if (!url) return url;
+  const q = url.indexOf('?');
+  if (q < 0) return url;
+  const path = url.slice(0, q);
+  // Express routing ignores case, so the match does too.
+  const lower = path.toLowerCase();
+  return QUERY_REDACTED_PREFIXES.some((p) => lower.startsWith(p)) ? `${path}?[REDACTED]` : url;
+}
+
+/**
+ * pino-http request serializer. It receives pino's already-serialized request,
+ * which also carries the parsed query, and redacts both on those paths.
+ */
+export function serializeRequestForLog<T extends { url?: string; query?: unknown }>(req: T): T {
+  const url = logSafeUrl(req.url);
+  return url === req.url ? req : { ...req, url, query: '[REDACTED]' };
+}
+
 export const requestLogger = pinoHttp({
   logger,
+  serializers: { req: serializeRequestForLog },
   genReqId: (req, res) => {
     const inbound = (req.headers['x-request-id'] || req.headers['x-correlation-id']) as string | undefined;
     const id = inbound?.trim() || randomUUID();
@@ -90,9 +117,9 @@ export const requestLogger = pinoHttp({
     if (res.statusCode >= 400) return 'warn';
     return 'info';
   },
-  customSuccessMessage: (req, res) => `${req.method} ${req.url} ${res.statusCode}`,
+  customSuccessMessage: (req, res) => `${req.method} ${logSafeUrl(req.url)} ${res.statusCode}`,
   customErrorMessage: (req, res, err) =>
-    `${req.method} ${req.url} ${res.statusCode} ${err?.message ?? 'error'}`,
+    `${req.method} ${logSafeUrl(req.url)} ${res.statusCode} ${err?.message ?? 'error'}`,
 });
 
 /**
