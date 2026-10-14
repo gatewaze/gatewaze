@@ -1,6 +1,6 @@
 {
   "name": "@gatewaze/host-session",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Framework-free session-holder core for Gatewaze host-session mode: GoTrue sign-in and refresh, an encrypted Redis session store, CSRF and token-rewriting rules, an HTTP proxy and a Realtime bridge.",
   "license": "Apache-2.0",
   "type": "module",

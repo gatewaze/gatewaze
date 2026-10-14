@@ -93,6 +93,35 @@ describe.skipIf(!url)('RedisKeyValue (real Redis)', () => {
     }
   });
 
+  it('delIfEquals reports whether it deleted', async () => {
+    const k = `gw:admin-bff:test:die:${Date.now()}`;
+    await kv.set(k, 'v', 60);
+    expect(await kv.delIfEquals(k, 'other')).toBe(false);
+    expect(await kv.delIfEquals(k, 'v')).toBe(true);
+    expect(await kv.get(k)).toBeNull();
+  });
+
+  it('a guarded discard removes only the session holding the refused token', async () => {
+    const cfg = { supabaseUrl: 'http://x', anonKey: 'a' };
+    const keys = deriveKeys([Buffer.alloc(32, 1)], 'store');
+    const prefix = `lfx:hs-test:${Date.now()}:discard:`;
+    const a = await SessionStore.connect(cfg, url, { keys, keyPrefix: prefix });
+    const b = await SessionStore.connect(cfg, url, { keys, keyPrefix: prefix });
+    const rec = (t: string) => ({ access_token: t, refresh_token: `r-${t}`, expires_at: Math.floor(Date.now() / 1000) + 3600, user_id: 'u', is_admin: true });
+    try {
+      await a.put('sid-1', rec('s2'));
+      expect(await b.discard('sid-1', { onlyIfAccessToken: 's1' })).toBe(false);
+      expect((await a.get('sid-1'))?.access_token).toBe('s2');
+      const heard = new Promise<void>((r) => a.onDelete('sid-1', r));
+      expect(await b.discard('sid-1', { onlyIfAccessToken: 's2' })).toBe(true);
+      await heard;
+      expect(await a.get('sid-1')).toBeNull();
+    } finally {
+      await a.close();
+      await b.close();
+    }
+  });
+
   it('delivers a sign-out to another instance', async () => {
     const cfg = { supabaseUrl: 'http://x', publicSupabaseUrl: 'http://x', anonKey: 'a', siteUrl: 'https://s', provider: 'p' };
     const keys = deriveKeys([Buffer.alloc(32, 1)], 'store');
