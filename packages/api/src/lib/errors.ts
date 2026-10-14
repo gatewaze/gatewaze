@@ -15,7 +15,7 @@
  */
 
 import type { Request, Response, NextFunction } from 'express';
-import { logger } from './logger.js';
+import { logger, logSafeUrl } from './logger.js';
 
 export type ApiErrorCode =
   | 'unauthenticated'
@@ -109,7 +109,7 @@ export function errorEnvelope(
   }
 
   const e = err instanceof Error ? err : new Error(String(err));
-  logger.error({ err: e, requestId, url: req.url, method: req.method }, 'unhandled error');
+  logger.error({ err: e, requestId, url: logSafeUrl(req.url), method: req.method }, 'unhandled error');
   res.status(500).json({
     error: {
       code: 'internal_error',
