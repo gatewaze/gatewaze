@@ -16,7 +16,7 @@
  * Transient state (authorization requests, codes, DCR clients) lives in
  * Redis; durable sessions (refresh tokens) in mcp_sessions.
  */
-import { randomBytes, createHash } from 'crypto';
+import { randomBytes, createHash, timingSafeEqual } from 'crypto';
 import { Router, type Request, type Response } from 'express';
 import { createClient } from '@supabase/supabase-js';
 import { labeledRouter } from '../lib/router-registry.js';
@@ -26,6 +26,14 @@ import { logger } from '../lib/logger.js';
 import { ensureAuthAndPerson } from '../lib/mcp-auth/provision.js';
 import { resolveAccess } from '../lib/mcp-auth/scopes.js';
 import { mintAccessToken, newRefreshToken, sha256, mcpAudience } from '../lib/mcp-auth/tokens.js';
+import { resolveLfidLogin } from '../lib/mcp-auth/lfid-mode.js';
+import {
+  finishNativeLfid,
+  nativeLfidConfig,
+  NativeLfidRefused,
+  startNativeLfid,
+  type NativeLfidIdentity,
+} from '../lib/mcp-auth/lfid-native.js';
 
 export const mcpAuthRouter: Router = labeledRouter('public');
 
@@ -45,33 +53,78 @@ async function redis() {
   return conn;
 }
 
-// ── Login-mode resolution (pluggable per spec §3) ─────────────────────────
+// ── Authorization requests ────────────────────────────────────────────────
+//
+// /authorize stores one per sign-in attempt under mcp:authreq:<req_id>, tagged
+// with the login mode it chose. Each sign-in route only accepts a request made
+// for its own mode, so a request id seen in a log or a URL cannot be finished
+// through a different route with someone else's identity.
 
-interface LfidConfig { startUrl: string }
+type LoginMode = 'native' | 'bridge' | 'magic';
+const LOGIN_MODES: readonly LoginMode[] = ['native', 'bridge', 'magic'];
+
+interface AuthRequest {
+  clientId: string;
+  clientName: string;
+  redirectUri: string;
+  state: string | null;
+  codeChallenge: string;
+  /** Absent only on requests stored before this field existed. */
+  loginMode?: LoginMode;
+}
+
+const REQ_ID_RE = /^[A-Za-z0-9_-]{16,64}$/;
+
+/** Only this server writes these keys; the check catches a corrupt value. */
+function parseAuthRequest(raw: string | null): AuthRequest | null {
+  if (!raw) return null;
+  let v: unknown;
+  try {
+    v = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!v || typeof v !== 'object') return null;
+  const o = v as Record<string, unknown>;
+  const ok =
+    typeof o.clientId === 'string' &&
+    typeof o.clientName === 'string' &&
+    typeof o.redirectUri === 'string' &&
+    typeof o.codeChallenge === 'string' &&
+    (o.state === null || typeof o.state === 'string') &&
+    (o.loginMode === undefined || LOGIN_MODES.includes(o.loginMode as LoginMode));
+  return ok ? (o as unknown as AuthRequest) : null;
+}
 
 /**
- * LFID mode rides the lfid-auth module's EXISTING sign-in flow (the
- * integrations-lfid-callback edge function): its callback URL is already
- * registered in the LF Auth0 application, so no Auth0 tenant changes are
- * needed. The function validates our return_url origin against the
- * module's AUTH0_ALLOWED_RETURN_ORIGINS (self-service in admin
- * Integrations settings) and hands the Supabase session back in the URL
- * fragment; provisioning (auth user + canonical person reconciliation)
- * happens inside that function — the platform's single LFID path.
+ * The pending request for reqId, if it was made for this route's mode. A
+ * request stored before loginMode existed is accepted by the bridge and
+ * magic-link routes, which is what they did before; native requests always
+ * carry the tag.
  */
-async function lfidConfig(): Promise<LfidConfig | null> {
-  const { data } = await getSupabase()
-    .from('installed_modules')
-    .select('status, config')
-    .eq('id', 'lfid-auth')
-    .maybeSingle();
-  if (!data || data.status !== 'enabled') return null;
-  const cfg = (data.config ?? {}) as Record<string, string>;
-  if (!cfg.AUTH0_DOMAIN || !cfg.AUTH0_CLIENT_ID) return null;
-  const supabasePublic = (process.env.SUPABASE_PUBLIC_URL ?? '').replace(/\/+$/, '');
-  if (!supabasePublic) return null;
-  return { startUrl: `${supabasePublic}/functions/v1/integrations-lfid-callback` };
+async function authRequestFor(reqId: string, mode: LoginMode): Promise<AuthRequest | null> {
+  if (!REQ_ID_RE.test(reqId)) return null;
+  const authreq = parseAuthRequest(await (await redis()).get(`mcp:authreq:${reqId}`));
+  if (!authreq) return null;
+  if (authreq.loginMode === mode) return authreq;
+  return authreq.loginMode === undefined && mode !== 'native' ? authreq : null;
 }
+
+// ── Login-mode resolution (pluggable per spec §3) ─────────────────────────
+//
+// lfid-auth module enabled → LFID, in the module's bridge or native mode
+// (lib/mcp-auth/lfid-mode.ts); otherwise magic link.
+//
+// Bridge mode rides the module's integrations-lfid-callback edge function:
+// its callback URL is already registered in the LF Auth0 application, the
+// function validates our return_url origin against the module's
+// AUTH0_ALLOWED_RETURN_ORIGINS and hands the Supabase session back in the URL
+// fragment, and provisioning happens inside that function.
+//
+// Native mode runs the GoTrue PKCE flow against custom:lfid from this server
+// (lib/mcp-auth/lfid-native.ts). GoTrue redirects back to
+// /api/mcp-auth/lfid/callback/<req_id>, which must be on the Supabase Auth
+// redirect allow-list.
 
 // ── Client resolution: CIMD primary, DCR fallback ─────────────────────────
 
@@ -158,16 +211,36 @@ mcpAuthRouter.get('/api/mcp-auth/authorize', async (req, res) => {
       return res.status(400).send('redirect_uri not registered for this client');
     }
 
+    const lfid = await resolveLfidLogin(getSupabase());
+    if (lfid?.mode === 'native' && !nativeLfidConfig()) {
+      logger.error('[mcp-auth] native LFID sign-in needs SUPABASE_URL and SUPABASE_ANON_KEY');
+      return res.status(503).send('sign-in is not configured on this deployment');
+    }
+    const loginMode: LoginMode = lfid ? lfid.mode : 'magic';
+
     const reqId = b64url(randomBytes(24));
-    await (await redis()).set(`mcp:authreq:${reqId}`, JSON.stringify({
+    const r = await redis();
+    await r.set(`mcp:authreq:${reqId}`, JSON.stringify({
       clientId: client.clientId,
       clientName: client.clientName,
       redirectUri: q.redirect_uri,
       state: q.state ?? null,
       codeChallenge: q.code_challenge,
-    }), 'EX', AUTHREQ_TTL_S);
+      loginMode,
+    } satisfies AuthRequest), 'EX', AUTHREQ_TTL_S);
 
-    const lfid = await lfidConfig();
+    if (lfid?.mode === 'native') {
+      // Bind the rest of the flow to this browser, so a /lfid/start or
+      // callback URL forwarded to someone else cannot finish it, and ask the
+      // user to confirm the client before going to LFID (whose own session
+      // may sign them in without a prompt).
+      const binding = b64url(randomBytes(24));
+      await r.set(`mcp:lfidreq:${reqId}`, JSON.stringify({ binding: sha256(binding) } satisfies LfidRequest), 'EX', AUTHREQ_TTL_S);
+      res.cookie(lfidCookieName(reqId), binding, lfidCookieOptions());
+      res.setHeader('cache-control', 'no-store');
+      res.setHeader('content-type', 'text/html; charset=utf-8');
+      return res.send(lfidConsentPage(reqId, client.clientName, new URL(q.redirect_uri).host));
+    }
     if (lfid) {
       const url = new URL(lfid.startUrl);
       url.searchParams.set('action', 'start');
@@ -193,7 +266,7 @@ mcpAuthRouter.get('/api/mcp-auth/authorize', async (req, res) => {
 
 mcpAuthRouter.get('/api/mcp-auth/lfid-return', (req, res) => {
   const reqId = String(req.query.req_id ?? '');
-  if (!/^[A-Za-z0-9_-]{16,64}$/.test(reqId)) return res.status(400).send('bad request');
+  if (!REQ_ID_RE.test(reqId)) return res.status(400).send('bad request');
   res.setHeader('content-type', 'text/html; charset=utf-8');
   res.send(pageShell('Completing sign-in', `
 <h1>Completing sign-in…</h1>
@@ -223,10 +296,9 @@ mcpAuthRouter.get('/api/mcp-auth/lfid-return', (req, res) => {
 mcpAuthRouter.post('/api/mcp-auth/lfid-complete', async (req, res) => {
   try {
     const { req_id: reqId, access_token: accessToken } = (req.body ?? {}) as { req_id?: string; access_token?: string };
-    if (!reqId || !accessToken) return res.status(400).json({ error: 'invalid_request' });
-    const rawReq = await (await redis()).get(`mcp:authreq:${reqId}`);
-    if (!rawReq) return res.status(400).json({ error: 'expired', error_description: 'authorization request expired — retry from your client' });
-    const authreq = JSON.parse(rawReq) as { clientId: string; clientName: string; redirectUri: string; state: string | null; codeChallenge: string };
+    if (typeof reqId !== 'string' || !accessToken) return res.status(400).json({ error: 'invalid_request' });
+    const authreq = await authRequestFor(reqId, 'bridge');
+    if (!authreq) return res.status(400).json({ error: 'expired', error_description: 'authorization request expired — retry from your client' });
 
     // Validate the Supabase session the module minted. This is a REAL
     // verified session (the module already verified the Auth0 id_token and
@@ -254,18 +326,195 @@ mcpAuthRouter.post('/api/mcp-auth/lfid-complete', async (req, res) => {
   }
 });
 
+// ── LFID native mode (GoTrue PKCE against custom:lfid) ────────────────────
+//
+// /authorize shows a confirm page and sets a per-request cookie. Its button
+// POSTs to /lfid/start, which starts the GoTrue flow. GoTrue returns to
+// /lfid/callback/<req_id> with ?code=. Both steps need the cookie, and every
+// way the callback ends uses up the request.
+
+const LFID_COOKIE_PATH = '/api/mcp-auth/lfid';
+const RESTART = 'Start again from your client.';
+const EXPIRED = `This sign-in has expired or was started in another browser. ${RESTART}`;
+
+interface LfidRequest { binding: string; pkce?: Record<string, string> }
+
+/** Only this server writes these keys; the check catches a corrupt value. */
+function parseLfidRequest(raw: string): LfidRequest | null {
+  let v: unknown;
+  try {
+    v = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const o = v as Record<string, unknown>;
+  if (typeof o.binding !== 'string') return null;
+  if (o.pkce === undefined) return { binding: o.binding };
+  if (!o.pkce || typeof o.pkce !== 'object' || Array.isArray(o.pkce)) return null;
+  const pkce: Record<string, string> = {};
+  for (const [k, val] of Object.entries(o.pkce)) {
+    if (typeof val !== 'string') return null;
+    pkce[k] = val;
+  }
+  return { binding: o.binding, pkce };
+}
+
+function lfidCookieName(reqId: string): string {
+  return `gw_mcp_lfid_${reqId}`;
+}
+
+function lfidCookieOptions() {
+  return {
+    httpOnly: true,
+    // Lax: sent on the top-level GET back from GoTrue and on the same-origin
+    // POST from the confirm page, never on a cross-site POST.
+    sameSite: 'lax' as const,
+    secure: apiBase().startsWith('https://'),
+    path: LFID_COOKIE_PATH,
+    maxAge: AUTHREQ_TTL_S * 1000,
+  };
+}
+
+function readCookie(req: Request, name: string): string | null {
+  for (const part of (req.headers.cookie ?? '').split(';')) {
+    const i = part.indexOf('=');
+    if (i > 0 && part.slice(0, i).trim() === name) return part.slice(i + 1).trim();
+  }
+  return null;
+}
+
+/** The pending native request and its stored form, if this browser holds its binding cookie. */
+async function boundLfidRequest(req: Request, reqId: string): Promise<{ raw: string; pending: LfidRequest } | null> {
+  const cookie = readCookie(req, lfidCookieName(reqId));
+  if (!cookie) return null;
+  const raw = await (await redis()).get(`mcp:lfidreq:${reqId}`);
+  const pending = raw ? parseLfidRequest(raw) : null;
+  if (!raw || !pending) return null;
+  const want = Buffer.from(pending.binding);
+  const got = Buffer.from(sha256(cookie));
+  return want.length === got.length && timingSafeEqual(want, got) ? { raw, pending } : null;
+}
+
+function sendLfidError(res: Response, status: number, message: string): void {
+  res.status(status);
+  res.setHeader('cache-control', 'no-store');
+  res.setHeader('content-type', 'text/html; charset=utf-8');
+  res.send(pageShell('Sign-in failed', `<h1>Sign-in failed</h1><p>${escapeHtml(message)}</p>`));
+}
+
+mcpAuthRouter.post('/api/mcp-auth/lfid/start', async (req, res) => {
+  try {
+    const reqId = String((req.body as { req_id?: unknown } | undefined)?.req_id ?? '');
+    if (!REQ_ID_RE.test(reqId)) return sendLfidError(res, 400, 'Bad request.');
+    const cfg = nativeLfidConfig();
+    if (!cfg) return sendLfidError(res, 503, 'Sign-in is not configured on this deployment.');
+    const [bound, authreq] = await Promise.all([boundLfidRequest(req, reqId), authRequestFor(reqId, 'native')]);
+    if (!bound || !authreq) return sendLfidError(res, 400, EXPIRED);
+
+    let started: Awaited<ReturnType<typeof startNativeLfid>>;
+    try {
+      started = await startNativeLfid(cfg, `${apiBase()}/api/mcp-auth/lfid/callback/${reqId}`);
+    } catch (err) {
+      logger.error({ err }, '[mcp-auth] GoTrue could not start native LFID sign-in');
+      return sendLfidError(res, 502, `Could not start LFID sign-in. ${RESTART}`);
+    }
+    const { url, pkce } = started;
+    await (await redis()).set(
+      `mcp:lfidreq:${reqId}`,
+      JSON.stringify({ binding: bound.pending.binding, pkce } satisfies LfidRequest),
+      'EX', AUTHREQ_TTL_S,
+    );
+    res.setHeader('cache-control', 'no-store');
+    res.redirect(303, url);
+  } catch (err) {
+    logger.error({ err }, '[mcp-auth] lfid/start failed');
+    sendLfidError(res, 500, `Could not start LFID sign-in. ${RESTART}`);
+  }
+});
+
+mcpAuthRouter.get('/api/mcp-auth/lfid/callback/:reqId', async (req, res) => {
+  const reqId = String(req.params.reqId ?? '');
+  if (!REQ_ID_RE.test(reqId)) return sendLfidError(res, 400, 'Bad request.');
+  let claimed = false;
+  try {
+    const r = await redis();
+    const bound = await boundLfidRequest(req, reqId);
+    // Without this browser's cookie the request is left alone: whoever sent
+    // the URL cannot use it up for its owner.
+    if (!bound) return sendLfidError(res, 400, EXPIRED);
+    // Take the verifier atomically, so two callbacks cannot both use it.
+    const taken = await r.getdel(`mcp:lfidreq:${reqId}`);
+    if (taken !== bound.raw) return sendLfidError(res, 400, EXPIRED);
+    claimed = true;
+    res.clearCookie(lfidCookieName(reqId), { ...lfidCookieOptions(), maxAge: undefined });
+
+    // From here on every failure also deletes the MCP request.
+    const fail = async (status: number, message: string) => {
+      await r.del(`mcp:authreq:${reqId}`);
+      sendLfidError(res, status, message);
+    };
+
+    const authreq = await authRequestFor(reqId, 'native');
+    if (!authreq || !bound.pending.pkce) return fail(400, EXPIRED);
+
+    const q = req.query as Record<string, unknown>;
+    if (q.error !== undefined || typeof q.code !== 'string' || !q.code) {
+      // GoTrue's error text is not shown: anyone can put it in this URL.
+      logger.warn({ error: String(q.error ?? '').slice(0, 100), error_code: String(q.error_code ?? '').slice(0, 100) },
+        '[mcp-auth] GoTrue returned no code');
+      return fail(400, `LFID sign-in did not complete. ${RESTART}`);
+    }
+
+    const cfg = nativeLfidConfig();
+    if (!cfg) return fail(503, 'Sign-in is not configured on this deployment.');
+    let who: NativeLfidIdentity;
+    try {
+      who = await finishNativeLfid(cfg, q.code, bound.pending.pkce);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (err instanceof NativeLfidRefused) {
+        logger.warn({ err: message }, '[mcp-auth] native LFID sign-in refused');
+        return fail(401, `LFID sign-in was not accepted. ${RESTART}`);
+      }
+      logger.error({ err: message }, '[mcp-auth] native LFID code exchange failed');
+      return fail(502, `LFID sign-in could not be completed. ${RESTART}`);
+    }
+
+    const redirect = await completeLoginRedirect(authreq, reqId, {
+      email: who.email,
+      subject: who.lfidSub ?? who.authUserId,
+      authMode: 'lfid',
+      lfidSub: who.lfidSub,
+      authUserId: who.authUserId,
+      displayName: who.displayName,
+    });
+    res.setHeader('cache-control', 'no-store');
+    res.redirect(redirect);
+  } catch (err) {
+    logger.error({ err }, '[mcp-auth] lfid/callback failed');
+    if (claimed) {
+      try {
+        await (await redis()).del(`mcp:authreq:${reqId}`);
+      } catch (delErr) {
+        logger.warn({ err: delErr }, '[mcp-auth] could not delete the failed MCP request; it expires on its own');
+      }
+    }
+    sendLfidError(res, 500, `Sign-in could not be completed. ${RESTART}`);
+  }
+});
+
 // ── Magic-link mode ───────────────────────────────────────────────────────
 
 mcpAuthRouter.post('/api/mcp-auth/magic/start', async (req, res) => {
   try {
     const { req_id: reqId, email } = (req.body ?? {}) as { req_id?: string; email?: string };
-    if (!reqId || !email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    if (typeof reqId !== 'string' || !email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
       return res.status(400).send('valid email required');
     }
     const r = await redis();
-    const rawReq = await r.get(`mcp:authreq:${reqId}`);
-    if (!rawReq) return res.status(400).send('authorization request expired — retry from your client');
-    const authreq = JSON.parse(rawReq) as { clientName: string };
+    const authreq = await authRequestFor(reqId, 'magic');
+    if (!authreq) return res.status(400).send('authorization request expired — retry from your client');
 
     const anon = createClient(
       process.env.SUPABASE_URL ?? '',
@@ -289,11 +538,10 @@ mcpAuthRouter.post('/api/mcp-auth/magic/start', async (req, res) => {
 mcpAuthRouter.post('/api/mcp-auth/magic/verify', async (req, res) => {
   try {
     const { req_id: reqId, code: otp } = (req.body ?? {}) as { req_id?: string; code?: string };
-    if (!reqId || !otp) return res.status(400).send('code required');
+    if (typeof reqId !== 'string' || !otp) return res.status(400).send('code required');
     const r = await redis();
-    const [rawReq, rawMagic] = await Promise.all([r.get(`mcp:authreq:${reqId}`), r.get(`mcp:magicreq:${reqId}`)]);
-    if (!rawReq || !rawMagic) return res.status(400).send('authorization request expired — retry from your client');
-    const authreq = JSON.parse(rawReq) as { clientId: string; clientName: string; redirectUri: string; state: string | null; codeChallenge: string };
+    const [authreq, rawMagic] = await Promise.all([authRequestFor(reqId, 'magic'), r.get(`mcp:magicreq:${reqId}`)]);
+    if (!authreq || !rawMagic) return res.status(400).send('authorization request expired — retry from your client');
     const { email } = JSON.parse(rawMagic) as { email: string };
 
     const anon = createClient(
@@ -323,7 +571,7 @@ mcpAuthRouter.post('/api/mcp-auth/magic/verify', async (req, res) => {
 
 async function completeLogin(
   res: Response,
-  authreq: { clientId: string; clientName: string; redirectUri: string; state: string | null; codeChallenge: string },
+  authreq: AuthRequest,
   reqId: string,
   identity: { email: string; subject: string; authMode: 'lfid' | 'magic_link'; lfidSub?: string; authUserId?: string; displayName?: string },
 ): Promise<void> {
@@ -331,7 +579,7 @@ async function completeLogin(
 }
 
 async function completeLoginRedirect(
-  authreq: { clientId: string; clientName: string; redirectUri: string; state: string | null; codeChallenge: string },
+  authreq: AuthRequest,
   reqId: string,
   identity: { email: string; subject: string; authMode: 'lfid' | 'magic_link'; lfidSub?: string; authUserId?: string; displayName?: string },
 ): Promise<string> {
@@ -358,7 +606,7 @@ async function completeLoginRedirect(
     scopes: access.scopes,
     tier: access.groups.map((g) => g.name).join(','),
   }), 'EX', CODE_TTL_S);
-  await r.del(`mcp:authreq:${reqId}`, `mcp:magicreq:${reqId}`);
+  await r.del(`mcp:authreq:${reqId}`, `mcp:magicreq:${reqId}`, `mcp:lfidreq:${reqId}`);
 
   const target = new URL(authreq.redirectUri);
   target.searchParams.set('code', grantCode);
@@ -464,11 +712,17 @@ mcpAuthRouter.post('/api/mcp-auth/token', async (req, res) => {
   }
 });
 
-// ── Minimal login pages (magic-link mode) ─────────────────────────────────
+// ── Minimal login pages ───────────────────────────────────────────────────
+
+const HTML_ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (c) => HTML_ESCAPES[c] ?? c);
+}
 
 function pageShell(title: string, inner: string): string {
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${title}</title><style>
+<title>${escapeHtml(title)}</title><style>
 body{font-family:-apple-system,system-ui,sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;background:#f6f6f7;color:#1a1a1a}
 .card{background:#fff;border:1px solid #e3e3e6;border-radius:12px;padding:32px;max-width:380px;width:100%;box-shadow:0 4px 16px rgba(0,0,0,.06)}
 h1{font-size:18px;margin:0 0 4px}p{font-size:14px;color:#555;margin:0 0 20px}
@@ -478,13 +732,23 @@ button{width:100%;padding:10px;font-size:15px;border:0;border-radius:8px;backgro
 </style></head><body><div class="card">${inner}</div></body></html>`;
 }
 
+function lfidConsentPage(reqId: string, clientName: string, redirectHost: string): string {
+  return pageShell('Sign in', `
+<h1>Sign in to connect</h1>
+<p><strong>${escapeHtml(clientName)}</strong> is requesting access to your account. After you sign in you will be sent to <strong>${escapeHtml(redirectHost)}</strong>. Continue only if you started this from that client.</p>
+<form method="POST" action="/api/mcp-auth/lfid/start">
+<input type="hidden" name="req_id" value="${escapeHtml(reqId)}">
+<button type="submit">Continue with LFID</button>
+</form>`);
+}
+
 function magicEmailPage(reqId: string, clientName: string, error: string | null): string {
   return pageShell('Sign in', `
 <h1>Sign in to connect</h1>
-<p><strong>${clientName}</strong> is requesting access. Enter your email and we'll send a one-time code.</p>
-${error ? `<div class="err">${error}</div>` : ''}
+<p><strong>${escapeHtml(clientName)}</strong> is requesting access. Enter your email and we'll send a one-time code.</p>
+${error ? `<div class="err">${escapeHtml(error)}</div>` : ''}
 <form method="POST" action="/api/mcp-auth/magic/start">
-<input type="hidden" name="req_id" value="${reqId}">
+<input type="hidden" name="req_id" value="${escapeHtml(reqId)}">
 <input type="email" name="email" placeholder="you@example.com" required autofocus>
 <button type="submit">Send code</button>
 </form>`);
@@ -493,10 +757,10 @@ ${error ? `<div class="err">${error}</div>` : ''}
 function magicCodePage(reqId: string, clientName: string, email: string, error: string | null): string {
   return pageShell('Enter code', `
 <h1>Check your email</h1>
-<p>We sent a sign-in code to <strong>${email}</strong>. Enter it below to finish connecting <strong>${clientName}</strong>.</p>
-${error ? `<div class="err">${error}</div>` : ''}
+<p>We sent a sign-in code to <strong>${escapeHtml(email)}</strong>. Enter it below to finish connecting <strong>${escapeHtml(clientName)}</strong>.</p>
+${error ? `<div class="err">${escapeHtml(error)}</div>` : ''}
 <form method="POST" action="/api/mcp-auth/magic/verify">
-<input type="hidden" name="req_id" value="${reqId}">
+<input type="hidden" name="req_id" value="${escapeHtml(reqId)}">
 <input inputmode="numeric" name="code" placeholder="123456" required autofocus autocomplete="one-time-code">
 <button type="submit">Verify</button>
 </form>`);
