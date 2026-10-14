@@ -4,6 +4,7 @@ import { updateSupabaseSession } from './lib/supabase/middleware'
 import modulePrefixes from './lib/modules/generated-module-prefixes.json'
 import { parseHost, getBrandLocalDomain } from './lib/host-parser'
 import { edgeCacheGet, edgeCachePut } from './lib/edge-cache'
+import { frameAncestors } from './lib/frame-policy'
 
 // Resolved once at module load — re-evaluated only when the dev server
 // or container restarts. Throws if BRAND_ID/BRAND_LOCAL_DOMAIN are
@@ -297,7 +298,18 @@ async function lookupCanonicalSlug(identifier: string): Promise<string | null> {
   }
 }
 
+/**
+ * Every response leaves with a frame-ancestors policy (see lib/frame-policy):
+ * embed pages may be framed by the brand's embedding sites, nothing else by
+ * anyone but this site.
+ */
 export async function middleware(request: NextRequest) {
+  const response = await routeRequest(request)
+  if (response) response.headers.set('Content-Security-Policy', frameAncestors(request.nextUrl.pathname))
+  return response
+}
+
+async function routeRequest(request: NextRequest) {
   const hostname = request.headers.get('host')?.split(':')[0] || ''
   const pathname = request.nextUrl.pathname
 
