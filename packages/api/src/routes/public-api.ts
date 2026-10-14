@@ -834,6 +834,26 @@ export async function createPublicApiRouter(
       supabase,
       config: {} as any,
       moduleConfig: mod.moduleConfig ?? {},
+      // Same queue bridge the module apiRoutes get in server.ts, so a public
+      // API route can hand long work to a worker (e.g. compliance erasures).
+      // Public API routes are reached with an API key, so a module may only
+      // enqueue its own jobs: `<module>:<kind>` on the shared queue, or
+      // anything on a queue the module itself registered.
+      enqueueJob: async (queueName, jobName, data, opts) => {
+        const { getQueue, getQueueModule } = await import('../lib/queue/index.js');
+        const ownsQueue = getQueueModule(queueName) === mod.config.id;
+        if (!ownsQueue && !jobName.startsWith(`${mod.config.id}:`)) {
+          moduleLogger.warn({ queueName, jobName }, '[public-api] enqueueJob refused: a module may only enqueue its own jobs');
+          return { id: undefined };
+        }
+        const queue = getQueue(queueName);
+        if (!queue) {
+          moduleLogger.warn({ queueName }, `[public-api] enqueueJob: queue not registered — job '${jobName}' will not run`);
+          return { id: undefined };
+        }
+        const job = await queue.add(jobName, data, opts);
+        return { id: job.id };
+      },
     };
 
     // Create scoped context with public API helpers
