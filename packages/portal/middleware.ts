@@ -5,6 +5,10 @@ import modulePrefixes from './lib/modules/generated-module-prefixes.json'
 import { parseHost, getBrandLocalDomain } from './lib/host-parser'
 import { edgeCacheGet, edgeCachePut } from './lib/edge-cache'
 import { frameAncestors } from './lib/frame-policy'
+import { parseShortLinkHosts, resolveShortLinkPath } from './lib/short-link-hosts'
+
+// Hosts that serve only short links at the root (SHORT_LINK_HOSTS).
+const SHORT_LINK_HOSTS = parseShortLinkHosts(process.env.SHORT_LINK_HOSTS)
 
 // Resolved once at module load — re-evaluated only when the dev server
 // or container restarts. Throws if BRAND_ID/BRAND_LOCAL_DOMAIN are
@@ -316,6 +320,21 @@ async function routeRequest(request: NextRequest) {
   // Health check endpoint — always pass through for K8s probes
   if (pathname === '/api/health') {
     return NextResponse.next()
+  }
+
+  // Short-link-only hosts: `/<slug>` → the /go/<slug> handler, `/` → home.
+  // Nothing else is served on these hosts.
+  const shortLinkHost = SHORT_LINK_HOSTS.get(hostname.toLowerCase().replace(/\.$/, ''))
+  if (shortLinkHost) {
+    if (pathname.startsWith('/go/')) return NextResponse.next()
+    const action = resolveShortLinkPath(shortLinkHost, pathname)
+    if (action.kind === 'home') return NextResponse.redirect(action.url, 302)
+    if (action.kind === 'rewrite') {
+      const url = request.nextUrl.clone()
+      url.pathname = action.pathname
+      return NextResponse.rewrite(url)
+    }
+    return new NextResponse('Not found', { status: 404 })
   }
 
   // Portal listing API — defense-in-depth Vary: Host header so
