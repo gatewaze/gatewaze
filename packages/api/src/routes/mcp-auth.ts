@@ -17,7 +17,7 @@
  * Redis; durable sessions (refresh tokens) in mcp_sessions.
  */
 import { randomBytes, createHash, timingSafeEqual } from 'crypto';
-import { Router, type Request, type Response } from 'express';
+import { Router, type NextFunction, type Request, type Response } from 'express';
 import { createClient } from '@supabase/supabase-js';
 import { labeledRouter } from '../lib/router-registry.js';
 import { getSupabase } from '../lib/supabase.js';
@@ -101,7 +101,8 @@ function parseAuthRequest(raw: string | null): AuthRequest | null {
  * The pending request for reqId, if it was made for this route's mode. A
  * request stored before loginMode existed is accepted by the bridge and
  * magic-link routes, which is what they did before; native requests always
- * carry the tag.
+ * carry the tag. The bridge routes also need a browser binding, which only
+ * /authorize creates, so in practice an untagged request cannot finish there.
  */
 async function authRequestFor(reqId: string, mode: LoginMode): Promise<AuthRequest | null> {
   if (!REQ_ID_RE.test(reqId)) return null;
@@ -120,7 +121,10 @@ async function authRequestFor(reqId: string, mode: LoginMode): Promise<AuthReque
 // its callback URL is already registered in the LF Auth0 application, the
 // function validates our return_url origin against the module's
 // AUTH0_ALLOWED_RETURN_ORIGINS and hands the Supabase session back in the URL
-// fragment, and provisioning happens inside that function.
+// fragment, and provisioning happens inside that function. The function only
+// checks the origin, so anyone can build a start URL that returns to a given
+// request id; the browser binding below is what ties the return to the
+// browser that confirmed the client.
 //
 // Native mode runs the GoTrue PKCE flow against custom:lfid from this server
 // (lib/mcp-auth/lfid-native.ts). GoTrue redirects back to
@@ -131,23 +135,54 @@ async function authRequestFor(reqId: string, mode: LoginMode): Promise<AuthReque
 
 interface ClientMeta { clientId: string; clientName: string; redirectUris: string[] }
 
+// Plain http is allowed only back to the user's own machine, for native
+// clients that listen on a local port (RFC 8252 §7.3). The hostname must be
+// exactly one of these, with any port: a prefix test would also accept
+// http://localhost.example.com or http://localhost@example.com.
+const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+/** Whether a client may use this redirect URI. */
+function isAllowedRedirectUri(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+  if (url.protocol === 'https:') return true;
+  return url.protocol === 'http:' && LOOPBACK_HOSTNAMES.has(url.hostname);
+}
+
+/** The allowed redirect URIs from a stored registration or a metadata document. */
+function allowedRedirectUris(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter(isAllowedRedirectUri) : [];
+}
+
 async function resolveClient(clientId: string): Promise<ClientMeta | null> {
   if (/^https:\/\//.test(clientId)) {
     // Client ID Metadata Document: the client_id IS a URL to its metadata.
     try {
       const res = await fetch(clientId, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(5000) });
       if (!res.ok) return null;
-      const doc = (await res.json()) as { client_id?: string; client_name?: string; redirect_uris?: string[] };
+      const doc = (await res.json()) as { client_id?: unknown; client_name?: unknown; redirect_uris?: unknown };
       if (doc.client_id !== clientId || !Array.isArray(doc.redirect_uris) || doc.redirect_uris.length === 0) return null;
-      return { clientId, clientName: doc.client_name ?? new URL(clientId).hostname, redirectUris: doc.redirect_uris };
+      // Anyone can publish a metadata document, so its redirect URIs get the
+      // same check as a DCR registration. Same-origin with the client_id is
+      // not required, because loopback native clients cannot meet it.
+      const clientName = typeof doc.client_name === 'string' && doc.client_name ? doc.client_name : new URL(clientId).hostname;
+      return { clientId, clientName, redirectUris: allowedRedirectUris(doc.redirect_uris) };
     } catch {
       return null;
     }
   }
   const raw = await (await redis()).get(`mcp:client:${clientId}`);
   if (!raw) return null;
-  const doc = JSON.parse(raw) as { client_name?: string; redirect_uris: string[] };
-  return { clientId, clientName: doc.client_name ?? clientId, redirectUris: doc.redirect_uris };
+  const doc = JSON.parse(raw) as { client_name?: unknown; redirect_uris?: unknown };
+  // Registrations made before the loopback check was exact can hold a URI it
+  // now refuses; those URIs are not used.
+  const clientName = typeof doc.client_name === 'string' && doc.client_name ? doc.client_name : clientId;
+  return { clientId, clientName, redirectUris: allowedRedirectUris(doc.redirect_uris) };
 }
 
 // ── Discovery metadata ────────────────────────────────────────────────────
@@ -170,11 +205,20 @@ mcpAuthRouter.get('/.well-known/oauth-authorization-server', (_req, res) => {
 
 // ── DCR fallback ──────────────────────────────────────────────────────────
 
-mcpAuthRouter.post('/api/mcp-auth/register', async (req, res) => {
+// Per client IP. A client registers once per install; each registration is
+// kept for 180 days, so the limit stops a flood filling Redis. It is generous
+// because behind an ingress without proxy protocol every client shares one
+// address.
+const registerRateLimit = ipRateLimiter({ points: 300, durationSecs: 3600, bucket: 'mcp-auth-register' });
+
+mcpAuthRouter.post('/api/mcp-auth/register', registerRateLimit, async (req, res) => {
   try {
-    const body = (req.body ?? {}) as { client_name?: string; redirect_uris?: unknown; application_type?: string };
+    const body = (req.body ?? {}) as { client_name?: unknown; redirect_uris?: unknown };
+    if (body.client_name !== undefined && typeof body.client_name !== 'string') {
+      return res.status(400).json({ error: 'invalid_client_metadata', error_description: 'client_name must be a string' });
+    }
     if (!Array.isArray(body.redirect_uris) || body.redirect_uris.length === 0 ||
-        !body.redirect_uris.every((u) => typeof u === 'string' && /^https:\/\/|^http:\/\/(localhost|127\.0\.0\.1)/.test(u))) {
+        !body.redirect_uris.every(isAllowedRedirectUri)) {
       return res.status(400).json({ error: 'invalid_redirect_uri' });
     }
     const clientId = `dcr_${b64url(randomBytes(18))}`;
@@ -199,7 +243,11 @@ mcpAuthRouter.post('/api/mcp-auth/register', async (req, res) => {
 
 // ── /authorize — validate, then branch to the brand's login mode ──────────
 
-mcpAuthRouter.get('/api/mcp-auth/authorize', async (req, res) => {
+// Per client IP. One sign-in uses one; behind an ingress without proxy
+// protocol every client shares one address, hence the headroom.
+const authorizeRateLimit = ipRateLimiter({ points: 120, durationSecs: 60, bucket: 'mcp-auth-authorize' });
+
+mcpAuthRouter.get('/api/mcp-auth/authorize', browserTooMany, authorizeRateLimit, async (req, res) => {
   try {
     const q = req.query as Record<string, string>;
     if (q.response_type !== 'code') return res.status(400).send('unsupported response_type');
@@ -208,6 +256,8 @@ mcpAuthRouter.get('/api/mcp-auth/authorize', async (req, res) => {
     }
     const client = q.client_id ? await resolveClient(q.client_id) : null;
     if (!client) return res.status(400).send('unknown client_id');
+    // client.redirectUris holds only URIs that pass isAllowedRedirectUri, and
+    // the match is exact, so this also applies the redirect URI rule.
     if (!q.redirect_uri || !client.redirectUris.includes(q.redirect_uri)) {
       return res.status(400).send('redirect_uri not registered for this client');
     }
@@ -230,23 +280,17 @@ mcpAuthRouter.get('/api/mcp-auth/authorize', async (req, res) => {
       loginMode,
     } satisfies AuthRequest), 'EX', AUTHREQ_TTL_S);
 
-    if (lfid?.mode === 'native') {
-      // Bind the rest of the flow to this browser, so a /lfid/start or
-      // callback URL forwarded to someone else cannot finish it, and ask the
-      // user to confirm the client before going to LFID (whose own session
-      // may sign them in without a prompt).
+    if (lfid) {
+      // Both LFID modes: bind the rest of the flow to this browser, so a
+      // start, return or callback URL forwarded to someone else cannot finish
+      // it, and ask the user to confirm the client before going to LFID
+      // (whose own session may sign them in without a prompt).
       const binding = b64url(randomBytes(24));
-      await r.set(`mcp:lfidreq:${reqId}`, JSON.stringify({ binding: sha256(binding) } satisfies LfidRequest), 'EX', AUTHREQ_TTL_S);
-      res.cookie(lfidCookieName(reqId), binding, lfidCookieOptions());
+      await r.set(`${BINDINGS[lfid.mode].key}${reqId}`, JSON.stringify({ binding: sha256(binding) } satisfies LfidRequest), 'EX', AUTHREQ_TTL_S);
+      res.cookie(bindingCookieName(lfid.mode, reqId), binding, bindingCookieOptions(lfid.mode));
       res.setHeader('cache-control', 'no-store');
       res.setHeader('content-type', 'text/html; charset=utf-8');
-      return res.send(lfidConsentPage(reqId, client.clientName, new URL(q.redirect_uri).host));
-    }
-    if (lfid) {
-      const url = new URL(lfid.startUrl);
-      url.searchParams.set('action', 'start');
-      url.searchParams.set('return_url', `${apiBase()}/api/mcp-auth/lfid-return?req_id=${encodeURIComponent(reqId)}`);
-      return res.redirect(url.toString());
+      return res.send(lfidConsentPage(reqId, client.clientName, new URL(q.redirect_uri).host, BINDINGS[lfid.mode].start));
     }
 
     // Magic-link mode: minimal email form. POSTs to /magic/start.
@@ -258,87 +302,29 @@ mcpAuthRouter.get('/api/mcp-auth/authorize', async (req, res) => {
   }
 });
 
-// ── LFID return (rides the lfid-auth module's sign-in flow) ───────────────
+// ── Browser binding for the LFID modes ────────────────────────────────────
 //
-// The module's edge function 302s here with the Supabase session in the URL
-// FRAGMENT (never sent to servers), so this route serves a minimal bridge
-// page whose script forwards the access token to /lfid-complete and then
-// navigates to the client's redirect URI.
+// In both LFID modes /authorize stores a hash of a random value under the
+// mode's key and sets the value as an HttpOnly cookie scoped to the mode's
+// routes. Every later step needs that cookie, so a URL forwarded to, or
+// built for, another browser cannot finish the request.
 
-mcpAuthRouter.get('/api/mcp-auth/lfid-return', (req, res) => {
-  const reqId = String(req.query.req_id ?? '');
-  if (!REQ_ID_RE.test(reqId)) return res.status(400).send('bad request');
-  res.setHeader('content-type', 'text/html; charset=utf-8');
-  res.send(pageShell('Completing sign-in', `
-<h1>Completing sign-in…</h1>
-<p>One moment.</p>
-<script>
-(async () => {
-  const params = new URLSearchParams(window.location.hash.slice(1));
-  const token = params.get('access_token');
-  history.replaceState(null, '', window.location.pathname); // scrub the fragment
-  if (!token) { document.querySelector('p').textContent = 'Sign-in failed: no session returned.'; return; }
-  try {
-    const r = await fetch('/api/mcp-auth/lfid-complete', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ req_id: ${JSON.stringify(reqId)}, access_token: token }),
-    });
-    const body = await r.json();
-    if (r.ok && body.redirect) { window.location.replace(body.redirect); return; }
-    document.querySelector('p').textContent = 'Sign-in failed: ' + (body.error_description || body.error || r.status);
-  } catch (e) {
-    document.querySelector('p').textContent = 'Sign-in failed: ' + e;
-  }
-})();
-</script>`));
-});
+type LfidMode = 'native' | 'bridge';
 
-mcpAuthRouter.post('/api/mcp-auth/lfid-complete', async (req, res) => {
-  try {
-    const { req_id: reqId, access_token: accessToken } = (req.body ?? {}) as { req_id?: string; access_token?: string };
-    if (typeof reqId !== 'string' || !accessToken) return res.status(400).json({ error: 'invalid_request' });
-    const authreq = await authRequestFor(reqId, 'bridge');
-    if (!authreq) return res.status(400).json({ error: 'expired', error_description: 'authorization request expired — retry from your client' });
+const BINDINGS: Record<LfidMode, { key: string; cookie: string; path: string; start: string }> = {
+  native: { key: 'mcp:lfidreq:', cookie: 'gw_mcp_lfid_', path: '/api/mcp-auth/lfid', start: '/api/mcp-auth/lfid/start' },
+  bridge: { key: 'mcp:bridgereq:', cookie: 'gw_mcp_bridge_', path: '/api/mcp-auth/bridge', start: '/api/mcp-auth/bridge/start' },
+};
 
-    // Validate the Supabase session the module minted. This is a REAL
-    // verified session (the module already verified the Auth0 id_token and
-    // provisioned auth user + person), so getUser() is the trust anchor.
-    const supabase = getSupabase();
-    const who = await supabase.auth.getUser(accessToken);
-    const user = who.data.user;
-    if (who.error || !user?.email) {
-      return res.status(401).json({ error: 'invalid_token', error_description: 'session not accepted' });
-    }
-    const lfidSub = (user.user_metadata as Record<string, unknown> | null)?.lfid_sub as string | undefined;
-
-    const redirect = await completeLoginRedirect(authreq, reqId, {
-      email: user.email,
-      subject: lfidSub ?? user.id,
-      authMode: 'lfid',
-      lfidSub,
-      authUserId: user.id,
-      displayName: (user.user_metadata as Record<string, unknown> | null)?.full_name as string | undefined,
-    });
-    res.json({ redirect });
-  } catch (err) {
-    logger.error({ err }, '[mcp-auth] lfid-complete failed');
-    res.status(500).json({ error: 'server_error' });
-  }
-});
-
-// ── LFID native mode (GoTrue PKCE against custom:lfid) ────────────────────
-//
-// /authorize shows a confirm page and sets a per-request cookie. Its button
-// POSTs to /lfid/start, which starts the GoTrue flow. GoTrue returns to
-// /lfid/callback/<req_id> with ?code=. Both steps need the cookie, and every
-// way the callback ends uses up the request.
-
-const LFID_COOKIE_PATH = '/api/mcp-auth/lfid';
 const RESTART = 'Start again from your client.';
 const EXPIRED = `This sign-in has expired or was started in another browser. ${RESTART}`;
+const TOO_MANY = 'Too many sign-in attempts from this network. Wait a few minutes, then start again from your client.';
 
-interface LfidRequest { binding: string; pkce?: Record<string, string> }
+/**
+ * The stored binding. Native adds the GoTrue PKCE state at /lfid/start;
+ * bridge marks `started` at /bridge/start.
+ */
+interface LfidRequest { binding: string; pkce?: Record<string, string>; started?: true }
 
 /** Only this server writes these keys; the check catches a corrupt value. */
 function parseLfidRequest(raw: string): LfidRequest | null {
@@ -351,30 +337,37 @@ function parseLfidRequest(raw: string): LfidRequest | null {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
   const o = v as Record<string, unknown>;
   if (typeof o.binding !== 'string') return null;
-  if (o.pkce === undefined) return { binding: o.binding };
+  if (o.started !== undefined && o.started !== true) return null;
+  const parsed: LfidRequest = o.started ? { binding: o.binding, started: true } : { binding: o.binding };
+  if (o.pkce === undefined) return parsed;
   if (!o.pkce || typeof o.pkce !== 'object' || Array.isArray(o.pkce)) return null;
   const pkce: Record<string, string> = {};
   for (const [k, val] of Object.entries(o.pkce)) {
     if (typeof val !== 'string') return null;
     pkce[k] = val;
   }
-  return { binding: o.binding, pkce };
+  return { ...parsed, pkce };
 }
 
-function lfidCookieName(reqId: string): string {
-  return `gw_mcp_lfid_${reqId}`;
+function bindingCookieName(mode: LfidMode, reqId: string): string {
+  return `${BINDINGS[mode].cookie}${reqId}`;
 }
 
-function lfidCookieOptions() {
+function bindingCookieOptions(mode: LfidMode) {
   return {
     httpOnly: true,
-    // Lax: sent on the top-level GET back from GoTrue and on the same-origin
-    // POST from the confirm page, never on a cross-site POST.
+    // Lax: sent on the top-level GET back from GoTrue, on the same-origin
+    // POST from the confirm page and on the bridge return page's same-origin
+    // fetch, never on a cross-site POST.
     sameSite: 'lax' as const,
     secure: apiBase().startsWith('https://'),
-    path: LFID_COOKIE_PATH,
+    path: BINDINGS[mode].path,
     maxAge: AUTHREQ_TTL_S * 1000,
   };
+}
+
+function clearBindingCookie(res: Response, mode: LfidMode, reqId: string): void {
+  res.clearCookie(bindingCookieName(mode, reqId), { ...bindingCookieOptions(mode), maxAge: undefined });
 }
 
 function readCookie(req: Request, name: string): string | null {
@@ -385,11 +378,11 @@ function readCookie(req: Request, name: string): string | null {
   return null;
 }
 
-/** The pending native request and its stored form, if this browser holds its binding cookie. */
-async function boundLfidRequest(req: Request, reqId: string): Promise<{ raw: string; pending: LfidRequest } | null> {
-  const cookie = readCookie(req, lfidCookieName(reqId));
+/** The pending request's binding and its stored form, if this browser holds the mode's cookie for it. */
+async function boundLfidRequest(req: Request, reqId: string, mode: LfidMode): Promise<{ raw: string; pending: LfidRequest } | null> {
+  const cookie = readCookie(req, bindingCookieName(mode, reqId));
   if (!cookie) return null;
-  const raw = await (await redis()).get(`mcp:lfidreq:${reqId}`);
+  const raw = await (await redis()).get(`${BINDINGS[mode].key}${reqId}`);
   const pending = raw ? parseLfidRequest(raw) : null;
   if (!raw || !pending) return null;
   const want = Buffer.from(pending.binding);
@@ -404,19 +397,200 @@ function sendLfidError(res: Response, status: number, message: string): void {
   res.send(pageShell('Sign-in failed', `<h1>Sign-in failed</h1><p>${escapeHtml(message)}</p>`));
 }
 
-// Per client IP, shared by /lfid/start and the callback. One sign-in uses
-// two; the limit only stops a client hammering GoTrue through the API. It is
-// generous because behind an ingress without proxy protocol every client
-// shares one address.
-const lfidNativeRateLimit = ipRateLimiter({ points: 120, durationSecs: 60, bucket: 'mcp-auth-lfid' });
+/**
+ * The IP rate limiter answers 429 with JSON. Placed before it on the routes a
+ * person reaches in their browser, this shows that answer as a page instead.
+ * Those routes never answer JSON themselves, so only a 429 is changed.
+ */
+function browserTooMany(_req: Request, res: Response, next: NextFunction): void {
+  const json = res.json.bind(res);
+  res.json = ((body: unknown) => {
+    if (res.statusCode !== 429) return json(body);
+    sendLfidError(res, 429, TOO_MANY);
+    return res;
+  }) as Response['json'];
+  next();
+}
 
-mcpAuthRouter.post('/api/mcp-auth/lfid/start', lfidNativeRateLimit, async (req, res) => {
+// Per client IP, shared by the LFID sign-in steps of both modes. One sign-in
+// uses two; the limit only stops a client hammering GoTrue or Supabase
+// through the API. It is generous because behind an ingress without proxy
+// protocol every client shares one address.
+const lfidRateLimit = ipRateLimiter({ points: 120, durationSecs: 60, bucket: 'mcp-auth-lfid' });
+
+// ── LFID bridge mode (rides the lfid-auth module's edge function) ─────────
+//
+// /authorize shows a confirm page and sets a per-request cookie. Its button
+// POSTs to /bridge/start, which sends the user to the module's edge function.
+// The function 302s to /bridge/return with the Supabase session in the URL
+// FRAGMENT (never sent to servers), so that route serves a minimal page whose
+// script forwards the access token to /bridge/complete and then navigates to
+// the client's redirect URI. /bridge/start and /bridge/complete need the
+// cookie, and every way /bridge/complete ends once it has accepted the cookie
+// uses up the request.
+
+mcpAuthRouter.post('/api/mcp-auth/bridge/start', browserTooMany, lfidRateLimit, async (req, res) => {
+  try {
+    const reqId = String((req.body as { req_id?: unknown } | undefined)?.req_id ?? '');
+    if (!REQ_ID_RE.test(reqId)) return sendLfidError(res, 400, 'Bad request.');
+    const [bound, authreq] = await Promise.all([boundLfidRequest(req, reqId, 'bridge'), authRequestFor(reqId, 'bridge')]);
+    if (!bound || !authreq) return sendLfidError(res, 400, EXPIRED);
+
+    // Read the mode again: an install can leave bridge mode while the
+    // confirm page is open, and the start URL comes from the current config.
+    const lfid = await resolveLfidLogin(getSupabase());
+    if (lfid?.mode !== 'bridge') return sendLfidError(res, 400, `Sign-in settings have changed. ${RESTART}`);
+
+    await (await redis()).set(
+      `${BINDINGS.bridge.key}${reqId}`,
+      JSON.stringify({ binding: bound.pending.binding, started: true } satisfies LfidRequest),
+      'EX', AUTHREQ_TTL_S,
+    );
+    const url = new URL(lfid.startUrl);
+    url.searchParams.set('action', 'start');
+    url.searchParams.set('return_url', `${apiBase()}/api/mcp-auth/bridge/return?req_id=${encodeURIComponent(reqId)}`);
+    res.setHeader('cache-control', 'no-store');
+    res.redirect(303, url.toString());
+  } catch (err) {
+    logger.error({ err }, '[mcp-auth] bridge/start failed');
+    sendLfidError(res, 500, `Could not start LFID sign-in. ${RESTART}`);
+  }
+});
+
+mcpAuthRouter.get('/api/mcp-auth/bridge/return', (req, res) => {
+  const reqId = String(req.query.req_id ?? '');
+  if (!REQ_ID_RE.test(reqId)) return res.status(400).send('bad request');
+  res.setHeader('cache-control', 'no-store');
+  res.setHeader('content-type', 'text/html; charset=utf-8');
+  res.send(pageShell('Completing sign-in', `
+<h1>Completing sign-in…</h1>
+<p>One moment.</p>
+<script>
+(async () => {
+  const params = new URLSearchParams(window.location.hash.slice(1));
+  const token = params.get('access_token');
+  history.replaceState(null, '', window.location.pathname); // scrub the fragment
+  if (!token) { document.querySelector('p').textContent = 'Sign-in failed: no session returned.'; return; }
+  try {
+    const r = await fetch('/api/mcp-auth/bridge/complete', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ req_id: ${JSON.stringify(reqId)}, access_token: token }),
+    });
+    let body = {};
+    try { body = await r.json(); } catch { /* not JSON, e.g. an ingress error page */ }
+    // Only ever navigate to a web URL, whatever the server returns.
+    if (r.ok && typeof body.redirect === 'string' && (body.redirect.startsWith('https://') || body.redirect.startsWith('http://'))) { window.location.replace(body.redirect); return; }
+    const reason = r.status === 429 ? ${JSON.stringify(TOO_MANY)}
+      : typeof body.error_description === 'string' ? body.error_description : ${JSON.stringify(RESTART)};
+    document.querySelector('p').textContent = 'Sign-in failed. ' + reason;
+  } catch (e) {
+    document.querySelector('p').textContent = 'Sign-in failed. ' + ${JSON.stringify(RESTART)};
+  }
+})();
+</script>`));
+});
+
+async function revokeBridgeSession(accessToken: string, userId: string): Promise<void> {
+  try {
+    const { error } = await getSupabase().auth.admin.signOut(accessToken, 'local');
+    if (error) logger.warn({ err: error.message, userId }, '[mcp-auth] could not revoke the bridge LFID session');
+  } catch (err) {
+    logger.warn({ err: err instanceof Error ? err.message : String(err), userId }, '[mcp-auth] could not revoke the bridge LFID session');
+  }
+}
+
+// The bridge used to return here. A sign-in that was in flight when this
+// release went out lands on this page.
+mcpAuthRouter.get('/api/mcp-auth/lfid-return', (_req, res) => {
+  sendLfidError(res, 400, EXPIRED);
+});
+
+mcpAuthRouter.post('/api/mcp-auth/bridge/complete', lfidRateLimit, async (req, res) => {
+  // The return page always sends JSON. Refusing anything else means a plain
+  // HTML form on another origin cannot post here.
+  if (!req.is('application/json')) return res.status(415).json({ error: 'invalid_request' });
+  const { req_id: reqId, access_token: accessToken } = (req.body ?? {}) as { req_id?: unknown; access_token?: unknown };
+  if (typeof reqId !== 'string' || !REQ_ID_RE.test(reqId) || typeof accessToken !== 'string' || !accessToken) {
+    return res.status(400).json({ error: 'invalid_request' });
+  }
+  let claimed = false;
+  try {
+    const r = await redis();
+    // Unlike the native callback, the request's mode is checked before the
+    // binding is claimed. The bridge routes still accept an untagged request
+    // (see authRequestFor), so this keeps a request of another mode out of
+    // reach even if a binding somehow existed for it.
+    const [bound, authreq] = await Promise.all([boundLfidRequest(req, reqId, 'bridge'), authRequestFor(reqId, 'bridge')]);
+    // Without this browser's cookie, or for a request that is not a bridge
+    // request, the request is left alone: whoever sent the URL cannot use it
+    // up for its owner.
+    if (!bound || !authreq) return res.status(400).json({ error: 'expired', error_description: EXPIRED });
+    // Take the binding atomically, so two completions cannot both use it.
+    const taken = await r.getdel(`${BINDINGS.bridge.key}${reqId}`);
+    if (taken !== bound.raw) return res.status(400).json({ error: 'expired', error_description: EXPIRED });
+    claimed = true;
+    clearBindingCookie(res, 'bridge', reqId);
+
+    // From here on every failure also deletes the MCP request.
+    const fail = async (status: number, error: string, description: string) => {
+      await r.del(`mcp:authreq:${reqId}`);
+      res.status(status).json({ error, error_description: description });
+    };
+
+    // Not started means this browser never pressed Continue on the confirm page.
+    if (!bound.pending.started) return fail(400, 'expired', EXPIRED);
+
+    // Validate the Supabase session the module minted. This is a REAL
+    // verified session (the module already verified the Auth0 id_token and
+    // provisioned auth user + person), so getUser() is the trust anchor.
+    const who = await getSupabase().auth.getUser(accessToken);
+    const user = who.data.user;
+    if (who.error || !user?.email) return fail(401, 'invalid_token', `Session not accepted. ${RESTART}`);
+    const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
+    const lfidSub = typeof meta.lfid_sub === 'string' ? meta.lfid_sub : undefined;
+
+    const redirect = await completeLoginRedirect(authreq, reqId, {
+      email: user.email,
+      subject: lfidSub ?? user.id,
+      authMode: 'lfid',
+      lfidSub,
+      authUserId: user.id,
+      displayName: typeof meta.full_name === 'string' ? meta.full_name : undefined,
+    });
+    // The MCP client gets its own tokens, so revoke the session the module
+    // minted, as native mode does. Best effort: a failure is logged.
+    await revokeBridgeSession(accessToken, user.id);
+    res.setHeader('cache-control', 'no-store');
+    res.json({ redirect });
+  } catch (err) {
+    logger.error({ err }, '[mcp-auth] bridge/complete failed');
+    if (claimed) {
+      try {
+        await (await redis()).del(`mcp:authreq:${reqId}`);
+      } catch (delErr) {
+        logger.warn({ err: delErr }, '[mcp-auth] could not delete the failed MCP request; it expires on its own');
+      }
+    }
+    res.status(500).json({ error: 'server_error' });
+  }
+});
+
+// ── LFID native mode (GoTrue PKCE against custom:lfid) ────────────────────
+//
+// /authorize shows a confirm page and sets a per-request cookie. Its button
+// POSTs to /lfid/start, which starts the GoTrue flow. GoTrue returns to
+// /lfid/callback/<req_id> with ?code=. Both steps need the cookie, and every
+// way the callback ends uses up the request.
+
+mcpAuthRouter.post('/api/mcp-auth/lfid/start', browserTooMany, lfidRateLimit, async (req, res) => {
   try {
     const reqId = String((req.body as { req_id?: unknown } | undefined)?.req_id ?? '');
     if (!REQ_ID_RE.test(reqId)) return sendLfidError(res, 400, 'Bad request.');
     const cfg = nativeLfidConfig();
     if (!cfg) return sendLfidError(res, 503, 'Sign-in is not configured on this deployment.');
-    const [bound, authreq] = await Promise.all([boundLfidRequest(req, reqId), authRequestFor(reqId, 'native')]);
+    const [bound, authreq] = await Promise.all([boundLfidRequest(req, reqId, 'native'), authRequestFor(reqId, 'native')]);
     if (!bound || !authreq) return sendLfidError(res, 400, EXPIRED);
 
     let started: Awaited<ReturnType<typeof startNativeLfid>>;
@@ -428,7 +602,7 @@ mcpAuthRouter.post('/api/mcp-auth/lfid/start', lfidNativeRateLimit, async (req, 
     }
     const { url, pkce } = started;
     await (await redis()).set(
-      `mcp:lfidreq:${reqId}`,
+      `${BINDINGS.native.key}${reqId}`,
       JSON.stringify({ binding: bound.pending.binding, pkce } satisfies LfidRequest),
       'EX', AUTHREQ_TTL_S,
     );
@@ -440,21 +614,21 @@ mcpAuthRouter.post('/api/mcp-auth/lfid/start', lfidNativeRateLimit, async (req, 
   }
 });
 
-mcpAuthRouter.get('/api/mcp-auth/lfid/callback/:reqId', lfidNativeRateLimit, async (req, res) => {
+mcpAuthRouter.get('/api/mcp-auth/lfid/callback/:reqId', browserTooMany, lfidRateLimit, async (req, res) => {
   const reqId = String(req.params.reqId ?? '');
   if (!REQ_ID_RE.test(reqId)) return sendLfidError(res, 400, 'Bad request.');
   let claimed = false;
   try {
     const r = await redis();
-    const bound = await boundLfidRequest(req, reqId);
+    const bound = await boundLfidRequest(req, reqId, 'native');
     // Without this browser's cookie the request is left alone: whoever sent
     // the URL cannot use it up for its owner.
     if (!bound) return sendLfidError(res, 400, EXPIRED);
     // Take the verifier atomically, so two callbacks cannot both use it.
-    const taken = await r.getdel(`mcp:lfidreq:${reqId}`);
+    const taken = await r.getdel(`${BINDINGS.native.key}${reqId}`);
     if (taken !== bound.raw) return sendLfidError(res, 400, EXPIRED);
     claimed = true;
-    res.clearCookie(lfidCookieName(reqId), { ...lfidCookieOptions(), maxAge: undefined });
+    clearBindingCookie(res, 'native', reqId);
 
     // From here on every failure also deletes the MCP request.
     const fail = async (status: number, message: string) => {
@@ -513,7 +687,15 @@ mcpAuthRouter.get('/api/mcp-auth/lfid/callback/:reqId', lfidNativeRateLimit, asy
 
 // ── Magic-link mode ───────────────────────────────────────────────────────
 
-mcpAuthRouter.post('/api/mcp-auth/magic/start', async (req, res) => {
+// Per client IP. /magic/start sends an email, so its limit is tight: a real
+// user sends one code and maybe asks for another once or twice. /magic/verify
+// allows a few mistyped codes per sign-in. Both leave room for several people
+// behind one address, which is every client behind an ingress without proxy
+// protocol.
+const magicSendRateLimit = ipRateLimiter({ points: 30, durationSecs: 900, bucket: 'mcp-auth-magic-send' });
+const magicVerifyRateLimit = ipRateLimiter({ points: 60, durationSecs: 900, bucket: 'mcp-auth-magic-verify' });
+
+mcpAuthRouter.post('/api/mcp-auth/magic/start', browserTooMany, magicSendRateLimit, async (req, res) => {
   try {
     const { req_id: reqId, email } = (req.body ?? {}) as { req_id?: string; email?: string };
     // The length cap (RFC 5321's 254) also keeps the pattern below from
@@ -544,7 +726,7 @@ mcpAuthRouter.post('/api/mcp-auth/magic/start', async (req, res) => {
   }
 });
 
-mcpAuthRouter.post('/api/mcp-auth/magic/verify', async (req, res) => {
+mcpAuthRouter.post('/api/mcp-auth/magic/verify', browserTooMany, magicVerifyRateLimit, async (req, res) => {
   try {
     const { req_id: reqId, code: otp } = (req.body ?? {}) as { req_id?: string; code?: string };
     if (typeof reqId !== 'string' || !otp) return res.status(400).send('code required');
@@ -615,7 +797,7 @@ async function completeLoginRedirect(
     scopes: access.scopes,
     tier: access.groups.map((g) => g.name).join(','),
   }), 'EX', CODE_TTL_S);
-  await r.del(`mcp:authreq:${reqId}`, `mcp:magicreq:${reqId}`, `mcp:lfidreq:${reqId}`);
+  await r.del(`mcp:authreq:${reqId}`, `mcp:magicreq:${reqId}`, `mcp:lfidreq:${reqId}`, `mcp:bridgereq:${reqId}`);
 
   const target = new URL(authreq.redirectUri);
   target.searchParams.set('code', grantCode);
@@ -741,11 +923,11 @@ button{width:100%;padding:10px;font-size:15px;border:0;border-radius:8px;backgro
 </style></head><body><div class="card">${inner}</div></body></html>`;
 }
 
-function lfidConsentPage(reqId: string, clientName: string, redirectHost: string): string {
+function lfidConsentPage(reqId: string, clientName: string, redirectHost: string, action: string): string {
   return pageShell('Sign in', `
 <h1>Sign in to connect</h1>
 <p><strong>${escapeHtml(clientName)}</strong> is requesting access to your account. After you sign in you will be sent to <strong>${escapeHtml(redirectHost)}</strong>. Continue only if you started this from that client.</p>
-<form method="POST" action="/api/mcp-auth/lfid/start">
+<form method="POST" action="${escapeHtml(action)}">
 <input type="hidden" name="req_id" value="${escapeHtml(reqId)}">
 <button type="submit">Continue with LFID</button>
 </form>`);
