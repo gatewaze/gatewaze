@@ -582,7 +582,7 @@ describe('bridge LFID flow', () => {
     async function runReturnPage(response: { status: number; body: string }) {
       const { reqId } = await startedBridge();
       const page = await request(app).get('/api/mcp-auth/bridge/return').query({ req_id: reqId });
-      const script = must(/<script>([\s\S]*)<\/script>/.exec(page.text), 'script')[1];
+      const script = must(/<script>([\s\S]*)<\/script\s*>/i.exec(page.text), 'script')[1];
       const shown = { textContent: '' };
       const replace = vi.fn();
       const fetchStub = vi.fn(async () => new Response(response.body, { status: response.status }));

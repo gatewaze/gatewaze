@@ -17,7 +17,7 @@
  * Redis; durable sessions (refresh tokens) in mcp_sessions.
  */
 import { randomBytes, createHash, timingSafeEqual } from 'crypto';
-import { Router, type Request, type RequestHandler, type Response } from 'express';
+import { Router, type NextFunction, type Request, type Response } from 'express';
 import { createClient } from '@supabase/supabase-js';
 import { labeledRouter } from '../lib/router-registry.js';
 import { getSupabase } from '../lib/supabase.js';
@@ -247,7 +247,7 @@ mcpAuthRouter.post('/api/mcp-auth/register', registerRateLimit, async (req, res)
 // protocol every client shares one address, hence the headroom.
 const authorizeRateLimit = ipRateLimiter({ points: 120, durationSecs: 60, bucket: 'mcp-auth-authorize' });
 
-mcpAuthRouter.get('/api/mcp-auth/authorize', forBrowser(authorizeRateLimit), async (req, res) => {
+mcpAuthRouter.get('/api/mcp-auth/authorize', browserTooMany, authorizeRateLimit, async (req, res) => {
   try {
     const q = req.query as Record<string, string>;
     if (q.response_type !== 'code') return res.status(400).send('unsupported response_type');
@@ -256,7 +256,9 @@ mcpAuthRouter.get('/api/mcp-auth/authorize', forBrowser(authorizeRateLimit), asy
     }
     const client = q.client_id ? await resolveClient(q.client_id) : null;
     if (!client) return res.status(400).send('unknown client_id');
-    if (!q.redirect_uri || !isAllowedRedirectUri(q.redirect_uri) || !client.redirectUris.includes(q.redirect_uri)) {
+    // client.redirectUris holds only URIs that pass isAllowedRedirectUri, and
+    // the match is exact, so this also applies the redirect URI rule.
+    if (!q.redirect_uri || !client.redirectUris.includes(q.redirect_uri)) {
       return res.status(400).send('redirect_uri not registered for this client');
     }
 
@@ -396,22 +398,18 @@ function sendLfidError(res: Response, status: number, message: string): void {
 }
 
 /**
- * The IP rate limiter answers 429 with JSON. On the routes a person reaches in
- * their browser, show it as a page instead.
+ * The IP rate limiter answers 429 with JSON. Placed before it on the routes a
+ * person reaches in their browser, this shows that answer as a page instead.
+ * Those routes never answer JSON themselves, so only a 429 is changed.
  */
-function forBrowser(limit: RequestHandler): RequestHandler {
-  return (req, res, next) => {
-    const json = res.json.bind(res);
-    res.json = ((body: unknown) => {
-      if (res.statusCode !== 429) return json(body);
-      sendLfidError(res, 429, TOO_MANY);
-      return res;
-    }) as Response['json'];
-    limit(req, res, (err?: unknown) => {
-      res.json = json;
-      next(err);
-    });
-  };
+function browserTooMany(_req: Request, res: Response, next: NextFunction): void {
+  const json = res.json.bind(res);
+  res.json = ((body: unknown) => {
+    if (res.statusCode !== 429) return json(body);
+    sendLfidError(res, 429, TOO_MANY);
+    return res;
+  }) as Response['json'];
+  next();
 }
 
 // Per client IP, shared by the LFID sign-in steps of both modes. One sign-in
@@ -431,7 +429,7 @@ const lfidRateLimit = ipRateLimiter({ points: 120, durationSecs: 60, bucket: 'mc
 // cookie, and every way /bridge/complete ends once it has accepted the cookie
 // uses up the request.
 
-mcpAuthRouter.post('/api/mcp-auth/bridge/start', forBrowser(lfidRateLimit), async (req, res) => {
+mcpAuthRouter.post('/api/mcp-auth/bridge/start', browserTooMany, lfidRateLimit, async (req, res) => {
   try {
     const reqId = String((req.body as { req_id?: unknown } | undefined)?.req_id ?? '');
     if (!REQ_ID_RE.test(reqId)) return sendLfidError(res, 400, 'Bad request.');
@@ -586,7 +584,7 @@ mcpAuthRouter.post('/api/mcp-auth/bridge/complete', lfidRateLimit, async (req, r
 // /lfid/callback/<req_id> with ?code=. Both steps need the cookie, and every
 // way the callback ends uses up the request.
 
-mcpAuthRouter.post('/api/mcp-auth/lfid/start', forBrowser(lfidRateLimit), async (req, res) => {
+mcpAuthRouter.post('/api/mcp-auth/lfid/start', browserTooMany, lfidRateLimit, async (req, res) => {
   try {
     const reqId = String((req.body as { req_id?: unknown } | undefined)?.req_id ?? '');
     if (!REQ_ID_RE.test(reqId)) return sendLfidError(res, 400, 'Bad request.');
@@ -616,7 +614,7 @@ mcpAuthRouter.post('/api/mcp-auth/lfid/start', forBrowser(lfidRateLimit), async 
   }
 });
 
-mcpAuthRouter.get('/api/mcp-auth/lfid/callback/:reqId', forBrowser(lfidRateLimit), async (req, res) => {
+mcpAuthRouter.get('/api/mcp-auth/lfid/callback/:reqId', browserTooMany, lfidRateLimit, async (req, res) => {
   const reqId = String(req.params.reqId ?? '');
   if (!REQ_ID_RE.test(reqId)) return sendLfidError(res, 400, 'Bad request.');
   let claimed = false;
@@ -697,7 +695,7 @@ mcpAuthRouter.get('/api/mcp-auth/lfid/callback/:reqId', forBrowser(lfidRateLimit
 const magicSendRateLimit = ipRateLimiter({ points: 30, durationSecs: 900, bucket: 'mcp-auth-magic-send' });
 const magicVerifyRateLimit = ipRateLimiter({ points: 60, durationSecs: 900, bucket: 'mcp-auth-magic-verify' });
 
-mcpAuthRouter.post('/api/mcp-auth/magic/start', forBrowser(magicSendRateLimit), async (req, res) => {
+mcpAuthRouter.post('/api/mcp-auth/magic/start', browserTooMany, magicSendRateLimit, async (req, res) => {
   try {
     const { req_id: reqId, email } = (req.body ?? {}) as { req_id?: string; email?: string };
     // The length cap (RFC 5321's 254) also keeps the pattern below from
@@ -728,7 +726,7 @@ mcpAuthRouter.post('/api/mcp-auth/magic/start', forBrowser(magicSendRateLimit), 
   }
 });
 
-mcpAuthRouter.post('/api/mcp-auth/magic/verify', forBrowser(magicVerifyRateLimit), async (req, res) => {
+mcpAuthRouter.post('/api/mcp-auth/magic/verify', browserTooMany, magicVerifyRateLimit, async (req, res) => {
   try {
     const { req_id: reqId, code: otp } = (req.body ?? {}) as { req_id?: string; code?: string };
     if (typeof reqId !== 'string' || !otp) return res.status(400).send('code required');
