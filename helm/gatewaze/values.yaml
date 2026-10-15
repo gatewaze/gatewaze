@@ -233,6 +233,13 @@ ingress:
     #    mcpPublic.enabled=true). Remember to add it to tls.hosts too.
     mcp: ""
 
+  # -- Extra hostnames routed to the portal, each in a separate Ingress with
+  #    its own TLS secret, so a certificate that can't be issued yet (DNS not
+  #    pointed here) never blocks renewal of the main hosts' certificate.
+  #    Typical use: a short-link-only domain listed in env.SHORT_LINK_HOSTS.
+  #    Entries: { host: go.example.com, tlsSecretName: optional }.
+  extraPortalHosts: []
+
   # -- TLS configuration
   tls:
     enabled: false

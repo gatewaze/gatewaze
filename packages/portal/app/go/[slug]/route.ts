@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { SHORT_LINK_SLUG_RE as SLUG_RE } from '@/lib/short-link-hosts'
 
 /**
  * Public short-link redirect: https://<this-host>/go/<slug>
@@ -20,8 +21,6 @@ const API_URL = (
   process.env.NEXT_PUBLIC_API_URL ??
   ''
 ).replace(/\/+$/, '')
-
-const SLUG_RE = /^[A-Za-z0-9._~-]{1,80}$/
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
