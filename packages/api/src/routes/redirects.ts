@@ -73,7 +73,10 @@ interface BulkLinkResult {
   error?: string;
 }
 
-const SLUG_RE = /^[A-Za-z0-9._~-]{1,80}$/;
+// `&+()[]` are allowed because links migrated from Short.io use them (all
+// call sites percent-encode the slug). Keep in sync with the portal's
+// SHORT_LINK_SLUG_RE (packages/portal/lib/short-link-hosts.ts).
+const SLUG_RE = /^[A-Za-z0-9._~&+()[\]-]{1,80}$/;
 
 /** Umami's link slug column is varchar(100); the internal slug embeds the
  *  serving host so every domain gets its own slug space:
@@ -82,9 +85,22 @@ function internalSlug(domain: string, slug: string): string {
   return `${domain}--${slug}`;
 }
 
-function shortUrlFor(domain: string, slug: string): string {
+/** Hosts that serve short links at the root (`/<slug>`), from SHORT_LINK_HOSTS
+ *  (`host` or `host=https://home` entries; the portal middleware owns the
+ *  home URL). */
+function shortLinkRootHosts(): Set<string> {
+  return new Set(
+    (process.env.SHORT_LINK_HOSTS ?? '')
+      .split(',')
+      .map((e) => e.split('=')[0].trim().toLowerCase())
+      .filter(Boolean),
+  );
+}
+
+export function shortUrlFor(domain: string, slug: string): string {
   const proto = domain.endsWith('.localhost') || domain === 'localhost' ? 'http' : 'https';
-  return `${proto}://${domain}/go/${slug}`;
+  const prefix = shortLinkRootHosts().has(domain) ? '' : '/go';
+  return `${proto}://${domain}${prefix}/${encodeURI(slug)}`;
 }
 
 let umamiToken: { value: string; expiresAt: number } | null = null;
