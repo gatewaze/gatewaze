@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildEmbedManifest, staticImportGraph } from '../manifest';
+import { assertSameEntry, buildEmbedManifest, staticImportGraph } from '../manifest';
 
 describe('buildEmbedManifest (what vite.embed.config.ts writes to manifest.json)', () => {
   const manifest = buildEmbedManifest({
@@ -37,6 +37,16 @@ describe('buildEmbedManifest (what vite.embed.config.ts writes to manifest.json)
       version: '1.2.3',
       builtAt: '2026-01-01T00:00:00.000Z',
     });
+  });
+});
+
+describe('assertSameEntry', () => {
+  it('passes when the bundle entry is the file on disk', () => {
+    expect(() => assertSameEntry('admin-embed-a.js', 'admin-embed-a.js')).not.toThrow();
+  });
+
+  it.each([['admin-embed-b.js'], [undefined]])('throws when the bundle entry is %s', (bundleEntry) => {
+    expect(() => assertSameEntry(bundleEntry, 'admin-embed-a.js')).toThrow(/does not match admin-embed-a\.js/);
   });
 });
 

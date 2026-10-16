@@ -116,6 +116,9 @@ export const FIRST_PAINT_EVENT = 'gw-embed:first-paint';
 /** Most preload entries the loader acts on; the rest are left to the browser's own discovery. */
 export const MAX_PRELOADS = 64;
 
+/** A manifest listing more preloads than this is refused as malformed, before any is checked. */
+export const MAX_MANIFEST_PRELOADS = 256;
+
 export interface GwLoaderHandle extends GwEmbedHandle {
   /**
    * Resolves with the manifest once the embed is mounted, or null when
@@ -171,7 +174,9 @@ function isManifest(v: unknown): v is GwEmbedManifest {
     (m.capabilities === undefined ||
       (Array.isArray(m.capabilities) && m.capabilities.every((c) => typeof c === 'string'))) &&
     (m.preload === undefined ||
-      (Array.isArray(m.preload) && m.preload.every((p) => typeof p === 'string' && p !== '')))
+      (Array.isArray(m.preload) &&
+        m.preload.length <= MAX_MANIFEST_PRELOADS &&
+        m.preload.every((p) => typeof p === 'string' && p !== '')))
   );
 }
 
@@ -256,6 +261,7 @@ export function mount(el: HTMLElement, ctx: GwLoaderContext): GwLoaderHandle {
   // `rendered` settles exactly once, from whichever comes first: the bundle's
   // first-paint event, `ready` (for a bundle without the capability, or a
   // load that failed), a fatal error after mount, unmount, or the timeout.
+  // Assigned synchronously by the Promise executor below, before any use.
   let resolveRendered!: () => void;
   const rendered = new Promise<void>((resolve) => {
     resolveRendered = resolve;
@@ -420,7 +426,19 @@ export function mount(el: HTMLElement, ctx: GwLoaderContext): GwLoaderHandle {
     }
 
     hostCtx.telemetry?.({ name: 'gw_embed_loaded', loader: version, embed: manifest.version, contract: manifest.contract });
-    inner = entry.mount(el, mountCtx);
+    try {
+      inner = entry.mount(el, mountCtx);
+    } catch (err) {
+      // The bundle's own mount() never throws; a bundle that does must not
+      // turn `ready` into a rejection.
+      fatal(hostCtx, {
+        error_type: 'render_crash',
+        code: 'gw_embed_mount_failed',
+        message: `The embed bundle failed to mount: ${err instanceof Error ? err.message : 'unknown error'}`,
+        recoverable: false,
+      });
+      return null;
+    }
     return manifest;
   })();
 

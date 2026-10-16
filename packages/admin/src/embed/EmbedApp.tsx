@@ -55,8 +55,8 @@ function CatchAllHandoff({ navigateHost }: { navigateHost?: (path: string) => vo
  * Every module route is lazy, so until the matched route's code has loaded the
  * router has nothing to render. Without a HydrateFallback that was nothing at
  * all: a blank pane between the host's own skeleton and the page's spinner.
- * This draws the same spinner the guard and the page draw next, in the same
- * place, and counts as the embed's first paint.
+ * This draws the same spinner FeatureGuard draws next, in the same place, and
+ * counts as the embed's first paint.
  */
 function EmbedRouteFallback() {
   useFirstPaintSignal();

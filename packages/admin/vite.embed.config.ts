@@ -14,7 +14,7 @@ import {
 } from "./vite-shared-config";
 
 import { EMBED_CAPABILITIES, EMBED_CONTRACT } from "./src/embed/contract";
-import { buildEmbedManifest, staticImportGraph } from "./src/embed/manifest";
+import { assertSameEntry, buildEmbedManifest, staticImportGraph } from "./src/embed/manifest";
 
 // Which modules the embed compiles in is the deployment's decision, not the
 // repo's: ADMIN_EMBED_MODULES is a comma-separated allow-list (a module and
@@ -67,9 +67,7 @@ function embedManifestPlugin(): Plugin {
       const stylesheet = files.find((f) => /^admin-embed-[\w-]+\.css$/.test(f));
       if (!entry) throw new Error("[vite-embed-config] no entry chunk in the embed bundle");
       if (!stylesheet) throw new Error("[vite-embed-config] no stylesheet in the embed bundle");
-      // The preload list was read from the bundle's own entry chunk; it must be
-      // the same file the manifest names, or the list belongs to another build.
-      if (bundleEntry !== entry) throw new Error(`[vite-embed-config] entry chunk ${bundleEntry} does not match ${entry} on disk`);
+      assertSameEntry(bundleEntry, entry);
       const manifest = buildEmbedManifest({
         entry,
         stylesheet,

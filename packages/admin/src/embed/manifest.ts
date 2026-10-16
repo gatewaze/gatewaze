@@ -34,6 +34,18 @@ export function buildEmbedManifest(input: {
   };
 }
 
+/**
+ * The preload list is read from the bundle's own entry chunk in
+ * generateBundle, and the manifest names the entry file found on disk in
+ * closeBundle. They must be the same file, or the list belongs to another
+ * build. Throws when they differ.
+ */
+export function assertSameEntry(bundleEntry: string | undefined, entryOnDisk: string): void {
+  if (bundleEntry !== entryOnDisk) {
+    throw new Error(`[vite-embed-config] entry chunk ${bundleEntry ?? '(none)'} does not match ${entryOnDisk} on disk`);
+  }
+}
+
 /** The parts of a Rollup/Rolldown output chunk staticImportGraph reads. */
 interface ChunkLike {
   type: 'chunk' | 'asset';
@@ -51,8 +63,7 @@ export function staticImportGraph(bundle: Record<string, ChunkLike>, entryFileNa
   const seen = new Set<string>([entryFileName]);
   const order: string[] = [];
   const queue = [...(bundle[entryFileName]?.imports ?? [])];
-  while (queue.length > 0) {
-    const name = queue.shift()!;
+  for (let name = queue.shift(); name !== undefined; name = queue.shift()) {
     if (seen.has(name)) continue;
     seen.add(name);
     const chunk = bundle[name];

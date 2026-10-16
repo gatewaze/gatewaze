@@ -29,6 +29,21 @@
   transform: scale(0.5) translate(-48px, -48px);
 }
 
+/* The box the host's loadingIndicator element sits in (see LoadingSpinner.tsx):
+   the loader's own size and margin, centred, without the animation. */
+.gw-loader-host {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 15px auto;
+  box-sizing: border-box;
+}
+
+.gw-loader-host.loader-medium {
+  width: 48px;
+  height: 48px;
+}
+
 /* Size variants */
 .loader-xs {
   width: 16px;

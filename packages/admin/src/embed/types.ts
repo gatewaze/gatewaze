@@ -85,7 +85,9 @@ export interface GwHostContext {
   /**
    * Host loading spinner (the 'host-loading-indicator' capability). When
    * present, the embed calls it each time it shows a page-level loading
-   * state and renders the returned element in place of its own spinner,
+   * state (its route fallback, its permission check, and module pages that
+   * use the shared PageLoadingSpinner, or LoadingSpinner at size small or
+   * larger) and renders the returned element in place of its own spinner,
    * inside the same centred box and inside a `role="status"` wrapper with a
    * visually hidden "Loading" label. So the element itself should be
    * decorative (`aria-hidden="true"`). Return a new element on every call;

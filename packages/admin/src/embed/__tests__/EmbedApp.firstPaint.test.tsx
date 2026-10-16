@@ -22,6 +22,8 @@ vi.mock('@/components/template/Tooltip', () => ({ default: () => null }));
 let releaseRoute: (() => void) | null = null;
 vi.mock('@/app/router/moduleRoutes', () => ({
   moduleRoutes: [
+    // Already loaded: no fallback renders, so the root layout must signal.
+    { path: 'eager', element: <div>EAGER</div> },
     {
       path: 'newsletters',
       lazy: () =>
@@ -78,7 +80,54 @@ describe('EmbedApp while a lazy route loads', () => {
   });
 });
 
+describe('EmbedApp on a route whose code is already loaded', () => {
+  it('signals first paint from the root layout, once', async () => {
+    window.history.pushState({}, '', '/gw/eager');
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const onPaint = vi.fn();
+    container.addEventListener(FIRST_PAINT_EVENT, onPaint);
+    armFirstPaint(container);
+
+    render(<EmbedApp ctx={ctx} container={container} />, { container });
+
+    expect(await screen.findByText('EAGER')).toBeInTheDocument();
+    await vi.waitFor(() => expect(onPaint).toHaveBeenCalledTimes(1));
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
+    expect(onPaint).toHaveBeenCalledTimes(1);
+    container.remove();
+  });
+});
+
 describe('signalFirstPaint', () => {
+  it('a signal already waiting for its frame is cancelled by disarm (unmount)', async () => {
+    const el = document.createElement('div');
+    const onPaint = vi.fn();
+    const onSignal = vi.fn();
+    el.addEventListener(FIRST_PAINT_EVENT, onPaint);
+    armFirstPaint(el, onSignal);
+    signalFirstPaint();
+    disarmFirstPaint();
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
+    expect(onPaint).not.toHaveBeenCalled();
+    expect(onSignal).not.toHaveBeenCalled();
+  });
+
+  it('signals straight away in a hidden tab, which runs no animation frames', () => {
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    const raf = vi.spyOn(window, 'requestAnimationFrame');
+    const el = document.createElement('div');
+    const onPaint = vi.fn();
+    el.addEventListener(FIRST_PAINT_EVENT, onPaint);
+    armFirstPaint(el);
+    signalFirstPaint();
+    expect(onPaint).toHaveBeenCalledTimes(1);
+    expect(raf).not.toHaveBeenCalled();
+    visibility.mockRestore();
+    raf.mockRestore();
+  });
+
   it('does nothing when nothing is armed (standalone)', () => {
     expect(() => signalFirstPaint()).not.toThrow();
   });

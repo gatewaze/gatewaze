@@ -37,7 +37,8 @@ loading spinner on screen, so a host can swap its own skeleton for the embed wit
 in between. It needs a deployment whose manifest lists the `first-paint` capability. Against an
 older deployment it resolves when `ready` does. It also resolves when loading fails, when the
 embed reports a fatal error after mounting, on `unmount()`, and after 10 seconds without a
-signal, so it never leaves a host waiting. It never rejects.
+signal, so it never leaves a host waiting. It never rejects. A path that matches no embedded route
+is handed back to the host (`navigateHost`), and that also counts as rendered.
 
 ## Why a loader
 
@@ -61,7 +62,7 @@ The other capabilities are optional features a host can use when they are listed
 |---|---|---|
 | `host-session` | The bundle honours `session`. | A host-session context is refused (`gw_embed_capability_missing`). |
 | `first-paint` | The bundle dispatches a `gw-embed:first-paint` event (exported as `FIRST_PAINT_EVENT`) on the mount element once, after its first route content or loading spinner has committed. The loader turns it into `handle.rendered`. | `rendered` resolves with `ready`. |
-| `host-loading-indicator` | The bundle honours `loadingIndicator`. Each page-level loading state calls it and mounts the returned element in place of the embed's own spinner, in the same centred box, inside a `role="status"` wrapper with a visually hidden "Loading" label. Return a new, decorative (`aria-hidden="true"`) element on every call. A factory that throws or returns something other than an element falls back to the embed's spinner. | The loader leaves `loadingIndicator` out of the context, and the embed shows its own spinner. |
+| `host-loading-indicator` | The bundle honours `loadingIndicator`. Its page-level loading states call it (the route fallback, the permission check, and module pages that use the shared spinners; a module page that draws its own spinner keeps it) and mounts the returned element in place of the embed's own spinner, in the same centred box, inside a `role="status"` wrapper with a visually hidden "Loading" label. Return a new, decorative (`aria-hidden="true"`) element on every call. A factory that throws or returns something other than an element falls back to the embed's spinner. | The loader leaves `loadingIndicator` out of the context, and the embed shows its own spinner. |
 
 In host-session mode `supabase.url` is your own proxy, so also pass `supabase.publicUrl`, the real
 Supabase project URL (https, or http on localhost). The embed uses it for public storage URLs and
