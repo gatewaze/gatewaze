@@ -5,6 +5,7 @@ import {
   HOST_SESSION_TOKEN,
   hostSessionFetch,
   signInUrl,
+  type HostAdminContext,
   type HostAuth,
   type HostStatus,
 } from './hostSession'
@@ -333,8 +334,27 @@ export function getHostStatus(): Promise<HostStatus> {
   return hostAuth ? hostAuth.me() : Promise.resolve({ status: 'signed_out' })
 }
 
+/**
+ * Host-session mode: the admin profile and features the session holder sent
+ * with /me for this auth user, while still fresh (ADMIN_CONTEXT_TTL_MS).
+ * Null in local mode, when /me did not carry it, or for anyone else.
+ */
+export function getHostAdminContext(authUserId: string): HostAdminContext | null {
+  if (!isHostSession() || !hostAuth) return null
+  return hostAuth.adminContext(authUserId)
+}
+
+/**
+ * The same context looked up by admin profile id, which is the id the auth
+ * context's user carries.
+ */
+export function getHostAdminContextForProfile(profileId: string): HostAdminContext | null {
+  if (!isHostSession() || !hostAuth) return null
+  return hostAuth.adminContextForProfile(profileId)
+}
+
 export { signInUrl }
-export type { HostStatus }
+export type { HostStatus, HostAdminContext }
 
 /**
  * The real Supabase project URL, for URLs that leave the admin: OAuth

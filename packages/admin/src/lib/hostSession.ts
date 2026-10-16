@@ -29,6 +29,72 @@ export const HOST_SESSION_TOKEN = 'host-session'
 export const SESSION_EXPIRED_HEADER = 'x-gw-session'
 export const SESSION_EXPIRED_VALUE = 'expired'
 
+/**
+ * The optional `admin` field of the session holder's /me 200: the user's
+ * active admin_profiles row and the features admin_get_features grants them
+ * (see AdminContext in @gatewaze/host-session). Lets the auth context and the
+ * permission guards skip their own queries on first render.
+ */
+export interface HostAdminProfile {
+  id: string
+  user_id: string
+  email: string
+  name: string | null
+  role: string
+  avatar_url: string | null
+  is_active: true
+  created_at: string
+  updated_at: string
+}
+export interface HostAdminContext {
+  profile: HostAdminProfile
+  features: string[]
+}
+
+/**
+ * How long a /me admin context is used before falling back to the database.
+ * Long enough to cover the first render's profile read and route guards, and
+ * short enough that a permission changed mid-session is picked up on the next
+ * navigation, as it was before /me carried it.
+ */
+export const ADMIN_CONTEXT_TTL_MS = 60_000
+
+/** The admin context from a /me body, or undefined when absent or not the expected shape for this user. */
+export function parseAdminContext(value: unknown, userId: string): HostAdminContext | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const { profile, features } = value as { profile?: unknown; features?: unknown }
+  if (!profile || typeof profile !== 'object') return undefined
+  const p = profile as Record<string, unknown>
+  const nullableString = (x: unknown) => x === null || typeof x === 'string'
+  const profileOk =
+    typeof p.id === 'string' &&
+    p.id !== '' &&
+    p.user_id === userId &&
+    typeof p.email === 'string' &&
+    nullableString(p.name) &&
+    typeof p.role === 'string' &&
+    nullableString(p.avatar_url) &&
+    p.is_active === true &&
+    typeof p.created_at === 'string' &&
+    typeof p.updated_at === 'string'
+  if (!profileOk) return undefined
+  if (!Array.isArray(features) || !features.every((f) => typeof f === 'string')) return undefined
+  return {
+    profile: {
+      id: p.id as string,
+      user_id: userId,
+      email: p.email as string,
+      name: p.name as string | null,
+      role: p.role as string,
+      avatar_url: p.avatar_url as string | null,
+      is_active: true,
+      created_at: p.created_at as string,
+      updated_at: p.updated_at as string,
+    },
+    features: [...features],
+  }
+}
+
 export type HostStatus =
   | { status: 'ok'; user: User }
   | { status: 'signed_out' }
@@ -170,6 +236,8 @@ export function createHostAuth(options: HostAuthOptions) {
   // When the cached `me` stops being valid; null means for the page's life.
   let meExpiresAt: number | null = null
   let signedOutEmitted = false
+  // The admin context from the last /me 200, until ADMIN_CONTEXT_TTL_MS.
+  let adminContext: { userId: string; value: HostAdminContext; expiresAt: number } | null = null
 
   // cache: true = keep for the page's life, false = ask again next time,
   // a number = keep for that many milliseconds.
@@ -189,8 +257,12 @@ export function createHostAuth(options: HostAuthOptions) {
     if (res.ok) {
       // A 200 must carry { user }. Anything else is a session-holder bug, not
       // a sign-out, so it is logged and not cached.
-      const body = (await res.json().catch(() => null)) as { user?: User } | null
+      const body = (await res.json().catch(() => null)) as { user?: User; admin?: unknown } | null
       if (body?.user && typeof body.user === 'object' && typeof body.user.id === 'string') {
+        // Optional: a session holder that does not send it, or sends
+        // something else, just means the admin reads it itself.
+        const admin = parseAdminContext(body.admin, body.user.id)
+        adminContext = admin ? { userId: body.user.id, value: admin, expiresAt: Date.now() + ADMIN_CONTEXT_TTL_MS } : null
         return { result: { status: 'ok', user: body.user }, cache: true }
       }
       console.warn(`[host-session] ${meUrl} answered 200 without a user; treating as unavailable`)
@@ -274,6 +346,7 @@ export function createHostAuth(options: HostAuthOptions) {
   const signedOut = ({ notifyHost = true }: { notifyHost?: boolean } = {}) => {
     me = Promise.resolve({ status: 'signed_out' })
     meExpiresAt = null
+    adminContext = null
     if (signedOutEmitted) return
     signedOutEmitted = true
     emit('SIGNED_OUT', null)
@@ -382,6 +455,19 @@ export function createHostAuth(options: HostAuthOptions) {
 
     /** Admin gate status from the session holder. Not part of supabase-js. */
     me: loadMe,
+    /**
+     * The admin context the last /me 200 carried for this auth user, while
+     * it is fresh; null otherwise. Not part of supabase-js.
+     */
+    adminContext: (userId: string): HostAdminContext | null => {
+      if (!adminContext || adminContext.userId !== userId || Date.now() >= adminContext.expiresAt) return null
+      return adminContext.value
+    },
+    /** As adminContext, looked up by admin profile id (the auth context's user id). */
+    adminContextForProfile: (profileId: string): HostAdminContext | null => {
+      if (!adminContext || adminContext.value.profile.id !== profileId || Date.now() >= adminContext.expiresAt) return null
+      return adminContext.value
+    },
     /** Called by the client's fetch when a response carries the expiry marker. */
     signedOut,
     /** Clears the signed-out latch so the next call asks the session holder again (embed re-mount). */
@@ -390,6 +476,7 @@ export function createHostAuth(options: HostAuthOptions) {
       me = null
       meExpiresAt = null
       lastStatus = null
+      adminContext = null
     },
   }
 

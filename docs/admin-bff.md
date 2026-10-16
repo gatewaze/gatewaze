@@ -51,6 +51,7 @@ A refused upgrade carries the same status codes as a REST call, and a 401 carrie
 ## Sign-in
 
 1. The admin page calls `GET /bff/me`. Without a session it gets 401, and the sign-in page links to `/bff/login?return_to=<path>`.
+   An admin with a session gets 200 `{ user, admin }`, where `admin` holds the user's admin profile and the features granted to them (`getAdminContext` in `@gatewaze/host-session`), so the page can skip those reads on its first render. `admin` is left out when that read fails, and the page then reads them itself.
 2. `/bff/login` starts a GoTrue PKCE sign-in with the provider in `OIDC_IDENTIFIER` (default `custom:lfid`). It stores the PKCE verifier in a short-lived encrypted flow cookie and redirects to GoTrue's authorize URL.
 3. GoTrue sends the user to the identity provider, then back to `/bff/callback`.
 4. `/bff/callback` exchanges the code, checks the user's own `admin_profiles` row (`user_id`, `is_active`) with the user's token, stores the session in Redis and sets the session cookie. It then redirects to `return_to`, which must be a path on the same site. On an error it redirects to `/login?error=<code>`, with one of the codes below.

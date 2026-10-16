@@ -1,5 +1,5 @@
 import { toast } from 'sonner'
-import { isHostSession, supabase } from '@/lib/supabase'
+import { getHostAdminContext, isHostSession, supabase } from '@/lib/supabase'
 import { getSupabaseConfig } from '@/config/brands'
 import { toPublicUrl } from '@gatewaze/shared'
 
@@ -36,6 +36,31 @@ export interface MagicLinkResponse {
   error?: string
   message?: string
   magicLink?: string
+}
+
+/** An admin_profiles row (or the copy /me carries) as the auth context's AdminUser. */
+function toAdminUser(adminProfile: {
+  id: string
+  email: string
+  name: string | null
+  role: string
+  avatar_url?: string | null
+  permissions?: Record<string, unknown>
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}): AdminUser {
+  return {
+    id: adminProfile.id,
+    email: adminProfile.email,
+    name: adminProfile.name as string,
+    role: adminProfile.role as AdminUser['role'],
+    avatar_url: toPublicUrl(adminProfile.avatar_url, BUCKET_URL) ?? undefined,
+    permissions: adminProfile.permissions,
+    is_active: adminProfile.is_active,
+    created_at: adminProfile.created_at,
+    updated_at: adminProfile.updated_at,
+  }
 }
 
 export class SupabaseAuthService {
@@ -394,6 +419,13 @@ export class SupabaseAuthService {
 
       console.log('SupabaseAuthService - Auth user found:', authUser.email)
 
+      // Host-session mode: the session holder may already have sent this
+      // user's active profile with /me, read moments ago with the same token
+      // and RLS as the query below. Use it and skip the round trip. Absent or
+      // stale, fall through to the query exactly as before.
+      const prefetched = getHostAdminContext(authUser.id)?.profile
+      if (prefetched) return { user: toAdminUser(prefetched), error: null }
+
       // Get admin profile for this user (with timeout but proper validation)
       const { data: adminProfile, error: profileError } = await supabase
         .from('admin_profiles')
@@ -418,19 +450,7 @@ export class SupabaseAuthService {
         }
       }
 
-      const user: AdminUser = {
-        id: adminProfile.id,
-        email: adminProfile.email,
-        name: adminProfile.name,
-        role: adminProfile.role,
-        avatar_url: toPublicUrl(adminProfile.avatar_url, BUCKET_URL) ?? undefined,
-        permissions: adminProfile.permissions,
-        is_active: adminProfile.is_active,
-        created_at: adminProfile.created_at,
-        updated_at: adminProfile.updated_at
-      }
-
-      return { user, error: null }
+      return { user: toAdminUser(adminProfile), error: null }
     } catch (error) {
       console.error('Get current user error:', error)
       return {

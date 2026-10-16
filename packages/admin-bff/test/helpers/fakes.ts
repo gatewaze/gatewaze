@@ -114,6 +114,12 @@ export class FakeSupabase {
   adminRawBody: string | null = null;
   // When true, admin_profiles (or /auth/v1/user) drops the connection.
   adminDrop = false;
+  // When set, the admin context's profile read (not the admin check) answers with this status.
+  profileStatus: number | null = null;
+  // When set, rpc/admin_get_features answers with this status.
+  featuresStatus: number | null = null;
+  // Authorization header of each rpc/admin_get_features call.
+  featureCalls: string[] = [];
   userDrop = false;
   // When set, /auth/v1/user answers 200 with this raw body.
   userRawBody: string | null = null;
@@ -249,7 +255,21 @@ export class FakeSupabase {
       const asked = url.searchParams.get('user_id');
       if (!u || asked !== `eq.${u.id}`) return this.json(res, 200, []);
       if (u.inactive) return this.json(res, 200, [{ is_active: false }]);
-      return this.json(res, 200, u.admin ? [{ is_active: true }] : []);
+      if (!u.admin) return this.json(res, 200, []);
+      // The admin context read (getAdminContext) selects the profile columns;
+      // the admin check (isAdmin) selects is_active only.
+      if (url.searchParams.get('select') === 'is_active') return this.json(res, 200, [{ is_active: true }]);
+      if (this.profileStatus) return this.json(res, this.profileStatus, { message: 'forced' });
+      return this.json(res, 200, [{
+        id: `profile-${u.id}`, user_id: u.id, email: u.email, name: 'Test Admin', role: 'admin',
+        avatar_url: null, is_active: true, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+      }]);
+    }
+    if (url.pathname === '/rest/v1/rpc/admin_get_features') {
+      this.featureCalls.push(req.headers.authorization ?? '');
+      if (this.featuresStatus) return this.json(res, this.featuresStatus, { message: 'forced' });
+      const u = this.userFor(req.headers);
+      return this.json(res, 200, u?.admin ? [{ feature: 'newsletters' }] : []);
     }
     if (this.restDelayMs) {
       const done = await new Promise<boolean>((r) => {

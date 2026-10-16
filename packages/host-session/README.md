@@ -13,16 +13,16 @@ The package is ESM only and needs Node 20 or later. Its runtime dependencies are
 
 | Area | Exports |
 |---|---|
-| Sign-in and refresh | `signInWithIdToken`, `toGwSession`, `refreshSession`, `isAdmin`, `getUser`, `logout`, `needsRefresh`, `isAdminCheckPending`, `retryAfterSeconds`, `identitySubject`, `unverifiedJwtSubject` |
+| Sign-in and refresh | `signInWithIdToken`, `toGwSession`, `refreshSession`, `isAdmin`, `getAdminContext`, `getUser`, `logout`, `needsRefresh`, `isAdminCheckPending`, `retryAfterSeconds`, `identitySubject`, `unverifiedJwtSubject` |
 | Session store | `SessionStore` (`create`, `put`, `acquire`, `get`, `fresh`, `delete`, `discard`, `onDelete`, `start`, `close`), `RedisKeyValue`, the `KeyValue` interface, `isGwSession` |
 | Keys | `deriveKeys`, `seal`, `open` |
 | Request rules | `csrfDecision`, `carriesPlaceholder`, `isPublicRead`, `stripQueryTokens`, `safeReturnTo`, `redactUrl`, `forwardRequestHeader`, `forwardResponseHeader`, `privateCacheControl` |
 | Proxy | `proxyRequest`, `upstreamUrl`, `upstreamHeaders`, `forwardedFor`, `rewriteLocation`, `anonCredentials`, `isPublishableKey`, `rejectUpgrade`, `realtimeUpstreamUrl` |
 | Realtime | `bridgeRealtime` |
 | Errors | `SessionUnavailableError` and its subclasses `RefreshUnavailableError` and `IdTokenGrantUnavailableError`, `IdTokenGrantRefusedError`, `SessionEndedError`, `AdminCheckError`, `UpstreamPathError`, and `errorMessage` |
-| Constants | `HOST_SESSION`, `SESSION_HEADER`, `SESSION_EXPIRED`, `KEY_PREFIX`, `LOGOUT_CHANNEL`, `LOCK_MS`, `CREATE_LOCK_MS`, `MINT_TIMEOUT_MS`, `SIGNED_OUT_TTL_SECONDS`, `REFRESH_SKEW_SECONDS`, `DEFAULT_PROVIDER` and the timeouts |
+| Constants | `HOST_SESSION`, `SESSION_HEADER`, `SESSION_EXPIRED`, `KEY_PREFIX`, `LOGOUT_CHANNEL`, `LOCK_MS`, `CREATE_LOCK_MS`, `MINT_TIMEOUT_MS`, `SIGNED_OUT_TTL_SECONDS`, `REFRESH_SKEW_SECONDS`, `DEFAULT_PROVIDER`, `ADMIN_PROFILE_COLUMNS` and the timeouts |
 
-The types are `HostSessionConfig`, `GwSession`, `GoTrueUser`, `SessionStoreOptions`, `SessionMatchOptions`, `AcquireOptions`, `DiscardOptions`, `IdTokenGrantOptions`, `SetIfLockHeldResult`, `Upstream`, `ProxyCredentials`, `ProxyOptions`, `ProxyResult`, `RealtimeBridge`, `RealtimeBridgeOptions` and `CoreLogger`.
+The types are `HostSessionConfig`, `GwSession`, `GoTrueUser`, `AdminProfile`, `AdminContext`, `SessionStoreOptions`, `SessionMatchOptions`, `AcquireOptions`, `DiscardOptions`, `IdTokenGrantOptions`, `SetIfLockHeldResult`, `Upstream`, `ProxyCredentials`, `ProxyOptions`, `ProxyResult`, `RealtimeBridge`, `RealtimeBridgeOptions` and `CoreLogger`.
 
 ## Signing in with an ID token
 
@@ -118,6 +118,38 @@ A host must do these things. The admin BFF's `src/app.ts` does each of them.
 6. Forward with `proxyRequest`. Use `{ bearer: session.access_token, apikey: anonKey }` for a session, and `anonCredentials(anonKey, upstream.supabase)` without one. Set `privateResponse` when the session was attached. Answer `UpstreamPathError` with 400 and other errors with 502.
 7. For Realtime, check `Origin`, load the session, build the URL with `realtimeUpstreamUrl`, and hand the accepted socket to `bridgeRealtime` with `fresh: () => store.fresh(sid, { expectedSub })` and `onSignedOut: (fn) => store.onDelete(sid, fn)`.
 8. On sign-out, load the session (refreshing it if needed), call `logout(cfg, session)` to revoke the refresh token at GoTrue, then call `store.delete(sid)` and drop the session ID. When the user stays signed in to the host and only the Gatewaze session ends, call `store.discard(sid)` instead, and keep the ID.
+
+### The session route (/me)
+
+The embedded admin asks the host's session route (`GwHostContext.session.meUrl`) who is signed in:
+
+- 200 `{ user }` for an admin, where `user` is GoTrue's user (from `getUser`).
+- 401 signed out, with `x-gw-session: expired` when the cookie's session is gone.
+- 403 `{ error: 'not_admin', email }` for a signed-in non-admin.
+- 503 `{ error: 'admin_check_pending' }` with `Retry-After` while the admin check is pending, and 503 `{ error: 'session_unavailable' }` when the store or GoTrue cannot answer.
+
+Since 1.2.0 the 200 may also carry `admin`, the user's admin profile and the features granted to them:
+
+```ts
+const [user, admin] = await Promise.all([
+  getUser(cfg, session.access_token),
+  getAdminContext(cfg, session.access_token, session.user_id), // never rejects; null on any failure
+]);
+return admin ? { user, admin } : { user };
+```
+
+```json
+{
+  "user": { "id": "…", "email": "…" },
+  "admin": {
+    "profile": { "id": "…", "user_id": "…", "email": "…", "name": "…", "role": "admin", "avatar_url": null,
+                 "is_active": true, "created_at": "…", "updated_at": "…" },
+    "features": ["newsletters", "broadcasts"]
+  }
+}
+```
+
+`getAdminContext` reads the active `admin_profiles` row (the `ADMIN_PROFILE_COLUMNS`) and `rpc/admin_get_features` with the user's own token, in parallel, each bounded at 3 seconds. It resolves `null` instead of throwing when either read fails or the answer is not the expected shape. Leave `admin` out then. The field is optional: an admin from before it existed ignores it, and an admin that gets no `admin` reads the profile and permissions itself, as before. With it, the embed skips one profile read and one permission call per route before its first render. Only call it for a session whose `is_admin` is true.
 
 ### Anon requests and publishable keys
 

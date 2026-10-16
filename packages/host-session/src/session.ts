@@ -200,6 +200,108 @@ export async function isAdmin(cfg: HostSessionConfig, accessToken: string, userI
   return (rows[0] as { is_active?: unknown } | undefined)?.is_active === true;
 }
 
+// The admin_profiles columns the admin reads for the signed-in user (its
+// auth context's user record): every column but first_name and last_name.
+export const ADMIN_PROFILE_COLUMNS = 'id,user_id,email,name,role,avatar_url,is_active,created_at,updated_at';
+
+// The signed-in user's active admin_profiles row, as ADMIN_PROFILE_COLUMNS
+// selects it.
+export interface AdminProfile {
+  id: string;
+  user_id: string;
+  email: string;
+  name: string | null;
+  role: string;
+  avatar_url: string | null;
+  is_active: true;
+  created_at: string;
+  updated_at: string;
+}
+
+// What a session holder may add to its /me 200 body as `admin`, so the admin
+// does not have to read it again before its first render: the user's admin
+// profile, and the features admin_get_features grants them (with no account
+// filter: a feature listed here is one admin_has_feature_permission answers
+// true for when no account is given). Optional and additive; the admin falls
+// back to its own queries when it is absent.
+export interface AdminContext {
+  profile: AdminProfile;
+  features: string[];
+}
+
+// Bounded tighter than the other upstream calls: /me waits for this, and it
+// is only a shortcut, so a slow answer is dropped rather than waited for.
+export const ADMIN_CONTEXT_TIMEOUT_MS = 3_000;
+
+function isAdminProfile(v: unknown, userId: string): v is AdminProfile {
+  if (!v || typeof v !== 'object') return false;
+  const r = v as Record<string, unknown>;
+  const optionalString = (x: unknown) => x === null || typeof x === 'string';
+  return (
+    typeof r.id === 'string' &&
+    r.id !== '' &&
+    r.user_id === userId &&
+    typeof r.email === 'string' &&
+    optionalString(r.name) &&
+    typeof r.role === 'string' &&
+    optionalString(r.avatar_url) &&
+    r.is_active === true &&
+    typeof r.created_at === 'string' &&
+    typeof r.updated_at === 'string'
+  );
+}
+
+// Reads the AdminContext with the user's own token (under RLS), the profile
+// and the feature list in parallel, each bounded by ADMIN_CONTEXT_TIMEOUT_MS.
+// Resolves null instead of throwing on any failure (network, timeout, a
+// non-200, an unexpected body, no active row): the caller then leaves `admin`
+// out of /me and the admin reads it itself, exactly as before.
+//
+// isAdmin() is not reused for this: it runs at sign-in and refresh and only
+// reads is_active, and its answer is kept in the session as is_admin. This
+// runs per /me, so the profile and features are as fresh as the request.
+export async function getAdminContext(
+  cfg: HostSessionConfig,
+  accessToken: string,
+  userId: string,
+): Promise<AdminContext | null> {
+  const headers = { apikey: cfg.anonKey, authorization: `Bearer ${accessToken}` };
+  const profileUrl =
+    `${cfg.supabaseUrl}/rest/v1/admin_profiles?select=${ADMIN_PROFILE_COLUMNS}` +
+    `&user_id=eq.${encodeURIComponent(userId)}&is_active=eq.true&limit=1`;
+  const readJson = async (input: string, init: RequestInit): Promise<unknown> => {
+    const res = await fetchWithin(ADMIN_CONTEXT_TIMEOUT_MS, input, init);
+    if (res.status !== 200) {
+      await res.body?.cancel().catch(() => undefined);
+      throw new Error(`${new URL(input).pathname} returned ${res.status}`);
+    }
+    return res.json();
+  };
+  try {
+    const [rows, featureRows] = await Promise.all([
+      readJson(profileUrl, { headers }),
+      readJson(`${cfg.supabaseUrl}/rest/v1/rpc/admin_get_features`, {
+        method: 'POST',
+        headers: { ...headers, 'content-type': 'application/json' },
+        body: JSON.stringify({ p_admin_id: userId }),
+      }),
+    ]);
+    const profile: unknown = Array.isArray(rows) ? rows[0] : undefined;
+    if (!isAdminProfile(profile, userId)) return null;
+    if (!Array.isArray(featureRows)) return null;
+    const features: string[] = [];
+    for (const row of featureRows) {
+      const feature = row && typeof row === 'object' ? (row as Record<string, unknown>).feature : undefined;
+      if (typeof feature !== 'string') return null;
+      features.push(feature);
+    }
+    return { profile, features: [...new Set(features)] };
+  } catch (e) {
+    cfg.log?.warn({ err: errorMessage(e), user_id: userId }, 'admin context read failed; /me answers without it');
+    return null;
+  }
+}
+
 // True when the access token expires within the refresh skew.
 export function needsRefresh(s: GwSession): boolean {
   return s.expires_at - REFRESH_SKEW_SECONDS <= Date.now() / 1000;
