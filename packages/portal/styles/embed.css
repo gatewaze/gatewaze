@@ -1,0 +1,86 @@
+/*
+ * Portal embeds (/embed/<widget>): styles that do not depend on the portal
+ * shell or the brand's portal theme, which assumes a dark page. The widget
+ * sits on someone else's page, so it brings its own readable colours.
+ *
+ * Appearance comes from the embed URL (see app/(embed)/embed/[widget]/page.tsx):
+ *   data-theme="light" | "dark"        default light
+ *   data-bg="card" | "transparent"     default card (opaque, bordered)
+ *   --embed-accent / --embed-on-accent the button colour and its text colour
+ *
+ * Widgets use the same class names as the portal pages (pub-nl-*), so one
+ * component serves both; here they are restyled under .gw-embed-root.
+ */
+
+.gw-embed-root {
+  --paper: #ffffff;
+  --ink: #17171b;
+  --ink-2: #3d3e45;
+  --ink-3: #66686f;
+  --line: rgba(23, 23, 27, 0.12);
+  --field: rgba(23, 23, 27, 0.05);
+  --ok: #166534;
+  --err: #b42318;
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+.gw-embed-root[data-theme='dark'] {
+  --paper: #17171b;
+  --ink: #f4f4f6;
+  --ink-2: #d2d3d8;
+  --ink-3: #a3a5ad;
+  --line: rgba(255, 255, 255, 0.14);
+  --field: rgba(255, 255, 255, 0.07);
+  --ok: #86efac;
+  --err: #fca5a5;
+}
+
+.gw-embed-root .pub-nl { margin: 0; }
+.gw-embed-root .pub-nl-card {
+  position: relative;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 24px;
+}
+.gw-embed-root[data-bg='transparent'] .pub-nl-card { background: transparent; border: 0; padding: 0; }
+.gw-embed-root .pub-nl-card::before,
+.gw-embed-root .pub-nl-card::after { content: none; }
+
+.gw-embed-root .pub-nl-name { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; color: var(--ink); margin: 0; }
+.gw-embed-root .pub-nl-desc { color: var(--ink-3); font-size: 14px; line-height: 1.55; margin: 8px 0 0; }
+.gw-embed-root .pub-nl-note { color: var(--ink-3); font-size: 13px; margin-top: 12px; }
+.gw-embed-root .pub-empty { color: var(--ink-3); padding: 16px 0; border: 0; text-align: left; margin: 0; }
+
+.gw-embed-root .pub-nl-signup { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.gw-embed-root .pub-nl-signup-input {
+  flex: 1; min-width: 200px; height: 42px; padding: 0 14px; border-radius: 10px;
+  background: var(--field); border: 1px solid var(--line); color: var(--ink); font-size: 14px;
+}
+.gw-embed-root .pub-nl-signup-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 42px; padding: 0 20px; border-radius: 10px; border: 0; cursor: pointer;
+  font-family: inherit; font-weight: 600; font-size: 14px; text-decoration: none; white-space: nowrap;
+  background: var(--embed-accent, var(--ink)); color: var(--embed-on-accent, var(--paper));
+  transition: opacity .15s ease;
+}
+.gw-embed-root .pub-nl-signup-btn:hover { opacity: .9; }
+.gw-embed-root .pub-nl-signup-btn:disabled { opacity: .5; cursor: not-allowed; }
+.gw-embed-root .pub-nl-signup-btn:focus-visible,
+.gw-embed-root .pub-nl-unsub-btn:focus-visible { outline: 2px solid var(--embed-accent, var(--ink)); outline-offset: 2px; }
+.gw-embed-root .pub-nl-unsub-btn {
+  height: 34px; padding: 0 14px; border-radius: 9px; cursor: pointer; font-family: inherit; font-weight: 600; font-size: 13px;
+  background: none; color: var(--ink-3); border: 1px solid var(--line);
+}
+.gw-embed-root .pub-nl-unsub-btn:hover { color: var(--ink); }
+
+.gw-embed-root .pub-nl-signup-msg { flex-basis: 100%; font-size: 13px; margin: 6px 0 0; color: var(--ink-2); }
+.gw-embed-root .pub-nl-signup-msg.ok { color: var(--ok); }
+.gw-embed-root .pub-nl-signup-msg.err { color: var(--err); }
+.gw-embed-root a { color: var(--embed-accent, var(--ink)); text-underline-offset: 2px; }
+.gw-embed-root a.pub-nl-signup-btn { color: var(--embed-on-accent, var(--paper)); }
+
+/* The sign-in popup page. */
+.gw-embed-root.gw-embed-popup { min-height: 100vh; background: var(--paper); }

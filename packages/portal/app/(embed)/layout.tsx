@@ -1,6 +1,7 @@
 import type { Viewport } from 'next'
 import { getServerBrandConfig, buildGoogleFontsUrl, buildFontStack, isLightColor } from '@/config/brand'
 import '@/styles/globals.css'
+import '@/styles/embed.css'
 
 export const viewport: Viewport = {
   width: 'device-width',
