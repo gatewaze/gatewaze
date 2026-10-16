@@ -26,6 +26,7 @@ import {
   csrfDecision,
   deriveKeys,
   forwardedFor,
+  getAdminContext,
   getUser,
   isAdminCheckPending,
   isPublicRead,
@@ -343,12 +344,20 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   });
 
   // The SPA's only source of user identity. A signed-in non-admin gets 403
-  // with their email, so the SPA can say who they're signed in as.
+  // with their email, so the SPA can say who they're signed in as. An admin's
+  // 200 also carries `admin` (their admin profile and granted features), read
+  // alongside the GoTrue user so the SPA can skip those queries on first
+  // render; it is left out when that read fails.
   app.get('/bff/me', async (request, reply) => {
     const found = await lookupSession(request);
     if (found.state === 'none') return reply.code(401).send({ error: 'not_signed_in' });
     if (found.state === 'expired') return sendExpired(request, reply);
     if (isAdminCheckPending(found.session)) return sendAdminCheckPending(reply, found.session);
+    // Never rejects (it resolves null on any failure), so it can start before
+    // getUser and be dropped if getUser ends the request early.
+    const admin = found.session.is_admin
+      ? getAdminContext(cfg, found.session.access_token, found.session.user_id)
+      : Promise.resolve(null);
     let user: Record<string, unknown>;
     try {
       user = await getUser(cfg, found.session.access_token);
@@ -368,7 +377,8 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
       return reply.code(503).send({ error: 'session_unavailable' });
     }
     if (!found.session.is_admin) return reply.code(403).send({ error: 'not_admin', email: user.email });
-    return { user };
+    const adminContext = await admin;
+    return adminContext ? { user, admin: adminContext } : { user };
   });
 
   await app.register(async (proxied) => {
