@@ -62,7 +62,9 @@ export interface GwEmbedSource {
    * How the entry module is imported. Defaults to a native dynamic
    * `import(url)`; a host whose module loading has to go through its own
    * mechanism (a CSP nonce, a custom loader) supplies one here. Must resolve
-   * to the module namespace.
+   * to the module namespace. When set, the loader adds no
+   * `<link rel="modulepreload">` tags (see GwEmbedManifest.preload), since
+   * a host that controls module loading may not allow them.
    */
   importEntry?: (url: string) => Promise<unknown>;
 }
@@ -87,10 +89,32 @@ export interface GwEmbedManifest {
    * support none.
    */
   capabilities?: string[];
+  /**
+   * Chunks the entry imports statically, relative to the manifest, entry
+   * excluded. The loader preloads each one with `<link rel="modulepreload">`
+   * while the entry downloads. Optional: absent on bundles built before it
+   * existed, and ignored by loaders before 1.2.0.
+   */
+  preload?: string[];
 }
 
 /** Manifest capability a bundle needs to honour GwHostContext.session. */
 export const HOST_SESSION_CAPABILITY = 'host-session';
+
+/** Manifest capability: the bundle dispatches FIRST_PAINT_EVENT on the mount element. */
+export const FIRST_PAINT_CAPABILITY = 'first-paint';
+
+/** Manifest capability: the bundle honours GwHostContext.loadingIndicator. */
+export const HOST_LOADING_INDICATOR_CAPABILITY = 'host-loading-indicator';
+
+/**
+ * The event a 'first-paint' bundle dispatches on the mount element. The same
+ * name as FIRST_PAINT_EVENT in the admin's embed/contract.ts (a test checks).
+ */
+export const FIRST_PAINT_EVENT = 'gw-embed:first-paint';
+
+/** Most preload entries the loader acts on; the rest are left to the browser's own discovery. */
+export const MAX_PRELOADS = 64;
 
 export interface GwLoaderHandle extends GwEmbedHandle {
   /**
@@ -99,6 +123,15 @@ export interface GwLoaderHandle extends GwEmbedHandle {
    * first. Never rejects.
    */
   ready: Promise<GwEmbedManifest | null>;
+  /**
+   * Resolves once the embed has put something on screen: its first route
+   * content or loading spinner has committed. Use it to hide the host's own
+   * loading state without leaving a blank pane in between. For a bundle
+   * without the 'first-paint' capability it resolves when `ready` does.
+   * Also resolves when loading fails, when the embed reports a fatal error
+   * after mounting, and on `unmount()`. Never rejects.
+   */
+  rendered: Promise<void>;
 }
 
 interface EmbedEntryModule {
@@ -107,6 +140,7 @@ interface EmbedEntryModule {
 }
 
 const STYLE_ATTR = 'data-gw-embed-stylesheet';
+const PRELOAD_ATTR = 'data-gw-embed-preload';
 
 function isAllowedBaseUrl(value: unknown): value is string {
   if (typeof value !== 'string' || value === '') return false;
@@ -135,7 +169,9 @@ function isManifest(v: unknown): v is GwEmbedManifest {
     typeof m.entry === 'string' && m.entry !== '' &&
     typeof m.stylesheet === 'string' && m.stylesheet !== '' &&
     (m.capabilities === undefined ||
-      (Array.isArray(m.capabilities) && m.capabilities.every((c) => typeof c === 'string')))
+      (Array.isArray(m.capabilities) && m.capabilities.every((c) => typeof c === 'string'))) &&
+    (m.preload === undefined ||
+      (Array.isArray(m.preload) && m.preload.every((p) => typeof p === 'string' && p !== '')))
   );
 }
 
@@ -158,7 +194,31 @@ async function fetchManifest(base: URL): Promise<GwEmbedManifest> {
   if (!isManifest(body)) throw new Error('manifest is malformed');
   sameOriginFile(body.entry, base);
   sameOriginFile(body.stylesheet, base);
+  // Held to the same rule as the entry: a preload is code the browser fetches
+  // from wherever the manifest says.
+  for (const p of body.preload ?? []) sameOriginFile(p, base);
   return body;
+}
+
+/**
+ * Adds `<link rel="modulepreload">` for each preload file not already linked,
+ * so the browser fetches the entry's static imports alongside it. Purely a
+ * hint: a failed or skipped preload only means the import fetches the file
+ * itself, as before.
+ */
+function preloadModules(files: string[], base: URL): void {
+  for (const file of files.slice(0, MAX_PRELOADS)) {
+    const href = sameOriginFile(file, base).href;
+    if (document.head.querySelector(`link[${PRELOAD_ATTR}="${CSS.escape(href)}"]`)) continue;
+    const link = document.createElement('link');
+    link.rel = 'modulepreload';
+    // The bundle is served with CORS open to any origin and needs no
+    // credentials; matches the mode of the dynamic import() that uses it.
+    link.crossOrigin = 'anonymous';
+    link.href = href;
+    link.setAttribute(PRELOAD_ATTR, href);
+    document.head.appendChild(link);
+  }
 }
 
 async function ensureStylesheet(manifestHref: string, source: GwEmbedSource): Promise<void> {
@@ -177,6 +237,13 @@ async function ensureStylesheet(manifestHref: string, source: GwEmbedSource): Pr
 }
 
 /**
+ * How long `rendered` waits for a 'first-paint' bundle's signal after mount
+ * before resolving anyway, so a bundle that never signals cannot keep a host
+ * waiting on it for ever.
+ */
+export const FIRST_PAINT_TIMEOUT_MS = 10_000;
+
+/**
  * Load the deployment's embed and mount it into `el`. Returns synchronously:
  * the embed mounts when `ready` resolves, and `unmount()` before then
  * cancels the mount. Never throws — every failure reports through
@@ -186,13 +253,31 @@ export function mount(el: HTMLElement, ctx: GwLoaderContext): GwLoaderHandle {
   let cancelled = false;
   let inner: GwEmbedHandle | null = null;
 
+  // `rendered` settles exactly once, from whichever comes first: the bundle's
+  // first-paint event, `ready` (for a bundle without the capability, or a
+  // load that failed), a fatal error after mount, unmount, or the timeout.
+  let resolveRendered!: () => void;
+  const rendered = new Promise<void>((resolve) => {
+    resolveRendered = resolve;
+  });
+  let stopWaiting: (() => void) | null = null;
+  const settleRendered = () => {
+    stopWaiting?.();
+    stopWaiting = null;
+    resolveRendered();
+  };
+  // Set once the load has started waiting for the bundle's signal.
+  let awaitsFirstPaint = false;
+
   const handle: GwLoaderHandle = {
     unmount() {
       cancelled = true;
       inner?.unmount();
       inner = null;
+      settleRendered();
     },
     ready: Promise.resolve(null),
+    rendered,
   };
 
   if (!ctx || typeof ctx !== 'object' || !ctx.source || !isAllowedBaseUrl(ctx.source.baseUrl)) {
@@ -203,6 +288,7 @@ export function mount(el: HTMLElement, ctx: GwLoaderContext): GwLoaderHandle {
       field: 'source.baseUrl',
       recoverable: false,
     });
+    settleRendered();
     return handle;
   }
 
@@ -233,11 +319,13 @@ export function mount(el: HTMLElement, ctx: GwLoaderContext): GwLoaderHandle {
       return null;
     }
 
+    const capabilities = manifest.capabilities ?? [];
+
     // A bundle that predates host-session mode would ignore `session` and keep
     // a localStorage session instead, so a host-session host must not mount it.
     // Keyed on `session !== undefined`, the same test the bundle's own
     // validation uses, so a malformed session can never slip past this check.
-    if (hostCtx.session !== undefined && !(manifest.capabilities ?? []).includes(HOST_SESSION_CAPABILITY)) {
+    if (hostCtx.session !== undefined && !capabilities.includes(HOST_SESSION_CAPABILITY)) {
       fatal(hostCtx, {
         error_type: 'import_failed',
         code: 'gw_embed_capability_missing',
@@ -249,9 +337,6 @@ export function mount(el: HTMLElement, ctx: GwLoaderContext): GwLoaderHandle {
 
     let entry: EmbedEntryModule;
     try {
-      // Stylesheet first so the first paint is styled. Both URLs are
-      // manifest-relative, so a bundle served from a sub-path still resolves.
-      await ensureStylesheet(sameOriginFile(manifest.stylesheet, base).href, source);
       // The bundle's build rewrote every import.meta.env.VITE_* read into
       // globalThis.__GATEWAZE_CONFIG__.VITE_*, and some of those run while
       // the module is being evaluated — before mount() could set the global.
@@ -268,12 +353,27 @@ export function mount(el: HTMLElement, ctx: GwLoaderContext): GwLoaderHandle {
           ? { VITE_SUPABASE_PUBLIC_URL: hostCtx.supabase.publicUrl }
           : {}),
       };
+      // All URLs are manifest-relative, so a bundle served from a sub-path
+      // still resolves.
       const entryUrl = sameOriginFile(manifest.entry, base).href;
+      // A host with its own module loading (importEntry) may not allow
+      // preload links, so they are only added for the native import.
+      if (!source.importEntry && manifest.preload) preloadModules(manifest.preload, base);
       // Not a bundler-time import: the URL is only known at runtime, and the
       // whole point is that it is not part of the host's build.
       const importEntry = source.importEntry ?? ((url: string) => import(/* @vite-ignore */ /* webpackIgnore: true */ url));
-      entry = (await importEntry(entryUrl)) as EmbedEntryModule;
-      if (typeof entry.mount !== 'function') throw new Error('entry has no mount()');
+      // The stylesheet and the entry download in parallel; the embed mounts
+      // only once both are in, so the first paint is still styled. Both are
+      // awaited to the end, so a failure in one never leaves the other as an
+      // unhandled rejection.
+      const [sheet, imported] = await Promise.allSettled([
+        ensureStylesheet(sameOriginFile(manifest.stylesheet, base).href, source),
+        Promise.resolve().then(() => importEntry(entryUrl)),
+      ]);
+      if (sheet.status === 'rejected') throw sheet.reason;
+      if (imported.status === 'rejected') throw imported.reason;
+      entry = imported.value as EmbedEntryModule;
+      if (!entry || typeof entry.mount !== 'function') throw new Error('entry has no mount()');
     } catch (err) {
       fatal(hostCtx, {
         error_type: 'import_failed',
@@ -288,10 +388,48 @@ export function mount(el: HTMLElement, ctx: GwLoaderContext): GwLoaderHandle {
     // node it has dropped would leak a React root.
     if (cancelled) return null;
 
+    // A bundle without the capability has never heard of the field; leave
+    // it out rather than hand it something it will not use.
+    const { loadingIndicator, ...rest } = hostCtx;
+    // A copy either way: the onFatal wrapper below must not write into the
+    // host's own object.
+    const mountCtx: GwHostContext =
+      loadingIndicator !== undefined && capabilities.includes(HOST_LOADING_INDICATOR_CAPABILITY)
+        ? { ...rest, loadingIndicator }
+        : { ...rest };
+    const hostOnFatal = hostCtx.onFatal;
+
+    if (capabilities.includes(FIRST_PAINT_CAPABILITY)) {
+      // Listening before mount, so a signal can never be missed.
+      const onFirstPaint = () => settleRendered();
+      el.addEventListener(FIRST_PAINT_EVENT, onFirstPaint, { once: true });
+      const timer = setTimeout(() => {
+        console.warn(`[gw-embed] no first-paint signal within ${FIRST_PAINT_TIMEOUT_MS}ms; resolving rendered anyway`);
+        settleRendered();
+      }, FIRST_PAINT_TIMEOUT_MS);
+      stopWaiting = () => {
+        el.removeEventListener(FIRST_PAINT_EVENT, onFirstPaint);
+        clearTimeout(timer);
+      };
+      awaitsFirstPaint = true;
+      // A fatal error after mount (a render crash) will never paint.
+      mountCtx.onFatal = (error) => {
+        settleRendered();
+        hostOnFatal?.(error);
+      };
+    }
+
     hostCtx.telemetry?.({ name: 'gw_embed_loaded', loader: version, embed: manifest.version, contract: manifest.contract });
-    inner = entry.mount(el, hostCtx);
+    inner = entry.mount(el, mountCtx);
     return manifest;
   })();
+
+  void handle.ready.then(
+    (manifest) => {
+      if (!manifest || !awaitsFirstPaint) settleRendered();
+    },
+    () => settleRendered(),
+  );
 
   return handle;
 }
