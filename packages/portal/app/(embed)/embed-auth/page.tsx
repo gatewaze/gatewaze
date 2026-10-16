@@ -104,8 +104,10 @@ export default function EmbedAuthPage() {
   }[state]
 
   return (
-    <main style={{ maxWidth: 420, margin: '80px auto', padding: '0 24px', textAlign: 'center' }}>
-      <p style={{ fontSize: 16, lineHeight: 1.6 }}>{text}</p>
-    </main>
+    <div className="gw-embed-root gw-embed-popup" data-theme="light">
+      <main style={{ maxWidth: 420, margin: '0 auto', padding: '80px 24px 0', textAlign: 'center' }}>
+        <p style={{ fontSize: 16, lineHeight: 1.6 }}>{text}</p>
+      </main>
+    </div>
   )
 }
