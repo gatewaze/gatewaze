@@ -87,7 +87,8 @@ A manifest may carry `preload`, the chunks the entry imports statically (its who
 graph, the entry itself left out). Loader 1.2.0 and later add a `<link rel="modulepreload">` for
 each one while the entry downloads, so the browser fetches them in parallel instead of finding
 them one import at a time. Every file is held to the same rule as the entry: it must resolve to the
-`source.baseUrl` origin, or the manifest is refused. At most 64 are used. When the host supplies
+`source.baseUrl` origin, or the manifest is refused. At most 64 are used, and a manifest that lists
+more than 256 is refused as malformed. When the host supplies
 `source.importEntry` (its own module loading, for a CSP nonce say), no preload links are added.
 Older loaders ignore the field, as they ignore any manifest field they do not know.
 
