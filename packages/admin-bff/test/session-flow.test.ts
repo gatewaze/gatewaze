@@ -141,6 +141,48 @@ describe('/bff/me', () => {
     expect(r.headers['cache-control']).toBe('no-store');
   });
 
+  it('adds the admin profile and granted features, read with the user\'s own token', async () => {
+    const { sessionCookie } = await signInViaBrowser('u-admin');
+    const r = await call(h.base, 'GET', '/bff/me', { cookie: sessionCookie });
+    expect(r.status).toBe(200);
+    const body = JSON.parse(r.body);
+    expect(body.admin).toEqual({
+      profile: {
+        id: 'profile-u-admin', user_id: 'u-admin', email: 'admin@example.test', name: 'Test Admin', role: 'admin',
+        avatar_url: null, is_active: true, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+      },
+      features: ['newsletters'],
+    });
+    expect(h.supabase.featureCalls.at(-1)).toMatch(/^Bearer (?!host-session)\S+$/);
+  });
+
+  it.each([
+    ['the profile read fails', () => (h.supabase.profileStatus = 500)],
+    ['the features read fails', () => (h.supabase.featuresStatus = 404)],
+  ])('still answers 200 with the user, without admin, when %s', async (_label, breakIt) => {
+    const { sessionCookie } = await signInViaBrowser('u-admin');
+    breakIt();
+    try {
+      const r = await call(h.base, 'GET', '/bff/me', { cookie: sessionCookie });
+      expect(r.status).toBe(200);
+      const body = JSON.parse(r.body);
+      expect(body.user).toMatchObject({ id: 'u-admin' });
+      expect(body).not.toHaveProperty('admin');
+    } finally {
+      h.supabase.profileStatus = null;
+      h.supabase.featuresStatus = null;
+    }
+  });
+
+  it('never reads the admin context for a non-admin', async () => {
+    const { sessionCookie } = await signInViaBrowser('u-user');
+    const before = h.supabase.featureCalls.length;
+    const r = await call(h.base, 'GET', '/bff/me', { cookie: sessionCookie });
+    expect(r.status).toBe(403);
+    expect(JSON.parse(r.body)).not.toHaveProperty('admin');
+    expect(h.supabase.featureCalls.length).toBe(before);
+  });
+
   it('403s a non-admin with their email', async () => {
     const { sessionCookie } = await signInViaBrowser('u-user');
     const r = await call(h.base, 'GET', '/bff/me', { cookie: sessionCookie });

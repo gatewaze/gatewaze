@@ -52,7 +52,10 @@ export interface GwHostContext {
    * an HttpOnly cookie) and the embed only ever sees a placeholder token, so
    * no real token reaches page scripts or localStorage.
    *
-   * `meUrl` (GET, with the cookie): 200 { user } signed in as an admin; 401 signed
+   * `meUrl` (GET, with the cookie): 200 { user, admin? } signed in as an admin
+   * (`admin`, optional: { profile, features }, the user's admin_profiles row and
+   * granted features, which saves the embed those reads; see
+   * getAdminContext in @gatewaze/host-session); 401 signed
    * out (with `x-gw-session: expired` when the cookie's session is gone); 403
    * { email? } signed in but not an admin; 503 { error: 'admin_check_pending' }
    * with Retry-After (seconds) while the admin check is still running; 503

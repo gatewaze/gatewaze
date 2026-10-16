@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { isAuthError } from '@supabase/supabase-js'
 
 import {
+  ADMIN_CONTEXT_TTL_MS,
   createHostAuth,
+  parseAdminContext,
   HOST_SESSION_TOKEN,
   hostSessionFetch,
   NOT_ADMIN_CACHE_MS,
@@ -704,3 +706,125 @@ describe('host-session auth shim: bounded /me and the in-flight guard', () => {
     expect(listener).not.toHaveBeenCalledWith('SIGNED_IN', expect.anything())
   })
 })
+
+describe('host-session auth shim: the /me admin context', () => {
+  const PROFILE = {
+    id: 'profile-1', user_id: USER.id, email: USER.email, name: 'Ada', role: 'admin', avatar_url: null,
+    is_active: true, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-02T00:00:00Z',
+  }
+  const ADMIN = { profile: PROFILE, features: ['newsletters'] }
+
+  it('keeps the admin context /me sent, by auth user id and by profile id', async () => {
+    fetchMock.mockResolvedValueOnce(json(200, { user: USER, admin: ADMIN }))
+    const auth = makeAuth()
+    await auth.getSession()
+    expect(auth.adminContext(USER.id)).toEqual(ADMIN)
+    expect(auth.adminContextForProfile('profile-1')).toEqual(ADMIN)
+    expect(auth.adminContext('someone-else')).toBeNull()
+    expect(auth.adminContextForProfile('profile-2')).toBeNull()
+  })
+
+  it('has none when /me sent none (an older session holder)', async () => {
+    fetchMock.mockResolvedValueOnce(json(200, { user: USER }))
+    const auth = makeAuth()
+    await auth.getSession()
+    expect(auth.adminContext(USER.id)).toBeNull()
+  })
+
+  it('stops using it after ADMIN_CONTEXT_TTL_MS, while the session itself stays cached', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      fetchMock.mockResolvedValueOnce(json(200, { user: USER, admin: ADMIN }))
+      const auth = makeAuth()
+      await auth.getSession()
+      vi.setSystemTime(Date.now() + ADMIN_CONTEXT_TTL_MS - 1)
+      expect(auth.adminContext(USER.id)).not.toBeNull()
+      vi.setSystemTime(Date.now() + 1)
+      expect(auth.adminContext(USER.id)).toBeNull()
+      expect(auth.adminContextForProfile('profile-1')).toBeNull()
+      await auth.getSession()
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('drops it on sign-out and on a reset', async () => {
+    fetchMock.mockResolvedValue(json(200, { user: USER, admin: ADMIN }))
+    const auth = makeAuth()
+    await auth.getSession()
+    auth.signedOut()
+    expect(auth.adminContext(USER.id)).toBeNull()
+
+    const again = makeAuth()
+    await again.getSession()
+    again.resetSignedOut()
+    expect(again.adminContext(USER.id)).toBeNull()
+  })
+
+  it('ignores a malformed admin field, says so, and still signs the user in', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    fetchMock.mockResolvedValueOnce(json(200, { user: USER, admin: { profile: { ...PROFILE, user_id: 'other' }, features: [] } }))
+    const auth = makeAuth()
+    const { data } = await auth.getSession()
+    expect(data.session?.user).toEqual(USER)
+    expect(auth.adminContext(USER.id)).toBeNull()
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('unexpected shape'))
+  })
+
+  it('does not let a /me answer that lands after a sign-out set the context', async () => {
+    let answer!: (r: Response) => void
+    fetchMock.mockReturnValueOnce(new Promise<Response>((r) => { answer = r }))
+    const auth = makeAuth()
+    const session = auth.getSession()
+    auth.signedOut()
+    answer(json(200, { user: USER, admin: ADMIN }))
+    await session
+    await flush()
+    expect(auth.adminContext(USER.id)).toBeNull()
+  })
+
+  // A 200 is cached for the page's life, so the next /me answer can only
+  // come after a reset; this pins that it does not bring the old context back.
+  it('after a reset, a 200 without admin leaves no context', async () => {
+    fetchMock.mockResolvedValueOnce(json(200, { user: USER, admin: ADMIN }))
+    const auth = makeAuth()
+    await auth.getSession()
+    expect(auth.adminContext(USER.id)).not.toBeNull()
+    auth.resetSignedOut()
+    fetchMock.mockResolvedValueOnce(json(200, { user: USER }))
+    await auth.getSession()
+    expect(auth.adminContext(USER.id)).toBeNull()
+  })
+})
+
+describe('parseAdminContext', () => {
+  const PROFILE = {
+    id: 'p', user_id: 'u', email: 'e@x.org', name: null, role: 'editor', avatar_url: 'a.png',
+    is_active: true, created_at: 'c', updated_at: 'u2',
+  }
+
+  it('accepts a well-formed context and copies only the known fields', () => {
+    expect(parseAdminContext({ profile: { ...PROFILE, extra: 1 }, features: ['a'], more: 2 }, 'u')).toEqual({ profile: PROFILE, features: ['a'] })
+  })
+
+  it.each([
+    ['undefined', undefined],
+    ['a string', 'x'],
+    ['no profile', { features: [] }],
+    ['another user', { profile: { ...PROFILE, user_id: 'v' }, features: [] }],
+    ['an inactive profile', { profile: { ...PROFILE, is_active: false }, features: [] }],
+    ['an empty id', { profile: { ...PROFILE, id: '' }, features: [] }],
+    ['a missing email', { profile: { ...PROFILE, email: undefined }, features: [] }],
+    ['a missing name', { profile: { ...PROFILE, name: undefined }, features: [] }],
+    ['a numeric avatar_url', { profile: { ...PROFILE, avatar_url: 1 }, features: [] }],
+    ['a missing created_at', { profile: { ...PROFILE, created_at: undefined }, features: [] }],
+    ['a missing updated_at', { profile: { ...PROFILE, updated_at: undefined }, features: [] }],
+    ['a numeric role', { profile: { ...PROFILE, role: 1 }, features: [] }],
+    ['features not an array', { profile: PROFILE, features: 'a' }],
+    ['non-string features', { profile: PROFILE, features: [1] }],
+  ])('rejects %s', (_label, value) => {
+    expect(parseAdminContext(value, 'u')).toBeUndefined()
+  })
+})
+
