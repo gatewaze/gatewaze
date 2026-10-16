@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
 
-import { dropWoffFallbacks, isFontsourceCss } from '../woff2Only';
+import { assertNoInlinedWoff, dropWoffFallbacks, isFontsourceCss } from '../woff2Only';
 
 const FACE = `/* inter-latin-400-normal */
 @font-face {
@@ -22,6 +22,13 @@ describe('dropWoffFallbacks', () => {
   it('handles quoted URLs and double-quoted formats', () => {
     const css = `@font-face{src:url("a.woff2") format("woff2"),url("a.woff") format("woff")}`;
     expect(dropWoffFallbacks(css)).toBe(`@font-face{src:url("a.woff2") format("woff2")}`);
+  });
+
+  it.each([
+    [`@font-face{src:url(a.woff2?v=1) format('woff2'),url(a.woff?v=1) format('woff')}`, `@font-face{src:url(a.woff2?v=1) format('woff2')}`],
+    [`@font-face{src:url(a.woff2) format('woff2'),url(a.woff#x) format('woff')}`, `@font-face{src:url(a.woff2) format('woff2')}`],
+  ])('handles a query string or fragment on the URLs (%s)', (input, expected) => {
+    expect(dropWoffFallbacks(input)).toBe(expected);
   });
 
   it('leaves a face without WOFF alone', () => {
@@ -62,5 +69,15 @@ describe('isFontsourceCss', () => {
     ['/r/node_modules/@fontsource/inter/files/inter-latin-400-normal.woff2', false],
   ])('%s -> %s', (id, expected) => {
     expect(isFontsourceCss(id)).toBe(expected);
+  });
+});
+
+describe('assertNoInlinedWoff (the build-output check)', () => {
+  it('passes a stylesheet with only WOFF2 inlined', () => {
+    expect(() => assertNoInlinedWoff('@font-face{src:url(data:font/woff2;base64,AAAA) format("woff2")}')).not.toThrow();
+  });
+
+  it('throws when a WOFF font is still inlined', () => {
+    expect(() => assertNoInlinedWoff('@font-face{src:url(data:font/woff2;base64,AA) format("woff2"),url(data:font/woff;base64,BB) format("woff")}')).toThrow(/still inlines WOFF/);
   });
 });
