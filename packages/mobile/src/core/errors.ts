@@ -101,3 +101,32 @@ export function failureFromStatus(status: number, message: string, code?: string
   if (status >= 500) return new ApiFailure('server', message, status, code);
   return new ApiFailure('client', message, status, code);
 }
+
+/**
+ * The response didn't match our error-envelope contract ({ error: { message,
+ * code } } or { error: string }) at all — a response that never reached a
+ * module's own error handler, a non-JSON body, or anything else unexpected.
+ * This is a platform-wide default used by every module through apiFetch, so
+ * it stays generic rather than naming any specific failure: whatever broke,
+ * a literal status-code string like "HTTP 404" must never reach a member
+ * (issue #104 — a barcode-lookup failure of this shape showed raw "HTTP 404"
+ * text with no actionable next step). The caller (http.ts) still attaches the
+ * real status to the thrown ApiFailure via failureFromStatus; only this
+ * user-facing message is ever generic.
+ */
+const GENERIC_FAILURE_MESSAGE = 'Something went wrong. Please try again.';
+
+export function parseErrorBody(body: unknown): { message: string; code?: string } {
+  if (body && typeof body === 'object') {
+    const err = (body as { error?: unknown }).error;
+    if (typeof err === 'string') return { message: err };
+    if (err && typeof err === 'object') {
+      const e = err as { message?: unknown; code?: unknown };
+      return {
+        message: typeof e.message === 'string' ? e.message : GENERIC_FAILURE_MESSAGE,
+        code: typeof e.code === 'string' ? e.code : undefined,
+      };
+    }
+  }
+  return { message: GENERIC_FAILURE_MESSAGE };
+}

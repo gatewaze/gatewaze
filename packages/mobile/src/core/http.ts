@@ -11,7 +11,7 @@
 import type { MobileFetchInit } from '@gatewaze/shared';
 import { config } from './config';
 import { deviceTimezone } from './appInfo';
-import { ApiFailure, failureFromStatus, toFailure } from './errors';
+import { ApiFailure, failureFromStatus, parseErrorBody, toFailure } from './errors';
 import { noteConnectivity } from './outbox';
 import { getSupabase } from './auth/supabase';
 
@@ -35,21 +35,6 @@ async function accessToken(forceRefresh = false): Promise<string | undefined> {
   }
   const { data } = await supabase.auth.getSession();
   return data.session?.access_token;
-}
-
-function parseErrorBody(body: unknown, status: number): { message: string; code?: string } {
-  if (body && typeof body === 'object') {
-    const err = (body as { error?: unknown }).error;
-    if (typeof err === 'string') return { message: err };
-    if (err && typeof err === 'object') {
-      const e = err as { message?: unknown; code?: unknown };
-      return {
-        message: typeof e.message === 'string' ? e.message : `HTTP ${status}`,
-        code: typeof e.code === 'string' ? e.code : undefined,
-      };
-    }
-  }
-  return { message: `HTTP ${status}` };
 }
 
 async function doFetch(path: string, init: MobileFetchInit, token: string | undefined) {
@@ -143,7 +128,7 @@ export async function apiFetch(path: string, init: MobileFetchInit = {}): Promis
   }
 
   if (!res.ok) {
-    const { message, code } = parseErrorBody(body, res.status);
+    const { message, code } = parseErrorBody(body);
     throw failureFromStatus(res.status, message, code);
   }
 
