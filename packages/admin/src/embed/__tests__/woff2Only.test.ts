@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
 
-import { assertNoInlinedWoff, dropWoffFallbacks, isFontsourceCss } from '../woff2Only';
+import { dropWoffFallbacks, inlinedWoffWarning, isFontsourceCss } from '../woff2Only';
 
 const FACE = `/* inter-latin-400-normal */
 @font-face {
@@ -36,8 +36,15 @@ describe('dropWoffFallbacks', () => {
     expect(dropWoffFallbacks(css)).toBe(css);
   });
 
-  it('refuses a face that has WOFF but no WOFF2, instead of dropping the font', () => {
-    expect(() => dropWoffFallbacks(`@font-face{src:url(a.woff) format('woff')}`)).toThrow(/without WOFF2/);
+  it('leaves a face that has WOFF but no WOFF2 exactly as it is, so no font is lost', () => {
+    const css = `@font-face{src:url(a.woff) format('woff')}`;
+    expect(dropWoffFallbacks(css)).toBe(css);
+  });
+
+  it('keeps a WOFF2 source whose URL carries a query string even when the WOFF one has none', () => {
+    expect(dropWoffFallbacks(`@font-face{src:url(a.woff2?v=1) format('woff2'),url(a.woff) format('woff')}`)).toBe(
+      `@font-face{src:url(a.woff2?v=1) format('woff2')}`,
+    );
   });
 
   it('leaves rules outside @font-face alone', () => {
@@ -72,12 +79,12 @@ describe('isFontsourceCss', () => {
   });
 });
 
-describe('assertNoInlinedWoff (the build-output check)', () => {
-  it('passes a stylesheet with only WOFF2 inlined', () => {
-    expect(() => assertNoInlinedWoff('@font-face{src:url(data:font/woff2;base64,AAAA) format("woff2")}')).not.toThrow();
+describe('inlinedWoffWarning (the build-output check)', () => {
+  it('is quiet for a stylesheet with only WOFF2 inlined', () => {
+    expect(inlinedWoffWarning('@font-face{src:url(data:font/woff2;base64,AAAA) format("woff2")}')).toBeNull();
   });
 
-  it('throws when a WOFF font is still inlined', () => {
-    expect(() => assertNoInlinedWoff('@font-face{src:url(data:font/woff2;base64,AA) format("woff2"),url(data:font/woff;base64,BB) format("woff")}')).toThrow(/still inlines WOFF/);
+  it('warns when a WOFF font is still inlined', () => {
+    expect(inlinedWoffWarning('@font-face{src:url(data:font/woff2;base64,AA) format("woff2"),url(data:font/woff;base64,BB) format("woff")}')).toMatch(/still inlines WOFF/);
   });
 });

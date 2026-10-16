@@ -25,7 +25,6 @@ const SUFFIX = `(?:[?#][^'")]*)?`;
 /** Matches `, url(<…>.woff) format('woff')`: one WOFF entry after another source. */
 const WOFF_FALLBACK = new RegExp(`,\\s*url\\(\\s*(['"]?)[^'")?#]*\\.woff${SUFFIX}\\1\\s*\\)\\s*format\\(\\s*(['"])woff\\2\\s*\\)`, 'g');
 const HAS_WOFF2 = new RegExp(`\\.woff2${SUFFIX}['"]?\\s*\\)\\s*format\\(\\s*['"]woff2['"]\\s*\\)`);
-const HAS_WOFF = new RegExp(`\\.woff${SUFFIX}['"]?\\s*\\)`);
 
 /** True for the @fontsource stylesheets this transform is for. */
 export function isFontsourceCss(id: string): boolean {
@@ -34,29 +33,22 @@ export function isFontsourceCss(id: string): boolean {
 
 /**
  * Removes the WOFF fallback from each @font-face whose `src` also has WOFF2.
- * Throws when a face would be left with no WOFF2 source, so a change in how
- * @fontsource writes its CSS fails the build instead of silently dropping a
- * font.
+ * A face without a WOFF2 source is left exactly as it is, so no font can be
+ * lost; inlinedWoffWarning() then reports it after the build.
  */
 export function dropWoffFallbacks(css: string): string {
-  return css.replace(/@font-face\s*\{[^}]*\}/g, (face) => {
-    if (!HAS_WOFF2.test(face)) {
-      if (HAS_WOFF.test(face)) {
-        throw new Error('[woff2Only] an @font-face lists WOFF without WOFF2; refusing to drop it');
-      }
-      return face;
-    }
-    return face.replace(WOFF_FALLBACK, '');
-  });
+  return css.replace(/@font-face\s*\{[^}]*\}/g, (face) => (HAS_WOFF2.test(face) ? face.replace(WOFF_FALLBACK, '') : face));
 }
 
 /**
- * Checks the built stylesheet: throws when any WOFF font is still inlined.
- * Guards the plugin wiring itself (it must run before Vite rewrites the
- * url()s, so `enforce: 'pre'`), which no unit test of the transform can see.
+ * Checks the built stylesheet, and returns a warning when any WOFF font is
+ * still inlined: a face this transform could not handle, or the plugin no
+ * longer running before Vite rewrites the url()s (it needs `enforce: 'pre'`).
+ * A warning and not a failure: the image build treats a failed embed build
+ * as "no embed", which would be far worse than a larger stylesheet.
  */
-export function assertNoInlinedWoff(css: string): void {
-  if (/data:font\/woff;/.test(css)) {
-    throw new Error('[woff2Only] the embed stylesheet still inlines WOFF fonts; is the woff2-only plugin running before Vite rewrites url()s?');
-  }
+export function inlinedWoffWarning(css: string): string | null {
+  return /data:font\/woff;/.test(css)
+    ? '[woff2Only] the embed stylesheet still inlines WOFF fonts, so it is about 0.7 MB larger than it should be; check that the woff2-only plugin runs before Vite rewrites url()s'
+    : null;
 }
