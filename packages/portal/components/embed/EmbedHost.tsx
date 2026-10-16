@@ -44,7 +44,15 @@ function post(message: Record<string, unknown>) {
   } catch { /* no parent */ }
 }
 
-export function EmbedHost({ widget, enabledModuleIds, enabledFeatures }: {
+export interface EmbedAppearance {
+  theme: 'light' | 'dark'
+  bg: 'card' | 'transparent'
+  accent: string | null
+  onAccent: string | null
+}
+
+export function EmbedHost({ widget, enabledModuleIds, enabledFeatures, appearance }: {
+  appearance: EmbedAppearance
   widget: string
   enabledModuleIds: string[]
   enabledFeatures: string[]
@@ -128,17 +136,25 @@ export function EmbedHost({ widget, enabledModuleIds, enabledFeatures }: {
   const slotName = `embed:${widget}`
   let available = false
   try { available = hasPortalSlot(slotName, new Set(enabledModuleIds), new Set(enabledFeatures)) } catch { available = false }
-  if (!available) {
-    return <p className="pub-empty" style={{ padding: 16 }}>This widget isn’t available.</p>
-  }
+
+  const style = {
+    ...(appearance.accent ? { '--embed-accent': appearance.accent } : {}),
+    ...(appearance.onAccent ? { '--embed-on-accent': appearance.onAccent } : {}),
+  } as React.CSSProperties
 
   return (
-    <ModuleSlot
-      name={slotName}
-      enabledModuleIds={enabledModuleIds}
-      enabledFeatures={enabledFeatures}
-      props={{ embedAuth }}
-    />
+    <div className="gw-embed-root" data-theme={appearance.theme} data-bg={appearance.bg} style={style}>
+      {available ? (
+        <ModuleSlot
+          name={slotName}
+          enabledModuleIds={enabledModuleIds}
+          enabledFeatures={enabledFeatures}
+          props={{ embedAuth }}
+        />
+      ) : (
+        <p className="pub-empty">This widget isn’t available.</p>
+      )}
+    </div>
   )
 }
 
