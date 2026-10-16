@@ -15,6 +15,7 @@ import {
 
 import { EMBED_CAPABILITIES, EMBED_CONTRACT } from "./src/embed/contract";
 import { assertSameEntry, buildEmbedManifest, staticImportGraph } from "./src/embed/manifest";
+import { dropWoffFallbacks, isFontsourceCss } from "./src/embed/woff2Only";
 
 // Which modules the embed compiles in is the deployment's decision, not the
 // repo's: ADMIN_EMBED_MODULES is a comma-separated allow-list (a module and
@@ -82,6 +83,22 @@ function embedManifestPlugin(): Plugin {
   };
 }
 
+/**
+ * Drops the WOFF fallback from the @fontsource faces before they are inlined,
+ * leaving WOFF2 only. See src/embed/woff2Only.ts for why this changes nothing
+ * on screen. Embed build only.
+ */
+function embedWoff2OnlyPlugin(): Plugin {
+  return {
+    name: "gatewaze-embed-woff2-only",
+    enforce: "pre",
+    transform(code, id) {
+      if (!isFontsourceCss(id)) return null;
+      return { code: dropWoffFallbacks(code), map: null };
+    },
+  };
+}
+
 // sonner's package.json "exports" map has no catch-all, so the bridge below cannot import
 // `sonner/dist/index.mjs` the way radixThemesPortal.tsx imports Radix's entry by path. Resolve the
 // real entry here and expose it under a private specifier the bridge can import instead.
@@ -112,7 +129,7 @@ export default defineConfig({
     // directly, where `process` does not exist and evaluation would throw.
     "process.env.NODE_ENV": JSON.stringify("production"),
   },
-  plugins: [react(), svgr(), tailwindcss(), gatewazeModulesPlugin(), embedManifestPlugin()],
+  plugins: [embedWoff2OnlyPlugin(), react(), svgr(), tailwindcss(), gatewazeModulesPlugin(), embedManifestPlugin()],
   resolve: {
     // Array form (not the shared object) so the first entry can match `@radix-ui/themes`
     // EXACTLY: it redirects the bare specifier to a shim that defaults every portalled
