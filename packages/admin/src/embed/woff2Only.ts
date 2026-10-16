@@ -19,8 +19,13 @@
  * files, where the browser already downloads only the WOFF2.
  */
 
+// An optional ?query or #fragment after the file extension, inside url().
+const SUFFIX = `(?:[?#][^'")]*)?`;
+
 /** Matches `, url(<…>.woff) format('woff')`: one WOFF entry after another source. */
-const WOFF_FALLBACK = /,\s*url\(\s*(['"]?)[^'")]*\.woff\1\s*\)\s*format\(\s*(['"])woff\2\s*\)/g;
+const WOFF_FALLBACK = new RegExp(`,\\s*url\\(\\s*(['"]?)[^'")?#]*\\.woff${SUFFIX}\\1\\s*\\)\\s*format\\(\\s*(['"])woff\\2\\s*\\)`, 'g');
+const HAS_WOFF2 = new RegExp(`\\.woff2${SUFFIX}['"]?\\s*\\)\\s*format\\(\\s*['"]woff2['"]\\s*\\)`);
+const HAS_WOFF = new RegExp(`\\.woff${SUFFIX}['"]?\\s*\\)`);
 
 /** True for the @fontsource stylesheets this transform is for. */
 export function isFontsourceCss(id: string): boolean {
@@ -35,12 +40,23 @@ export function isFontsourceCss(id: string): boolean {
  */
 export function dropWoffFallbacks(css: string): string {
   return css.replace(/@font-face\s*\{[^}]*\}/g, (face) => {
-    if (!/\.woff2['"]?\s*\)\s*format\(\s*['"]woff2['"]\s*\)/.test(face)) {
-      if (/\.woff['"]?\s*\)/.test(face)) {
+    if (!HAS_WOFF2.test(face)) {
+      if (HAS_WOFF.test(face)) {
         throw new Error('[woff2Only] an @font-face lists WOFF without WOFF2; refusing to drop it');
       }
       return face;
     }
     return face.replace(WOFF_FALLBACK, '');
   });
+}
+
+/**
+ * Checks the built stylesheet: throws when any WOFF font is still inlined.
+ * Guards the plugin wiring itself (it must run before Vite rewrites the
+ * url()s, so `enforce: 'pre'`), which no unit test of the transform can see.
+ */
+export function assertNoInlinedWoff(css: string): void {
+  if (/data:font\/woff;/.test(css)) {
+    throw new Error('[woff2Only] the embed stylesheet still inlines WOFF fonts; is the woff2-only plugin running before Vite rewrites url()s?');
+  }
 }

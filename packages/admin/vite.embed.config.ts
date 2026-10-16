@@ -15,7 +15,7 @@ import {
 
 import { EMBED_CAPABILITIES, EMBED_CONTRACT } from "./src/embed/contract";
 import { assertSameEntry, buildEmbedManifest, staticImportGraph } from "./src/embed/manifest";
-import { dropWoffFallbacks, isFontsourceCss } from "./src/embed/woff2Only";
+import { assertNoInlinedWoff, dropWoffFallbacks, isFontsourceCss } from "./src/embed/woff2Only";
 
 // Which modules the embed compiles in is the deployment's decision, not the
 // repo's: ADMIN_EMBED_MODULES is a comma-separated allow-list (a module and
@@ -69,6 +69,7 @@ function embedManifestPlugin(): Plugin {
       if (!entry) throw new Error("[vite-embed-config] no entry chunk in the embed bundle");
       if (!stylesheet) throw new Error("[vite-embed-config] no stylesheet in the embed bundle");
       assertSameEntry(bundleEntry, entry);
+      assertNoInlinedWoff(fs.readFileSync(path.join(outDir, stylesheet), "utf8"));
       const manifest = buildEmbedManifest({
         entry,
         stylesheet,
