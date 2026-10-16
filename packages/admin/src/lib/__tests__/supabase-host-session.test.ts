@@ -206,3 +206,35 @@ describe('public storage URLs with a trailing-slash base', () => {
     expect(data.publicUrl).toBe('https://project.supabase.co/storage/v1/object/public/media/x.png')
   })
 })
+
+describe('getHostAdminContext / getHostAdminContextForProfile', () => {
+  const ADMIN = {
+    profile: {
+      id: 'profile-1', user_id: USER.id, email: USER.email, name: 'A', role: 'admin', avatar_url: null,
+      is_active: true, created_at: 'c', updated_at: 'u',
+    },
+    features: ['newsletters'],
+  }
+
+  it('return the /me admin context by auth user id and by profile id, and nothing for other ids', async () => {
+    vi.stubGlobal('fetch', routeFetch((url) => (url.endsWith('/me') ? json(200, { user: USER, admin: ADMIN }) : json(200, []))))
+    const { getHostStatus, getHostAdminContext, getHostAdminContextForProfile } = await freshModule()
+    await getHostStatus()
+
+    expect(getHostAdminContext(USER.id)).toEqual(ADMIN)
+    expect(getHostAdminContextForProfile('profile-1')).toEqual(ADMIN)
+    // Each looks up by its own kind of id only.
+    expect(getHostAdminContext('profile-1')).toBeNull()
+    expect(getHostAdminContextForProfile(USER.id)).toBeNull()
+  })
+
+  it('return nothing in local mode', async () => {
+    vi.stubEnv('VITE_AUTH_MODE', 'local')
+    const fetchMock = routeFetch(() => json(200, { user: USER, admin: ADMIN }))
+    vi.stubGlobal('fetch', fetchMock)
+    const { getHostAdminContext, getHostAdminContextForProfile } = await freshModule()
+    expect(getHostAdminContext(USER.id)).toBeNull()
+    expect(getHostAdminContextForProfile('profile-1')).toBeNull()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+})

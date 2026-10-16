@@ -8,9 +8,11 @@ const signOut = vi.fn()
 const getUser = vi.fn()
 const maybeSingle = vi.fn()
 let authListener: ((event: string, session: unknown) => Promise<void>) | null = null
+const getHostAdminContext = vi.fn()
 
 vi.mock('@/lib/supabase', () => ({
   isHostSession: () => hostSession,
+  getHostAdminContext: (id: string) => getHostAdminContext(id),
   supabase: {
     auth: {
       signOut: () => signOut(),
@@ -37,6 +39,8 @@ beforeEach(() => {
   signOut.mockReset()
   getUser.mockReset()
   maybeSingle.mockReset()
+  getHostAdminContext.mockReset()
+  getHostAdminContext.mockReturnValue(null)
   vi.spyOn(console, 'log').mockImplementation(() => {})
   vi.spyOn(console, 'warn').mockImplementation(() => {})
   vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -162,3 +166,49 @@ describe('SupabaseAuthService.onAuthStateChange outcomes', () => {
     expect(await fire('SIGNED_OUT')).toHaveBeenCalledWith(null, 'signed_out')
   })
 })
+
+describe('SupabaseAuthService.getCurrentUser with an admin context from /me', () => {
+  const HOST_PROFILE = {
+    id: 'p1', user_id: 'u1', email: 'a@example.org', name: 'A', role: 'editor', avatar_url: null,
+    is_active: true as const, created_at: '2026-01-01', updated_at: '2026-01-02',
+  }
+
+  it('uses the profile /me sent for this auth user and skips the admin_profiles query', async () => {
+    getUser.mockResolvedValue({ data: { user: { id: 'u1', email: 'a@example.org' } }, error: null })
+    getHostAdminContext.mockReturnValue({ profile: HOST_PROFILE, features: [] })
+
+    const result = await SupabaseAuthService.getCurrentUser()
+
+    expect(getHostAdminContext).toHaveBeenCalledWith('u1')
+    expect(maybeSingle).not.toHaveBeenCalled()
+    expect(result).toEqual({
+      user: {
+        id: 'p1', email: 'a@example.org', name: 'A', role: 'editor', avatar_url: undefined,
+        permissions: undefined, is_active: true, created_at: '2026-01-01', updated_at: '2026-01-02',
+      },
+      error: null,
+    })
+  })
+
+  it('falls back to the query when /me sent none (or it went stale)', async () => {
+    getUser.mockResolvedValue({ data: { user: { id: 'u1', email: 'a@example.org' } }, error: null })
+    maybeSingle.mockResolvedValue({ data: PROFILE, error: null })
+
+    const result = await SupabaseAuthService.getCurrentUser()
+
+    expect(maybeSingle).toHaveBeenCalledTimes(1)
+    expect(result.user?.id).toBe('p1')
+  })
+
+  it('maps a profile the same way from /me and from the query', async () => {
+    const row = { ...HOST_PROFILE, avatar_url: 'avatars/a.png' }
+    getUser.mockResolvedValue({ data: { user: { id: 'u1', email: 'a@example.org' } }, error: null })
+    getHostAdminContext.mockReturnValue({ profile: row, features: [] })
+    const fromMe = await SupabaseAuthService.getCurrentUser()
+    getHostAdminContext.mockReturnValue(null)
+    maybeSingle.mockResolvedValue({ data: row, error: null })
+    const fromQuery = await SupabaseAuthService.getCurrentUser()
+    expect(fromMe).toEqual(fromQuery)
+  })
+})
+
