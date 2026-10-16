@@ -229,8 +229,8 @@ export function gatewazeModulesPlugin(): Plugin {
                   try { canonical = realpathSync(full); } catch { /* keep `full` */ }
                   // For module `admin/index.{ts,tsx,js}` entries — the
                   // contract is: importing the file runs registry
-                  // contributions as top-level expressions (e.g.
-                  // `registerCanvasPuckPlugin(aiPlugin)`). Rollup's
+                  // contributions as top-level expressions (a call such
+                  // as `registerSomething(contribution)`). Rollup's
                   // side-effect analyzer treats such calls as droppable
                   // when the consumer only reads the namespace's named
                   // exports. Mark these modules as `no-treeshake` so
@@ -456,15 +456,16 @@ export function gatewazeModulesPlugin(): Plugin {
             );
             // If the module also ships `admin/index.ts` (or .tsx/.js),
             // side-effect-import it. Modules use this to register
-            // contributions into shared admin-side registries (e.g.
-            // editor-ai-copilot's `registerCanvasPuckPlugin(aiPlugin)`,
-            // which can't ride on the default-exported config object
-            // because the host editor reads from a runtime registry,
-            // not the module manifest). Doing the side-effect import
-            // here means modules don't need the `import.meta.glob`
-            // dance that TypeScript casts defeated for editor-ai-
-            // copilot, and any future module that needs admin-boot
-            // registration gets it for free.
+            // contributions into shared admin-side registries that a
+            // consumer reads at runtime rather than from the module
+            // manifest, so the contribution can't ride on the
+            // default-exported config object. Doing the side-effect
+            // import here means modules don't need an `import.meta.glob`
+            // dance (which TypeScript casts defeated when this was first
+            // tried), and any module that needs admin-boot registration
+            // gets it for free. (editor-ai-copilot used to register its
+            // canvas plugin this way; it is now loaded lazily by the
+            // sites module's load-canvas-ai-plugins.ts instead.)
             //
             // Use the namespaced form (`@gatewaze-modules/<slug>/admin`)
             // rather than an absolute filesystem path so the import goes
@@ -481,8 +482,9 @@ export function gatewazeModulesPlugin(): Plugin {
               // tree-shaken even with package.json sideEffects whitelisting
               // — confirmed empirically on v1.2.47 + v1.2.48 where the
               // emitted line ran through the plugin but the imported
-              // file's top-level (`registerCanvasPuckPlugin(aiPlugin)`)
-              // never reached the bundle.
+              // file's top-level registry call (at the time,
+              // editor-ai-copilot's canvas plugin registration) never
+              // reached the bundle.
               //
               // Switch to namespace-import-with-global-pin: import the
               // admin entry as a namespace object AND assign it to a
