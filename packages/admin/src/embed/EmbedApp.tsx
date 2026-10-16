@@ -1,5 +1,5 @@
 import { lazy, useEffect, useMemo } from 'react';
-import { createBrowserRouter, RouterProvider } from 'react-router';
+import { createBrowserRouter, Outlet, RouterProvider } from 'react-router';
 
 import { AuthProvider } from '@/app/contexts/auth/Provider';
 import { BreakpointProvider } from '@/app/contexts/breakpoint/Provider';
@@ -9,9 +9,11 @@ import { RadixThemeBridge } from '@/app/contexts/theme/RadixThemeBridge';
 import { moduleAdminRoutes, moduleRoutes } from '@/app/router/moduleRoutes';
 
 import { Loadable } from '@/components/shared/Loadable';
+import { PageLoadingSpinner } from '@/components/ui/Spinner/PageLoadingSpinner';
 
 import { EmbedErrorBoundary } from './EmbedErrorBoundary';
 import { EmbedModulesProvider } from './EmbedModulesProvider';
+import { useFirstPaintSignal } from './firstPaint';
 import type { GwHostContext } from './types';
 
 /**
@@ -49,14 +51,42 @@ function CatchAllHandoff({ navigateHost }: { navigateHost?: (path: string) => vo
   return null;
 }
 
+/**
+ * Every module route is lazy, so until the matched route's code has loaded the
+ * router has nothing to render. Without a HydrateFallback that was nothing at
+ * all: a blank pane between the host's own skeleton and the page's spinner.
+ * This draws the same spinner FeatureGuard draws next, in the same place, and
+ * counts as the embed's first paint.
+ */
+function EmbedRouteFallback() {
+  useFirstPaintSignal();
+  return <PageLoadingSpinner />;
+}
+
+/**
+ * Pathless root around the module routes: renders the matched route and, when
+ * no fallback was ever needed (the route's code was already loaded), signals
+ * first paint itself.
+ */
+function EmbedRootLayout() {
+  useFirstPaintSignal();
+  return <Outlet />;
+}
+
 export function EmbedApp({ ctx, container }: { ctx: GwHostContext; container: HTMLElement }) {
   const router = useMemo(
     () =>
       createBrowserRouter(
         [
-          ...moduleRoutes,
-          { path: 'admin', children: moduleAdminRoutes },
-          { path: '*', element: <CatchAllHandoff navigateHost={ctx.navigateHost} /> },
+          {
+            Component: EmbedRootLayout,
+            HydrateFallback: EmbedRouteFallback,
+            children: [
+              ...moduleRoutes,
+              { path: 'admin', children: moduleAdminRoutes },
+              { path: '*', element: <CatchAllHandoff navigateHost={ctx.navigateHost} /> },
+            ],
+          },
         ],
         {
           basename: ctx.basename,

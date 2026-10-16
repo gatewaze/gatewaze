@@ -10,6 +10,7 @@ import { useAuthContext as useAuth } from '@/app/contexts/auth/context';
 import { useHasPermission } from '@/hooks/usePermissions';
 import { AccessDeniedRedirect } from '@/app/router/AccessDeniedRedirect';
 import { HostAccessGate } from '@/components/auth/HostAccessGate';
+import { PageLoadingSpinner } from '@/components/ui/Spinner/PageLoadingSpinner';
 import type { AdminFeature } from '@/lib/permissions/types';
 
 interface FeatureGuardProps {
@@ -62,12 +63,13 @@ export function FeatureGuard({
   if (authLoading || permissionLoading) {
     if (!showLoading) return null;
 
-    // Embedded: render nothing rather than a second full-screen loader. The host already shows
-    // its own loading state while the bundle downloads and mounts, and the page underneath shows
-    // its own once this guard passes — so this one sits between two others and reads as a stall,
-    // not as progress. Reported from the first host integration as "Checking permissions" followed by a
-    // spinner. Standalone keeps it: there is no host frame there to carry the wait.
-    if (isEmbedded()) return null;
+    // Embedded: the page-level spinner, not the full-screen "Checking permissions" loader. The
+    // route fallback before this guard and the page's own data load after it draw the same
+    // PageLoadingSpinner in the same place, so the three read as one continuous wait. (This used
+    // to return null, to avoid two different loaders back to back; that left the pane blank for
+    // as long as auth and permissions took.) Standalone keeps the full-screen loader: there is no
+    // host frame there to carry the wait.
+    if (isEmbedded()) return <PageLoadingSpinner />;
 
     return (
       <div className="flex items-center justify-center min-h-screen">

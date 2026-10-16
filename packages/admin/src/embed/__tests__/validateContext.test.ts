@@ -151,6 +151,23 @@ describe('validateGwHostContext', () => {
     expect(result.ok).toBe(true);
   });
 
+  it('accepts a loadingIndicator function, or none', () => {
+    expect(validateGwHostContext(validCtx({ loadingIndicator: () => document.createElement('i') })).ok).toBe(true);
+    expect(validateGwHostContext(validCtx({ loadingIndicator: undefined })).ok).toBe(true);
+  });
+
+  it.each([['an element', document.createElement('i')], ['a string', '<i></i>'], ['null', null]])(
+    'rejects a loadingIndicator that is %s',
+    (_label, value) => {
+      const result = validateGwHostContext(validCtx({ loadingIndicator: value as unknown as () => HTMLElement }));
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.field).toBe('loadingIndicator');
+        expect(result.error.code).toBe('gw_ctx_loadingIndicator_invalid');
+      }
+    },
+  );
+
   describe('host-session mode (session set)', () => {
     const ORIGIN = window.location.origin;
 

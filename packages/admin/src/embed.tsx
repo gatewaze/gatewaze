@@ -17,6 +17,8 @@ import { configureEmbedSupabase, configureHostSession } from '@/lib/supabase';
 
 import { getCompiledFeatures, getCompiledModuleIds } from './embed/compiledModules';
 import { EmbedApp } from './embed/EmbedApp';
+import { armFirstPaint, disarmFirstPaint } from './embed/firstPaint';
+import { setHostLoadingIndicator } from './embed/hostLoadingIndicator';
 import { setHostNotify } from './embed/hostNotify';
 import { setHostNavigate } from './embed/hostNavigate';
 import { setEmbeddedMode } from './embed/embedMode';
@@ -154,6 +156,7 @@ export function mount(el: HTMLElement, ctx: GwHostContext): { unmount(): void } 
     setEmbedPortalContainer(validCtx.portalContainer);
     setHostNotify(validCtx.notify);
     setHostNavigate(typeof validCtx.navigateHost === 'function' ? validCtx.navigateHost : null);
+    setHostLoadingIndicator(validCtx.loadingIndicator);
 
     if (hostSession) {
       // storageKeySuffix is ignored: nothing is stored in the page.
@@ -181,6 +184,8 @@ export function mount(el: HTMLElement, ctx: GwHostContext): { unmount(): void } 
 
     const telemetry = createTelemetry(validCtx.telemetry);
     telemetry('gw_embed_mount', { version });
+    const mountedAt = performance.now();
+    armFirstPaint(el, () => telemetry('gw_embed_first_paint', { ms: Math.round(performance.now() - mountedAt) }));
 
     root = createRoot(el);
     root.render(
@@ -199,6 +204,8 @@ export function mount(el: HTMLElement, ctx: GwHostContext): { unmount(): void } 
         setEmbedPortalContainer(null);
         setHostNotify(null);
         setHostNavigate(null);
+        setHostLoadingIndicator(null);
+        disarmFirstPaint();
       },
     };
     return handle;
@@ -206,6 +213,8 @@ export function mount(el: HTMLElement, ctx: GwHostContext): { unmount(): void } 
     // Self-heal: a partial failure here must not poison the next mount
     // attempt into the same or a different element.
     deregisterMount(el);
+    disarmFirstPaint();
+    setHostLoadingIndicator(null);
     reportFatal(validCtx, {
       error_type: root ? 'render_crash' : 'import_failed',
       code: 'gw_mount_failed',

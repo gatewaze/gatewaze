@@ -14,7 +14,7 @@ import {
 } from "./vite-shared-config";
 
 import { EMBED_CAPABILITIES, EMBED_CONTRACT } from "./src/embed/contract";
-import { buildEmbedManifest } from "./src/embed/manifest";
+import { assertSameEntry, buildEmbedManifest, staticImportGraph } from "./src/embed/manifest";
 
 // Which modules the embed compiles in is the deployment's decision, not the
 // repo's: ADMIN_EMBED_MODULES is a comma-separated allow-list (a module and
@@ -47,10 +47,19 @@ const embedVersion = process.env.ADMIN_EMBED_VERSION || "dev";
  */
 function embedManifestPlugin(): Plugin {
   let outDir = "dist-embed";
+  // The entry's static import graph, read from the bundle in generateBundle
+  // (the only hook that sees chunk imports) and written in closeBundle.
+  let preload: string[] = [];
+  let bundleEntry: string | undefined;
   return {
     name: "gatewaze-embed-manifest",
     configResolved(config) {
       outDir = path.resolve(config.root, config.build.outDir);
+    },
+    generateBundle(_options, bundle) {
+      const entryChunk = Object.values(bundle).find((c) => c.type === "chunk" && c.isEntry);
+      bundleEntry = entryChunk?.fileName;
+      preload = entryChunk ? staticImportGraph(bundle, entryChunk.fileName) : [];
     },
     closeBundle() {
       const files = fs.readdirSync(outDir);
@@ -58,15 +67,17 @@ function embedManifestPlugin(): Plugin {
       const stylesheet = files.find((f) => /^admin-embed-[\w-]+\.css$/.test(f));
       if (!entry) throw new Error("[vite-embed-config] no entry chunk in the embed bundle");
       if (!stylesheet) throw new Error("[vite-embed-config] no stylesheet in the embed bundle");
+      assertSameEntry(bundleEntry, entry);
       const manifest = buildEmbedManifest({
         entry,
         stylesheet,
         modules: embedModules,
         version: embedVersion,
         builtAt: new Date().toISOString(),
+        preload,
       });
       fs.writeFileSync(path.join(outDir, "manifest.json"), JSON.stringify(manifest, null, 2) + "\n");
-      console.log(`[vite-embed-config] manifest: ${entry} + ${stylesheet} (contract ${EMBED_CONTRACT}, capabilities ${EMBED_CAPABILITIES.join(",") || "none"}, version ${embedVersion})`);
+      console.log(`[vite-embed-config] manifest: ${entry} + ${stylesheet}, ${preload.length} preloads (contract ${EMBED_CONTRACT}, capabilities ${EMBED_CAPABILITIES.join(",") || "none"}, version ${embedVersion})`);
     },
   };
 }
