@@ -44,6 +44,11 @@
   height: 48px;
 }
 
+/* The fallback loader, when the host's factory fails, fills the box exactly. */
+.gw-loader-host > .loader {
+  margin: 0;
+}
+
 /* Size variants */
 .loader-xs {
   width: 16px;

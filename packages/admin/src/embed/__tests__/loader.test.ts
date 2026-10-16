@@ -420,6 +420,8 @@ describe('@gatewaze/admin-embed loader', () => {
       const handle = loader.mount(document.createElement('div'), { ...hostCtx({ onFatal: (e) => fatals.push(e) }), source: { baseUrl: BASE } });
       await handle.ready;
       expect(document.head.querySelectorAll('link[data-gw-embed-preload]')).toHaveLength(0);
+      // The only failure is the native import itself.
+      expect(fatals.map((f) => f.code)).toEqual(['gw_embed_import_failed']);
       expect(fatals.every((f) => !/slice|undefined/.test(f.message))).toBe(true);
     });
 
@@ -508,6 +510,18 @@ describe('@gatewaze/admin-embed loader', () => {
       expect(renderedDone).toBe(false);
       await vi.advanceTimersByTimeAsync(1);
       expect(renderedDone).toBe(true);
+    });
+
+    it('stops the timeout once first paint arrives, so no false warning follows', async () => {
+      vi.useFakeTimers();
+      fetchMock.mockImplementationOnce(async () => jsonResponse({ ...MANIFEST, capabilities: ['first-paint'] }));
+      const el = document.createElement('div');
+      const handle = loader.mount(el, { ...hostCtx(), source: { baseUrl: BASE, importEntry: importMock } });
+      expect(await handle.ready).not.toBeNull();
+      el.dispatchEvent(new CustomEvent(FIRST_PAINT_EVENT));
+      await handle.rendered;
+      await vi.advanceTimersByTimeAsync(loader.FIRST_PAINT_TIMEOUT_MS + 1);
+      expect(console.warn).not.toHaveBeenCalledWith(expect.stringContaining('no first-paint signal'));
     });
 
     it('passes loadingIndicator through only to a bundle that lists host-loading-indicator', async () => {
