@@ -23,7 +23,52 @@ beforeEach(() => {
   hasPermission.mockResolvedValue({ hasPermission: true });
 });
 
+// renderHook's act() runs effects before result.current is read, so the
+// first render is captured from inside the hook callback.
+function firstRender(feature: string, accountId?: string | null) {
+  const renders: Array<{ hasPermission: boolean; loading: boolean }> = [];
+  renderHook(() => {
+    const r = useHasPermission(feature, accountId);
+    renders.push({ hasPermission: r.hasPermission, loading: r.loading });
+    return r;
+  });
+  return renders[0];
+}
+
+describe('useHasPermission on its first render', () => {
+  it('a granted feature is already granted', () => {
+    expect(firstRender('newsletters')).toEqual({ hasPermission: true, loading: false });
+  });
+
+  it('an unlisted feature is already denied', () => {
+    expect(firstRender('broadcasts')).toEqual({ hasPermission: false, loading: false });
+  });
+
+  it('a super admin is loading, never briefly denied by the list', () => {
+    user = { id: 'profile-1', role: 'super_admin' };
+    // Not in the list: the list must not answer for a super admin.
+    expect(firstRender('broadcasts')).toEqual({ hasPermission: false, loading: true });
+  });
+
+  it('with no list it is loading, as before', () => {
+    getHostAdminContextForProfile.mockReturnValue(null);
+    expect(firstRender('newsletters')).toEqual({ hasPermission: false, loading: true });
+  });
+});
+
 describe('useHasPermission with the /me feature list', () => {
+  it('answers a null account from the list, with no RPC', () => {
+    const { result } = renderHook(() => useHasPermission('newsletters', null));
+    expect(result.current).toEqual({ hasPermission: true, loading: false });
+    expect(hasPermission).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the RPC for an empty feature name', async () => {
+    const { result } = renderHook(() => useHasPermission(''));
+    await waitFor(() => expect(result.current).toEqual({ hasPermission: true, loading: false }));
+    expect(hasPermission).toHaveBeenCalledWith('profile-1', '', undefined);
+  });
+
   it('answers a granted feature on the first render, with no RPC', () => {
     const { result } = renderHook(() => useHasPermission('newsletters'));
     expect(result.current).toEqual({ hasPermission: true, loading: false });
@@ -64,8 +109,8 @@ describe('useHasPermission with the /me feature list', () => {
 
   it('falls back to the RPC when no feature is named', async () => {
     const { result } = renderHook(() => useHasPermission(undefined as unknown as string));
-    await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(hasPermission).toHaveBeenCalled();
+    await waitFor(() => expect(result.current).toEqual({ hasPermission: true, loading: false }));
+    expect(hasPermission).toHaveBeenCalledWith('profile-1', undefined, undefined);
   });
 
   it('still lets a super admin through without looking anything up', () => {

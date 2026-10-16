@@ -53,6 +53,7 @@ describe('getAdminContext', () => {
     expect(profileUrl.searchParams.get('select')).toBe(ADMIN_PROFILE_COLUMNS);
     expect(profileUrl.searchParams.get('user_id')).toBe(`eq.${USER_ID}`);
     expect(profileUrl.searchParams.get('is_active')).toBe('eq.true');
+    expect(profileUrl.searchParams.get('limit')).toBe('2');
     expect(profileCall[1].headers).toEqual({ apikey: 'anon', authorization: 'Bearer user-jwt' });
     expect(featuresCall[1]).toMatchObject({ method: 'POST', body: JSON.stringify({ p_admin_id: USER_ID }) });
     expect(featuresCall[1].headers).toMatchObject({ apikey: 'anon', authorization: 'Bearer user-jwt' });
@@ -71,6 +72,14 @@ describe('getAdminContext', () => {
 
   it.each([
     ['no active row', () => json(200, [])],
+    ['two active rows (as .maybeSingle() refuses)', () => json(200, [PROFILE, { ...PROFILE, id: 'prof-2' }])],
+    ['an empty id', () => json(200, [{ ...PROFILE, id: '' }])],
+    ['a missing email', () => json(200, [{ ...PROFILE, email: undefined }])],
+    ['a missing name', () => json(200, [{ ...PROFILE, name: undefined }])],
+    ['a numeric role', () => json(200, [{ ...PROFILE, role: 1 }])],
+    ['a missing avatar_url', () => json(200, [{ ...PROFILE, avatar_url: undefined }])],
+    ['a missing created_at', () => json(200, [{ ...PROFILE, created_at: undefined }])],
+    ['a missing updated_at', () => json(200, [{ ...PROFILE, updated_at: undefined }])],
     ['a non-array body', () => json(200, { nope: true })],
     ['a 401', () => json(401, {})],
     ['a 500', () => json(500, {})],
@@ -94,6 +103,20 @@ describe('getAdminContext', () => {
       String(input).includes('admin_profiles') ? json(200, [PROFILE]) : answer(),
     );
     await expect(getAdminContext(cfg, 't', USER_ID)).resolves.toBeNull();
+  });
+
+  it('logs every miss except a plain "no active row"', async () => {
+    fetchMock.mockImplementation(async (input: string | URL) =>
+      String(input).includes('admin_profiles') ? json(200, []) : json(200, []),
+    );
+    await getAdminContext(cfg, 't', USER_ID);
+    expect(warn).not.toHaveBeenCalled();
+
+    fetchMock.mockImplementation(async (input: string | URL) =>
+      String(input).includes('admin_profiles') ? json(200, [{ ...PROFILE, role: 1 }]) : json(200, []),
+    );
+    await getAdminContext(cfg, 't', USER_ID);
+    expect(warn).toHaveBeenCalledWith(expect.objectContaining({ reason: expect.stringContaining('unexpected shape') }), expect.any(String));
   });
 
   it('resolves null and logs (without the token) when the network fails', async () => {

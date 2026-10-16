@@ -131,11 +131,15 @@ The embedded admin asks the host's session route (`GwHostContext.session.meUrl`)
 Since 1.2.0 the 200 may also carry `admin`, the user's admin profile and the features granted to them:
 
 ```ts
-const [user, admin] = await Promise.all([
-  getUser(cfg, session.access_token),
-  getAdminContext(cfg, session.access_token, session.user_id), // never rejects; null on any failure
-]);
-return admin ? { user, admin } : { user };
+// After the 401 and admin_check_pending answers above. getAdminContext never
+// rejects (it resolves null on any failure), so it can start before getUser.
+const admin = session.is_admin
+  ? getAdminContext(cfg, session.access_token, session.user_id)
+  : Promise.resolve(null);
+const user = await getUser(cfg, session.access_token); // SessionEndedError -> 401, other errors -> 503
+if (!session.is_admin) return res.status(403).json({ error: 'not_admin', email: user.email });
+const adminContext = await admin;
+return res.json(adminContext ? { user, admin: adminContext } : { user });
 ```
 
 ```json
@@ -149,7 +153,9 @@ return admin ? { user, admin } : { user };
 }
 ```
 
-`getAdminContext` reads the active `admin_profiles` row (the `ADMIN_PROFILE_COLUMNS`) and `rpc/admin_get_features` with the user's own token, in parallel, each bounded at 3 seconds. It resolves `null` instead of throwing when either read fails or the answer is not the expected shape. Leave `admin` out then. The field is optional: an admin from before it existed ignores it, and an admin that gets no `admin` reads the profile and permissions itself, as before. With it, the embed skips one profile read and one permission call per route before its first render. Only call it for a session whose `is_admin` is true.
+`getAdminContext` reads the active `admin_profiles` row (the `ADMIN_PROFILE_COLUMNS`) and `rpc/admin_get_features` with the user's own token, in parallel, each bounded at 3 seconds. It resolves `null` instead of throwing when either read fails, when there is no active row or more than one, or when an answer is not the expected shape. Leave `admin` out then.
+
+A host that builds the field itself must send it in exactly this shape, or the admin ignores it (and logs a warning in the browser console). All nine profile fields must be present. `name` and `avatar_url` are a string or `null`, never missing. `is_active` is `true`. `profile.user_id` equals `user.id`. `features` is an array of strings. The field is optional: an admin from before it existed ignores it, and an admin that gets no `admin` reads the profile and permissions itself, as before. With it, the embed skips one profile read and one permission call per route before its first render. Only call it for a session whose `is_admin` is true.
 
 ### Anon requests and publishable keys
 

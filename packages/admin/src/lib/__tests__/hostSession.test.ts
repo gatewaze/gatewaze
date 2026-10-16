@@ -762,11 +762,36 @@ describe('host-session auth shim: the /me admin context', () => {
     expect(again.adminContext(USER.id)).toBeNull()
   })
 
-  it('ignores a malformed admin field and still signs the user in', async () => {
+  it('ignores a malformed admin field, says so, and still signs the user in', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     fetchMock.mockResolvedValueOnce(json(200, { user: USER, admin: { profile: { ...PROFILE, user_id: 'other' }, features: [] } }))
     const auth = makeAuth()
     const { data } = await auth.getSession()
     expect(data.session?.user).toEqual(USER)
+    expect(auth.adminContext(USER.id)).toBeNull()
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('unexpected shape'))
+  })
+
+  it('does not let a /me answer that lands after a sign-out set the context', async () => {
+    let answer!: (r: Response) => void
+    fetchMock.mockReturnValueOnce(new Promise<Response>((r) => { answer = r }))
+    const auth = makeAuth()
+    const session = auth.getSession()
+    auth.signedOut()
+    answer(json(200, { user: USER, admin: ADMIN }))
+    await session
+    await flush()
+    expect(auth.adminContext(USER.id)).toBeNull()
+  })
+
+  it('a later 200 without admin replaces an earlier context', async () => {
+    fetchMock.mockResolvedValueOnce(json(200, { user: USER, admin: ADMIN }))
+    const auth = makeAuth()
+    await auth.getSession()
+    expect(auth.adminContext(USER.id)).not.toBeNull()
+    auth.resetSignedOut()
+    fetchMock.mockResolvedValueOnce(json(200, { user: USER }))
+    await auth.getSession()
     expect(auth.adminContext(USER.id)).toBeNull()
   })
 })
@@ -788,6 +813,11 @@ describe('parseAdminContext', () => {
     ['another user', { profile: { ...PROFILE, user_id: 'v' }, features: [] }],
     ['an inactive profile', { profile: { ...PROFILE, is_active: false }, features: [] }],
     ['an empty id', { profile: { ...PROFILE, id: '' }, features: [] }],
+    ['a missing email', { profile: { ...PROFILE, email: undefined }, features: [] }],
+    ['a missing name', { profile: { ...PROFILE, name: undefined }, features: [] }],
+    ['a numeric avatar_url', { profile: { ...PROFILE, avatar_url: 1 }, features: [] }],
+    ['a missing created_at', { profile: { ...PROFILE, created_at: undefined }, features: [] }],
+    ['a missing updated_at', { profile: { ...PROFILE, updated_at: undefined }, features: [] }],
     ['a numeric role', { profile: { ...PROFILE, role: 1 }, features: [] }],
     ['features not an array', { profile: PROFILE, features: 'a' }],
     ['non-string features', { profile: PROFILE, features: [1] }],

@@ -241,7 +241,7 @@ export function createHostAuth(options: HostAuthOptions) {
 
   // cache: true = keep for the page's life, false = ask again next time,
   // a number = keep for that many milliseconds.
-  const fetchMe = async (): Promise<{ result: HostStatus; cache: boolean | number }> => {
+  const fetchMe = async (): Promise<{ result: HostStatus; cache: boolean | number; admin?: HostAdminContext }> => {
     let res: Response
     try {
       res = await fetch(meUrl, {
@@ -259,11 +259,14 @@ export function createHostAuth(options: HostAuthOptions) {
       // a sign-out, so it is logged and not cached.
       const body = (await res.json().catch(() => null)) as { user?: User; admin?: unknown } | null
       if (body?.user && typeof body.user === 'object' && typeof body.user.id === 'string') {
-        // Optional: a session holder that does not send it, or sends
-        // something else, just means the admin reads it itself.
+        // Optional: a session holder that does not send it just means the
+        // admin reads it itself. One that sends it in the wrong shape is a
+        // session-holder bug, logged so the lost shortcut is visible.
         const admin = parseAdminContext(body.admin, body.user.id)
-        adminContext = admin ? { userId: body.user.id, value: admin, expiresAt: Date.now() + ADMIN_CONTEXT_TTL_MS } : null
-        return { result: { status: 'ok', user: body.user }, cache: true }
+        if (!admin && body.admin !== undefined) {
+          console.warn(`[host-session] ${meUrl} sent an admin field in an unexpected shape; ignoring it`)
+        }
+        return { result: { status: 'ok', user: body.user }, cache: true, admin }
       }
       console.warn(`[host-session] ${meUrl} answered 200 without a user; treating as unavailable`)
       return { result: { status: 'unavailable' }, cache: false }
@@ -297,10 +300,16 @@ export function createHostAuth(options: HostAuthOptions) {
       meExpiresAt = null
     }
     if (!me) {
-      const pending = fetchMe().then(({ result, cache }) => {
+      const pending = fetchMe().then(({ result, cache, admin }) => {
         // `me === pending` guards against a sign-out (or reset) that replaced
         // the cache while this request was in flight.
         if (me === pending) {
+          // Only the latest answer, and only one no sign-out has replaced,
+          // may set the admin context.
+          adminContext =
+            result.status === 'ok' && admin
+              ? { userId: result.user.id, value: admin, expiresAt: Date.now() + ADMIN_CONTEXT_TTL_MS }
+              : null
           if (cache === false) me = null
           else if (typeof cache === 'number') meExpiresAt = Date.now() + cache
           // Access arrived after an answer that withheld it (a pending

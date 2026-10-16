@@ -53,7 +53,10 @@ function toAdminUser(adminProfile: {
   return {
     id: adminProfile.id,
     email: adminProfile.email,
+    // Nullable in the database; passed through as the query always did.
     name: adminProfile.name as string,
+    // Not narrowed here, as the query never did (the database also allows
+    // portal_manager); RLS and the guards decide what a role may do.
     role: adminProfile.role as AdminUser['role'],
     avatar_url: toPublicUrl(adminProfile.avatar_url, BUCKET_URL) ?? undefined,
     permissions: adminProfile.permissions,

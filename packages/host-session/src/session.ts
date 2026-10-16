@@ -268,7 +268,10 @@ export async function getAdminContext(
   const headers = { apikey: cfg.anonKey, authorization: `Bearer ${accessToken}` };
   const profileUrl =
     `${cfg.supabaseUrl}/rest/v1/admin_profiles?select=${ADMIN_PROFILE_COLUMNS}` +
-    `&user_id=eq.${encodeURIComponent(userId)}&is_active=eq.true&limit=1`;
+    // Two rows, not one: admin_profiles.user_id is not unique, and the admin's
+    // own read (.maybeSingle()) fails on a duplicate rather than picking one.
+    // This does the same by giving up when more than one row comes back.
+    `&user_id=eq.${encodeURIComponent(userId)}&is_active=eq.true&limit=2`;
   const readJson = async (input: string, init: RequestInit): Promise<unknown> => {
     const res = await fetchWithin(ADMIN_CONTEXT_TIMEOUT_MS, input, init);
     if (res.status !== 200) {
@@ -286,13 +289,23 @@ export async function getAdminContext(
         body: JSON.stringify({ p_admin_id: userId }),
       }),
     ]);
-    const profile: unknown = Array.isArray(rows) ? rows[0] : undefined;
-    if (!isAdminProfile(profile, userId)) return null;
-    if (!Array.isArray(featureRows)) return null;
+    // No active row is a normal answer (the session holder's is_admin can
+    // be up to a token lifetime old); every other miss is logged, so a schema
+    // change that quietly turns the shortcut off is visible.
+    const skip = (reason: string) => {
+      cfg.log?.warn({ reason, user_id: userId }, 'admin context unusable; /me answers without it');
+      return null;
+    };
+    if (!Array.isArray(rows)) return skip('admin_profiles returned a non-array');
+    if (rows.length === 0) return null;
+    if (rows.length > 1) return skip('more than one active admin_profiles row');
+    const profile: unknown = rows[0];
+    if (!isAdminProfile(profile, userId)) return skip('admin_profiles row in an unexpected shape');
+    if (!Array.isArray(featureRows)) return skip('admin_get_features returned a non-array');
     const features: string[] = [];
     for (const row of featureRows) {
       const feature = row && typeof row === 'object' ? (row as Record<string, unknown>).feature : undefined;
-      if (typeof feature !== 'string') return null;
+      if (typeof feature !== 'string') return skip('admin_get_features row without a feature string');
       features.push(feature);
     }
     return { profile, features: [...new Set(features)] };
