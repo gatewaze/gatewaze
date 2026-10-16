@@ -10,6 +10,7 @@
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
+  Keyboard,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -357,22 +358,51 @@ export function Button({
   );
 }
 
+const NUMERIC_KEYBOARD_TYPES = new Set(['number-pad', 'decimal-pad', 'numeric', 'phone-pad']);
+
 export function Input(props: TextInputProps & { label?: string }) {
   const theme = useTheme();
   const { scale } = useTextScale();
-  const { label, style, ...rest } = props;
+  const { label, style, keyboardType, onFocus, onBlur, ...rest } = props;
+  const [isFocused, setIsFocused] = useState(false);
+
+  const showDismiss = isFocused && !!keyboardType && NUMERIC_KEYBOARD_TYPES.has(keyboardType);
+
   return (
     <View style={{ gap: spacing.xs }}>
       {label ? <Label>{label}</Label> : null}
-      <TextInput
-        placeholderTextColor={theme.textMuted}
-        style={[
-          styles.input,
-          { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text, fontSize: 16 * scale },
-          style,
-        ]}
-        {...rest}
-      />
+      <View style={{ position: 'relative', justifyContent: 'center' }}>
+        <TextInput
+          placeholderTextColor={theme.textMuted}
+          keyboardType={keyboardType}
+          onFocus={(e) => {
+            setIsFocused(true);
+            onFocus?.(e);
+          }}
+          onBlur={(e) => {
+            setIsFocused(false);
+            onBlur?.(e);
+          }}
+          style={[
+            styles.input,
+            { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text, fontSize: 16 * scale },
+            showDismiss ? styles.inputWithDismiss : null,
+            style,
+          ]}
+          {...rest}
+        />
+        {showDismiss ? (
+          <Pressable
+            onPress={() => Keyboard.dismiss()}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss keyboard"
+            style={styles.dismissButton}
+          >
+            <Icon name="close" size={16} color={theme.textMuted} />
+          </Pressable>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -541,6 +571,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: 12,
     fontSize: 16,
+  },
+  inputWithDismiss: {
+    paddingRight: 36,
+  },
+  dismissButton: {
+    position: 'absolute',
+    right: spacing.xs,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xs,
   },
   listItem: {
     flexDirection: 'row',
