@@ -784,7 +784,9 @@ describe('host-session auth shim: the /me admin context', () => {
     expect(auth.adminContext(USER.id)).toBeNull()
   })
 
-  it('a later 200 without admin replaces an earlier context', async () => {
+  // A 200 is cached for the page's life, so the next /me answer can only
+  // come after a reset; this pins that it does not bring the old context back.
+  it('after a reset, a 200 without admin leaves no context', async () => {
     fetchMock.mockResolvedValueOnce(json(200, { user: USER, admin: ADMIN }))
     const auth = makeAuth()
     await auth.getSession()
