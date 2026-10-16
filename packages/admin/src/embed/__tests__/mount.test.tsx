@@ -92,6 +92,48 @@ describe('mount / unmount', () => {
     expect(getHostNavigate()).toBeNull();
   });
 
+  it('hands the host loadingIndicator to the spinner on mount and clears it on unmount', async () => {
+    const { mount } = await import('../../embed');
+    const { getHostLoadingIndicator } = await import('../hostLoadingIndicator');
+    const loadingIndicator = () => document.createElement('i');
+    const handle = mount(document.createElement('div'), makeCtx({ loadingIndicator }));
+    expect(getHostLoadingIndicator()).toBe(loadingIndicator);
+    handle.unmount();
+    expect(getHostLoadingIndicator()).toBeNull();
+  });
+
+  it('refuses a loadingIndicator that is not a function', async () => {
+    const { mount } = await import('../../embed');
+    const onFatal = vi.fn();
+    mount(document.createElement('div'), makeCtx({ loadingIndicator: 'x' as unknown as () => HTMLElement, onFatal }));
+    expect(onFatal).toHaveBeenCalledWith(expect.objectContaining({ code: 'gw_ctx_loadingIndicator_invalid' }));
+    expect(isMountLive()).toBe(false);
+  });
+
+  it('arms the first-paint signal on the mount element, and disarms it on unmount', async () => {
+    const { mount } = await import('../../embed');
+    const { signalFirstPaint } = await import('../firstPaint');
+    const { FIRST_PAINT_EVENT } = await import('../contract');
+    const telemetry = vi.fn();
+    const el = document.createElement('div');
+    const onPaint = vi.fn();
+    el.addEventListener(FIRST_PAINT_EVENT, onPaint);
+
+    const handle = mount(el, makeCtx({ telemetry }));
+    signalFirstPaint();
+    await vi.waitFor(() => expect(onPaint).toHaveBeenCalledTimes(1));
+    expect(telemetry).toHaveBeenCalledWith(expect.objectContaining({ name: 'gw_embed_first_paint', ms: expect.any(Number) }));
+    handle.unmount();
+
+    const el2 = document.createElement('div');
+    const onPaint2 = vi.fn();
+    el2.addEventListener(FIRST_PAINT_EVENT, onPaint2);
+    mount(el2, makeCtx()).unmount();
+    signalFirstPaint();
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
+    expect(onPaint2).not.toHaveBeenCalled();
+  });
+
   it('ignores a navigateHost that is not a function', async () => {
     const { mount } = await import('../../embed');
     const { getHostNavigate } = await import('../hostNavigate');

@@ -82,6 +82,16 @@ export interface GwHostContext {
    * Only string-content toasts can cross this boundary; anything richer stays with the embed.
    */
   notify?: (notification: GwEmbedNotification) => void;
+  /**
+   * Host loading spinner (the 'host-loading-indicator' capability). When
+   * present, the embed calls it each time it shows a page-level loading
+   * state and renders the returned element in place of its own spinner,
+   * inside the same centred box and inside a `role="status"` wrapper with a
+   * visually hidden "Loading" label. So the element itself should be
+   * decorative (`aria-hidden="true"`). Return a new element on every call;
+   * the embed removes it when loading ends. Absent: the embed's own spinner.
+   */
+  loadingIndicator?: () => HTMLElement;
   /** Host hook: embed gave up. */
   onFatal?: (err: GwEmbedFatalError) => void;
   /**

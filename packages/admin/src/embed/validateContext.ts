@@ -191,5 +191,9 @@ export function validateGwHostContext(ctx: unknown): ValidationResult {
     return fail('storageKeySuffix', 'storageKeySuffix must be a non-empty string when provided');
   }
 
+  if (c.loadingIndicator !== undefined && typeof c.loadingIndicator !== 'function') {
+    return fail('loadingIndicator', 'loadingIndicator must be a function returning an HTMLElement when provided');
+  }
+
   return { ok: true, ctx: c as GwHostContext };
 }

@@ -6,7 +6,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GwEmbedFatalError, GwHostContext } from '../types';
-import { EMBED_CONTRACT } from '../contract';
+import { EMBED_CONTRACT, FIRST_PAINT_EVENT } from '../contract';
 
 type Loader = typeof import('../../../../admin-embed/src/index');
 
@@ -67,7 +67,8 @@ describe('@gatewaze/admin-embed loader', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
-    document.head.querySelectorAll('style[data-gw-embed-stylesheet]').forEach((s) => s.remove());
+    document.head.querySelectorAll('style[data-gw-embed-stylesheet], link[data-gw-embed-preload]').forEach((s) => s.remove());
+    vi.useRealTimers();
   });
 
   it('refuses a source that is not https (or localhost http) without touching the network', async () => {
@@ -291,5 +292,213 @@ describe('@gatewaze/admin-embed loader', () => {
     expect(await handle.ready).toBeNull();
     expect(innerMount).not.toHaveBeenCalled();
     expect(fatals).toEqual([]);
+  });
+
+  describe('loader 1.2.0: parallel load, preload, rendered', () => {
+    function deferred<T>() {
+      let resolve!: (v: T) => void;
+      const promise = new Promise<T>((r) => {
+        resolve = r;
+      });
+      return { promise, resolve };
+    }
+
+    it('uses the same first-paint event name as the bundle', () => {
+      expect(loader.FIRST_PAINT_EVENT).toBe(FIRST_PAINT_EVENT);
+    });
+
+    it('starts importing the entry while the stylesheet is still downloading, and mounts only after both', async () => {
+      const css = deferred<Response>();
+      fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith('/manifest.json')) return jsonResponse(MANIFEST);
+        if (url.endsWith('.css')) return css.promise;
+        return new Response('not found', { status: 404 });
+      });
+      const handle = loader.mount(document.createElement('div'), { ...hostCtx({ onFatal: (e) => fatals.push(e) }), source: { baseUrl: BASE, importEntry: importMock } });
+      await vi.waitFor(() => expect(importMock).toHaveBeenCalledWith(`${BASE}/admin-embed-abc123.js`));
+      expect(innerMount).not.toHaveBeenCalled();
+      css.resolve(new Response('.gw{}', { status: 200 }));
+      expect(await handle.ready).toEqual(MANIFEST);
+      expect(innerMount).toHaveBeenCalledTimes(1);
+      expect(document.head.querySelector('style[data-gw-embed-stylesheet]')?.textContent).toBe('.gw{}');
+      expect(fatals).toEqual([]);
+    });
+
+    it('does not mount when the stylesheet fails, even though the entry imported', async () => {
+      fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith('/manifest.json')) return jsonResponse(MANIFEST);
+        return new Response('gone', { status: 500 });
+      });
+      const handle = loader.mount(document.createElement('div'), { ...hostCtx({ onFatal: (e) => fatals.push(e) }), source: { baseUrl: BASE, importEntry: importMock } });
+      expect(await handle.ready).toBeNull();
+      expect(fatals.map((f) => f.code)).toEqual(['gw_embed_import_failed']);
+      expect(fatals[0].message).toContain('stylesheet responded 500');
+      expect(innerMount).not.toHaveBeenCalled();
+      await handle.rendered;
+    });
+
+    it('reports an entry that fails to import while the stylesheet is still in flight', async () => {
+      const css = deferred<Response>();
+      fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith('/manifest.json')) return jsonResponse(MANIFEST);
+        return css.promise;
+      });
+      importMock.mockImplementationOnce(async () => {
+        throw new Error('network');
+      });
+      const handle = loader.mount(document.createElement('div'), { ...hostCtx({ onFatal: (e) => fatals.push(e) }), source: { baseUrl: BASE, importEntry: importMock } });
+      await vi.waitFor(() => expect(importMock).toHaveBeenCalled());
+      css.resolve(new Response('.gw{}', { status: 200 }));
+      expect(await handle.ready).toBeNull();
+      expect(fatals.map((f) => f.code)).toEqual(['gw_embed_import_failed']);
+      expect(innerMount).not.toHaveBeenCalled();
+    });
+
+    it('adds a modulepreload link for each preload file when it imports the entry itself', async () => {
+      fetchMock.mockImplementationOnce(async () => jsonResponse({ ...MANIFEST, preload: ['chunks/react-a.js', 'chunks/ui-b.js'] }));
+      // No importEntry: the native import() of an https URL cannot run under
+      // vitest, so this load fails after the links are in place.
+      const handle = loader.mount(document.createElement('div'), { ...hostCtx({ onFatal: (e) => fatals.push(e) }), source: { baseUrl: BASE } });
+      await handle.ready;
+      const links = [...document.head.querySelectorAll<HTMLLinkElement>('link[data-gw-embed-preload]')];
+      expect(links.map((l) => [l.rel, l.href, l.crossOrigin])).toEqual([
+        ['modulepreload', `${BASE}/chunks/react-a.js`, 'anonymous'],
+        ['modulepreload', `${BASE}/chunks/ui-b.js`, 'anonymous'],
+      ]);
+    });
+
+    it('does not duplicate preload links across mounts', async () => {
+      for (let i = 0; i < 2; i++) {
+        fetchMock.mockImplementationOnce(async () => jsonResponse({ ...MANIFEST, preload: ['chunks/react-a.js'] }));
+        await loader.mount(document.createElement('div'), { ...hostCtx(), source: { baseUrl: BASE } }).ready;
+      }
+      expect(document.head.querySelectorAll('link[data-gw-embed-preload]')).toHaveLength(1);
+    });
+
+    it('caps the number of preload links', async () => {
+      const preload = Array.from({ length: loader.MAX_PRELOADS + 5 }, (_, i) => `chunks/c${i}.js`);
+      fetchMock.mockImplementationOnce(async () => jsonResponse({ ...MANIFEST, preload }));
+      await loader.mount(document.createElement('div'), { ...hostCtx(), source: { baseUrl: BASE } }).ready;
+      expect(document.head.querySelectorAll('link[data-gw-embed-preload]')).toHaveLength(loader.MAX_PRELOADS);
+    });
+
+    it('adds no preload links when the host imports the entry its own way', async () => {
+      fetchMock.mockImplementationOnce(async () => jsonResponse({ ...MANIFEST, preload: ['chunks/react-a.js'] }));
+      expect(await loader.mount(document.createElement('div'), { ...hostCtx(), source: { baseUrl: BASE, importEntry: importMock } }).ready).not.toBeNull();
+      expect(document.head.querySelectorAll('link[data-gw-embed-preload]')).toHaveLength(0);
+    });
+
+    it.each([
+      [{ preload: ['https://evil.example.test/x.js'] }],
+      [{ preload: ['//evil.example.test/x.js'] }],
+      [{ preload: 'chunks/a.js' }],
+      [{ preload: [''] }],
+      [{ preload: [1] }],
+    ])('refuses a manifest with a bad preload list (%j) before fetching anything else', async (bad) => {
+      fetchMock.mockImplementationOnce(async () => jsonResponse({ ...MANIFEST, ...bad }));
+      const handle = loader.mount(document.createElement('div'), { ...hostCtx({ onFatal: (e) => fatals.push(e) }), source: { baseUrl: BASE } });
+      expect(await handle.ready).toBeNull();
+      expect(fatals.map((f) => f.code)).toEqual(['gw_embed_manifest_unreachable']);
+      expect(document.head.querySelectorAll('link[data-gw-embed-preload]')).toHaveLength(0);
+      expect(fetchMock.mock.calls.filter(([u]) => String(u).endsWith('.css'))).toHaveLength(0);
+    });
+
+    it('accepts a manifest carrying fields it does not know (forward compatibility)', async () => {
+      fetchMock.mockImplementationOnce(async () => jsonResponse({ ...MANIFEST, someFutureField: { x: 1 } }));
+      expect(await loader.mount(document.createElement('div'), { ...hostCtx(), source: { baseUrl: BASE, importEntry: importMock } }).ready).not.toBeNull();
+    });
+
+    it('resolves rendered with ready for a bundle without the first-paint capability', async () => {
+      const handle = loader.mount(document.createElement('div'), { ...hostCtx(), source: { baseUrl: BASE, importEntry: importMock } });
+      let renderedDone = false;
+      void handle.rendered.then(() => {
+        renderedDone = true;
+      });
+      expect(await handle.ready).not.toBeNull();
+      await handle.rendered;
+      expect(renderedDone).toBe(true);
+    });
+
+    it('waits for the bundle\'s first-paint event when the manifest lists first-paint', async () => {
+      fetchMock.mockImplementationOnce(async () => jsonResponse({ ...MANIFEST, capabilities: ['first-paint'] }));
+      const el = document.createElement('div');
+      const handle = loader.mount(el, { ...hostCtx(), source: { baseUrl: BASE, importEntry: importMock } });
+      let renderedDone = false;
+      void handle.rendered.then(() => {
+        renderedDone = true;
+      });
+      await handle.ready;
+      await new Promise((r) => setTimeout(r, 0));
+      expect(renderedDone).toBe(false);
+      el.dispatchEvent(new CustomEvent(FIRST_PAINT_EVENT));
+      await handle.rendered;
+      expect(renderedDone).toBe(true);
+    });
+
+    it('resolves rendered when a first-paint bundle reports a fatal error after mount', async () => {
+      fetchMock.mockImplementationOnce(async () => jsonResponse({ ...MANIFEST, capabilities: ['first-paint'] }));
+      const handle = loader.mount(document.createElement('div'), { ...hostCtx({ onFatal: (e) => fatals.push(e) }), source: { baseUrl: BASE, importEntry: importMock } });
+      await handle.ready;
+      const mountedCtx = innerMount.mock.calls[0][1] as GwHostContext;
+      const crash: GwEmbedFatalError = { error_type: 'render_crash', code: 'gw_render_crash', message: 'x', recoverable: false };
+      mountedCtx.onFatal?.(crash);
+      await handle.rendered;
+      // The host's own hook still hears about it.
+      expect(fatals).toEqual([crash]);
+    });
+
+    it('resolves rendered on unmount, and when loading fails', async () => {
+      fetchMock.mockImplementationOnce(async () => jsonResponse({ ...MANIFEST, capabilities: ['first-paint'] }));
+      const handle = loader.mount(document.createElement('div'), { ...hostCtx(), source: { baseUrl: BASE, importEntry: importMock } });
+      await handle.ready;
+      handle.unmount();
+      await handle.rendered;
+
+      fetchMock.mockImplementationOnce(async () => new Response('down', { status: 503 }));
+      const failed = loader.mount(document.createElement('div'), { ...hostCtx(), source: { baseUrl: BASE, importEntry: importMock } });
+      expect(await failed.ready).toBeNull();
+      await failed.rendered;
+
+      const invalid = loader.mount(document.createElement('div'), { ...hostCtx(), source: { baseUrl: 'ftp://x' } });
+      await invalid.rendered;
+    });
+
+    it('resolves rendered after FIRST_PAINT_TIMEOUT_MS when a first-paint bundle never signals', async () => {
+      vi.useFakeTimers();
+      fetchMock.mockImplementationOnce(async () => jsonResponse({ ...MANIFEST, capabilities: ['first-paint'] }));
+      const handle = loader.mount(document.createElement('div'), { ...hostCtx(), source: { baseUrl: BASE, importEntry: importMock } });
+      let renderedDone = false;
+      void handle.rendered.then(() => {
+        renderedDone = true;
+      });
+      expect(await handle.ready).not.toBeNull();
+      expect(innerMount).toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(loader.FIRST_PAINT_TIMEOUT_MS - 1);
+      expect(renderedDone).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(renderedDone).toBe(true);
+    });
+
+    it('passes loadingIndicator through only to a bundle that lists host-loading-indicator', async () => {
+      const loadingIndicator = () => document.createElement('i');
+
+      await loader.mount(document.createElement('div'), { ...hostCtx({ loadingIndicator }), source: { baseUrl: BASE, importEntry: importMock } }).ready;
+      expect(innerMount.mock.calls[0][1]).not.toHaveProperty('loadingIndicator');
+
+      fetchMock.mockImplementationOnce(async () => jsonResponse({ ...MANIFEST, capabilities: ['host-loading-indicator'] }));
+      await loader.mount(document.createElement('div'), { ...hostCtx({ loadingIndicator }), source: { baseUrl: BASE, importEntry: importMock } }).ready;
+      expect((innerMount.mock.calls[1][1] as GwHostContext).loadingIndicator).toBe(loadingIndicator);
+    });
+
+    it('never writes into the host\'s own context object', async () => {
+      fetchMock.mockImplementationOnce(async () => jsonResponse({ ...MANIFEST, capabilities: ['first-paint'] }));
+      const onFatal = vi.fn();
+      const ctx = { ...hostCtx({ onFatal }), source: { baseUrl: BASE, importEntry: importMock } };
+      await loader.mount(document.createElement('div'), ctx).ready;
+      expect(ctx.onFatal).toBe(onFatal);
+    });
   });
 });
