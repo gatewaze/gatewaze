@@ -15,22 +15,38 @@ import { useEffect } from 'react';
 import { FIRST_PAINT_EVENT } from './contract';
 
 let armed: { el: HTMLElement; onSignal?: () => void } | null = null;
+// The signal waiting for its animation frame, so unmount can cancel it.
+let pending: { frame: number | null; cancelled: boolean } | null = null;
 
 /** Called by mount() before the tree renders. `onSignal` runs once, as the event is dispatched. */
 export function armFirstPaint(el: HTMLElement, onSignal?: () => void): void {
+  disarmFirstPaint();
   armed = { el, onSignal };
 }
 
-/** Called by unmount(): a signal that has not fired yet never will. */
+/**
+ * Called by unmount(): a signal that has not fired yet never will, including
+ * one already waiting for its animation frame. Otherwise a host that mounts
+ * again into the same element within that frame would take the old mount's
+ * event as the new one's.
+ */
 export function disarmFirstPaint(): void {
   armed = null;
+  if (pending) {
+    pending.cancelled = true;
+    if (pending.frame !== null && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(pending.frame);
+    pending = null;
+  }
 }
 
 export function signalFirstPaint(): void {
   const target = armed;
   if (!target) return;
   armed = null;
+  const signal: { frame: number | null; cancelled: boolean } = { frame: null, cancelled: false };
   const fire = () => {
+    if (signal.cancelled) return;
+    if (pending === signal) pending = null;
     try {
       target.el.dispatchEvent(new CustomEvent(FIRST_PAINT_EVENT));
       target.onSignal?.();
@@ -40,8 +56,15 @@ export function signalFirstPaint(): void {
       console.warn('[gw-embed] first-paint signal failed', err);
     }
   };
-  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(fire);
-  else fire();
+  // A hidden tab runs no animation frames until it is shown, and paints
+  // nothing meanwhile, so the signal goes out straight away there.
+  const hidden = typeof document !== 'undefined' && document.visibilityState === 'hidden';
+  if (!hidden && typeof requestAnimationFrame === 'function') {
+    pending = signal;
+    signal.frame = requestAnimationFrame(fire);
+  } else {
+    fire();
+  }
 }
 
 /** Signals first paint once the calling component has committed. */

@@ -175,11 +175,14 @@ describe('mount / unmount', () => {
       throw new Error('boom');
     });
 
-    const failedHandle = mount(el, makeCtx({ onFatal }));
+    const failedHandle = mount(el, makeCtx({ onFatal, loadingIndicator: () => document.createElement('i') }));
     expect(onFatal).toHaveBeenCalledWith(
       expect.objectContaining({ error_type: 'import_failed', code: 'gw_mount_failed' }),
     );
     expect(isMountLive()).toBe(false);
+    // The failed mount's host spinner is not left behind for the next one.
+    const { getHostLoadingIndicator } = await import('../hostLoadingIndicator');
+    expect(getHostLoadingIndicator()).toBeNull();
     expect(() => failedHandle.unmount()).not.toThrow();
 
     // Second attempt (configureEmbedSupabase now behaves) must not be

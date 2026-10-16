@@ -406,6 +406,34 @@ describe('@gatewaze/admin-embed loader', () => {
       expect(fetchMock.mock.calls.filter(([u]) => String(u).endsWith('.css'))).toHaveLength(0);
     });
 
+    it('refuses a manifest listing more than MAX_MANIFEST_PRELOADS preloads', async () => {
+      const preload = Array.from({ length: loader.MAX_MANIFEST_PRELOADS + 1 }, (_, i) => `chunks/c${i}.js`);
+      fetchMock.mockImplementationOnce(async () => jsonResponse({ ...MANIFEST, preload }));
+      const handle = loader.mount(document.createElement('div'), { ...hostCtx({ onFatal: (e) => fatals.push(e) }), source: { baseUrl: BASE } });
+      expect(await handle.ready).toBeNull();
+      expect(fatals.map((f) => f.code)).toEqual(['gw_embed_manifest_unreachable']);
+    });
+
+    it('imports natively without trouble when the manifest has no preload list', async () => {
+      // The native import() cannot load under vitest; the point is that the
+      // missing list itself never causes the failure.
+      const handle = loader.mount(document.createElement('div'), { ...hostCtx({ onFatal: (e) => fatals.push(e) }), source: { baseUrl: BASE } });
+      await handle.ready;
+      expect(document.head.querySelectorAll('link[data-gw-embed-preload]')).toHaveLength(0);
+      expect(fatals.every((f) => !/slice|undefined/.test(f.message))).toBe(true);
+    });
+
+    it('reports a bundle whose mount() throws, and never rejects ready', async () => {
+      fetchMock.mockImplementationOnce(async () => jsonResponse({ ...MANIFEST, capabilities: ['first-paint'] }));
+      innerMount.mockImplementationOnce(() => {
+        throw new Error('boom');
+      });
+      const handle = loader.mount(document.createElement('div'), { ...hostCtx({ onFatal: (e) => fatals.push(e) }), source: { baseUrl: BASE, importEntry: importMock } });
+      expect(await handle.ready).toBeNull();
+      expect(fatals).toEqual([expect.objectContaining({ code: 'gw_embed_mount_failed', error_type: 'render_crash' })]);
+      await handle.rendered;
+    });
+
     it('accepts a manifest carrying fields it does not know (forward compatibility)', async () => {
       fetchMock.mockImplementationOnce(async () => jsonResponse({ ...MANIFEST, someFutureField: { x: 1 } }));
       expect(await loader.mount(document.createElement('div'), { ...hostCtx(), source: { baseUrl: BASE, importEntry: importMock } }).ready).not.toBeNull();
