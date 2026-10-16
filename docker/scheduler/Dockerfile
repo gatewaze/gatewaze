@@ -3,7 +3,7 @@
 # any module-declared `schedulers[]` cron handlers (start-scheduler.js
 # calls loadModules() and dynamic-imports each handler at startup).
 
-FROM node:22-slim
+FROM node:25-slim
 
 # Install Chromium + git (loadModules clones MODULE_SOURCES at runtime)
 RUN apt-get update && apt-get install -y \
