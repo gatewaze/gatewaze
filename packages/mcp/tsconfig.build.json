@@ -1,0 +1,7 @@
+{
+  "extends": "./tsconfig.json",
+  // The production build (and the Docker image) must not compile test files:
+  // they are vitest's concern, and `pnpm typecheck` (tsc --noEmit on the
+  // base config) still covers them.
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts"]
+}

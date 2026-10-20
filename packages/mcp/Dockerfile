@@ -17,7 +17,7 @@ WORKDIR /app
 # compile, then prune to prod deps for the runtime image.
 COPY package.json ./
 RUN npm install --include=dev --no-audit --no-fund
-COPY tsconfig.json ./
+COPY tsconfig.json tsconfig.build.json ./
 COPY src ./src
 RUN npm run build && npm prune --omit=dev
 

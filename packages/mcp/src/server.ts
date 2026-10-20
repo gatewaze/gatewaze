@@ -1,5 +1,5 @@
 import { Server, type Tool } from '@modelcontextprotocol/server';
-import type { GatewazeApiClient } from './lib/supabase.js';
+import { ApiError, type GatewazeApiClient } from './lib/supabase.js';
 
 // ── Tool definitions ─────────────────────────────────────────────────────
 
@@ -678,6 +678,76 @@ const TOOLS: Tool[] = [
       required: ['id'],
     },
   },
+
+  // ── Content-discovery sources (content-sources module, /api/v1/content-sources) ──
+  {
+    name: 'content_sources_list',
+    description:
+      "List the content-discovery sources this platform harvests (RSS/Atom feeds, sitemaps and HTML pages scanned for new posts): site and feed URL, foundation/project, status and last fetch. status is one of pending (submitted, awaiting admin approval), active, paused, dead. pagination.total is the complete count for the given filters (use limit=1 for count questions). Requires the content-sources:read scope.",
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        status: { type: 'string', enum: ['pending', 'active', 'paused', 'dead'], description: 'Filter by lifecycle status' },
+        foundation: { type: 'string', description: 'Filter by foundation (exact match)' },
+        q: { type: 'string', description: 'Filter by site/feed URL or title (partial match)' },
+        limit: { type: 'number', description: 'Max results (default 25, max 100)' },
+        offset: { type: 'number', description: 'Skip N results (default 0)' },
+      },
+    },
+  },
+  {
+    name: 'content_sources_get',
+    description: 'Get one content-discovery source by UUID with its full record. Requires the content-sources:read scope.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        id: { type: 'string', description: 'Source UUID (from content_sources_list)' },
+      },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'content_sources_resolve',
+    description:
+      "Discover the feeds a site offers WITHOUT tracking anything: returns candidates (feed_url, how it was found, kind, title, entry_count, newest_entry_at, whether it is cross-domain or a root index) plus any fetch errors. Call this before content_sources_submit to pick the right feed_url, or to answer 'does this site have an RSS feed?'. Requires the content-sources:read scope.",
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        site_url: { type: 'string', description: 'The site (or blog section) URL to inspect, e.g. https://example.org/blog' },
+      },
+      required: ['site_url'],
+    },
+  },
+  {
+    name: 'content_sources_submit',
+    description:
+      'Submit a new content-discovery source. The server resolves the feed from site_url unless feed_url is given (use content_sources_resolve first when a site offers several). The source always lands with status=pending for an administrator to approve in the admin Content hub, whatever scopes the caller holds. A site that is already tracked returns an ALREADY_TRACKED error carrying the existing source id in details.id. Requires the content-sources:write scope.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        site_url: { type: 'string', description: 'The site URL to track' },
+        feed_url: { type: 'string', description: 'Specific feed/sitemap URL to use (optional; resolved from site_url when omitted)' },
+        foundation: { type: 'string', description: 'Foundation the source belongs to (display section)' },
+        project: { type: 'string', description: 'Project within the foundation (optional)' },
+        note: { type: 'string', description: 'Why this source is worth tracking (shown to the approving admin)' },
+      },
+      required: ['site_url'],
+    },
+  },
+  {
+    name: 'content_sources_set_status',
+    description:
+      "Change a content-discovery source's lifecycle status — approve a pending submission (status=active), pause or retire (dead) a source — optionally recording a note. CONFIRM with the user before changing status. Requires the content-sources:admin scope.",
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        id: { type: 'string', description: 'Source UUID' },
+        status: { type: 'string', enum: ['pending', 'active', 'paused', 'dead'], description: 'New lifecycle status' },
+        note: { type: 'string', description: 'Reason for the change (optional)' },
+      },
+      required: ['id', 'status'],
+    },
+  },
 ];
 
 // ── Handlers ─────────────────────────────────────────────────────────────
@@ -1029,6 +1099,43 @@ async function handleResourcesItemsList(
   return api.get(`/resources/collections/${params.collection_id}/items`, queryParams);
 }
 
+// ── Content-discovery sources handlers ───────────────────────────────────
+// Thin wrappers over the content-sources module's public API
+// (/api/v1/content-sources/*). Unlike the resources_* tools these forward an
+// explicit ALLOWLIST of body fields rather than the whole params object: the
+// API's own allowlist is the real guard, but an MCP client that pads the
+// call with extra keys should not even reach it.
+
+/** Copy only the named keys, dropping undefined, so bodies carry no strays. */
+function pick(params: Record<string, unknown>, ...keys: string[]): Record<string, unknown> {
+  const body: Record<string, unknown> = {};
+  for (const key of keys) {
+    if (params[key] !== undefined) body[key] = params[key];
+  }
+  return body;
+}
+
+const CONTENT_SOURCE_STATUSES = new Set(['pending', 'active', 'paused', 'dead']);
+
+async function handleContentSourcesList(
+  params: Record<string, unknown>,
+  api: GatewazeApiClient,
+) {
+  const queryParams: Record<string, string | number | undefined> = {};
+  if (params.status) {
+    const status = String(params.status);
+    if (!CONTENT_SOURCE_STATUSES.has(status)) {
+      return { error: `status must be one of ${[...CONTENT_SOURCE_STATUSES].join(', ')}` };
+    }
+    queryParams.status = status;
+  }
+  if (params.foundation) queryParams.foundation = String(params.foundation);
+  if (params.q) queryParams.q = String(params.q);
+  if (params.limit) queryParams.limit = Number(params.limit);
+  if (params.offset) queryParams.offset = Number(params.offset);
+  return api.get('/content-sources/sources', queryParams);
+}
+
 // ── Server factory ───────────────────────────────────────────────────────
 
 /**
@@ -1109,6 +1216,14 @@ const OAUTH_TOOL_SCOPES: Record<string, string | null> = {
   resources_item_sections_set: 'resources:write',
   resources_section_blocks_set: 'resources:write',
   resources_block_kinds: 'resources:write',
+  // Mirror the content-sources API's own scopes (as privacy_* mirrors
+  // compliance:*): the hosted server calls the API with its own key, so this
+  // table is where the CALLER's grant is checked.
+  content_sources_list: 'content-sources:read',
+  content_sources_get: 'content-sources:read',
+  content_sources_resolve: 'content-sources:read',
+  content_sources_submit: 'content-sources:write',
+  content_sources_set_status: 'content-sources:admin',
 };
 
 /**
@@ -1173,6 +1288,7 @@ export function buildInstructions(brandName?: string, brandDescription?: string)
   }
   lines.push(
     'Use content_list/content_get for cross-module content (newsletter editions, blog posts, resource items, events); events_* for event specifics; calendars_list only to scope queries to a named sub-calendar within the platform.',
+    'The content_sources_* tools (where your access includes them) manage the sites and feeds the platform harvests posts from: list/get to inspect them, resolve to find a site\'s feeds, submit to propose a new one (it lands pending for an administrator), set_status to approve, pause or retire one.',
   );
   return lines.join('\n\n');
 }
@@ -1527,6 +1643,44 @@ export function createGatewazeMcpServer(
         case 'signals_stats':
           result = await api.get('/signals/stats');
           break;
+        case 'content_sources_list':
+          result = await handleContentSourcesList(params, api);
+          break;
+        case 'content_sources_get': {
+          const id = String(params.id ?? '');
+          if (!UUID_RE.test(id)) { result = { error: 'id must be a uuid' }; break; }
+          result = await api.get(`/content-sources/sources/${id}`);
+          break;
+        }
+        case 'content_sources_resolve': {
+          const siteUrl = typeof params.site_url === 'string' ? params.site_url.trim() : '';
+          if (!siteUrl) { result = { error: 'site_url is required' }; break; }
+          result = await api.post('/content-sources/resolve', { site_url: siteUrl });
+          break;
+        }
+        case 'content_sources_submit': {
+          const siteUrl = typeof params.site_url === 'string' ? params.site_url.trim() : '';
+          if (!siteUrl) { result = { error: 'site_url is required' }; break; }
+          // The hosted key is the deployment's, not the caller's, so a submit over
+          // MCP never auto-activates even when that key carries the admin scope.
+          result = await api.post('/content-sources/sources', {
+            site_url: siteUrl,
+            ...pick(params, 'feed_url', 'foundation', 'project', 'note'),
+            as_pending: true,
+          });
+          break;
+        }
+        case 'content_sources_set_status': {
+          const id = String(params.id ?? '');
+          if (!UUID_RE.test(id)) { result = { error: 'id must be a uuid' }; break; }
+          const status = String(params.status ?? '');
+          if (!CONTENT_SOURCE_STATUSES.has(status)) {
+            result = { error: `status must be one of ${[...CONTENT_SOURCE_STATUSES].join(', ')}` };
+            break;
+          }
+          result = await api.patch(`/content-sources/sources/${id}`, { status, ...pick(params, 'note') });
+          break;
+        }
         default:
           emit({ ...base, outcome: 'unknown_tool', ms: Date.now() - startedAt });
           return {
@@ -1539,8 +1693,17 @@ export function createGatewazeMcpServer(
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       emit({ ...base, outcome: 'error', error: truncate(name.startsWith('privacy_') ? message.replace(EMAIL_IN_TEXT, '[email]') : message, 300), ms: Date.now() - startedAt });
+      // Same `{error}` shape as always; API envelope errors additionally keep
+      // their machine-readable code/details (a 409 ALREADY_TRACKED names the
+      // existing row in details.id) so agents can act on them without parsing
+      // the message.
+      const envelope: Record<string, unknown> = { error: message };
+      if (err instanceof ApiError) {
+        if (err.code) envelope.code = err.code;
+        if (err.details !== undefined) envelope.details = err.details;
+      }
       return {
-        content: [{ type: 'text', text: JSON.stringify({ error: message }) }],
+        content: [{ type: 'text', text: JSON.stringify(envelope) }],
         isError: true,
       };
     }
