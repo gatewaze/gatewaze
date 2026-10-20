@@ -9,6 +9,34 @@ export interface ApiClientOptions {
   apiKey: string;    // gw_live_...
 }
 
+/**
+ * The public API's error envelope is `{error:{code,message,details?}}`.
+ * Non-2xx responses throw this so callers keep the HTTP status and the
+ * machine-readable code/details (e.g. a 409 ALREADY_TRACKED carries the
+ * existing row's id in details) — `message` stays what it always was, so
+ * anything catching a plain Error is unaffected.
+ */
+export class ApiError extends Error {
+  readonly status: number;
+  readonly code?: string;
+  readonly details?: unknown;
+
+  constructor(status: number, body: ApiErrorBody) {
+    super(body.error?.message ?? `API error ${status}`);
+    this.name = 'ApiError';
+    this.status = status;
+    this.code = body.error?.code;
+    this.details = body.error?.details;
+  }
+}
+
+type ApiErrorBody = { error?: { code?: string; message?: string; details?: unknown } };
+
+async function throwApiError(res: Response): Promise<never> {
+  const body = (await res.json().catch(() => ({ error: { message: res.statusText } }))) as ApiErrorBody;
+  throw new ApiError(res.status, body);
+}
+
 export class GatewazeApiClient {
   private baseUrl: string;
   private apiKey: string;
@@ -28,12 +56,7 @@ export class GatewazeApiClient {
     const res = await fetch(url.toString(), {
       headers: { 'X-API-Key': this.apiKey },
     });
-    if (!res.ok) {
-      const body = (await res.json().catch(() => ({ error: { message: res.statusText } }))) as {
-        error?: { message?: string };
-      };
-      throw new Error(body.error?.message ?? `API error ${res.status}`);
-    }
+    if (!res.ok) await throwApiError(res);
     return res.json() as Promise<T>;
   }
 
@@ -58,12 +81,7 @@ export class GatewazeApiClient {
       },
       body: JSON.stringify(body),
     });
-    if (!res.ok) {
-      const respBody = (await res.json().catch(() => ({ error: { message: res.statusText } }))) as {
-        error?: { message?: string };
-      };
-      throw new Error(respBody.error?.message ?? `API error ${res.status}`);
-    }
+    if (!res.ok) await throwApiError(res);
     return res.json() as Promise<T>;
   }
 }
