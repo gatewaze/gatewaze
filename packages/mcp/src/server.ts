@@ -721,7 +721,7 @@ const TOOLS: Tool[] = [
   {
     name: 'content_sources_submit',
     description:
-      'Submit a new content-discovery source. The server resolves the feed from site_url unless feed_url is given (use content_sources_resolve first when a site offers several). The source lands with status=pending for an administrator to approve; only a caller with the content-sources:admin scope activates it immediately. A site that is already tracked returns an ALREADY_TRACKED error carrying the existing source id in details.id. Requires the content-sources:write scope.',
+      'Submit a new content-discovery source. The server resolves the feed from site_url unless feed_url is given (use content_sources_resolve first when a site offers several). The source always lands with status=pending for an administrator to approve in the admin Content hub, whatever scopes the caller holds. A site that is already tracked returns an ALREADY_TRACKED error carrying the existing source id in details.id. Requires the content-sources:write scope.',
     inputSchema: {
       type: 'object' as const,
       properties: {
