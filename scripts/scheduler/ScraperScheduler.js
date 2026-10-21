@@ -197,7 +197,7 @@ export class ScraperScheduler {
           const { error: failError } = await this.supabase.rpc('scrapers_update_job', {
             job_id: scraperJobId,
             new_status: 'failed',
-            error_msg: `Scheduler could not enqueue job: ${enqueueError?.message || enqueueError}`,
+            error_msg: `Scheduler could not enqueue job: ${String(enqueueError?.message || enqueueError).slice(0, 500)}`,
           });
           if (failError) {
             console.error(`❌ Failed to mark unenqueued job ${scraperJobId} as failed:`, failError);
