@@ -8,7 +8,7 @@
  */
 
 import '../load-env.js';
-import { Worker } from 'bullmq';
+import { Queue, Worker } from 'bullmq';
 import Redis from 'ioredis';
 import { JobTypes, getQueue } from '../lib/job-queue.js';
 import { supabase } from '../supabase-client.js';
@@ -892,6 +892,83 @@ async function recoverStuckScraperJobs() {
   }
 }
 
+// Recover orphaned scraper jobs: rows left in 'pending' that never started
+// and are no longer in the queue (e.g. the scheduler created the row but
+// the enqueue failed, or the queued job was lost). scrapers_get_due_for_run
+// skips any scraper with a pending job, so without this the scraper never
+// runs again. Queue wait alone can legitimately be hours during a burst,
+// so age is only a pre-filter; the queue check decides.
+const ORPHAN_PENDING_MIN_AGE_MINUTES = 30;
+const LIVE_JOB_STATES = ['waiting', 'active', 'delayed', 'prioritized', 'paused'];
+let moduleQueueReader = null;
+
+async function getQueuedScraperJobIds() {
+  // scraper:run can sit in either keyspace: the scheduler enqueues to
+  // `jobs-${BRAND}`, while scrapers/api.ts (manual runs) enqueues to the
+  // module registry queue unless SCRAPER_QUEUE_* bridges it. Check both so
+  // a job still waiting in the other keyspace is never reaped. Throws if
+  // either queue can't be read — the caller then skips the pass.
+  if (!moduleQueueReader) {
+    moduleQueueReader = new Queue(moduleQueueName, { connection: getConnection(), prefix: moduleQueuePrefix });
+  }
+  const [legacyJobs, moduleJobs] = await Promise.all([
+    getQueue(brand).getJobs(LIVE_JOB_STATES),
+    moduleQueueReader.getJobs(LIVE_JOB_STATES),
+  ]);
+  return new Set(
+    [...legacyJobs, ...moduleJobs]
+      .filter(job => job?.name === JobTypes.SCRAPER_RUN && job.data?.scraperJobId)
+      .map(job => Number(job.data.scraperJobId)),
+  );
+}
+
+async function recoverOrphanedPendingScraperJobs() {
+  try {
+    const cutoff = new Date(Date.now() - ORPHAN_PENDING_MIN_AGE_MINUTES * 60 * 1000).toISOString();
+    const { data: pendingJobs, error } = await supabase
+      .from('scrapers_jobs')
+      .select('id, scraper_id, created_at')
+      .eq('status', 'pending')
+      .lt('created_at', cutoff);
+    if (error || !pendingJobs || pendingJobs.length === 0) return;
+
+    const queuedIds = await getQueuedScraperJobIds();
+
+    for (const job of pendingJobs) {
+      if (queuedIds.has(Number(job.id))) continue;
+      // Conditional on still being 'pending': the worker may have picked
+      // the job up (or finished it) since the select above, and another
+      // worker replica may have reaped it already. Only the replica whose
+      // update matches a row sends the alert.
+      const { data: reaped, error: reapError } = await supabase
+        .from('scrapers_jobs')
+        .update({
+          status: 'failed',
+          completed_at: new Date().toISOString(),
+          error_message: 'Job orphaned — pending but never started and not in the queue',
+        })
+        .eq('id', job.id)
+        .eq('status', 'pending')
+        .select('id');
+      if (reapError) {
+        console.error(`❌ Failed to mark orphaned job ${job.id} as failed:`, reapError);
+        continue;
+      }
+      if (!reaped || reaped.length === 0) continue;
+      console.log(`⚠️ Recovered orphaned pending job ${job.id} (scraper ${job.scraper_id}, created ${job.created_at})`);
+      await sendScraperAlert({
+        severity: 'error',
+        title: `Orphaned Job Recovered`,
+        message: `Job was pending since ${job.created_at} but was not in the queue, so it would never run. Marked as failed so the scraper can be scheduled again.`,
+        scraperName: `scraper ${job.scraper_id}`,
+        jobId: job.id,
+      });
+    }
+  } catch (err) {
+    console.error('Orphaned pending job recovery failed:', err.message);
+  }
+}
+
 // Check scheduler health
 async function checkSchedulerHealth() {
   try {
@@ -922,6 +999,7 @@ const CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 setInterval(() => {
   cleanupStaleScraperJobs().catch(err => console.error('Periodic cleanup failed:', err));
   recoverStuckScraperJobs().catch(err => console.error('Stuck job recovery failed:', err));
+  recoverOrphanedPendingScraperJobs().catch(err => console.error('Orphaned job recovery failed:', err));
   checkSchedulerHealth().catch(err => console.error('Scheduler health check failed:', err));
 }, CLEANUP_INTERVAL_MS);
 console.log(`🔄 Periodic cleanup, stuck recovery, and scheduler health check every 5 minutes`);
