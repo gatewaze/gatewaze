@@ -14,7 +14,8 @@ import {
 } from "./vite-shared-config";
 
 import { EMBED_CAPABILITIES, EMBED_CONTRACT } from "./src/embed/contract";
-import { buildEmbedManifest } from "./src/embed/manifest";
+import { assertSameEntry, buildEmbedManifest, staticImportGraph } from "./src/embed/manifest";
+import { dropWoffFallbacks, inlinedWoffWarning, isFontsourceCss } from "./src/embed/woff2Only";
 
 // Which modules the embed compiles in is the deployment's decision, not the
 // repo's: ADMIN_EMBED_MODULES is a comma-separated allow-list (a module and
@@ -47,10 +48,19 @@ const embedVersion = process.env.ADMIN_EMBED_VERSION || "dev";
  */
 function embedManifestPlugin(): Plugin {
   let outDir = "dist-embed";
+  // The entry's static import graph, read from the bundle in generateBundle
+  // (the only hook that sees chunk imports) and written in closeBundle.
+  let preload: string[] = [];
+  let bundleEntry: string | undefined;
   return {
     name: "gatewaze-embed-manifest",
     configResolved(config) {
       outDir = path.resolve(config.root, config.build.outDir);
+    },
+    generateBundle(_options, bundle) {
+      const entryChunk = Object.values(bundle).find((c) => c.type === "chunk" && c.isEntry);
+      bundleEntry = entryChunk?.fileName;
+      preload = entryChunk ? staticImportGraph(bundle, entryChunk.fileName) : [];
     },
     closeBundle() {
       const files = fs.readdirSync(outDir);
@@ -58,15 +68,35 @@ function embedManifestPlugin(): Plugin {
       const stylesheet = files.find((f) => /^admin-embed-[\w-]+\.css$/.test(f));
       if (!entry) throw new Error("[vite-embed-config] no entry chunk in the embed bundle");
       if (!stylesheet) throw new Error("[vite-embed-config] no stylesheet in the embed bundle");
+      assertSameEntry(bundleEntry, entry);
+      const woffWarning = inlinedWoffWarning(fs.readFileSync(path.join(outDir, stylesheet), "utf8"));
+      if (woffWarning) console.warn(woffWarning);
       const manifest = buildEmbedManifest({
         entry,
         stylesheet,
         modules: embedModules,
         version: embedVersion,
         builtAt: new Date().toISOString(),
+        preload,
       });
       fs.writeFileSync(path.join(outDir, "manifest.json"), JSON.stringify(manifest, null, 2) + "\n");
-      console.log(`[vite-embed-config] manifest: ${entry} + ${stylesheet} (contract ${EMBED_CONTRACT}, capabilities ${EMBED_CAPABILITIES.join(",") || "none"}, version ${embedVersion})`);
+      console.log(`[vite-embed-config] manifest: ${entry} + ${stylesheet}, ${preload.length} preloads (contract ${EMBED_CONTRACT}, capabilities ${EMBED_CAPABILITIES.join(",") || "none"}, version ${embedVersion})`);
+    },
+  };
+}
+
+/**
+ * Drops the WOFF fallback from the @fontsource faces before they are inlined,
+ * leaving WOFF2 only. See src/embed/woff2Only.ts for why this changes nothing
+ * on screen. Embed build only.
+ */
+function embedWoff2OnlyPlugin(): Plugin {
+  return {
+    name: "gatewaze-embed-woff2-only",
+    enforce: "pre",
+    transform(code, id) {
+      if (!isFontsourceCss(id)) return null;
+      return { code: dropWoffFallbacks(code), map: null };
     },
   };
 }
@@ -101,7 +131,7 @@ export default defineConfig({
     // directly, where `process` does not exist and evaluation would throw.
     "process.env.NODE_ENV": JSON.stringify("production"),
   },
-  plugins: [react(), svgr(), tailwindcss(), gatewazeModulesPlugin(), embedManifestPlugin()],
+  plugins: [embedWoff2OnlyPlugin(), react(), svgr(), tailwindcss(), gatewazeModulesPlugin(), embedManifestPlugin()],
   resolve: {
     // Array form (not the shared object) so the first entry can match `@radix-ui/themes`
     // EXACTLY: it redirects the bare specifier to a shim that defaults every portalled

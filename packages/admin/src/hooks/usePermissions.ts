@@ -5,6 +5,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuthContext as useAuth } from '@/app/contexts/auth/context';
 import { PermissionsService } from '@/lib/permissions/service';
+import { getHostAdminContextForProfile } from '@/lib/supabase';
 import type {
   AdminFeature,
   AdminPermission,
@@ -16,6 +17,27 @@ import type {
 } from '@/lib/permissions/types';
 
 /**
+ * The answer admin_has_feature_permission would give, from the feature list
+ * the host-session /me sent (getHostAdminContextForProfile), or undefined
+ * when that list cannot answer: no fresh list for this admin, an account
+ * given (the list is unfiltered by account), or no feature named.
+ *
+ * Equivalent because admin_get_features (which built the list) and
+ * admin_has_feature_permission with p_account_id NULL apply the same filters:
+ * active, unexpired direct grants and group grants, with any account.
+ */
+function prefetchedPermission(
+  profileId: string,
+  feature: AdminFeature,
+  accountId: string | null | undefined,
+): boolean | undefined {
+  if (accountId !== null && accountId !== undefined && accountId !== 'null') return undefined;
+  if (typeof feature !== 'string' || feature === '') return undefined;
+  const features = getHostAdminContextForProfile(profileId)?.features;
+  return features ? features.includes(feature) : undefined;
+}
+
+/**
  * Hook to check if the current user has a specific permission
  */
 export function useHasPermission(
@@ -23,10 +45,15 @@ export function useHasPermission(
   accountId?: string | null
 ): PermissionCheckResult & { loading: boolean } {
   const { user } = useAuth();
+  // Known up front from /me: start with the answer, so a guard never shows a
+  // spinner for a check that needs no round trip.
+  const [initial] = useState(() =>
+    user?.id && user.role !== 'super_admin' ? prefetchedPermission(user.id, feature, accountId) : undefined,
+  );
   const [result, setResult] = useState<PermissionCheckResult>({
-    hasPermission: false,
+    hasPermission: initial === true,
   });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(initial === undefined);
 
   useEffect(() => {
     if (!user?.id) {
@@ -38,6 +65,14 @@ export function useHasPermission(
     // Super admins have all permissions — skip the RPC call
     if (user.role === 'super_admin') {
       setResult({ hasPermission: true });
+      setLoading(false);
+      return;
+    }
+
+    // Host-session: answered by the feature list /me sent, when it can.
+    const known = prefetchedPermission(user.id, feature, accountId);
+    if (known !== undefined) {
+      setResult({ hasPermission: known });
       setLoading(false);
       return;
     }
