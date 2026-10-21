@@ -64,11 +64,11 @@ overrides:
   esbuild@>=0.27.3 <0.28.1: '>=0.28.1'
   form-data@>=4.0.0 <4.0.6: '>=4.0.6'
   vite@<=6.4.2: '>=6.4.3'
-  vite@>=7.0.0 <=7.3.4: '>=7.3.5'
+  vite@>=7.0.0 <=7.3.4: '>=8.2.4 <9.0.0'
   dompurify@<=3.4.5: '>=3.4.6'
   react-router@>=7.12.0 <7.15.1: '>=7.15.1'
   dompurify@<=3.4.6: '>=3.4.7'
-  markdown-it@<=14.1.1: '>=14.2.0'
+  markdown-it@<=14.1.1: '>=14.2.0 <15.0.0'
   '@opentelemetry/core@<2.8.0': '>=2.8.0'
   multer@>=1.0.0 <2.3.0: '>=2.3.0'
   multer@>=2.0.0-alpha.1 <2.3.0: '>=2.3.0'
@@ -148,6 +148,7 @@ overrides:
   shell-quote@<1.11.0: '>=1.11.0'
   sharp@<0.35.5: '>=0.35.5'
   jsdom@>=30.0.0 <31.0.0: ^29.0.0
+  follow-redirects@>=1.16.0 <1.16.1: '>=1.16.1 <2.0.0'
 
 importers:
 
@@ -174,13 +175,13 @@ importers:
         version: 4.21.0
       vitest:
         specifier: ^4.1.0
-        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.2.0(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.3.4(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
 
   ../gatewaze-modules/modules/_template:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.4
@@ -189,7 +190,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: workspace:*
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/ai:
     dependencies:
@@ -201,7 +202,7 @@ importers:
         version: 0.40.1
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.98.0
@@ -271,38 +272,38 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.0.0
-        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.2.0(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.3.4(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
 
   ../gatewaze-modules/modules/analytics:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
     devDependencies:
       typescript:
         specifier: ^5.9.0
         version: 5.9.3
       vitest:
         specifier: ^4.0.0
-        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.2.0(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.3.4(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
 
   ../gatewaze-modules/modules/attendee-matching:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/badge-scanning:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/blog:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.98.0
@@ -320,7 +321,7 @@ importers:
         version: link:../ai
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -363,47 +364,57 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.0.0
-        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@25.0.1)(vite@8.2.0(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@25.0.1)(vite@8.3.4(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
 
   ../gatewaze-modules/modules/bulk-emailing:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/calendars:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
     devDependencies:
       vitest:
         specifier: ^4.0.0
-        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.2.0(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.3.4(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
 
   ../gatewaze-modules/modules/cohorts:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/competitions:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/compliance:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
+      pg:
+        specifier: ^8.11.0
+        version: 8.20.0
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.5
+      vitest:
+        specifier: ^4.0.0
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
 
   ../gatewaze-modules/modules/content-platform:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.4
@@ -412,7 +423,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: workspace:*
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/conversations: {}
 
@@ -420,7 +431,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.4
@@ -429,7 +440,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.6
@@ -438,7 +449,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/editor-ai-copilot:
     dependencies:
@@ -496,7 +507,7 @@ importers:
     devDependencies:
       '@gatewaze/shared':
         specifier: workspace:*
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
       '@types/express':
         specifier: ^4.17.21
         version: 4.17.25
@@ -520,7 +531,19 @@ importers:
         version: 8.18.1
       vitest:
         specifier: ^4.0.0
-        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(happy-dom@20.9.0)(jsdom@25.0.1)(vite@8.2.0(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(happy-dom@20.9.0)(jsdom@25.0.1)(vite@8.3.4(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+
+  ../gatewaze-modules/modules/email-reputation:
+    dependencies:
+      '@gatewaze/shared':
+        specifier: '*'
+        version: link:../../../gatewaze/packages/shared
+      '@supabase/supabase-js':
+        specifier: '*'
+        version: 2.108.1
+      pg:
+        specifier: '*'
+        version: 8.20.0
 
   ../gatewaze-modules/modules/engagement: {}
 
@@ -528,25 +551,37 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/event-agenda:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
+      '@supabase/supabase-js':
+        specifier: '*'
+        version: 2.108.1
+      cheerio:
+        specifier: ^1.0.0
+        version: 1.2.0
+      express:
+        specifier: '*'
+        version: 4.22.1
+      react:
+        specifier: '*'
+        version: 19.2.6
 
   ../gatewaze-modules/modules/event-budget:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/event-invites:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.6
@@ -555,7 +590,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
       express-rate-limit:
         specifier: ^8.5.2
         version: 8.7.0(express@5.2.1)
@@ -571,19 +606,19 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.0.0
-        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.20.4)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.2.0(@types/node@22.20.4)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.20.4)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.3.4(@types/node@22.20.4)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
 
   ../gatewaze-modules/modules/event-reports:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/event-seating:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.6
@@ -592,7 +627,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
       '@supabase/supabase-js':
         specifier: ^2.106.0
         version: 2.108.1
@@ -617,44 +652,44 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.0.0
-        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.2.0(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.3.4(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
 
   ../gatewaze-modules/modules/event-sponsors:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/event-topics:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/event-tracking:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/events:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.4
     devDependencies:
       vitest:
         specifier: ^4.0.0
-        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.2.0(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.3.4(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
 
   ../gatewaze-modules/modules/forms:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.98.0
@@ -669,7 +704,7 @@ importers:
     devDependencies:
       '@gatewaze/shared':
         specifier: workspace:*
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
       '@mozilla/readability':
         specifier: '>=0.6.0'
         version: 0.6.0
@@ -705,7 +740,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: '>=3.2.6'
-        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.2.0(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.3.4(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
       zod:
         specifier: ^3.23.0
         version: 3.25.76
@@ -714,19 +749,29 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.5
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.0
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
 
   ../gatewaze-modules/modules/gradual:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/host-media:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.4
@@ -739,25 +784,25 @@ importers:
         version: 22.19.15
       vitest:
         specifier: ^4.0.0
-        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.15)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.2.0(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.15)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.3.4(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
 
   ../gatewaze-modules/modules/kiosk:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/luma:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/monitoring:
     devDependencies:
       '@gatewaze/shared':
         specifier: workspace:*
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
       typescript:
         specifier: ^5.9.0
         version: 5.9.3
@@ -775,7 +820,7 @@ importers:
         version: 7.29.0
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
       '@puckeditor/core':
         specifier: ~0.21.3
         version: 0.21.3(@floating-ui/dom@1.7.6)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(immer@10.2.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(use-sync-external-store@1.6.0(react@19.2.6))
@@ -800,25 +845,25 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/newsletters-output-substack:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/offers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/people-enrichment:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.6
@@ -827,7 +872,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.6
@@ -836,25 +881,25 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/redirects:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/redirects-bitly:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/redirects-shortio:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/redirects-umami: {}
 
@@ -862,25 +907,25 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
     devDependencies:
       vitest:
         specifier: '>=3.2.6'
-        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.2.0(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.3.4(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
 
   ../gatewaze-modules/modules/resources:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
       isomorphic-dompurify:
-        specifier: '*'
+        specifier: ^3.1.0
         version: 3.1.0(@noble/hashes@1.8.0)
       next:
         specifier: '>=15.5.24 <16.0.0'
@@ -888,12 +933,16 @@ importers:
       react:
         specifier: '*'
         version: 19.2.6
+    devDependencies:
+      vitest:
+        specifier: '>=3.2.6'
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.3.4(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
 
   ../gatewaze-modules/modules/scheduler:
     dependencies:
       '@gatewaze/shared':
         specifier: workspace:*
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/scrapers:
     dependencies:
@@ -902,7 +951,7 @@ importers:
         version: 0.39.0
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
       '@supabase/supabase-js':
         specifier: ^2.106.0
         version: 2.108.1
@@ -926,13 +975,16 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
+      pg:
+        specifier: '*'
+        version: 8.20.0
 
   ../gatewaze-modules/modules/send-testing:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -944,7 +996,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -956,7 +1008,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -977,7 +1029,7 @@ importers:
         version: link:../templates
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
       '@puckeditor/core':
         specifier: ~0.21.3
         version: 0.21.3(@floating-ui/dom@1.7.6)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(immer@10.2.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(use-sync-external-store@1.6.0(react@19.2.6))
@@ -1005,7 +1057,7 @@ importers:
         version: 4.7.0
       vitest:
         specifier: ^4.0.0
-        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.15)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.2.0(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.15)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.3.4(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
 
   ../gatewaze-modules/modules/sites-publisher-cloudflare-pages:
     dependencies:
@@ -1014,11 +1066,11 @@ importers:
         version: link:../sites
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
     devDependencies:
       vitest:
         specifier: ^4.0.0
-        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.2.0(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.3.4(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
 
   ../gatewaze-modules/modules/sites-publisher-netlify:
     dependencies:
@@ -1027,17 +1079,17 @@ importers:
         version: link:../sites
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
     devDependencies:
       vitest:
         specifier: ^4.0.0
-        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.2.0(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.3.4(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
 
   ../gatewaze-modules/modules/slack:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -1047,7 +1099,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.0.0
-        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.2.0(@types/node@22.20.5)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
 
   ../gatewaze-modules/modules/software-engineer:
     dependencies:
@@ -1056,7 +1108,7 @@ importers:
         version: 0.3.220(@anthropic-ai/sdk@0.91.1(zod@3.25.76))(@modelcontextprotocol/sdk@1.32.1(zod@3.25.76))(zod@3.25.76)
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -1090,7 +1142,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.0.0
-        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.2.0(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.3.4(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
     optionalDependencies:
       '@openai/codex-sdk':
         specifier: ^0.146.0
@@ -1100,7 +1152,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.6
@@ -1112,13 +1164,13 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
 
   ../gatewaze-modules/modules/tasks:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
     devDependencies:
       '@supabase/supabase-js':
         specifier: ^2.45.0
@@ -1146,7 +1198,7 @@ importers:
         version: 18.3.1
       vitest:
         specifier: ^4.0.0
-        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.2.0(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.3.4(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
       zod:
         specifier: ^3.23.0
         version: 3.25.76
@@ -1155,20 +1207,20 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.4
     devDependencies:
       vitest:
         specifier: '>=3.2.6'
-        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.2.0(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.3.4(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
 
   ../gatewaze-modules/modules/vehicle-video:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -1199,13 +1251,112 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.0.0
-        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.2.0(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.3.4(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+
+  ../gatewaze-modules/modules/videos:
+    dependencies:
+      '@aws-sdk/client-s3':
+        specifier: ^3.1009.0
+        version: 3.1009.0
+      '@aws-sdk/lib-storage':
+        specifier: ^3.1009.0
+        version: 3.1009.0(@aws-sdk/client-s3@3.1009.0)
+      '@aws-sdk/s3-request-presigner':
+        specifier: ^3.1009.0
+        version: 3.1154.0
+      '@gatewaze/shared':
+        specifier: '*'
+        version: link:../../../gatewaze/packages/shared
+      '@supabase/supabase-js':
+        specifier: '*'
+        version: 2.108.1
+      express:
+        specifier: '*'
+        version: 4.22.1
+      express-rate-limit:
+        specifier: ^8.5.2
+        version: 8.7.1(express@4.22.1)
+      react:
+        specifier: ^18.0.0 || ^19.0.0
+        version: 19.2.6
+      youtubei.js:
+        specifier: ^17.2.0
+        version: 17.2.0
+    devDependencies:
+      '@types/express':
+        specifier: ^4.17.21
+        version: 4.17.25
+      '@types/node':
+        specifier: ^22.19.19
+        version: 22.20.5
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.0
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+
+  ../gatewaze-modules/modules/videos-publisher-spotify:
+    dependencies:
+      '@gatewaze/shared':
+        specifier: '*'
+        version: link:../../../gatewaze/packages/shared
+      '@supabase/supabase-js':
+        specifier: '*'
+        version: 2.108.1
+      express:
+        specifier: '*'
+        version: 4.22.1
+      express-rate-limit:
+        specifier: ^8.5.2
+        version: 8.7.1(express@4.22.1)
+    devDependencies:
+      '@types/express':
+        specifier: ^4.17.21
+        version: 4.17.25
+      '@types/node':
+        specifier: ^22.19.19
+        version: 22.20.5
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.0
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+
+  ../gatewaze-modules/modules/videos-publisher-youtube:
+    dependencies:
+      '@gatewaze/shared':
+        specifier: '*'
+        version: link:../../../gatewaze/packages/shared
+      '@supabase/supabase-js':
+        specifier: '*'
+        version: 2.108.1
+      express:
+        specifier: '*'
+        version: 4.22.1
+      express-rate-limit:
+        specifier: ^8.5.2
+        version: 8.7.1(express@4.22.1)
+    devDependencies:
+      '@types/express':
+        specifier: ^4.17.21
+        version: 4.17.25
+      '@types/node':
+        specifier: ^22.19.19
+        version: 22.20.5
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.0
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
 
   ../gatewaze-modules/modules/warehouse-sync:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
       '@supabase/supabase-js':
         specifier: '*'
         version: 2.108.1
@@ -1224,7 +1375,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.0.0
-        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.2.0(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.3.4(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
       yaml:
         specifier: ^2.5.1
         version: 2.8.3
@@ -1233,7 +1384,7 @@ importers:
     dependencies:
       '@gatewaze/shared':
         specifier: '*'
-        version: link:../../../gatewaze-wt-media-retire/packages/shared
+        version: link:../../../gatewaze/packages/shared
       pg:
         specifier: ^8.11.0
         version: 8.20.0
@@ -1249,7 +1400,7 @@ importers:
         version: 8.20.0
       vitest:
         specifier: ^4.0.0
-        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.15)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.2.0(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.15)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.3.4(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
 
   packages/admin:
     dependencies:
@@ -1552,7 +1703,7 @@ importers:
         version: 3.2.0
       vite-plugin-svgr:
         specifier: ^4.5.0
-        version: 4.5.0(rollup@4.59.0)(typescript@5.9.3)(vite@8.2.0(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.5.0(rollup@4.59.0)(typescript@5.9.3)(vite@8.3.4(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
       yup:
         specifier: ^1.7.0
         version: 1.7.1
@@ -1562,7 +1713,7 @@ importers:
         version: 9.39.4
       '@tailwindcss/vite':
         specifier: ^4.1.12
-        version: 4.2.1(vite@8.2.0(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.2.1(vite@8.3.4(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
       '@testing-library/jest-dom':
         specifier: ^6.9.1
         version: 6.9.1
@@ -1598,7 +1749,7 @@ importers:
         version: 15.5.13
       '@vitejs/plugin-react':
         specifier: ^5.0.4
-        version: 5.2.0(vite@8.2.0(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+        version: 5.2.0(vite@8.3.4(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
       eslint:
         specifier: ^9.33.0
         version: 9.39.4(jiti@2.6.1)
@@ -1624,8 +1775,8 @@ importers:
         specifier: ^8.39.1
         version: 8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3)
       vite:
-        specifier: '>=7.3.5'
-        version: 8.2.0(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)
+        specifier: '>=8.2.4 <9.0.0'
+        version: 8.3.4(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)
 
   packages/admin-bff:
     dependencies:
@@ -1671,7 +1822,7 @@ importers:
         version: 8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3)
       vitest:
         specifier: ^4.1.0
-        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.2.0(@types/node@22.20.5)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
 
   packages/admin-embed: {}
 
@@ -1871,7 +2022,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: '>=3.2.6'
-        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.2.0(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.3.4(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
 
   packages/connect:
     dependencies:
@@ -1909,7 +2060,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: '>=3.2.6'
-        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.2.0(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.3.4(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
 
   packages/host-session:
     dependencies:
@@ -1940,16 +2091,16 @@ importers:
         version: 8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3)
       vitest:
         specifier: ^4.1.0
-        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.2.0(@types/node@22.20.5)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
 
   packages/mcp:
     dependencies:
       '@modelcontextprotocol/node':
-        specifier: ^2.0.0-beta.5
-        version: 2.0.0(@modelcontextprotocol/server@2.0.0)(hono@4.13.13)
+        specifier: ^2.1.1
+        version: 2.1.1(@modelcontextprotocol/server@2.3.1)
       '@modelcontextprotocol/server':
-        specifier: ^2.0.0-beta.5
-        version: 2.0.0
+        specifier: ^2.3.0
+        version: 2.3.1
       '@types/jsonwebtoken':
         specifier: ^9.0.10
         version: 9.0.10
@@ -2307,7 +2458,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.0.0
-        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.2.0(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.3.4(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
 
 packages:
 
@@ -2599,6 +2750,11 @@ packages:
   '@aws-sdk/core@3.974.11':
     resolution: {integrity: sha512-QpnINq5FZH6EOaDEkmHdT7eUunbvD27pDNQypaWjFyYz7Zl1q3UCMQErBZxpmfGfI7MvI2TlK8KTkgNpv8b1ug==}
     engines: {node: '>=20.0.0'}
+    deprecated: Deprecated due to an error deserialization bug in JSON 1.0 protocol services, see https://github.com/aws/aws-sdk-js-v3/pull/8031. Newer version available.
+
+  '@aws-sdk/core@3.978.4':
+    resolution: {integrity: sha512-JvGp6y9sPX8FSs2K/EmFMZcUfdkHxqGE45+oxwGC75OIh50j2e4cbx7zcR3BwNs2DSGqJdBja5h6Vy89iIDmRQ==}
+    engines: {node: '>=20.0.0'}
 
   '@aws-sdk/crc64-nvme@3.972.5':
     resolution: {integrity: sha512-2VbTstbjKdT+yKi8m7b3a9CiVac+pL/IY2PHJwsaGkkHmuuqkJZIErPck1h6P3T9ghQMLSdMPyW6Qp7Di5swFg==}
@@ -2706,8 +2862,16 @@ packages:
     resolution: {integrity: sha512-1eD4uhTDeambO/PNIDVG19A6+v4NdD7xzwLHDutHsUqz0B+i661MwQB2eYO4/crcCvCiQG4SRm1k81k54FEIvw==}
     engines: {node: '>=20.0.0'}
 
+  '@aws-sdk/s3-request-presigner@3.1154.0':
+    resolution: {integrity: sha512-TR4tYLTDhGaGV+JNouo0JATMpVkoMYvbl4g0zPhJxT8lEM3tBT+OOHRwWLCIM40DM8ILWiscCLvIat4vGpe9Gw==}
+    engines: {node: '>=20.0.0'}
+
   '@aws-sdk/signature-v4-multi-region@3.984.0':
     resolution: {integrity: sha512-TaWbfYCwnuOSvDSrgs7QgoaoXse49E7LzUkVOUhoezwB7bkmhp+iojADm7UepCEu4021SquD7NG1xA+WCvmldA==}
+    engines: {node: '>=20.0.0'}
+
+  '@aws-sdk/signature-v4-multi-region@3.996.48':
+    resolution: {integrity: sha512-cFDXfEbXaGwbnpvR/DyqfxfjxpjXVRVthQLgkwvcfDS5u3+8G9WSj1X1Ag/pTRg/QOeOno1Tq3ycEdrKsCUcOA==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/signature-v4-multi-region@3.996.8':
@@ -2724,6 +2888,10 @@ packages:
 
   '@aws-sdk/types@3.973.8':
     resolution: {integrity: sha512-gjlAdtHMbtR9X5iIhVUvbVcy55KnznpC6bkDUWW9z915bi0ckdUr5cjf16Kp6xq0bP5HBD2xzgbL9F9Quv5vUw==}
+    engines: {node: '>=20.0.0'}
+
+  '@aws-sdk/types@3.974.6':
+    resolution: {integrity: sha512-v/clNZzZnDxGyvpHMOGpJKVXFAExJzUNAAjaWGdcx8QAcXLGwTaOkw33p5SHAi0YAioK32xB3hWwOekRVfmfKg==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/util-arn-parser@3.972.3':
@@ -2762,8 +2930,16 @@ packages:
     resolution: {integrity: sha512-V8z5YcDPfsvzrBlj0xR1vhRtocblhYbqdreCJB/voGd4Sr5zjNAeWxexbnqVtskTJe0vFb5KMqbSL++ePl+zRw==}
     engines: {node: '>=20.0.0'}
 
+  '@aws-sdk/xml-builder@3.972.41':
+    resolution: {integrity: sha512-ctjVSyCMegrWfXlx6VqzSBFI6UqmQ5ZlnfMhdLIiWmhoH8UAQxSCP5N3OpG7X3k4LnS7ou74C4mt20+bfTW2aQ==}
+    engines: {node: '>=20.0.0'}
+
   '@aws/lambda-invoke-store@0.2.4':
     resolution: {integrity: sha512-iY8yvjE0y651BixKNPgmv1WrQc+GZ142sb0z4gYnChDDY2YqI4P/jsSopBWrKfAt7LOJAkOXt7rC/hms+WclQQ==}
+    engines: {node: '>=18.0.0'}
+
+  '@aws/lambda-invoke-store@0.3.0':
+    resolution: {integrity: sha512-sl4Bm6yiMNYrZKkqqDFWN0UfnWhlS8ivKxrYl+6t0gCLrqr8y3B2IqZZbFRkfaVVp7C/baApyh71P+LeE1A2sQ==}
     engines: {node: '>=18.0.0'}
 
   '@babel/code-frame@7.10.4':
@@ -3378,6 +3554,9 @@ packages:
   '@browserbasehq/sdk@2.12.0':
     resolution: {integrity: sha512-bwgVjjYc4O54Cvkc5POfZUv0Gl92n1nNfAPueRLQVFsDoPRTw0FS8wKo9/bQCQuyzAg9+RQUDqvUC241ogLRTQ==}
 
+  '@bufbuild/protobuf@2.16.0':
+    resolution: {integrity: sha512-FWa0sPlqYGJgpTs6OxBRcL/AW4JT0OIO+W1ajerluoTVh8CV0B7XM1qsNCRgnkSCkRCgOICKHRQlY17jrsm0+Q==}
+
   '@cloudflare/kv-asset-handler@0.5.0':
     resolution: {integrity: sha512-jxQYkj8dSIzc0cD6cMMNdOc1UVjqSqu8BZdor5s8cGjW2I8BjODt/kWPVdY+u9zj3ms75Q5qaZgnxUad83+eAg==}
     engines: {node: '>=22.0.0'}
@@ -3594,23 +3773,14 @@ packages:
   '@emnapi/core@1.10.0':
     resolution: {integrity: sha512-yq6OkJ4p82CAfPl0u9mQebQHKPJkY7WrIuk205cTYnYe+k2Z8YBh11FrbRG/H6ihirqcacOgl2BIO8oyMQLeXw==}
 
-  '@emnapi/core@2.0.0-alpha.3':
-    resolution: {integrity: sha512-AZypUeJ/yByuxyS7BlSNRDOMLMlROYtjYdIAuBmJssVz1UJDSeYxLrdizhXCFYhedC5bqd/ASy8EuNXbVVXp9g==}
-
   '@emnapi/runtime@1.10.0':
     resolution: {integrity: sha512-ewvYlk86xUoGI0zQRNq/mC+16R1QeDlKQy21Ki3oSYXNgLb45GV1P6A0M+/s6nyCuNDqe5VpaY84BzXGwVbwFA==}
 
   '@emnapi/runtime@1.11.3':
     resolution: {integrity: sha512-Xz4Tpyki7XyrpbUK1jR1AhdAdaXyhhY4lZ3neLodmhpuWfy2PAQN5B46sAiU4liOXGLkHypn/qU+jvfWSCYYLA==}
 
-  '@emnapi/runtime@2.0.0-alpha.3':
-    resolution: {integrity: sha512-hFPAhMUjJD9BSyCANEISPOogeXC9Zo9ZQl7L6vKnaVsMkCtzznaW/naYypeyl0Gv5rYfWYsZbpixTMpjDJzQeA==}
-
   '@emnapi/wasi-threads@1.2.1':
     resolution: {integrity: sha512-uTII7OYF+/Mes/MrcIOYp5yOtSMLBWSIoLPpcgwipoiKbli6k322tcoFsxoIIxPDqW01SQGAgko4EzZi2BNv2w==}
-
-  '@emnapi/wasi-threads@2.0.1':
-    resolution: {integrity: sha512-9DsSk+o5NBX0CCJT8s0EROGSGxjR/tKu6aBTaVyq+SjAEQH4XcdcRxPBRzsBLizTTJ49MJjF+jgu3qnO9GLQcQ==}
 
   '@esbuild/aix-ppc64@0.25.4':
     resolution: {integrity: sha512-1VCICWypeQKhVbE9oW/sJaAmjLxhVqacdkvPLEjwlttjfwENRSClS8EjBz0KzRyFSCPDIkuXW34Je/vk7zdB7Q==}
@@ -4248,12 +4418,6 @@ packages:
     peerDependencies:
       react: '>= 16 || ^19.0.0-rc'
 
-  '@hono/node-server@2.0.12':
-    resolution: {integrity: sha512-eWpQYr67tqJLeaSUl0Q+TquuYfUdTibpOJlUMV2FfUP7+KqCC5TufnwnlXL6mobZBJbGAYRd7ZvEBDCbLInjhg==}
-    engines: {node: '>=20'}
-    peerDependencies:
-      hono: '>=4.12.27'
-
   '@hono/node-server@2.1.3':
     resolution: {integrity: sha512-TA//nWMqPhbfdfneACk6t5a9eqbS9lABEPyKn0/xZTah3H3U2XaVg85rJFl0/Fyit0I552YDHgXGVSf3GwqbUw==}
     engines: {node: '>=20'}
@@ -4588,19 +4752,15 @@ packages:
   '@mixmark-io/domino@2.2.0':
     resolution: {integrity: sha512-Y28PR25bHXUg88kCV7nivXrP2Nj2RueZ3/l/jdx6J9f8J4nsEGcgX0Qe6lt7Pa+J79+kPiJU3LguR6O/6zrLOw==}
 
-  '@modelcontextprotocol/core@2.0.0':
-    resolution: {integrity: sha512-pJCEwGG7Lfr/+PQp9ZTwKXNeO5wzbfKL7H3MYpCorM4oFBoQrdjnBgEoqG+RjhsvS1FKrDbKux+M1HhlnGWqcA==}
+  '@modelcontextprotocol/core@2.3.1':
+    resolution: {integrity: sha512-laVmIhPGpWi7rG9q+0UigblRN0Hws/Yjlb6qLFtVqryXVLkc4h+yN8z731POD2LnAGQlFe7/tXhUm7Bi0YB91g==}
     engines: {node: '>=20'}
 
-  '@modelcontextprotocol/node@2.0.0':
-    resolution: {integrity: sha512-Y4hAC2XdGDUdDOCbLDOCA4+aL3NUldjsOWlDL/YwpAxrPhRm1xHd7lZ+mLacvZ9t3PaH28wgNoaLQGrIk1P2pg==}
+  '@modelcontextprotocol/node@2.1.1':
+    resolution: {integrity: sha512-EY92OAXN2xYL7tNS/MVsWJW1v8VHAPwl9B4Ca3pCrjmvqyC+S1C/6UHsMxF2GoFPraS5Yyg56vFz9brVpFojMA==}
     engines: {node: '>=20'}
     peerDependencies:
-      '@modelcontextprotocol/server': ^2.0.0
-      hono: '>=4.12.27'
-    peerDependenciesMeta:
-      hono:
-        optional: true
+      '@modelcontextprotocol/server': ^2.3.0
 
   '@modelcontextprotocol/sdk@1.32.1':
     resolution: {integrity: sha512-2DdE+SJDtzLEEWzY1ZjY7Q+VcPhcV1KisD3zI4u0XZyktsjHum1mwbMI+JaulUBi2OZk+KJAi2uPXzxichPkdw==}
@@ -4612,8 +4772,8 @@ packages:
       '@cfworker/json-schema':
         optional: true
 
-  '@modelcontextprotocol/server@2.0.0':
-    resolution: {integrity: sha512-YhHWdHfpFMQfd0prsEnxKeS3Qz3ytIGmsS0sth4KDjnacIT7hxk6hXHkJ9KysxlkvTM+WZAtQbbcUhdoP4Hvtw==}
+  '@modelcontextprotocol/server@2.3.1':
+    resolution: {integrity: sha512-e59MfWuSssj6DoQ96JCTqdW1AXT5/XtnTl0WWd6MU1Ka434fFUGGosCLJbGNySDhHGvxQWoRWK137FXYFkYNWw==}
     engines: {node: '>=20'}
 
   '@mozilla/readability@0.6.0':
@@ -5604,8 +5764,8 @@ packages:
     peerDependencies:
       '@opentelemetry/api': ^1.1.0
 
-  '@oxc-project/types@0.142.0':
-    resolution: {integrity: sha512-7W+2q5AKQVU36fkaryontrHn3YDt1RyUYXatw9i5H8ocYe2sPKSFB6eS8WNPeRKiN1qAWWZUPm7gwFzJGrccqQ==}
+  '@oxc-project/types@0.154.0':
+    resolution: {integrity: sha512-KYOUGQFlLWR+s4QMV2Q9ko38TZm7EdO87Qm7rvZLqk/webse/cDjtyxKhg/47l0byCbs/k46LT8qc4PKjAikzA==}
 
   '@paralleldrive/cuid2@2.3.1':
     resolution: {integrity: sha512-XO7cAxhnTZl0Yggq6jOgjiOHhbgcO4NqFqwSmQpjK3b6TEE6Uj/jfSk6wzYyemh3+I0sHirKSetjQwn5cZktFw==}
@@ -6736,96 +6896,98 @@ packages:
       '@codemirror/state': ^6.0.0
       '@codemirror/view': ^6.0.0
 
-  '@rolldown/binding-android-arm64@1.2.1':
-    resolution: {integrity: sha512-02hOeOSryYxVrOIphmLAsqnCJWxwlzFk+pEt/N/i6OgT3lShHO7xGCU5cpgchRDHboAEbSjzgGh+O/u1GswQmA==}
+  '@rolldown/binding-android-arm-eabi@1.2.14':
+    resolution: {integrity: sha512-aWR+XKH9+rW7m5fWq/5360J3mHycrx/o6xZM2DQFdJnTMdyP7/WzxPjhtLbVWdKo2y612/4U1bWqb3HQhiF7vg==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [arm]
+    os: [android]
+
+  '@rolldown/binding-android-arm64@1.2.14':
+    resolution: {integrity: sha512-QiVxHofl6A8lQU7WAtOUY4QMVZXohxwz7WJJoeh8NBEUyKfIkMRKhYyq8az/1RypNiIXzNTtiS6KwHz0erxYRQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm64]
     os: [android]
 
-  '@rolldown/binding-darwin-arm64@1.2.1':
-    resolution: {integrity: sha512-fMsTOnN0OjFm3CyppWPitKnc8UlliVARUULW6cfU6AIqjdtgmSFWSk9vecHzZduv/yMWIHDlRhM1e8Iff9uAfA==}
+  '@rolldown/binding-darwin-arm64@1.2.14':
+    resolution: {integrity: sha512-lTQOzHuBIooh3jIr5XINQkjPGEuGy+Dsy0meXDr6Sjty0b99kYgGh4uBC/8mJX1T0kC8d6S0aPP1Y+bHkh6aBw==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm64]
     os: [darwin]
 
-  '@rolldown/binding-darwin-x64@1.2.1':
-    resolution: {integrity: sha512-1wjKdz/XLGKHaTNHjQveQ/B23TKx4ItAqm1JbyVuvNPc4Ze0Fb48s49TAd/2zcplPl8okE/UbTgmlVfwT7eFeQ==}
+  '@rolldown/binding-darwin-x64@1.2.14':
+    resolution: {integrity: sha512-hyMKEGatjmBYCs/Q4sbIcL/GqpFEqsX3wc+HYVQ/85A4rxc1o7rPm4DUI4GV4k/h0ITddwFSGpqQunI14GXjTA==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [darwin]
 
-  '@rolldown/binding-freebsd-x64@1.2.1':
-    resolution: {integrity: sha512-Fa0jHR07E7YBN4vOEsbVf2briYNsuOowfLJaXULZM0ldMlaCaj2LJgLMbMe4iacRyZmvR8efFhgR9wKuGclQUg==}
+  '@rolldown/binding-freebsd-x64@1.2.14':
+    resolution: {integrity: sha512-u371GbXoVXrEgP20PwzoGNOdAOqAMhzo19JzzY+V4YmmnC+DTOoqdbMu+O+54emM59Mik/UdrtWgcuEDKWRPKA==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [freebsd]
 
-  '@rolldown/binding-linux-arm-gnueabihf@1.2.1':
-    resolution: {integrity: sha512-pzkgu1SSHGgRRyRZ4fbmSgmajbVt+epaLP99NDjFft69v/ypfTi6swBMiVdh2EkQ0OSnHE1lZDM7DRGkyAzUpA==}
+  '@rolldown/binding-linux-arm-gnueabihf@1.2.14':
+    resolution: {integrity: sha512-BqwKsdZQf6EqVWr8fv2MrDYzAvOZ7+NYFSJESRGs87fkseEhs0TU9TXgRJTkZoRRkxTizyEg1LKUXfU3/78uqg==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm]
     os: [linux]
 
-  '@rolldown/binding-linux-arm64-gnu@1.2.1':
-    resolution: {integrity: sha512-QI5SEDY8cbiYWHx0VO4vIc3UlS6a32vXHjU8Qy/17adEmZIPuByJg13UEvo9c/UCiUkdcVWY83C+b+JrwnNyUg==}
+  '@rolldown/binding-linux-arm64-gnu@1.2.14':
+    resolution: {integrity: sha512-SD9kY8M009x/7s57Z1dgUVlP5+uYBgKQK0Tkr1WIWngrtUJmRCW1RJFMY7QDla2khXhmg2i5Io7MUjcmZNZ/KQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
 
-  '@rolldown/binding-linux-arm64-musl@1.2.1':
-    resolution: {integrity: sha512-Sm41FyCeXqmYcERoYOCbGIL5hNfd8w9LQ7Y61Bev48HkcjaJqV/iiVOaiDxjVTRMS+QKrZmD8cfPt4uMVnvM+A==}
+  '@rolldown/binding-linux-arm64-musl@1.2.14':
+    resolution: {integrity: sha512-BJ2CL19M6uuWesMgnqJzgxoI+N+eV7b0A9O9vLV42y+gitC41fNa8KElau1tHVzuLWX5GzEuxMPhAO0tQXQMkg==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm64]
     os: [linux]
     libc: [musl]
 
-  '@rolldown/binding-linux-ppc64-gnu@1.2.1':
-    resolution: {integrity: sha512-2x+WhXTGl9yJYPbltW/BSEPTVz9OIWQyER4N+gJEDWkkn904eRcBzELqh/Hf7K0w/ubGbKNMv0ZC+94QK/IFEg==}
+  '@rolldown/binding-linux-ppc64-gnu@1.2.14':
+    resolution: {integrity: sha512-4+Kl8daPV8NDHaD7mfCcc1pRM+Qg7ab8DyMm5FG5WoZgv4h2i3KFN1CybYBNbQqmuYm7ftJLvmMI1eHYJ22S/Q==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [ppc64]
     os: [linux]
     libc: [glibc]
 
-  '@rolldown/binding-linux-s390x-gnu@1.2.1':
-    resolution: {integrity: sha512-eEjmQpuRQayHPWWnywaWHkFT3ToPbP3RYy42VVd/B9aBGDA+Ol25EIWHxKQST3IiWJjikCWUF7KtbfqwZrzVwQ==}
+  '@rolldown/binding-linux-s390x-gnu@1.2.14':
+    resolution: {integrity: sha512-V/h8ePq1fKDrmtFMz6xcCN3DKvuvMRrwwD1q0PkBeeo4DpK64biaKvqWGVxqCeYKqeRk7gE7/iKPxLCn08O97A==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [s390x]
     os: [linux]
     libc: [glibc]
 
-  '@rolldown/binding-linux-x64-gnu@1.2.1':
-    resolution: {integrity: sha512-/Orga1fZYkLc/56jBICcHrKchl8Z2UKdDSr3LG9ToWO1lQ6a4Livk9Xz+9WN91zsz5QR3XQz2NNoSDEvP6qadw==}
+  '@rolldown/binding-linux-x64-gnu@1.2.14':
+    resolution: {integrity: sha512-WxalXzgrLVpKC93xfpaJ3gCXUWzeCr+FRCbDVD2mUAy4L6Vo3lNVz0epUEUpxPWJkLNYUwM4OSIikv36OJ9mLg==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [linux]
     libc: [glibc]
 
-  '@rolldown/binding-linux-x64-musl@1.2.1':
-    resolution: {integrity: sha512-xxBJRL+0q0Kce7orznGWLuylHDY65vuARXZRpX+hPdv+DqK2c3NlCsVA98tlWzWNEE7yPqA/1NQ5nnCrj49Y5A==}
+  '@rolldown/binding-linux-x64-musl@1.2.14':
+    resolution: {integrity: sha512-3G3tnAmTpdk9jO3GQtyHXqeFD2SlecfTws/Y3M2mmj9nMBwwuLT4kur8sZKeu7ENUHSpVO3cIsm5A52LEWWwlg==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [linux]
     libc: [musl]
 
-  '@rolldown/binding-openharmony-arm64@1.2.1':
-    resolution: {integrity: sha512-M6AdXIXw3s+/8XpKMzdGDEXGS1S7kwUsy+rcTIUIOx5Ge4nXKCtAFHFV9YKkXvGcC5WMoTjAteLzlsQROVI0Yw==}
+  '@rolldown/binding-openharmony-arm64@1.2.14':
+    resolution: {integrity: sha512-qyr5XiNGxm2ytx17vvtcJ9nXn6v1gENETi503bJx3OGwZ1tSonj7BosxbMa/xeAfSl5iS9X6KjEWYXLu6v1L7Q==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm64]
     os: [openharmony]
 
-  '@rolldown/binding-wasm32-wasi@1.2.1':
-    resolution: {integrity: sha512-/TX0SoRGojHzSAHpfVBbavRVSazg5U3h3Y3VXfcc0cdugq6kxdqw8LPGFiPr+/7gE/60zRcsOY2Vi9b9eT0jww==}
-    engines: {node: ^20.19.0 || ^22.13.0 || >=23.5.0}
-
-  '@rolldown/binding-win32-arm64-msvc@1.2.1':
-    resolution: {integrity: sha512-EvRrivJieyHG+AO9lleZWgq+g0+S7oV2C51yuqlcyU/R9net+sI4Pj0F+lUoP2bEr6TWX3SqFaaS0SzfLxSzkw==}
+  '@rolldown/binding-win32-arm64-msvc@1.2.14':
+    resolution: {integrity: sha512-oA4o5o0S2yB199YyYXDzKUv1Z56Rc+mgOjwm7Z/vJ9Z8igiDPYvoOuDyo6g7AK/ZaF09nPhDKVnGBcYHO11GXA==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm64]
     os: [win32]
 
-  '@rolldown/binding-win32-x64-msvc@1.2.1':
-    resolution: {integrity: sha512-Z4eCmn5QJ/5+azF9knpLWKfVd9aidn0mAe9TpJgvBLId9Ax3t0+JVxBmT25Bv7NBbVW1TZyKjQjQReouMeH5UQ==}
+  '@rolldown/binding-win32-x64-msvc@1.2.14':
+    resolution: {integrity: sha512-9mE94bf2GZUaR/fUSXCMpBoWkctu421Mi0ORpm4zqfbkjKep7RxzPFa5etcGs5h+2KApoWBOA/hAJa/7saGgEQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [win32]
@@ -7283,6 +7445,10 @@ packages:
     resolution: {integrity: sha512-Ep/7tPamGY8mgESE3LyLKtxJyy6U52WWAqr/3wial47Sj4u3PiIF73AOGI27UyLy9duTkhZbgzodOfLV4TduZg==}
     engines: {node: '>=18.0.0'}
 
+  '@smithy/core@3.36.1':
+    resolution: {integrity: sha512-WC5W1Jrsfxu1y6LeqXMie7N14qmcdafij/Haye4feVlyMMXLGpYxBeOX6Ee1iRJbDzGG5LVman8U1rrt9MYFHA==}
+    engines: {node: '>=18.0.0'}
+
   '@smithy/credential-provider-imds@4.2.12':
     resolution: {integrity: sha512-cr2lR792vNZcYMriSIj+Um3x9KWrjcu98kn234xA6reOAFMmbRpQMOv8KPgEmLLtx3eldU6c5wALKFqNOhugmg==}
     engines: {node: '>=18.0.0'}
@@ -7399,6 +7565,10 @@ packages:
     resolution: {integrity: sha512-53+75QuPl6DL+ct6vVEB51FDO5oulXr20TPV46VvJZg76lIlXNWfxi8j+G2V/t0I2qxCBOa3vX/8bmjrpFVo9g==}
     engines: {node: '>=18.0.0'}
 
+  '@smithy/signature-v4@5.7.4':
+    resolution: {integrity: sha512-tHy0K0VtqNd5Y7Y41h0a0Lhh0L1GzC08dTWg0F7vRJWFtTENg7IZikf3wQkanYIRdb7ngoIPMTmqgUi401fEeQ==}
+    engines: {node: '>=18.0.0'}
+
   '@smithy/smithy-client@4.12.5':
     resolution: {integrity: sha512-UqwYawyqSr/aog8mnLnfbPurS0gi4G7IYDcD28cUIBhsvWs1+rQcL2IwkUQ+QZ7dibaoRzhNF99fAQ9AUcO00w==}
     engines: {node: '>=18.0.0'}
@@ -7409,6 +7579,10 @@ packages:
 
   '@smithy/types@4.14.2':
     resolution: {integrity: sha512-P+otAxbV4CqBybp7EkcJCrig63yE2E7PuNVOmilVMRcx/O+QDzGULTrKsq4DV13gSfak9ObPrWaHl/9bL5YcWw==}
+    engines: {node: '>=18.0.0'}
+
+  '@smithy/types@4.19.0':
+    resolution: {integrity: sha512-r7jh49VJxGerfAcTQA6gXcKc+98zOp/tqRwzYjgOE+iSQsP6cEU1hq2QzbuipmP68QtYdY9wKEhiCQZIzHgZ4Q==}
     engines: {node: '>=18.0.0'}
 
   '@smithy/url-parser@4.2.12':
@@ -9045,9 +9219,6 @@ packages:
   argparse@2.0.1:
     resolution: {integrity: sha512-8+9WqebbFzpX9OR+Wa6O29asIogeRMzcGtAINdpMHHyAg10f05aSFVBbcEqGf/PXw1EjAZ+q2/bEBg3DvurK3Q==}
 
-  argparse@3.0.0:
-    resolution: {integrity: sha512-BOp5NMrHqKxmq/OLr+clzzrRxgOKSLkcjmkWuChp7Irqwn4s74WjOBPIgWfA/HMcBnVkZ5XEuf9uUqzlpfCQ6A==}
-
   aria-hidden@1.2.6:
     resolution: {integrity: sha512-ik3ZgC9dY/lYVVM++OISsaYDeg1tb0VtP5uL3ouh1koGOaUMDPpbFIei4JkFimWUFPn90sbMNMXQAIVOlnYKJA==}
     engines: {node: '>=10'}
@@ -10161,10 +10332,6 @@ packages:
     resolution: {integrity: sha512-TWrgLOFUQTH994YUyl1yT4uyavY5nNB5muff+RtWaqNVCAK408b5ZnnbNAUEWLTCpum9w6arT70i1XdQ4UeOPA==}
     engines: {node: '>=0.12'}
 
-  entities@8.0.0:
-    resolution: {integrity: sha512-zwfzJecQ/Uej6tusMqwAqU/6KL2XaB2VZ2Jg54Je6ahNBGNH6Ek6g3jjNCF0fG9EWQKGZNddNjU5F1ZQn/sBnA==}
-    engines: {node: '>=20.19.0'}
-
   env-paths@2.2.1:
     resolution: {integrity: sha512-+h1lkLKhZMTYjog1VEpJNG7NZJWcuc2DDk/qsqSTRRCOXiLjeQ1d1/udrUGhqMxUgAlwKNZ0cf2uqan5GLuS2A==}
     engines: {node: '>=6'}
@@ -10921,8 +11088,8 @@ packages:
   focus-trap@7.8.0:
     resolution: {integrity: sha512-/yNdlIkpWbM0ptxno3ONTuf+2g318kh2ez3KSeZN5dZ8YC6AAmgeWz+GasYYiBJPFaYcSAPeu4GfhUaChzIJXA==}
 
-  follow-redirects@1.16.0:
-    resolution: {integrity: sha512-y5rN/uOsadFT/JfYwhxRS5R7Qce+g3zG97+JrtFZlC9klX/W5hD7iiLzScI4nZqUS7DNUdhPgw4xI8W2LuXlUw==}
+  follow-redirects@1.16.1:
+    resolution: {integrity: sha512-FNvFGzoMLWmE6Yj9spb/zjd7yiNCHiAW9/Tg9CXrQ8wuu32HtlJOwWO11OJafl5FfY3DxTdQ0vj42zU1kvv5jg==}
     engines: {node: '>=4.0'}
     peerDependencies:
       debug: '*'
@@ -12137,8 +12304,8 @@ packages:
       canvas:
         optional: true
 
-  linkify-it@6.1.0:
-    resolution: {integrity: sha512-wJ/TwpSDTLepCrQoYWYIExIKg5Zchex2Nn5yk2mFnB+6PtdkHtyLx742md9csRjjOnGkKIS/RrbY7l8D6gT9Vw==}
+  linkify-it@5.0.2:
+    resolution: {integrity: sha512-ONTm2jCMAVZjgQa/Fy1kScXsuOoF5NPTsoFBdE1KVIZ2vAh/r9+Bqo+0jINCBYnavTPQZz38QzFTme79ENoN3Q==}
 
   linkifyjs@4.3.2:
     resolution: {integrity: sha512-NT1CJtq3hHIreOianA8aSXn6Cw0JzYOuDQbOrSPe7gqFnCpKP++MQe3ODgO3oh2GJFORkAAdqredOa60z63GbA==}
@@ -12296,8 +12463,8 @@ packages:
     engines: {node: '>=12.0.0'}
     hasBin: true
 
-  markdown-it@15.0.0:
-    resolution: {integrity: sha512-Lf8ajvVNdRpzSNB4VegxNy7gjs8gU35l4b4+ET49LrQC5PKYwLZ72u60LeJ9gv3qiaesuYjJWCyVeQmv/QWKQw==}
+  markdown-it@14.3.3:
+    resolution: {integrity: sha512-L//tDAkjTjJCU6pBUSBTgs3Kg4InVaZuUZog/b6V12UKhcDQ7S78877ibbCanRExwPuYP1CZD7Gd2dxSy1GXRg==}
     hasBin: true
 
   markdown-table@3.0.4:
@@ -12410,6 +12577,10 @@ packages:
   merge2@1.4.1:
     resolution: {integrity: sha512-8q7VEgMJW4J8tcfVPy8g09NcQwZdbwFEqhe/WZkoIzjn/3TGDwtOCYtXGxA3O8tPzpczCCDgv+P2P5y00ZJOOg==}
     engines: {node: '>= 8'}
+
+  meriyah@6.1.4:
+    resolution: {integrity: sha512-Sz8FzjzI0kN13GK/6MVEsVzMZEPvOhnmmI1lU5+/1cGOiK3QUahntrNNtdVeihrO7t9JpoH75iMNXg6R6uWflQ==}
+    engines: {node: '>=18.0.0'}
 
   meshoptimizer@0.22.0:
     resolution: {integrity: sha512-IebiK79sqIy+E4EgOr+CAw+Ke8hAspXKzBd0JdgEmPHiAwmvEj2S4h1rfvo+o/BnfEYd/jAOg5IeeIjzlzSnDg==}
@@ -13213,6 +13384,10 @@ packages:
 
   picomatch@4.0.5:
     resolution: {integrity: sha512-RvwwcruNjI1ncT5xRakeyS9Lf8lcItv34KD+aif+VH9kduAyfYBipGh12274xtenIPZ119/R9BdTBa8gAwSh0A==}
+    engines: {node: '>=12'}
+
+  picomatch@4.0.7:
+    resolution: {integrity: sha512-qcJu88Q2IWqJsDD529JKMdwGm/dvInW4HvQnRwiH9JtihJvzGOscDtHE3x1pBKeUOTysQ8kVmLnJ2kJu7yhcGA==}
     engines: {node: '>=12'}
 
   pidtree@0.6.0:
@@ -14028,8 +14203,8 @@ packages:
   robust-predicates@3.0.3:
     resolution: {integrity: sha512-NS3levdsRIUOmiJ8FZWCP7LG3QpJyrs/TE0Zpf1yvZu8cAJJ6QMW92H1c7kWpdIHo8RvmLxN/o2JXTKHp74lUA==}
 
-  rolldown@1.2.1:
-    resolution: {integrity: sha512-4FKJhg8d3OiyQOA6Q1Q0hoFFpW9/OoX+VsHzpECsdsIZoOArrAK90gl59YK/Z+gnDel45bgJZK03ozH/9bCqEw==}
+  rolldown@1.2.14:
+    resolution: {integrity: sha512-eTBTTqMR6uHKLgcUqpJP8ntzDI6V4LYA8negAMBEI7gkgVvOdrx6VsvS2Ym+83KhOPdLCHWJu0w7UQFJZhHKNw==}
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
 
@@ -14951,8 +15126,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  uc.micro@3.0.0:
-    resolution: {integrity: sha512-U3PppEkleoTnIfi8BozMx3yju3qc/L6SwqWo2Sw+54PX+PX0q9I+r1Um5HCmqD7n9VDX5/v3vQH/AjA6deDdtw==}
+  uc.micro@2.1.0:
+    resolution: {integrity: sha512-ARDJmphmdvUk6Glw7y9DQ2bFkKBHwQHLi2lsaH6PPmz/Ka9sFOBsBluozhDltWmnv9u/cF6Rt87znRTPV+yp/A==}
 
   ufo@1.6.3:
     resolution: {integrity: sha512-yDJTmhydvl5lJzBmy/hyOAA0d+aqCBuwl818haVdYCRrWV84o7YyeVm4QlVHStqNrrJSTb6jKuFAVqAFsr+K3Q==}
@@ -15173,13 +15348,13 @@ packages:
     peerDependencies:
       vite: '>=6.4.3'
 
-  vite@8.2.0:
-    resolution: {integrity: sha512-pn+CFpM0lwDeKwmOq1ZaBK/9sjorZcgqxki6MbY/jPEVd9vichIlmlD4HmQ5wdP5EgqQCFRaACBxMC7uEGc6lQ==}
+  vite@8.3.4:
+    resolution: {integrity: sha512-IftLE8phJhdNRIGNEV4JCCvfNScoZQVfcXaN8TQropWGJtOHcu+iAB9pHcuGvmEb/kddw0LBe/jS8ztdC6xdiQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
     peerDependencies:
       '@types/node': ^20.19.0 || >=22.12.0
-      '@vitejs/devtools': ^0.4.0
+      '@vitejs/devtools': ^0.7.1
       esbuild: '>=0.28.1'
       jiti: '>=1.21.0'
       less: ^4.0.0
@@ -15230,7 +15405,7 @@ packages:
       '@vitest/ui': 4.1.0
       happy-dom: '*'
       jsdom: ^29.0.0
-      vite: '>=7.3.5'
+      vite: '>=8.2.4 <9.0.0'
     peerDependenciesMeta:
       '@edge-runtime/vm':
         optional: true
@@ -15600,6 +15775,9 @@ packages:
   youch@4.1.0-beta.10:
     resolution: {integrity: sha512-rLfVLB4FgQneDr0dv1oddCVZmKjcJ6yX6mS4pU82Mq/Dt9a3cLZQ62pDBL4AUO+uVrCvtWz3ZFUL2HFAFJ/BXQ==}
 
+  youtubei.js@17.2.0:
+    resolution: {integrity: sha512-XLNsgRKO1h7t4i9tIMWSQSeWdD7Ujkk5v1m5YCaumaHMhu/xuLqtO3M0Hq7CXNup9HlJ1NGrT1Y+HLIHnL6Ujg==}
+
   yup@1.7.1:
     resolution: {integrity: sha512-GKHFX2nXul2/4Dtfxhozv701jLQHdf6J34YDh2cEkpqoo8le5Mg6/LrdseVLrFarmFygZTlfIhHx/QKfb/QWXw==}
 
@@ -15952,13 +16130,13 @@ snapshots:
   '@aws-crypto/crc32@5.2.0':
     dependencies:
       '@aws-crypto/util': 5.2.0
-      '@aws-sdk/types': 3.973.6
+      '@aws-sdk/types': 3.973.8
       tslib: 2.8.1
 
   '@aws-crypto/crc32c@5.2.0':
     dependencies:
       '@aws-crypto/util': 5.2.0
-      '@aws-sdk/types': 3.973.6
+      '@aws-sdk/types': 3.973.8
       tslib: 2.8.1
 
   '@aws-crypto/sha1-browser@5.2.0':
@@ -15992,7 +16170,7 @@ snapshots:
 
   '@aws-crypto/util@5.2.0':
     dependencies:
-      '@aws-sdk/types': 3.973.6
+      '@aws-sdk/types': 3.973.8
       '@smithy/util-utf8': 2.3.0
       tslib: 2.8.1
 
@@ -16000,19 +16178,19 @@ snapshots:
     dependencies:
       '@aws-crypto/sha256-browser': 5.2.0
       '@aws-crypto/sha256-js': 5.2.0
-      '@aws-sdk/core': 3.973.20
+      '@aws-sdk/core': 3.974.11
       '@aws-sdk/credential-provider-node': 3.972.21
       '@aws-sdk/middleware-host-header': 3.972.8
       '@aws-sdk/middleware-logger': 3.972.8
       '@aws-sdk/middleware-recursion-detection': 3.972.8
       '@aws-sdk/middleware-user-agent': 3.972.21
       '@aws-sdk/region-config-resolver': 3.972.8
-      '@aws-sdk/types': 3.973.6
+      '@aws-sdk/types': 3.973.8
       '@aws-sdk/util-endpoints': 3.984.0
       '@aws-sdk/util-user-agent-browser': 3.972.8
       '@aws-sdk/util-user-agent-node': 3.973.7
       '@smithy/config-resolver': 4.4.11
-      '@smithy/core': 3.23.11
+      '@smithy/core': 3.24.3
       '@smithy/fetch-http-handler': 5.3.15
       '@smithy/hash-node': 4.2.12
       '@smithy/invalid-dependency': 4.2.12
@@ -16025,7 +16203,7 @@ snapshots:
       '@smithy/node-http-handler': 4.4.16
       '@smithy/protocol-http': 5.3.12
       '@smithy/smithy-client': 4.12.5
-      '@smithy/types': 4.13.1
+      '@smithy/types': 4.14.2
       '@smithy/url-parser': 4.2.12
       '@smithy/util-base64': 4.3.2
       '@smithy/util-body-length-browser': 4.2.2
@@ -16046,7 +16224,7 @@ snapshots:
     dependencies:
       '@aws-crypto/sha256-browser': 5.2.0
       '@aws-crypto/sha256-js': 5.2.0
-      '@aws-sdk/core': 3.973.20
+      '@aws-sdk/core': 3.974.11
       '@aws-sdk/credential-provider-node': 3.972.21
       '@aws-sdk/dynamodb-codec': 3.973.11
       '@aws-sdk/middleware-endpoint-discovery': 3.972.13
@@ -16055,12 +16233,12 @@ snapshots:
       '@aws-sdk/middleware-recursion-detection': 3.972.8
       '@aws-sdk/middleware-user-agent': 3.972.21
       '@aws-sdk/region-config-resolver': 3.972.8
-      '@aws-sdk/types': 3.973.6
+      '@aws-sdk/types': 3.973.8
       '@aws-sdk/util-endpoints': 3.984.0
       '@aws-sdk/util-user-agent-browser': 3.972.8
       '@aws-sdk/util-user-agent-node': 3.973.7
       '@smithy/config-resolver': 4.4.11
-      '@smithy/core': 3.23.11
+      '@smithy/core': 3.24.3
       '@smithy/fetch-http-handler': 5.3.15
       '@smithy/hash-node': 4.2.12
       '@smithy/invalid-dependency': 4.2.12
@@ -16073,7 +16251,7 @@ snapshots:
       '@smithy/node-http-handler': 4.4.16
       '@smithy/protocol-http': 5.3.12
       '@smithy/smithy-client': 4.12.5
-      '@smithy/types': 4.13.1
+      '@smithy/types': 4.14.2
       '@smithy/url-parser': 4.2.12
       '@smithy/util-base64': 4.3.2
       '@smithy/util-body-length-browser': 4.2.2
@@ -16093,19 +16271,19 @@ snapshots:
     dependencies:
       '@aws-crypto/sha256-browser': 5.2.0
       '@aws-crypto/sha256-js': 5.2.0
-      '@aws-sdk/core': 3.973.20
+      '@aws-sdk/core': 3.974.11
       '@aws-sdk/credential-provider-node': 3.972.21
       '@aws-sdk/middleware-host-header': 3.972.8
       '@aws-sdk/middleware-logger': 3.972.8
       '@aws-sdk/middleware-recursion-detection': 3.972.8
       '@aws-sdk/middleware-user-agent': 3.972.21
       '@aws-sdk/region-config-resolver': 3.972.8
-      '@aws-sdk/types': 3.973.6
+      '@aws-sdk/types': 3.973.8
       '@aws-sdk/util-endpoints': 3.984.0
       '@aws-sdk/util-user-agent-browser': 3.972.8
       '@aws-sdk/util-user-agent-node': 3.973.7
       '@smithy/config-resolver': 4.4.11
-      '@smithy/core': 3.23.11
+      '@smithy/core': 3.24.3
       '@smithy/eventstream-serde-browser': 4.2.12
       '@smithy/eventstream-serde-config-resolver': 4.3.12
       '@smithy/eventstream-serde-node': 4.2.12
@@ -16121,7 +16299,7 @@ snapshots:
       '@smithy/node-http-handler': 4.4.16
       '@smithy/protocol-http': 5.3.12
       '@smithy/smithy-client': 4.12.5
-      '@smithy/types': 4.13.1
+      '@smithy/types': 4.14.2
       '@smithy/url-parser': 4.2.12
       '@smithy/util-base64': 4.3.2
       '@smithy/util-body-length-browser': 4.2.2
@@ -16203,7 +16381,7 @@ snapshots:
       '@aws-crypto/sha1-browser': 5.2.0
       '@aws-crypto/sha256-browser': 5.2.0
       '@aws-crypto/sha256-js': 5.2.0
-      '@aws-sdk/core': 3.973.20
+      '@aws-sdk/core': 3.974.11
       '@aws-sdk/credential-provider-node': 3.972.21
       '@aws-sdk/middleware-bucket-endpoint': 3.972.8
       '@aws-sdk/middleware-expect-continue': 3.972.8
@@ -16217,12 +16395,12 @@ snapshots:
       '@aws-sdk/middleware-user-agent': 3.972.21
       '@aws-sdk/region-config-resolver': 3.972.8
       '@aws-sdk/signature-v4-multi-region': 3.984.0
-      '@aws-sdk/types': 3.973.6
+      '@aws-sdk/types': 3.973.8
       '@aws-sdk/util-endpoints': 3.984.0
       '@aws-sdk/util-user-agent-browser': 3.972.8
       '@aws-sdk/util-user-agent-node': 3.973.7
       '@smithy/config-resolver': 4.4.11
-      '@smithy/core': 3.23.11
+      '@smithy/core': 3.24.3
       '@smithy/eventstream-serde-browser': 4.2.12
       '@smithy/eventstream-serde-config-resolver': 4.3.12
       '@smithy/eventstream-serde-node': 4.2.12
@@ -16241,7 +16419,7 @@ snapshots:
       '@smithy/node-http-handler': 4.4.16
       '@smithy/protocol-http': 5.3.12
       '@smithy/smithy-client': 4.12.5
-      '@smithy/types': 4.13.1
+      '@smithy/types': 4.14.2
       '@smithy/url-parser': 4.2.12
       '@smithy/util-base64': 4.3.2
       '@smithy/util-body-length-browser': 4.2.2
@@ -16262,7 +16440,7 @@ snapshots:
     dependencies:
       '@aws-crypto/sha256-browser': 5.2.0
       '@aws-crypto/sha256-js': 5.2.0
-      '@aws-sdk/core': 3.973.20
+      '@aws-sdk/core': 3.974.11
       '@aws-sdk/credential-provider-node': 3.972.21
       '@aws-sdk/middleware-host-header': 3.972.8
       '@aws-sdk/middleware-logger': 3.972.8
@@ -16270,12 +16448,12 @@ snapshots:
       '@aws-sdk/middleware-sdk-sqs': 3.972.24
       '@aws-sdk/middleware-user-agent': 3.972.21
       '@aws-sdk/region-config-resolver': 3.972.8
-      '@aws-sdk/types': 3.973.6
+      '@aws-sdk/types': 3.973.8
       '@aws-sdk/util-endpoints': 3.984.0
       '@aws-sdk/util-user-agent-browser': 3.972.8
       '@aws-sdk/util-user-agent-node': 3.973.7
       '@smithy/config-resolver': 4.4.11
-      '@smithy/core': 3.23.11
+      '@smithy/core': 3.24.3
       '@smithy/fetch-http-handler': 5.3.15
       '@smithy/hash-node': 4.2.12
       '@smithy/invalid-dependency': 4.2.12
@@ -16289,7 +16467,7 @@ snapshots:
       '@smithy/node-http-handler': 4.4.16
       '@smithy/protocol-http': 5.3.12
       '@smithy/smithy-client': 4.12.5
-      '@smithy/types': 4.13.1
+      '@smithy/types': 4.14.2
       '@smithy/url-parser': 4.2.12
       '@smithy/util-base64': 4.3.2
       '@smithy/util-body-length-browser': 4.2.2
@@ -16331,35 +16509,46 @@ snapshots:
       bowser: 2.14.1
       tslib: 2.8.1
 
+  '@aws-sdk/core@3.978.4':
+    dependencies:
+      '@aws-sdk/types': 3.974.6
+      '@aws-sdk/xml-builder': 3.972.41
+      '@aws/lambda-invoke-store': 0.3.0
+      '@smithy/core': 3.36.1
+      '@smithy/signature-v4': 5.7.4
+      '@smithy/types': 4.19.0
+      bowser: 2.14.1
+      tslib: 2.8.1
+
   '@aws-sdk/crc64-nvme@3.972.5':
     dependencies:
-      '@smithy/types': 4.13.1
+      '@smithy/types': 4.14.2
       tslib: 2.8.1
 
   '@aws-sdk/credential-provider-env@3.972.18':
     dependencies:
-      '@aws-sdk/core': 3.973.20
-      '@aws-sdk/types': 3.973.6
+      '@aws-sdk/core': 3.974.11
+      '@aws-sdk/types': 3.973.8
       '@smithy/property-provider': 4.2.12
-      '@smithy/types': 4.13.1
+      '@smithy/types': 4.14.2
       tslib: 2.8.1
 
   '@aws-sdk/credential-provider-http@3.972.20':
     dependencies:
-      '@aws-sdk/core': 3.973.20
-      '@aws-sdk/types': 3.973.6
+      '@aws-sdk/core': 3.974.11
+      '@aws-sdk/types': 3.973.8
       '@smithy/fetch-http-handler': 5.3.15
       '@smithy/node-http-handler': 4.4.16
       '@smithy/property-provider': 4.2.12
       '@smithy/protocol-http': 5.3.12
       '@smithy/smithy-client': 4.12.5
-      '@smithy/types': 4.13.1
+      '@smithy/types': 4.14.2
       '@smithy/util-stream': 4.5.19
       tslib: 2.8.1
 
   '@aws-sdk/credential-provider-ini@3.972.20':
     dependencies:
-      '@aws-sdk/core': 3.973.20
+      '@aws-sdk/core': 3.974.11
       '@aws-sdk/credential-provider-env': 3.972.18
       '@aws-sdk/credential-provider-http': 3.972.20
       '@aws-sdk/credential-provider-login': 3.972.20
@@ -16367,24 +16556,24 @@ snapshots:
       '@aws-sdk/credential-provider-sso': 3.972.20
       '@aws-sdk/credential-provider-web-identity': 3.972.20
       '@aws-sdk/nested-clients': 3.996.10
-      '@aws-sdk/types': 3.973.6
+      '@aws-sdk/types': 3.973.8
       '@smithy/credential-provider-imds': 4.2.12
       '@smithy/property-provider': 4.2.12
       '@smithy/shared-ini-file-loader': 4.4.7
-      '@smithy/types': 4.13.1
+      '@smithy/types': 4.14.2
       tslib: 2.8.1
     transitivePeerDependencies:
       - aws-crt
 
   '@aws-sdk/credential-provider-login@3.972.20':
     dependencies:
-      '@aws-sdk/core': 3.973.20
+      '@aws-sdk/core': 3.974.11
       '@aws-sdk/nested-clients': 3.996.10
-      '@aws-sdk/types': 3.973.6
+      '@aws-sdk/types': 3.973.8
       '@smithy/property-provider': 4.2.12
       '@smithy/protocol-http': 5.3.12
       '@smithy/shared-ini-file-loader': 4.4.7
-      '@smithy/types': 4.13.1
+      '@smithy/types': 4.14.2
       tslib: 2.8.1
     transitivePeerDependencies:
       - aws-crt
@@ -16408,34 +16597,34 @@ snapshots:
 
   '@aws-sdk/credential-provider-process@3.972.18':
     dependencies:
-      '@aws-sdk/core': 3.973.20
-      '@aws-sdk/types': 3.973.6
+      '@aws-sdk/core': 3.974.11
+      '@aws-sdk/types': 3.973.8
       '@smithy/property-provider': 4.2.12
       '@smithy/shared-ini-file-loader': 4.4.7
-      '@smithy/types': 4.13.1
+      '@smithy/types': 4.14.2
       tslib: 2.8.1
 
   '@aws-sdk/credential-provider-sso@3.972.20':
     dependencies:
-      '@aws-sdk/core': 3.973.20
+      '@aws-sdk/core': 3.974.11
       '@aws-sdk/nested-clients': 3.996.10
       '@aws-sdk/token-providers': 3.1009.0
-      '@aws-sdk/types': 3.973.6
+      '@aws-sdk/types': 3.973.8
       '@smithy/property-provider': 4.2.12
       '@smithy/shared-ini-file-loader': 4.4.7
-      '@smithy/types': 4.13.1
+      '@smithy/types': 4.14.2
       tslib: 2.8.1
     transitivePeerDependencies:
       - aws-crt
 
   '@aws-sdk/credential-provider-web-identity@3.972.20':
     dependencies:
-      '@aws-sdk/core': 3.973.20
+      '@aws-sdk/core': 3.974.11
       '@aws-sdk/nested-clients': 3.996.10
-      '@aws-sdk/types': 3.973.6
+      '@aws-sdk/types': 3.973.8
       '@smithy/property-provider': 4.2.12
       '@smithy/shared-ini-file-loader': 4.4.7
-      '@smithy/types': 4.13.1
+      '@smithy/types': 4.14.2
       tslib: 2.8.1
     transitivePeerDependencies:
       - aws-crt
@@ -16577,18 +16766,18 @@ snapshots:
     dependencies:
       '@aws-crypto/sha256-browser': 5.2.0
       '@aws-crypto/sha256-js': 5.2.0
-      '@aws-sdk/core': 3.973.20
+      '@aws-sdk/core': 3.974.11
       '@aws-sdk/middleware-host-header': 3.972.8
       '@aws-sdk/middleware-logger': 3.972.8
       '@aws-sdk/middleware-recursion-detection': 3.972.8
       '@aws-sdk/middleware-user-agent': 3.972.21
       '@aws-sdk/region-config-resolver': 3.972.8
-      '@aws-sdk/types': 3.973.6
+      '@aws-sdk/types': 3.973.8
       '@aws-sdk/util-endpoints': 3.996.5
       '@aws-sdk/util-user-agent-browser': 3.972.8
       '@aws-sdk/util-user-agent-node': 3.973.7
       '@smithy/config-resolver': 4.4.11
-      '@smithy/core': 3.23.11
+      '@smithy/core': 3.24.3
       '@smithy/fetch-http-handler': 5.3.15
       '@smithy/hash-node': 4.2.12
       '@smithy/invalid-dependency': 4.2.12
@@ -16601,7 +16790,7 @@ snapshots:
       '@smithy/node-http-handler': 4.4.16
       '@smithy/protocol-http': 5.3.12
       '@smithy/smithy-client': 4.12.5
-      '@smithy/types': 4.13.1
+      '@smithy/types': 4.14.2
       '@smithy/url-parser': 4.2.12
       '@smithy/util-base64': 4.3.2
       '@smithy/util-body-length-browser': 4.2.2
@@ -16624,13 +16813,29 @@ snapshots:
       '@smithy/types': 4.13.1
       tslib: 2.8.1
 
+  '@aws-sdk/s3-request-presigner@3.1154.0':
+    dependencies:
+      '@aws-sdk/core': 3.978.4
+      '@aws-sdk/signature-v4-multi-region': 3.996.48
+      '@aws-sdk/types': 3.974.6
+      '@smithy/core': 3.36.1
+      '@smithy/types': 4.19.0
+      tslib: 2.8.1
+
   '@aws-sdk/signature-v4-multi-region@3.984.0':
     dependencies:
       '@aws-sdk/middleware-sdk-s3': 3.972.20
-      '@aws-sdk/types': 3.973.6
+      '@aws-sdk/types': 3.973.8
       '@smithy/protocol-http': 5.3.12
-      '@smithy/signature-v4': 5.3.12
-      '@smithy/types': 4.13.1
+      '@smithy/signature-v4': 5.4.3
+      '@smithy/types': 4.14.2
+      tslib: 2.8.1
+
+  '@aws-sdk/signature-v4-multi-region@3.996.48':
+    dependencies:
+      '@aws-sdk/types': 3.974.6
+      '@smithy/signature-v4': 5.7.4
+      '@smithy/types': 4.19.0
       tslib: 2.8.1
 
   '@aws-sdk/signature-v4-multi-region@3.996.8':
@@ -16644,12 +16849,12 @@ snapshots:
 
   '@aws-sdk/token-providers@3.1009.0':
     dependencies:
-      '@aws-sdk/core': 3.973.20
+      '@aws-sdk/core': 3.974.11
       '@aws-sdk/nested-clients': 3.996.10
-      '@aws-sdk/types': 3.973.6
+      '@aws-sdk/types': 3.973.8
       '@smithy/property-provider': 4.2.12
       '@smithy/shared-ini-file-loader': 4.4.7
-      '@smithy/types': 4.13.1
+      '@smithy/types': 4.14.2
       tslib: 2.8.1
     transitivePeerDependencies:
       - aws-crt
@@ -16664,14 +16869,19 @@ snapshots:
       '@smithy/types': 4.14.2
       tslib: 2.8.1
 
+  '@aws-sdk/types@3.974.6':
+    dependencies:
+      '@smithy/types': 4.19.0
+      tslib: 2.8.1
+
   '@aws-sdk/util-arn-parser@3.972.3':
     dependencies:
       tslib: 2.8.1
 
   '@aws-sdk/util-endpoints@3.984.0':
     dependencies:
-      '@aws-sdk/types': 3.973.6
-      '@smithy/types': 4.13.1
+      '@aws-sdk/types': 3.973.8
+      '@smithy/types': 4.14.2
       '@smithy/url-parser': 4.2.12
       '@smithy/util-endpoints': 3.3.3
       tslib: 2.8.1
@@ -16706,7 +16916,7 @@ snapshots:
 
   '@aws-sdk/xml-builder@3.972.11':
     dependencies:
-      '@smithy/types': 4.13.1
+      '@smithy/types': 4.14.2
       fast-xml-parser: 5.7.2
       tslib: 2.8.1
 
@@ -16717,7 +16927,14 @@ snapshots:
       fast-xml-parser: 5.7.3
       tslib: 2.8.1
 
+  '@aws-sdk/xml-builder@3.972.41':
+    dependencies:
+      '@smithy/types': 4.19.0
+      tslib: 2.8.1
+
   '@aws/lambda-invoke-store@0.2.4': {}
+
+  '@aws/lambda-invoke-store@0.3.0': {}
 
   '@babel/code-frame@7.10.4':
     dependencies:
@@ -17465,6 +17682,8 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
+  '@bufbuild/protobuf@2.16.0': {}
+
   '@cloudflare/kv-asset-handler@0.5.0': {}
 
   '@cloudflare/unenv-preset@2.16.1(unenv@2.0.0-rc.24)(workerd@1.20260515.1)':
@@ -17741,12 +17960,6 @@ snapshots:
       tslib: 2.8.1
     optional: true
 
-  '@emnapi/core@2.0.0-alpha.3':
-    dependencies:
-      '@emnapi/wasi-threads': 2.0.1
-      tslib: 2.8.1
-    optional: true
-
   '@emnapi/runtime@1.10.0':
     dependencies:
       tslib: 2.8.1
@@ -17757,17 +17970,7 @@ snapshots:
       tslib: 2.8.1
     optional: true
 
-  '@emnapi/runtime@2.0.0-alpha.3':
-    dependencies:
-      tslib: 2.8.1
-    optional: true
-
   '@emnapi/wasi-threads@1.2.1':
-    dependencies:
-      tslib: 2.8.1
-    optional: true
-
-  '@emnapi/wasi-threads@2.0.1':
     dependencies:
       tslib: 2.8.1
     optional: true
@@ -18623,10 +18826,6 @@ snapshots:
     dependencies:
       react: 19.2.6
 
-  '@hono/node-server@2.0.12(hono@4.13.13)':
-    dependencies:
-      hono: 4.13.13
-
   '@hono/node-server@2.1.3(hono@4.13.13)':
     dependencies:
       hono: 4.13.13
@@ -18948,15 +19147,14 @@ snapshots:
 
   '@mixmark-io/domino@2.2.0': {}
 
-  '@modelcontextprotocol/core@2.0.0':
+  '@modelcontextprotocol/core@2.3.1':
     dependencies:
       zod: 4.3.6
 
-  '@modelcontextprotocol/node@2.0.0(@modelcontextprotocol/server@2.0.0)(hono@4.13.13)':
+  '@modelcontextprotocol/node@2.1.1(@modelcontextprotocol/server@2.3.1)':
     dependencies:
-      '@hono/node-server': 2.0.12(hono@4.13.13)
-      '@modelcontextprotocol/server': 2.0.0
-    optionalDependencies:
+      '@hono/node-server': 2.1.3(hono@4.13.13)
+      '@modelcontextprotocol/server': 2.3.1
       hono: 4.13.13
 
   '@modelcontextprotocol/sdk@1.32.1(zod@3.25.76)':
@@ -19003,9 +19201,9 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@modelcontextprotocol/server@2.0.0':
+  '@modelcontextprotocol/server@2.3.1':
     dependencies:
-      '@modelcontextprotocol/core': 2.0.0
+      '@modelcontextprotocol/core': 2.3.1
       zod: 4.3.6
 
   '@mozilla/readability@0.6.0': {}
@@ -19098,13 +19296,6 @@ snapshots:
     dependencies:
       '@emnapi/core': 1.10.0
       '@emnapi/runtime': 1.10.0
-      '@tybys/wasm-util': 0.10.3
-    optional: true
-
-  '@napi-rs/wasm-runtime@1.2.1(@emnapi/core@2.0.0-alpha.3)(@emnapi/runtime@2.0.0-alpha.3)':
-    dependencies:
-      '@emnapi/core': 2.0.0-alpha.3
-      '@emnapi/runtime': 2.0.0-alpha.3
       '@tybys/wasm-util': 0.10.3
     optional: true
 
@@ -20210,7 +20401,7 @@ snapshots:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/core': 2.10.0(@opentelemetry/api@1.9.1)
 
-  '@oxc-project/types@0.142.0': {}
+  '@oxc-project/types@0.154.0': {}
 
   '@paralleldrive/cuid2@2.3.1':
     dependencies:
@@ -22126,53 +22317,49 @@ snapshots:
       '@codemirror/state': 6.6.0
       '@codemirror/view': 6.41.1
 
-  '@rolldown/binding-android-arm64@1.2.1':
+  '@rolldown/binding-android-arm-eabi@1.2.14':
     optional: true
 
-  '@rolldown/binding-darwin-arm64@1.2.1':
+  '@rolldown/binding-android-arm64@1.2.14':
     optional: true
 
-  '@rolldown/binding-darwin-x64@1.2.1':
+  '@rolldown/binding-darwin-arm64@1.2.14':
     optional: true
 
-  '@rolldown/binding-freebsd-x64@1.2.1':
+  '@rolldown/binding-darwin-x64@1.2.14':
     optional: true
 
-  '@rolldown/binding-linux-arm-gnueabihf@1.2.1':
+  '@rolldown/binding-freebsd-x64@1.2.14':
     optional: true
 
-  '@rolldown/binding-linux-arm64-gnu@1.2.1':
+  '@rolldown/binding-linux-arm-gnueabihf@1.2.14':
     optional: true
 
-  '@rolldown/binding-linux-arm64-musl@1.2.1':
+  '@rolldown/binding-linux-arm64-gnu@1.2.14':
     optional: true
 
-  '@rolldown/binding-linux-ppc64-gnu@1.2.1':
+  '@rolldown/binding-linux-arm64-musl@1.2.14':
     optional: true
 
-  '@rolldown/binding-linux-s390x-gnu@1.2.1':
+  '@rolldown/binding-linux-ppc64-gnu@1.2.14':
     optional: true
 
-  '@rolldown/binding-linux-x64-gnu@1.2.1':
+  '@rolldown/binding-linux-s390x-gnu@1.2.14':
     optional: true
 
-  '@rolldown/binding-linux-x64-musl@1.2.1':
+  '@rolldown/binding-linux-x64-gnu@1.2.14':
     optional: true
 
-  '@rolldown/binding-openharmony-arm64@1.2.1':
+  '@rolldown/binding-linux-x64-musl@1.2.14':
     optional: true
 
-  '@rolldown/binding-wasm32-wasi@1.2.1':
-    dependencies:
-      '@emnapi/core': 2.0.0-alpha.3
-      '@emnapi/runtime': 2.0.0-alpha.3
-      '@napi-rs/wasm-runtime': 1.2.1(@emnapi/core@2.0.0-alpha.3)(@emnapi/runtime@2.0.0-alpha.3)
+  '@rolldown/binding-openharmony-arm64@1.2.14':
     optional: true
 
-  '@rolldown/binding-win32-arm64-msvc@1.2.1':
+  '@rolldown/binding-win32-arm64-msvc@1.2.14':
     optional: true
 
-  '@rolldown/binding-win32-x64-msvc@1.2.1':
+  '@rolldown/binding-win32-x64-msvc@1.2.14':
     optional: true
 
   '@rolldown/pluginutils@1.0.0-rc.3': {}
@@ -22879,18 +23066,23 @@ snapshots:
       '@smithy/types': 4.14.2
       tslib: 2.8.1
 
+  '@smithy/core@3.36.1':
+    dependencies:
+      '@smithy/types': 4.19.0
+      tslib: 2.8.1
+
   '@smithy/credential-provider-imds@4.2.12':
     dependencies:
       '@smithy/node-config-provider': 4.3.12
       '@smithy/property-provider': 4.2.12
-      '@smithy/types': 4.13.1
+      '@smithy/types': 4.14.2
       '@smithy/url-parser': 4.2.12
       tslib: 2.8.1
 
   '@smithy/eventstream-codec@4.2.12':
     dependencies:
       '@aws-crypto/crc32': 5.2.0
-      '@smithy/types': 4.13.1
+      '@smithy/types': 4.14.2
       '@smithy/util-hex-encoding': 4.2.2
       tslib: 2.8.1
 
@@ -22914,7 +23106,7 @@ snapshots:
   '@smithy/eventstream-serde-universal@4.2.12':
     dependencies:
       '@smithy/eventstream-codec': 4.2.12
-      '@smithy/types': 4.13.1
+      '@smithy/types': 4.14.2
       tslib: 2.8.1
 
   '@smithy/fetch-http-handler@5.3.15':
@@ -23022,7 +23214,7 @@ snapshots:
 
   '@smithy/property-provider@4.2.12':
     dependencies:
-      '@smithy/types': 4.13.1
+      '@smithy/types': 4.14.2
       tslib: 2.8.1
 
   '@smithy/protocol-http@5.3.12':
@@ -23032,29 +23224,29 @@ snapshots:
 
   '@smithy/querystring-builder@4.2.12':
     dependencies:
-      '@smithy/types': 4.13.1
+      '@smithy/types': 4.14.2
       '@smithy/util-uri-escape': 4.2.2
       tslib: 2.8.1
 
   '@smithy/querystring-parser@4.2.12':
     dependencies:
-      '@smithy/types': 4.13.1
+      '@smithy/types': 4.14.2
       tslib: 2.8.1
 
   '@smithy/service-error-classification@4.2.12':
     dependencies:
-      '@smithy/types': 4.13.1
+      '@smithy/types': 4.14.2
 
   '@smithy/shared-ini-file-loader@4.4.7':
     dependencies:
-      '@smithy/types': 4.13.1
+      '@smithy/types': 4.14.2
       tslib: 2.8.1
 
   '@smithy/signature-v4@5.3.12':
     dependencies:
       '@smithy/is-array-buffer': 4.2.2
       '@smithy/protocol-http': 5.3.12
-      '@smithy/types': 4.13.1
+      '@smithy/types': 4.14.2
       '@smithy/util-hex-encoding': 4.2.2
       '@smithy/util-middleware': 4.2.12
       '@smithy/util-uri-escape': 4.2.2
@@ -23065,6 +23257,12 @@ snapshots:
     dependencies:
       '@smithy/core': 3.24.3
       '@smithy/types': 4.14.2
+      tslib: 2.8.1
+
+  '@smithy/signature-v4@5.7.4':
+    dependencies:
+      '@smithy/core': 3.36.1
+      '@smithy/types': 4.19.0
       tslib: 2.8.1
 
   '@smithy/smithy-client@4.12.5':
@@ -23082,6 +23280,10 @@ snapshots:
       tslib: 2.8.1
 
   '@smithy/types@4.14.2':
+    dependencies:
+      tslib: 2.8.1
+
+  '@smithy/types@4.19.0':
     dependencies:
       tslib: 2.8.1
 
@@ -23412,12 +23614,12 @@ snapshots:
       postcss: 8.5.25
       tailwindcss: 4.2.1
 
-  '@tailwindcss/vite@4.2.1(vite@8.2.0(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))':
+  '@tailwindcss/vite@4.2.1(vite@8.3.4(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))':
     dependencies:
       '@tailwindcss/node': 4.2.1
       '@tailwindcss/oxide': 4.2.1
       tailwindcss: 4.2.1
-      vite: 8.2.0(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)
+      vite: 8.3.4(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)
 
   '@tanem/react-nprogress@5.0.63(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
     dependencies:
@@ -24164,7 +24366,7 @@ snapshots:
 
   '@types/jsdom@21.1.7':
     dependencies:
-      '@types/node': 22.19.19
+      '@types/node': 22.20.5
       '@types/tough-cookie': 4.0.5
       parse5: 7.3.0
 
@@ -24255,7 +24457,7 @@ snapshots:
 
   '@types/pdf-parse@1.1.5':
     dependencies:
-      '@types/node': 22.19.19
+      '@types/node': 22.20.5
 
   '@types/pg-pool@2.0.7':
     dependencies:
@@ -24379,7 +24581,7 @@ snapshots:
 
   '@types/ws@8.18.1':
     dependencies:
-      '@types/node': 22.19.19
+      '@types/node': 22.20.5
 
   '@types/yargs-parser@21.0.3': {}
 
@@ -24563,7 +24765,7 @@ snapshots:
 
   '@vercel/oidc@3.1.0': {}
 
-  '@vitejs/plugin-react@5.2.0(vite@8.2.0(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))':
+  '@vitejs/plugin-react@5.2.0(vite@8.3.4(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))':
     dependencies:
       '@babel/core': 7.29.7
       '@babel/plugin-transform-react-jsx-self': 7.27.1(@babel/core@7.29.7)
@@ -24571,7 +24773,7 @@ snapshots:
       '@rolldown/pluginutils': 1.0.0-rc.3
       '@types/babel__core': 7.20.5
       react-refresh: 0.18.0
-      vite: 8.2.0(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)
+      vite: 8.3.4(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)
     transitivePeerDependencies:
       - supports-color
 
@@ -24584,45 +24786,45 @@ snapshots:
       chai: 6.2.2
       tinyrainbow: 3.1.0
 
-  '@vitest/mocker@4.1.0(vite@8.2.0(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))':
+  '@vitest/mocker@4.1.0(vite@8.3.4(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))':
     dependencies:
       '@vitest/spy': 4.1.0
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
-      vite: 8.2.0(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)
+      vite: 8.3.4(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)
 
-  '@vitest/mocker@4.1.0(vite@8.2.0(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))':
+  '@vitest/mocker@4.1.0(vite@8.3.4(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))':
     dependencies:
       '@vitest/spy': 4.1.0
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
-      vite: 8.2.0(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)
+      vite: 8.3.4(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)
 
-  '@vitest/mocker@4.1.0(vite@8.2.0(@types/node@22.20.4)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))':
+  '@vitest/mocker@4.1.0(vite@8.3.4(@types/node@22.20.4)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))':
     dependencies:
       '@vitest/spy': 4.1.0
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
-      vite: 8.2.0(@types/node@22.20.4)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)
+      vite: 8.3.4(@types/node@22.20.4)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)
 
-  '@vitest/mocker@4.1.0(vite@8.2.0(@types/node@22.20.5)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))':
+  '@vitest/mocker@4.1.0(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))':
     dependencies:
       '@vitest/spy': 4.1.0
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
-      vite: 8.2.0(@types/node@22.20.5)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)
+      vite: 8.3.4(@types/node@22.20.5)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)
 
-  '@vitest/mocker@4.1.0(vite@8.2.0(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))':
+  '@vitest/mocker@4.1.0(vite@8.3.4(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))':
     dependencies:
       '@vitest/spy': 4.1.0
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
-      vite: 8.2.0(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)
+      vite: 8.3.4(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)
 
   '@vitest/pretty-format@4.1.0':
     dependencies:
@@ -25053,8 +25255,6 @@ snapshots:
 
   argparse@2.0.1: {}
 
-  argparse@3.0.0: {}
-
   aria-hidden@1.2.6:
     dependencies:
       tslib: 2.8.1
@@ -25208,7 +25408,7 @@ snapshots:
 
   axios@1.20.0:
     dependencies:
-      follow-redirects: 1.16.0
+      follow-redirects: 1.16.1
       form-data: 4.0.6
       https-proxy-agent: 5.0.1
       proxy-from-env: 2.1.0
@@ -26257,8 +26457,6 @@ snapshots:
 
   entities@7.0.1: {}
 
-  entities@8.0.0: {}
-
   env-paths@2.2.1: {}
 
   environment@1.1.0: {}
@@ -27215,6 +27413,14 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  express-rate-limit@8.7.1(express@4.22.1):
+    dependencies:
+      debug: 4.4.3
+      express: 4.22.1
+      ip-address: 10.7.3
+    transitivePeerDependencies:
+      - supports-color
+
   express-rate-limit@8.7.1(express@5.2.1):
     dependencies:
       debug: 4.4.3
@@ -27424,9 +27630,9 @@ snapshots:
     optionalDependencies:
       picomatch: 4.0.4
 
-  fdir@6.5.0(picomatch@4.0.5):
+  fdir@6.5.0(picomatch@4.0.7):
     optionalDependencies:
-      picomatch: 4.0.5
+      picomatch: 4.0.7
 
   fetch-blob@3.2.0:
     dependencies:
@@ -27540,7 +27746,7 @@ snapshots:
     dependencies:
       tabbable: 6.4.0
 
-  follow-redirects@1.16.0: {}
+  follow-redirects@1.16.1: {}
 
   fontfaceobserver@2.3.0: {}
 
@@ -28945,9 +29151,9 @@ snapshots:
       htmlparser2: 10.1.0
       uhyphen: 0.2.0
 
-  linkify-it@6.1.0:
+  linkify-it@5.0.2:
     dependencies:
-      uc.micro: 3.0.0
+      uc.micro: 2.1.0
 
   linkifyjs@4.3.2: {}
 
@@ -29115,14 +29321,14 @@ snapshots:
       underscore: 1.13.8
       xmlbuilder: 10.1.1
 
-  markdown-it@15.0.0:
+  markdown-it@14.3.3:
     dependencies:
-      argparse: 3.0.0
-      entities: 8.0.0
-      linkify-it: 6.1.0
+      argparse: 2.0.1
+      entities: 4.5.0
+      linkify-it: 5.0.2
       mdurl: 2.1.0
       punycode.js: 2.3.1
-      uc.micro: 3.0.0
+      uc.micro: 2.1.0
 
   markdown-table@3.0.4: {}
 
@@ -29318,6 +29524,8 @@ snapshots:
   merge-stream@2.0.0: {}
 
   merge2@1.4.1: {}
+
+  meriyah@6.1.4: {}
 
   meshoptimizer@0.22.0: {}
 
@@ -30374,6 +30582,8 @@ snapshots:
 
   picomatch@4.0.5: {}
 
+  picomatch@4.0.7: {}
+
   pidtree@0.6.0: {}
 
   pino-abstract-transport@2.0.0:
@@ -30580,7 +30790,7 @@ snapshots:
   prosemirror-markdown@1.13.4:
     dependencies:
       '@types/markdown-it': 14.1.2
-      markdown-it: 15.0.0
+      markdown-it: 14.3.3
       prosemirror-model: 1.25.4
 
   prosemirror-menu@1.3.0:
@@ -31597,26 +31807,26 @@ snapshots:
 
   robust-predicates@3.0.3: {}
 
-  rolldown@1.2.1:
+  rolldown@1.2.14:
     dependencies:
-      '@oxc-project/types': 0.142.0
+      '@oxc-project/types': 0.154.0
       '@rolldown/pluginutils': 1.0.1
     optionalDependencies:
-      '@rolldown/binding-android-arm64': 1.2.1
-      '@rolldown/binding-darwin-arm64': 1.2.1
-      '@rolldown/binding-darwin-x64': 1.2.1
-      '@rolldown/binding-freebsd-x64': 1.2.1
-      '@rolldown/binding-linux-arm-gnueabihf': 1.2.1
-      '@rolldown/binding-linux-arm64-gnu': 1.2.1
-      '@rolldown/binding-linux-arm64-musl': 1.2.1
-      '@rolldown/binding-linux-ppc64-gnu': 1.2.1
-      '@rolldown/binding-linux-s390x-gnu': 1.2.1
-      '@rolldown/binding-linux-x64-gnu': 1.2.1
-      '@rolldown/binding-linux-x64-musl': 1.2.1
-      '@rolldown/binding-openharmony-arm64': 1.2.1
-      '@rolldown/binding-wasm32-wasi': 1.2.1
-      '@rolldown/binding-win32-arm64-msvc': 1.2.1
-      '@rolldown/binding-win32-x64-msvc': 1.2.1
+      '@rolldown/binding-android-arm-eabi': 1.2.14
+      '@rolldown/binding-android-arm64': 1.2.14
+      '@rolldown/binding-darwin-arm64': 1.2.14
+      '@rolldown/binding-darwin-x64': 1.2.14
+      '@rolldown/binding-freebsd-x64': 1.2.14
+      '@rolldown/binding-linux-arm-gnueabihf': 1.2.14
+      '@rolldown/binding-linux-arm64-gnu': 1.2.14
+      '@rolldown/binding-linux-arm64-musl': 1.2.14
+      '@rolldown/binding-linux-ppc64-gnu': 1.2.14
+      '@rolldown/binding-linux-s390x-gnu': 1.2.14
+      '@rolldown/binding-linux-x64-gnu': 1.2.14
+      '@rolldown/binding-linux-x64-musl': 1.2.14
+      '@rolldown/binding-openharmony-arm64': 1.2.14
+      '@rolldown/binding-win32-arm64-msvc': 1.2.14
+      '@rolldown/binding-win32-x64-msvc': 1.2.14
 
   rollup@4.59.0:
     dependencies:
@@ -32041,7 +32251,7 @@ snapshots:
 
   socks@2.8.9:
     dependencies:
-      ip-address: 10.4.0
+      ip-address: 10.7.3
       smart-buffer: 4.2.0
 
   sodium-native@5.1.0(bare-events@2.8.3)(bare-url@2.4.3):
@@ -32503,8 +32713,8 @@ snapshots:
 
   tinyglobby@0.2.17:
     dependencies:
-      fdir: 6.5.0(picomatch@4.0.5)
-      picomatch: 4.0.5
+      fdir: 6.5.0(picomatch@4.0.7)
+      picomatch: 4.0.7
 
   tinyrainbow@3.1.0: {}
 
@@ -32701,7 +32911,7 @@ snapshots:
 
   typescript@5.9.3: {}
 
-  uc.micro@3.0.0: {}
+  uc.micro@2.1.0: {}
 
   ufo@1.6.3: {}
 
@@ -33010,23 +33220,23 @@ snapshots:
     dependencies:
       monaco-editor: 0.55.1
 
-  vite-plugin-svgr@4.5.0(rollup@4.59.0)(typescript@5.9.3)(vite@8.2.0(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)):
+  vite-plugin-svgr@4.5.0(rollup@4.59.0)(typescript@5.9.3)(vite@8.3.4(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)):
     dependencies:
       '@rollup/pluginutils': 5.3.0(rollup@4.59.0)
       '@svgr/core': 8.1.0(typescript@5.9.3)
       '@svgr/plugin-jsx': 8.1.0(@svgr/core@8.1.0(typescript@5.9.3))
-      vite: 8.2.0(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)
+      vite: 8.3.4(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)
     transitivePeerDependencies:
       - rollup
       - supports-color
       - typescript
 
-  vite@8.2.0(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3):
+  vite@8.3.4(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3):
     dependencies:
       lightningcss: 1.33.0
-      picomatch: 4.0.5
-      postcss: 8.5.25
-      rolldown: 1.2.1
+      picomatch: 4.0.7
+      postcss: 8.5.29
+      rolldown: 1.2.14
       tinyglobby: 0.2.17
     optionalDependencies:
       '@types/node': 22.19.15
@@ -33037,12 +33247,12 @@ snapshots:
       tsx: 4.21.0
       yaml: 2.8.3
 
-  vite@8.2.0(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3):
+  vite@8.3.4(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3):
     dependencies:
       lightningcss: 1.33.0
-      picomatch: 4.0.5
-      postcss: 8.5.25
-      rolldown: 1.2.1
+      picomatch: 4.0.7
+      postcss: 8.5.29
+      rolldown: 1.2.14
       tinyglobby: 0.2.17
     optionalDependencies:
       '@types/node': 22.19.19
@@ -33053,12 +33263,12 @@ snapshots:
       tsx: 4.21.0
       yaml: 2.8.3
 
-  vite@8.2.0(@types/node@22.20.4)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3):
+  vite@8.3.4(@types/node@22.20.4)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3):
     dependencies:
       lightningcss: 1.33.0
-      picomatch: 4.0.5
-      postcss: 8.5.25
-      rolldown: 1.2.1
+      picomatch: 4.0.7
+      postcss: 8.5.29
+      rolldown: 1.2.14
       tinyglobby: 0.2.17
     optionalDependencies:
       '@types/node': 22.20.4
@@ -33069,12 +33279,12 @@ snapshots:
       tsx: 4.21.0
       yaml: 2.8.3
 
-  vite@8.2.0(@types/node@22.20.5)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3):
+  vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3):
     dependencies:
       lightningcss: 1.33.0
-      picomatch: 4.0.5
-      postcss: 8.5.25
-      rolldown: 1.2.1
+      picomatch: 4.0.7
+      postcss: 8.5.29
+      rolldown: 1.2.14
       tinyglobby: 0.2.17
     optionalDependencies:
       '@types/node': 22.20.5
@@ -33085,12 +33295,12 @@ snapshots:
       tsx: 4.21.0
       yaml: 2.8.3
 
-  vite@8.2.0(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3):
+  vite@8.3.4(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3):
     dependencies:
       lightningcss: 1.33.0
-      picomatch: 4.0.5
-      postcss: 8.5.25
-      rolldown: 1.2.1
+      picomatch: 4.0.7
+      postcss: 8.5.29
+      rolldown: 1.2.14
       tinyglobby: 0.2.17
     optionalDependencies:
       '@types/node': 24.12.2
@@ -33101,10 +33311,10 @@ snapshots:
       tsx: 4.21.0
       yaml: 2.8.3
 
-  vitest@4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.15)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.2.0(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)):
+  vitest@4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.15)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.3.4(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)):
     dependencies:
       '@vitest/expect': 4.1.0
-      '@vitest/mocker': 4.1.0(vite@8.2.0(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+      '@vitest/mocker': 4.1.0(vite@8.3.4(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
       '@vitest/pretty-format': 4.1.0
       '@vitest/runner': 4.1.0
       '@vitest/snapshot': 4.1.0
@@ -33121,7 +33331,7 @@ snapshots:
       tinyexec: 1.0.4
       tinyglobby: 0.2.15
       tinyrainbow: 3.1.0
-      vite: 8.2.0(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)
+      vite: 8.3.4(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
@@ -33131,10 +33341,10 @@ snapshots:
     transitivePeerDependencies:
       - msw
 
-  vitest@4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(happy-dom@20.9.0)(jsdom@25.0.1)(vite@8.2.0(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)):
+  vitest@4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(happy-dom@20.9.0)(jsdom@25.0.1)(vite@8.3.4(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)):
     dependencies:
       '@vitest/expect': 4.1.0
-      '@vitest/mocker': 4.1.0(vite@8.2.0(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+      '@vitest/mocker': 4.1.0(vite@8.3.4(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
       '@vitest/pretty-format': 4.1.0
       '@vitest/runner': 4.1.0
       '@vitest/snapshot': 4.1.0
@@ -33151,7 +33361,7 @@ snapshots:
       tinyexec: 1.0.4
       tinyglobby: 0.2.15
       tinyrainbow: 3.1.0
-      vite: 8.2.0(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)
+      vite: 8.3.4(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
@@ -33161,10 +33371,10 @@ snapshots:
     transitivePeerDependencies:
       - msw
 
-  vitest@4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.2.0(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)):
+  vitest@4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.3.4(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)):
     dependencies:
       '@vitest/expect': 4.1.0
-      '@vitest/mocker': 4.1.0(vite@8.2.0(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+      '@vitest/mocker': 4.1.0(vite@8.3.4(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
       '@vitest/pretty-format': 4.1.0
       '@vitest/runner': 4.1.0
       '@vitest/snapshot': 4.1.0
@@ -33181,7 +33391,7 @@ snapshots:
       tinyexec: 1.0.4
       tinyglobby: 0.2.15
       tinyrainbow: 3.1.0
-      vite: 8.2.0(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)
+      vite: 8.3.4(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
@@ -33191,10 +33401,10 @@ snapshots:
     transitivePeerDependencies:
       - msw
 
-  vitest@4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.20.4)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.2.0(@types/node@22.20.4)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)):
+  vitest@4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.20.4)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.3.4(@types/node@22.20.4)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)):
     dependencies:
       '@vitest/expect': 4.1.0
-      '@vitest/mocker': 4.1.0(vite@8.2.0(@types/node@22.20.4)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+      '@vitest/mocker': 4.1.0(vite@8.3.4(@types/node@22.20.4)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
       '@vitest/pretty-format': 4.1.0
       '@vitest/runner': 4.1.0
       '@vitest/snapshot': 4.1.0
@@ -33211,7 +33421,7 @@ snapshots:
       tinyexec: 1.0.4
       tinyglobby: 0.2.15
       tinyrainbow: 3.1.0
-      vite: 8.2.0(@types/node@22.20.4)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)
+      vite: 8.3.4(@types/node@22.20.4)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
@@ -33221,10 +33431,10 @@ snapshots:
     transitivePeerDependencies:
       - msw
 
-  vitest@4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.2.0(@types/node@22.20.5)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)):
+  vitest@4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)):
     dependencies:
       '@vitest/expect': 4.1.0
-      '@vitest/mocker': 4.1.0(vite@8.2.0(@types/node@22.20.5)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+      '@vitest/mocker': 4.1.0(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
       '@vitest/pretty-format': 4.1.0
       '@vitest/runner': 4.1.0
       '@vitest/snapshot': 4.1.0
@@ -33241,7 +33451,7 @@ snapshots:
       tinyexec: 1.0.4
       tinyglobby: 0.2.15
       tinyrainbow: 3.1.0
-      vite: 8.2.0(@types/node@22.20.5)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)
+      vite: 8.3.4(@types/node@22.20.5)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
@@ -33251,10 +33461,10 @@ snapshots:
     transitivePeerDependencies:
       - msw
 
-  vitest@4.1.0(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@25.0.1)(vite@8.2.0(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)):
+  vitest@4.1.0(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@25.0.1)(vite@8.3.4(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)):
     dependencies:
       '@vitest/expect': 4.1.0
-      '@vitest/mocker': 4.1.0(vite@8.2.0(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+      '@vitest/mocker': 4.1.0(vite@8.3.4(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
       '@vitest/pretty-format': 4.1.0
       '@vitest/runner': 4.1.0
       '@vitest/snapshot': 4.1.0
@@ -33271,7 +33481,7 @@ snapshots:
       tinyexec: 1.0.4
       tinyglobby: 0.2.15
       tinyrainbow: 3.1.0
-      vite: 8.2.0(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)
+      vite: 8.3.4(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
@@ -33281,10 +33491,10 @@ snapshots:
     transitivePeerDependencies:
       - msw
 
-  vitest@4.1.0(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.2.0(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)):
+  vitest@4.1.0(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@29.0.0(@noble/hashes@1.8.0))(vite@8.3.4(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)):
     dependencies:
       '@vitest/expect': 4.1.0
-      '@vitest/mocker': 4.1.0(vite@8.2.0(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
+      '@vitest/mocker': 4.1.0(vite@8.3.4(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3))
       '@vitest/pretty-format': 4.1.0
       '@vitest/runner': 4.1.0
       '@vitest/snapshot': 4.1.0
@@ -33301,7 +33511,7 @@ snapshots:
       tinyexec: 1.0.4
       tinyglobby: 0.2.15
       tinyrainbow: 3.1.0
-      vite: 8.2.0(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)
+      vite: 8.3.4(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.3)
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
@@ -33696,6 +33906,12 @@ snapshots:
       '@speed-highlight/core': 1.2.15
       cookie: 1.1.1
       youch-core: 0.3.3
+
+  youtubei.js@17.2.0:
+    dependencies:
+      '@bufbuild/protobuf': 2.16.0
+      fflate: 0.8.2
+      meriyah: 6.1.4
 
   yup@1.7.1:
     dependencies:
