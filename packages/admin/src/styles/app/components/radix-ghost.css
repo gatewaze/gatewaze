@@ -1,0 +1,19 @@
+/*
+ * Radix Themes gives ghost Button and IconButton a negative margin equal to
+ * their padding, so the label sits flush with surrounding text. Next to a
+ * solid or soft button in a row, that pulls the ghost button up and left, and
+ * its hover and focus ring spill past the row. Across this admin, ghost buttons
+ * sit in rows far more often than inline in text, so cancel the offset here.
+ * Radix margin props (m, mt, ...) still apply. Add `gw-ghost-bleed` to a ghost
+ * button that should keep Radix's flush-with-text behaviour.
+ *
+ * This file is imported in the `components` layer, which comes after `radix`,
+ * so it wins without extra specificity.
+ */
+.rt-Button.rt-variant-ghost:not(.gw-ghost-bleed),
+.rt-IconButton.rt-variant-ghost:not(.gw-ghost-bleed) {
+  --margin-top-override: var(--margin-top);
+  --margin-right-override: var(--margin-right);
+  --margin-bottom-override: var(--margin-bottom);
+  --margin-left-override: var(--margin-left);
+}
