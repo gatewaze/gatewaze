@@ -190,6 +190,10 @@ export class ScraperScheduler {
             eventType,
             brand: process.env.BRAND || 'default',
             scheduled: true,
+          }, {
+            // Keyed on the DB row, not Date.now(): BullMQ silently dedupes
+            // an add() with an existing jobId, which would orphan the row.
+            jobId: `scraper-run-${scraperJobId}`,
           });
           console.log(`📥 Scraper job enqueued: ${scraper.name} (job ${scraperJobId})`);
         } catch (enqueueError) {
