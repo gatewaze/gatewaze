@@ -176,17 +176,33 @@ export class ScraperScheduler {
           }
         }
 
-        // Now enqueue the job with the scraperJobId
-        await jobQueue.addJob(jobQueue.JobTypes.SCRAPER_RUN, {
-          scraperJobId,
-          scraperId: scraper.id,
-          scraperName: scraper.name,
-          scraperType,
-          eventType,
-          brand: process.env.BRAND || 'default',
-          scheduled: true,
-        });
-        console.log(`📥 Scraper job enqueued: ${scraper.name} (job ${scraperJobId})`);
+        // Now enqueue the job with the scraperJobId. If this throws, the
+        // scrapers_jobs row we just created would sit in 'pending' forever
+        // and scrapers_get_due_for_run skips any scraper with a pending
+        // job — so the scraper would never run again. Fail the row instead
+        // and still advance next_scheduled_run below.
+        try {
+          await jobQueue.addJob(jobQueue.JobTypes.SCRAPER_RUN, {
+            scraperJobId,
+            scraperId: scraper.id,
+            scraperName: scraper.name,
+            scraperType,
+            eventType,
+            brand: process.env.BRAND || 'default',
+            scheduled: true,
+          });
+          console.log(`📥 Scraper job enqueued: ${scraper.name} (job ${scraperJobId})`);
+        } catch (enqueueError) {
+          console.error(`❌ Failed to enqueue scraper job ${scraperJobId} for ${scraper.name}:`, enqueueError);
+          const { error: failError } = await this.supabase.rpc('scrapers_update_job', {
+            job_id: scraperJobId,
+            new_status: 'failed',
+            error_msg: `Scheduler could not enqueue job: ${enqueueError?.message || enqueueError}`,
+          });
+          if (failError) {
+            console.error(`❌ Failed to mark unenqueued job ${scraperJobId} as failed:`, failError);
+          }
+        }
 
         // Calculate and update next scheduled run time
         const nextRun = this.calculateNextRun(scraper);
