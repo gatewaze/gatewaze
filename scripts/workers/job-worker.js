@@ -929,7 +929,6 @@ async function recoverOrphanedPendingScraperJobs() {
       .from('scrapers_jobs')
       .select('id, scraper_id, created_at')
       .eq('status', 'pending')
-      .is('started_at', null)
       .lt('created_at', cutoff);
     if (error || !pendingJobs || pendingJobs.length === 0) return;
 
@@ -937,12 +936,26 @@ async function recoverOrphanedPendingScraperJobs() {
 
     for (const job of pendingJobs) {
       if (queuedIds.has(Number(job.id))) continue;
-      console.log(`⚠️ Recovering orphaned pending job ${job.id} (scraper ${job.scraper_id}, created ${job.created_at})`);
-      await supabase.rpc('scrapers_update_job', {
-        job_id: job.id,
-        new_status: 'failed',
-        error_msg: 'Job orphaned — pending but never started and not in the queue',
-      });
+      // Conditional on still being 'pending': the worker may have picked
+      // the job up (or finished it) since the select above, and another
+      // worker replica may have reaped it already. Only the replica whose
+      // update matches a row sends the alert.
+      const { data: reaped, error: reapError } = await supabase
+        .from('scrapers_jobs')
+        .update({
+          status: 'failed',
+          completed_at: new Date().toISOString(),
+          error_message: 'Job orphaned — pending but never started and not in the queue',
+        })
+        .eq('id', job.id)
+        .eq('status', 'pending')
+        .select('id');
+      if (reapError) {
+        console.error(`❌ Failed to mark orphaned job ${job.id} as failed:`, reapError);
+        continue;
+      }
+      if (!reaped || reaped.length === 0) continue;
+      console.log(`⚠️ Recovered orphaned pending job ${job.id} (scraper ${job.scraper_id}, created ${job.created_at})`);
       await sendScraperAlert({
         severity: 'error',
         title: `Orphaned Job Recovered`,
