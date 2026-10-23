@@ -896,7 +896,7 @@ export function SendingPanel({ adapter }: { adapter: SendingAdapter }) {
               <div className="px-5 py-3 border-t border-[var(--gray-a4)] flex items-center justify-end gap-2">
                 <Button variant="outlined" onClick={() => setConfirmState(null)} disabled={sending}>Cancel</Button>
                 <Button variant="solid" onClick={() => doCreate(confirmState.config)} disabled={sending || confirmState.loading}>
-                  {sending ? 'Scheduling…' : 'Confirm &amp; schedule'}
+                  {sending ? 'Scheduling…' : 'Confirm & schedule'}
                 </Button>
               </div>
             </div>
