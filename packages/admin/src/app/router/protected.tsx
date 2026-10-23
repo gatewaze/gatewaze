@@ -8,7 +8,7 @@ import { OnboardingGuard } from "@/middleware/OnboardingGuard";
 import { UnauthorizedPage } from "@/components/guards/FeatureGuard";
 import { DynamicLayout } from "../layouts/DynamicLayout";
 import { RoleBasedRedirect } from "./RoleBasedRedirect";
-import { moduleRoutes, moduleAdminRoutes } from "./moduleRoutes";
+import { moduleRoutes, moduleAdminRoutes, moduleBareRoutes } from "./moduleRoutes";
 
 /**
  * Core routes that are NOT provided by modules.
@@ -75,6 +75,9 @@ const protectedRoutes: RouteObject = {
     {
       Component: OnboardingGuard,
       children: [
+    // Module routes with layout: 'bare' (e.g. the newsletter approval view):
+    // signed in, but no admin chrome around them.
+    ...moduleBareRoutes,
     // The dynamic layout supports both the main layout and the sideblock.
     {
       Component: DynamicLayout,

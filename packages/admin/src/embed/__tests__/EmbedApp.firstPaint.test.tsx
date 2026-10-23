@@ -33,6 +33,7 @@ vi.mock('@/app/router/moduleRoutes', () => ({
     },
   ],
   moduleAdminRoutes: [],
+  moduleBareRoutes: [],
 }));
 
 const { EmbedApp } = await import('../EmbedApp');

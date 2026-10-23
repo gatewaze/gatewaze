@@ -6,7 +6,7 @@ import { BreakpointProvider } from '@/app/contexts/breakpoint/Provider';
 import { SidebarProvider } from '@/app/contexts/sidebar/Provider';
 import { ThemeProvider } from '@/app/contexts/theme/Provider';
 import { RadixThemeBridge } from '@/app/contexts/theme/RadixThemeBridge';
-import { moduleAdminRoutes, moduleRoutes } from '@/app/router/moduleRoutes';
+import { moduleAdminRoutes, moduleBareRoutes, moduleRoutes } from '@/app/router/moduleRoutes';
 
 import { Loadable } from '@/components/shared/Loadable';
 import { PageLoadingSpinner } from '@/components/ui/Spinner/PageLoadingSpinner';
@@ -83,6 +83,7 @@ export function EmbedApp({ ctx, container }: { ctx: GwHostContext; container: HT
             HydrateFallback: EmbedRouteFallback,
             children: [
               ...moduleRoutes,
+              ...moduleBareRoutes,
               { path: 'admin', children: moduleAdminRoutes },
               { path: '*', element: <CatchAllHandoff navigateHost={ctx.navigateHost} /> },
             ],
