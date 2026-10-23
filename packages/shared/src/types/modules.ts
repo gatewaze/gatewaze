@@ -339,6 +339,13 @@ export interface AdminRouteDefinition {
   requiredFeature: string;
   parentPath?: string;
   guard?: 'none' | 'auth' | 'admin' | 'super_admin';
+  /**
+   * 'bare' renders the page without the admin chrome (no sidebar or header),
+   * still behind sign-in. For full-screen pages a user reaches from a link,
+   * such as an approver's review view. Default 'app'. Hosts that don't know
+   * the field render the route inside the normal layout.
+   */
+  layout?: 'app' | 'bare';
 }
 
 export interface NavigationItem {
