@@ -605,10 +605,6 @@ export function SendingPanel({ adapter }: { adapter: SendingAdapter }) {
               </div>
             )}
 
-            {!canSendNow && hasParent && blockReason && (
-              <div className="rounded-md border border-[var(--amber-a6)] bg-[var(--amber-a2)] px-3 py-2 text-xs text-[var(--amber-11)]">{blockReason}</div>
-            )}
-
             {recipientEstimate != null && (
               <p className="text-xs text-[var(--gray-11)] flex items-center gap-1">
                 <EnvelopeIcon className="w-3.5 h-3.5 text-[var(--gray-9)]" />
@@ -620,6 +616,12 @@ export function SendingPanel({ adapter }: { adapter: SendingAdapter }) {
               </p>
             )}
 
+            {/* Why the send is blocked sits directly above the button, which
+                keeps its normal label and is just disabled. */}
+            {!canSendNow && hasParent && blockReason && (
+              <div role="alert" className="rounded-md border border-[var(--red-a6)] bg-[var(--red-a2)] px-3 py-2 text-xs text-[var(--red-11)]">{blockReason}</div>
+            )}
+
             <Button variant="solid" onClick={handleSend} disabled={sending || !hasParent || isActive || !canSendNow}>
               {sendSpinning ? (
                 <svg className="w-4 h-4 mr-1 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -627,7 +629,7 @@ export function SendingPanel({ adapter }: { adapter: SendingAdapter }) {
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
               ) : <PaperAirplaneIcon className="w-4 h-4 mr-1" />}
-              {sending ? 'Sending...' : isActive ? 'Send in progress...' : !canSendNow ? (blockReason || 'Cannot send') : scheduleType === 'scheduled' ? 'Schedule Send' : 'Send Now'}
+              {sending ? 'Sending...' : isActive ? 'Send in progress...' : scheduleType === 'scheduled' ? 'Schedule Send' : 'Send Now'}
             </Button>
 
           </div>
