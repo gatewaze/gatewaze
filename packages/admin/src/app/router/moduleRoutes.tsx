@@ -59,7 +59,7 @@ function buildRouteObject(route: {
   };
 }
 
-function collectRoutes(guardFilter: string | undefined): RouteObject[] {
+function collectRoutes(guardFilter: string | undefined, layoutFilter: 'app' | 'bare' = 'app'): RouteObject[] {
   const topLevel = new Map<string, RouteObject>();
   // nav↔route invariant #2 (spec §5.3): two DIFFERENT modules must not resolve
   // to the same composed route. Warn (never throw at runtime — a throw would
@@ -80,6 +80,8 @@ function collectRoutes(guardFilter: string | undefined): RouteObject[] {
       const guard = (route as { guard?: string }).guard;
       const effectiveGuard = guard === 'none' ? undefined : guard;
       if (effectiveGuard !== guardFilter) continue;
+      const layout = (route as { layout?: string }).layout === 'bare' ? 'bare' : 'app';
+      if (layout !== layoutFilter) continue;
 
       // Only top-level (non-admin) routes are namespaced; guard:'admin' routes
       // keep nesting under /admin as before.
@@ -145,3 +147,9 @@ export const moduleRoutes = collectRoutes(undefined);
 
 /** Routes that belong under /admin (guard: 'admin') */
 export const moduleAdminRoutes = collectRoutes('admin');
+
+/**
+ * Top-level routes declared with layout: 'bare'. They mount behind sign-in
+ * but outside the admin layout, so no sidebar or header ever paints.
+ */
+export const moduleBareRoutes = collectRoutes(undefined, 'bare');
