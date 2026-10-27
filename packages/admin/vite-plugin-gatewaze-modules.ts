@@ -733,6 +733,21 @@ function resolveModuleImport(
 }
 
 /**
+ * Whether a pre-cloned directory was cloned from `url`. The entrypoints
+ * write the URL to .gatewaze-source; a directory without one (an older
+ * image, or a local sibling checkout) is taken at face value.
+ */
+function cloneCameFrom(dir: string, url: string): boolean {
+  const marker = resolve(dir, '.gatewaze-source');
+  if (!existsSync(marker)) return true;
+  try {
+    return readFileSync(marker, 'utf-8').trim() === url;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Resolve module source entries to absolute directory paths.
  * Git URLs are cloned to a local cache directory.
  */
@@ -743,13 +758,19 @@ function resolveSources(sources: SourceEntry[], projectRoot: string): string[] {
     const { url, path: subPath, branch } = normalizeSource(source);
 
     if (isGitUrl(url)) {
-      // Check if repo was already cloned by the Docker entrypoint (symlinked at /<reponame>)
+      // Check if repo was already cloned by the Docker entrypoint. It
+      // symlinks the first repo of a given name at /<reponame> and a later
+      // one with the same name (gatewaze/gatewaze-modules beside the
+      // private danthebaker/gatewaze-modules) at /<owner>-<reponame>, and
+      // writes the URL it cloned into .gatewaze-source, so a clone that
+      // came from a different URL is never taken for this one.
       const repoName = url.replace(/.*\//, '').replace(/\.git$/, '');
-      const symlinkedPath = resolve('/', repoName);
-      const localSiblingPath = resolve(projectRoot, '..', repoName);
-      const preClonedPath = existsSync(symlinkedPath) ? symlinkedPath
-        : existsSync(localSiblingPath) ? localSiblingPath
-        : null;
+      const owner = url.replace(/\.git$/, '').replace(/\/[^/]*$/, '').replace(/.*[/:]/, '');
+      const preClonedPath = [
+        resolve('/', `${owner}-${repoName}`),
+        resolve('/', repoName),
+        resolve(projectRoot, '..', repoName),
+      ].find((dir) => existsSync(dir) && cloneCameFrom(dir, url)) ?? null;
 
       if (preClonedPath) {
         const fullPath = subPath ? resolve(preClonedPath, subPath) : preClonedPath;

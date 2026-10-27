@@ -16,6 +16,7 @@ fi
 # volume-mounted and skipped.
 if [ -n "$MODULE_SOURCES" ]; then
   echo "[portal] Processing module sources..."
+  claimed=""
   IFS=','
   for source in $MODULE_SOURCES; do
     url="${source%%#*}"
@@ -47,6 +48,20 @@ if [ -n "$MODULE_SOURCES" ]; then
     fi
 
     reponame=$(echo "$url" | sed 's|.*/||; s|\.git$||')
+    # Two repos can share a name: gatewaze/gatewaze-modules and the private
+    # danthebaker/gatewaze-modules both end in gatewaze-modules, and on one
+    # path the second would be skipped, or wipe the first. The first entry
+    # to claim a name keeps it; a later entry with a different URL gets
+    # owner-name instead. The symlink carries the same name, and
+    # .gatewaze-source in the clone says which URL it came from, so the
+    # build-time lookups can tell them apart.
+    case " $claimed " in
+      *" $reponame=$url "*) ;;
+      *" $reponame="*)
+        owner=$(echo "$url" | sed -E 's|\.git$||; s|/[^/]*$||; s|.*[/:]||')
+        reponame="$owner-$reponame" ;;
+    esac
+    claimed="$claimed $reponame=$url"
     target="/tmp/module-repos/$reponame"
 
     if [ -d "$target" ]; then
@@ -61,6 +76,7 @@ if [ -n "$MODULE_SOURCES" ]; then
       ( cd "$target" && git fetch --depth 1 origin "$branch" >/dev/null 2>&1 && git reset --hard FETCH_HEAD >/dev/null 2>&1 ) || true
     fi
 
+    printf '%s\n' "$url" > "$target/.gatewaze-source"
     rm -rf "/$reponame" 2>/dev/null || true
     ln -sfn "$target" "/$reponame"
     echo "[portal] Symlinked /$reponame -> $target ($(cd "$target" && git rev-parse --short HEAD 2>/dev/null || echo '?'))"
