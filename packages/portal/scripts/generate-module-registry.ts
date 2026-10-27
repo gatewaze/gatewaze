@@ -197,6 +197,21 @@ function cloneOrUpdateRepo(gitUrl: string, branch: string | undefined): string |
   }
 }
 
+/**
+ * Whether a pre-cloned directory was cloned from `url`. The entrypoints
+ * write the URL to .gatewaze-source; a directory without one (an older
+ * image, or a local sibling checkout) is taken at face value.
+ */
+function cloneCameFrom(dir: string, url: string): boolean {
+  const marker = resolve(dir, '.gatewaze-source')
+  if (!existsSync(marker)) return true
+  try {
+    return readFileSync(marker, 'utf-8').trim() === url
+  } catch {
+    return false
+  }
+}
+
 function resolveSources(sources: SourceEntry[]): string[] {
   const resolved: string[] = []
 
@@ -207,15 +222,21 @@ function resolveSources(sources: SourceEntry[]): string[] {
     }
 
     if (isGitUrl(source.url)) {
-      // Prefer a pre-cloned symlink at /<reponame> (set up by the Docker
-      // entrypoint from MODULE_SOURCES) before doing our own clone. This
-      // avoids fetching the same repo twice at pod startup.
+      // Prefer a pre-cloned symlink (set up by the Docker entrypoint from
+      // MODULE_SOURCES) before doing our own clone. This avoids fetching
+      // the same repo twice at pod startup. The entrypoint symlinks the
+      // first repo of a name at /<reponame> and a later one with the same
+      // name (gatewaze/gatewaze-modules beside the private
+      // danthebaker/gatewaze-modules) at /<owner>-<reponame>, and writes
+      // the URL it cloned into .gatewaze-source, so a clone from a
+      // different URL is never taken for this one.
       const repoName = source.url.replace(/.*\//, '').replace(/\.git$/, '')
-      const symlinked = resolve('/', repoName)
-      const siblingLocal = resolve(PROJECT_ROOT, '..', repoName)
-      const preCloned = existsSync(symlinked) ? symlinked
-        : existsSync(siblingLocal) ? siblingLocal
-        : null
+      const owner = source.url.replace(/\.git$/, '').replace(/\/[^/]*$/, '').replace(/.*[/:]/, '')
+      const preCloned = [
+        resolve('/', `${owner}-${repoName}`),
+        resolve('/', repoName),
+        resolve(PROJECT_ROOT, '..', repoName),
+      ].find((dir) => existsSync(dir) && cloneCameFrom(dir, source.url)) ?? null
 
       if (preCloned) {
         const full = source.path ? resolve(preCloned, source.path) : preCloned
