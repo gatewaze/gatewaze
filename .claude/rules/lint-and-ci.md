@@ -126,6 +126,25 @@ so the practical risk is nil. Don't try to "fix" them — there's
 nothing to upgrade to. Migrating off lodash is a deeper refactor and
 isn't in scope.
 
+## The zod 3 advisory (GHSA-mrhx-c7xc-m3w5)
+
+```
+zod  <4.6.6  →  patched: >=4.6.6
+```
+
+Zod can exhaust memory validating an oversized constrained collection. The
+patch exists only on the 4.x line, and two dependencies pin zod 3:
+`openai@4.104.0` (`zod ^3.23.8`) and `chromium-bidi@0.11.0` (`zod 3.23.8`,
+reached through `puppeteer-core` in the event-speakers module). Forcing
+those onto zod 4 with an override is a cross-major change that breaks their
+imports at runtime (the same shape as the undici hazard), so the advisory is
+in `pnpm.auditConfig.ignoreGhsas` and every zod 4 consumer is overridden to
+`>=4.6.6`. The two zod 3 paths validate our own browser's CDP messages and
+the OpenAI client's own responses, not request bodies.
+
+Revisit when openai and chromium-bidi move to zod 4: drop the ignore and let
+the gate speak.
+
 ## The unfixable node-forge advisory
 
 ```
