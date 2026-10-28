@@ -14,6 +14,10 @@ import { EmbedHost } from '@/components/embed/EmbedHost'
  *   ?bg=card|transparent    default card; transparent blends into the host
  *   ?accent=RRGGBB          button colour (hex, with or without #); default
  *                           the brand colour
+ *   ?hideHeader=1           hide the widget's own title and description, for
+ *                           a host that sets that copy in its own typography
+ *                           outside the iframe. Status messages and actions
+ *                           stay visible.
  */
 
 export const dynamic = 'force-dynamic'
@@ -37,6 +41,7 @@ export default async function EmbedPage({
 
   const theme = one(q.theme) === 'dark' ? 'dark' : 'light'
   const bg = one(q.bg) === 'transparent' ? 'transparent' : 'card'
+  const hideHeader = ['1', 'true'].includes(one(q.hideHeader).toLowerCase())
   // Only a 6-digit hex reaches the style attribute; anything else falls back.
   const rawAccent = one(q.accent).replace(/^#/, '')
   const accent = /^[0-9a-fA-F]{6}$/.test(rawAccent)
@@ -47,7 +52,7 @@ export default async function EmbedPage({
   const modules = await getEnabledModules()
   return (
     <EmbedHost
-      appearance={{ theme, bg, accent, onAccent }}
+      appearance={{ theme, bg, accent, onAccent, hideHeader }}
       widget={widget}
       enabledModuleIds={[...modules.enabledIds]}
       enabledFeatures={[...modules.enabledFeatures]}

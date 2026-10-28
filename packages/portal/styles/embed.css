@@ -7,6 +7,7 @@
  *   data-theme="light" | "dark"        default light
  *   data-bg="card" | "transparent"     default card (opaque, bordered)
  *   --embed-accent / --embed-on-accent the button colour and its text colour
+ *   data-header="hidden"               no widget title or description
  *
  * Widgets use the same class names as the portal pages (pub-nl-*), so one
  * component serves both; here they are restyled under .gw-embed-root.
@@ -81,6 +82,14 @@
 .gw-embed-root .pub-nl-signup-msg.err { color: var(--err); }
 .gw-embed-root a { color: var(--embed-accent, var(--ink)); text-underline-offset: 2px; }
 .gw-embed-root a.pub-nl-signup-btn { color: var(--embed-on-accent, var(--paper)); }
+
+/* ?hideHeader=1: the host shows its own title and description. The element
+   that followed them must not keep the gap they left. */
+.gw-embed-root[data-header='hidden'] .pub-nl-name,
+.gw-embed-root[data-header='hidden'] .pub-nl-desc { display: none; }
+/* !important: the card sets these margins inline. */
+.gw-embed-root[data-header='hidden'] .pub-nl-card > .pub-nl-desc + *,
+.gw-embed-root[data-header='hidden'] .pub-nl-card > .pub-nl-name + :not(.pub-nl-desc) { margin-top: 0 !important; }
 
 /* The sign-in popup page. */
 .gw-embed-root.gw-embed-popup { min-height: 100vh; background: var(--paper); }
