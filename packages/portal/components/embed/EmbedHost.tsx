@@ -49,6 +49,7 @@ export interface EmbedAppearance {
   bg: 'card' | 'transparent'
   accent: string | null
   onAccent: string | null
+  hideHeader: boolean
 }
 
 export function EmbedHost({ widget, enabledModuleIds, enabledFeatures, appearance }: {
@@ -143,7 +144,13 @@ export function EmbedHost({ widget, enabledModuleIds, enabledFeatures, appearanc
   } as React.CSSProperties
 
   return (
-    <div className="gw-embed-root" data-theme={appearance.theme} data-bg={appearance.bg} style={style}>
+    <div
+      className="gw-embed-root"
+      data-theme={appearance.theme}
+      data-bg={appearance.bg}
+      data-header={appearance.hideHeader ? 'hidden' : undefined}
+      style={style}
+    >
       {available ? (
         <ModuleSlot
           name={slotName}
