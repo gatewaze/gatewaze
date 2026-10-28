@@ -22,6 +22,11 @@
   --field: rgba(23, 23, 27, 0.05);
   --ok: #166534;
   --err: #b42318;
+  /* The portal theme's text colour, which base rules use for inputs and
+     selects (globals: input:not([type=...]) { color: var(--ui-text-hex) }).
+     Redefined here, or form fields inherit the brand's dark-theme white. */
+  --ui-text: 23, 23, 27;
+  --ui-text-hex: #17171b;
   color: var(--ink);
   font-size: 15px;
   line-height: 1.5;
@@ -36,6 +41,8 @@
   --field: rgba(255, 255, 255, 0.07);
   --ok: #86efac;
   --err: #fca5a5;
+  --ui-text: 244, 244, 246;
+  --ui-text-hex: #f4f4f6;
 }
 
 .gw-embed-root .pub-nl { margin: 0; }
