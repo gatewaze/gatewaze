@@ -41,10 +41,14 @@ const EVENT_META_FIELDS =
 
 async function getCustomDomainEvent(eventIdentifier: string, brandId: string) {
   const supabase = await createServerSupabase(brandId)
+  // The identifier arrives in a request header the middleware wrote; it is
+  // still interpolated into a PostgREST filter, so the filter grammar's
+  // own characters cannot pass through it (.claude/rules/security-boundaries.md).
+  const safeIdentifier = eventIdentifier.replace(/[,()*\\]/g, '')
   const { data } = await supabase
     .from('events')
     .select(EVENT_META_FIELDS)
-    .or(`event_slug.eq.${eventIdentifier},event_id.eq.${eventIdentifier}`)
+    .or(`event_slug.eq.${safeIdentifier},event_id.eq.${safeIdentifier}`)
     .eq('is_live_in_production', true)
     .maybeSingle()
   return data
@@ -123,6 +127,22 @@ export async function generateMetadata(): Promise<Metadata> {
         },
         description: `Welcome to ${event.event_title}`,
         icons: faviconIcons,
+      }
+    }
+    // Any other custom domain (a module at its root, a calendar, a blog):
+    // the row's own title and favicon, when set, instead of the brand's.
+    // The domain is a product of its own; the brand name does not belong
+    // in its tab.
+    const pageTitle = headersList.get('x-custom-domain-title')
+    const customFavicon = headersList.get('x-custom-domain-favicon')
+    if (pageTitle || customFavicon) {
+      const name = pageTitle || brandConfig.name
+      return {
+        title: { default: name, template: `%s | ${name}` },
+        description: name,
+        icons: customFavicon
+          ? { icon: [{ url: customFavicon, sizes: 'any' }], shortcut: customFavicon }
+          : faviconIcons,
       }
     }
   }
