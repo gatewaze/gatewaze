@@ -28,6 +28,7 @@ import { GeoTouch } from '@/components/GeoTouch'
 import { AnalyticsProvider } from '@/components/AnalyticsProvider'
 import { TrackingMarkup } from '@/components/TrackingMarkup'
 import { getServerBrandConfig, buildGoogleFontsUrl, buildFontStack, isLightColor, getThemeBackgroundColor, resolveEventTheme, deriveAccentTints, type ThemeColors } from '@/config/brand'
+import { decodeThemeHeader, themeCssVariables, themeFontsUrl } from '@/lib/custom-domain-theme'
 import { OrganizationJsonLd } from '@/components/structured-data'
 import { createServerSupabase, createAuthenticatedServerSupabase } from '@/lib/supabase/server'
 // ChatWidgetLoader currently disabled — see comment near the JSX use site.
@@ -199,6 +200,18 @@ export default async function MainLayout({
     ? await resolveCustomDomainEvent(headersList, brand)
     : null
 
+  // A module at the root of its own domain owns the whole page: no portal
+  // chrome at all. And a domain may carry its own look (custom_domains.theme),
+  // which the middleware forwards checked and base64url-encoded; it becomes
+  // CSS variables on <html>, a flat background, and a fonts link. Pages on
+  // the domain read the --cd-* variables and fall back to their own defaults.
+  const moduleRootDomain = isCustomDomain && headersList.get('x-custom-domain-kind') === 'module-root'
+  const domainTheme = isCustomDomain ? decodeThemeHeader(headersList.get('x-custom-domain-theme')) : null
+  const domainVars = domainTheme ? themeCssVariables(domainTheme) : {}
+  const domainFontsUrl = domainTheme ? themeFontsUrl(domainTheme) : null
+  const domainBackground = domainTheme?.colors?.background ?? null
+  const domainLight = domainTheme?.mode === 'light'
+
   // Workspace-shell access map (skipped on custom-domain microsites, which stay flat).
   // §9.2a anonymous fast-path: only validate the session when a Supabase auth cookie is present,
   // so anonymous public traffic incurs no auth round-trip or RBAC RPCs.
@@ -237,12 +250,15 @@ export default async function MainLayout({
   const navVisibleIds = new Set(modules.railItems.filter((r) => r.moduleId !== 'home').map((r) => r.moduleId))
 
   return (
-    <html lang="en" data-brand={brandConfig.id} data-custom-domain={isCustomDomain ? 'true' : undefined} data-corners={brandConfig.cornerStyle} data-glow={brandConfig.gradientWaveConfig.glowEffects ? 'true' : 'false'} data-ui-mode={uiMode} className={lightBg ? 'light-brand' : ''} style={{ fontFamily: fontStack, fontSize: `${brandConfig.bodyTextSize || '16'}px`, '--font-weight-heading': brandConfig.fontHeadingWeight || '600', '--font-weight-body': brandConfig.fontBodyWeight || '400', '--primary-text': isLightColor(brandConfig.primaryColor) ? '#000000' : '#ffffff', '--primary-color': brandConfig.primaryColor, '--glass-opacity': String(brandConfig.gradientWaveConfig.glassOpacity ?? 0.05), '--glass-blur': `${brandConfig.gradientWaveConfig.glassBlur ?? 4}px`, '--glass-border-opacity': String(brandConfig.gradientWaveConfig.glassBorderOpacity ?? 0.1), '--font-mono': fontMonoStack, '--font-display': `${brandConfig.fontHeading}, ui-sans-serif, system-ui, sans-serif`, '--font-sans': `${brandConfig.fontBody}, ui-sans-serif, system-ui, sans-serif`, '--success-color': brandConfig.successColor, '--warning-color': brandConfig.warningColor, '--danger-color': brandConfig.dangerColor, '--info-color': brandConfig.infoColor, '--primary-color-light': primaryColorLight, '--primary-color-soft': primaryColorSoft } as React.CSSProperties} suppressHydrationWarning>
+    <html lang="en" data-brand={brandConfig.id} data-custom-domain={isCustomDomain ? 'true' : undefined} data-custom-domain-kind={moduleRootDomain ? 'module-root' : undefined} data-custom-domain-mode={domainTheme?.mode} data-corners={brandConfig.cornerStyle} data-glow={brandConfig.gradientWaveConfig.glowEffects ? 'true' : 'false'} data-ui-mode={uiMode} className={lightBg || domainLight ? 'light-brand' : ''} style={{ fontFamily: domainTheme?.fonts?.body ? `"${domainTheme.fonts.body}", ${fontStack}` : fontStack, fontSize: `${brandConfig.bodyTextSize || '16'}px`, '--font-weight-heading': brandConfig.fontHeadingWeight || '600', '--font-weight-body': brandConfig.fontBodyWeight || '400', '--primary-text': isLightColor(brandConfig.primaryColor) ? '#000000' : '#ffffff', '--primary-color': brandConfig.primaryColor, '--glass-opacity': String(brandConfig.gradientWaveConfig.glassOpacity ?? 0.05), '--glass-blur': `${brandConfig.gradientWaveConfig.glassBlur ?? 4}px`, '--glass-border-opacity': String(brandConfig.gradientWaveConfig.glassBorderOpacity ?? 0.1), '--font-mono': fontMonoStack, '--font-display': `${brandConfig.fontHeading}, ui-sans-serif, system-ui, sans-serif`, '--font-sans': `${brandConfig.fontBody}, ui-sans-serif, system-ui, sans-serif`, '--success-color': brandConfig.successColor, '--warning-color': brandConfig.warningColor, '--danger-color': brandConfig.dangerColor, '--info-color': brandConfig.infoColor, '--primary-color-light': primaryColorLight, '--primary-color-soft': primaryColorSoft, ...domainVars } as React.CSSProperties} suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         {fontsUrl && (
           <link href={fontsUrl} rel="stylesheet" />
+        )}
+        {domainFontsUrl && (
+          <link href={domainFontsUrl} rel="stylesheet" />
         )}
         <script
           id="__brand_config__"
@@ -285,8 +301,12 @@ export default async function MainLayout({
           />
         )}
       </head>
-      <body className="flex flex-col min-h-screen" style={{ backgroundColor: (brandConfig.portalTheme === 'gradient_wave' && brandConfig.gradientWaveConfig?.fallbackColor) || getThemeBackgroundColor(brandConfig.portalTheme, brandConfig.themeColors, brandConfig.secondaryColor) }} suppressHydrationWarning>
+      <body className="flex flex-col min-h-screen" style={{ backgroundColor: domainBackground ?? ((brandConfig.portalTheme === 'gradient_wave' && brandConfig.gradientWaveConfig?.fallbackColor) || getThemeBackgroundColor(brandConfig.portalTheme, brandConfig.themeColors, brandConfig.secondaryColor)) }} suppressHydrationWarning>
         {(() => {
+          // A domain with its own background is flat: its look, not the brand's waves.
+          if (domainBackground) {
+            return <PersistentBackground theme="basic" themeColors={{ background: domainBackground }} fallbackBg={domainBackground} />
+          }
           // For custom domain events, resolve theme from event overrides
           const resolved = customDomainEvent
             ? resolveEventTheme(customDomainEvent, brandConfig)
@@ -303,7 +323,11 @@ export default async function MainLayout({
         <AnalyticsProvider>
           <TrackingProvider>
             <GlowProvider>
-              {isCustomDomain ? (
+              {moduleRootDomain ? (
+                <div className="relative z-10 flex-1 flex flex-col">
+                  {children}
+                </div>
+              ) : isCustomDomain ? (
                 <>
                   <WhiteLabelHeader event={customDomainEvent} brandConfig={brandConfig} />
                   <div className="relative z-10 flex-1">
