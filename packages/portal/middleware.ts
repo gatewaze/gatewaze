@@ -6,6 +6,7 @@ import { parseHost, getBrandLocalDomain } from './lib/host-parser'
 import { edgeCacheGet, edgeCachePut } from './lib/edge-cache'
 import { frameAncestors } from './lib/frame-policy'
 import { parseShortLinkHosts, resolveShortLinkPath } from './lib/short-link-hosts'
+import { encodeThemeHeader, parseCustomDomainTheme, type CustomDomainTheme } from './lib/custom-domain-theme'
 
 // Hosts that serve only short links at the root (SHORT_LINK_HOSTS).
 const SHORT_LINK_HOSTS = parseShortLinkHosts(process.env.SHORT_LINK_HOSTS)
@@ -167,6 +168,8 @@ interface CustomDomainLookup {
   contentId: string
   pageTitle?: string
   faviconUrl?: string
+  /** The domain's own look (custom_domains.theme), already checked. */
+  theme?: CustomDomainTheme | null
 }
 
 // All four middleware lookups (custom_domain → tenant, host → event,
@@ -191,7 +194,7 @@ async function lookupCustomDomain(hostname: string): Promise<CustomDomainLookup 
   if (!supabaseUrl || !supabaseAnonKey) return null
 
   try {
-    const url = `${supabaseUrl}/rest/v1/custom_domains?select=content_type,content_id,content_slug,page_title,favicon_url&domain=eq.${encodeURIComponent(hostname)}&status=eq.active&limit=1`
+    const url = `${supabaseUrl}/rest/v1/custom_domains?select=content_type,content_id,content_slug,page_title,favicon_url,theme&domain=eq.${encodeURIComponent(hostname)}&status=eq.active&limit=1`
     const res = await fetch(url, {
       headers: {
         'apikey': supabaseAnonKey,
@@ -217,6 +220,7 @@ async function lookupCustomDomain(hostname: string): Promise<CustomDomainLookup 
       contentId: row.content_id || '',
       pageTitle: row.page_title || undefined,
       faviconUrl: row.favicon_url || undefined,
+      theme: parseCustomDomainTheme(row.theme),
     }
     await edgeCachePut('SLUG_CACHE', cacheKey, result, CACHE_TTL_S)
     return result
@@ -234,6 +238,7 @@ async function lookupCustomDomain(hostname: string): Promise<CustomDomainLookup 
  */
 const ROUTING_HEADERS = [
   'x-custom-domain', 'x-custom-domain-host', 'x-custom-domain-title', 'x-custom-domain-favicon',
+  'x-custom-domain-theme', 'x-custom-domain-kind',
   'x-content-type', 'x-content-id', 'x-event-identifier',
 ] as const
 
@@ -271,6 +276,7 @@ function customDomainHeaders(hostname: string, cd: CustomDomainLookup, into: Hea
   into.set('x-custom-domain-host', hostname)
   if (cd.pageTitle) into.set('x-custom-domain-title', cd.pageTitle)
   if (cd.faviconUrl) into.set('x-custom-domain-favicon', cd.faviconUrl)
+  if (cd.theme) into.set('x-custom-domain-theme', encodeThemeHeader(cd.theme))
   return into
 }
 
@@ -287,13 +293,16 @@ function moduleRootResponse(request: NextRequest, hostname: string, cd: CustomDo
   const pathname = request.nextUrl.pathname
   const moduleId = cd.contentType
   const requestHeaders = customDomainHeaders(hostname, cd, inboundHeaders(request))
+  // The layout renders no portal chrome at all for a module-root domain:
+  // the module owns the whole page, header and footer included.
+  requestHeaders.set('x-custom-domain-kind', 'module-root')
   const ownPrefix = `/m/${moduleId}`
   const isPassthrough =
     PASSTHROUGH_PATHS.some(p => pathname === p || pathname.startsWith(p + '/')) ||
     pathname === ownPrefix || pathname.startsWith(ownPrefix + '/')
   if (isPassthrough) {
     const response = NextResponse.next({ request: { headers: requestHeaders } })
-    customDomainHeaders(hostname, cd, response.headers)
+    customDomainHeaders(hostname, cd, response.headers).set('x-custom-domain-kind', 'module-root')
     return response
   }
   const url = request.nextUrl.clone()
@@ -302,7 +311,7 @@ function moduleRootResponse(request: NextRequest, hostname: string, cd: CustomDo
     ? `/m${pathname}`
     : `${ownPrefix}${pathname === '/' ? '' : pathname}`
   const response = NextResponse.rewrite(url, { request: { headers: requestHeaders } })
-  customDomainHeaders(hostname, cd, response.headers)
+  customDomainHeaders(hostname, cd, response.headers).set('x-custom-domain-kind', 'module-root')
   return response
 }
 
@@ -612,11 +621,7 @@ async function routeRequest(request: NextRequest) {
       //   /o/{code}     — open-rsvp self-serve short link
       //   /u/{code}     — guest media upload short link (QR)
       if (pathname.startsWith('/rsvp/') || pathname.startsWith('/i/') || pathname.startsWith('/o/') || pathname.startsWith('/u/')) {
-        const requestHeaders = inboundHeaders(request)
-        requestHeaders.set('x-custom-domain', 'true')
-        requestHeaders.set('x-content-type', customDomain.contentType)
-        requestHeaders.set('x-content-id', customDomain.contentId)
-        requestHeaders.set('x-custom-domain-host', hostname)
+        const requestHeaders = customDomainHeaders(hostname, customDomain, inboundHeaders(request))
         return NextResponse.next({ request: { headers: requestHeaders } })
       }
       // Exact paths that need to render inside the event layout: rewrite
@@ -624,33 +629,21 @@ async function routeRequest(request: NextRequest) {
       if (pathname === '/rsvp' || pathname === '/open-rsvp') {
         const url = request.nextUrl.clone()
         url.pathname = `${targetPath}${pathname}`
-        const requestHeaders = inboundHeaders(request)
-        requestHeaders.set('x-custom-domain', 'true')
-        requestHeaders.set('x-content-type', customDomain.contentType)
-        requestHeaders.set('x-content-id', customDomain.contentId)
-        requestHeaders.set('x-custom-domain-host', hostname)
+        const requestHeaders = customDomainHeaders(hostname, customDomain, inboundHeaders(request))
         return NextResponse.rewrite(url, { request: { headers: requestHeaders } })
       }
 
       // Passthrough paths (auth, legal, API, profile)
       const isPassthrough = PASSTHROUGH_PATHS.some(p => pathname === p || pathname.startsWith(p + '/'))
       if (isPassthrough) {
-        const requestHeaders = inboundHeaders(request)
-        requestHeaders.set('x-custom-domain', 'true')
-        requestHeaders.set('x-content-type', customDomain.contentType)
-        requestHeaders.set('x-content-id', customDomain.contentId)
-        requestHeaders.set('x-custom-domain-host', hostname)
+        const requestHeaders = customDomainHeaders(hostname, customDomain, inboundHeaders(request))
         return NextResponse.next({ request: { headers: requestHeaders } })
       }
 
       // If the path already starts with the target content route (e.g., from a
       // middleware rewrite or direct access), pass through without double-rewriting
       if (pathname.startsWith(targetPath)) {
-        const requestHeaders = inboundHeaders(request)
-        requestHeaders.set('x-custom-domain', 'true')
-        requestHeaders.set('x-content-type', customDomain.contentType)
-        requestHeaders.set('x-content-id', customDomain.contentId)
-        requestHeaders.set('x-custom-domain-host', hostname)
+        const requestHeaders = customDomainHeaders(hostname, customDomain, inboundHeaders(request))
         return NextResponse.next({ request: { headers: requestHeaders } })
       }
 
@@ -688,29 +681,20 @@ async function routeRequest(request: NextRequest) {
   //   /o/{code}    — open-rsvp self-serve short link
   //   /u/{code}    — guest media upload short link (QR)
   if (pathname.startsWith('/rsvp/') || pathname.startsWith('/i/') || pathname.startsWith('/o/') || pathname.startsWith('/u/')) {
-    const requestHeaders = inboundHeaders(request)
-    requestHeaders.set('x-custom-domain', 'true')
-    requestHeaders.set('x-event-identifier', eventIdentifier)
-    requestHeaders.set('x-custom-domain-host', hostname)
+    const requestHeaders = legacyEventHeaders(hostname, eventIdentifier, inboundHeaders(request))
     return NextResponse.next({ request: { headers: requestHeaders } })
   }
   if (pathname === '/rsvp' || pathname === '/open-rsvp') {
     const url = request.nextUrl.clone()
     url.pathname = `/events/${eventIdentifier}${pathname}`
-    const requestHeaders = inboundHeaders(request)
-    requestHeaders.set('x-custom-domain', 'true')
-    requestHeaders.set('x-event-identifier', eventIdentifier)
-    requestHeaders.set('x-custom-domain-host', hostname)
+    const requestHeaders = legacyEventHeaders(hostname, eventIdentifier, inboundHeaders(request))
     return NextResponse.rewrite(url, { request: { headers: requestHeaders } })
   }
 
   // Passthrough paths (auth, legal pages, API, profile)
   const isPassthrough = PASSTHROUGH_PATHS.some(p => pathname === p || pathname.startsWith(p + '/'))
   if (isPassthrough) {
-    const requestHeaders = inboundHeaders(request)
-    requestHeaders.set('x-custom-domain', 'true')
-    requestHeaders.set('x-event-identifier', eventIdentifier)
-    requestHeaders.set('x-custom-domain-host', hostname)
+    const requestHeaders = legacyEventHeaders(hostname, eventIdentifier, inboundHeaders(request))
     return NextResponse.next({ request: { headers: requestHeaders } })
   }
 

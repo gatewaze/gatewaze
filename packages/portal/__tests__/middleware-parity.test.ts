@@ -198,7 +198,7 @@ describe('middleware parity matrix', () => {
     const boothDomainRow = () =>
       new Response(
         JSON.stringify([
-          { content_type: 'photo-booth', content_id: null, content_slug: null, page_title: 'Aime', favicon_url: null },
+          { content_type: 'photo-booth', content_id: null, content_slug: null, page_title: 'Aime', favicon_url: null, theme: { mode: 'dark', colors: { primary: '#ff5500', text: 'nope' } } },
         ]),
         { status: 200 },
       );
@@ -222,6 +222,10 @@ describe('middleware parity matrix', () => {
       expect(root.headers.get('x-custom-domain')).toBe('true');
       expect(root.headers.get('x-content-type')).toBe('photo-booth');
       expect(root.headers.get('x-custom-domain-title')).toBe('Aime');
+      // The layout learns the module owns the page, and gets the row's look (checked, base64url).
+      expect(root.headers.get('x-middleware-request-x-custom-domain-kind')).toBe('module-root');
+      expect(root.headers.get('x-custom-domain-kind')).toBe('module-root');
+      expect(root.headers.get('x-middleware-request-x-custom-domain-theme')).toMatch(/^[A-Za-z0-9_-]+$/);
 
       expect(rewriteTarget(await on('/b/dans-booth'))).toBe('/m/photo-booth/b/dans-booth');
       expect(rewriteTarget(await on('/dial'))).toBe('/m/photo-booth/dial');
