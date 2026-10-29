@@ -57,10 +57,24 @@ vi.mock('@supabase/ssr', () => ({
 // calls (custom-domain lookup, event-slug canonicalisation, events
 // module status). Each test replays the response shape PostgREST
 // returns for the relevant query.
+// The module prefixes are generated at build time and gitignored; pin a
+// known set so the module-root custom-domain cases do not depend on
+// which module repos this checkout has resolved.
+vi.mock('../lib/modules/generated-module-prefixes.json', () => ({
+  default: ['blog', 'photo-booth'],
+}));
+
 const fetchMock = vi.fn();
 vi.stubGlobal('fetch', fetchMock);
 
 beforeEach(() => {
+  // The middleware reads its Supabase target and the portal's own URL
+  // from the environment; without them every lookup short-circuits to
+  // "unknown host" and the legacy branch throws on `new URL(undefined)`.
+  vi.stubEnv('SUPABASE_URL', 'https://supabase.example.test');
+  vi.stubEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY', 'anon-key-for-tests');
+  vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://portal.example.test');
+  vi.stubEnv('PORTAL_HOST', 'portal.example.test');
   fetchMock.mockReset();
   // Clear the in-process edge-cache Map between tests so cached
   // negative results don't leak across cases.
@@ -175,6 +189,65 @@ describe('middleware parity matrix', () => {
       // Either a rewrite (200 on the new URL) or a redirect — test
       // pins the URL was processed (not just passed through unchanged).
       expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('module-root custom domain', () => {
+    // A custom_domains row whose content_type is a module id with portal
+    // pages and no slug: the module lives at the domain root.
+    const boothDomainRow = () =>
+      new Response(
+        JSON.stringify([
+          { content_type: 'photo-booth', content_id: null, content_slug: null, page_title: 'Aime', favicon_url: null },
+        ]),
+        { status: 200 },
+      );
+    const rewriteTarget = (res: Response) => {
+      const raw = res.headers.get('x-middleware-rewrite');
+      return raw ? new URL(raw).pathname : null;
+    };
+
+    it('serves the module at the root, keeps the module prefix working, and passes the shared paths through', async () => {
+      const { middleware } = await import('../middleware');
+      fetchMock.mockImplementation(async (url: string) =>
+        String(url).includes('custom_domains')
+          ? boothDomainRow()
+          : new Response(JSON.stringify([{ status: 'enabled' }]), { status: 200 }),
+      );
+      const on = (path: string) =>
+        middleware(makeRequest({ url: `https://aime.photo${path}`, host: 'aime.photo' }));
+
+      const root = await on('/');
+      expect(rewriteTarget(root)).toBe('/m/photo-booth');
+      expect(root.headers.get('x-custom-domain')).toBe('true');
+      expect(root.headers.get('x-content-type')).toBe('photo-booth');
+      expect(root.headers.get('x-custom-domain-title')).toBe('Aime');
+
+      expect(rewriteTarget(await on('/b/dans-booth'))).toBe('/m/photo-booth/b/dans-booth');
+      expect(rewriteTarget(await on('/dial'))).toBe('/m/photo-booth/dial');
+      // The module's own absolute links.
+      expect(rewriteTarget(await on('/photo-booth/b/dans-booth'))).toBe('/m/photo-booth/b/dans-booth');
+      expect(rewriteTarget(await on('/photo-booth'))).toBe('/m/photo-booth');
+      // Another module is not reachable from this domain: it is a page of this one.
+      expect(rewriteTarget(await on('/blog/hello'))).toBe('/m/photo-booth/blog/hello');
+
+      // Sign-in and the api proxy pass through untouched, still marked as the domain's.
+      const signIn = await on('/sign-in?redirectTo=%2Fphoto-booth');
+      expect(rewriteTarget(signIn)).toBeNull();
+      expect(signIn.headers.get('x-custom-domain')).toBe('true');
+      expect(rewriteTarget(await on('/api/public/photo-booth/beta'))).toBeNull();
+    });
+
+    it('leaves a content_type that is not a module prefix to the content routes', async () => {
+      const { middleware } = await import('../middleware');
+      fetchMock.mockImplementation(async (url: string) =>
+        String(url).includes('custom_domains')
+          ? new Response(JSON.stringify([{ content_type: 'blog', content_id: 'B1', content_slug: 'hello', page_title: null, favicon_url: null }]), { status: 200 })
+          : new Response(JSON.stringify([{ status: 'enabled' }]), { status: 200 }),
+      );
+      const res = await middleware(makeRequest({ url: 'https://words.example.com/', host: 'words.example.com' }));
+      // blog has a content route of its own (a single post), so the module-root branch must not take it.
+      expect(rewriteTarget(res)).toBe('/blog/hello');
     });
   });
 

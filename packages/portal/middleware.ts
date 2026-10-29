@@ -225,6 +225,49 @@ async function lookupCustomDomain(hostname: string): Promise<CustomDomainLookup 
   }
 }
 
+/** The headers every custom-domain response carries, so the layout and pages know whose domain they are on. */
+function customDomainHeaders(hostname: string, cd: CustomDomainLookup, into: Headers): Headers {
+  into.set('x-custom-domain', 'true')
+  into.set('x-content-type', cd.contentType)
+  into.set('x-content-id', cd.contentId)
+  into.set('x-custom-domain-host', hostname)
+  if (cd.pageTitle) into.set('x-custom-domain-title', cd.pageTitle)
+  if (cd.faviconUrl) into.set('x-custom-domain-favicon', cd.faviconUrl)
+  return into
+}
+
+/**
+ * A module-root domain: the custom_domains row names a module that has
+ * portal pages (its id is the content type, no slug), and the whole
+ * module lives at the domain root. aime.photo/b/<slug> is the photo
+ * booth's booth page, as autodb.io/photo-booth/b/<slug> is. The
+ * module's own absolute links (/photo-booth/...) keep working on the
+ * domain, and the usual custom-domain passthroughs (sign-in, the legal
+ * pages, /api) apply. Nothing else on the portal is reachable from it.
+ */
+function moduleRootResponse(request: NextRequest, hostname: string, cd: CustomDomainLookup): NextResponse {
+  const pathname = request.nextUrl.pathname
+  const moduleId = cd.contentType
+  const requestHeaders = customDomainHeaders(hostname, cd, new Headers(request.headers))
+  const ownPrefix = `/m/${moduleId}`
+  const isPassthrough =
+    PASSTHROUGH_PATHS.some(p => pathname === p || pathname.startsWith(p + '/')) ||
+    pathname === ownPrefix || pathname.startsWith(ownPrefix + '/')
+  if (isPassthrough) {
+    const response = NextResponse.next({ request: { headers: requestHeaders } })
+    customDomainHeaders(hostname, cd, response.headers)
+    return response
+  }
+  const url = request.nextUrl.clone()
+  const firstSegment = pathname.split('/')[1]
+  url.pathname = firstSegment === moduleId
+    ? `/m${pathname}`
+    : `${ownPrefix}${pathname === '/' ? '' : pathname}`
+  const response = NextResponse.rewrite(url, { request: { headers: requestHeaders } })
+  customDomainHeaders(hostname, cd, response.headers)
+  return response
+}
+
 async function lookupEventByDomain(hostname: string): Promise<string | null> {
   const cacheKey = `event-by-domain:${hostname}`
   const cached = await edgeCacheGet<string>('SLUG_CACHE', cacheKey)
@@ -515,6 +558,9 @@ async function routeRequest(request: NextRequest) {
 
   // Try custom_domains table first (custom-domains module)
   const customDomain = await lookupCustomDomain(hostname)
+  if (customDomain && !contentRouteMap[customDomain.contentType] && modulePortalPrefixes.has(customDomain.contentType)) {
+    return moduleRootResponse(request, hostname, customDomain)
+  }
   if (customDomain) {
     // Route based on content type
     const routeFn = contentRouteMap[customDomain.contentType]
