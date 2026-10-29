@@ -223,3 +223,35 @@ upstream verification is false for this platform.
 
 **Fix:** verify the signature against the Supabase JWT secret / JWKS before
 trusting any claim. When fixing an adjacent auth gap, do not reuse this helper.
+
+## `module-route-authz/user-metadata-verified-flag-trusted` — HARD
+
+**Pattern:** a route decides that an account's email or phone is confirmed by
+reading `user_metadata.email_verified` / `user_metadata.phone_verified` from a
+Supabase JWT (verified or not). `user_metadata` is the user's own to write
+(`supabase.auth.updateUser({ data: {...} })` merges arbitrary keys into it), so
+the next refreshed token carries whatever they set. The top-level `email` and
+`phone` claims are GoTrue's, but on a deployment with email or SMS autoconfirm
+on they are present before anything was confirmed. Either way the flag is not
+proof, and a route that links a `people` row or a seat by it is an account
+takeover: sign up with the victim's address, set the flag, link their row.
+
+**Detect:** grep for `email_verified` and `phone_verified` in route code; any
+read of either from `jwtClaims` / `user_metadata` that gates a write or a
+lookup by that email or phone.
+
+**Empirical citation:** photo-booth `api/member-routes.ts` (2026-10-29): the
+2026-10-28 fix that stopped `link()` claiming a person's row by a typed email
+checked `emailVerified(claims)` = `claims.email_verified === true ||
+claims.user_metadata?.email_verified === true`, which the review found
+forgeable; the new phone path copied the shape with `phone_verified`. Fixed by
+asking Supabase Auth itself.
+
+**Failure message:** a token's `user_metadata` says the email/phone is verified
+and the route believes it; the user wrote that field.
+
+**Fix:** read the account with the service role, `auth.admin.getUserById(sub)`,
+and trust only `email_confirmed_at` (with `email` matching) and
+`phone_confirmed_at` (with `phone`). Cache per request. When the read fails,
+nothing is verified. Keep autoconfirm off in production and say so in the
+module's guide.

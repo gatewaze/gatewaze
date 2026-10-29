@@ -219,3 +219,34 @@ than every sibling consumer of the same value.
 
 **Fix:** apply the same full grammar regex the rest of the codebase uses, evaluated
 before any path or command is derived from the value.
+
+## `input-validation-and-injection/client-origin-stored-then-emailed` — HARD
+
+**Pattern:** An unauthenticated route stores `req.headers.origin` (or a `url`
+from the body) against an email address "so the email can link back to the
+right deployment", and a later admin action mails that address a link built
+from the stored value. The Origin header is only meaningful from a browser;
+curl sets it to anything. Combined with an upsert on the email column, an
+attacker registers the victim's address with `Origin: https://evil.example`,
+and the victim later receives a genuine email from our sender telling them to
+sign in at the attacker's site.
+
+**Detect:** grep `headers.origin`, `headers.referer`, `req.get('origin')` in
+api code; follow any value that is persisted. Then grep the mail templates for
+the same column. Also check whether the write is an upsert that overwrites an
+existing row's fields from an anonymous request.
+
+**Empirical citation:** `danthebaker/gatewaze-modules` branch
+`feat/photo-booth-beta-dial`, first cut of `api/member-routes.ts` `waitlist()`
+(`origin = cleanOrigin(req.headers.origin)` stored on `photo_booth_waitlist`,
+later interpolated by `lib/email.ts` `inviteEmail()`), 2026-10-28 security
+review: "A forged Origin header turns the invite email into a phishing link."
+
+**Failure message:** "A link in outbound mail is built from a client-supplied
+origin; use the deployment's configured public URL."
+
+**Fix:** Never persist a client-supplied origin for use in mail. Take the link
+base from configuration (`PHOTO_BOOTH_PUBLIC_URL` on that branch) or an env
+allowlist. Make anonymous list writes insert-if-absent (`ignoreDuplicates`) so a
+repeat request cannot change an existing row, and let only a signed-in,
+email-verified request mark a row as confirmed.

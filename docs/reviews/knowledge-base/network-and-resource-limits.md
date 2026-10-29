@@ -288,3 +288,38 @@ denylisted value.
 
 **Fix:** re-apply the check after every resolution step that pulls from a different
 source.
+
+## `network-and-resource-limits/web-push-endpoint-is-an-outbound-url` — HARD
+
+**Pattern:** A route stores a browser push subscription (`{ endpoint, keys }`)
+and a worker later `fetch()`es `endpoint`. Validation checks only `https://`
+and a length. The endpoint is attacker-chosen, so the server will POST to
+`https://127.0.0.1`, `https://kong:8000/...`, `https://*.svc.cluster.local` or
+`https://169.254.169.254/` on demand, and with the default `redirect: 'follow'`
+an https endpoint can bounce to plain http inside the cluster. The body is
+encrypted to the attacker's own key so nothing leaks in it, but the request is
+still a blind SSRF with a 404/410 oracle (those statuses delete the row).
+
+**Detect:** grep for `pushManager`, `PushSubscription`, `endpoint` beside a
+`fetch(` in api or worker code. Read the validator: if it does not name the
+push services' hosts, this fires. Check the `fetch` options for `redirect` and
+`signal`.
+
+**Empirical citation:** `danthebaker/gatewaze-modules` branch
+`feat/photo-booth-beta-dial`, first cut of `modules/photo-booth/lib/web-push.ts`
+(`validSubscription` accepted `^https:\/\/[^\s]{8,2040}$`; `sendPush` had no
+`redirect` or `signal`), 2026-10-28 security review: "There is no host check.
+It accepts https://127.0.0.1, https://kong:8000/..., https://*.svc.cluster.local
+… It uses the default redirect: 'follow'."
+
+**Failure message:** "Push endpoint is an attacker-supplied URL the server will
+POST to; allowlist the push services' hosts, refuse redirects, add a timeout."
+
+**Fix:** Allowlist hosts: `fcm.googleapis.com`, `*.push.services.mozilla.com`,
+`*.notify.windows.com`, `web.push.apple.com`, `*.push.apple.com`; https only,
+no port, no userinfo. Enforce it in the route, in the table's CHECK, and again
+immediately before the send (a row written before the rule must not become a
+request). `redirect: 'manual'` and treat any 3xx as failed; `signal:
+AbortSignal.timeout(8000)`; back off a row that failed recently; cap
+subscriptions per person. The fixed version is `lib/web-push.ts`
+`allowedPushEndpoint()` on that branch.
