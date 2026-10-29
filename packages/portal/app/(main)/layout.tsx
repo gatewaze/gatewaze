@@ -41,10 +41,14 @@ const EVENT_META_FIELDS =
 
 async function getCustomDomainEvent(eventIdentifier: string, brandId: string) {
   const supabase = await createServerSupabase(brandId)
+  // The identifier arrives in a request header the middleware wrote; it is
+  // still interpolated into a PostgREST filter, so the filter grammar's
+  // own characters cannot pass through it (.claude/rules/security-boundaries.md).
+  const safeIdentifier = eventIdentifier.replace(/[,()*\\]/g, '')
   const { data } = await supabase
     .from('events')
     .select(EVENT_META_FIELDS)
-    .or(`event_slug.eq.${eventIdentifier},event_id.eq.${eventIdentifier}`)
+    .or(`event_slug.eq.${safeIdentifier},event_id.eq.${safeIdentifier}`)
     .eq('is_live_in_production', true)
     .maybeSingle()
   return data

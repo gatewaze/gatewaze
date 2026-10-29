@@ -238,6 +238,45 @@ describe('middleware parity matrix', () => {
       expect(rewriteTarget(await on('/api/public/photo-booth/beta'))).toBeNull();
     });
 
+    it('never forwards a routing header the client sent: the row decides, on every host (security review 2026-10-29)', async () => {
+      const { middleware } = await import('../middleware');
+      const spoofed = (url: string, host: string) => {
+        const headers = new Headers({
+          host,
+          'x-custom-domain': 'true',
+          'x-custom-domain-title': 'Evil',
+          'x-custom-domain-favicon': 'https://evil.example/pixel.png',
+          'x-event-identifier': 'x,or(event_slug.eq.other)',
+          'x-content-type': 'events',
+        });
+        return new NextRequest(new Request(url, { headers }));
+      };
+      // The app sees exactly the forwarded set, so a forwarded request must list the override and omit ours.
+      const forwarded = (res: Response, name: string) => res.headers.get(`x-middleware-request-${name}`);
+      const overridden = (res: Response) => res.headers.get('x-middleware-override-headers') ?? '';
+
+      // The brand host: a plain pass-through becomes a cleaned forward.
+      fetchMock.mockResolvedValue(new Response(JSON.stringify([{ status: 'enabled' }]), { status: 200 }));
+      const brand = await middleware(spoofed('https://portal.example.test/profile', 'portal.example.test'));
+      expect(overridden(brand)).toContain('host');
+      expect(forwarded(brand, 'x-custom-domain-title')).toBeNull();
+      expect(forwarded(brand, 'x-custom-domain')).toBeNull();
+      expect(forwarded(brand, 'x-event-identifier')).toBeNull();
+
+      // A module-root domain whose row has no title: the spoofed title does not stand in for it.
+      fetchMock.mockImplementation(async (url: string) =>
+        String(url).includes('custom_domains')
+          ? new Response(JSON.stringify([{ content_type: 'photo-booth', content_id: null, content_slug: null, page_title: null, favicon_url: null }]), { status: 200 })
+          : new Response(JSON.stringify([{ status: 'enabled' }]), { status: 200 }),
+      );
+      const booth = await middleware(spoofed('https://aime.photo/b/x', 'aime.photo'));
+      expect(forwarded(booth, 'x-content-type')).toBe('photo-booth');
+      expect(forwarded(booth, 'x-custom-domain-title')).toBeNull();
+      expect(forwarded(booth, 'x-custom-domain-favicon')).toBeNull();
+      expect(forwarded(booth, 'x-event-identifier')).toBeNull();
+      expect(booth.headers.get('x-custom-domain-title')).toBeNull();
+    });
+
     it('leaves a content_type that is not a module prefix to the content routes', async () => {
       const { middleware } = await import('../middleware');
       fetchMock.mockImplementation(async (url: string) =>
