@@ -41,12 +41,12 @@ const KNOWN_HOSTS: string[] = (() => {
 // Valid sub-paths under a custom domain event
 const VALID_EVENT_SUBPATHS = ['/', '/agenda', '/speakers', '/sponsors', '/register', '/talks']
 
-// Paths that should pass through without rewriting on custom domains
 // Module-root domains whose module has its own /privacy, /terms and
 // /cookie-policy pages (comma-separated module ids, e.g. photo-booth).
 const MODULE_ROOT_OWN_LEGAL = new Set((process.env.MODULE_ROOT_OWN_LEGAL ?? '').split(',').map(s => s.trim()).filter(Boolean))
 const LEGAL_PATHS = ['/privacy', '/terms', '/cookie-policy']
 
+// Paths that should pass through without rewriting on custom domains
 const PASSTHROUGH_PATHS = ['/sign-in', '/auth', '/privacy', '/terms', '/do-not-sell', '/cookie-policy', '/profile', '/api', '/go']
 
 // Known region codes for path-based filter URLs
