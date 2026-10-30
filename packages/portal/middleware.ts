@@ -42,6 +42,11 @@ const KNOWN_HOSTS: string[] = (() => {
 const VALID_EVENT_SUBPATHS = ['/', '/agenda', '/speakers', '/sponsors', '/register', '/talks']
 
 // Paths that should pass through without rewriting on custom domains
+// Module-root domains whose module has its own /privacy, /terms and
+// /cookie-policy pages (comma-separated module ids, e.g. photo-booth).
+const MODULE_ROOT_OWN_LEGAL = new Set((process.env.MODULE_ROOT_OWN_LEGAL ?? '').split(',').map(s => s.trim()).filter(Boolean))
+const LEGAL_PATHS = ['/privacy', '/terms', '/cookie-policy']
+
 const PASSTHROUGH_PATHS = ['/sign-in', '/auth', '/privacy', '/terms', '/do-not-sell', '/cookie-policy', '/profile', '/api', '/go']
 
 // Known region codes for path-based filter URLs
@@ -305,6 +310,16 @@ function moduleRootResponse(request: NextRequest, hostname: string, cd: CustomDo
   // the module owns the whole page, header and footer included.
   requestHeaders.set('x-custom-domain-kind', 'module-root')
   const ownPrefix = `/m/${moduleId}`
+  // A module that ships its own legal pages (MODULE_ROOT_OWN_LEGAL lists
+  // them) serves /privacy, /terms and /cookie-policy on its domain in its
+  // own look, rather than the portal's.
+  if (MODULE_ROOT_OWN_LEGAL.has(moduleId) && LEGAL_PATHS.includes(pathname)) {
+    const url = request.nextUrl.clone()
+    url.pathname = `${ownPrefix}${pathname}`
+    const response = NextResponse.rewrite(url, { request: { headers: requestHeaders } })
+    customDomainHeaders(hostname, cd, response.headers).set('x-custom-domain-kind', 'module-root')
+    return response
+  }
   const isPassthrough =
     PASSTHROUGH_PATHS.some(p => pathname === p || pathname.startsWith(p + '/')) ||
     pathname === ownPrefix || pathname.startsWith(ownPrefix + '/')
