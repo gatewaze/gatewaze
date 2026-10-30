@@ -118,6 +118,7 @@ services:
       # Photo booth module: the picture provider, where its invite links point,
       # the sender for its emails and the form's Turnstile keys (values in docker/.env).
       BOOTH_PROVIDER: ${BOOTH_PROVIDER:-}
+      FAL_API_KEY: ${FAL_API_KEY:-}
       PHOTO_BOOTH_PUBLIC_URL: ${PHOTO_BOOTH_PUBLIC_URL:-}
       PHOTO_BOOTH_EMAIL_FROM: ${PHOTO_BOOTH_EMAIL_FROM:-}
       PHOTO_BOOTH_EMAIL_FROM_NAME: ${PHOTO_BOOTH_EMAIL_FROM_NAME:-}
@@ -161,6 +162,7 @@ services:
       # Photo booth module: the picture provider, where its invite links point,
       # the sender for its emails and the form's Turnstile keys (values in docker/.env).
       BOOTH_PROVIDER: ${BOOTH_PROVIDER:-}
+      FAL_API_KEY: ${FAL_API_KEY:-}
       PHOTO_BOOTH_PUBLIC_URL: ${PHOTO_BOOTH_PUBLIC_URL:-}
       PHOTO_BOOTH_EMAIL_FROM: ${PHOTO_BOOTH_EMAIL_FROM:-}
       PHOTO_BOOTH_EMAIL_FROM_NAME: ${PHOTO_BOOTH_EMAIL_FROM_NAME:-}
