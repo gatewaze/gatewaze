@@ -123,7 +123,15 @@ async function isEventsModuleEnabled(): Promise<boolean> {
   }
 }
 
+// Local hostnames that are custom domains despite ending in .localhost, so
+// a module-root domain (aime.photo) can be exercised on a dev stack as
+// aime.localhost. Comma-separated; nothing in production sets it.
+const CUSTOM_DOMAIN_LOCALHOSTS = new Set(
+  (process.env.CUSTOM_DOMAIN_LOCALHOSTS ?? '').split(',').map(h => h.trim().toLowerCase()).filter(Boolean),
+)
+
 function isKnownHost(hostname: string): boolean {
+  if (CUSTOM_DOMAIN_LOCALHOSTS.has(hostname.toLowerCase())) return false
   if (KNOWN_HOSTS.includes(hostname)) return true
   if (hostname === 'localhost' || hostname.includes('localhost')) return true
   if (hostname.includes('vercel.app')) return true
