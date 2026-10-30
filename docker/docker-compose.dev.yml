@@ -23,6 +23,9 @@ services:
       - ../packages/shared/src:/app/packages/shared/src
       - ../packages/tracking/src:/app/packages/tracking/src
       # Module system: config + external module sources.
+      # DAN_GATEWAZE_MODULES_PATH is the third source, danthebaker/gatewaze-modules
+      # (the photo booth and other private modules), mounted at /dan-gatewaze-modules;
+      # add /dan-gatewaze-modules/modules#label=Dan to MODULE_SOURCES to load from it.
       # GATEWAZE_MODULES_PATH / LF_GATEWAZE_MODULES_PATH let you point the dev
       # stack at a git WORKTREE instead of the primary checkout, so main stays
       # pristine while you test a feature branch. Set the path (relative to this
@@ -32,6 +35,7 @@ services:
       - ../gatewaze.config.ts:/app/gatewaze.config.ts
       - ${GATEWAZE_MODULES_PATH:-../../gatewaze-modules}:/gatewaze-modules
       - ${LF_GATEWAZE_MODULES_PATH:-../../lf-gatewaze-modules}:/lf-gatewaze-modules
+      - ${DAN_GATEWAZE_MODULES_PATH:-../../../danthebaker/gatewaze-modules}:/dan-gatewaze-modules
     environment:
       NODE_ENV: development
       API_PROXY_TARGET: http://api:3002
@@ -71,6 +75,7 @@ services:
       - ../gatewaze.config.ts:/app/gatewaze.config.ts
       - ${GATEWAZE_MODULES_PATH:-../../gatewaze-modules}:/gatewaze-modules
       - ${LF_GATEWAZE_MODULES_PATH:-../../lf-gatewaze-modules}:/lf-gatewaze-modules
+      - ${DAN_GATEWAZE_MODULES_PATH:-../../../danthebaker/gatewaze-modules}:/dan-gatewaze-modules
     environment:
       NODE_ENV: development
       NEXT_PUBLIC_API_URL: ${API_URL:-http://api.gatewaze.localhost}
@@ -95,6 +100,7 @@ services:
       - ../gatewaze.config.ts:/app/gatewaze.config.ts
       - ${GATEWAZE_MODULES_PATH:-../../gatewaze-modules}:/gatewaze-modules
       - ${LF_GATEWAZE_MODULES_PATH:-../../lf-gatewaze-modules}:/lf-gatewaze-modules
+      - ${DAN_GATEWAZE_MODULES_PATH:-../../../danthebaker/gatewaze-modules}:/dan-gatewaze-modules
       # Git module source cache + uploaded modules (persist across restarts)
       - ../.gatewaze-modules:/app/.gatewaze-modules
       - ../data:/app/data
@@ -107,6 +113,14 @@ services:
       EDGE_FUNCTIONS_CONTAINER: ${COMPOSE_PROJECT_NAME:-gatewaze}-supabase-edge-functions
       # Software Engineer module: GitHub webhook HMAC secret (value in git-ignored docker/.env).
       SE_GITHUB_WEBHOOK_SECRET: ${SE_GITHUB_WEBHOOK_SECRET:-}
+      # Photo booth module: the picture provider, where its invite links point,
+      # the sender for its emails and the form's Turnstile keys (values in docker/.env).
+      BOOTH_PROVIDER: ${BOOTH_PROVIDER:-}
+      PHOTO_BOOTH_PUBLIC_URL: ${PHOTO_BOOTH_PUBLIC_URL:-}
+      PHOTO_BOOTH_EMAIL_FROM: ${PHOTO_BOOTH_EMAIL_FROM:-}
+      PHOTO_BOOTH_EMAIL_FROM_NAME: ${PHOTO_BOOTH_EMAIL_FROM_NAME:-}
+      TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
+      TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-}
       # Dev: no supervisor runs inside admin/portal, and HMR handles
       # source changes. So mark rebuild status "ok" the moment we bump
       # the counter — this keeps UI polling fast without lying about
@@ -130,6 +144,7 @@ services:
       - ../gatewaze.config.ts:/app/gatewaze.config.ts
       - ${GATEWAZE_MODULES_PATH:-../../gatewaze-modules}:/gatewaze-modules
       - ${LF_GATEWAZE_MODULES_PATH:-../../lf-gatewaze-modules}:/lf-gatewaze-modules
+      - ${DAN_GATEWAZE_MODULES_PATH:-../../../danthebaker/gatewaze-modules}:/dan-gatewaze-modules
       - ../.gatewaze-modules:/app/.gatewaze-modules
       - ../data:/app/data
     environment:
@@ -141,6 +156,14 @@ services:
       EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-Gatewaze}
       UNSUBSCRIBE_HMAC_SECRET: ${UNSUBSCRIBE_HMAC_SECRET:-}
       SITE_URL: ${SITE_URL:-}
+      # Photo booth module: the picture provider, where its invite links point,
+      # the sender for its emails and the form's Turnstile keys (values in docker/.env).
+      BOOTH_PROVIDER: ${BOOTH_PROVIDER:-}
+      PHOTO_BOOTH_PUBLIC_URL: ${PHOTO_BOOTH_PUBLIC_URL:-}
+      PHOTO_BOOTH_EMAIL_FROM: ${PHOTO_BOOTH_EMAIL_FROM:-}
+      PHOTO_BOOTH_EMAIL_FROM_NAME: ${PHOTO_BOOTH_EMAIL_FROM_NAME:-}
+      TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
+      TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-}
       # Internal API base the gatewaze-wiki MCP uses to reach the AI module's
       # /api/modules/ai/internal/wiki/* routes (service-to-service, internal-key
       # authed). spec-ai-memory-wiki.md §5.1.
@@ -163,6 +186,7 @@ services:
       - ../gatewaze.config.ts:/app/gatewaze.config.ts
       - ../../gatewaze-modules:/gatewaze-modules
       - ../../lf-gatewaze-modules:/lf-gatewaze-modules
+      - ${DAN_GATEWAZE_MODULES_PATH:-../../../danthebaker/gatewaze-modules}:/dan-gatewaze-modules
       - ../.gatewaze-modules:/app/.gatewaze-modules
       - ../data:/app/data
     environment:
@@ -183,5 +207,6 @@ services:
       - ../gatewaze.config.ts:/app/gatewaze.config.ts
       - ${GATEWAZE_MODULES_PATH:-../../gatewaze-modules}:/gatewaze-modules
       - ${LF_GATEWAZE_MODULES_PATH:-../../lf-gatewaze-modules}:/lf-gatewaze-modules
+      - ${DAN_GATEWAZE_MODULES_PATH:-../../../danthebaker/gatewaze-modules}:/dan-gatewaze-modules
     environment:
       NODE_ENV: development

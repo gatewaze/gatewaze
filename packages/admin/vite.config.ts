@@ -53,6 +53,7 @@ export default defineConfig(({ command, mode }) => ({
         path.resolve(__dirname, "../../../gatewaze-modules"),
         path.resolve(__dirname, "../../../gatewaze-modules"),
         path.resolve(__dirname, "../../../lf-gatewaze-modules"),
+        path.resolve(__dirname, "../../../dan-gatewaze-modules"),
         // Default: project root and workspace
         path.resolve(__dirname, "../.."),
       ],
