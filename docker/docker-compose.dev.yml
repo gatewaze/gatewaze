@@ -78,6 +78,10 @@ services:
       - ${PRIVATE_MODULES_PATH:-../../../acme/gatewaze-modules}:/private-modules
     environment:
       NODE_ENV: development
+      # Local hostnames to treat as custom domains (e.g. gallery.localhost for a module-root domain).
+      CUSTOM_DOMAIN_LOCALHOSTS: ${CUSTOM_DOMAIN_LOCALHOSTS:-}
+      # Module-root domains whose module serves its own legal pages (e.g. gallery).
+      MODULE_ROOT_OWN_LEGAL: ${MODULE_ROOT_OWN_LEGAL:-}
       NEXT_PUBLIC_API_URL: ${API_URL:-http://api.gatewaze.localhost}
       # Internal Supabase URL for module registry generator (DB source lookup)
       # Self-hosted: http://supabase-kong:8000 (Docker network)
@@ -114,6 +118,7 @@ services:
       # Software Engineer module: GitHub webhook HMAC secret (value in git-ignored docker/.env).
       SE_GITHUB_WEBHOOK_SECRET: ${SE_GITHUB_WEBHOOK_SECRET:-}
       # Image provider and Turnstile keys for modules that use them (values in docker/.env).
+      FAL_API_KEY: ${FAL_API_KEY:-}
       TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
       TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-}
       # Dev: no supervisor runs inside admin/portal, and HMR handles
@@ -152,6 +157,7 @@ services:
       UNSUBSCRIBE_HMAC_SECRET: ${UNSUBSCRIBE_HMAC_SECRET:-}
       SITE_URL: ${SITE_URL:-}
       # Image provider and Turnstile keys for modules that use them (values in docker/.env).
+      FAL_API_KEY: ${FAL_API_KEY:-}
       TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
       TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-}
       # Internal API base the gatewaze-wiki MCP uses to reach the AI module's
