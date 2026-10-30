@@ -66,7 +66,10 @@ wt rm my-feature                  # prompts to delete the branch too
 
 - **Module work** (`gatewaze-modules`, `lf-gatewaze-modules`): the mount points at
   a fixed sibling path, so you *must* set `GATEWAZE_MODULES_PATH` /
-  `LF_GATEWAZE_MODULES_PATH` (in `docker/.env`) to the worktree. `wt test` prints
+  `LF_GATEWAZE_MODULES_PATH` / `DAN_GATEWAZE_MODULES_PATH` (in `docker/.env`) to the worktree.
+  The third one is the danthebaker/gatewaze-modules repo, mounted at
+  `/dan-gatewaze-modules`; it only loads when `MODULE_SOURCES` lists
+  `/dan-gatewaze-modules/modules#label=Dan`. `wt test` prints
   the exact line. Only one module worktree is "live" at a time (the stack is
   single-brand — container names are `${COMPOSE_PROJECT_NAME}-*`), which matches
   testing one feature at a time.
