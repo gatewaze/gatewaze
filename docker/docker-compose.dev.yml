@@ -116,6 +116,7 @@ services:
       # Software Engineer module: GitHub webhook HMAC secret (value in git-ignored docker/.env).
       SE_GITHUB_WEBHOOK_SECRET: ${SE_GITHUB_WEBHOOK_SECRET:-}
       # Image provider and Turnstile keys for modules that use them (values in docker/.env).
+      FAL_API_KEY: ${FAL_API_KEY:-}
       TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
       TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-}
       # Dev: no supervisor runs inside admin/portal, and HMR handles
@@ -154,6 +155,7 @@ services:
       UNSUBSCRIBE_HMAC_SECRET: ${UNSUBSCRIBE_HMAC_SECRET:-}
       SITE_URL: ${SITE_URL:-}
       # Image provider and Turnstile keys for modules that use them (values in docker/.env).
+      FAL_API_KEY: ${FAL_API_KEY:-}
       TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
       TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-}
       # Internal API base the gatewaze-wiki MCP uses to reach the AI module's
