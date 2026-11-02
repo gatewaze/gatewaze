@@ -50,9 +50,9 @@ describe('requiredRole', () => {
     expect(requiredRole('media', p, 'delete')).toBe('admin');
   });
 
-  it('media winner-images/: authenticated for everything', () => {
+  it('media winner-images/: admin, because it shares a folder with the winner-images bucket', () => {
     for (const op of ['insert', 'overwrite', 'delete'] as const) {
-      expect(requiredRole('media', 'winner-images/a.png', op)).toBe('authenticated');
+      expect(requiredRole('media', 'winner-images/a.png', op)).toBe('admin');
     }
   });
 
