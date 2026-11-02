@@ -103,6 +103,11 @@ const ADMIN_DOCUMENT_TYPES: ReadonlySet<string> = new Set([
   'text/plain',
 ]);
 
+/** Types only an admin may upload, whatever the path allows. */
+export function adminOnlyType(contentType: string): boolean {
+  return contentType === 'image/svg+xml' || contentType.startsWith('video/') || ADMIN_DOCUMENT_TYPES.has(contentType);
+}
+
 /**
  * The byte cap for a content type the caller may upload, or null when the
  * type is not allowed. SVG can carry script and is served from the brand's

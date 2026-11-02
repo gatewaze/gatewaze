@@ -149,8 +149,10 @@ export async function getStorageRegistry(): Promise<PlatformStorageRegistry | nu
  * True when this brand serves its Supabase buckets from another provider:
  * env STORAGE_SUPABASE_ALIAS names a provider other than supabase, or (when
  * the env var is unset) the storage module's config has `supabase_alias`.
- * Same precedence as the registry. A failed config read counts as "not
- * aliased", which is also what the registry does.
+ * Same precedence as the registry. A failed config read is never cached:
+ * a brand with STORAGE_PUBLIC_URL counts as aliased (its files are in the
+ * provider, so falling back to Supabase would misplace them) and any other
+ * brand as not aliased.
  */
 export async function storageAliasActive(): Promise<boolean> {
   const fromEnv = String(process.env.STORAGE_SUPABASE_ALIAS ?? '').trim();
@@ -168,7 +170,9 @@ export async function storageAliasActive(): Promise<boolean> {
     const alias = data?.config?.['supabase_alias'];
     value = typeof alias === 'string' && alias.trim() !== '' && alias.trim() !== 'supabase';
   } catch (err) {
-    logger.warn({ err: err instanceof Error ? err.message : String(err) }, '[storage] could not read the storage module config; treating storage as Supabase');
+    const moved = String(process.env.STORAGE_PUBLIC_URL ?? '').trim() !== '';
+    logger.warn({ err: err instanceof Error ? err.message : String(err) }, `[storage] could not read the storage module config; treating storage as ${moved ? 'moved (STORAGE_PUBLIC_URL is set)' : 'Supabase'}`);
+    return aliasCache?.value ?? moved;
   }
   aliasCache = { at: Date.now(), value };
   return value;

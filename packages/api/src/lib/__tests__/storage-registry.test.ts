@@ -123,9 +123,21 @@ describe('storageAliasActive', () => {
     expect(await storageAliasActive()).toBe(false);
   });
 
-  it('is false when the config cannot be read', async () => {
+  it('is false when the config cannot be read on a brand still on Supabase', async () => {
     mockSupabase.mockError('boom');
     expect(await storageAliasActive()).toBe(false);
+  });
+
+  it('stays true when the config cannot be read on a brand whose files moved', async () => {
+    const before = process.env.STORAGE_PUBLIC_URL;
+    process.env.STORAGE_PUBLIC_URL = 'https://media.example.com';
+    try {
+      mockSupabase.mockError('boom');
+      expect(await storageAliasActive()).toBe(true);
+    } finally {
+      if (before === undefined) delete process.env.STORAGE_PUBLIC_URL;
+      else process.env.STORAGE_PUBLIC_URL = before;
+    }
   });
 });
 

@@ -107,7 +107,11 @@ export async function storageAliasActive(supabase) {
     const alias = data?.config?.supabase_alias;
     value = typeof alias === 'string' && alias.trim() !== '' && alias.trim() !== 'supabase';
   } catch (err) {
-    console.warn(`[storage] could not read the storage module config; treating storage as Supabase: ${err?.message ?? err}`);
+    // Never cache a failure. A brand with STORAGE_PUBLIC_URL keeps treating
+    // its files as moved, so nothing quietly goes back to Supabase.
+    const moved = String(process.env.STORAGE_PUBLIC_URL ?? '').trim() !== '';
+    console.warn(`[storage] could not read the storage module config; treating storage as ${moved ? 'moved' : 'Supabase'}: ${err?.message ?? err}`);
+    return aliasCache?.value ?? moved;
   }
   aliasCache = { at: Date.now(), value };
   return value;

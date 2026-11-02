@@ -28,6 +28,7 @@ import { isPlatformAdmin, resolveOptionalCaller } from '../lib/auth/optional-cal
 import { getStorageRegistry, storageAliasActive, type PlatformObjectStore } from '../lib/storage-registry.js';
 import {
   isValidBucketName,
+  adminOnlyType,
   maxBytesFor,
   requiredRole,
   roleSatisfies,
@@ -133,7 +134,9 @@ async function authorizeUpload(req: Request, res: Response, next: NextFunction):
       res.status(403).json({ error: 'forbidden' });
       return;
     }
-    const role = await callerRole(req, need === 'admin' || contentType === 'image/svg+xml');
+    // Some types are admin-only (SVG, video, office documents), so resolve
+    // the admin role for them even where the path itself needs less.
+    const role = await callerRole(req, need === 'admin' || adminOnlyType(contentType));
     if (!roleSatisfies(role, need)) {
       forbidden(res, role);
       return;
