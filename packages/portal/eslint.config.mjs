@@ -1,10 +1,11 @@
-import { FlatCompat } from '@eslint/eslintrc';
-
-const compat = new FlatCompat({ baseDirectory: import.meta.dirname });
+// eslint-config-next 16 ships native flat configs, so no FlatCompat bridge.
+import nextCoreWebVitals from 'eslint-config-next/core-web-vitals';
+import nextTypescript from 'eslint-config-next/typescript';
 
 export default [
-  { ignores: ['.next/**', 'node_modules/**', 'next-env.d.ts', 'public/**'] },
-  ...compat.extends('next/core-web-vitals', 'next/typescript'),
+  { ignores: ['.next/**', '.open-next/**', '.wrangler/**', 'node_modules/**', 'next-env.d.ts', 'public/**'] },
+  ...nextCoreWebVitals,
+  ...nextTypescript,
   {
     rules: {
       // Style/pre-existing noise -> warnings so lint runs green; tighten over time.

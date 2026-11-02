@@ -13,12 +13,14 @@
  * is why the signed-in menu didn't appear). Nav moves here on mobile, so the
  * bottom nav bar is removed (CSS).
  */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Icon, type IconName } from '@/components/ui/Icon'
 import type { RailItem } from '@/lib/modules/enabledModules'
+
+const noopSubscribe = () => () => {}
 
 interface MobileMenuProps {
   items: RailItem[]
@@ -35,9 +37,9 @@ export function MobileMenu({ items, activeModuleId, useAdminHref = false, footer
   // Separate "animating" flag: mount at opacity 0, then flip to 1 next frame so
   // the overlay + items transition in (and out) rather than snapping.
   const [animating, setAnimating] = useState(false)
-  // Portal target is only available on the client.
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => { setMounted(true) }, [])
+  // Portal target is only available on the client (false on the server and
+  // during hydration, true afterwards).
+  const mounted = useSyncExternalStore(noopSubscribe, () => true, () => false)
 
   const openMenu = useCallback(() => {
     setOpen(true)
@@ -48,8 +50,13 @@ export function MobileMenu({ items, activeModuleId, useAdminHref = false, footer
     setTimeout(() => setOpen(false), 300) // match the fade duration
   }, [])
 
-  // Close on route change.
-  useEffect(() => { setAnimating(false); setOpen(false) }, [pathname])
+  // Close on route change (adjusted during render when the pathname changes).
+  const [prevPathname, setPrevPathname] = useState(pathname)
+  if (prevPathname !== pathname) {
+    setPrevPathname(pathname)
+    setAnimating(false)
+    setOpen(false)
+  }
 
   // Esc to close + lock body scroll while open.
   useEffect(() => {

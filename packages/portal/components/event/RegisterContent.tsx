@@ -44,7 +44,8 @@ export function RegisterContent({ enabledModuleIds = [], enabledFeatures = [] }:
   const { user, session: authSession, isLoading: authLoading } = useAuth()
   const { prefillProfile } = useEmailPrefill(eventIdentifier)
   const [showNativeForm, setShowNativeForm] = useState(event.enable_native_registration ?? false)
-  const [autoRegState, setAutoRegState] = useState<AutoRegState>('checking')
+  // Outcome of the auto-registration attempt; null until the attempt reports.
+  const [autoRegOutcome, setAutoRegOutcome] = useState<AutoRegState | null>(null)
   const [autoRegEmail, setAutoRegEmail] = useState<string>('')
   const [personData, setPersonData] = useState<PersonData | null>(null)
   const autoRegAttempted = useRef(false)
@@ -62,17 +63,16 @@ export function RegisterContent({ enabledModuleIds = [], enabledFeatures = [] }:
     hasConsent: categories.marketing,
   })
 
+  // Before an attempt reports, the state is derived: 'none' once auth has
+  // settled and auto-registration doesn't apply, otherwise 'checking'.
+  const autoRegIneligible = !event.enable_native_registration || !event.enable_registration || !user || !authSession
+  const autoRegState: AutoRegState = autoRegOutcome ?? (!authLoading && autoRegIneligible ? 'none' : 'checking')
+
   // Auto-registration for logged-in users with complete profiles
   useEffect(() => {
     if (authLoading || autoRegAttempted.current) return
-    if (!event.enable_native_registration || !event.enable_registration) {
-      setAutoRegState('none')
-      return
-    }
-    if (!user || !authSession) {
-      setAutoRegState('none')
-      return
-    }
+    if (!event.enable_native_registration || !event.enable_registration) return
+    if (!user || !authSession) return
 
     autoRegAttempted.current = true
 
@@ -91,7 +91,7 @@ export function RegisterContent({ enabledModuleIds = [], enabledFeatures = [] }:
           .maybeSingle()
 
         if (!person) {
-          setAutoRegState('none')
+          setAutoRegOutcome('none')
           return
         }
 
@@ -107,7 +107,7 @@ export function RegisterContent({ enabledModuleIds = [], enabledFeatures = [] }:
 
         if (!email || !firstName || !lastName) {
           // Missing name/email — fall back to the full form (pre-filled).
-          setAutoRegState('none')
+          setAutoRegOutcome('none')
           return
         }
 
@@ -115,12 +115,12 @@ export function RegisterContent({ enabledModuleIds = [], enabledFeatures = [] }:
         // job title — show the short "complete your details" step instead of
         // silently registering with blanks.
         if (!company.trim() || !jobTitle.trim()) {
-          setAutoRegState('needs_completion')
+          setAutoRegOutcome('needs_completion')
           return
         }
 
         // All required data present — auto-register
-        setAutoRegState('registering')
+        setAutoRegOutcome('registering')
         setAutoRegEmail(email)
 
         const config = getClientBrandConfig()
@@ -149,14 +149,14 @@ export function RegisterContent({ enabledModuleIds = [], enabledFeatures = [] }:
         const result = await response.json()
 
         if (result.success) {
-          setAutoRegState('done')
+          setAutoRegOutcome('done')
           window.dispatchEvent(new CustomEvent('registration-changed'))
         } else {
           // Registration failed — fall back to form
-          setAutoRegState('none')
+          setAutoRegOutcome('none')
         }
       } catch {
-        setAutoRegState('none')
+        setAutoRegOutcome('none')
       }
     }
 

@@ -243,8 +243,9 @@ export function ProfileContent({ brandConfig, enabledModuleIds = [], enabledFeat
     loadSubscriptions()
   }, [user?.email])
 
+  const userEmail = user?.email
   const handleToggleSubscription = useCallback(async (listId: string, subscribed: boolean) => {
-    if (!user?.email) return
+    if (!userEmail) return
     setSavingSubId(listId)
     try {
       const sb = getSupabaseClient()
@@ -253,7 +254,7 @@ export function ProfileContent({ brandConfig, enabledModuleIds = [], enabledFeat
         .from('list_subscriptions')
         .upsert({
           list_id: listId,
-          email: user.email,
+          email: userEmail,
           subscribed,
           subscribed_at: subscribed ? now : null,
           unsubscribed_at: subscribed ? null : now,
@@ -271,7 +272,7 @@ export function ProfileContent({ brandConfig, enabledModuleIds = [], enabledFeat
     } finally {
       setSavingSubId(null)
     }
-  }, [user?.email])
+  }, [userEmail])
 
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {}

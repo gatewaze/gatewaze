@@ -6,7 +6,7 @@
  * Rail items link to the module's admin landing when access==='admin', else its public route.
  * Spec §7.1.
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -18,6 +18,8 @@ import { Avatar } from '@/components/ui/Avatar'
 import type { RailItem } from '@/lib/modules/enabledModules'
 import type { ModuleAccessMap } from '@/lib/modules/access'
 import { signInHref } from '@/lib/signInHref'
+
+const noopSubscribe = () => () => {}
 
 interface ModuleRailProps {
   items: RailItem[]
@@ -49,11 +51,11 @@ export function ModuleRail({
   // user_metadata carries no picture, so read it from the person record:
   // a stored avatar (avatar_storage_path → public URL), else a full-URL
   // avatar_url, else the LFID profile picture. Falls back to initials.
+  // Signed out → clear it (adjusted during render, not in the effect).
+  const signedIn = !!user && !!session?.access_token
+  if (!signedIn && avatarSrc !== null) setAvatarSrc(null)
   useEffect(() => {
-    if (!user || !session?.access_token) {
-      setAvatarSrc(null)
-      return
-    }
+    if (!user || !session?.access_token) return
     let cancelled = false
     ;(async () => {
       try {
@@ -95,11 +97,11 @@ export function ModuleRail({
   // pointer events — over anything the rail positions into it. Portalling lets
   // the menu escape that entirely; it's positioned from the avatar's rect.
   const [acctOpen, setAcctOpen] = useState(false)
-  const [mounted, setMounted] = useState(false)
+  // Portal target is only available on the client (false on the server and during hydration).
+  const mounted = useSyncExternalStore(noopSubscribe, () => true, () => false)
   const [menuPos, setMenuPos] = useState<{ left: number; bottom: number }>({ left: 0, bottom: 0 })
   const avatarRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
-  useEffect(() => setMounted(true), [])
 
   const toggleAcct = () => {
     if (acctOpen) {

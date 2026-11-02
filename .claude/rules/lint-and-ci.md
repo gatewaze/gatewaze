@@ -11,7 +11,7 @@ source: gatewaze-skills/production-readiness/references/lint-and-ci.md
 |---------|--------|--------|---------|
 | admin | eslint v9 flat config | `packages/admin/eslint.config.js` | `js.configs.recommended`, `tseslint.configs.recommended`, `react-hooks`, `react-refresh` |
 | api | eslint v9 flat config | `packages/api/eslint.config.js` | `js.configs.recommended`, `tseslint.configs.recommended` (no React plugins — server-side only) |
-| portal | `next lint` | discovers root `.eslintrc.cjs` | `@typescript-eslint`, `react-hooks` (loaded via root) |
+| portal | eslint v9 flat config (`eslint .`; Next 16 removed `next lint`) | `packages/portal/eslint.config.mjs` | `eslint-config-next/core-web-vitals`, `eslint-config-next/typescript` (native flat configs, no `FlatCompat`). The React Compiler rules from `eslint-plugin-react-hooks` 7 (`set-state-in-effect`, `purity`, `preserve-manual-memoization`, `static-components`, `refs`, `immutability`) are errors at their defaults. |
 | shared | no-op echo | `"lint": "echo 'no lint configured'"` | — |
 
 `pnpm -r lint` must exit 0. If you change a lint script, run it
@@ -19,8 +19,10 @@ locally and check the exit code.
 
 ## Root `.eslintrc.cjs`
 
-Used only by portal's `next lint` (which auto-discovers parent
-configs):
+This was written for the portal's old `next lint`, which auto-discovered
+parent configs. Next 16 removed `next lint` and the portal now uses its own
+flat config, so check whether anything still reads this file before
+relying on it:
 
 ```js
 module.exports = {
@@ -73,10 +75,10 @@ Pinned versions match admin's: eslint `^9.33.0`, typescript-eslint
 Required-to-merge gates:
 
 - **typecheck** — runs `pnpm --filter @gatewaze/<pkg> typecheck` for
-  all four packages. Admin and portal are now blocking (the
-  `continue-on-error: true` was removed once phase-4 cleanup landed).
-  If a typecheck regression appears, reintroducing `continue-on-error:
-  true` is a one-line revert.
+  all four packages. Admin and portal run with `continue-on-error: true`
+  (checked 2026-11-02): both import module sources from sibling repos
+  that CI does not clone, so a standalone typecheck reports errors that
+  are not real. A portal type error therefore does not fail CI.
 - **lint** — runs `pnpm -r lint` across the workspace. Every package's
   lint script must exit 0.
 - **test** — `pnpm --filter @gatewaze/<pkg> test` for api, shared,
@@ -93,6 +95,28 @@ Required-to-merge gates:
   the multi-tenant fixtures stabilised; reverting to
   `continue-on-error: true` is the canonical operator action if E2E
   flakes appear in the first week.
+
+## Why the root `package.json` depends on `entities`
+
+The portal's webpack config sets `resolve.symlinks = false` so module-source
+symlinks transpile and module files resolve React from the portal's
+`node_modules`. A side effect is that a package reached through a pnpm
+symlink resolves its own dependencies from pnpm's hidden hoist
+(`node_modules/.pnpm/node_modules`), not from what it declares. So the
+portal build depends on which version of a shared transitive package pnpm
+happens to hoist.
+
+That broke on the Next 16 lockfile (2 Nov 2026). On a fresh install, which
+is what CI and the portal Docker image do, the hoist held `htmlparser2` 10
+beside `entities` 4.5.0, and the build failed on `entities/decode`. Main
+had hoisted `entities` 7 by luck. The root `devDependencies` entry
+`"entities": "^7.0.1"` takes `entities` out of the hidden hoist and puts 7
+in the root `node_modules`, which every hoisted lookup reaches next.
+
+Don't remove it without a clean-install `pnpm --filter @gatewaze/portal
+build` (delete every `node_modules` first, since an incremental install can
+keep an old hoist and hide the failure). The `Portal build` CI job does a
+clean install for this reason.
 
 ## pnpm overrides (root `package.json`)
 
@@ -189,7 +213,7 @@ pnpm --filter @gatewaze/portal build  # next build
 ```
 
 The portal `next build` passes the typecheck-during-build gate
-because `next.config.ts` has `typescript.ignoreBuildErrors: true` —
+because `next.config.mts` has `typescript.ignoreBuildErrors: true` —
 that's a deliberate dev-experience choice (TS errors surface during
 `pnpm typecheck` instead of blocking the build). Don't flip it without
 weighing the cost: a broken TS state would silently ship.

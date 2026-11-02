@@ -12,7 +12,7 @@ import { Icon } from '@/components/ui/Icon'
 import { MobileMenu } from './MobileMenu'
 import type { RailItem } from '@/lib/modules/enabledModules'
 import { signInHref } from '@/lib/signInHref'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
 interface PublicTopbarProps {
   items: RailItem[]
@@ -37,7 +37,11 @@ export function PublicTopbar({ items, activeModuleId, brandName, logoUrl, logoIc
   // browser navigates (the SSO flow can take a beat before anything visibly
   // happens). Reset on route change so a back-navigation doesn't strand it.
   const [signingIn, setSigningIn] = useState(false)
-  useEffect(() => { setSigningIn(false) }, [pathname])
+  const [prevPathname, setPrevPathname] = useState(pathname)
+  if (prevPathname !== pathname) {
+    setPrevPathname(pathname)
+    setSigningIn(false)
+  }
   const signInIcon = (size: number) =>
     signingIn ? <span className="gw-signin-spin ic" aria-hidden /> : <Icon name="signin" size={size} className="ic" />
 

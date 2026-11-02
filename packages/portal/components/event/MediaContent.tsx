@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback, useSyncExternalStore } from 'react'
 import ImageGallery from 'react-image-gallery'
 import 'react-image-gallery/styles/image-gallery.css'
 import Image from 'next/image'
@@ -119,6 +119,8 @@ function fullImageUrl(item: GalleryApiItem): string {
 
 const BATCH_SIZE = 50
 
+const noopSubscribe = () => () => {}
+
 /** What one gallery fetch produced. 'gone' = API 404 (no gallery). */
 type GalleryPage = GalleryResponse | 'gone' | null
 
@@ -131,8 +133,12 @@ export function MediaContent() {
   const [allTotal, setAllTotal] = useState(0)
   const [nextOffset, setNextOffset] = useState<number | null>(null)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
-  const [mounted, setMounted] = useState(false)
+  // The event id the initial gallery page was loaded for; loading until it
+  // matches the current event.
+  const [loadedEventId, setLoadedEventId] = useState<string | null>(null)
+  const isLoading = loadedEventId !== event.id
+  // False on the server and during hydration, true after (drives the fade-in).
+  const mounted = useSyncExternalStore(noopSubscribe, () => true, () => false)
 
   // Albums
   const [albums, setAlbums] = useState<GalleryAlbum[]>([])
@@ -213,63 +219,6 @@ export function MediaContent() {
     ])
   }, [])
 
-  const fetchInitialMedia = useCallback(async () => {
-    setIsLoading(true)
-    const page = await fetchGalleryPage(null, 0)
-    if (page && page !== 'gone') {
-      const photos = page.items.filter((i) => i.kind === 'photo')
-      setItems(photos)
-      collectApiVideos(page.items)
-      setAlbums(page.albums)
-      setTotal(page.total)
-      setAllTotal(page.total)
-      setNextOffset(page.next_offset)
-    } else {
-      // 'gone' and transient errors both render the empty state, as the
-      // old page did when its queries returned nothing.
-      setItems([])
-      setAlbums([])
-      setTotal(0)
-      setAllTotal(0)
-      setNextOffset(null)
-    }
-    setIsLoading(false)
-  }, [fetchGalleryPage, collectApiVideos])
-
-  const fetchVideos = useCallback(async () => {
-    try {
-      const supabase = await getSupabase()
-
-      // Canonical `videos` linked via `event_videos` (P4 video object).
-      // Guarded: tables may be absent per brand.
-      const { data: linked, error: linkErr } = await supabase
-        .from('event_videos')
-        .select('sort_order, video:videos(url, title, caption:description, status, visibility)')
-        .eq('event_uuid', event.id)
-        .order('sort_order', { ascending: true })
-      if (linkErr || !linked) {
-        setLinkedVideos([])
-        return
-      }
-
-      const out: EventVideo[] = []
-      for (const row of linked as Array<{ video: unknown }>) {
-        const v = (Array.isArray(row.video) ? row.video[0] : row.video) as
-          | { url?: string; title?: string; caption?: string; status?: string; visibility?: string }
-          | null
-        if (!v?.url || v.status !== 'published' || v.visibility !== 'public') continue
-        out.push({
-          youtube_embed_url: v.url,
-          file_name: v.title || 'Video',
-          caption: v.caption,
-        })
-      }
-      setLinkedVideos(out)
-    } catch (err) {
-      console.error('Error loading videos:', err)
-    }
-  }, [event.id, getSupabase])
-
   // Gallery videos first, then event_videos rows deduped against them by
   // YouTube id — the same dedupe the events_media/event_videos pair had,
   // so a recording that exists in both surfaces once.
@@ -324,13 +273,71 @@ export function MediaContent() {
 
   // ─── Initial load ────────────────────────────────────────
 
+  // The loaders live inside the effect: they only run from here, and their
+  // state updates all land after an await.
   useEffect(() => {
-    setMounted(true)
-    if (event.id) {
-      fetchInitialMedia()
-      fetchVideos()
+    if (!event.id) return
+    const eventId = event.id
+
+    const fetchInitialMedia = async () => {
+      const page = await fetchGalleryPage(null, 0)
+      if (page && page !== 'gone') {
+        const photos = page.items.filter((i) => i.kind === 'photo')
+        setItems(photos)
+        collectApiVideos(page.items)
+        setAlbums(page.albums)
+        setTotal(page.total)
+        setAllTotal(page.total)
+        setNextOffset(page.next_offset)
+      } else {
+        // 'gone' and transient errors both render the empty state, as the
+        // old page did when its queries returned nothing.
+        setItems([])
+        setAlbums([])
+        setTotal(0)
+        setAllTotal(0)
+        setNextOffset(null)
+      }
+      setLoadedEventId(eventId)
     }
-  }, [event.id, fetchInitialMedia, fetchVideos])
+
+    const fetchVideos = async () => {
+      try {
+        const supabase = await getSupabase()
+
+        // Canonical `videos` linked via `event_videos` (P4 video object).
+        // Guarded: tables may be absent per brand.
+        const { data: linked, error: linkErr } = await supabase
+          .from('event_videos')
+          .select('sort_order, video:videos(url, title, caption:description, status, visibility)')
+          .eq('event_uuid', eventId)
+          .order('sort_order', { ascending: true })
+        if (linkErr || !linked) {
+          setLinkedVideos([])
+          return
+        }
+
+        const out: EventVideo[] = []
+        for (const row of linked as Array<{ video: unknown }>) {
+          const v = (Array.isArray(row.video) ? row.video[0] : row.video) as
+            | { url?: string; title?: string; caption?: string; status?: string; visibility?: string }
+            | null
+          if (!v?.url || v.status !== 'published' || v.visibility !== 'public') continue
+          out.push({
+            youtube_embed_url: v.url,
+            file_name: v.title || 'Video',
+            caption: v.caption,
+          })
+        }
+        setLinkedVideos(out)
+      } catch (err) {
+        console.error('Error loading videos:', err)
+      }
+    }
+
+    fetchInitialMedia()
+    fetchVideos()
+  }, [event.id, fetchGalleryPage, collectApiVideos, getSupabase])
 
   // ─── Intersection Observer for lazy loading ──────────────
 
@@ -402,7 +409,7 @@ export function MediaContent() {
 
   if (isLoading) {
     return (
-      <div className={`text-center py-12 transition-opacity duration-500 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
+      <div className={`text-center py-12 transition-opacity duration-500 ${mounted ? 'opacity-100 starting:opacity-0' : 'opacity-0'}`}>
         <div
           className="loader mx-auto mb-4"
           style={{ '--primary-color': '#fff', '--secondary-color': primaryColor } as React.CSSProperties}
@@ -414,7 +421,7 @@ export function MediaContent() {
 
   if (allTotal === 0 && videoItems.length === 0) {
     return (
-      <div className={`transition-opacity duration-500 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
+      <div className={`transition-opacity duration-500 ${mounted ? 'opacity-100 starting:opacity-0' : 'opacity-0'}`}>
         <GlowBorder useDarkTheme={useDarkText}>
           <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${panelTheme.panelBorder} p-6 sm:p-8`}>
             <div className="text-center py-8">
@@ -431,7 +438,7 @@ export function MediaContent() {
   }
 
   return (
-    <div className={`space-y-6 transition-opacity duration-500 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
+    <div className={`space-y-6 transition-opacity duration-500 ${mounted ? 'opacity-100 starting:opacity-0' : 'opacity-0'}`}>
       <h1 className={`text-2xl sm:text-3xl font-bold ${panelTheme.textColor}`}>Media</h1>
 
       {/* Videos section */}

@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useMemo, useState, useEffect, useRef, useCallback } from 'react'
+import { createContext, useContext, useMemo, useState, useEffect, useRef, useCallback, useSyncExternalStore } from 'react'
 import type { Event } from '@/types/event'
 import type { BrandConfig } from '@/config/brand'
 import type { RecommendedEvent } from '@/app/(main)/events/[identifier]/(portal)/layout'
@@ -51,6 +51,13 @@ interface EventContextValue {
 }
 
 const EventContext = createContext<EventContextValue | null>(null)
+
+// The ?register=1 flag is read once per render from the URL; nothing needs to
+// subscribe because only this provider changes it (by stripping it).
+const noopSubscribe = () => () => {}
+function readRegisterParam(): boolean {
+  try { return new URLSearchParams(window.location.search).get('register') === '1' } catch { return false }
+}
 
 interface Props {
   event: Event & { id: string }
@@ -118,25 +125,39 @@ export function EventProvider({ event, brandConfig, eventIdentifier, speakerCoun
   }, [registrationMembersOnly, user, proceedToRegister, emitInterest])
 
   // Resume after the LFID sign-in flow returns to the event page with
-  // ?register=1. Runs once, client-side; reads window.location directly (rather
-  // than useSearchParams) so EventProvider doesn't need a Suspense boundary and
-  // the page isn't forced into client-side rendering. Strips the param so a
-  // manual refresh doesn't re-fire.
+  // ?register=1. Reads window.location directly (rather than useSearchParams)
+  // so EventProvider doesn't need a Suspense boundary and the page isn't forced
+  // into client-side rendering; false on the server and during hydration.
+  // The resume is latched during render, which is also where the members-only
+  // modal opens for a signed-out visitor. The effect only does the side
+  // effects (navigation, analytics, the async member check) and strips the
+  // param so a manual refresh doesn't re-fire.
+  const hasRegisterParam = useSyncExternalStore(noopSubscribe, readRegisterParam, () => false)
+  const [resumeLatched, setResumeLatched] = useState(false)
+  if (hasRegisterParam && !authLoading && !resumeLatched) {
+    setResumeLatched(true)
+    if (registrationMembersOnly && !user) setMembersModalOpen(true)
+  }
   const autoRanRef = useRef(false)
   useEffect(() => {
-    if (autoRanRef.current) return
-    if (authLoading) return
-    let hasRegisterParam = false
-    try { hasRegisterParam = new URLSearchParams(window.location.search).get('register') === '1' } catch { /* ignore */ }
-    if (!hasRegisterParam) return
+    if (!resumeLatched || autoRanRef.current) return
     autoRanRef.current = true
-    void requestRegister()
+    if (!registrationMembersOnly) {
+      proceedToRegister()
+    } else if (!user) {
+      emitInterest()
+    } else {
+      void checkCurrentPersonIsMember().then((isMember) => {
+        if (isMember) proceedToRegister()
+        else { emitInterest(); setMembersModalOpen(true) }
+      })
+    }
     try {
       const url = new URL(window.location.href)
       url.searchParams.delete('register')
       window.history.replaceState({}, '', url.toString())
     } catch { /* ignore */ }
-  }, [authLoading, requestRegister])
+  }, [resumeLatched, registrationMembersOnly, user, proceedToRegister, emitInterest])
 
   // Return the browser to this event page after sign-in, then auto-resume.
   const registerReturnPath = `${basePath || '/'}?register=1`

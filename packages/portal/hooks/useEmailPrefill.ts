@@ -1,5 +1,14 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useSyncExternalStore } from 'react'
 import { getClientBrandConfig } from '@/config/brand'
+
+const noopSubscribe = () => () => {}
+function readPrefillEmail(): string | null {
+  try {
+    return sessionStorage.getItem('prefill_email') || null
+  } catch {
+    return null // sessionStorage not available
+  }
+}
 
 export interface PrefillProfile {
   email: string
@@ -23,22 +32,12 @@ interface UseEmailPrefillResult {
  * @param fetchProfile - Whether to fetch the full person profile (default: true)
  */
 export function useEmailPrefill(_eventIdentifier?: string, fetchProfile = true): UseEmailPrefillResult {
-  const [prefillEmail, setPrefillEmail] = useState<string | null>(null)
+  // Read email from sessionStorage (global key). Null on the server and during
+  // hydration; the stored value once on the client.
+  const prefillEmail = useSyncExternalStore(noopSubscribe, readPrefillEmail, () => null)
   const [prefillProfile, setPrefillProfile] = useState<PrefillProfile | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const fetchedRef = useRef(false)
-
-  // Read email from sessionStorage (global key)
-  useEffect(() => {
-    try {
-      const stored = sessionStorage.getItem('prefill_email')
-      if (stored) {
-        setPrefillEmail(stored)
-      }
-    } catch {
-      // sessionStorage not available (SSR)
-    }
-  }, [])
 
   // Fetch person profile if email is available
   useEffect(() => {
