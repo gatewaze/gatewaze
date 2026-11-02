@@ -17,7 +17,7 @@
  * non-member hits on click.
  */
 
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useSyncExternalStore, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { GlowBorder } from '@/components/ui/GlowBorder'
 import { ModuleSlot } from '@/lib/modules'
@@ -26,6 +26,8 @@ const KEYFRAMES = `
 @keyframes mor-modal-in { 0% { opacity: 0; transform: scale(0.94) } 100% { opacity: 1; transform: scale(1) } }
 @media (prefers-reduced-motion: reduce) { .mor-modal__panel { animation-duration: 1ms !important } }
 `
+
+const noopSubscribe = () => () => {}
 
 interface Props {
   open: boolean
@@ -52,10 +54,10 @@ export function MembersOnlyRegisterModal({
   enabledModuleIds,
   enabledFeatures,
 }: Props) {
-  const [mounted, setMounted] = useState(false)
+  // createPortal needs document.body: false on the server and during hydration.
+  const mounted = useSyncExternalStore(noopSubscribe, () => true, () => false)
   useEffect(() => {
     if (!open) return
-    setMounted(true)
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }

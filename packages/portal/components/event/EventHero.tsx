@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useEffect, useRef } from 'react'
+import { useMemo, useState, useEffect, useRef, useSyncExternalStore } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -142,6 +142,8 @@ export function shouldUseDarkText(color1: string, color2: string): boolean {
   return avgLuminance > 0.5
 }
 
+const noopSubscribe = () => () => {}
+
 interface Props {
   event: Event
   brandConfig: BrandConfig
@@ -168,12 +170,14 @@ export function EventHero({ event, brandConfig, useDarkText, heroRef }: Props) {
   // the party was actually invited to. Falls back to the main event
   // times if no token is present or the lookup fails.
   const searchParams = useSearchParams()
-  const [effectiveStart, setEffectiveStart] = useState<string>(event.event_start)
-  const [effectiveEnd, setEffectiveEnd] = useState<string | null>(event.event_end ?? null)
+  // The invite-driven override only applies to the event times and query
+  // string it was looked up for; any change falls back to the event times.
+  const inviteKey = `${event.event_start}|${event.event_end ?? ''}|${searchParams?.toString() ?? ''}`
+  const [inviteRange, setInviteRange] = useState<{ key: string; start: string; end: string | null } | null>(null)
+  const effectiveStart = inviteRange?.key === inviteKey ? inviteRange.start : event.event_start
+  const effectiveEnd = inviteRange?.key === inviteKey ? inviteRange.end : (event.event_end ?? null)
 
   useEffect(() => {
-    setEffectiveStart(event.event_start)
-    setEffectiveEnd(event.event_end ?? null)
     let token = searchParams?.get('invite') ?? null
     if (!token && typeof window !== 'undefined') {
       try { token = window.localStorage.getItem('invite_short_code') } catch { /* ignore */ }
@@ -205,42 +209,46 @@ export function EventHero({ event, brandConfig, useDarkText, heroRef }: Props) {
           }
         }
         if (cancelled || starts.length === 0) return
-        setEffectiveStart(new Date(Math.min(...starts)).toISOString())
-        setEffectiveEnd(ends.length > 0 ? new Date(Math.max(...ends)).toISOString() : null)
+        setInviteRange({
+          key: inviteKey,
+          start: new Date(Math.min(...starts)).toISOString(),
+          end: ends.length > 0 ? new Date(Math.max(...ends)).toISOString() : null,
+        })
       } catch {
         // ignore; stick with the event-level times
       }
     })()
     return () => { cancelled = true }
-  }, [searchParams, event.event_start, event.event_end])
+  }, [searchParams, inviteKey])
 
-  // Use SSR-safe date formatting initially, then update to client locale after hydration
-  const [dateParts, setDateParts] = useState<DateParts>(() => formatDatePartsSSR(event.event_start))
-  const [startTime, setStartTime] = useState(() => formatTimeSSR(event.event_start))
-  const [endTime, setEndTime] = useState(() => event.event_end ? formatTimeSSR(event.event_end) : '')
+  // Use SSR-safe date formatting on the server and during hydration, then
+  // the viewer's locale once hydrated (and for any invite-driven override).
+  const isClient = useSyncExternalStore(noopSubscribe, () => true, () => false)
+  const dateParts = useMemo<DateParts>(
+    () => (isClient ? formatDatePartsClient : formatDatePartsSSR)(effectiveStart),
+    [isClient, effectiveStart]
+  )
+  const startTime = useMemo(
+    () => (isClient ? formatTimeClient : formatTimeSSR)(effectiveStart),
+    [isClient, effectiveStart]
+  )
+  const endTime = useMemo(
+    () => (effectiveEnd ? (isClient ? formatTimeClient : formatTimeSSR)(effectiveEnd) : ''),
+    [isClient, effectiveEnd]
+  )
 
   // Track image aspect ratio for natural sizing. Default to 1 (square)
   // until the image's natural dimensions resolve via next/image's
   // onLoadingComplete callback. Layout-shift budget: the container is
   // square initially, so the visible jump is minimal even on a tall
   // hero image.
-  const [imageAspectRatio, setImageAspectRatio] = useState<number | null>(null)
   const imageUrl = event.event_logo || event.screenshot_url || ''
-  const imageContainerRef = useRef<HTMLDivElement>(null)
-
-  // Reset aspect ratio when image URL changes (parent component
+  // The measured ratio is tied to the URL it was measured for, so it reads
+  // as unknown again when the image URL changes (parent component
   // reloading with a new event).
-  useEffect(() => {
-    setImageAspectRatio(null)
-  }, [imageUrl])
-
-  useEffect(() => {
-    // Reformat whenever the effective start / end changes (initial render,
-    // hydration, or invite-driven sub-event override).
-    setDateParts(formatDatePartsClient(effectiveStart))
-    setStartTime(formatTimeClient(effectiveStart))
-    setEndTime(effectiveEnd ? formatTimeClient(effectiveEnd) : '')
-  }, [effectiveStart, effectiveEnd])
+  const [imageAspect, setImageAspect] = useState<{ url: string; ratio: number } | null>(null)
+  const imageAspectRatio = imageAspect?.url === imageUrl ? imageAspect.ratio : null
+  const imageContainerRef = useRef<HTMLDivElement>(null)
 
   // Helper to detect if a string looks like coordinates (e.g., "37.3893889,-122.0832101")
   const isCoordinates = (str: string | null): boolean => {
@@ -299,7 +307,7 @@ export function EventHero({ event, brandConfig, useDarkText, heroRef }: Props) {
                     onLoad={(e) => {
                       const img = e.target as HTMLImageElement
                       if (img.naturalWidth && img.naturalHeight) {
-                        setImageAspectRatio(img.naturalWidth / img.naturalHeight)
+                        setImageAspect({ url: imageUrl, ratio: img.naturalWidth / img.naturalHeight })
                       }
                     }}
                   />

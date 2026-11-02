@@ -47,12 +47,13 @@ export function WhiteLabelHeader({ brandConfig }: Props) {
     return () => window.removeEventListener('user-profile-updated', handler)
   }, [])
 
+  // Clear the profile on sign-out (adjusted during render, not in the effect).
+  const signedIn = !!session?.access_token && !!user
+  if (!signedIn && userProfile !== null) setUserProfile(null)
+
   // Fetch user profile when authenticated or when profile is updated
   useEffect(() => {
-    if (!session?.access_token || !user) {
-      setUserProfile(null)
-      return
-    }
+    if (!session?.access_token || !user) return
 
     let cancelled = false
     async function fetchUserProfile() {

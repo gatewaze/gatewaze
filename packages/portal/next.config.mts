@@ -234,11 +234,10 @@ const nextConfig: NextConfig = {
   output: 'standalone',
 
   // Skip type checking in build (handled separately in CI)
+  // (Next 16 removed `next lint` and the `eslint` key with it; `next build`
+  // no longer runs ESLint, so there is nothing to skip.)
   typescript: {
     ignoreBuildErrors: true,
-  },
-  eslint: {
-    ignoreDuringBuilds: true,
   },
 
   // Image optimization domains. Add new hosts here when migrating an

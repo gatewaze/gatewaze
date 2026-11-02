@@ -202,8 +202,11 @@ export function SpeakerSubmissionForm({ event, brandConfig, onSuccess, onCancel,
     userProfile.last_name &&
     userProfile.avatar_url
 
-  // Initialize form with user profile data when available
-  useEffect(() => {
+  // Initialize form with user profile data when available. Adjusted during
+  // render whenever the userProfile prop changes (no effect round-trip).
+  const [appliedProfile, setAppliedProfile] = useState<UserProfile | null | undefined>(undefined)
+  if (userProfile !== appliedProfile) {
+    setAppliedProfile(userProfile)
     if (userProfile) {
       setFormData(prev => ({
         ...prev,
@@ -219,7 +222,7 @@ export function SpeakerSubmissionForm({ event, brandConfig, onSuccess, onCancel,
         setProfileImagePreview(userProfile.avatar_url)
       }
     }
-  }, [userProfile])
+  }
 
   const validateEmail = (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/

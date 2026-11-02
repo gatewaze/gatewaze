@@ -5,7 +5,7 @@
  * button. Mounts/unmounts with an exit transition so the panel slides back out and the backdrop
  * fades before removal. Uses the neutral frosted recipe from shell.css (`.gw-drawer`).
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Icon } from './Icon'
 
 export interface DrawerProps {
@@ -21,18 +21,14 @@ export interface DrawerProps {
 export function Drawer({ open, onClose, title, children, width = 480, className }: DrawerProps) {
   // Keep the node mounted briefly while the close animation plays.
   const [mounted, setMounted] = useState(open)
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Opening mounts immediately (adjusted during render).
+  if (open && !mounted) setMounted(true)
 
+  // Closing unmounts after the exit transition; reopening first clears the timer.
   useEffect(() => {
-    if (open) {
-      if (closeTimer.current) clearTimeout(closeTimer.current)
-      setMounted(true)
-    } else if (mounted) {
-      closeTimer.current = setTimeout(() => setMounted(false), 280)
-    }
-    return () => {
-      if (closeTimer.current) clearTimeout(closeTimer.current)
-    }
+    if (open || !mounted) return
+    const closeTimer = setTimeout(() => setMounted(false), 280)
+    return () => clearTimeout(closeTimer)
   }, [open, mounted])
 
   useEffect(() => {

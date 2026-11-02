@@ -60,12 +60,13 @@ export function Header({ brandConfig, navItems = [] }: Props) {
     return () => window.removeEventListener('user-profile-updated', handler)
   }, [])
 
+  // Clear the profile on sign-out (adjusted during render, not in the effect).
+  const signedIn = !!session?.access_token && !!user
+  if (!signedIn && userProfile !== null) setUserProfile(null)
+
   // Fetch user profile
   useEffect(() => {
-    if (!session?.access_token || !user) {
-      setUserProfile(null)
-      return
-    }
+    if (!session?.access_token || !user) return
 
     let cancelled = false
     async function fetchUserProfile() {

@@ -51,7 +51,6 @@ export function ProfileCompletionWizard({ brandConfig, listsEnabled = false }: P
   })
   const [attributeConfig, setAttributeConfig] = useState<PeopleAttributeConfig[]>(DEFAULT_PEOPLE_ATTRIBUTES)
   const [errors, setErrors] = useState<Partial<Record<keyof ProfileDetails, string>>>({})
-  const [isLoading, setIsLoading] = useState(true)
   const hasCheckedRef = useRef(false)
   const lastUserIdRef = useRef<string | null>(null)
 
@@ -64,10 +63,7 @@ export function ProfileCompletionWizard({ brandConfig, listsEnabled = false }: P
         lastUserIdRef.current = user.id
       }
 
-      if (hasCheckedRef.current || !session?.access_token || !user) {
-        setIsLoading(false)
-        return
-      }
+      if (hasCheckedRef.current || !session?.access_token || !user) return
       hasCheckedRef.current = true
 
       try {
@@ -95,7 +91,6 @@ export function ProfileCompletionWizard({ brandConfig, listsEnabled = false }: P
         // errors) — and completing it could never clear the loop. Fail quiet.
         if (personRes.error) {
           console.error('Profile completion check failed:', personRes.error)
-          setIsLoading(false)
           return
         }
         const person = personRes.data
@@ -174,15 +169,12 @@ export function ProfileCompletionWizard({ brandConfig, listsEnabled = false }: P
         }
       } catch (err) {
         console.error('Error checking profile completion:', err)
-      } finally {
-        setIsLoading(false)
       }
     }
 
     if (session?.access_token && user) {
       checkProfileCompletion()
     } else {
-      setIsLoading(false)
       hasCheckedRef.current = false
       lastUserIdRef.current = null
     }
@@ -284,8 +276,9 @@ export function ProfileCompletionWizard({ brandConfig, listsEnabled = false }: P
     return true
   }, [profileDetails, attributeConfig, postProfile])
 
-  // Don't render anything while loading or if wizard shouldn't show
-  if (isLoading || !showWizard) {
+  // Don't render anything unless the check decided the wizard should show
+  // (showWizard only turns true once that check has finished).
+  if (!showWizard) {
     return null
   }
 

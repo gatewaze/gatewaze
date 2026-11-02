@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { useSearchParams } from 'next/navigation'
 import DOMPurify from 'isomorphic-dompurify'
 import { GlassPanel } from '@/components/ui/GlassPanel'
@@ -34,6 +34,12 @@ interface Props {
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
 
+const subscribeNoop = () => () => {}
+
+function readStoredEmail(): string | null {
+  try { return sessionStorage.getItem('prefill_email') } catch { return null }
+}
+
 function formatDate(iso: string | null): string | null {
   if (!iso) return null
   const d = new Date(iso)
@@ -50,7 +56,13 @@ export function OfferClaimClient({
   // Who this is: the encoded address from the email link (?utm_medium= / ?e=),
   // then one captured earlier in this tab, then the signed-in member. Reading
   // it never claims anything; only the button below does.
-  const [knownEmail, setKnownEmail] = useState<string | null>(null)
+  // Resolved on the client only (null on the server and during hydration), as
+  // it reads sessionStorage.
+  const isClient = useSyncExternalStore(subscribeNoop, () => true, () => false)
+  const storedEmail = useSyncExternalStore(subscribeNoop, readStoredEmail, () => null)
+  const paramEmail = getEmailFromParams(new URLSearchParams(searchParams.toString()))
+  const candidateEmail = isClient ? (paramEmail || storedEmail || session?.user?.email || null) : null
+  const knownEmail = candidateEmail && EMAIL_RE.test(candidateEmail) ? candidateEmail.toLowerCase() : null
   const [typedEmail, setTypedEmail] = useState('')
   const [editing, setEditing] = useState(false)
   const [code, setCode] = useState<string | null>(null)
@@ -58,16 +70,11 @@ export function OfferClaimClient({
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
+  // Remember the address from the email link for later pages in this tab.
   useEffect(() => {
-    let email: string | null = getEmailFromParams(new URLSearchParams(searchParams.toString()))
-    if (email) {
-      try { sessionStorage.setItem('prefill_email', email) } catch { /* storage blocked */ }
-    } else {
-      try { email = sessionStorage.getItem('prefill_email') } catch { email = null }
-    }
-    if (!email && session?.user?.email) email = session.user.email
-    setKnownEmail(email && EMAIL_RE.test(email) ? email.toLowerCase() : null)
-  }, [searchParams, session])
+    if (!paramEmail) return
+    try { sessionStorage.setItem('prefill_email', paramEmail) } catch { /* storage blocked */ }
+  }, [paramEmail])
 
   const email = editing || !knownEmail ? typedEmail.trim().toLowerCase() : knownEmail
 
