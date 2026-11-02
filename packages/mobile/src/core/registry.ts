@@ -62,6 +62,11 @@ export function feedbackHistoryPath(): string | null {
   return mod && screen ? `/m/${mod.id}/${screen}` : null;
 }
 
+/** The feedback-owning module's compact history list, or null when it declares none. */
+export function feedbackHistoryList(): MobileComponentThunk | null {
+  return mobileModules.find((m) => m.feedback)?.feedback?.historyList ?? null;
+}
+
 export function allTabs(): Array<MobileTabContribution & { moduleId: string }> {
   return mobileModules
     .flatMap((m) => (m.tabs ?? []).map((t) => ({ ...t, moduleId: m.id })))
