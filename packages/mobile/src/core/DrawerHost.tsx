@@ -40,6 +40,7 @@ import { useSession } from './auth/session';
 import { CoachHome } from './CoachHome';
 import { BugReportSheet } from './BugReport';
 import { ChangelogSheet } from './ChangelogSheet';
+import type { ChangelogTab } from './changelog-tabs';
 import { appBuildNumber, appVersion, formatVersionBuild } from './appInfo';
 import { checkForUpdate, type AvailableUpdate } from './updateCheck';
 import { brandLogo, feedbackPath, feedbackHistoryPath } from './registry';
@@ -124,6 +125,7 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
   const [bugShot, setBugShot] = useState<string | null>(null);
   const [bugOpen, setBugOpen] = useState(false);
   const [changelogOpen, setChangelogOpen] = useState(false);
+  const [changelogTab, setChangelogTab] = useState<ChangelogTab>('releases');
   // Issue #94: a newer build than this one, if the release pipeline has
   // recorded one. Checked once per cold start — see the useEffect below.
   const [availableUpdate, setAvailableUpdate] = useState<AvailableUpdate | null>(null);
@@ -419,10 +421,17 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
             <Caption style={{ textAlign: 'center' }}>
               {`Version ${formatVersionBuild(appVersion(), appBuildNumber())}`}
             </Caption>
+            {feedbackHistoryPath() ? (
+              <DrawerRow
+                icon="message-text-outline"
+                label="My feedback"
+                onPress={() => { setOpen(false); setChangelogTab('feedback'); setChangelogOpen(true); }}
+              />
+            ) : null}
             <DrawerRow
               icon="history"
               label="Change log"
-              onPress={() => { setOpen(false); setChangelogOpen(true); }}
+              onPress={() => { setOpen(false); setChangelogTab('releases'); setChangelogOpen(true); }}
             />
           </View>
 
@@ -611,7 +620,11 @@ export function DrawerHost({ enabled }: { enabled: Record<string, boolean> }) {
       </Animated.View>
 
       {changelogOpen ? (
-        <ChangelogSheet onClose={() => setChangelogOpen(false)} />
+        <ChangelogSheet
+          initialTab={changelogTab}
+          onClose={() => setChangelogOpen(false)}
+          onNavigate={(path) => { setChangelogOpen(false); router.push(path); }}
+        />
       ) : null}
     </View>
   );
