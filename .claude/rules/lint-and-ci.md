@@ -147,16 +147,11 @@ the gate speak.
 
 ## The node-forge advisories
 
-node-forge 1.4.1 and later fix the high severity advisories that affected
-1.4.0. The root `package.json` has an override, `node-forge@<=1.4.0` to
-`>=1.4.1`, so every path resolves to a patched release. The ignore for
-GHSA-86w9-cpqp-85rv was removed because it is no longer needed.
+node-forge 1.4.0 and earlier have several high severity advisories. They include GHSA-86w9-cpqp-85rv, GHSA-5x38-2vff-x55p, GHSA-7wch-p9px-956x, GHSA-8hrf-8g6f-7xwp, GHSA-hqq3-7jhf-c5jx and GHSA-jc66-7q78-782g. Patched releases now exist, so the root `package.json` has the override `"node-forge@<=1.4.0": ">=1.4.1"` and the lockfile resolves node-forge to 1.4.2. None of these advisories are in `pnpm.auditConfig.ignoreGhsas`.
 
-node-forge is reached through `@expo/cli` and through
-admin's `@react-three/fiber` and `three` dependencies. Admin declares those two
-packages and imports neither. Removing them is worth doing on its own rather
-than inside an audit fix. Portal's use of `@react-three/fiber`
-(`FluidBackground.tsx`) is needed and stays.
+node-forge reaches the production graph through `@react-three/fiber > expo > @expo/cli`, because admin declares `@react-three/fiber` and `three` as production dependencies and imports neither. Removing them is worth doing on its own rather than inside an audit fix. Portal imports `@react-three/fiber` in `FluidBackground.tsx`, so it stays there.
+
+Keep the override until the dependency chain no longer pins a vulnerable node-forge.
 
 ## husky / lint-staged
 
