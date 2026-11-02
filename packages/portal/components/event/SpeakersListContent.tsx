@@ -5,6 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { getClientBrandConfig, isLightColor } from '@/config/brand'
 import { getSupabaseClient } from '@/lib/supabase/client'
+import { r2StorageUrl, rewriteStorageUrl } from '@/lib/storagePublic'
 import { useEventContext } from './EventContext'
 import { GlowBorder } from '@/components/ui/GlowBorder'
 import { toPublicUrl } from '@gatewaze/shared'
@@ -317,7 +318,8 @@ function SpeakerCard({ speaker, useDarkText, primaryColor, panelTheme, isFeature
 
   // Construct company logo URL from storage path
   const companyLogoUrl = speaker.company_logo_storage_path
-    ? `${storageUrl}/storage/v1/object/public/speaker-logos/${speaker.company_logo_storage_path}`
+    ? r2StorageUrl('speaker-logos', speaker.company_logo_storage_path) ??
+      `${storageUrl}/storage/v1/object/public/speaker-logos/${speaker.company_logo_storage_path}`
     : null
 
   return (
@@ -328,7 +330,7 @@ function SpeakerCard({ speaker, useDarkText, primaryColor, panelTheme, isFeature
           <div className="flex-shrink-0">
             {speaker.avatar_url ? (
               <Image
-                src={toPublicUrl(speaker.avatar_url, bucketUrl) ?? speaker.avatar_url}
+                src={rewriteStorageUrl(toPublicUrl(speaker.avatar_url, bucketUrl) ?? speaker.avatar_url)}
                 alt={speaker.full_name}
                 width={isFeatured ? 96 : 80}
                 height={isFeatured ? 96 : 80}

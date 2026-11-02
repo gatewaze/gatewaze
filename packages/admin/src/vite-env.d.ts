@@ -14,6 +14,10 @@ interface ImportMetaEnv {
   readonly VITE_AUTH_MODE?: string
   /** Real Supabase URL for OAuth redirect URIs and public storage URLs; defaults to VITE_SUPABASE_URL. */
   readonly VITE_SUPABASE_PUBLIC_URL?: string
+  /** Public origin of the brand's R2 bucket. Unset: files stay on Supabase Storage. */
+  readonly VITE_STORAGE_PUBLIC_URL?: string
+  /** Comma-separated hosts whose Supabase storage addresses belong to this brand and are rewritten. */
+  readonly VITE_STORAGE_LEGACY_HOSTS?: string
 }
 
 interface ImportMeta {

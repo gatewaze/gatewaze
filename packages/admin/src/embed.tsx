@@ -147,6 +147,13 @@ export function mount(el: HTMLElement, ctx: GwHostContext): { unmount(): void } 
       // Only when set, so an existing embed's config is unchanged.
       ...(hostSession ? { VITE_AUTH_MODE: 'host-session' } : {}),
       ...(validCtx.supabase.publicUrl ? { VITE_SUPABASE_PUBLIC_URL: validCtx.supabase.publicUrl } : {}),
+      // Only for a brand whose files moved to R2; see lib/storageConfig.ts.
+      ...(validCtx.storage
+        ? {
+            VITE_STORAGE_PUBLIC_URL: validCtx.storage.publicUrl,
+            VITE_STORAGE_LEGACY_HOSTS: (validCtx.storage.legacyHosts ?? []).join(','),
+          }
+        : {}),
     };
 
     // Before render: Radix's portalled components read this at their own first render, and the

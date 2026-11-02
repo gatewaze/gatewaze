@@ -10,6 +10,7 @@
  */
 
 import { toPublicUrl } from '@gatewaze/shared'
+import { rewriteStorageUrl } from '@/lib/storagePublic'
 
 /**
  * Fields on the `events` table that store internal image paths. Keep in sync with
@@ -40,7 +41,10 @@ function resolveFields<T>(
   for (const f of fields) {
     const v = src[f]
     if (typeof v === 'string' && v.length > 0) {
-      const resolved = toPublicUrl(v, bucketUrl)
+      // A legacy full address of this brand's own storage moves to R2 when the
+      // brand has it; on every other brand rewriteStorageUrl is a no-op.
+      const found = toPublicUrl(v, bucketUrl)
+      const resolved = found ? rewriteStorageUrl(found) : found
       if (resolved !== v) {
         out[f] = resolved
         changed = true
@@ -76,5 +80,6 @@ export function resolveStorageUrl(
   path: string | null | undefined,
   bucketUrl: string,
 ): string | null {
-  return toPublicUrl(path, bucketUrl)
+  const resolved = toPublicUrl(path, bucketUrl)
+  return resolved ? rewriteStorageUrl(resolved) : resolved
 }

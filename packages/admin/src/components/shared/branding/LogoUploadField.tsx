@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Text } from "@radix-ui/themes";
 import { Upload, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { supabase } from "@/lib/supabase";
+import { publicStorageUrl, rewriteStorageUrl } from "@/lib/storagePublic";
+import { uploadToStorage } from "@/lib/storageUpload";
 import { toStoragePath } from "@gatewaze/shared";
 
 export function LogoUploadField({
@@ -58,12 +59,9 @@ export function LogoUploadField({
     try {
       const ext = file.name.split(".").pop();
       const filePath = `branding/${settingKey}.${ext}`;
-      const { error: err } = await supabase.storage
-        .from("media")
-        .upload(filePath, file, { upsert: true });
-      if (err) throw err;
+      const { path } = await uploadToStorage("media", filePath, file, { upsert: true });
       // Persist the relative storage path — readers resolve via toPublicUrl at display time.
-      onChange(filePath);
+      onChange(path);
     } catch (err) {
       console.error("Upload failed:", err);
     } finally {
@@ -76,9 +74,8 @@ export function LogoUploadField({
   // Supabase connection). Idempotent.
   const displayUrl = (() => {
     if (!value) return "";
-    if (/^https?:\/\//.test(value)) return value;
-    const { data } = supabase.storage.from("media").getPublicUrl(value);
-    return data.publicUrl;
+    if (/^https?:\/\//.test(value)) return rewriteStorageUrl(value);
+    return publicStorageUrl("media", value);
   })();
 
   // Normalize what's shown in the raw text box to the relative path when possible.
