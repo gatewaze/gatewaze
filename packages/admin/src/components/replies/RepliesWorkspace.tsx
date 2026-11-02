@@ -33,7 +33,7 @@ export interface WorkspaceReply {
 type SentMessage = SentReplyMessage & { reply_id: string };
 
 interface RepliesWorkspaceProps {
-  kind: 'broadcast' | 'newsletter';
+  kind: 'broadcast' | 'newsletter' | 'event';
   replies: WorkspaceReply[];
   sent: SentMessage[];
   personByEmail: Record<string, string>;
@@ -86,7 +86,10 @@ export function RepliesWorkspace({ kind, replies, sent, personByEmail, onReload,
   // DB write happens in parallel and the parent poll reconciles.
   const [overrides, setOverrides] = useState<Record<string, Partial<WorkspaceReply>>>({});
 
-  const table = kind === 'broadcast' ? 'broadcast_replies' : 'newsletter_replies';
+  const table =
+    kind === 'broadcast' ? 'broadcast_replies'
+    : kind === 'event' ? 'event_replies'
+    : 'newsletter_replies';
 
   const rows = useMemo(
     () => replies.map((r) => (overrides[r.id] ? { ...r, ...overrides[r.id] } : r)),
@@ -128,7 +131,20 @@ export function RepliesWorkspace({ kind, replies, sent, personByEmail, onReload,
 
   const applyStatus = (id: string, fields: Partial<WorkspaceReply>) => {
     setOverrides((o) => ({ ...o, [id]: { ...(o[id] || {}), ...fields } }));
-    void supabase.from(table).update(fields).eq('id', id);
+    void supabase.from(table).update(fields).eq('id', id).then(({ error }) => {
+      if (!error) return;
+      // Write was rejected (e.g. missing grant/RLS) — roll back the optimistic
+      // override instead of leaving the UI showing a status that never persisted.
+      console.error(`[RepliesWorkspace] failed to update ${table} ${id}:`, error);
+      setOverrides((o) => {
+        const current = o[id];
+        if (!current) return o;
+        const next = { ...current };
+        for (const key of Object.keys(fields)) delete next[key as keyof WorkspaceReply];
+        const { [id]: _removed, ...rest } = o;
+        return Object.keys(next).length > 0 ? { ...rest, [id]: next } : rest;
+      });
+    });
   };
 
   const toggleExpand = (reply: WorkspaceReply) => {

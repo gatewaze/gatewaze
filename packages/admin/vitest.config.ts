@@ -12,6 +12,7 @@ export default defineConfig({
     alias: {
       '@': path.join(__dirname, 'src'),
       '@gatewaze/shared': path.resolve(__dirname, '../shared/src'),
+      'virtual:gatewaze-modules': path.resolve(__dirname, 'test/stubs/virtual-gatewaze-modules.ts'),
     },
   },
 });

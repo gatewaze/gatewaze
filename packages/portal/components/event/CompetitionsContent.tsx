@@ -296,11 +296,17 @@ export function CompetitionsContent() {
 
   useEffect(() => {
     async function fetchCompetitions() {
+      // events_competitions.event_id is the uuid FK to events.id.
+      if (!event.id) {
+        setCompetitions([])
+        setIsLoading(false)
+        return
+      }
       const supabase = getSupabaseClient()
       const { data } = await supabase
         .from('events_competitions')
         .select('*')
-        .eq('event_id', event.event_id)
+        .eq('event_id', event.id)
         .eq('status', 'active')
         .order('sort_order', { ascending: true })
 
@@ -324,7 +330,7 @@ export function CompetitionsContent() {
       setIsLoading(false)
     }
     fetchCompetitions()
-  }, [event.event_id, session])
+  }, [event.id, session])
 
   const panelTheme = useMemo(() => ({
     panelBg: useDarkText ? 'bg-gray-900/15' : 'bg-white/15',

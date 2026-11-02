@@ -125,7 +125,25 @@ const config: GatewazeConfig = {
 
 Git repos are shallow-cloned (`--depth 1`) to `.gatewaze-modules/<repo-slug>/` in the project root. On subsequent builds, existing clones are updated with `git pull --ff-only`. The `.gatewaze-modules/` directory is git-ignored.
 
-If no `moduleSources` are specified, the default is `['../gatewaze-modules/modules']`.
+The `gatewaze.config.ts` that ships in the repository points at the public
+module repository, so a fresh clone finds the open-source modules without any
+sibling checkout:
+
+```typescript
+moduleSources: [
+  {
+    url: 'https://github.com/gatewaze/gatewaze-modules.git',
+    path: 'modules',
+    branch: 'main',
+    label: 'Free',
+  },
+],
+```
+
+Two other things feed the same list. The `MODULE_SOURCES` environment variable
+takes a comma-separated list of `url[@branch][#path]` entries, which is how the
+Helm chart passes sources to the pods. Sources added from the Modules page in
+the admin are stored in the `module_sources` table and merged in at load time.
 
 ---
 

@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase';
 
 interface ReplyComposerProps {
   /** Which module the reply belongs to — routes the send server-side. */
-  kind: 'broadcast' | 'newsletter';
+  kind: 'broadcast' | 'newsletter' | 'event';
   /** The inbound reply row id we're responding to. */
   replyId: string;
   /** Recipient (the person who replied). */

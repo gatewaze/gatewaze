@@ -94,3 +94,13 @@ export const navigationIcons: Record<string, ElementType> = {
   "tag": HeroOutline.TagIcon,
   "logout": HeroOutline.ArrowLeftStartOnRectangleIcon,
 };
+
+/**
+ * Icon component for a name, or undefined when there is none. Only the
+ * registry's own keys count, so a name that came from stored data (e.g. a
+ * layout override such as "constructor") can't resolve to an inherited
+ * Object property.
+ */
+export function getNavigationIcon(name: string | undefined): ElementType | undefined {
+  return name && Object.hasOwn(navigationIcons, name) ? navigationIcons[name] : undefined;
+}

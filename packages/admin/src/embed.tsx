@@ -1,0 +1,226 @@
+// Base stylesheet. The standalone app pulls this in from main.tsx, which the library build never
+// reaches — so without these imports the embed shipped with no Radix Themes CSS, no Tailwind base
+// and no fonts, leaving every Radix component (tabs, buttons, badges) unstyled in the host.
+// styles/index.css also carries the @source directives that make Tailwind scan the module repos,
+// so module-specific utilities are generated too.
+import '@fontsource/inter/400.css';
+import '@fontsource/inter/500.css';
+import '@fontsource/inter/600.css';
+import '@fontsource/inter/700.css';
+import 'simplebar-react/dist/simplebar.min.css';
+import './styles/index.css';
+
+import { createRoot, type Root } from 'react-dom/client';
+import { StrictMode } from 'react';
+
+import { configureEmbedSupabase, configureHostSession } from '@/lib/supabase';
+
+import { getCompiledFeatures, getCompiledModuleIds } from './embed/compiledModules';
+import { EmbedApp } from './embed/EmbedApp';
+import { armFirstPaint, disarmFirstPaint } from './embed/firstPaint';
+import { setHostLoadingIndicator } from './embed/hostLoadingIndicator';
+import { setHostNotify } from './embed/hostNotify';
+import { setHostNavigate } from './embed/hostNavigate';
+import { setEmbeddedMode } from './embed/embedMode';
+import { setEmbedPortalContainer } from './embed/portalContainer';
+import { deregisterMount, tryRegisterMount } from './embed/registry';
+import { sanitizeMessage } from './embed/sanitize';
+import { createTelemetry } from './embed/telemetry';
+import { validateGwHostContext } from './embed/validateContext';
+import type { GwEmbedFatalError, GwHostContext } from './embed/types';
+
+export type { GwHostContext, GwEmbedFatalError, GwEmbedFatalErrorType, GwEmbedHandle } from './embed/types';
+
+/**
+ * Embed build version — bump alongside packages/admin/package.json's
+ * `version` field on release. The host logs this at mount so a support
+ * ticket can pin down exactly which embed build is live.
+ */
+export const version = '0.1.0-pilot';
+
+const NOOP_HANDLE = { unmount() {} };
+
+// A lost host session with no signIn.startUrl reloads the page so the host's
+// own guard takes over. If the host keeps answering "expired" (a
+// misconfigured proxy), that would reload forever; allow at most
+// MAX_RELOADS within RELOAD_WINDOW_MS, counted in sessionStorage so the
+// count survives the reloads it is limiting. Fails closed: if the count
+// cannot be read or recorded, it does not reload at all, because an
+// uncountable reload is exactly the loop this guards against.
+const RELOAD_GUARD_KEY = 'gw-embed-signed-out-reloads';
+const MAX_RELOADS = 2;
+const RELOAD_WINDOW_MS = 30_000;
+
+export function reloadForSignIn(): void {
+  const now = Date.now();
+  let recent: number[];
+  try {
+    const parsed: unknown = JSON.parse(window.sessionStorage.getItem(RELOAD_GUARD_KEY) ?? '[]');
+    recent = Array.isArray(parsed)
+      ? parsed.filter((t): t is number => typeof t === 'number' && now - t < RELOAD_WINDOW_MS)
+      : [];
+  } catch (err) {
+    console.warn('[gw-embed] session lost; cannot read the reload guard, so not reloading', err);
+    return;
+  }
+  if (recent.length >= MAX_RELOADS) {
+    console.warn('[gw-embed] session lost again right after reloading; not reloading again');
+    return;
+  }
+  try {
+    window.sessionStorage.setItem(RELOAD_GUARD_KEY, JSON.stringify([...recent, now]));
+  } catch (err) {
+    console.warn('[gw-embed] session lost; cannot record the reload guard, so not reloading', err);
+    return;
+  }
+  window.location.reload();
+}
+
+/**
+ * Unrecognized entries in ctx.enabled are ignored, never fatal — the host
+ * passes through module/feature ids from GW's own registry, and a
+ * mismatch (stale host config, a module not compiled into this build)
+ * should just mean "that gate never opens," not a broken mount.
+ */
+function warnOnUnknownEnablement(ctx: GwHostContext): void {
+  const compiledModuleIds = new Set(getCompiledModuleIds());
+  const compiledFeatures = new Set(getCompiledFeatures());
+
+  for (const id of ctx.enabled.moduleIds) {
+    if (!compiledModuleIds.has(id)) {
+      console.warn(`[gw-embed] enabled.moduleIds contains "${id}", which is not compiled into this embed build — ignored`);
+    }
+  }
+  for (const feature of ctx.enabled.features) {
+    if (!compiledFeatures.has(feature)) {
+      console.warn(`[gw-embed] enabled.features contains "${feature}", which no compiled module declares — ignored`);
+    }
+  }
+}
+
+function reportFatal(ctx: Pick<GwHostContext, 'onFatal'> | undefined, error: GwEmbedFatalError) {
+  console.warn(`[gw-embed] ${error.code}: ${error.message}`);
+  ctx?.onFatal?.(error);
+}
+
+/**
+ * Mount the Gatewaze admin module set into `el`. Validates `ctx` first,
+ * enforces the one-live-mount-per-page contract, then boots the React
+ * tree (error boundary -> provider stack -> router). See src/embed/*.tsx
+ * for the pieces; this file just wires them together and owns the
+ * mount/unmount lifecycle contract described in GwHostContext's doc
+ * comments (the embeddable admin-library build).
+ *
+ * Never throws — every failure path reports through onFatal (and
+ * console.warn as a floor) and returns a safe handle instead.
+ */
+export function mount(el: HTMLElement, ctx: GwHostContext): { unmount(): void } {
+  const validation = validateGwHostContext(ctx);
+  if (!validation.ok) {
+    reportFatal(ctx, validation.error);
+    return NOOP_HANDLE;
+  }
+  const validCtx = validation.ctx;
+
+  const registration = tryRegisterMount(el);
+  if (!registration.ok) {
+    reportFatal(validCtx, {
+      error_type: 'mount_aborted',
+      code: 'gw_double_mount',
+      message: 'A Gatewaze embed is already mounted on this page; only one live mount is supported.',
+      recoverable: false,
+    });
+    return NOOP_HANDLE;
+  }
+
+  let root: Root | null = null;
+  try {
+    // Set the runtime-config global before anything else touches a
+    // config-reading singleton (supabase.ts, the vite-plugin-gatewaze-
+    // modules build-time `define` rewrite reads this same global at
+    // runtime for every VITE_* reference discovered in source).
+    const hostSession = validCtx.session;
+    (globalThis as Record<string, unknown>).__GATEWAZE_CONFIG__ = {
+      VITE_SUPABASE_URL: validCtx.supabase.url,
+      VITE_SUPABASE_ANON_KEY: validCtx.supabase.anonKey,
+      VITE_API_URL: validCtx.apiBaseUrl === '' ? '/api/gw' : validCtx.apiBaseUrl,
+      // Only when set, so an existing embed's config is unchanged.
+      ...(hostSession ? { VITE_AUTH_MODE: 'host-session' } : {}),
+      ...(validCtx.supabase.publicUrl ? { VITE_SUPABASE_PUBLIC_URL: validCtx.supabase.publicUrl } : {}),
+    };
+
+    // Before render: Radix's portalled components read this at their own first render, and the
+    // host's element is the only thing keeping their overlays inside the scope our stylesheet is
+    // contained to. See embed/radixThemesPortal.tsx.
+    setEmbeddedMode(true);
+    setEmbedPortalContainer(validCtx.portalContainer);
+    setHostNotify(validCtx.notify);
+    setHostNavigate(typeof validCtx.navigateHost === 'function' ? validCtx.navigateHost : null);
+    setHostLoadingIndicator(validCtx.loadingIndicator);
+
+    if (hostSession) {
+      // storageKeySuffix is ignored: nothing is stored in the page.
+      const signIn = validCtx.signIn;
+      configureHostSession({
+        baseUrl: validCtx.supabase.url,
+        anonKey: validCtx.supabase.anonKey,
+        meUrl: hostSession.meUrl,
+        logoutUrl: hostSession.logoutUrl,
+        // The host owns sign-in. Without a startUrl, a reload hands the
+        // signed-out user to the host's own guard.
+        onSignedOut: signIn
+          ? () => window.location.assign(signIn.startUrl)
+          : reloadForSignIn,
+      });
+    } else {
+      configureEmbedSupabase({
+        url: validCtx.supabase.url,
+        anonKey: validCtx.supabase.anonKey,
+        storageKeySuffix: validCtx.storageKeySuffix,
+      });
+    }
+
+    warnOnUnknownEnablement(validCtx);
+
+    const telemetry = createTelemetry(validCtx.telemetry);
+    telemetry('gw_embed_mount', { version });
+    const mountedAt = performance.now();
+    armFirstPaint(el, () => telemetry('gw_embed_first_paint', { ms: Math.round(performance.now() - mountedAt) }));
+
+    root = createRoot(el);
+    root.render(
+      <StrictMode>
+        <EmbedApp ctx={validCtx} container={el} />
+      </StrictMode>,
+    );
+
+    const handle = {
+      unmount() {
+        setEmbeddedMode(false);
+        root?.unmount();
+        deregisterMount(el);
+        // The host owns this element and may reuse or drop it; holding a reference past unmount
+        // would keep it alive and would hand a stale container to the next mount.
+        setEmbedPortalContainer(null);
+        setHostNotify(null);
+        setHostNavigate(null);
+        setHostLoadingIndicator(null);
+        disarmFirstPaint();
+      },
+    };
+    return handle;
+  } catch (err) {
+    // Self-heal: a partial failure here must not poison the next mount
+    // attempt into the same or a different element.
+    deregisterMount(el);
+    disarmFirstPaint();
+    setHostLoadingIndicator(null);
+    reportFatal(validCtx, {
+      error_type: root ? 'render_crash' : 'import_failed',
+      code: 'gw_mount_failed',
+      message: sanitizeMessage(err),
+      recoverable: false,
+    });
+    return NOOP_HANDLE;
+  }
+}

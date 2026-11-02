@@ -2,6 +2,10 @@ import { defineConfig } from 'vitest/config';
 import path from 'path';
 
 export default defineConfig({
+  // tsconfig.json keeps `jsx: preserve` for Next's compiler, which would leave
+  // component JSX untransformed under vitest; compile it with React's
+  // automatic runtime here so components can be rendered in tests.
+  oxc: { jsx: { runtime: 'automatic' } },
   test: {
     globals: true,
     environment: 'jsdom',

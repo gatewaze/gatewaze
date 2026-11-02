@@ -339,6 +339,13 @@ export interface AdminRouteDefinition {
   requiredFeature: string;
   parentPath?: string;
   guard?: 'none' | 'auth' | 'admin' | 'super_admin';
+  /**
+   * 'bare' renders the page without the admin chrome (no sidebar or header),
+   * still behind sign-in. For full-screen pages a user reaches from a link,
+   * such as an approver's review view. Default 'app'. Hosts that don't know
+   * the field render the route inside the normal layout.
+   */
+  layout?: 'app' | 'bare';
 }
 
 export interface NavigationItem {
@@ -360,6 +367,15 @@ export interface NavigationItem {
    * layout; an org/user layout may move the item to any section.
    */
   defaultSection?: string;
+  /**
+   * Declares this item's page a **hub**: a launcher page, like Settings, that
+   * shows a grid of cards. The value is the hub id (e.g. 'marketing-os'). The
+   * Navigation editor gives each installed hub its own card list, stored under
+   * `NavLayout.hubs[<id>]`, and the hub page reads it back with
+   * `useNavHub(<id>)`. A card links to another nav item's page or, for a
+   * custom card, to a URL.
+   */
+  hub?: string;
 }
 
 /** Where a nav item lives: the left sidebar, or the Settings page. */
@@ -390,7 +406,16 @@ export interface NavLayout {
   sidebar: NavLayoutSection[];
   /** Items relocated onto the Settings page, in order. */
   settings: NavLayoutItem[];
-  /** Stable keys hidden from every surface. */
+  /**
+   * Cards on each module hub page, keyed by hub id (see
+   * {@link NavigationItem.hub}), in order. A card either references a nav item
+   * by key or is a custom link card (key `link:<slug>`). Hub lists are
+   * independent of the sidebar, settings and hidden placements: an item can be
+   * on a hub and in the sidebar at once. Optional so layouts saved before hubs
+   * existed stay valid.
+   */
+  hubs?: Record<string, NavLayoutItem[]>;
+  /** Stable keys hidden from the sidebar and the settings page. */
   hidden: string[];
   /** Stable key (or route path) of the default landing page after login. */
   defaultRoute?: string;
@@ -417,7 +442,10 @@ export interface NavLayoutSection {
  * references. Nesting is one level deep.
  */
 export interface NavLayoutItem {
-  /** Stable key of the underlying item, or a synthetic `group:<slug>` for a group. */
+  /**
+   * Stable key of the underlying item, a synthetic `group:<slug>` for a group,
+   * or a synthetic `link:<slug>` for a custom hub card.
+   */
   key: string;
   /** Override the module-declared icon when rendered (or the group's icon). */
   icon?: string;
@@ -425,7 +453,38 @@ export interface NavLayoutItem {
   label?: string;
   /** Present → this entry is a collapsible parent containing these leaf items. */
   children?: NavLayoutItem[];
+
+  // ── Hub card fields (entries in NavLayout.hubs only) ──────────────────────
+  /** Text under the title. Module cards default to the module's description. */
+  description?: string;
+  /** Short chips shown on the card. */
+  tags?: string[];
+  /** Small line above the title, e.g. "Agent 1". */
+  eyebrow?: string;
+  /** Card accent colour. Unset cards take a colour by position. */
+  accent?: NavHubAccent;
+  /** Shows the card greyed out with a "Coming soon" chip; it does not link anywhere. */
+  comingSoon?: boolean;
+  /**
+   * Custom cards only: an absolute http(s) URL, or a path starting with '/'.
+   * Inside the admin embed a path is a path in the host app (e.g. another
+   * part of LFX); in the standalone admin it is an admin route.
+   */
+  url?: string;
+  /** Custom cards only: open `url` in a new tab. */
+  newTab?: boolean;
 }
+
+/** Accent colours a hub card can use. Each is a Radix Themes colour scale. */
+export type NavHubAccent =
+  | 'violet'
+  | 'blue'
+  | 'green'
+  | 'amber'
+  | 'red'
+  | 'sky'
+  | 'purple'
+  | 'teal';
 
 export interface PortalRouteDefinition {
   path: string;
@@ -611,6 +670,14 @@ export interface ModuleContext {
 export interface ConfigField {
   key: string;
   type: 'string' | 'number' | 'boolean' | 'secret' | 'select';
+  /**
+   * For type === 'secret' only: opt in to at-rest encryption. The config save
+   * route seals the value (AES-256-GCM `v1:` envelope, GATEWAZE_SECRETS_KEY)
+   * before it reaches installed_modules.config, and the module must unseal on
+   * read (decryptSecret, tolerating legacy plaintext). Opt-in because modules
+   * that read their config raw would otherwise receive ciphertext.
+   */
+  encrypted?: boolean;
   label?: string;
   required: boolean;
   default?: string;
@@ -754,6 +821,7 @@ export interface InstalledModuleRow {
     order?: number;
     defaultLocation?: NavLocation;
     defaultSection?: string;
+    hub?: string;
   }> | null;
   edge_functions_hash?: string | null;
   source_id?: string | null;
@@ -763,6 +831,13 @@ export interface InstalledModuleRow {
    * whether an update is available (see api/src/routes/modules.ts update-check).
    */
   source_snapshot_hash?: string | null;
+  /**
+   * When the live snapshot was installed. Written alongside
+   * source_snapshot_hash by /enable and /apply-update, so a row with neither
+   * was never materialised into the live tree — a rename tombstone rather than
+   * an installed module.
+   */
+  snapshot_taken_at?: string | null;
   on_install_ran_at?: string | null;
   install_completed_at?: string | null;
   ui_contributions_ignored?: string[];

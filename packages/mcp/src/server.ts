@@ -1,5 +1,5 @@
 import { Server, type Tool } from '@modelcontextprotocol/server';
-import type { GatewazeApiClient } from './lib/supabase.js';
+import { ApiError, type GatewazeApiClient } from './lib/supabase.js';
 
 // ── Tool definitions ─────────────────────────────────────────────────────
 
@@ -239,9 +239,73 @@ const TOOLS: Tool[] = [
         to: { type: 'string', description: 'Registered before (ISO 8601)' },
         answers_contain: { type: 'string', description: "Free-text match over registration-form answers, e.g. 'engineer'" },
         group_by: { type: 'string', description: "'person' for distinct people with counts" },
-        limit: { type: 'number', description: 'Max rows (default 100, max 500)' },
+        limit: { type: 'number', description: 'Max rows (default 50, max 500 — page with offset for bulk pulls; check pagination.total first)' },
         offset: { type: 'number', description: 'Skip N rows' },
       },
+    },
+  },
+  {
+    name: 'people_search',
+    description:
+      "Search the WHOLE audience (all people, not just event registrants) through the platform's segment engine. Smart matching: country accepts names or ISO codes ('Japan'/'JP' both work), state accepts US names or USPS codes ('California'/'CA'), q matches full name. Compose freely — 'people in Japan not using Gmail' = country:'Japan' + email_not_contains:'gmail'. Arbitrary attribute filters via conditions. AFTER showing results, offer to save the filter as a named segment (segment_save) so it can be reused later. PII: requires the segments:people scope; identity-audited.",
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        q: { type: 'string', description: 'Full-name contains' },
+        country: { type: 'string', description: "Country name or ISO code ('Japan' or 'JP')" },
+        state: { type: 'string', description: "US state name or USPS code ('California' or 'CA')" },
+        city_contains: { type: 'string', description: 'City contains' },
+        email_contains: { type: 'string', description: 'Email contains' },
+        email_not_contains: { type: 'string', description: "Email does NOT contain (e.g. 'gmail')" },
+        company_contains: { type: 'string', description: 'Company contains' },
+        job_title_contains: { type: 'string', description: 'Job title contains' },
+        free_email: { type: 'boolean', description: 'true = free providers (gmail etc.), false = work addresses (precomputed flag)' },
+        conditions: {
+          type: 'array',
+          description: "Extra attribute conditions: [{field:'attributes.<key>'|'email'|'full_name', operator:'equals|contains|not_contains|starts_with|ends_with|is_set|is_not_set|in_list|matches_regex|...', value}]",
+          items: { type: 'object' },
+        },
+        match: { type: 'string', description: "'all' (default) or 'any'" },
+        limit: { type: 'number', description: 'Max rows (default 25, max 200)' },
+      },
+    },
+  },
+  {
+    name: 'segment_save',
+    description:
+      'Save an audience filter as a named dynamic segment owned by the signed-in user, reusable later via my_segments / segment_people (and by admins in broadcasts). CONFIRM the name with the user before saving. Takes the same filter params as people_search plus name/description. Requires the segments:write scope.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        name: { type: 'string', description: 'Segment name (confirm with the user first)' },
+        description: { type: 'string', description: 'Optional description' },
+        q: { type: 'string' }, country: { type: 'string' }, state: { type: 'string' },
+        city_contains: { type: 'string' }, email_contains: { type: 'string' },
+        email_not_contains: { type: 'string' }, company_contains: { type: 'string' },
+        job_title_contains: { type: 'string' }, free_email: { type: 'boolean' },
+        conditions: { type: 'array', items: { type: 'object' } },
+        match: { type: 'string' },
+      },
+      required: ['name'],
+    },
+  },
+  {
+    name: 'my_segments',
+    description:
+      "The signed-in user's saved segments (created via segment_save), newest first. Use segment_people to run one.",
+    inputSchema: { type: 'object' as const, properties: {} },
+  },
+  {
+    name: 'segment_people',
+    description:
+      'Run a saved segment by id and return its current members (count + rows). Requires the segments:people scope.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        id: { type: 'string', description: 'Segment UUID (from my_segments)' },
+        limit: { type: 'number', description: 'Max rows (default 25, max 200)' },
+      },
+      required: ['id'],
     },
   },
   {
@@ -574,6 +638,115 @@ const TOOLS: Tool[] = [
     name: 'signals_stats',
     description: 'Per-rule Signals telemetry: fires, dispatched/failed/suppressed counts, outcomes, clicks.',
     inputSchema: { type: 'object' as const, properties: {} },
+  },
+  {
+    name: 'privacy_request_submit',
+    description:
+      "File a data subject privacy request (GDPR/CCPA) for one or more email addresses, e.g. a right-to-erasure request forwarded by the privacy team. Returns the request id and its due date (one month after received_at). Filing changes nothing; run privacy_request_preview next to see what an erasure would remove. Requires the compliance:write scope.",
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        emails: { type: 'array', items: { type: 'string' }, description: "The person's email addresses (max 10)" },
+        request_type: { type: 'string', enum: ['data_deletion', 'data_export', 'data_correction', 'data_portability', 'consent_withdrawal', 'processing_restriction'], description: "Default 'data_deletion' (erasure)" },
+        source: { type: 'string', description: 'Where the request came from, e.g. a ticket reference' },
+        received_at: { type: 'string', description: 'ISO date the person made the request. Defaults to now.' },
+        notes: { type: 'string' },
+      },
+      required: ['emails'],
+    },
+  },
+  {
+    name: 'privacy_request_status',
+    description:
+      "Status of privacy requests: pass id for one request, or email to list every request for that address. Shows the preview (tables and row counts, never row contents), the erasure, outside services, manual steps and due date. include_report=true adds the Markdown report for the reply to the person. Requires the compliance:read scope.",
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        id: { type: 'string', description: 'Request id (uuid)' },
+        email: { type: 'string', description: 'Exact email address' },
+        include_report: { type: 'boolean' },
+      },
+    },
+  },
+  {
+    name: 'privacy_request_preview',
+    description:
+      'Build the erasure preview for a data_deletion request: every table that holds the person, how many rows, whether each is deleted or kept with identifiers removed, and anything blocking the erasure. Changes nothing. Runs in the background; poll privacy_request_status. The erasure itself is run by a Gatewaze admin (or the API with the compliance:erase grant), not through MCP, so a person always confirms it. Requires the compliance:write scope.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: { id: { type: 'string', description: 'Request id (uuid)' } },
+      required: ['id'],
+    },
+  },
+
+  // ── Content-discovery sources (content-sources module, /api/v1/content-sources) ──
+  {
+    name: 'content_sources_list',
+    description:
+      "List the content-discovery sources this platform harvests (RSS/Atom feeds, sitemaps and HTML pages scanned for new posts): site and feed URL, foundation/project, status and last fetch. status is one of pending (submitted, awaiting admin approval), active, paused, dead. pagination.total is the complete count for the given filters (use limit=1 for count questions). Requires the content-sources:read scope.",
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        status: { type: 'string', enum: ['pending', 'active', 'paused', 'dead'], description: 'Filter by lifecycle status' },
+        foundation: { type: 'string', description: 'Filter by foundation (exact match)' },
+        q: { type: 'string', description: 'Filter by site/feed URL or title (partial match)' },
+        limit: { type: 'number', description: 'Max results (default 25, max 100)' },
+        offset: { type: 'number', description: 'Skip N results (default 0)' },
+      },
+    },
+  },
+  {
+    name: 'content_sources_get',
+    description: 'Get one content-discovery source by UUID with its full record. Requires the content-sources:read scope.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        id: { type: 'string', description: 'Source UUID (from content_sources_list)' },
+      },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'content_sources_resolve',
+    description:
+      "Discover the feeds a site offers WITHOUT tracking anything: returns candidates (feed_url, how it was found, kind, title, entry_count, newest_entry_at, whether it is cross-domain or a root index) plus any fetch errors. Call this before content_sources_submit to pick the right feed_url, or to answer 'does this site have an RSS feed?'. Requires the content-sources:read scope.",
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        site_url: { type: 'string', description: 'The site (or blog section) URL to inspect, e.g. https://example.org/blog' },
+      },
+      required: ['site_url'],
+    },
+  },
+  {
+    name: 'content_sources_submit',
+    description:
+      'Submit a new content-discovery source. The server resolves the feed from site_url unless feed_url is given (use content_sources_resolve first when a site offers several). The source always lands with status=pending for an administrator to approve in the admin Content hub, whatever scopes the caller holds. A site that is already tracked returns an ALREADY_TRACKED error carrying the existing source id in details.id. Requires the content-sources:write scope.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        site_url: { type: 'string', description: 'The site URL to track' },
+        feed_url: { type: 'string', description: 'Specific feed/sitemap URL to use (optional; resolved from site_url when omitted)' },
+        foundation: { type: 'string', description: 'Foundation the source belongs to (display section)' },
+        project: { type: 'string', description: 'Project within the foundation (optional)' },
+        note: { type: 'string', description: 'Why this source is worth tracking (shown to the approving admin)' },
+      },
+      required: ['site_url'],
+    },
+  },
+  {
+    name: 'content_sources_set_status',
+    description:
+      "Change a content-discovery source's lifecycle status — approve a pending submission (status=active), pause or retire (dead) a source — optionally recording a note. CONFIRM with the user before changing status. Requires the content-sources:admin scope.",
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        id: { type: 'string', description: 'Source UUID' },
+        status: { type: 'string', enum: ['pending', 'active', 'paused', 'dead'], description: 'New lifecycle status' },
+        note: { type: 'string', description: 'Reason for the change (optional)' },
+      },
+      required: ['id', 'status'],
+    },
   },
 ];
 
@@ -926,6 +1099,43 @@ async function handleResourcesItemsList(
   return api.get(`/resources/collections/${params.collection_id}/items`, queryParams);
 }
 
+// ── Content-discovery sources handlers ───────────────────────────────────
+// Thin wrappers over the content-sources module's public API
+// (/api/v1/content-sources/*). Unlike the resources_* tools these forward an
+// explicit ALLOWLIST of body fields rather than the whole params object: the
+// API's own allowlist is the real guard, but an MCP client that pads the
+// call with extra keys should not even reach it.
+
+/** Copy only the named keys, dropping undefined, so bodies carry no strays. */
+function pick(params: Record<string, unknown>, ...keys: string[]): Record<string, unknown> {
+  const body: Record<string, unknown> = {};
+  for (const key of keys) {
+    if (params[key] !== undefined) body[key] = params[key];
+  }
+  return body;
+}
+
+const CONTENT_SOURCE_STATUSES = new Set(['pending', 'active', 'paused', 'dead']);
+
+async function handleContentSourcesList(
+  params: Record<string, unknown>,
+  api: GatewazeApiClient,
+) {
+  const queryParams: Record<string, string | number | undefined> = {};
+  if (params.status) {
+    const status = String(params.status);
+    if (!CONTENT_SOURCE_STATUSES.has(status)) {
+      return { error: `status must be one of ${[...CONTENT_SOURCE_STATUSES].join(', ')}` };
+    }
+    queryParams.status = status;
+  }
+  if (params.foundation) queryParams.foundation = String(params.foundation);
+  if (params.q) queryParams.q = String(params.q);
+  if (params.limit) queryParams.limit = Number(params.limit);
+  if (params.offset) queryParams.offset = Number(params.offset);
+  return api.get('/content-sources/sources', queryParams);
+}
+
 // ── Server factory ───────────────────────────────────────────────────────
 
 /**
@@ -986,6 +1196,13 @@ const OAUTH_TOOL_SCOPES: Record<string, string | null> = {
   events_metrics_summary: 'events:metrics',
   events_registrant_breakdown: 'events:metrics',
   events_registrants: 'events:registrants',
+  people_search: 'segments:people',
+  my_segments: 'segments:people',
+  segment_people: 'segments:people',
+  segment_save: 'segments:write',
+  privacy_request_submit: 'compliance:write',
+  privacy_request_status: 'compliance:read',
+  privacy_request_preview: 'compliance:write',
   resources_collections_list: 'resources:write',
   resources_collection_get: 'resources:write',
   resources_collection_create: 'resources:write',
@@ -999,6 +1216,14 @@ const OAUTH_TOOL_SCOPES: Record<string, string | null> = {
   resources_item_sections_set: 'resources:write',
   resources_section_blocks_set: 'resources:write',
   resources_block_kinds: 'resources:write',
+  // Mirror the content-sources API's own scopes (as privacy_* mirrors
+  // compliance:*): the hosted server calls the API with its own key, so this
+  // table is where the CALLER's grant is checked.
+  content_sources_list: 'content-sources:read',
+  content_sources_get: 'content-sources:read',
+  content_sources_resolve: 'content-sources:read',
+  content_sources_submit: 'content-sources:write',
+  content_sources_set_status: 'content-sources:admin',
 };
 
 /**
@@ -1013,6 +1238,20 @@ const LOG_REQUESTS = process.env.MCP_LOG_REQUESTS !== '0';
 
 function truncate(s: string, max = 600): string {
   return s.length > max ? `${s.slice(0, max)}…(${s.length})` : s;
+}
+
+/** Recursively remove `_links` keys (HAL navigation the REST API injects). */
+function stripLinks(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stripLinks);
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (k === '_links') continue;
+      out[k] = stripLinks(v);
+    }
+    return out;
+  }
+  return value;
 }
 
 /** Best-effort row count for list-shaped API responses ({data: [...]}) */
@@ -1049,9 +1288,27 @@ export function buildInstructions(brandName?: string, brandDescription?: string)
   }
   lines.push(
     'Use content_list/content_get for cross-module content (newsletter editions, blog posts, resource items, events); events_* for event specifics; calendars_list only to scope queries to a named sub-calendar within the platform.',
+    'The content_sources_* tools (where your access includes them) manage the sites and feeds the platform harvests posts from: list/get to inspect them, resolve to find a site\'s feeds, submit to propose a new one (it lands pending for an administrator), set_status to approve, pause or retire one.',
   );
   return lines.join('\n\n');
 }
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Privacy tool arguments name the data subject. The call log is kept for
+ * audit, so keep only fields that can't identify anyone and replace the rest.
+ */
+const PRIVACY_LOG_FIELDS = new Set(['id', 'request_type', 'include_report', 'received_at']);
+function redactPrivacyArgs(params: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(params)) {
+    out[k] = PRIVACY_LOG_FIELDS.has(k) ? v : Array.isArray(v) ? `[${v.length} redacted]` : '[redacted]';
+  }
+  return out;
+}
+
+const EMAIL_IN_TEXT = /[^\s@<>"'(),;:]+@[^\s@<>"'(),;:]+\.[a-z0-9-]{2,}/gi;
 
 export interface CallerIdentity {
   subject: string;
@@ -1129,7 +1386,7 @@ export function createGatewazeMcpServer(
     const base = {
       profile,
       tool: name,
-      args: truncate(JSON.stringify(params)),
+      args: truncate(JSON.stringify(name.startsWith('privacy_') ? redactPrivacyArgs(params) : params)),
       ...logMeta,
     };
 
@@ -1208,13 +1465,76 @@ export function createGatewazeMcpServer(
           for (const k of ['q', 'id', 'city', 'event_from', 'event_to', 'source', 'status', 'from', 'to', 'answers_contain', 'group_by'] as const) {
             if (params[k]) queryParams[k] = String(params[k]);
           }
-          if (params.limit) queryParams.limit = Number(params.limit);
+          // Chat-sized default: registrant rows are heavy (answers arrays);
+          // 500-row pages have blown client token caps. Callers page
+          // explicitly for bulk pulls.
+          queryParams.limit = params.limit ? Number(params.limit) : 50;
           if (params.offset) queryParams.offset = Number(params.offset);
           result = await api.get('/events/registrants', queryParams);
           break;
         }
         case 'events_nearby':
           result = await handleEventsNearby(params, api, (logMeta as { ip?: string } | undefined)?.ip);
+          break;
+        case 'people_search': {
+          const queryParams: Record<string, string | number | undefined> = {};
+          for (const k of ['q', 'country', 'state', 'city_contains', 'email_contains', 'email_not_contains', 'company_contains', 'job_title_contains', 'match'] as const) {
+            if (params[k]) queryParams[k] = String(params[k]);
+          }
+          if (typeof params.free_email === 'boolean') queryParams.free_email = String(params.free_email);
+          if (Array.isArray(params.conditions)) queryParams.conditions = JSON.stringify(params.conditions);
+          if (params.limit) queryParams.limit = Number(params.limit);
+          result = await api.get('/segments/people', queryParams);
+          break;
+        }
+        case 'segment_save':
+          if (!identity) {
+            result = { error: 'segment_save requires a signed-in session (segments are owned by their creator).' };
+          } else {
+            result = await api.post('/segments', { ...params, person_id: identity.personId });
+          }
+          break;
+        case 'my_segments':
+          if (!identity) {
+            result = { error: 'my_segments requires a signed-in session.' };
+          } else {
+            result = await api.get('/segments/mine', { person_id: identity.personId });
+          }
+          break;
+        case 'privacy_request_submit':
+          result = await api.post('/privacy/requests', {
+            emails: params.emails,
+            request_type: params.request_type,
+            source: params.source,
+            requested_at: params.received_at,
+            notes: params.notes,
+            ...(identity ? { person_id: identity.personId } : {}),
+          });
+          break;
+        case 'privacy_request_status': {
+          if (params.id !== undefined) {
+            const id = String(params.id);
+            if (!UUID_RE.test(id)) { result = { error: 'id must be a uuid' }; break; }
+            result = await api.get(`/privacy/requests/${id}`);
+            if (params.include_report === true) {
+              const report = await api.get(`/privacy/requests/${id}/report`);
+              result = { ...(result as Record<string, unknown>), report };
+            }
+          } else if (typeof params.email === 'string' && params.email) {
+            result = await api.get('/privacy/requests', { email: params.email });
+          } else {
+            result = { error: 'pass id or email' };
+          }
+          break;
+        }
+        case 'privacy_request_preview': {
+          const id = String(params.id ?? '');
+          if (!UUID_RE.test(id)) { result = { error: 'id must be a uuid' }; break; }
+          result = await api.post(`/privacy/requests/${id}/preview`, identity ? { person_id: identity.personId } : {});
+          break;
+        }
+        case 'segment_people':
+          result = await api.get(`/segments/${params.id}/people`, params.limit ? { limit: Number(params.limit) } : {});
           break;
         case 'my_registrations':
           if (!identity) {
@@ -1323,6 +1643,44 @@ export function createGatewazeMcpServer(
         case 'signals_stats':
           result = await api.get('/signals/stats');
           break;
+        case 'content_sources_list':
+          result = await handleContentSourcesList(params, api);
+          break;
+        case 'content_sources_get': {
+          const id = String(params.id ?? '');
+          if (!UUID_RE.test(id)) { result = { error: 'id must be a uuid' }; break; }
+          result = await api.get(`/content-sources/sources/${id}`);
+          break;
+        }
+        case 'content_sources_resolve': {
+          const siteUrl = typeof params.site_url === 'string' ? params.site_url.trim() : '';
+          if (!siteUrl) { result = { error: 'site_url is required' }; break; }
+          result = await api.post('/content-sources/resolve', { site_url: siteUrl });
+          break;
+        }
+        case 'content_sources_submit': {
+          const siteUrl = typeof params.site_url === 'string' ? params.site_url.trim() : '';
+          if (!siteUrl) { result = { error: 'site_url is required' }; break; }
+          // The hosted key is the deployment's, not the caller's, so a submit over
+          // MCP never auto-activates even when that key carries the admin scope.
+          result = await api.post('/content-sources/sources', {
+            site_url: siteUrl,
+            ...pick(params, 'feed_url', 'foundation', 'project', 'note'),
+            as_pending: true,
+          });
+          break;
+        }
+        case 'content_sources_set_status': {
+          const id = String(params.id ?? '');
+          if (!UUID_RE.test(id)) { result = { error: 'id must be a uuid' }; break; }
+          const status = String(params.status ?? '');
+          if (!CONTENT_SOURCE_STATUSES.has(status)) {
+            result = { error: `status must be one of ${[...CONTENT_SOURCE_STATUSES].join(', ')}` };
+            break;
+          }
+          result = await api.patch(`/content-sources/sources/${id}`, { status, ...pick(params, 'note') });
+          break;
+        }
         default:
           emit({ ...base, outcome: 'unknown_tool', ms: Date.now() - startedAt });
           return {
@@ -1334,14 +1692,30 @@ export function createGatewazeMcpServer(
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      emit({ ...base, outcome: 'error', error: truncate(message, 300), ms: Date.now() - startedAt });
+      emit({ ...base, outcome: 'error', error: truncate(name.startsWith('privacy_') ? message.replace(EMAIL_IN_TEXT, '[email]') : message, 300), ms: Date.now() - startedAt });
+      // Same `{error}` shape as always; API envelope errors additionally keep
+      // their machine-readable code/details (a 409 ALREADY_TRACKED names the
+      // existing row in details.id) so agents can act on them without parsing
+      // the message.
+      const envelope: Record<string, unknown> = { error: message };
+      if (err instanceof ApiError) {
+        if (err.code) envelope.code = err.code;
+        if (err.details !== undefined) envelope.details = err.details;
+      }
       return {
-        content: [{ type: 'text', text: JSON.stringify({ error: message }) }],
+        content: [{ type: 'text', text: JSON.stringify(envelope) }],
         isError: true,
       };
     }
 
-    const text = JSON.stringify(result, null, 2);
+    // Token diet for chat clients: drop the REST layer's HAL _links noise
+    // (agents never follow them; on row-shaped results it's one block per
+    // row), and switch to compact JSON once results outgrow chat size —
+    // pretty-printing turns each row into ~14 lines and has blown clients'
+    // per-result token caps on registrant exports.
+    result = stripLinks(result);
+    const pretty = JSON.stringify(result, null, 2);
+    const text = pretty.length > 8_000 ? JSON.stringify(result) : pretty;
     const rows = resultRows(result);
     emit({
       ...base,

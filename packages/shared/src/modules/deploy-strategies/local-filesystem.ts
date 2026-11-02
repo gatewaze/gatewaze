@@ -89,9 +89,12 @@ export class LocalFilesystemStrategy implements DeploymentStrategy {
   }
 
   async syncSecrets(_secrets: Array<{ name: string; value: string }>): Promise<void> {
-    // Local dev: secrets are environment variables set in docker-compose.yml.
-    // Module-specific secrets from admin UI are stored in installed_modules.config
-    // and read by edge functions at invocation time via Supabase client.
+    // Local dev: secrets are environment variables set in docker-compose.yml
+    // and passed through to the supabase-edge-functions service there.
+    // Module secrets must NOT live in installed_modules.config: enabled
+    // modules' config is readable with the public anon key, so a secret
+    // stored there is effectively public. (The lfid-auth module stopped
+    // reading its client secret from config for exactly that reason.)
   }
 
   isAvailable(): boolean {

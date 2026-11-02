@@ -4,9 +4,14 @@ node_modules/
 
 # Build outputs
 dist/
+dist-embed/
 .next/
 .turbo/
 out/
+# Incremental build cache. When this is committed, `tsc -b` reads it on a fresh
+# clone, decides the project is already up to date, and emits no dist/. Subpath
+# imports such as '@gatewaze/shared/modules' then fail with ERR_MODULE_NOT_FOUND.
+*.tsbuildinfo
 
 # Environment
 .env
@@ -49,6 +54,7 @@ supabase/functions/_shared/*
 !supabase/functions/_shared/cors.ts
 !supabase/functions/_shared/email.ts
 !supabase/functions/_shared/integrationEvents.ts
+!supabase/functions/_shared/onboarding-gates.ts
 !supabase/functions/_shared/supabase.ts
 !supabase/functions/admin-add-first/
 !supabase/functions/admin-nl-query/
@@ -93,3 +99,7 @@ packages/portal/lib/modules/generated-*
 CLAUDE.local.md
 
 .agents/
+
+# Python bytecode. A compiled .pyc was committed under scripts/ once.
+__pycache__/
+*.pyc

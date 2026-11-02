@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { portalOrigins, sameOriginPath } from '@/lib/sameOriginPath'
 
 /**
  * Auth callback handler for magic link sign-in.
@@ -16,7 +17,9 @@ import { cookies } from 'next/headers'
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get('code')
-  const redirectTo = requestUrl.searchParams.get('redirectTo') || '/'
+  // `new URL('//evil.example', origin)` resolves to another host, so the
+  // redirect target is reduced to a same-origin path before it reaches it.
+  const redirectTo = sameOriginPath(requestUrl.searchParams.get('redirectTo'), portalOrigins(requestUrl.origin))
   const error = requestUrl.searchParams.get('error')
   const errorDescription = requestUrl.searchParams.get('error_description')
 

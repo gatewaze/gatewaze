@@ -111,6 +111,12 @@ export function filterNavigationByPermissions(
 ): NavigationTree[] {
   return navigation
     .map((item) => {
+      // Role gate first: some surfaces are super_admin only regardless of
+      // brand features or module state, and their API is gated to match.
+      if ('superAdminOnly' in item && item.superAdminOnly && !isSuperAdmin) {
+        return null;
+      }
+
       // First, check brand feature - this applies to everyone, even super admins
       // If the brand doesn't support this feature, hide it completely
       if ('requiredFeature' in item && item.requiredFeature) {

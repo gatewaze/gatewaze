@@ -35,7 +35,7 @@ export type { BootstrapResult } from './bootstrap';
 export type { DeployEdgeFunctionsOptions, DeployResult } from './deploy-edge-functions';
 export type { DeploymentStrategy, DeployFunctionRequest, DeployFunctionResult, DeployErrorCode, DeploymentEnvironment } from './deploy-strategies';
 export type { MigrationLintResult } from './migration-linter';
-export { encryptSecret, decryptSecret, getLast4, maskSecret, isEncryptionConfigured } from './secrets';
+export { encryptSecret, decryptSecret, getLast4, maskSecret, isEncryptionConfigured, sealSecretConfigFields } from './secrets';
 export type {
   GatewazeModule,
   GatewazeConfig,
@@ -49,6 +49,7 @@ export type {
   NavLayout,
   NavLayoutSection,
   NavLayoutItem,
+  NavHubAccent,
   PortalRouteDefinition,
   WorkerDefinition,
   SchedulerDefinition,

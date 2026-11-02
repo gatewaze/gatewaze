@@ -45,7 +45,18 @@ RUN chmod +x /docker-entrypoint.sh
 # in unhealthy state when the cluster has issues.
 ARG BUILD_TIME_MODULE_SOURCES="https://github.com/gatewaze/gatewaze-modules.git#branch=main&path=modules,https://github.com/gatewaze/lf-gatewaze-modules.git#branch=main&path=modules"
 ARG BUILD_TIME_GITHUB_TOKEN=""
+# Hosted embed baked alongside the admin bundle (served at /embed/). The
+# runtime ADMIN_EMBED_MODULES must match this list exactly for the baked
+# copy to be served; a different list is only built on the slow path (a
+# fresh clone per pod), never by the boot refresh, so that every replica
+# of one image serves the same embed — see build_embed in entrypoint.sh.
+# Empty = no embed baked.
+ARG BUILD_TIME_EMBED_MODULES="newsletters,content-platform,host-media,templates,editor-ai-copilot,broadcasts"
+# Release tag, stamped into /embed/manifest.json so a host can report which
+# build it loaded.
+ARG ADMIN_IMAGE_VERSION="dev"
 ENV BUILD_TIME_MODULE_SOURCES=$BUILD_TIME_MODULE_SOURCES
+ENV ADMIN_IMAGE_VERSION=$ADMIN_IMAGE_VERSION
 ENV ADMIN_NODE_HEAP_MB=4608
 # Wrap in `|| (clean up and warn)` so a private-repo clone failure or
 # any other prebuild error doesn't abort the image build — the runtime
@@ -53,6 +64,7 @@ ENV ADMIN_NODE_HEAP_MB=4608
 # the same behaviour as before the prebuild was added.
 RUN MODULE_SOURCES="$BUILD_TIME_MODULE_SOURCES" \
     GITHUB_TOKEN="$BUILD_TIME_GITHUB_TOKEN" \
+    ADMIN_EMBED_MODULES="$BUILD_TIME_EMBED_MODULES" \
     PREBUILD=1 \
     /docker-entrypoint.sh && \
     mv /usr/share/nginx/html /usr/share/nginx/html-prebuilt && \

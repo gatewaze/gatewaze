@@ -4,7 +4,7 @@
  * Uses OAuth per-event authorization (not service accounts)
  */
 
-import { supabase } from '@/lib/supabase';
+import { getSupabasePublicUrl, supabase } from '@/lib/supabase';
 
 // =============================================================================
 // Types
@@ -63,7 +63,10 @@ export function getGoogleOAuthUrl(
   notificationType: GoogleSheetsNotificationType,
   returnUrl: string
 ): string {
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  // A top-level navigation that leaves for Google and comes back to the edge
+  // function, so it uses the real Supabase URL, not the admin origin that
+  // VITE_SUPABASE_URL is in host-session mode.
+  const supabaseUrl = getSupabasePublicUrl();
   const params = new URLSearchParams({
     event_id: eventId,
     notification_type: notificationType,

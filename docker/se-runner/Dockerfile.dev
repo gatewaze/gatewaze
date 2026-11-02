@@ -36,8 +36,9 @@ RUN --mount=type=cache,id=pnpm-se-runner-dev,target=/root/.local/share/pnpm/stor
 COPY gatewaze.config.ts ./
 RUN printf 'const m = require("./gatewaze.config.ts");\nconst c = m.default || m;\nObject.defineProperty(c, "__esModule", { value: true });\nmodule.exports = c;\nmodule.exports.default = c;\n' > gatewaze.config.js
 
-# Shared must be built so its exports map ./dist/* paths resolve. Force a clean
-# emit — the repo tracks tsconfig.tsbuildinfo and a stale one makes tsc a no-op.
+# Shared must be built so its exports map ./dist/* paths resolve. tsconfig.tsbuildinfo
+# is gitignored, but an untracked local copy can still reach the build context, and a
+# stale one makes `tsc -b` a no-op. Drop it first so the emit always happens.
 COPY packages/shared/ packages/shared/
 RUN rm -f packages/shared/tsconfig.tsbuildinfo && pnpm --filter @gatewaze/shared build && test -d packages/shared/dist
 

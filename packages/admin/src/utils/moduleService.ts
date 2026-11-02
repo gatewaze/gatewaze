@@ -20,6 +20,22 @@ async function apiFetch(input: string, init: RequestInit = {}): Promise<Response
   return fetch(input, { ...init, headers });
 }
 
+/**
+ * The error text from an API error body. Routes answer either
+ * { error: 'text' } or { error: { code, message } }; callers render the
+ * result, and rendering the object form as a React child crashes the page
+ * (minified React error #31).
+ */
+export function apiErrorMessage(body: unknown, fallback: string): string {
+  const err = (body as { error?: unknown } | null)?.error;
+  if (typeof err === 'string' && err) return err;
+  if (err && typeof err === 'object') {
+    const msg = (err as { message?: unknown }).message;
+    if (typeof msg === 'string' && msg) return msg;
+  }
+  return fallback;
+}
+
 export interface ModuleInfo {
   id: string;
   name: string;
@@ -80,7 +96,7 @@ export class ModuleService {
       const res = await apiFetch(`${apiUrl}/api/modules/${moduleId}/preflight`);
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        return { ok: false, warnings: [], error: body.error ?? `Preflight failed (${res.status})` };
+        return { ok: false, warnings: [], error: apiErrorMessage(body, `Preflight failed (${res.status})`) };
       }
       return { ok: body.ok ?? false, warnings: body.warnings ?? [] };
     } catch (error) {
@@ -104,7 +120,7 @@ export class ModuleService {
 
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        return { success: false, error: body.error ?? `Failed (${res.status})` };
+        return { success: false, error: apiErrorMessage(body, `Failed (${res.status})`) };
       }
 
       return {
@@ -184,7 +200,7 @@ export class ModuleService {
         const body = await res.json().catch(() => ({}));
         return {
           success: false,
-          error: body.error ?? `Reconciliation failed (${res.status})`,
+          error: apiErrorMessage(body, `Reconciliation failed (${res.status})`),
         };
       }
 
@@ -210,7 +226,7 @@ export class ModuleService {
 
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        return { success: false, error: body.error ?? `Failed (${res.status})` };
+        return { success: false, error: apiErrorMessage(body, `Failed (${res.status})`) };
       }
 
       return { success: true };
@@ -235,7 +251,7 @@ export class ModuleService {
       const res = await apiFetch(`${apiUrl}/api/modules/available`);
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        return { modules: [], error: body.error ?? `Failed (${res.status})` };
+        return { modules: [], error: apiErrorMessage(body, `Failed (${res.status})`) };
       }
       return { modules: body.modules ?? [], error: null };
     } catch (error) {
@@ -260,7 +276,7 @@ export class ModuleService {
       const res = await apiFetch(`${apiUrl}/api/modules/check-updates`);
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        return { updates: [], error: body.error ?? `Failed (${res.status})` };
+        return { updates: [], error: apiErrorMessage(body, `Failed (${res.status})`) };
       }
       return { updates: body.updates ?? [], platformVersion: body.platformVersion, error: null };
     } catch (error) {
@@ -287,7 +303,7 @@ export class ModuleService {
 
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        return { success: false, error: body.error ?? `Failed (${res.status})` };
+        return { success: false, error: apiErrorMessage(body, `Failed (${res.status})`) };
       }
 
       return {
@@ -307,6 +323,8 @@ export class ModuleService {
   static async updateAllModules(): Promise<{
     success: boolean;
     updated?: { id: string; name: string; previousVersion: string; newVersion: string }[];
+    skipped?: { id: string; name: string; reason: string }[];
+    failed?: { id: string; code: string; reason: string }[];
     edgeFunctionsDeployed?: string[];
     error?: string;
   }> {
@@ -319,12 +337,14 @@ export class ModuleService {
 
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        return { success: false, error: body.error ?? `Failed (${res.status})` };
+        return { success: false, error: apiErrorMessage(body, `Failed (${res.status})`) };
       }
 
       return {
         success: true,
         updated: body.updated,
+        skipped: body.skipped,
+        failed: body.failed,
         edgeFunctionsDeployed: body.edgeFunctionsDeployed,
       };
     } catch (error) {
@@ -348,7 +368,7 @@ export class ModuleService {
       const res = await apiFetch(`${apiUrl}/api/modules/sources`);
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        return { sources: null, error: body.error ?? `Failed (${res.status})` };
+        return { sources: null, error: apiErrorMessage(body, `Failed (${res.status})`) };
       }
       const body = await res.json();
       return { sources: body.sources, error: null };
@@ -377,7 +397,7 @@ export class ModuleService {
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        return { success: false, error: body.error ?? `Failed (${res.status})` };
+        return { success: false, error: apiErrorMessage(body, `Failed (${res.status})`) };
       }
 
       const body = await res.json();
@@ -405,7 +425,7 @@ export class ModuleService {
         const body = await res.json().catch(() => ({}));
         return {
           success: false,
-          error: body?.error?.message ?? `Failed (${res.status})`,
+          error: apiErrorMessage(body, `Failed (${res.status})`),
         };
       }
       const body = await res.json();
@@ -434,7 +454,7 @@ export class ModuleService {
         const body = await res.json().catch(() => ({}));
         return {
           success: false,
-          error: body?.error?.message ?? `Failed (${res.status})`,
+          error: apiErrorMessage(body, `Failed (${res.status})`),
         };
       }
       const body = await res.json();
@@ -461,7 +481,7 @@ export class ModuleService {
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        return { success: false, error: body.error ?? `Failed (${res.status})` };
+        return { success: false, error: apiErrorMessage(body, `Failed (${res.status})`) };
       }
 
       return { success: true };
@@ -484,7 +504,7 @@ export class ModuleService {
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        return { success: false, error: body.error ?? `Failed (${res.status})` };
+        return { success: false, error: apiErrorMessage(body, `Failed (${res.status})`) };
       }
 
       return { success: true };
@@ -510,7 +530,7 @@ export class ModuleService {
 
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        return { success: false, error: body.error ?? `Failed (${res.status})` };
+        return { success: false, error: apiErrorMessage(body, `Failed (${res.status})`) };
       }
 
       return { success: true };
@@ -537,7 +557,7 @@ export class ModuleService {
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        return { success: false, error: body.error ?? `Upload failed (${res.status})` };
+        return { success: false, error: apiErrorMessage(body, `Upload failed (${res.status})`) };
       }
 
       const body = await res.json();

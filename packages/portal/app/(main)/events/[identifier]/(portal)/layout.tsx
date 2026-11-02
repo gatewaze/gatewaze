@@ -10,6 +10,7 @@ import {
   type AdPixelConfig,
 } from '@/lib/portal-data'
 import { EventLayoutClient } from '@/components/event/EventLayoutClient'
+import { getEnabledModules } from '@/lib/modules/enabledModules'
 import { AdPixels } from '@/components/tracking/AdPixels'
 import { EventJsonLd } from '@/components/structured-data'
 import { resolveEventImages } from '@/lib/storage-resolve'
@@ -48,10 +49,11 @@ export default async function EventDetailLayout({ children, params }: Props) {
     notFound()
   }
 
-  const [counts, adPixelConfig, recommendedRaw] = await Promise.all([
+  const [counts, adPixelConfig, recommendedRaw, modules] = await Promise.all([
     getEventCounts(identifier),
     getEventAdPixels(identifier),
     event.recommended_event_id ? getEventRecommended(identifier) : Promise.resolve(null),
+    getEnabledModules(),
   ])
 
   const speakerCount = counts?.speakerCount ?? 0
@@ -95,6 +97,8 @@ export default async function EventDetailLayout({ children, params }: Props) {
         mediaCount={mediaCount}
         hasVirtualEvent={hasVirtualEvent}
         recommendedEvent={recommendedEvent}
+        enabledModuleIds={[...modules.enabledIds]}
+        enabledFeatures={[...modules.enabledFeatures]}
       >
         {children}
       </EventLayoutClient>

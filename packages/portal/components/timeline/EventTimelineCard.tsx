@@ -7,6 +7,7 @@ import { useViewportBlur } from '@/hooks/useViewportBlur'
 import { useNearestCenterGlow } from './useNearestCenterGlow'
 import { type UserLocation, getDistanceToEventByCity, usesImperialUnits } from '@/lib/location'
 import { stripEmojis } from '@/lib/text'
+import { cardImage } from '@/lib/cardImage'
 
 interface Props {
   event: Event
@@ -17,7 +18,15 @@ interface Props {
 
 export function EventTimelineCard({ event, brandConfig, userLocation }: Props) {
   const eventUrl = `/events/${event.event_slug || event.event_id}`
-  const imageUrl = event.event_logo || event.screenshot_url
+  // Screenshot first. It is generated at the card's own aspect ratio, whereas
+  // `event_logo` is whatever shape the organiser drew: techtickets carries 18
+  // upcoming events with a legacy logo from the old site, several of them
+  // wordmark strips up to 10:1, and `object-cover` was cropping those to the
+  // middle fifth (EuroRust's 237x30 logo showed as "RORU"). Two of the 18 point
+  // at files that 404. The logo stays as a fallback for an event that somehow
+  // has one without a screenshot, though the portal no longer lists those.
+  const imageUrl = event.screenshot_url || event.event_logo
+  const cardImg = imageUrl ? cardImage(imageUrl, brandConfig.cdnBaseUrl) : null
   const { ref: blurRef, inView } = useViewportBlur()
 
   // On mobile (no hover), the card nearest the viewport's vertical centre lights its glow border,
@@ -61,11 +70,15 @@ export function EventTimelineCard({ event, brandConfig, userLocation }: Props) {
       >
         {/* Event Details (below the banner on mobile, left column on desktop) */}
         <div className="order-2 sm:order-1 flex-1 min-w-0 pl-4 pr-3 py-4 flex flex-col justify-between">
-          {/* Top-left: category, then title directly underneath. The category row reserves its
-              height even when empty so the title sits at the same position on every card. */}
+          {/* Top-left: category, then title directly underneath. The category row used to reserve
+              its height even when empty, so that the title lined up across cards. On a brand whose
+              events carry no content_category that left an empty band above every title, so the row
+              is only rendered when there is a badge to put in it. In a mixed list the titles of
+              categorised and uncategorised cards no longer start at the same height, which is the
+              intended trade for not holding space that is usually unused. */}
           <div>
-            <div className="h-5 mb-3">
-              {categoryLabel && (
+            {categoryLabel && (
+              <div className="mb-3">
                 <span
                   className="inline-flex self-start px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded-sm"
                   style={{
@@ -75,10 +88,10 @@ export function EventTimelineCard({ event, brandConfig, userLocation }: Props) {
                 >
                   {categoryLabel}
                 </span>
-              )}
-            </div>
+              </div>
+            )}
             <h3
-              className="text-white font-semibold text-base sm:text-lg
+              className="text-white font-semibold text-lg sm:text-xl
                          group-hover:text-white/90 transition-colors line-clamp-2"
               style={{ fontFamily: 'var(--font-display)' }}
             >
@@ -98,15 +111,27 @@ export function EventTimelineCard({ event, brandConfig, userLocation }: Props) {
         </div>
 
         {/* Event Screenshot.
-            Mobile: full-width banner on top at the image's full native aspect ratio (no cropping —
-            square posters just make the card taller), with the details below at full width.
-            Desktop: right column at native aspect ratio, fixed to the card height and width-capped so
-            it can't crowd out the details (object-cover trims only when a very wide image hits the cap). */}
-        {imageUrl && (
+            Mobile: full-width banner on top, with the details below at full width.
+            Desktop: right column fixed to the card height and width-capped so it can't crowd out
+            the details (object-cover trims only when a very wide image hits the cap).
+
+            `cardImage` supplies intrinsic width/height for our normalised 640x336 previews, so the
+            browser reserves the box before the image loads. Without that the card had no height
+            until each image arrived, and because the timeline is virtualised by date group and
+            measures groups after mount, every arriving image shifted the offsets of all later
+            groups while the user was scrolling. An `event_logo` or external image can be any
+            aspect ratio, so it comes back from `cardImage` untouched and still sizes naturally. */}
+        {cardImg && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={imageUrl}
+            src={cardImg.src}
+            srcSet={cardImg.srcSet}
+            sizes={cardImg.sizes}
+            width={cardImg.width}
+            height={cardImg.height}
             alt=""
+            loading="lazy"
+            decoding="async"
             className="order-1 sm:order-2 w-full h-auto sm:w-auto sm:h-full sm:max-w-[55%] object-cover flex-shrink-0"
           />
         )}

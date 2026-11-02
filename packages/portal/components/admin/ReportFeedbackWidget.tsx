@@ -157,10 +157,24 @@ export default function ReportFeedbackWidget() {
                   {busy && <div className="px-2.5 py-1 text-xs text-gray-500">thinking…</div>}
                 </div>
               )}
+              {!draft && atts.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {atts.map((a) => (
+                    <div key={a.key} className="group relative">
+                      {a.url
+                        /* eslint-disable-next-line @next/next/no-img-element -- transient client-side thumbnail of a just-pasted screenshot; no SEO/layout budget and the media host isn't in next images.remotePatterns */
+                        ? <img src={a.url} alt={a.name} className="h-14 w-14 rounded border object-cover" />
+                        : <div className="flex h-14 w-14 items-center justify-center rounded border bg-gray-100 text-[10px] text-gray-500 dark:bg-gray-800">…</div>}
+                      <button type="button" onClick={() => removeAtt(a.key)} className="absolute -right-1.5 -top-1.5 size-4 rounded-full bg-gray-900 text-[11px] leading-none text-white opacity-0 group-hover:opacity-100 dark:bg-gray-100 dark:text-gray-900" aria-label="Remove">×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="flex gap-2">
                 <textarea value={input} onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-                  placeholder="Describe the problem on this page…" rows={2} disabled={busy}
+                  onPaste={onPaste} onDrop={onDrop} onDragOver={(e) => e.preventDefault()}
+                  placeholder="Describe the problem on this page…  (paste or drop a screenshot to attach)" rows={2} disabled={busy}
                   className="min-w-0 flex-1 rounded-md border px-2.5 py-1.5 text-sm dark:bg-gray-800" />
                 <button onClick={send} disabled={busy || !input.trim()} className="rounded-md bg-blue-600 px-3 text-sm font-medium text-white disabled:opacity-50">→</button>
               </div>

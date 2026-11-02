@@ -39,7 +39,15 @@ export function Tabs({
       <div
         role="tablist"
         className={clsx(
+          // overflow-x-auto with hidden scrollbars: on a phone, a strip of
+          // seven sub-tabs is wider than the screen, and without this it
+          // widens the whole document instead of scrolling — every page
+          // renders at phone width against a void (the Body metrics screen
+          // was the reported case). flex-nowrap + shrink-0 children keep the
+          // labels readable rather than crushing them.
           "flex gap-1 border-b border-[var(--gray-a5)]",
+          "flex-nowrap overflow-x-auto overscroll-x-contain",
+          "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
           fullWidth && "px-(--margin-x)",
           className,
         )}
@@ -54,7 +62,7 @@ export function Tabs({
               aria-selected={active}
               onClick={() => onChange(tab.id)}
               className={clsx(
-                "px-4 py-2 text-sm font-medium transition-colors -mb-px inline-flex items-center gap-2 whitespace-nowrap",
+                "px-4 py-2 text-sm font-medium transition-colors -mb-px inline-flex shrink-0 items-center gap-2 whitespace-nowrap",
                 active
                   ? "border-b-2 border-[var(--accent-9)] text-[var(--accent-11)]"
                   : "border-b-2 border-transparent text-[var(--gray-a9)] hover:text-[var(--gray-12)]",
@@ -79,7 +87,9 @@ export function Tabs({
   // own surrounding layout (action bars, cards, etc.) below it.
   return (
     <RadixTabs.Root value={value} onValueChange={onChange} className={className} {...(fullWidth ? { "data-full-width": "" } : {})}>
-      <RadixTabs.List>
+      {/* Same phone problem as the underline variant: Radix's list does not
+          scroll on its own, so a long strip widens the document. */}
+      <RadixTabs.List className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {tabs.map((tab) => (
           <RadixTabs.Trigger
             key={tab.id}

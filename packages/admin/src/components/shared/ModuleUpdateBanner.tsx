@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { getSupabase } from "@/lib/supabase";
 import { useNavigate } from "react-router";
 import { ArrowPathIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { useModulesContext } from "@/app/contexts/modules/context";
@@ -6,15 +7,42 @@ import { useAuthContext } from "@/app/contexts/auth/context";
 
 /**
  * Global notification banner shown when module updates are available.
- * Renders at the top of the admin app for users with admin privileges.
+ *
+ * Shown ONLY to users who can actually action updates (super_admin — the
+ * Modules page gates install/update/toggle to that role), so it never nags
+ * someone with no button to press. An instance-wide override lives in
+ * Settings → Appearance (platform_settings key `hide_module_update_banner`),
+ * alongside the deployment-level VITE env switch below.
  */
+const HIDE_BANNER_KEY = "hide_module_update_banner";
+
 export function ModuleUpdateBanner() {
   const { user } = useAuthContext();
   const { availableUpdates } = useModulesContext();
   const navigate = useNavigate();
   const [dismissed, setDismissed] = useState(false);
+  const [instanceHidden, setInstanceHidden] = useState<boolean | null>(null);
 
-  const isAdmin = user?.role === "admin" || user?.role === "super_admin";
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const supabase = getSupabase();
+        const { data } = await supabase
+          .from("platform_settings")
+          .select("value")
+          .eq("key", HIDE_BANNER_KEY)
+          .maybeSingle();
+        if (!cancelled) setInstanceHidden(data?.value === "1" || data?.value === "on");
+      } catch {
+        if (!cancelled) setInstanceHidden(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Only the role that can action updates sees the nag.
+  const canActionUpdates = user?.role === "super_admin";
 
   const compatibleUpdates = availableUpdates.filter((u) => u.platformCompatible);
   const blockedUpdates = availableUpdates.filter((u) => !u.platformCompatible);
@@ -28,7 +56,11 @@ export function ModuleUpdateBanner() {
     return null;
   }
 
-  if (!isAdmin || availableUpdates.length === 0 || dismissed) {
+  if (instanceHidden !== false) {
+    // null = still loading the instance setting; true = instance override on.
+    return null;
+  }
+  if (!canActionUpdates || availableUpdates.length === 0 || dismissed) {
     return null;
   }
 

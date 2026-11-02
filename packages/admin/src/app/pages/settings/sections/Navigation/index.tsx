@@ -25,134 +25,29 @@ import { WorkspaceLayout } from "@/components/ui";
 import type { Tab } from "@/components/ui/Tabs";
 import { useBaseNavigation } from "@/hooks/useNavigation";
 import { useFeaturePermissions } from "@/hooks/useFeaturePermissions";
+import { useModulesContext } from "@/app/contexts/modules/context";
 import { buildPool, seedLayoutFromTree } from "@/app/navigation/resolveNavLayout";
 import { navigationIcons } from "@/app/navigation/icons";
 import { navLayoutService } from "@/utils/navLayoutService";
 import { IconPicker } from "./IconPicker";
+import { HubPanel } from "./HubPanel";
+import {
+  HIDDEN,
+  SETTINGS,
+  UNSORTED,
+  findContainerIn,
+  layoutToState,
+  secId,
+  stateToLayout,
+  withHubCards,
+  type Containers,
+  type EditorState,
+  type Override,
+} from "./editorModel";
 import type { NavLayout } from "@gatewaze/shared/modules";
 import type { NavigationTree } from "@/@types/navigation";
 
-// ── Editor model ────────────────────────────────────────────────────────────
-// Containers hold ordered item keys. Section containers are id'd `sec:<id>`;
-// the fixed containers are `settings`, `hidden`, and `unsorted` (the source
-// pool of not-yet-placed items, kept out of every live surface).
-
 type Scope = "org" | "me";
-type Containers = Record<string, string[]>;
-type Override = { label?: string; icon?: string };
-
-const SETTINGS = "settings";
-const HIDDEN = "hidden";
-const UNSORTED = "unsorted";
-const secId = (id: string) => `sec:${id}`;
-
-// A collapsible group is a container whose id IS its synthetic `group:*` key
-// (already unique + namespaced; no pool item ever collides). It belongs to a
-// section and holds leaf keys.
-
-interface EditorState {
-  containers: Containers;
-  sectionOrder: string[]; // section ids (without the sec: prefix)
-  sectionMeta: Record<string, { title?: string; icon?: string }>;
-  groups: Record<string, { label?: string; icon?: string }>;
-  sectionGroups: Record<string, string[]>; // section id -> ordered group keys
-  overrides: Record<string, Override>;
-  defaultRoute?: string;
-}
-
-function layoutToState(layout: NavLayout, poolKeys: string[]): EditorState {
-  const inPool = new Set(poolKeys);
-  const containers: Containers = { [SETTINGS]: [], [HIDDEN]: [], [UNSORTED]: [] };
-  const sectionOrder: string[] = [];
-  const sectionMeta: EditorState["sectionMeta"] = {};
-  const groups: EditorState["groups"] = {};
-  const sectionGroups: EditorState["sectionGroups"] = {};
-  const overrides: Record<string, Override> = {};
-  const placed = new Set<string>();
-
-  const take = (key: string) => {
-    if (!inPool.has(key) || placed.has(key)) return false;
-    placed.add(key);
-    return true;
-  };
-  const recordOverride = (key: string, icon?: string, label?: string) => {
-    if (icon || label) overrides[key] = { ...(icon && { icon }), ...(label && { label }) };
-  };
-
-  for (const section of layout.sidebar) {
-    const id = section.id;
-    sectionOrder.push(id);
-    sectionMeta[id] = { title: section.title, icon: section.icon };
-    containers[secId(id)] = [];
-    sectionGroups[id] = [];
-    for (const item of section.items) {
-      if (item.children && item.children.length > 0) {
-        // A collapsible group entry.
-        const gkey = item.key;
-        groups[gkey] = { label: item.label, icon: item.icon };
-        sectionGroups[id].push(gkey);
-        containers[gkey] = [];
-        for (const child of item.children) {
-          if (take(child.key)) {
-            containers[gkey].push(child.key);
-            recordOverride(child.key, child.icon, child.label);
-          }
-        }
-      } else if (take(item.key)) {
-        containers[secId(id)].push(item.key);
-        recordOverride(item.key, item.icon, item.label);
-      }
-    }
-  }
-  for (const item of layout.settings) {
-    if (take(item.key)) {
-      containers[SETTINGS].push(item.key);
-      recordOverride(item.key, item.icon, item.label);
-    }
-  }
-  for (const key of layout.hidden) {
-    if (take(key)) containers[HIDDEN].push(key);
-  }
-  // Anything in the pool the layout never referenced → Unsorted source bucket.
-  for (const key of poolKeys) {
-    if (!placed.has(key)) containers[UNSORTED].push(key);
-  }
-  if (sectionOrder.length === 0) {
-    sectionOrder.push("main");
-    sectionMeta.main = {};
-    containers[secId("main")] = [];
-    sectionGroups.main = [];
-  }
-  return { containers, sectionOrder, sectionMeta, groups, sectionGroups, overrides, defaultRoute: layout.defaultRoute };
-}
-
-function stateToLayout(state: EditorState): NavLayout {
-  const itemRef = (key: string) => ({ key, ...state.overrides[key] });
-  const groupRef = (gkey: string) => ({
-    key: gkey,
-    ...(state.groups[gkey]?.label ? { label: state.groups[gkey].label } : {}),
-    ...(state.groups[gkey]?.icon ? { icon: state.groups[gkey].icon } : {}),
-    children: (state.containers[gkey] ?? []).map(itemRef),
-  });
-  return {
-    version: 1,
-    sidebar: state.sectionOrder.map((id) => ({
-      id,
-      ...(state.sectionMeta[id]?.title ? { title: state.sectionMeta[id].title } : {}),
-      ...(state.sectionMeta[id]?.icon ? { icon: state.sectionMeta[id].icon } : {}),
-      items: [
-        ...(state.containers[secId(id)] ?? []).map(itemRef),
-        // Groups with no remaining children are dropped on save.
-        ...(state.sectionGroups[id] ?? [])
-          .filter((gkey) => (state.containers[gkey] ?? []).length > 0)
-          .map(groupRef),
-      ],
-    })),
-    settings: (state.containers[SETTINGS] ?? []).map(itemRef),
-    hidden: state.containers[HIDDEN] ?? [],
-    ...(state.defaultRoute ? { defaultRoute: state.defaultRoute } : {}),
-  };
-}
 
 // ── Presentational ──────────────────────────────────────────────────────────
 
@@ -242,12 +137,14 @@ function Container({
 export default function NavigationSettings() {
   const baseTree = useBaseNavigation();
   const { isSuperAdmin } = useFeaturePermissions();
+  const { rows } = useModulesContext();
+  const moduleDescriptions = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const row of rows) if (row.description) map.set(row.id, row.description);
+    return map;
+  }, [rows]);
 
   const pool = useMemo(() => buildPool(baseTree), [baseTree]);
-  const poolKeys = useMemo(
-    () => [...pool.sidebarDefaultIds, ...pool.settingsDefaultIds],
-    [pool],
-  );
 
   const [scope, setScope] = useState<Scope>("me");
   const [state, setState] = useState<EditorState | null>(null);
@@ -279,15 +176,15 @@ export default function NavigationSettings() {
           ]);
           layout = mine ?? org ?? seedLayoutFromTree(baseTree);
         }
-        setState(layoutToState(layout, poolKeys));
+        setState(layoutToState(layout, pool));
       } catch (err) {
         setMessage({ kind: "err", text: err instanceof Error ? err.message : "Failed to load" });
-        setState(layoutToState(seedLayoutFromTree(baseTree), poolKeys));
+        setState(layoutToState(seedLayoutFromTree(baseTree), pool));
       } finally {
         setLoading(false);
       }
     },
-    [baseTree, poolKeys],
+    [baseTree, pool],
   );
 
   useEffect(() => {
@@ -521,7 +418,7 @@ export default function NavigationSettings() {
       >
         <p className="mb-4 text-sm text-[var(--gray-11)]">
           {scope === "org"
-            ? "Arrange the navigation for everyone in the organization. Settings and Sign Out stay pinned; Unsorted items are hidden until you file them."
+            ? "Arrange the navigation for everyone in the organization. Settings and Sign Out stay pinned; Unsorted items are hidden until you file them. Module hub pages, such as a launcher of cards, have their own card lists below; a page can be in the sidebar and on a hub at once."
             : "Arrange your personal navigation. It overrides the organization default until you reset it. Settings and Sign Out stay pinned."}
         </p>
 
@@ -643,7 +540,7 @@ export default function NavigationSettings() {
                 </div>
                 <div>
                   <h2 className="mb-1.5 text-sm font-semibold uppercase tracking-wide text-[var(--gray-11)]">
-                    Unsorted (hidden)
+                    Unsorted (not in the sidebar)
                   </h2>
                   <Container id={UNSORTED} keys={state.containers[UNSORTED]}>
                     {state.containers[UNSORTED].map(renderItem)}
@@ -651,7 +548,7 @@ export default function NavigationSettings() {
                 </div>
                 <div>
                   <h2 className="mb-1.5 text-sm font-semibold uppercase tracking-wide text-[var(--gray-11)]">
-                    Hidden
+                    Hidden from the sidebar
                   </h2>
                   <Container id={HIDDEN} keys={state.containers[HIDDEN]}>
                     {state.containers[HIDDEN].map(renderItem)}
@@ -668,6 +565,23 @@ export default function NavigationSettings() {
               ) : null}
             </DragOverlay>
           </DndContext>
+        )}
+
+        {/* Module hub pages: card lists, independent of the sidebar. */}
+        {state && !loading && state.hubIds.length > 0 && (
+          <div className="mt-6 space-y-4">
+            {state.hubIds.map((id) => (
+              <HubPanel
+                key={id}
+                hubId={id}
+                title={pool.hubs.get(id)?.title ?? id}
+                cards={state.hubCards[id] ?? []}
+                pool={pool}
+                moduleDescriptions={moduleDescriptions}
+                onChange={(cards) => mutate((s) => withHubCards(s, id, cards))}
+              />
+            ))}
+          </div>
         )}
 
         {/* Default landing page */}
@@ -721,11 +635,6 @@ export default function NavigationSettings() {
       </WorkspaceLayout>
     </Page>
   );
-}
-
-function findContainerIn(state: EditorState, key: string): string | undefined {
-  if (state.containers[key]) return key;
-  return Object.keys(state.containers).find((c) => state.containers[c].includes(key));
 }
 
 function OverrideDialog({

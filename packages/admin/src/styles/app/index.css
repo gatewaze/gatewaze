@@ -16,6 +16,7 @@
 @import "./forms/swap.css";
 
 /* Components Styles */
+@import "./components/radix-ghost.css";
 @import "./components/steps.css";
 @import "./components/timeline.css";
 @import "./components/pagination.css";

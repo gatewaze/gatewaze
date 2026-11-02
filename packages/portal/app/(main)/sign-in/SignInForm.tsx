@@ -9,6 +9,7 @@ import { getEmailFromParams } from '@/lib/emailEncoding'
 import { GlowInput } from '@/components/ui/GlowInput'
 import { PortalButton } from '@/components/ui/PortalButton'
 import { ModuleSlot, hasPortalSlot } from '@/lib/modules'
+import { portalOrigins, sameOriginPath } from '@/lib/sameOriginPath'
 
 interface Props {
   brandConfig: BrandConfig
@@ -23,7 +24,7 @@ export function SignInForm({ brandConfig, enabledModuleIds = [], enabledFeatures
   const { signInWithMagicLink, user, isLoading } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const redirectTo = searchParams.get('redirectTo') || '/'
+  const redirectTo = sameOriginPath(searchParams.get('redirectTo'), portalOrigins())
 
   // When a sign-in provider module (e.g. LFID) is enabled, it replaces the
   // native magic-link form — the provider button becomes the only way in.
@@ -72,7 +73,7 @@ export function SignInForm({ brandConfig, enabledModuleIds = [], enabledFeatures
       // Prefer redirectTo from URL query param, fall back to localStorage
       const destination = redirectTo !== '/'
         ? redirectTo
-        : localStorage.getItem('auth_redirect_to') || '/'
+        : sameOriginPath(localStorage.getItem('auth_redirect_to'), portalOrigins())
       localStorage.removeItem('auth_redirect_to')
 
       import('@/lib/supabase/client').then(({ getSupabaseClient }) => {
@@ -104,11 +105,18 @@ export function SignInForm({ brandConfig, enabledModuleIds = [], enabledFeatures
     if (!isLoading && user) {
       const destination = redirectTo !== '/'
         ? redirectTo
-        : localStorage.getItem('auth_redirect_to') || '/'
+        : sameOriginPath(localStorage.getItem('auth_redirect_to'), portalOrigins())
       localStorage.removeItem('auth_redirect_to')
+      // A PKCE return (?code=) has just written the session cookie, so it
+      // needs the same full navigation as the hash flow above for the same
+      // reasons; an already-signed-in visitor can keep the soft push.
+      if (searchParams.has('code')) {
+        window.location.replace(destination)
+        return
+      }
       router.push(destination)
     }
-  }, [user, isLoading, router, redirectTo, isProcessingToken])
+  }, [user, isLoading, router, redirectTo, isProcessingToken, searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

@@ -157,29 +157,42 @@ export async function createTrackingSession(params: {
  * Update tracking session with email (for later matching)
  */
 export async function updateSessionEmail(sessionId: string, email: string): Promise<void> {
-  const supabase = getSupabaseClient()
   const emailHash = await hashValue(email)
-
-  await supabase
-    .from('integrations_ad_tracking_sessions')
-    .update({
-      email_hash: emailHash,
-    })
-    .eq('session_id', sessionId)
+  await touchSession(sessionId, { emailHash })
 }
 
 /**
  * Update tracking session when user redirects to external registration
  */
 export async function markSessionRedirected(sessionId: string): Promise<void> {
-  const supabase = getSupabaseClient()
+  await touchSession(sessionId, { externalRedirect: true })
+}
 
-  await supabase
-    .from('integrations_ad_tracking_sessions')
-    .update({
-      external_redirect_at: new Date().toISOString(),
+/**
+ * The two post-insert updates go through the event-tracking module's
+ * SECURITY DEFINER RPC (event-tracking migration 002). A direct UPDATE on
+ * integrations_ad_tracking_sessions silently matches no rows for a signed-in
+ * member: that role has no SELECT policy on the table, and an UPDATE with a
+ * WHERE clause needs one. The RPC validates the session id shape and only
+ * ever sets these two columns. Best-effort: a missing module (older install)
+ * or a failed call never affects the visitor's flow.
+ */
+async function touchSession(
+  sessionId: string,
+  opts: { externalRedirect?: boolean; emailHash?: string }
+): Promise<void> {
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(sessionId)) return
+  try {
+    const supabase = getSupabaseClient()
+    const { error } = await supabase.rpc('event_tracking_touch_session', {
+      p_session_id: sessionId,
+      p_external_redirect: opts.externalRedirect === true,
+      p_email_hash: opts.emailHash ?? null,
     })
-    .eq('session_id', sessionId)
+    if (error) console.warn('tracking session update skipped:', error.message)
+  } catch (err) {
+    console.warn('tracking session update skipped:', err)
+  }
 }
 
 /**

@@ -37,6 +37,37 @@ replicaCount:
   scheduler: 1
 
 # =============================================================================
+# Secrets
+# =============================================================================
+# By default the chart renders one Secret, <instance>-secret, from the
+# secret-bearing values below (supabase.*Key, redis.password, email.*,
+# githubToken, publicApi.apiKeyPepper, mcpPublic.*, tracking.segmentWriteKey,
+# adminBff.sessionSecret)
+# and every pod reads it through envFrom.
+#
+# Set existingSecret to the name of a Secret you manage yourself (for example
+# one that External Secrets builds from a vault) and the chart renders no
+# Secret of its own: envFrom, the mcp-public and fetcher references, and
+# redis-server all read from yours instead. Leave the secret-bearing values
+# empty in that case; they are ignored. The Secret must carry these keys:
+#
+#   SUPABASE_ANON_KEY, VITE_SUPABASE_ANON_KEY, NEXT_PUBLIC_SUPABASE_ANON_KEY,
+#   SUPABASE_SERVICE_ROLE_KEY, JWT_SECRET, DATABASE_URL,
+#   REDIS_URL            redis://:<password>@<instance>-redis:6379
+#   REDIS_PASSWORD       the same password on its own (redis-server reads it)
+#   SENDGRID_API_KEY, UNSUBSCRIBE_HMAC_SECRET      when email.provider=sendgrid
+#   GITHUB_TOKEN                                   when moduleSources has private repos
+#   API_KEY_PEPPER
+#   MCP_PUBLIC_API_KEY, MCP_TOKEN_SECRET, MCP_EVENTS_TOKEN   when mcpPublic.enabled
+#   SCRAPLING_INTERNAL_TOKEN                       when scraplingFetcher.enabled
+#   SEGMENT_WRITE_KEY                              optional
+#   ADMIN_BFF_SESSION_SECRET                       when adminBff.enabled (openssl rand -hex 32);
+#                                                  encrypts the admin session cookies and Redis records
+#   plus any env.* value you would rather keep out of the ConfigMap
+#   (later envFrom sources win, so a key here overrides the ConfigMap).
+existingSecret: ""
+
+# =============================================================================
 # Supabase Configuration
 # =============================================================================
 supabase:
@@ -201,6 +232,13 @@ ingress:
     # -- Public keyless MCP endpoint host (only routed when
     #    mcpPublic.enabled=true). Remember to add it to tls.hosts too.
     mcp: ""
+
+  # -- Extra hostnames routed to the portal, each in a separate Ingress with
+  #    its own TLS secret, so a certificate that can't be issued yet (DNS not
+  #    pointed here) never blocks renewal of the main hosts' certificate.
+  #    Typical use: a short-link-only domain listed in env.SHORT_LINK_HOSTS.
+  #    Entries: { host: go.example.com, tlsSecretName: optional }.
+  extraPortalHosts: []
 
   # -- TLS configuration
   tls:
@@ -603,8 +641,30 @@ customDomains:
 
 # =============================================================================
 # scrapling-fetcher service
-# spec: gatewaze-environments/specs/spec-scrapling-fetcher-service.md
+# The scrapers call this service instead of fetching pages themselves.
 # =============================================================================
+# -- Self-hosted Whisper transcription shim (spec-ai-voice-transcription).
+# Serves the ai module's mic-button dictation; audio never leaves the cluster.
+transcribe:
+  # -- Enable the transcribe Deployment + Service + PVC + Secret + NetworkPolicy
+  enabled: false
+  replicaCount: 1
+  image:
+    repository: ghcr.io/speaches-ai/speaches
+    tag: latest-cpu
+    pullPolicy: IfNotPresent
+  # -- REQUIRED when enabled: bearer the api authenticates with; mirror it to
+  # the api env as AI_TRANSCRIBE_SHARED_SECRET (and set AI_TRANSCRIBE_BASE_URL
+  # to http://<fullname>-transcribe:8000/v1).
+  apiKey: ""
+  # -- HuggingFace model cache (survives restarts; see template header for the
+  # one-time model install).
+  modelCacheSize: 5Gi
+  storageClassName: ""
+  resources:
+    requests: { cpu: 500m, memory: 1Gi }
+    limits: { cpu: "2", memory: 2Gi }
+
 scraplingFetcher:
   # -- Enable the scrapling-fetcher Deployment + Service + NetworkPolicy + Secret
   enabled: false
@@ -688,6 +748,36 @@ mcpPublic:
       cpu: "250m"
       memory: "256Mi"
 
+browserMcp:
+  # -- Enable the browser-mcp Deployment + Service + NetworkPolicy. Serves the
+  # browser_* and browserbase_fetch/search MCP tools over streamable HTTP, so
+  # agents can drive a headless browser. Internal only, with no ingress route:
+  # the api and worker reach it at http://<release>-browser-mcp:8080/mcp and
+  # need AI_MCP_HTTP_ALLOW_PRIVATE=true to connect over the private network.
+  # Register it in ai_mcp_servers as type=streamable_http.
+  #
+  # NOTE: the release pipeline does not publish this image yet. Build and push
+  # it yourself from packages/browser-mcp before enabling this.
+  enabled: false
+  replicaCount: 1
+  image:
+    repository: ghcr.io/gatewaze/browser-mcp
+    tag: latest
+    pullPolicy: IfNotPresent
+  # -- 'browserbase' drives a hosted browser; 'local' drives Chromium in the pod.
+  backend: browserbase
+  browserbaseApiKey: ""
+  browserbaseProjectId: ""
+  browserbaseRegion: ""
+  browserbaseContextId: ""
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "512Mi"
+    limits:
+      cpu: "1"
+      memory: "2Gi"
+
 eventsMcp:
   # -- Enable the events-mcp Deployment + Service + NetworkPolicy. Serves the
   # events_* MCP tools (luma-syncable read + luma_sync_* writeback) over
@@ -706,3 +796,62 @@ eventsMcp:
     limits:
       cpu: "500m"
       memory: "512Mi"
+
+# =============================================================================
+# Admin BFF (host-session mode) — docs/admin-bff.md
+# =============================================================================
+# The admin SPA's session holder: runs the LFID sign-in through GoTrue, keeps
+# the Supabase session server-side (Redis, behind an encrypted HttpOnly
+# cookie) and proxies Supabase, the API and Realtime with the real token, so
+# no access or refresh token ever reaches the browser. Opt-in; with both flags
+# false the chart renders exactly as it did before.
+adminBff:
+  # -- Deploy the admin-bff Deployment + Service (+ PDB). Requires
+  # adminBff.sessionSecret (or ADMIN_BFF_SESSION_SECRET in existingSecret).
+  enabled: false
+  # -- Switch the admin to host-session mode: sets VITE_AUTH_MODE=host-session
+  # (and the URLs that go with it) on the admin pods, and routes /bff,
+  # /rest/v1, /storage/v1, /functions/v1, /realtime/v1 and /api on the admin
+  # host to the BFF. Requires enabled=true and ingress.enabled=true. Turn on
+  # `enabled` first, check /bff/healthz, then this.
+  switchAdmin: false
+  replicaCount: 2
+  # -- GoTrue provider identifier for sign-in (a custom OIDC provider
+  # registered in Supabase Auth, v2.187+).
+  provider: "custom:lfid"
+  # -- Session lifetime in seconds: the cookie's maximum age, and how long an
+  # idle session is kept in Redis (renewed on each token refresh).
+  sessionTtlSeconds: 604800
+  # -- Supabase origin as the BFF reaches it, e.g. http://supabase-kong:8000
+  # for an in-cluster self-hosted Supabase. Empty = supabase.url.
+  supabaseInternalUrl: ""
+  # -- 32-byte master secret, 64 hex characters (openssl rand -hex 32). It
+  # encrypts the session cookies and the session records in Redis (separate
+  # keys are derived from it for each). For rotation, a comma-separated list:
+  # the first key encrypts, all decrypt. Keep an old key in the list for at
+  # least sessionTtlSeconds after rotating, or sessions it encrypted end.
+  # Ignored when existingSecret is set.
+  sessionSecret: ""
+  # -- Proxies whose X-Forwarded-For is trusted for the client address the
+  # sign-in rate limit counts by (names loopback/linklocal/uniquelocal,
+  # addresses or CIDRs, comma-separated). Empty = the BFF default,
+  # loopback,linklocal,uniquelocal. Narrow it to the ingress controller's pod
+  # CIDR if anything else in the cluster can reach the BFF.
+  trustProxy: ""
+  # -- Requests per minute per client address to /bff/login and to
+  # /bff/callback. Empty = the BFF default, 30. Each replica counts on its
+  # own, so with replicaCount 2 one address can make about twice this many.
+  signInRateLimit: ""
+  # -- Idle timeout in milliseconds for a proxied request. Empty = the BFF
+  # default, 300000. ingress-nginx closes an idle request after 60s by
+  # default, which caps this for long edge function calls. To raise it, add
+  # nginx.ingress.kubernetes.io/proxy-read-timeout: "300" (and
+  # proxy-send-timeout) to ingress.annotations; they apply to every host.
+  upstreamTimeoutMs: ""
+  resources:
+    requests:
+      cpu: 50m
+      memory: 96Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
