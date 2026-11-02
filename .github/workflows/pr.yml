@@ -131,20 +131,32 @@ jobs:
 
   # The portal runs `next build` at pod startup, so without this job a
   # change that breaks the build (a Next major, a config rename, a bad
-  # dependency) is first seen as crash-looping portal pods. The module
-  # registry generator clones the public gatewaze-modules repo here, so its
-  # portal pages are built too; private module repos are not.
+  # dependency) is first seen as crash-looping portal pods.
+  #
+  # The portal imports module code directly (@gatewaze-modules/events/...)
+  # and the registry generator reads module pages from a sibling checkout,
+  # so the job clones the public gatewaze-modules repo next to this one,
+  # the same layout local dev and the paired-worktree flow use. Private
+  # module repos are not built here. pnpm-workspace.yaml then pulls the
+  # module packages into the install, and the committed lockfile does not
+  # always match modules main, so this one job installs without
+  # --frozen-lockfile, the same way docker/portal/Dockerfile does. That
+  # fresh install is what exposed the hoisting fault described under
+  # "Why the root package.json depends on entities" in
+  # .claude/rules/lint-and-ci.md. Nothing it resolves is committed.
   portal-build:
     name: Portal build
     needs: [setup]
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with: { node-version: 22, cache: pnpm }
-      - run: pnpm install --frozen-lockfile
+      - name: Clone public modules as a sibling
+        run: git clone --depth 1 https://github.com/gatewaze/gatewaze-modules.git ../gatewaze-modules
+      - run: pnpm install --no-frozen-lockfile
       - name: Build shared (subpath exports)
         run: pnpm --filter @gatewaze/shared build
       - name: Build portal

@@ -96,6 +96,28 @@ Required-to-merge gates:
   `continue-on-error: true` is the canonical operator action if E2E
   flakes appear in the first week.
 
+## Why the root `package.json` depends on `entities`
+
+The portal's webpack config sets `resolve.symlinks = false` so module-source
+symlinks transpile and module files resolve React from the portal's
+`node_modules`. A side effect is that a package reached through a pnpm
+symlink resolves its own dependencies from pnpm's hidden hoist
+(`node_modules/.pnpm/node_modules`), not from what it declares. So the
+portal build depends on which version of a shared transitive package pnpm
+happens to hoist.
+
+That broke on the Next 16 lockfile (2 Nov 2026). On a fresh install, which
+is what CI and the portal Docker image do, the hoist held `htmlparser2` 10
+beside `entities` 4.5.0, and the build failed on `entities/decode`. Main
+had hoisted `entities` 7 by luck. The root `devDependencies` entry
+`"entities": "^7.0.1"` takes `entities` out of the hidden hoist and puts 7
+in the root `node_modules`, which every hoisted lookup reaches next.
+
+Don't remove it without a clean-install `pnpm --filter @gatewaze/portal
+build` (delete every `node_modules` first, since an incremental install can
+keep an old hoist and hide the failure). The `Portal build` CI job does a
+clean install for this reason.
+
 ## pnpm overrides (root `package.json`)
 
 ```json
