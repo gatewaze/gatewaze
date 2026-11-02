@@ -12,7 +12,7 @@
  * data on it, and they should see exactly what leaves the phone.
  */
 
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { Image, Platform, Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown, useAnimatedKeyboard, useAnimatedStyle } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
@@ -83,7 +83,6 @@ export function BugReportSheet({
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const voice = useVoiceInput({
     useCase: 'health-feedback-dictation',
@@ -108,7 +107,6 @@ export function BugReportSheet({
         },
       });
       setSent(true);
-      closeTimer.current = setTimeout(onClose, 1400);
     } catch (err) {
       setError(humanMessage(err).text);
       setSending(false);
@@ -116,7 +114,6 @@ export function BugReportSheet({
   };
 
   const viewFeedback = () => {
-    if (closeTimer.current) clearTimeout(closeTimer.current);
     if (historyPath) router.push(historyPath);
     onClose();
   };
@@ -141,7 +138,7 @@ export function BugReportSheet({
   return (
     <Animated.View entering={FadeIn.duration(150)} style={[styles.overlay, liftForKeyboard]}>
       {/* Tapping the dimmed screen dismisses, like every sheet on the OS. */}
-      <Pressable style={StyleSheet.absoluteFill} onPress={sent ? undefined : onClose} />
+      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
       <Animated.View entering={FadeInDown.duration(200)} style={styles.sheetWrap}>
         {/*
           Solid, not glass.
@@ -158,6 +155,7 @@ export function BugReportSheet({
               <>
                 <CardTitle>Sent — thank you</CardTitle>
                 <Caption>It goes straight to the people building the app.</Caption>
+                <Button title="Done" onPress={onClose} />
                 {historyPath ? (
                   <Button title="View my feedback" variant="ghost" onPress={viewFeedback} />
                 ) : null}

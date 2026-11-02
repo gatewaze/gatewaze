@@ -345,7 +345,14 @@ export function gatewazeModulesPlugin(): Plugin {
         }
 
         // Resolved absolute paths that don't exist (after alias resolution by other plugins).
+        // Vite's HMR appends `?t=<timestamp>` to a changed module's id; the file
+        // checks below must see the bare path, and the query goes back on the
+        // answer so the browser still gets the fresh version (30 Oct 2026: a
+        // saved module admin page was stubbed as "missing" until a restart).
         if (id.startsWith('/') && !id.includes('node_modules')) {
+          const queryAt = id.indexOf('?');
+          const bareId = queryAt >= 0 ? id.slice(0, queryAt) : id;
+          const query = queryAt >= 0 ? id.slice(queryAt) : '';
           // TypeScript source files import siblings with `.js` extension
           // (standard ESM-future-proof TS pattern). Vite's default resolver
           // normally substitutes `.js` → `.ts` automatically, but only when
@@ -358,29 +365,29 @@ export function gatewazeModulesPlugin(): Plugin {
           const candidates: string[] = [];
           // literal + each extension appended
           for (const ext of ['', '.ts', '.tsx', '.js', '.jsx']) {
-            candidates.push(id + ext);
+            candidates.push(bareId + ext);
           }
           // .js/.jsx → .ts/.tsx substitution
-          if (id.endsWith('.js') || id.endsWith('.jsx')) {
-            const stripped = id.replace(/\.jsx?$/, '');
+          if (bareId.endsWith('.js') || bareId.endsWith('.jsx')) {
+            const stripped = bareId.replace(/\.jsx?$/, '');
             candidates.push(stripped + '.ts', stripped + '.tsx');
           }
           // index files in the directory
           for (const ext of ['.ts', '.tsx', '.js', '.jsx']) {
-            candidates.push(resolve(id, 'index' + ext));
+            candidates.push(resolve(bareId, 'index' + ext));
           }
           const resolvedAbs = candidates.find(
             (p) => existsSync(p) && statSync(p).isFile(),
           );
-          if (resolvedAbs) return resolvedAbs;
+          if (resolvedAbs) return resolvedAbs + query;
           const fileExists = false;
           if (!fileExists) {
             // Check if this is a module util that was resolved via the @/ prefix
             // but the file was removed from admin src (e.g. scraperService).
             // Reverse-map the absolute path back to an @/utils/<name> alias.
             const adminSrc = resolve(projectRoot, 'packages/admin/src');
-            if (id.startsWith(adminSrc)) {
-              const relativePath = id.slice(adminSrc.length); // e.g. /utils/scraperService
+            if (bareId.startsWith(adminSrc)) {
+              const relativePath = bareId.slice(adminSrc.length); // e.g. /utils/scraperService
               const aliasKey = '@' + relativePath;
               if (utilAliases[aliasKey]) {
                 return utilAliases[aliasKey];
@@ -569,12 +576,14 @@ export function gatewazeModulesPlugin(): Plugin {
       // Only stub paths that look like source file imports (contain /app/, /packages/, or /gatewaze-modules/).
       if (id.startsWith('/') && !id.includes('node_modules') && !id.includes('\0') &&
           (id.includes('/app/') || id.includes('/packages/') || id.includes('gatewaze-modules'))) {
-        // Check if file exists with any extension
+        // Check if file exists with any extension. The id may carry Vite's
+        // HMR query (`?t=<timestamp>`), which is not part of the path.
+        const bareLoadId = id.split('?')[0]!;
         const extensions = ['', '.ts', '.tsx', '.js', '.jsx'];
         const fileExists = extensions.some(ext => {
-          try { return existsSync(id + ext); } catch { return false; }
+          try { return existsSync(bareLoadId + ext); } catch { return false; }
         }) || extensions.some(ext => {
-          try { return existsSync(resolve(id, 'index' + ext)); } catch { return false; }
+          try { return existsSync(resolve(bareLoadId, 'index' + ext)); } catch { return false; }
         });
         if (!fileExists) {
           console.warn(`[gatewaze-modules] Stubbing missing resolved path: ${id}`);

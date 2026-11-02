@@ -41,6 +41,11 @@ const KNOWN_HOSTS: string[] = (() => {
 // Valid sub-paths under a custom domain event
 const VALID_EVENT_SUBPATHS = ['/', '/agenda', '/speakers', '/sponsors', '/register', '/talks']
 
+// Module-root domains whose module has its own /privacy, /terms and
+// /cookie-policy pages (comma-separated module ids, e.g. photo-booth).
+const MODULE_ROOT_OWN_LEGAL = new Set((process.env.MODULE_ROOT_OWN_LEGAL ?? '').split(',').map(s => s.trim()).filter(Boolean))
+const LEGAL_PATHS = ['/privacy', '/terms', '/cookie-policy']
+
 // Paths that should pass through without rewriting on custom domains
 const PASSTHROUGH_PATHS = ['/sign-in', '/auth', '/privacy', '/terms', '/do-not-sell', '/cookie-policy', '/profile', '/api', '/go']
 
@@ -123,7 +128,15 @@ async function isEventsModuleEnabled(): Promise<boolean> {
   }
 }
 
+// Local hostnames that are custom domains despite ending in .localhost, so
+// a module-root domain (aime.photo) can be exercised on a dev stack as
+// aime.localhost. Comma-separated; nothing in production sets it.
+const CUSTOM_DOMAIN_LOCALHOSTS = new Set(
+  (process.env.CUSTOM_DOMAIN_LOCALHOSTS ?? '').split(',').map(h => h.trim().toLowerCase()).filter(Boolean),
+)
+
 function isKnownHost(hostname: string): boolean {
+  if (CUSTOM_DOMAIN_LOCALHOSTS.has(hostname.toLowerCase())) return false
   if (KNOWN_HOSTS.includes(hostname)) return true
   if (hostname === 'localhost' || hostname.includes('localhost')) return true
   if (hostname.includes('vercel.app')) return true
@@ -297,6 +310,16 @@ function moduleRootResponse(request: NextRequest, hostname: string, cd: CustomDo
   // the module owns the whole page, header and footer included.
   requestHeaders.set('x-custom-domain-kind', 'module-root')
   const ownPrefix = `/m/${moduleId}`
+  // A module that ships its own legal pages (MODULE_ROOT_OWN_LEGAL lists
+  // them) serves /privacy, /terms and /cookie-policy on its domain in its
+  // own look, rather than the portal's.
+  if (MODULE_ROOT_OWN_LEGAL.has(moduleId) && LEGAL_PATHS.includes(pathname)) {
+    const url = request.nextUrl.clone()
+    url.pathname = `${ownPrefix}${pathname}`
+    const response = NextResponse.rewrite(url, { request: { headers: requestHeaders } })
+    customDomainHeaders(hostname, cd, response.headers).set('x-custom-domain-kind', 'module-root')
+    return response
+  }
   const isPassthrough =
     PASSTHROUGH_PATHS.some(p => pathname === p || pathname.startsWith(p + '/')) ||
     pathname === ownPrefix || pathname.startsWith(ownPrefix + '/')

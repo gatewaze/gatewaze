@@ -487,10 +487,9 @@ export const layout = {
   /**
    * How far above the composer panel the bottom fade begins. The fade layer
    * used to be exactly the panel's height, which made its softness depend on
-   * what the panel held: the coach's full composer spread the gradient over
-   * ~130pt while the collapsed launcher on other screens compressed the same
-   * stops into ~60pt — the "harsh" band. A fixed reach makes every screen's
-   * bottom fade climb over the same distance.
+   * what the panel held, so the gradient's softness varied with the panel's
+   * height. A fixed reach makes every screen's bottom fade climb over the
+   * same distance.
    */
   composerFadeReach: 64,
 };
