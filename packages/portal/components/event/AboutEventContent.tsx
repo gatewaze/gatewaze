@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useState, useEffect, useMemo, useCallback } from 'react'
+import { Suspense, useState, useEffect, useMemo, useCallback, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
@@ -19,6 +19,18 @@ import { getSupabaseClient } from '@/lib/supabase/client'
 import { encodeEmail, getEmailFromParams } from '@/lib/emailEncoding'
 import { DiscountCard } from './DiscountsContent'
 import type { DiscountWithCode } from './DiscountsContent'
+
+const noopSubscribe = () => () => {}
+
+/** True once hydrated on the client; false on the server and during hydration. */
+function useIsClient() {
+  return useSyncExternalStore(noopSubscribe, () => true, () => false)
+}
+
+/** The email stashed in sessionStorage by an earlier step, read after hydration. */
+function usePrefillEmail() {
+  return useSyncExternalStore(noopSubscribe, () => sessionStorage.getItem('prefill_email'), () => null)
+}
 
 export function AboutEventContent() {
   return (
@@ -39,20 +51,19 @@ interface Competition {
 
 function AboutEventContentInner() {
   const { event, useDarkText, recommendedEvent, primaryColor, eventIdentifier, basePath, userState, theme, speakerCount, competitionCount, discountCount, requestRegister, registrationMembersOnly } = useEventContext()
-  const [mounted, setMounted] = useState(false)
   const [showAttendeeCalendar, setShowAttendeeCalendar] = useState(false)
-  const [attendeeCalendarAdded, setAttendeeCalendarAdded] = useState(false)
+  const [attendeeCalendarClicked, setAttendeeCalendarAdded] = useState(false)
+  // Already added per the fetched registration data, or clicked just now
+  const attendeeCalendarAdded = attendeeCalendarClicked || !!userState.registrationCalendarAddedAt
   const [competitions, setCompetitions] = useState<Competition[]>([])
   const [competitionsLoaded, setCompetitionsLoaded] = useState(competitionCount === 0)
+  // Delay mounted fade-in until competitions are loaded (or immediately if none)
+  const isClient = useIsClient()
+  const mounted = isClient && competitionsLoaded
   const [discounts, setDiscounts] = useState<DiscountWithCode[]>([])
   const { session } = useAuth()
   const searchParams = useSearchParams()
   const showDiscountParam = searchParams.get('discount') === 'true'
-
-  // Delay mounted fade-in until competitions are loaded (or immediately if none)
-  useEffect(() => {
-    if (competitionsLoaded) setMounted(true)
-  }, [competitionsLoaded])
 
   // Fetch competition details for countdown
   useEffect(() => {
@@ -106,13 +117,6 @@ function AboutEventContentInner() {
     }
     fetchDiscounts()
   }, [discountCount, event.id, showDiscountParam, session])
-
-  // Sync calendar state from fetched registration data
-  useEffect(() => {
-    if (userState.registrationCalendarAddedAt) {
-      setAttendeeCalendarAdded(true)
-    }
-  }, [userState.registrationCalendarAddedAt])
 
   const panelTheme = useMemo(() => ({
     panelBg: useDarkText ? 'bg-gray-900/15' : 'bg-white/15',
@@ -192,7 +196,7 @@ function AboutEventContentInner() {
     <div>
       {/* Join Event Panel */}
       {showJoinPanel && (
-        <div className={`mb-6 transition-opacity duration-500 ease-out ${mounted ? 'opacity-100' : 'opacity-0'}`}>
+        <div className={`mb-6 transition-opacity duration-500 ease-out ${mounted ? 'opacity-100 starting:opacity-0' : 'opacity-0'}`}>
           <GlowBorder useDarkTheme={useDarkText}>
             <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${panelTheme.panelBorder} p-5 sm:p-6`}>
               <div className="flex items-start gap-4">
@@ -257,7 +261,7 @@ function AboutEventContentInner() {
 
       {/* Past Event Banner */}
       {timeline === 'past' && (
-        <div className={`mb-6 transition-opacity duration-500 ease-out ${mounted ? 'opacity-100' : 'opacity-0'}`}>
+        <div className={`mb-6 transition-opacity duration-500 ease-out ${mounted ? 'opacity-100 starting:opacity-0' : 'opacity-0'}`}>
           <GlowBorder useDarkTheme={useDarkText}>
             <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${panelTheme.panelBorder} p-5`}>
               <div className="flex items-center gap-3">
@@ -280,7 +284,7 @@ function AboutEventContentInner() {
 
       {/* Live Event Banner */}
       {timeline === 'live' && (
-        <div className={`mb-6 transition-opacity duration-500 ease-out ${mounted ? 'opacity-100' : 'opacity-0'}`}>
+        <div className={`mb-6 transition-opacity duration-500 ease-out ${mounted ? 'opacity-100 starting:opacity-0' : 'opacity-0'}`}>
           <GlowBorder useDarkTheme={useDarkText}>
             <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${panelTheme.panelBorder} p-5`}>
               <div className="flex items-center gap-3">
@@ -302,7 +306,7 @@ function AboutEventContentInner() {
 
       {/* Confirmed Speaker Prep Panel (upcoming/live) */}
       {!userStateLoading && isConfirmedSpeaker && timeline !== 'past' && (
-        <div className={`mb-6 transition-opacity duration-500 ease-out ${mounted ? 'opacity-100' : 'opacity-0'}`}>
+        <div className={`mb-6 transition-opacity duration-500 ease-out ${mounted ? 'opacity-100 starting:opacity-0' : 'opacity-0'}`}>
           <GlowBorder useDarkTheme={useDarkText}>
             <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${panelTheme.panelBorder} p-5 sm:p-6`}>
               <div className="flex items-start gap-4 mb-4">
@@ -360,7 +364,7 @@ function AboutEventContentInner() {
         const hasChecklistItems = hasAgenda || hasSpeakers || hasVenue || showCalendar
 
         return (
-          <div className={`mb-6 transition-opacity duration-500 ease-out ${mounted ? 'opacity-100' : 'opacity-0'}`}>
+          <div className={`mb-6 transition-opacity duration-500 ease-out ${mounted ? 'opacity-100 starting:opacity-0' : 'opacity-0'}`}>
             <GlowBorder useDarkTheme={useDarkText}>
               <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${panelTheme.panelBorder} p-5 sm:p-6`}>
                 <div className="flex items-start gap-4">
@@ -497,7 +501,7 @@ function AboutEventContentInner() {
 
       {/* Talk Submission Status (upcoming, submitted but not confirmed) */}
       {!userStateLoading && hasTalkSubmission && !isConfirmedSpeaker && timeline !== 'past' && (
-        <div className={`mb-6 transition-opacity duration-500 ease-out ${mounted ? 'opacity-100' : 'opacity-0'}`}>
+        <div className={`mb-6 transition-opacity duration-500 ease-out ${mounted ? 'opacity-100 starting:opacity-0' : 'opacity-0'}`}>
           <GlowBorder useDarkTheme={useDarkText}>
             <div className={`${panelTheme.panelBg} backdrop-blur-[10px] rounded-2xl overflow-hidden ${panelTheme.panelBorder} p-5 sm:p-6`}>
               <div className="flex items-start gap-4">
@@ -531,7 +535,7 @@ function AboutEventContentInner() {
       {competitions.length > 0 && (
         <>
           {/* Desktop: show inline */}
-          <div className={`hidden lg:block mb-10 empty:mb-0 transition-opacity duration-500 ease-out ${mounted ? 'opacity-100' : 'opacity-0'}`}>
+          <div className={`hidden lg:block mb-10 empty:mb-0 transition-opacity duration-500 ease-out ${mounted ? 'opacity-100 starting:opacity-0' : 'opacity-0'}`}>
             {competitions.map((comp) => (
               <CompetitionCountdownPanel
                 key={comp.id}
@@ -567,7 +571,7 @@ function AboutEventContentInner() {
       {discounts.length > 0 && (
         <>
           {/* Desktop: show inline */}
-          <div className={`hidden lg:block mb-10 space-y-4 transition-opacity duration-500 ease-out ${mounted ? 'opacity-100' : 'opacity-0'}`}>
+          <div className={`hidden lg:block mb-10 space-y-4 transition-opacity duration-500 ease-out ${mounted ? 'opacity-100 starting:opacity-0' : 'opacity-0'}`}>
             {discounts.map((discount, index) => (
               <DiscountCard key={discount.id} discount={discount} index={index} />
             ))}
@@ -612,7 +616,7 @@ function MobileDiscountPortal({ mounted, children }: { mounted: boolean; childre
   if (!portalTarget) return null
 
   return createPortal(
-    <div className={`mb-10 space-y-4 transition-opacity duration-500 ease-out ${mounted ? 'opacity-100' : 'opacity-0'}`}>
+    <div className={`mb-10 space-y-4 transition-opacity duration-500 ease-out ${mounted ? 'opacity-100 starting:opacity-0' : 'opacity-0'}`}>
       {children}
     </div>,
     portalTarget
@@ -629,7 +633,7 @@ function MobileCompetitionPortal({ mounted, children }: { mounted: boolean; chil
   if (!portalTarget) return null
 
   return createPortal(
-    <div className={`mb-10 empty:mb-0 transition-opacity duration-500 ease-out ${mounted ? 'opacity-100' : 'opacity-0'}`}>
+    <div className={`mb-10 empty:mb-0 transition-opacity duration-500 ease-out ${mounted ? 'opacity-100 starting:opacity-0' : 'opacity-0'}`}>
       {children}
     </div>,
     portalTarget
@@ -657,19 +661,20 @@ function CompetitionCountdownPanel({
   const searchParams = useSearchParams()
   const { session } = useAuth()
   const { enterCompetition, isEntering, error } = useCompetitionEntry()
-  const [email, setEmail] = useState('')
+  // null until the user types; until then the prefill (query string first,
+  // then sessionStorage) shows
+  const [emailInput, setEmail] = useState<string | null>(null)
+  const qsEmail = useMemo(
+    () => getEmailFromParams(new URLSearchParams(searchParams.toString())),
+    [searchParams]
+  )
+  const storedEmail = usePrefillEmail()
+  const email = emailInput ?? (session ? '' : (qsEmail || storedEmail || ''))
   const [hasEntered, setHasEntered] = useState(false)
   const [magicLinkSent, setMagicLinkSent] = useState(false)
 
   const brandConfig = getClientBrandConfig()
   const brandPrimary = brandConfig.primaryColor
-
-  // Prefill email from query string (supports encoded utm_medium)
-  useEffect(() => {
-    if (session) return
-    const qsEmail = getEmailFromParams(new URLSearchParams(searchParams.toString()))
-    if (qsEmail) setEmail(qsEmail)
-  }, [searchParams, session])
 
   // Check if user already entered
   useEffect(() => {
@@ -686,13 +691,6 @@ function CompetitionCountdownPanel({
     }
     checkEntry()
   }, [session, competition.id])
-
-  // Prefill email from sessionStorage (only if not already set by query string)
-  useEffect(() => {
-    if (session || email) return
-    const prefillEmail = sessionStorage.getItem('prefill_email')
-    if (prefillEmail) setEmail(prefillEmail)
-  }, [session, email])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

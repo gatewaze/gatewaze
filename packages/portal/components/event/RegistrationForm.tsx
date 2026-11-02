@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
 import type { Event } from '@/types/event'
 import type { BrandConfig } from '@/config/brand'
 import { getClientBrandConfig, isLightColor } from '@/config/brand'
@@ -24,6 +24,17 @@ const IANA_TIMEZONES: string[] = (() => {
   } catch { /* ignore */ }
   return []
 })()
+
+const noopSubscribe = () => () => {}
+
+/** The browser's time zone; '' on the server and during hydration. */
+function detectTimeZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || ''
+  } catch {
+    return ''
+  }
+}
 
 interface Props {
   event: Event
@@ -153,20 +164,14 @@ export function RegistrationForm({ event, brandConfig, onSuccess, onCancel, trac
     return attr.required
   }
 
-  // Auto-select the visitor's detected time zone once the field is enabled and
-  // still empty (browser zone reflects their actual location; they can change it).
-  useEffect(() => {
-    if (!isAttrEnabled('timezone')) return
-    setFormData(prev => {
-      if (prev.timezone) return prev
-      try {
-        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
-        if (tz) return { ...prev, timezone: tz }
-      } catch { /* ignore */ }
-      return prev
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-run only when config loads
-  }, [attrConfig])
+  // Default to the visitor's detected time zone while the field is enabled and
+  // the visitor hasn't chosen one (browser zone reflects their actual location;
+  // they can change it). Derived rather than written into formData, so the
+  // server and hydration render see no zone.
+  const detectedTz = useSyncExternalStore(noopSubscribe, detectTimeZone, () => '')
+  const values: FormData = formData.timezone === undefined && detectedTz && isAttrEnabled('timezone')
+    ? { ...formData, timezone: detectedTz }
+    : formData
 
   const validateEmail = (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -188,7 +193,7 @@ export function RegistrationForm({ event, brandConfig, onSuccess, onCancel, trac
     // Validate fields based on people_attributes config (+ completion-mode reqs).
     for (const attr of attrConfig) {
       if (!attr.enabled || hiddenKeys.has(attr.key)) continue
-      if (isAttrRequired(attr.key) && !formData[attr.key]?.trim()) {
+      if (isAttrRequired(attr.key) && !values[attr.key]?.trim()) {
         const label = attr.label || attr.key.replace(/_/g, ' ')
         newErrors[attr.key] = `${label} is required`
       }
@@ -271,8 +276,8 @@ export function RegistrationForm({ event, brandConfig, onSuccess, onCancel, trac
           // Include all enabled attribute values
           ...Object.fromEntries(
             attrConfig
-              .filter(a => a.enabled && formData[a.key]?.trim())
-              .map(a => [a.key, formData[a.key].trim()])
+              .filter(a => a.enabled && values[a.key]?.trim())
+              .map(a => [a.key, values[a.key].trim()])
           ),
           source: 'event_portal',
           metadata: {
@@ -487,9 +492,9 @@ export function RegistrationForm({ event, brandConfig, onSuccess, onCancel, trac
               const fieldError = errors[attr.key] && <p className={`mt-1 text-sm ${theme.errorText}`}>{errors[attr.key]}</p>
 
               // Time zone: a searchable-ish IANA dropdown, pre-selected to the
-              // visitor's detected zone (set by the effect above).
+              // visitor's detected zone (derived above).
               if (attr.key === 'timezone') {
-                const current = formData.timezone || ''
+                const current = values.timezone || ''
                 const base = IANA_TIMEZONES.length > 0 ? IANA_TIMEZONES : (current ? [current] : [])
                 const zones = current && !base.includes(current) ? [current, ...base] : base
                 return (

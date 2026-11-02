@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useEffect, useRef, Suspense } from 'react'
+import { useMemo, useState, useEffect, useRef, useSyncExternalStore, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { GlowBorder } from '@/components/ui/GlowBorder'
 import { stripEmojis } from '@/lib/text'
@@ -98,6 +98,8 @@ function formatTimeClient(dateStr: string): string {
   } catch { return '' }
 }
 
+const subscribeNoop = () => () => {}
+
 interface Props {
   event: LandingEvent
   identifier: string
@@ -116,16 +118,27 @@ function LandingHeroInner({ event, identifier, primaryColor, secondaryColor, use
     imageBorder: useDarkText ? 'border border-gray-900/10' : 'border border-white/10',
   }), [useDarkText])
 
-  const [dateParts, setDateParts] = useState<DateParts>(() => formatDatePartsSSR(event.event_start))
-  const [startTime, setStartTime] = useState(() => formatTimeSSR(event.event_start))
-  const [endTime, setEndTime] = useState(() => event.event_end ? formatTimeSSR(event.event_end) : '')
+  // Server and hydration render use the fixed en-US format; after hydration
+  // switch to the visitor's locale.
+  const isClient = useSyncExternalStore(subscribeNoop, () => true, () => false)
+  const formatDateParts = isClient ? formatDatePartsClient : formatDatePartsSSR
+  const formatTime = isClient ? formatTimeClient : formatTimeSSR
+  const dateParts = formatDateParts(event.event_start)
+  const startTime = formatTime(event.event_start)
+  const endTime = event.event_end ? formatTime(event.event_end) : ''
 
   const [imageAspectRatio, setImageAspectRatio] = useState<number | null>(null)
   const imageRef = useRef<HTMLImageElement>(null)
   const imageUrl = event.event_logo || event.screenshot_url || ''
 
-  useEffect(() => {
+  // Reset the measured aspect ratio when the image changes.
+  const [prevImageUrl, setPrevImageUrl] = useState(imageUrl)
+  if (prevImageUrl !== imageUrl) {
+    setPrevImageUrl(imageUrl)
     setImageAspectRatio(null)
+  }
+
+  useEffect(() => {
     if (!imageUrl) return
     const img = imageRef.current
     if (!img) return
@@ -139,12 +152,6 @@ function LandingHeroInner({ event, identifier, primaryColor, secondaryColor, use
       return () => img.removeEventListener('load', updateAspectRatio)
     }
   }, [imageUrl])
-
-  useEffect(() => {
-    setDateParts(formatDatePartsClient(event.event_start))
-    setStartTime(formatTimeClient(event.event_start))
-    if (event.event_end) setEndTime(formatTimeClient(event.event_end))
-  }, [event.event_start, event.event_end])
 
   // Capture tracking params (rdt_cid, fbclid, utm_*, etc.) and create session
   const hasCapturedTracking = useRef(false)

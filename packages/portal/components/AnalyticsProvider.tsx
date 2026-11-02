@@ -28,11 +28,13 @@ export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
   const consented = categories.analytics
 
   // Refs so the click listener and auth effect always see current values
-  // without re-subscribing.
+  // without re-subscribing. Synced after commit (refs can't be written during render).
   const pathRef = useRef(pathname)
-  pathRef.current = pathname
   const consentRef = useRef(consented)
-  consentRef.current = consented
+  useEffect(() => {
+    pathRef.current = pathname
+    consentRef.current = consented
+  }, [pathname, consented])
 
   // -- First-party anonymous id ----------------------------------------------
   // Minted once consent allows; from then on every event/identify (client

@@ -7,7 +7,7 @@
  * bare; `gated` modules render the SignInGate; `fullBleed` modules suppress the sidebar.
  * Spec §3.1 / §7.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import type { RailItem } from '@/lib/modules/enabledModules'
@@ -24,6 +24,15 @@ import { PublicTopbar } from '@/components/public/PublicTopbar'
 
 /** Paths that render without shell chrome (full-bleed auth screens). */
 const CHROMELESS_PATHS = ['/sign-in', '/auth/callback']
+
+const noopSubscribe = () => () => {}
+function readStoredSideCollapsed(): boolean {
+  try {
+    return window.localStorage.getItem('gw-side-collapsed') === '1'
+  } catch {
+    return false
+  }
+}
 
 interface WorkspaceShellProps {
   railItems: RailItem[]
@@ -91,18 +100,17 @@ export function WorkspaceShell({
 }: WorkspaceShellProps) {
   const pathname = usePathname() || '/'
   const { signOut } = useAuth()
-  const [sideCollapsed, setSideCollapsed] = useState(false)
+  // Collapse preference: the stored value (read after hydration — the server
+  // snapshot is `false`, avoiding an SSR/CSR mismatch) until the user toggles.
+  const storedSideCollapsed = useSyncExternalStore(noopSubscribe, readStoredSideCollapsed, () => false)
+  const [sideCollapsedOverride, setSideCollapsedOverride] = useState<boolean | null>(null)
+  const sideCollapsed = sideCollapsedOverride ?? storedSideCollapsed
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
 
-  // Restore the collapse preference after mount (avoids SSR/CSR mismatch).
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    setSideCollapsed(window.localStorage.getItem('gw-side-collapsed') === '1')
-  }, [])
   const toggleSidebar = useCallback(() => {
-    setSideCollapsed((v) => {
-      const next = !v
+    setSideCollapsedOverride((v) => {
+      const next = !(v ?? storedSideCollapsed)
       try {
         window.localStorage.setItem('gw-side-collapsed', next ? '1' : '0')
       } catch {
@@ -110,12 +118,14 @@ export function WorkspaceShell({
       }
       return next
     })
-  }, [])
+  }, [storedSideCollapsed])
 
-  // Close the mobile nav on navigation.
-  useEffect(() => {
+  // Close the mobile nav on navigation (adjusted during render when the pathname changes).
+  const [prevPathname, setPrevPathname] = useState(pathname)
+  if (prevPathname !== pathname) {
+    setPrevPathname(pathname)
     setMobileNavOpen(false)
-  }, [pathname])
+  }
 
   // Signed-in mobile: the document scrolls (the logged-out site scrolls inside
   // .pub-area instead), so track window scroll to fade in the mobile top bar's

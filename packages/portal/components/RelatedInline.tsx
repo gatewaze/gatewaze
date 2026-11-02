@@ -114,6 +114,15 @@ export function RelatedInline({ sourceType, sourceId, topics, heading = 'Related
     return () => { cancelled = true }
   }, [sourceType, sourceId, surface, topics?.join(',')])
 
+  const updateArrows = () => {
+    const track = trackRef.current
+    if (!track) return
+    setArrows({
+      left: track.scrollLeft > 1,
+      right: track.scrollLeft + track.clientWidth < track.scrollWidth - 1,
+    })
+  }
+
   useEffect(() => {
     if (cards.length === 0) return
     if (!document.getElementById(STYLE_ID)) {
@@ -124,15 +133,6 @@ export function RelatedInline({ sourceType, sourceId, topics, heading = 'Related
     }
     updateArrows()
   }, [cards.length])
-
-  const updateArrows = () => {
-    const track = trackRef.current
-    if (!track) return
-    setArrows({
-      left: track.scrollLeft > 1,
-      right: track.scrollLeft + track.clientWidth < track.scrollWidth - 1,
-    })
-  }
 
   const scrollByCard = (dir: 1 | -1) => {
     const track = trackRef.current

@@ -11,7 +11,7 @@ source: gatewaze-skills/production-readiness/references/lint-and-ci.md
 |---------|--------|--------|---------|
 | admin | eslint v9 flat config | `packages/admin/eslint.config.js` | `js.configs.recommended`, `tseslint.configs.recommended`, `react-hooks`, `react-refresh` |
 | api | eslint v9 flat config | `packages/api/eslint.config.js` | `js.configs.recommended`, `tseslint.configs.recommended` (no React plugins — server-side only) |
-| portal | eslint v9 flat config (`eslint .`; Next 16 removed `next lint`) | `packages/portal/eslint.config.mjs` | `eslint-config-next/core-web-vitals`, `eslint-config-next/typescript` (native flat configs, no `FlatCompat`). The React Compiler rules from `eslint-plugin-react-hooks` 7 are set to `warn` until the existing sites are fixed. |
+| portal | eslint v9 flat config (`eslint .`; Next 16 removed `next lint`) | `packages/portal/eslint.config.mjs` | `eslint-config-next/core-web-vitals`, `eslint-config-next/typescript` (native flat configs, no `FlatCompat`). The React Compiler rules from `eslint-plugin-react-hooks` 7 (`set-state-in-effect`, `purity`, `preserve-manual-memoization`, `static-components`, `refs`, `immutability`) are errors at their defaults. |
 | shared | no-op echo | `"lint": "echo 'no lint configured'"` | — |
 
 `pnpm -r lint` must exit 0. If you change a lint script, run it

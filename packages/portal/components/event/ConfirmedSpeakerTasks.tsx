@@ -29,6 +29,31 @@ interface Props {
   }
 }
 
+// Completed check icon
+function CheckIcon() {
+  return (
+    <svg
+      className="w-4 h-4"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+    </svg>
+  )
+}
+
+// Completed circle
+function CompletedCircle({ primaryColor }: { primaryColor: string }) {
+  return (
+    <div
+      className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center mt-0.5"
+      style={{ backgroundColor: primaryColor, color: isLightColor(primaryColor) ? '#000000' : '#ffffff' }}
+    >
+      <CheckIcon />
+    </div>
+  )
+}
 
 export function ConfirmedSpeakerTasks({
   event,
@@ -229,33 +254,11 @@ export function ConfirmedSpeakerTasks({
     }
   }, [trackingLinkCopiedAt, editToken, config.supabaseUrl, config.supabaseAnonKey])
 
-  // Completed check icon
-  const CheckIcon = () => (
-    <svg
-      className="w-4 h-4"
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-    >
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-    </svg>
-  )
-
-  // Completed circle
-  const CompletedCircle = () => (
-    <div
-      className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center mt-0.5"
-      style={{ backgroundColor: primaryColor, color: isLightColor(primaryColor) ? '#000000' : '#ffffff' }}
-    >
-      <CheckIcon />
-    </div>
-  )
-
   return (
     <div className="space-y-4">
       {/* Task 1: Speaking slot confirmed */}
       <div className="flex items-start gap-3">
-        <CompletedCircle />
+        <CompletedCircle primaryColor={primaryColor} />
         <div className="flex-1">
           <p className={`font-medium ${theme.panelText}`}>Speaking slot confirmed</p>
           <p className={`text-sm ${theme.panelTextMuted}`}>
@@ -267,7 +270,7 @@ export function ConfirmedSpeakerTasks({
       {/* Task 2: Add to calendar */}
       <div className="flex items-start gap-3">
         {calendarAdded ? (
-          <CompletedCircle />
+          <CompletedCircle primaryColor={primaryColor} />
         ) : (
           <button
             onClick={() => setShowCalendarOptions(!showCalendarOptions)}
@@ -369,7 +372,7 @@ export function ConfirmedSpeakerTasks({
       {/* Task 3: Provide presentation */}
       <div className="flex items-start gap-3">
         {(hasPresentation || uploadSuccess) ? (
-          <CompletedCircle />
+          <CompletedCircle primaryColor={primaryColor} />
         ) : (
           <button
             onClick={() => setShowPresentationForm(!showPresentationForm)}
@@ -512,7 +515,7 @@ export function ConfirmedSpeakerTasks({
           speakers can come back for more assets. */}
       <div className="flex items-start gap-3">
         {linkCopied ? (
-          <CompletedCircle />
+          <CompletedCircle primaryColor={primaryColor} />
         ) : (
           <button
             onClick={() => setShowPromoteSection(!showPromoteSection)}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useSyncExternalStore } from 'react'
 import type { BrandConfig } from '@/config/brand'
 import { useAuth } from '@/hooks/useAuth'
 import { GlassPanel } from '@/components/ui/GlassPanel'
@@ -22,8 +22,31 @@ interface ItemSource {
   subscribed: boolean
 }
 
+// Row shapes read directly in auth mode.
+interface ListRow { id: string; name: string; description: string | null; is_public: boolean; default_subscribed: boolean | null }
+interface SubRow { list_id: string; subscribed: boolean }
+
 interface SubscriptionContentProps {
   brandConfig: BrandConfig
+}
+
+const subscribeNoop = () => () => {}
+
+// Read which list the token was minted for. The token is HMAC-signed —
+// we can't FORGE one, but we can DECODE the payload to surface a
+// human-readable list name on the confirmation panel before the user
+// commits. Server-side verification still gates the mutation.
+function tokenListId(token: string): string | null {
+  try {
+    const [encoded] = token.split('.')
+    const decoded = atob(encoded.replace(/-/g, '+').replace(/_/g, '/'))
+    const [, listId] = decoded.split(':')
+    return listId || null
+  } catch {
+    // Malformed token — the confirmation panel falls back to a generic
+    // label; the server still rejects the request when confirmed.
+    return null
+  }
 }
 
 /**
@@ -40,10 +63,14 @@ export function SubscriptionContent({ brandConfig: _brandConfig }: SubscriptionC
   const { user } = useAuth()
   const supabase = getSupabaseClient()
 
+  // The query string is read on the client only (null on the server and
+  // during hydration).
+  const search = useSyncExternalStore(subscribeNoop, () => window.location.search, () => null)
+  const urlParams = search === null ? null : new URLSearchParams(search)
   // undefined = not yet read from the URL; null = no token (auth mode);
   // string = token mode.
-  const [token, setToken] = useState<string | null | undefined>(undefined)
-  // `requestedUnsub` is set when the visible footer link arrived with
+  const token: string | null | undefined = urlParams ? urlParams.get('token') : undefined
+  // `requestedUnsub` is true when the visible footer link arrived with
   // `?unsub=1`. We DON'T act on it automatically — instead we show a
   // confirmation panel ([[feedback_unsubscribe_confirmation_scanner_safe]]).
   // Corporate email scanners (Mimecast TTP, Defender ATP) execute JS when
@@ -52,31 +79,28 @@ export function SubscriptionContent({ brandConfig: _brandConfig }: SubscriptionC
   // hole. The RFC 8058 `List-Unsubscribe` header path stays one-click (POST
   // straight to the edge function); mailbox providers send it, scanners
   // don't parse mail headers as actionable URLs.
-  const [requestedUnsub, setRequestedUnsub] = useState(false)
-  const [pendingListId, setPendingListId] = useState<string | null>(null)
+  // Dismissed by confirming or by "Keep me subscribed".
+  const [unsubDismissed, setUnsubDismissed] = useState(false)
+  const requestedUnsub = urlParams?.get('unsub') === '1' && !unsubDismissed
   const [tokenEmail, setTokenEmail] = useState<string | null>(null)
   const [tokenError, setTokenError] = useState<string | null>(null)
   const [unsubscribedName, setUnsubscribedName] = useState<string | null>(null)
 
   const [items, setItems] = useState<ListItem[]>([])
-  const [loading, setLoading] = useState(true)
+  // Loading is derived: the key of the data currently shown vs the key the
+  // current inputs want. 'none' = nothing to load (no token, not signed in).
+  const userEmail = user?.email
+  const [loadedKey, setLoadedKey] = useState<string | null>(null)
+  const wantedKey = token ? `t:${token}` : userEmail ? `a:${userEmail}` : 'none'
+  const loading = token === undefined || (wantedKey !== 'none' && loadedKey !== wantedKey)
   const [saving, setSaving] = useState<string | null>(null)
   const [confirming, setConfirming] = useState(false)
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    const params = new URLSearchParams(window.location.search)
-    setRequestedUnsub(params.get('unsub') === '1')
-    setToken(params.get('token'))
-  }, [])
 
   // Calls the edge function in read mode (never sets unsubscribe=true). Used
   // for both the plain preferences view AND the confirmation panel — we need
   // the lists loaded so we can show which list the recipient is about to
   // unsubscribe from. The actual unsubscribe is a separate confirm action.
   const loadViaToken = useCallback(async (t: string) => {
-    setLoading(true)
-    setTokenError(null)
     try {
       const { data, error } = await supabase.functions.invoke('newsletter-unsubscribe', {
         body: { token: t, action: 'preferences', unsubscribe: false },
@@ -85,13 +109,14 @@ export function SubscriptionContent({ brandConfig: _brandConfig }: SubscriptionC
         setTokenError('This link is invalid or has expired. Please use the link in a more recent email, or sign in to manage your preferences.')
         return
       }
+      setTokenError(null)
       setTokenEmail(data.email)
       const lists: ItemSource[] = data.lists ?? []
       setItems(
         lists.map((l) => ({ list_id: l.id, label: l.name, description: l.description, subscribed: l.subscribed })),
       )
     } finally {
-      setLoading(false)
+      setLoadedKey(`t:${t}`)
     }
   }, [supabase])
 
@@ -115,44 +140,38 @@ export function SubscriptionContent({ brandConfig: _brandConfig }: SubscriptionC
       )
       const unsubbed = lists.find((l) => l.id === (data.unsubscribedListId as string | null))
       setUnsubscribedName(unsubbed?.name ?? 'that list')
-      setPendingListId(null)
-      setRequestedUnsub(false)
+      setUnsubDismissed(true)
     } finally {
       setConfirming(false)
     }
   }, [supabase, token])
 
-  const loadViaAuth = useCallback(async () => {
-    setLoading(true)
-    try {
-      interface ListRow { id: string; name: string; description: string | null; is_public: boolean; default_subscribed: boolean | null }
-      interface SubRow { list_id: string; subscribed: boolean }
-      const [listsRes, subsRes] = await Promise.all([
-        // Internal/staff lists are never offered in the Subscription Centre.
-        supabase.from('lists').select('id, name, description, is_public, default_subscribed').eq('is_active', true).eq('is_internal', false).order('name'),
-        user?.email
-          ? supabase.from('list_subscriptions').select('list_id, subscribed').eq('email', user.email)
-          : Promise.resolve({ data: [] as SubRow[] }),
-      ])
-      const allLists = (listsRes.data ?? []) as ListRow[]
-      const subData = (subsRes.data ?? []) as SubRow[]
-      const subMap = new Map(subData.map((s) => [s.list_id, s.subscribed]))
-      setItems(
-        allLists
-          .filter((l) => l.is_public || subMap.has(l.id))
-          .map((l) => ({
-            list_id: l.id,
-            label: l.name,
-            description: l.description,
-            subscribed: subMap.has(l.id) ? !!subMap.get(l.id) : !!l.default_subscribed,
-          })),
-      )
-    } catch (err) {
-      console.error('Error loading subscriptions:', err)
-    } finally {
-      setLoading(false)
-    }
-  }, [supabase, user?.email])
+  const loadViaAuth = useCallback((email: string) =>
+    Promise.all([
+      // Internal/staff lists are never offered in the Subscription Centre.
+      supabase.from('lists').select('id, name, description, is_public, default_subscribed').eq('is_active', true).eq('is_internal', false).order('name'),
+      supabase.from('list_subscriptions').select('list_id, subscribed').eq('email', email),
+    ])
+      .then(([listsRes, subsRes]) => {
+        const allLists = (listsRes.data ?? []) as ListRow[]
+        const subData = (subsRes.data ?? []) as SubRow[]
+        const subMap = new Map(subData.map((s) => [s.list_id, s.subscribed]))
+        setItems(
+          allLists
+            .filter((l) => l.is_public || subMap.has(l.id))
+            .map((l) => ({
+              list_id: l.id,
+              label: l.name,
+              description: l.description,
+              subscribed: subMap.has(l.id) ? !!subMap.get(l.id) : !!l.default_subscribed,
+            })),
+        )
+      })
+      .catch((err: unknown) => {
+        console.error('Error loading subscriptions:', err)
+      })
+      .finally(() => setLoadedKey(`a:${email}`)),
+  [supabase])
 
   useEffect(() => {
     if (token === undefined) return // wait until URL is read
@@ -162,27 +181,10 @@ export function SubscriptionContent({ brandConfig: _brandConfig }: SubscriptionC
       loadViaToken(token)
       return
     }
-    if (user?.email) loadViaAuth()
-    else setLoading(false)
-  }, [token, user?.email, loadViaToken, loadViaAuth])
+    if (userEmail) loadViaAuth(userEmail)
+  }, [token, userEmail, loadViaToken, loadViaAuth])
 
-  // Read which list the token was minted for. The token is HMAC-signed —
-  // we can't FORGE one, but we can DECODE the payload to surface a
-  // human-readable list name on the confirmation panel before the user
-  // commits. Server-side verification still gates the mutation.
-  useEffect(() => {
-    if (!requestedUnsub || !token || pendingListId) return
-    try {
-      const [encoded] = token.split('.')
-      const decoded = atob(encoded.replace(/-/g, '+').replace(/_/g, '/'))
-      const [, listId] = decoded.split(':')
-      if (listId) setPendingListId(listId)
-    } catch {
-      // Malformed token — the confirmation panel falls back to a generic
-      // label; the server still rejects the request when confirmed.
-    }
-  }, [requestedUnsub, token, pendingListId])
-
+  const pendingListId = requestedUnsub && token ? tokenListId(token) : null
   const pendingListLabel = pendingListId
     ? items.find((i) => i.list_id === pendingListId)?.label ?? 'this list'
     : 'this list'
@@ -265,7 +267,7 @@ export function SubscriptionContent({ brandConfig: _brandConfig }: SubscriptionC
               {confirming ? 'Unsubscribing…' : 'Confirm unsubscribe'}
             </button>
             <button
-              onClick={() => { setRequestedUnsub(false); setPendingListId(null) }}
+              onClick={() => setUnsubDismissed(true)}
               disabled={confirming}
               className="px-5 py-2.5 rounded-md bg-white/10 hover:bg-white/20 text-white font-medium transition disabled:opacity-50"
             >

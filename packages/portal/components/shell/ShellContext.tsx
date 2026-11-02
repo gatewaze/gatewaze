@@ -39,11 +39,14 @@ export function ShellProvider({
   const [breadcrumbLeaf, setBreadcrumbLeaf] = useState<string | null>(null)
   const [navOverride, setNavOverride] = useState<PortalShellNavEntry[] | null>(null)
 
-  // Reset page-published state whenever the active module changes.
-  useEffect(() => {
+  // Reset page-published state whenever the active module changes (adjusted
+  // during render so it lands before the new page's Set* effects run).
+  const [prevModuleId, setPrevModuleId] = useState(activeModuleId)
+  if (prevModuleId !== activeModuleId) {
+    setPrevModuleId(activeModuleId)
     setBreadcrumbLeaf(null)
     setNavOverride(null)
-  }, [activeModuleId])
+  }
 
   const value = useMemo<ShellContextValue>(
     () => ({ access, activeModuleId, featureKeys, isSuperAdmin, breadcrumbLeaf, setBreadcrumbLeaf, navOverride, setNavOverride }),

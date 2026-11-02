@@ -73,6 +73,7 @@ export default async function UpcomingEventsPage({ searchParams }: PageProps) {
     brandId: brand,
     ip: reqHeaders.get('x-forwarded-for')?.split(',')[0]?.trim() ?? '0.0.0.0',
     headers: Object.fromEntries(reqHeaders.entries()),
+    // eslint-disable-next-line react-hooks/purity -- per-request Server Component render (force-dynamic); the fallback request ID is meant to differ per request
     requestId: reqHeaders.get('x-request-id') ?? `r${Date.now().toString(36)}`,
     extras: {},
   }
