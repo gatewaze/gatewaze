@@ -45,5 +45,7 @@ export {
   storageSizedUrl,
   rewriteStorageUrl,
   rewriteStorageUrlsInText,
+  PRIVATE_BUCKETS,
+  isPrivateStorageKey,
 } from './storage-public';
 export type { StoragePublicConfig, PublicSize } from './storage-public';

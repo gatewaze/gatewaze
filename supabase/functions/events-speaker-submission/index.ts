@@ -737,6 +737,35 @@ async function r2Delete(r2: R2Target, key: string): Promise<void> {
 }
 
 /**
+ * Only fetch an avatar from an ordinary public https address. The URL comes
+ * from an anonymous form, so refuse IP literals, internal-looking hosts,
+ * odd ports, credentials and redirects, and stop reading past 5 MB.
+ */
+function isFetchableAvatarUrl(raw: string): boolean {
+  let u: URL
+  try {
+    u = new URL(raw)
+  } catch {
+    return false
+  }
+  if (u.protocol !== 'https:' || u.username || u.password || (u.port && u.port !== '443')) return false
+  const host = u.hostname.toLowerCase()
+  if (!/^[a-z0-9.-]+$/.test(host) || !host.includes('.')) return false
+  if (/^[0-9.]+$/.test(host)) return false
+  if (host === 'localhost' || /\.(local|internal|localhost|lan|home|corp|cluster\.local|svc)$/.test(host)) return false
+  if (host === 'metadata.google.internal') return false
+  return true
+}
+
+async function fetchAvatar(imageUrl: string): Promise<Response | null> {
+  if (!isFetchableAvatarUrl(imageUrl)) {
+    console.error('Refusing avatar URL: not a public https address')
+    return null
+  }
+  return await fetch(imageUrl, { redirect: 'error', signal: AbortSignal.timeout(10_000) })
+}
+
+/**
  * Download avatar from URL and store it for person
  */
 async function downloadAndStoreAvatar(personId: number, imageUrl: string): Promise<boolean> {
@@ -768,7 +797,8 @@ async function downloadAndStoreAvatar(personId: number, imageUrl: string): Promi
     console.log(`Downloading avatar from: ${imageUrl}`)
 
     // Fetch image
-    const response = await fetch(imageUrl)
+    const response = await fetchAvatar(imageUrl)
+    if (!response) return false
     if (!response.ok) {
       console.error(`Failed to fetch avatar: ${response.statusText}`)
       return false
