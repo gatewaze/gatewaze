@@ -202,7 +202,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
         with:
-          version: latest
+          # Pinned. `latest` picked up CLI v3.0.0 on 2026-11-02, which rejects
+          # the [inbucket] section in supabase/config.toml, and every PR's
+          # pgTAP job failed at `supabase start`. Move to v3 (and [local_smtp])
+          # deliberately, with local dev, not through `latest`.
+          version: 2.122.0
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Start Supabase
         run: supabase start
