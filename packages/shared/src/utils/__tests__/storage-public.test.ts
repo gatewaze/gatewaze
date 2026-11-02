@@ -89,3 +89,17 @@ describe('platform copy extras', () => {
     expect(rewriteStorageUrlsInText(text, storagePublicConfig({}))).toBe(text);
   });
 });
+describe('private buckets', () => {
+  const cfg = { publicUrl: 'https://media.example.com', legacyHosts: ['old.supabase.co'] };
+  it('never get a public address, by bucket or as a media folder', () => {
+    expect(storagePublicUrl(cfg, 'video-masters', 'v/1.mp4')).toBeNull();
+    expect(storagePublicUrl(cfg, 'media', 'photo-booth-feedback/x.jpg')).toBeNull();
+    expect(storagePublicUrl(cfg, 'media', '/Fetch-Artifacts/x')).toBeNull();
+    expect(storageSizedUrl(cfg, 'fetch-screenshots', 'a.png', { width: 100 })).toBeNull();
+    expect(storagePublicUrl(cfg, 'media', 'video-masters-public/x.jpg')).toBe('https://media.example.com/video-masters-public/x.jpg');
+  });
+  it('are left alone by the rewrite', () => {
+    const old = 'https://old.supabase.co/storage/v1/object/public/video-masters/v/1.mp4';
+    expect(rewriteStorageUrl(old, cfg)).toBe(old);
+  });
+});

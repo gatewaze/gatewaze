@@ -53,6 +53,20 @@ export function storagePublicConfig(env: Record<string, string | undefined>, pre
   return { publicUrl, legacyHosts };
 }
 
+/**
+ * Private Supabase buckets. Their files sit under these folders in the
+ * brand's one bucket and are only ever read through signed addresses, so no
+ * public address is built for them, whether named as the bucket or as the
+ * first folder of a `media` path.
+ */
+export const PRIVATE_BUCKETS: readonly string[] = ['photo-booth-feedback', 'video-masters', 'fetch-screenshots', 'fetch-artifacts'];
+
+/** True when bucket + path is, or would reach, a private bucket's files. */
+export function isPrivateStorageKey(bucket: string, path: string): boolean {
+  const first = (storageKey(bucket, trimStart(path)).split('/')[0] ?? '').toLowerCase();
+  return PRIVATE_BUCKETS.includes(first);
+}
+
 /** Where a Supabase bucket's file is kept in the brand's one bucket. */
 export function storageKey(bucket: string, path: string): string {
   return bucket === 'media' ? path : `${bucket}/${path}`;
@@ -78,13 +92,13 @@ function decodeSegments(path: string): string {
 
 /** The public address of a file, or null when the brand is still on Supabase (callers keep their own address). */
 export function storagePublicUrl(cfg: StoragePublicConfig, bucket: string, path: string): string | null {
-  if (!cfg.publicUrl) return null;
+  if (!cfg.publicUrl || isPrivateStorageKey(bucket, path)) return null;
   return `${cfg.publicUrl}/${encodeKey(storageKey(bucket, trimStart(path)))}`;
 }
 
 /** A resized copy through Cloudflare, or null when the brand is still on Supabase. */
 export function storageSizedUrl(cfg: StoragePublicConfig, bucket: string, path: string, size: PublicSize): string | null {
-  if (!cfg.publicUrl) return null;
+  if (!cfg.publicUrl || isPrivateStorageKey(bucket, path)) return null;
   const opts = [`width=${Math.round(size.width)}`];
   if (size.height) opts.push(`height=${Math.round(size.height)}`);
   opts.push(`fit=${size.fit === 'cover' ? 'cover' : 'scale-down'}`, `quality=${size.quality ?? 80}`, 'format=auto');
