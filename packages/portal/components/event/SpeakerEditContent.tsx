@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { getClientBrandConfig, isLightColor } from '@/config/brand'
 import { getSupabaseClient } from '@/lib/supabase/client'
+import { uploadToStorage } from '@/lib/storageUpload'
 import { GlowBorder } from '@/components/ui/GlowBorder'
 import { GlowInput, GlowTextarea } from '@/components/ui/GlowInput'
 import { PortalButton } from '@/components/ui/PortalButton'
@@ -404,30 +405,26 @@ export function SpeakerEditContent({ editToken, confirmedDurationCounts = {} }: 
 
     setIsUploadingImage(true)
     try {
-      // Singleton client — see Header.tsx for the leak story.
-      const supabase = getSupabaseClient()
-
       const fileExt = profileImage.name.split('.').pop() || 'jpg'
       const timestamp = Date.now()
       const randomStr = Math.random().toString(36).substring(2, 15)
       const fileName = `speaker-submissions/${timestamp}-${randomStr}.${fileExt}`
 
-      const { error: uploadError } = await supabase.storage
-        .from('media')
-        .upload(fileName, profileImage, {
+      let uploaded: { path: string }
+      try {
+        uploaded = await uploadToStorage('media', fileName, profileImage, {
           contentType: profileImage.type,
-          cacheControl: '3600',
-          upsert: false
+          upsert: false,
         })
-
-      if (uploadError) {
+      } catch (uploadError) {
         console.error('Upload error:', uploadError)
         throw new Error('Failed to upload image')
       }
 
-      // Return the relative storage path. The speaker-update edge function will
-      // normalize and store this via toStoragePath (idempotent for legacy full URLs).
-      return fileName
+      // Return the relative storage path (on R2 the server picks the final
+      // name). The speaker-update edge function will normalize and store this
+      // via toStoragePath (idempotent for legacy full URLs).
+      return uploaded.path
     } catch (error) {
       console.error('Error uploading image:', error)
       return null

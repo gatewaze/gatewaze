@@ -57,6 +57,11 @@ function buildRemotePatterns() {
   addHostFromUrl(process.env.NEXT_PUBLIC_SUPABASE_URL)
   addHostFromUrl(process.env.SUPABASE_URL)
 
+  // A brand whose files moved to R2: its public bucket origin (https only).
+  for (const raw of [process.env.STORAGE_PUBLIC_URL, process.env.NEXT_PUBLIC_STORAGE_PUBLIC_URL]) {
+    if (raw && /^https:\/\/[A-Za-z0-9.-]+\/?$/.test(raw.trim())) addHostFromUrl(raw.trim())
+  }
+
   // Operator escape hatch: comma-separated extra hosts.
   const extras = (process.env.IMAGE_REMOTE_HOSTS || '')
     .split(',')
@@ -289,11 +294,20 @@ const nextConfig: NextConfig = {
       ''
     ).replace(/\/+$/, '');
     if (!apiInternal) return [];
+    // Signed browser uploads (lib/storageUpload.ts), only on a brand whose
+    // files moved to R2. Two exact routes, nothing else under /api/storage.
+    const storageOnR2 = [process.env.STORAGE_PUBLIC_URL, process.env.NEXT_PUBLIC_STORAGE_PUBLIC_URL].some((v) => !!v?.trim());
     return [
       {
         source: '/api/public/:path*',
         destination: `${apiInternal}/api/public/:path*`,
       },
+      ...(storageOnR2
+        ? [
+            { source: '/api/storage/sign-upload', destination: `${apiInternal}/api/storage/sign-upload` },
+            { source: '/api/storage/delete', destination: `${apiInternal}/api/storage/delete` },
+          ]
+        : []),
     ];
   },
 

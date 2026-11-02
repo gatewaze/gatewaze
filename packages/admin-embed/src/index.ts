@@ -358,6 +358,15 @@ export function mount(el: HTMLElement, ctx: GwLoaderContext): GwLoaderHandle {
         ...(typeof hostCtx.supabase.publicUrl === 'string' && isAllowedBaseUrl(hostCtx.supabase.publicUrl)
           ? { VITE_SUPABASE_PUBLIC_URL: hostCtx.supabase.publicUrl }
           : {}),
+        // Same rule as the bundle's: an https origin, and plain hostnames.
+        ...(hostCtx.storage && typeof hostCtx.storage.publicUrl === 'string' && /^https:\/\/[A-Za-z0-9.-]+$/.test(hostCtx.storage.publicUrl)
+          ? {
+              VITE_STORAGE_PUBLIC_URL: hostCtx.storage.publicUrl,
+              VITE_STORAGE_LEGACY_HOSTS: (Array.isArray(hostCtx.storage.legacyHosts) ? hostCtx.storage.legacyHosts : [])
+                .filter((h) => typeof h === 'string' && /^[A-Za-z0-9.-]+$/.test(h))
+                .join(','),
+            }
+          : {}),
       };
       // All URLs are manifest-relative, so a bundle served from a sub-path
       // still resolves.

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { publicStorageUrl, rewriteStorageUrl } from "@/lib/storagePublic";
 
 /**
  * URLs for the configured branding logos. `null` for either field means
@@ -42,10 +43,9 @@ function notify() {
 
 function resolvePath(value: string | null | undefined): string | null {
   if (!value) return null;
-  if (/^https?:\/\//.test(value)) return value;
+  if (/^https?:\/\//.test(value)) return rewriteStorageUrl(value);
   if (value.startsWith("/")) return value;
-  const { data } = supabase.storage.from("media").getPublicUrl(value);
-  return data.publicUrl || null;
+  return publicStorageUrl("media", value) || null;
 }
 
 async function load() {

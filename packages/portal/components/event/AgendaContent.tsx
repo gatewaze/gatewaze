@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo, useCallback } from 'react'
 import Image from 'next/image'
 import { getClientBrandConfig, isLightColor } from '@/config/brand'
 import { getSupabaseClient } from '@/lib/supabase/client'
+import { r2StorageUrl, rewriteStorageUrl } from '@/lib/storagePublic'
 import { useEventContext } from './EventContext'
 import { GlowBorder } from '@/components/ui/GlowBorder'
 import { AgendaTalkSurface } from './AgendaTalkSurface'
@@ -156,9 +157,10 @@ export function AgendaContent() {
                 last_name: s.last_name || null,
                 company: s.company || null,
                 job_title: s.job_title || null,
-                avatar_url: s.avatar_url || null,
+                avatar_url: s.avatar_url ? rewriteStorageUrl(s.avatar_url) : null,
                 company_logo_url: s.company_logo_storage_path
-                  ? `${config.supabaseUrl}/storage/v1/object/public/speaker-logos/${s.company_logo_storage_path}`
+                  ? r2StorageUrl('speaker-logos', s.company_logo_storage_path) ??
+                    `${config.supabaseUrl}/storage/v1/object/public/speaker-logos/${s.company_logo_storage_path}`
                   : null,
               }))
               talksMap[talk.id] = {

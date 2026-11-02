@@ -2,6 +2,7 @@ import { toast } from 'sonner'
 import { getHostAdminContext, isHostSession, supabase } from '@/lib/supabase'
 import { getSupabaseConfig } from '@/config/brands'
 import { toPublicUrl } from '@gatewaze/shared'
+import { rewriteStorageUrl, storageConfig } from '@/lib/storagePublic'
 
 const BUCKET_URL = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/media`
 
@@ -58,7 +59,8 @@ function toAdminUser(adminProfile: {
     // Not narrowed here, as the query never did (the database also allows
     // portal_manager); RLS and the guards decide what a role may do.
     role: adminProfile.role as AdminUser['role'],
-    avatar_url: toPublicUrl(adminProfile.avatar_url, BUCKET_URL) ?? undefined,
+    // The media bucket sits at the root of the brand's R2 bucket when it has one.
+    avatar_url: rewriteStorageUrl(toPublicUrl(adminProfile.avatar_url, storageConfig().publicUrl || BUCKET_URL) ?? '') || undefined,
     permissions: adminProfile.permissions,
     is_active: adminProfile.is_active,
     created_at: adminProfile.created_at,

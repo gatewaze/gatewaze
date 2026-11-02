@@ -89,6 +89,15 @@ function isSameOriginRoute(v: unknown): v is string {
   return isSameOriginAbsoluteUrl(v);
 }
 
+/** An https origin and nothing else: the same rule the storage helpers apply. */
+function isStorageOrigin(v: unknown): v is string {
+  return isNonEmptyString(v) && /^https:\/\/[A-Za-z0-9.-]+$/.test(v);
+}
+
+function isHostname(v: string): boolean {
+  return /^[A-Za-z0-9.-]+$/.test(v);
+}
+
 function isStringArray(v: unknown): v is string[] {
   return Array.isArray(v) && v.every((x) => typeof x === 'string');
 }
@@ -157,6 +166,18 @@ export function validateGwHostContext(ctx: unknown): ValidationResult {
   }
   if (c.supabase.publicUrl !== undefined && !isHttpsOrLocalhostUrl(c.supabase.publicUrl)) {
     return fail('supabase.publicUrl', 'supabase.publicUrl must be an absolute https URL (http only for localhost, 127.0.0.1 or *.localhost)');
+  }
+
+  if (c.storage !== undefined) {
+    if (!c.storage || typeof c.storage !== 'object') {
+      return fail('storage', 'storage must be { publicUrl, legacyHosts? } when provided');
+    }
+    if (!isStorageOrigin(c.storage.publicUrl)) {
+      return fail('storage.publicUrl', 'storage.publicUrl must be an https origin with no path');
+    }
+    if (c.storage.legacyHosts !== undefined && !(isStringArray(c.storage.legacyHosts) && c.storage.legacyHosts.every(isHostname))) {
+      return fail('storage.legacyHosts', 'storage.legacyHosts must be an array of hostnames');
+    }
   }
 
   // Optional in host-session mode (the host owns sign-in), but checked when given.
