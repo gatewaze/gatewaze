@@ -51,6 +51,7 @@ export const admin: NavigationTree = {
       title: "Modules",
       icon: "Puzzle",
       requiredFeature: "settings",
+      superAdminOnly: true,
     },
     {
       id: "admin.api_keys",

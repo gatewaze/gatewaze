@@ -2,12 +2,13 @@ import { RouteObject } from "react-router";
 
 import AuthGuard from "@/middleware/AuthGuard";
 import AdminGuard from "@/middleware/AdminGuard";
+import SuperAdminGuard from "@/middleware/SuperAdminGuard";
 import { FeatureGuard } from "@/middleware/FeatureGuard";
 import { OnboardingGuard } from "@/middleware/OnboardingGuard";
 import { UnauthorizedPage } from "@/components/guards/FeatureGuard";
 import { DynamicLayout } from "../layouts/DynamicLayout";
 import { RoleBasedRedirect } from "./RoleBasedRedirect";
-import { moduleRoutes, moduleAdminRoutes } from "./moduleRoutes";
+import { moduleRoutes, moduleAdminRoutes, moduleBareRoutes } from "./moduleRoutes";
 
 /**
  * Core routes that are NOT provided by modules.
@@ -74,6 +75,9 @@ const protectedRoutes: RouteObject = {
     {
       Component: OnboardingGuard,
       children: [
+    // Module routes with layout: 'bare' (e.g. the newsletter approval view):
+    // signed in, but no admin chrome around them.
+    ...moduleBareRoutes,
     // The dynamic layout supports both the main layout and the sideblock.
     {
       Component: DynamicLayout,
@@ -160,7 +164,11 @@ const protectedRoutes: RouteObject = {
               },
             },
             {
+              // Module management installs and runs code from configured
+              // sources, so the whole subtree is super_admin only, matching
+              // the gate on /api/modules.
               path: "modules",
+              Component: SuperAdminGuard,
               children: [
                 {
                   index: true,

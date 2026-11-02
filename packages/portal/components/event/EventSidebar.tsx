@@ -1,6 +1,7 @@
 'use client'
 
 import { usePathname, useSearchParams } from 'next/navigation'
+import { hasContentFrom, isOwnEndpoint, navChildrenFrom, type NavChild } from '@/lib/nav-children'
 import Link from 'next/link'
 import { Suspense, useMemo, useState, useRef, useEffect, useCallback } from 'react'
 import type { Event } from '@/types/event'
@@ -15,12 +16,28 @@ import { useAuth } from '@/hooks/useAuth'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { isOnCustomDomain } from '@/lib/customDomain'
 import { isLightColor } from '@/config/brand'
+import { useEventContext } from './EventContext'
+
 
 interface NavItem {
   label: string
   href: string
   icon: React.ReactNode
   show: boolean
+  /**
+   * Pages within this one, listed under it while it is the page being
+   * looked at. Optional, and absent for every item that does not have
+   * any -- a module page contributes them (asked 2026-09-28).
+   */
+  children?: NavChild[]
+  /** Where to ask for those children; see the module registry. */
+  subNav?: string
+  /**
+   * An endpoint that decides whether this item is offered at all. The
+   * item stays hidden until it answers with something; see
+   * hasContentFrom.
+   */
+  requiresContent?: string
   /**
    * When true, the item links to an external URL (typically populated
    * from event.source_details.action_links). Renders as <a target="_blank">
@@ -74,6 +91,94 @@ function useIsAdmin() {
   return isAdmin
 }
 
+/**
+ * The pages within a page, for any item that says where to find them.
+ *
+ * A module names an endpoint in its page metadata and the portal asks
+ * it; the answer is a short list of labels and paths (the photo albums,
+ * for instance -- asked 2026-09-28). Deliberately generic: this knows
+ * nothing about any particular module, and an endpoint that is missing,
+ * slow or malformed simply leaves the item without children.
+ */
+function useNavChildren(items: NavItem[], eventIdentifier: string): NavItem[] {
+  const [children, setChildren] = useState<Record<string, NavChild[]>>({})
+
+  // A map rather than a delimited string: joining hrefs and endpoints
+  // with punctuation invites one item's endpoint being read as another's
+  // address the first time either contains that punctuation.
+  const asks = useMemo(() => {
+    const out: Record<string, string> = {}
+    for (const i of items) if (i.subNav && isOwnEndpoint(i.subNav)) out[i.href] = i.subNav
+    return out
+  }, [items])
+  const asksKey = JSON.stringify(asks)
+
+  useEffect(() => {
+    let cancelled = false
+    // Without an event there is nothing to ask about, and asking anyway
+    // puts a hole where the identifier should be.
+    if (!eventIdentifier) return
+    for (const [href, endpoint] of Object.entries(JSON.parse(asksKey) as Record<string, string>)) {
+      const url = endpoint.replace('{identifier}', encodeURIComponent(eventIdentifier))
+      fetch(url)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((body: unknown) => {
+          if (cancelled) return
+          const kids = navChildrenFrom(body, href)
+          if (kids.length > 0) setChildren((prev) => ({ ...prev, [href]: kids }))
+        })
+        .catch(() => { /* an item without children is the normal case */ })
+    }
+    return () => { cancelled = true }
+  }, [asksKey, eventIdentifier])
+
+  return items.map((i) => (children[i.href]?.length ? { ...i, children: children[i.href] } : i))
+}
+
+/**
+ * Which items have something behind them.
+ *
+ * Shaped like useNavChildren on purpose, and separate from it on
+ * purpose: that one decides what lies BENEATH an item and leaves the
+ * item alone when there is nothing, which is right for a list of albums
+ * and wrong for the question of whether to offer the page. An item
+ * declaring `requiresContent` is withheld until its endpoint says yes.
+ *
+ * Nothing here knows about any particular module. An endpoint that
+ * fails, 404s or answers in an unrecognised shape leaves its page
+ * hidden, because the alternative is what this fixes.
+ */
+function useItemsWithContent(items: NavItem[], eventIdentifier: string): NavItem[] {
+  const [verdict, setVerdict] = useState<Record<string, boolean>>({})
+
+  const asks = useMemo(() => {
+    const out: Record<string, string> = {}
+    for (const i of items) {
+      if (i.requiresContent && isOwnEndpoint(i.requiresContent)) out[i.href] = i.requiresContent
+    }
+    return out
+  }, [items])
+  const asksKey = JSON.stringify(asks)
+
+  useEffect(() => {
+    let cancelled = false
+    if (!eventIdentifier) return
+    for (const [href, endpoint] of Object.entries(JSON.parse(asksKey) as Record<string, string>)) {
+      const url = endpoint.replace('{identifier}', encodeURIComponent(eventIdentifier))
+      fetch(url)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((body: unknown) => {
+          if (cancelled) return
+          if (hasContentFrom(body)) setVerdict((prev) => ({ ...prev, [href]: true }))
+        })
+        .catch(() => { /* hidden is the safe answer */ })
+    }
+    return () => { cancelled = true }
+  }, [asksKey, eventIdentifier])
+
+  return items.filter((i) => !i.requiresContent || verdict[i.href] === true)
+}
+
 function useModuleNavItems(basePath: string, hasVirtualEvent: boolean) {
   const [items, setItems] = useState<NavItem[]>([])
   const isAdmin = useIsAdmin()
@@ -112,6 +217,8 @@ function useModuleNavItems(basePath: string, hasVirtualEvent: boolean) {
           label: page.label,
           href: `${basePath}/${page.slug}`,
           show: true,
+          subNav: page.subNav,
+          requiresContent: page.requiresContent,
           icon: (
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
@@ -127,8 +234,17 @@ function useModuleNavItems(basePath: string, hasVirtualEvent: boolean) {
   return items
 }
 
-function useNavItems(event: Event, basePath: string, speakerCount: number, sponsorCount: number, competitionCount: number, discountCount: number, mediaCount: number, hasVirtualEvent: boolean, userState?: EventUserState) {
+function useNavItems(event: Event, basePath: string, eventIdentifier: string, speakerCount: number, sponsorCount: number, competitionCount: number, discountCount: number, mediaCount: number, hasVirtualEvent: boolean, userState?: EventUserState) {
   const moduleNavItems = useModuleNavItems(basePath, hasVirtualEvent)
+  // The event as this component was told it, not as the address spells
+  // it: on a custom domain the base path is empty -- the host is the
+  // event -- so taking the last part of it asked the server about an
+  // event with no name (reported 2026-09-28).
+  // Withhold any page whose module says it is empty for this event,
+  // BEFORE asking what lies beneath the ones that remain: a page nobody
+  // is being offered has no children worth fetching.
+  const offered = useItemsWithContent(moduleNavItems, eventIdentifier)
+  const withChildren = useNavChildren(offered, eventIdentifier)
 
   // A scraped speak action link can point BACK at this very portal — aaif.io's
   // event pages link their Speak button to our /talks page, and the scraper
@@ -303,7 +419,7 @@ function useNavItems(event: Event, basePath: string, speakerCount: number, spons
         </svg>
       ),
     },
-    ...moduleNavItems,
+    ...withChildren,
   ]
 
   return navItems.filter(item => item.show)
@@ -407,9 +523,10 @@ function EventMobileActionsInner({ event, eventIdentifier, useDarkText, primaryC
   const searchParams = useSearchParams()
   const customDomain = isOnCustomDomain()
   const basePath = customDomain ? '' : `/events/${eventIdentifier}`
-  const visibleItems = useNavItems(event, basePath, speakerCount, sponsorCount, competitionCount, discountCount, mediaCount, hasVirtualEvent, userState)
+  const visibleItems = useNavItems(event, basePath, eventIdentifier, speakerCount, sponsorCount, competitionCount, discountCount, mediaCount, hasVirtualEvent, userState)
   const { showRegisterButton, useExternalLink, registerHref } = useRegisterLink(event, basePath)
   const handleExternalRegister = useExternalRegisterHandler(event)
+  const { requestRegister, registrationMembersOnly } = useEventContext()
   const { isRegistered: realIsRegistered } = useRegistrationStatus(event)
   const isConfirmedSpeaker = userState?.isConfirmedSpeaker ?? false
   const isLive = userState?.timeline === 'live'
@@ -475,8 +592,8 @@ function EventMobileActionsInner({ event, eventIdentifier, useDarkText, primaryC
           <PortalButton
             variant="primary"
             primaryColor={primaryColor}
-            href={useExternalLink ? undefined : registerHref!}
-            onClick={useExternalLink ? handleExternalRegister : undefined}
+            href={registrationMembersOnly ? undefined : (useExternalLink ? undefined : registerHref!)}
+            onClick={registrationMembersOnly ? () => void requestRegister() : (useExternalLink ? handleExternalRegister : undefined)}
             glow
             className="flex-1 justify-center"
           >
@@ -614,8 +731,8 @@ function EventMobileActionsInner({ event, eventIdentifier, useDarkText, primaryC
                 const active = isActive(item.href)
                 const isHovered = hoveredItem === item.href
                 return (
+                  <div key={item.href}>
                   <Link
-                    key={item.href}
                     href={item.href}
                     target={item.external ? '_blank' : undefined}
                     rel={item.external ? 'noopener noreferrer' : undefined}
@@ -651,7 +768,28 @@ function EventMobileActionsInner({ event, eventIdentifier, useDarkText, primaryC
                     <span className="text-base font-medium text-white">
                       {item.label}
                     </span>
-                  </Link>
+                    </Link>
+                    {/* The pages within this one, while it is the page
+                        being looked at (asked 2026-09-28). */}
+                    {active && item.children && item.children.length > 0 && (
+                      <div className="ml-14 mt-1 flex flex-col gap-0.5">
+                        {item.children.map((child) => (
+                          <Link
+                            key={child.href}
+                            href={child.href}
+                            onClick={() => setMenuOpen(false)}
+                            className="flex items-center gap-2 rounded px-2 py-1 text-sm"
+                            style={{ color: useDarkText ? '#4b5563' : 'rgba(255,255,255,0.75)' }}
+                          >
+                            <span className="truncate">{child.label}</span>
+                            {typeof child.count === 'number' && (
+                              <span style={{ opacity: 0.6 }}>{child.count}</span>
+                            )}
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                    </div>
                 )
               })}
             </nav>
@@ -678,9 +816,10 @@ function EventSidebarInner({ event, eventIdentifier, useDarkText, primaryColor, 
   const searchParams = useSearchParams()
   const customDomain = isOnCustomDomain()
   const basePath = customDomain ? '' : `/events/${eventIdentifier}`
-  const visibleItems = useNavItems(event, basePath, speakerCount, sponsorCount, competitionCount, discountCount, mediaCount, hasVirtualEvent, userState)
+  const visibleItems = useNavItems(event, basePath, eventIdentifier, speakerCount, sponsorCount, competitionCount, discountCount, mediaCount, hasVirtualEvent, userState)
   const { showRegisterButton, useExternalLink, registerHref } = useRegisterLink(event, basePath)
   const handleExternalRegister = useExternalRegisterHandler(event)
+  const { requestRegister, registrationMembersOnly } = useEventContext()
   const { isRegistered: realIsRegistered } = useRegistrationStatus(event)
   const isConfirmedSpeaker = userState?.isConfirmedSpeaker ?? false
   const isLive = userState?.timeline === 'live'
@@ -716,8 +855,8 @@ function EventSidebarInner({ event, eventIdentifier, useDarkText, primaryColor, 
         <PortalButton
           variant="primary"
           primaryColor={primaryColor}
-          href={useExternalLink ? undefined : registerHref!}
-          onClick={useExternalLink ? handleExternalRegister : undefined}
+          href={registrationMembersOnly ? undefined : (useExternalLink ? undefined : registerHref!)}
+          onClick={registrationMembersOnly ? () => void requestRegister() : (useExternalLink ? handleExternalRegister : undefined)}
           glow
           className="w-full justify-center"
         >
@@ -805,8 +944,8 @@ function EventSidebarInner({ event, eventIdentifier, useDarkText, primaryColor, 
               const active = isActive(item.href)
               const isHovered = hoveredItem === item.href
               return (
+                <div key={item.href}>
                 <Link
-                  key={item.href}
                   href={item.href}
                   target={item.external ? '_blank' : undefined}
                   rel={item.external ? 'noopener noreferrer' : undefined}
@@ -842,6 +981,26 @@ function EventSidebarInner({ event, eventIdentifier, useDarkText, primaryColor, 
                     {item.label}
                   </span>
                 </Link>
+                {/* The pages within this one, while it is the page being
+                    looked at (asked 2026-09-28). */}
+                {active && item.children && item.children.length > 0 && (
+                  <div className="ml-14 mt-1 flex flex-col gap-0.5">
+                    {item.children.map((child) => (
+                      <Link
+                        key={child.href}
+                        href={child.href}
+                        className="flex items-center gap-2 rounded px-2 py-1 text-sm"
+                        style={{ color: useDarkText ? '#4b5563' : 'rgba(255,255,255,0.75)' }}
+                      >
+                        <span className="truncate">{child.label}</span>
+                        {typeof child.count === 'number' && (
+                          <span style={{ opacity: 0.6 }}>{child.count}</span>
+                        )}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+                </div>
               )
             })}
           </nav>

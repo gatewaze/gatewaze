@@ -8,7 +8,7 @@
  */
 
 import '../load-env.js';
-import { Worker } from 'bullmq';
+import { Queue, Worker } from 'bullmq';
 import Redis from 'ioredis';
 import { JobTypes, getQueue } from '../lib/job-queue.js';
 import { supabase } from '../supabase-client.js';
@@ -528,160 +528,6 @@ const handlers = {
       throw error;
     }
   },
-  // Media zip processing — extracts photos from uploaded ZIP files
-  [JobTypes.MEDIA_PROCESS_ZIP]: async (job) => {
-    const { zipUploadId } = job.data;
-    console.log(`📦 Processing zip upload: ${zipUploadId}`);
-
-    // Update status to processing
-    await supabase
-      .from('events_media_zip_uploads')
-      .update({ status: 'processing', processing_started_at: new Date().toISOString() })
-      .eq('id', zipUploadId);
-
-    const { data: zipUpload, error: fetchError } = await supabase
-      .from('events_media_zip_uploads')
-      .select('*')
-      .eq('id', zipUploadId)
-      .single();
-
-    if (fetchError || !zipUpload) {
-      throw new Error(`Failed to fetch zip upload: ${fetchError?.message}`);
-    }
-
-    // Download zip to temp file via streaming (avoids holding entire file in memory)
-    const { createWriteStream, readFileSync, unlinkSync } = await import('fs');
-    const { Readable } = await import('stream');
-    const { pipeline } = await import('stream/promises');
-    const { tmpdir } = await import('os');
-    const { join } = await import('path');
-
-    const { data: signedUrlData, error: signError } = await supabase.storage
-      .from('media')
-      .createSignedUrl(zipUpload.storage_path, 3600); // 1 hour
-
-    if (signError || !signedUrlData?.signedUrl) {
-      throw new Error(`Failed to get signed URL: ${signError?.message}`);
-    }
-
-    const tempPath = join(tmpdir(), `zip-${zipUploadId}-${Date.now()}.zip`);
-    console.log(`📦 Downloading to temp file: ${tempPath}`);
-
-    const response = await fetch(signedUrlData.signedUrl);
-    if (!response.ok) throw new Error(`Download failed: ${response.status}`);
-
-    const nodeStream = Readable.fromWeb(response.body);
-    await pipeline(nodeStream, createWriteStream(tempPath));
-
-    const zipBuffer = readFileSync(tempPath);
-    console.log(`📦 Downloaded: ${(zipBuffer.length / 1024 / 1024).toFixed(1)}MB`);
-
-    // Use JSZip (available in Node.js worker container)
-    const JSZip = (await import('jszip')).default;
-    const zip = await JSZip.loadAsync(zipBuffer);
-
-    // Delete temp file now that zip is loaded
-    try { unlinkSync(tempPath); } catch {}
-
-    const files = Object.values(zip.files).filter(f =>
-      !f.dir && !f.name.startsWith('__MACOSX/') && !f.name.includes('/.') && !f.name.startsWith('.')
-    );
-
-    const totalCount = files.length;
-    await supabase.from('events_media_zip_uploads').update({ total_count: totalCount }).eq('id', zipUploadId);
-
-    const MIME_TYPES = {
-      jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif',
-      webp: 'image/webp', bmp: 'image/bmp', mp4: 'video/mp4', mov: 'video/quicktime',
-    };
-    const getMime = (name) => MIME_TYPES[name.split('.').pop()?.toLowerCase()] || null;
-
-    let processedCount = 0;
-    const albumMap = new Map();
-    const errors = [];
-
-    for (const file of files) {
-      try {
-        const fileName = file.name.split('/').pop();
-        const mimeType = getMime(fileName);
-        if (!mimeType) continue;
-
-        const fileType = mimeType.startsWith('image/') ? 'photo' : 'video';
-
-        // Album from folder
-        const parts = file.name.split('/').filter(p => p && p !== '__MACOSX');
-        const folderName = parts.length > 1 ? parts.slice(0, -1).join(' - ') : null;
-
-        let albumId = null;
-        if (folderName) {
-          albumId = albumMap.get(folderName) || null;
-          if (!albumId) {
-            const { data: existing } = await supabase
-              .from('events_media_albums').select('id')
-              .eq('event_id', zipUpload.event_id).eq('name', folderName).maybeSingle();
-            if (existing) {
-              albumId = existing.id;
-            } else {
-              const { data: newAlbum } = await supabase
-                .from('events_media_albums')
-                .insert({ event_id: zipUpload.event_id, name: folderName, description: 'Auto-created from zip upload' })
-                .select().single();
-              albumId = newAlbum?.id || null;
-            }
-            if (albumId) albumMap.set(folderName, albumId);
-          }
-        }
-
-        const content = await file.async('uint8array');
-        const timestamp = Date.now();
-        const sanitized = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
-        const storagePath = `events/${zipUpload.event_id}/${fileType}s/original/${timestamp}-${sanitized}`;
-
-        const { error: upErr } = await supabase.storage
-          .from('media').upload(storagePath, content, { contentType: mimeType, cacheControl: '3600' });
-        if (upErr) throw new Error(`Upload failed: ${upErr.message}`);
-
-        const { data: urlData } = supabase.storage.from('media').getPublicUrl(storagePath);
-
-        const { data: media, error: dbErr } = await supabase
-          .from('events_media')
-          .insert({
-            event_id: zipUpload.event_id, file_name: fileName, storage_path: storagePath,
-            url: urlData.publicUrl, file_type: fileType, mime_type: mimeType, file_size: content.length,
-          })
-          .select().single();
-
-        if (dbErr) throw new Error(`DB insert failed: ${dbErr.message}`);
-
-        if (albumId && media) {
-          await supabase.from('event_media_album_items')
-            .insert({ media_id: media.id, album_id: albumId, sort_order: processedCount });
-        }
-
-        processedCount++;
-        if (processedCount % 5 === 0) {
-          await supabase.from('events_media_zip_uploads').update({ processed_count: processedCount }).eq('id', zipUploadId);
-          await job.updateProgress(Math.round((processedCount / totalCount) * 100));
-        }
-      } catch (err) {
-        errors.push(`${file.name}: ${err.message}`);
-        console.error(`❌ ${file.name}: ${err.message}`);
-      }
-    }
-
-    await supabase.from('events_media_zip_uploads').update({ processed_count: processedCount }).eq('id', zipUploadId);
-    await supabase.from('events_media_zip_uploads').update({
-      status: 'completed', processing_completed_at: new Date().toISOString(),
-      error_message: errors.length > 0 ? errors.join('; ') : null,
-    }).eq('id', zipUploadId);
-
-    // Clean up zip
-    try { await supabase.storage.from('media').remove([zipUpload.storage_path]); } catch {}
-
-    console.log(`✅ Zip processed: ${processedCount}/${totalCount} files`);
-    return { processed: processedCount, total: totalCount, errors: errors.length };
-  },
-
   // Bulk speaker extraction enqueued at the end of every scrape run.
   // Delegates to the scrapers module handler, which carries the
   // Anthropic call + per-brand-budget enforcement via callAnthropic.
@@ -783,6 +629,16 @@ const MODULE_ROOTS = [
   '/var/lib/gatewaze/modules',         // live snapshot installed by api
   '/gatewaze-modules/modules',         // baked-in / runtime symlink
   '/app/.gatewaze-modules',            // loader.ts cache dir (clones nested per repo slug)
+  // Local paths from MODULE_SOURCES (comma-separated, optional #fragment) —
+  // deployments that mount extra module repos (a third source beyond the two
+  // hardcoded ones) otherwise have no way to get their handlers registered:
+  // the live tree holds SYMLINKS, and readdir dirents report those as
+  // non-directories, so only real scan roots count. Git URLs are skipped
+  // (the loader's clone cache above covers those).
+  ...(process.env.MODULE_SOURCES ?? '')
+    .split(',')
+    .map((s) => s.split('#')[0].trim())
+    .filter((s) => s.startsWith('/')),
 ];
 
 // Register handlers by the DECLARED job name from each module's index.ts
@@ -1036,6 +892,83 @@ async function recoverStuckScraperJobs() {
   }
 }
 
+// Recover orphaned scraper jobs: rows left in 'pending' that never started
+// and are no longer in the queue (e.g. the scheduler created the row but
+// the enqueue failed, or the queued job was lost). scrapers_get_due_for_run
+// skips any scraper with a pending job, so without this the scraper never
+// runs again. Queue wait alone can legitimately be hours during a burst,
+// so age is only a pre-filter; the queue check decides.
+const ORPHAN_PENDING_MIN_AGE_MINUTES = 30;
+const LIVE_JOB_STATES = ['waiting', 'active', 'delayed', 'prioritized', 'paused'];
+let moduleQueueReader = null;
+
+async function getQueuedScraperJobIds() {
+  // scraper:run can sit in either keyspace: the scheduler enqueues to
+  // `jobs-${BRAND}`, while scrapers/api.ts (manual runs) enqueues to the
+  // module registry queue unless SCRAPER_QUEUE_* bridges it. Check both so
+  // a job still waiting in the other keyspace is never reaped. Throws if
+  // either queue can't be read — the caller then skips the pass.
+  if (!moduleQueueReader) {
+    moduleQueueReader = new Queue(moduleQueueName, { connection: getConnection(), prefix: moduleQueuePrefix });
+  }
+  const [legacyJobs, moduleJobs] = await Promise.all([
+    getQueue(brand).getJobs(LIVE_JOB_STATES),
+    moduleQueueReader.getJobs(LIVE_JOB_STATES),
+  ]);
+  return new Set(
+    [...legacyJobs, ...moduleJobs]
+      .filter(job => job?.name === JobTypes.SCRAPER_RUN && job.data?.scraperJobId)
+      .map(job => Number(job.data.scraperJobId)),
+  );
+}
+
+async function recoverOrphanedPendingScraperJobs() {
+  try {
+    const cutoff = new Date(Date.now() - ORPHAN_PENDING_MIN_AGE_MINUTES * 60 * 1000).toISOString();
+    const { data: pendingJobs, error } = await supabase
+      .from('scrapers_jobs')
+      .select('id, scraper_id, created_at')
+      .eq('status', 'pending')
+      .lt('created_at', cutoff);
+    if (error || !pendingJobs || pendingJobs.length === 0) return;
+
+    const queuedIds = await getQueuedScraperJobIds();
+
+    for (const job of pendingJobs) {
+      if (queuedIds.has(Number(job.id))) continue;
+      // Conditional on still being 'pending': the worker may have picked
+      // the job up (or finished it) since the select above, and another
+      // worker replica may have reaped it already. Only the replica whose
+      // update matches a row sends the alert.
+      const { data: reaped, error: reapError } = await supabase
+        .from('scrapers_jobs')
+        .update({
+          status: 'failed',
+          completed_at: new Date().toISOString(),
+          error_message: 'Job orphaned — pending but never started and not in the queue',
+        })
+        .eq('id', job.id)
+        .eq('status', 'pending')
+        .select('id');
+      if (reapError) {
+        console.error(`❌ Failed to mark orphaned job ${job.id} as failed:`, reapError);
+        continue;
+      }
+      if (!reaped || reaped.length === 0) continue;
+      console.log(`⚠️ Recovered orphaned pending job ${job.id} (scraper ${job.scraper_id}, created ${job.created_at})`);
+      await sendScraperAlert({
+        severity: 'error',
+        title: `Orphaned Job Recovered`,
+        message: `Job was pending since ${job.created_at} but was not in the queue, so it would never run. Marked as failed so the scraper can be scheduled again.`,
+        scraperName: `scraper ${job.scraper_id}`,
+        jobId: job.id,
+      });
+    }
+  } catch (err) {
+    console.error('Orphaned pending job recovery failed:', err.message);
+  }
+}
+
 // Check scheduler health
 async function checkSchedulerHealth() {
   try {
@@ -1066,6 +999,7 @@ const CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 setInterval(() => {
   cleanupStaleScraperJobs().catch(err => console.error('Periodic cleanup failed:', err));
   recoverStuckScraperJobs().catch(err => console.error('Stuck job recovery failed:', err));
+  recoverOrphanedPendingScraperJobs().catch(err => console.error('Orphaned job recovery failed:', err));
   checkSchedulerHealth().catch(err => console.error('Scheduler health check failed:', err));
 }, CLEANUP_INTERVAL_MS);
 console.log(`🔄 Periodic cleanup, stuck recovery, and scheduler health check every 5 minutes`);

@@ -197,6 +197,21 @@ function cloneOrUpdateRepo(gitUrl: string, branch: string | undefined): string |
   }
 }
 
+/**
+ * Whether a pre-cloned directory was cloned from `url`. The entrypoints
+ * write the URL to .gatewaze-source; a directory without one (an older
+ * image, or a local sibling checkout) is taken at face value.
+ */
+function cloneCameFrom(dir: string, url: string): boolean {
+  const marker = resolve(dir, '.gatewaze-source')
+  if (!existsSync(marker)) return true
+  try {
+    return readFileSync(marker, 'utf-8').trim() === url
+  } catch {
+    return false
+  }
+}
+
 function resolveSources(sources: SourceEntry[]): string[] {
   const resolved: string[] = []
 
@@ -207,15 +222,21 @@ function resolveSources(sources: SourceEntry[]): string[] {
     }
 
     if (isGitUrl(source.url)) {
-      // Prefer a pre-cloned symlink at /<reponame> (set up by the Docker
-      // entrypoint from MODULE_SOURCES) before doing our own clone. This
-      // avoids fetching the same repo twice at pod startup.
+      // Prefer a pre-cloned symlink (set up by the Docker entrypoint from
+      // MODULE_SOURCES) before doing our own clone. This avoids fetching
+      // the same repo twice at pod startup. The entrypoint symlinks the
+      // first repo of a name at /<reponame> and a later one with the same
+      // name (gatewaze/gatewaze-modules beside the private
+      // danthebaker/gatewaze-modules) at /<owner>-<reponame>, and writes
+      // the URL it cloned into .gatewaze-source, so a clone from a
+      // different URL is never taken for this one.
       const repoName = source.url.replace(/.*\//, '').replace(/\.git$/, '')
-      const symlinked = resolve('/', repoName)
-      const siblingLocal = resolve(PROJECT_ROOT, '..', repoName)
-      const preCloned = existsSync(symlinked) ? symlinked
-        : existsSync(siblingLocal) ? siblingLocal
-        : null
+      const owner = source.url.replace(/\.git$/, '').replace(/\/[^/]*$/, '').replace(/.*[/:]/, '')
+      const preCloned = [
+        resolve('/', `${owner}-${repoName}`),
+        resolve('/', repoName),
+        resolve(PROJECT_ROOT, '..', repoName),
+      ].find((dir) => existsSync(dir) && cloneCameFrom(dir, source.url)) ?? null
 
       if (preCloned) {
         const full = source.path ? resolve(preCloned, source.path) : preCloned
@@ -500,6 +521,57 @@ interface EventPageDef {
   order: number
   requiresLocalStorage?: string
   requiresAdmin?: boolean
+  /** An endpoint listing the pages within this one; see EventModulePage. */
+  subNav?: string
+  /** An endpoint deciding whether this page is offered at all. */
+  requiresContent?: string
+}
+
+/**
+ * Writing a value into generated code.
+ *
+ * Everything below refuses rather than sanitises: a value that is not the
+ * shape it should be is a bug in a module, and turning it into something
+ * "safe" hides that. Only after a value has been checked is it written,
+ * and then with JSON.stringify plus the two separators JSON allows raw
+ * and older JavaScript does not.
+ */
+function literal(value: string): string {
+  return JSON.stringify(value).replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029')
+}
+
+/** A slug, a module id, an icon name: lower-case words and dashes. */
+function asToken(value: string, what: string): string {
+  if (!/^[a-z0-9][a-z0-9._-]{0,63}$/i.test(value)) {
+    throw new Error(`[generate-module-registry] ${what} is not a plain name: ${JSON.stringify(value)}`)
+  }
+  return value
+}
+
+/** Something a person reads. No control characters, no separators. */
+function asText(value: string, what: string): string {
+  // eslint-disable-next-line no-control-regex
+  if (value.length === 0 || value.length > 80 || /[\u0000-\u001f\u007f\u2028\u2029]/.test(value)) {
+    throw new Error(`[generate-module-registry] ${what} is not a label: ${JSON.stringify(value)}`)
+  }
+  return value
+}
+
+/** A path on this portal, and nowhere else. */
+function asPath(value: string, what: string): string {
+  if (!/^\/[A-Za-z0-9._~!$&'()*+,;=:@%/?{}-]{1,300}$/.test(value) || value.startsWith('//')) {
+    throw new Error(`[generate-module-registry] ${what} is not a path on this site: ${JSON.stringify(value)}`)
+  }
+  return value
+}
+
+/** A file this build found for itself, on disk. */
+function asFilePath(value: string, what: string): string {
+  // eslint-disable-next-line no-control-regex
+  if (!value.startsWith('/') || /["'`\\\u0000-\u001f\u2028\u2029]/.test(value)) {
+    throw new Error(`[generate-module-registry] ${what} is not a usable path: ${JSON.stringify(value)}`)
+  }
+  return value
 }
 
 function discoverEventPages(sourceDirs: string[]): EventPageDef[] {
@@ -522,7 +594,18 @@ function discoverEventPages(sourceDirs: string[]): EventPageDef[] {
       if (!existsSync(eventPagesDir)) continue
 
       // Load metadata
-      let meta: Record<string, { label?: string; icon?: string; order?: number; requiresLocalStorage?: string; requiresAdmin?: boolean }> = {}
+      let meta: Record<string, {
+        label?: string; icon?: string; order?: number;
+        requiresLocalStorage?: string; requiresAdmin?: boolean;
+        // Pages within this page, listed under it in the sidebar. The
+        // module names an endpoint; the portal fetches it and expects
+        // { nav: [{ label, path, count? }] }, where path is appended to
+        // the page's own address. {identifier} is the event's.
+        subNav?: string;
+        // An endpoint deciding whether to offer this page for an event
+        // at all. Withheld until it answers with something.
+        requiresContent?: string;
+      }> = {}
       const metaPath = resolve(eventPagesDir, '_meta.json')
       if (existsSync(metaPath)) {
         try {
@@ -552,6 +635,17 @@ function discoverEventPages(sourceDirs: string[]): EventPageDef[] {
           order: pageMeta.order ?? 100,
           requiresLocalStorage: pageMeta.requiresLocalStorage,
           requiresAdmin: pageMeta.requiresAdmin,
+          // Ours to serve, not somebody else's: a relative path only. A
+          // module pointing this at another host would have every
+          // visitor's browser announce the event to it.
+          subNav: typeof pageMeta.subNav === 'string' && /^\/[^/]/.test(pageMeta.subNav)
+            ? pageMeta.subNav
+            : undefined,
+          // Same rule, same reason.
+          requiresContent: typeof pageMeta.requiresContent === 'string'
+            && /^\/[^/]/.test(pageMeta.requiresContent)
+            ? pageMeta.requiresContent
+            : undefined,
         })
       }
     }
@@ -809,8 +903,26 @@ export const adminModulePages: AdminModulePage[] = []
   const EVENT_PAGES_PATH = resolve(__dirname, '../lib/modules/generated-event-pages.ts')
   const eventPageEntries: string[] = []
   for (const ep of eventPages) {
+    // Values reach this file from a module's own directory names and its
+    // _meta.json, and what comes out is code that every event page of
+    // every brand loads into a browser. So they are checked before they
+    // are written, not merely quoted on the way out: a value that is not
+    // the shape it should be stops the build rather than becoming part
+    // of the program.
+    const page = {
+      slug: asToken(ep.slug, 'slug'),
+      moduleId: asToken(ep.moduleId, 'moduleId'),
+      label: asText(ep.label, 'label'),
+      icon: asToken(ep.icon, 'icon'),
+      order: Number.isFinite(ep.order) ? Math.trunc(ep.order) : 100,
+      requiresLocalStorage: ep.requiresLocalStorage ? asToken(ep.requiresLocalStorage, 'requiresLocalStorage') : undefined,
+      requiresAdmin: ep.requiresAdmin === true,
+      subNav: ep.subNav ? asPath(ep.subNav, 'subNav') : undefined,
+      requiresContent: ep.requiresContent ? asPath(ep.requiresContent, 'requiresContent') : undefined,
+      componentPath: asFilePath(ep.componentPath, 'componentPath'),
+    }
     eventPageEntries.push(
-      `  { slug: '${ep.slug}', moduleId: '${ep.moduleId}', label: '${ep.label}', icon: '${ep.icon}', order: ${ep.order}, requiresLocalStorage: ${ep.requiresLocalStorage ? `'${ep.requiresLocalStorage}'` : 'undefined'}, requiresAdmin: ${ep.requiresAdmin ? 'true' : 'false'}, component: () => import('${ep.componentPath}') },`
+      `  { slug: ${literal(page.slug)}, moduleId: ${literal(page.moduleId)}, label: ${literal(page.label)}, icon: ${literal(page.icon)}, order: ${page.order}, requiresLocalStorage: ${page.requiresLocalStorage ? literal(page.requiresLocalStorage) : 'undefined'}, requiresAdmin: ${page.requiresAdmin ? 'true' : 'false'}, subNav: ${page.subNav ? literal(page.subNav) : 'undefined'}, requiresContent: ${page.requiresContent ? literal(page.requiresContent) : 'undefined'}, component: () => import(${literal(page.componentPath)}) },`
     )
   }
 
@@ -827,6 +939,19 @@ export interface EventModulePage {
   order: number
   requiresLocalStorage?: string
   requiresAdmin?: boolean
+  /**
+   * An endpoint listing the pages within this one, for the sidebar.
+   * Answers { nav: [{ label, path, count? }] }; {identifier} is
+   * substituted with the event's. Absent for pages that have none.
+   */
+  subNav?: string
+  /**
+   * An endpoint deciding whether this page is offered for an event at
+   * all. The sidebar withholds the page until it answers with
+   * something, so a module contributed to every event does not put an
+   * empty page on every event. Absent for pages that are always shown.
+   */
+  requiresContent?: string
   component: () => Promise<{ default: ComponentType<any> }>
 }
 

@@ -61,7 +61,6 @@ export const JobTypes = {
   MEETUP_CONTENT_PROCESS: 'meetup:content-process',
 
   // Media processing jobs
-  MEDIA_PROCESS_ZIP: 'media:process-zip',
 
   // Bulk speaker extraction enqueued at the end of every scrape run.
   // Handler implemented in

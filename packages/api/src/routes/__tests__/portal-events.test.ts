@@ -43,6 +43,27 @@ describe('Portal Events API (public reads)', () => {
       expect(res.status).toBe(400);
     });
 
+    // The portal shows events as image-led cards, so an event with no card
+    // image is not listed. Without this the listing surfaces an empty card.
+    it('excludes events with no screenshot', async () => {
+      mockSupabase.mockResult([], null, 0);
+      await request(app).get('/api/portal/events');
+      expect(mockSupabase.client.not).toHaveBeenCalledWith('screenshot_url', 'is', null);
+    });
+
+    it('still requires the event to be live and listed', async () => {
+      mockSupabase.mockResult([], null, 0);
+      await request(app).get('/api/portal/events');
+      expect(mockSupabase.client.eq).toHaveBeenCalledWith('is_live_in_production', true);
+      expect(mockSupabase.client.eq).toHaveBeenCalledWith('is_listed', true);
+    });
+
+    it('applies the screenshot rule to past events too', async () => {
+      mockSupabase.mockResult([], null, 0);
+      await request(app).get('/api/portal/events?direction=past');
+      expect(mockSupabase.client.not).toHaveBeenCalledWith('screenshot_url', 'is', null);
+    });
+
     it('clamps oversized limit to PAGE_SIZE (1000)', async () => {
       mockSupabase.mockResult([], null, 0);
       const res = await request(app).get('/api/portal/events?limit=99999');
@@ -72,6 +93,15 @@ describe('Portal Events API (public reads)', () => {
       expect(res.status).toBe(200);
       expect(res.body).toEqual(event);
       expect(res.headers['cache-tag']).toContain('event:EVT-1');
+    });
+
+    // Not listing an event is not the same as hiding it. A direct link, a
+    // shared URL or an email link must still resolve, so the card-image rule
+    // deliberately does NOT apply to fetching one event.
+    it('does NOT apply the screenshot rule when fetching one event', async () => {
+      mockSupabase.mockResult({ event_id: 'E1', event_slug: 'test-event' }, null);
+      await request(app).get('/api/portal/events/test-event');
+      expect(mockSupabase.client.not).not.toHaveBeenCalledWith('screenshot_url', 'is', null);
     });
 
     it('returns 404 with brief cache when event missing', async () => {
@@ -140,6 +170,32 @@ describe('Portal Events API (public reads)', () => {
         mediaCount: 5,
         hasVirtualEvent: true,
       });
+    });
+  });
+
+  // events_discounts, events_competitions and events_sponsors key on the
+  // events.id uuid. Filtering them by the short text event_id makes PostgREST
+  // reject the uuid cast, which turned the list endpoints into 500s and every
+  // count into a silent 0.
+  describe('discount, competition and sponsor lookups use the event uuid', () => {
+    const event = { id: 'a1b2c3d4-0000-0000-0000-000000000001', event_id: 'EVT-1', event_slug: 'evt-1' };
+
+    it.each(['discounts', 'competitions'])('GET /:identifier/%s filters by the uuid', async (kind) => {
+      mockSupabase.mockResultsSequence([
+        { data: event, error: null },
+        { data: [], error: null },
+      ]);
+      const res = await request(app).get(`/api/portal/events/evt-1/${kind}`);
+      expect(res.status).toBe(200);
+      expect(mockSupabase.client.eq).toHaveBeenCalledWith('event_id', event.id);
+      expect(mockSupabase.client.eq).not.toHaveBeenCalledWith('event_id', event.event_id);
+    });
+
+    it('the counts endpoint filters sponsors, competitions and discounts by the uuid', async () => {
+      mockSupabase.mockResult({ id: event.id, event_id: event.event_id }, null, 0);
+      await request(app).get('/api/portal/events/EVT-1/counts');
+      expect(mockSupabase.client.eq).toHaveBeenCalledWith('event_id', event.id);
+      expect(mockSupabase.client.eq).not.toHaveBeenCalledWith('event_id', event.event_id);
     });
   });
 

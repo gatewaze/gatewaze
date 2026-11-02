@@ -11,6 +11,7 @@ Gatewaze uses an adapter pattern for authentication, supporting both Supabase Au
 - [OIDC (External Identity Provider)](#oidc-external-identity-provider)
 - [Permissions System](#permissions-system)
 - [RLS and External Auth Integration](#rls-and-external-auth-integration)
+- [MCP sign-in](#mcp-sign-in)
 
 ---
 
@@ -533,3 +534,50 @@ CREATE POLICY "Public can view published events"
   TO anon
   USING (status = 'published');
 ```
+
+---
+
+## MCP sign-in
+
+The API is the OAuth 2.1 authorization server for the hosted MCP endpoint. An MCP client sends the user to `/api/mcp-auth/authorize`, and the user signs in in one of three ways:
+
+| Install | Sign-in |
+|---|---|
+| No `lfid-auth` module, or the module is disabled | Magic link. The user enters an email address and then a one-time code. |
+| `lfid-auth` in bridge mode | The module's `integrations-lfid-callback` edge function. This needs `AUTH0_DOMAIN` and `AUTH0_CLIENT_ID` in the module config and `SUPABASE_PUBLIC_URL` in the API environment. Without them the API uses magic link. |
+| `lfid-auth` in native mode | Supabase Auth, through the `custom:lfid` OIDC provider. The bridge function is not used. |
+
+The API decides the LFID mode the same way the module does (see `docs/lfid-auth-setup.md` in lf-gatewaze-modules):
+
+- `LFID_SIGN_IN_MODE=native` in the API environment means native.
+- Otherwise the API calls `public.lfid_sign_in_mode()`, with a 3 second limit. Native is used only when it returns `native`. A missing function, an error, a timeout or any other value means bridge mode, or magic link when bridge mode is not configured.
+
+The API stores each sign-in request with the mode it chose. Each sign-in route accepts only a request made for its own mode. Requests stored by an older release have no mode. The magic-link routes still accept those until they expire after 15 minutes. The bridge routes cannot finish them, because they have no browser binding (see below).
+
+In both LFID modes the API first shows a page that names the client and where it will send the user, with a "Continue with LFID" button. The user's LFID session can sign them in without a prompt, so this page is the point where they agree to connect the client. The page sets a short-lived HttpOnly cookie that ties the rest of the flow to that browser. Each later step needs the cookie, so a URL forwarded to someone else, or built for them, cannot finish the request.
+
+In bridge mode the button posts to `/api/mcp-auth/bridge/start`, which sends the user to the module's `integrations-lfid-callback` function. The function sends them back to `/api/mcp-auth/bridge/return` with the Supabase session in the URL fragment. That page posts the session to `/api/mcp-auth/bridge/complete`, which needs the cookie and a press of the button in the same browser. Once it accepts the cookie it uses up the request, whether it succeeds or fails. On success the API revokes the Supabase session the module created, because the MCP client gets its own tokens. This is best effort, and a failure is logged as a warning. The return page only follows a redirect to an `http` or `https` URL. Older releases returned to `/api/mcp-auth/lfid-return`, which now shows a page that asks the user to start again. The bridge function only checks the origin of its return URL, which is why the cookie is checked here and not just on the button.
+
+In native mode the button posts to `/api/mcp-auth/lfid/start`. The API then runs the Supabase Auth PKCE flow itself. It sends the user to `/auth/v1/authorize?provider=custom:lfid` with a code challenge, and Supabase Auth sends them back to `/api/mcp-auth/lfid/callback/<request id>` with a code. The API exchanges the code with its verifier and reads the user. The user's email must be verified. The API then tries to revoke that Supabase session, because the MCP client gets its own tokens. This is best effort, and a failure is logged as a warning. Once the callback is accepted for the browser that started the flow, it uses up the request whether it succeeds or fails. A callback without that browser's cookie leaves the request alone, so a forwarded URL cannot spoil it. The API does not write the callback's query string, which holds the one-time code, to its access log. If you turn on OpenTelemetry, its HTTP spans do record the full URL. The code is of no use without the verifier, which stays on the server and is deleted on first use.
+
+Native mode needs these settings:
+
+- `SUPABASE_URL` and `SUPABASE_ANON_KEY` (or `VITE_SUPABASE_ANON_KEY`) in the API environment. `SUPABASE_PUBLIC_URL` is used for the browser redirect when it is set.
+- The callback URL on the Supabase Auth redirect allow-list, e.g. `https://api.example.com/api/mcp-auth/lfid/callback/*`. Without it Supabase Auth sends the user to the site URL instead and the MCP sign-in does not finish.
+- Redis 6.2 or later, for `GETDEL`. The chart and the compose files run Redis 7. Bridge mode needs this too.
+
+A client's redirect URIs must use `https`, or plain `http` when the host is exactly `localhost`, `127.0.0.1` or `[::1]`, on any port. Dynamic client registration (`/api/mcp-auth/register`) refuses any other URI. The same rule applies to the `redirect_uris` in a Client ID Metadata Document, and to registrations stored by an older release. The API ignores any URI that fails it.
+
+Each MCP sign-in route has a per-IP rate limit:
+
+| Route | Limit per client IP |
+|---|---|
+| `/api/mcp-auth/authorize` | 120 a minute |
+| The LFID routes of both modes, together | 120 a minute |
+| `/api/mcp-auth/magic/start`, which sends an email | 30 per 15 minutes |
+| `/api/mcp-auth/magic/verify` | 60 per 15 minutes |
+| `/api/mcp-auth/register` | 300 an hour |
+
+Behind an ingress without proxy protocol every client has the same address, so every client shares these limits. On the routes a person opens in the browser, the 429 answer is a page that asks them to wait a few minutes and start again.
+
+The Supabase session is created by the API's server-side code exchange, so the session's IP address is the API's or the cluster's, not the user's. The `lfid-auth` module's geo refresh skips addresses that are not public and the addresses listed in its `LFID_GEO_IGNORE_IPS` setting, so this sign-in does not change the user's stored location when the API's address is in that list. The admin BFF sign-in works the same way.

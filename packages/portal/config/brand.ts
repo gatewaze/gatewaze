@@ -10,6 +10,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { resolveBucketUrl, toPublicUrl } from '@gatewaze/shared'
+import { resolveCdnBaseUrl } from '@/lib/cdnBaseUrl'
 
 export type PortalTheme = 'blobs' | 'gradient_wave' | 'basic'
 
@@ -161,8 +162,24 @@ export interface BrandConfig {
   faviconUrl: string
   domain: string
   contactEmail: string
+  /**
+   * External membership/join page URL (e.g. https://aaif.io/members). Shown as the
+   * "Become a member" CTA on members-only event registration. Empty = no CTA link
+   * (the gate still applies; the become-a-member button is simply hidden).
+   */
+  membershipUrl: string
   trackingHead: string
   trackingBody: string
+  /**
+   * Compliance notice for event emails (e.g. LF's "By participating…you
+   * authorize…" wording). When set, event participation is treated as the
+   * authorization for event emails: the onboarding Communication Preferences
+   * step shows this text instead of offering the event-updates list as a
+   * checkbox. The ongoing preference surfaces (profile, Subscription Centre)
+   * deliberately keep the checkbox so unsubscribe stays reachable.
+   * Empty = event-updates remains an ordinary subscribable list everywhere.
+   */
+  eventConsentText: string
   eventTypes: EventTypeOption[]
   contentCategories: ContentCategoryOption[]
   eventTopicsEnabled: boolean
@@ -179,6 +196,17 @@ export interface BrandConfig {
    * Consumers pass this to `toPublicUrl(path, storageBucketUrl)`.
    */
   storageBucketUrl: string
+  /**
+   * Origin of this brand's Bunny CDN pull zone, e.g. `https://aaif.b-cdn.net`.
+   * Empty when the brand has no zone or BUNNY_CDN_ENABLED is not "true".
+   *
+   * Resolved server-side from env so it does NOT depend on build-time
+   * inlining. `packages/portal/lib/bunnyNet.ts` reads `NEXT_PUBLIC_BUNNY_*`
+   * instead, which is not set on any brand, so that helper is inert in
+   * production — this field is the working channel. Consumers pass it to
+   * `cardImage(url, cdnBaseUrl)`.
+   */
+  cdnBaseUrl: string
 }
 
 // ---------------------------------------------------------------------------
@@ -188,6 +216,16 @@ export interface BrandConfig {
 let cachedConfig: BrandConfig | null = null
 let cacheTimestamp = 0
 const CACHE_TTL_MS = 60_000
+// Failure backoff: fetch errors are never cached as config (a transient
+// error must not pin compliance-sensitive settings like eventConsentText to
+// defaults for the TTL), but retries are rate-limited so a sustained outage
+// doesn't turn every server render into a fresh settings query.
+let lastFailureAt = 0
+const FAILURE_BACKOFF_MS = 10_000
+// 12s: PostgREST cold-path latency has been measured at 10-12s in-cluster
+// (see PreferencesStep's LOAD_TIMEOUT_MS note); a tighter bound would abort
+// requests a slow-but-healthy backend was about to answer.
+const SETTINGS_FETCH_TIMEOUT_MS = 12_000
 
 // ---------------------------------------------------------------------------
 // Defaults
@@ -257,8 +295,10 @@ const defaults: BrandConfig = {
   faviconUrl: '',
   domain: '',
   contactEmail: '',
+  membershipUrl: '',
   trackingHead: '',
   trackingBody: '',
+  eventConsentText: '',
   eventTypes: DEFAULT_EVENT_TYPES,
   contentCategories: [],
   eventTopicsEnabled: false,
@@ -266,6 +306,7 @@ const defaults: BrandConfig = {
   portalUiMode: 'smoke' as const,
   storageBucketUrlRaw: '',
   storageBucketUrl: '',
+  cdnBaseUrl: resolveCdnBaseUrl(process.env),
 }
 
 // Mapping from app_settings keys to BrandConfig fields + defaults
@@ -292,8 +333,10 @@ const settingsMap: Record<string, { field: keyof BrandConfig; defaultValue: stri
   storage_bucket_url: { field: 'storageBucketUrlRaw', defaultValue: defaults.storageBucketUrlRaw },
   domain: { field: 'domain', defaultValue: defaults.domain },
   contact_email: { field: 'contactEmail', defaultValue: defaults.contactEmail },
+  membership_url: { field: 'membershipUrl', defaultValue: defaults.membershipUrl },
   tracking_head: { field: 'trackingHead', defaultValue: defaults.trackingHead },
   tracking_body: { field: 'trackingBody', defaultValue: defaults.trackingBody },
+  event_consent_text: { field: 'eventConsentText', defaultValue: defaults.eventConsentText },
 }
 
 // ---------------------------------------------------------------------------
@@ -317,6 +360,11 @@ export async function getServerBrandConfig(): Promise<BrandConfig> {
   if (cachedConfig && now - cacheTimestamp < CACHE_TTL_MS) {
     return cachedConfig
   }
+  // Within the failure backoff window, keep serving the last good config
+  // (or defaults) without re-querying a backend that just failed.
+  if (now - lastFailureAt < FAILURE_BACKOFF_MS) {
+    return cachedConfig ?? { ...defaults }
+  }
 
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -330,15 +378,25 @@ export async function getServerBrandConfig(): Promise<BrandConfig> {
 
   try {
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { fetch: (url, options = {}) => fetch(url, { ...options, cache: 'no-store' }) },
+      global: {
+        // no-store keeps settings fresh; the timeout bounds a hanging (rather
+        // than fast-failing) backend so renders never block on this query.
+        fetch: (url, options = {}) =>
+          fetch(url, { ...options, cache: 'no-store', signal: options.signal ?? AbortSignal.timeout(SETTINGS_FETCH_TIMEOUT_MS) }),
+      },
     })
     const { data, error } = await supabase.from('platform_settings').select('key, value')
 
     if (error) {
       console.warn('[brand] Failed to fetch app_settings:', error.message)
-      cachedConfig = { ...defaults }
-      cacheTimestamp = now
-      return cachedConfig
+      // Serve the last good config if we have one, and never cache the
+      // failure: compliance-sensitive settings (e.g. eventConsentText) must
+      // not be pinned to defaults for a whole TTL by one transient error.
+      // The backoff window above rate-limits retries instead. Stamped at
+      // failure time, not entry time, so a slow failure gets the full window.
+      lastFailureAt = Date.now()
+      if (cachedConfig) return cachedConfig
+      return { ...defaults }
     }
 
     const config: BrandConfig = { ...defaults }
@@ -545,6 +603,11 @@ export async function getServerBrandConfig(): Promise<BrandConfig> {
       publicSupabaseUrl,
     )
 
+    // Read the pull zone per request rather than trusting the module-load
+    // snapshot in `defaults`, so a pod that gets new env on restart picks it
+    // up without depending on when this module was first evaluated.
+    config.cdnBaseUrl = resolveCdnBaseUrl(process.env)
+
     // Resolve branding image fields to full URLs using the effective bucket URL.
     // Idempotent — already-full URLs (legacy data) pass through unchanged.
     config.logoUrl = toPublicUrl(config.logoUrl, config.storageBucketUrl) ?? config.logoUrl
@@ -558,9 +621,11 @@ export async function getServerBrandConfig(): Promise<BrandConfig> {
     return config
   } catch (err) {
     console.warn('[brand] Error fetching app_settings:', err)
-    cachedConfig = { ...defaults }
-    cacheTimestamp = now
-    return cachedConfig
+    // Same as the fetch-error path above: prefer the last good config and
+    // never cache the failure, so settings recover once the backend does.
+    lastFailureAt = Date.now()
+    if (cachedConfig) return cachedConfig
+    return { ...defaults }
   }
 }
 

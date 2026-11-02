@@ -14,6 +14,7 @@ import {
   type ListingResult,
   type ListingSchema,
 } from '@gatewaze/shared/listing';
+import { supabase } from '@/lib/supabase';
 
 export interface UseListingQueryOptions {
   schema: ListingSchema;
@@ -64,6 +65,50 @@ export interface UseListingQueryResult<Row = Record<string, unknown>> {
   isPageFullySelected: boolean;
 }
 
+/**
+ * True when `url` resolves to the same origin as the configured API base.
+ *
+ * The bearer token must never leave our own API origin. `Authorization` is not
+ * a forbidden header, so if `opts.endpoint` ever resolved somewhere else — an
+ * absolute URL, a protocol-relative `//host`, or a caller building the path
+ * from route input — the browser would happily send the session token there,
+ * and a server answering the CORS preflight with a matching
+ * `Access-Control-Allow-Headers: Authorization` would capture it. Every current
+ * caller passes a literal `/api/admin/...` path, so this only ever fires on a
+ * future mistake; that is exactly when it needs to hold.
+ */
+function isOwnApiOrigin(url: string, apiBaseUrl: string): boolean {
+  try {
+    const pageOrigin = window.location.origin;
+    // An empty VITE_API_URL means "same origin as the admin app".
+    const expected = new URL(apiBaseUrl || pageOrigin, pageOrigin).origin;
+    return new URL(url, pageOrigin).origin === expected;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * GET a listing endpoint with the caller's Supabase access token attached.
+ * `getSession()` reads the cached session and only hits the network when the
+ * token is due for refresh, so this stays cheap on every query change.
+ */
+async function listingFetch(url: string, apiBaseUrl: string): Promise<Response> {
+  const headers = new Headers();
+  if (isOwnApiOrigin(url, apiBaseUrl)) {
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (token) headers.set('Authorization', `Bearer ${token}`);
+    } catch {
+      // No session, or the auth client is unhealthy. Let the request go out
+      // unauthenticated so the caller sees the server's 401 rather than a
+      // NETWORK_ERROR that hides which half actually failed.
+    }
+  }
+  return fetch(url, { headers });
+}
+
 export function useListingQuery<Row = Record<string, unknown>>(
   opts: UseListingQueryOptions
 ): UseListingQueryResult<Row> {
@@ -96,7 +141,11 @@ export function useListingQuery<Row = Record<string, unknown>>(
 
     const url = `${apiBaseUrl}${opts.endpoint}?${searchParams.toString()}`;
 
-    fetch(url)
+    // Listing endpoints live under /api/admin/* and are JWT-gated, so the
+    // caller's Supabase session token has to travel with the request — the
+    // same pattern every other admin service uses (see navLayoutService).
+    // Without it the API answers 401 and the table renders empty.
+    listingFetch(url, apiBaseUrl)
       .then(async (res) => {
         const body = await res.json().catch(() => ({}));
         if (seq !== fetchSeqRef.current) return; // stale

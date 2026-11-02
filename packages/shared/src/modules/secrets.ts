@@ -125,3 +125,38 @@ export function maskSecret(last4?: string | null): string {
 export function isEncryptionConfigured(): boolean {
   return getKey() !== null;
 }
+
+/**
+ * Seal the schema-declared secret fields of a module-config payload before it
+ * is stored (PUT /api/modules/:id/config).
+ *
+ * Only fields whose ConfigField is `type: 'secret'` AND `encrypted: true` are
+ * touched — the flag is the module's opt-in that its readers unseal. Values
+ * already in the `v1:` envelope (a round-tripped form re-save) and non-string
+ * or empty values pass through unchanged.
+ *
+ * Throws when a field needs sealing but GATEWAZE_SECRETS_KEY is not
+ * configured: for an opted-in field, storing plaintext is never acceptable.
+ */
+export function sealSecretConfigFields(
+  config: Record<string, unknown>,
+  configSchema: Record<string, { type?: string; encrypted?: boolean } | undefined> | null | undefined,
+): Record<string, unknown> {
+  if (!configSchema) return config;
+  let changed = false;
+  // Built entry-wise with Object.fromEntries — never a computed property
+  // write keyed by request-body input (js/remote-property-injection), and
+  // fromEntries defines own data properties, so even a literal "__proto__"
+  // key cannot walk the prototype. Prototype-walking names are additionally
+  // never treated as schema fields, and only the schema's OWN properties
+  // are honoured.
+  const entries = Object.entries(config).map(([key, value]): [string, unknown] => {
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') return [key, value];
+    const field = Object.prototype.hasOwnProperty.call(configSchema, key) ? configSchema[key] : undefined;
+    if (!field || field.type !== 'secret' || field.encrypted !== true) return [key, value];
+    if (typeof value !== 'string' || value === '' || value.startsWith(VERSION_PREFIX)) return [key, value];
+    changed = true;
+    return [key, encryptSecret(value)];
+  });
+  return changed ? Object.fromEntries(entries) : config;
+}

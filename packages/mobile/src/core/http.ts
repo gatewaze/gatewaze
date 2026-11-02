@@ -1,0 +1,145 @@
+/**
+ * The authed API client primitive (spec-mobile-app.md "API contract and
+ * types"). One place attaches auth, retries once on 401 after a forced
+ * refresh, and maps every error into the typed failure taxonomy. Module
+ * contributions build their typed call slices on this.
+ *
+ * Error body convention (matches the health routes and the portal's
+ * healthPortalApi): { error: { message, code? } } or { error: string }.
+ */
+
+import type { MobileFetchInit } from '@gatewaze/shared';
+import { config } from './config';
+import { deviceTimezone } from './appInfo';
+import { ApiFailure, failureFromStatus, parseErrorBody, toFailure } from './errors';
+import { noteConnectivity } from './outbox';
+import { getSupabase } from './auth/supabase';
+
+/**
+ * The default deadline for a request. Suits everything that is a round trip to
+ * the database and back.
+ *
+ * A caller whose work legitimately takes longer passes its own `timeoutMs`
+ * rather than this being raised for everybody: a GET that has not answered in
+ * thirty seconds is not going to, and failing fast is the right behaviour for
+ * it. Transcription is the case that needs more, because the server's work
+ * there is proportional to the length of the recording.
+ */
+const TIMEOUT_MS = 30_000;
+
+async function accessToken(forceRefresh = false): Promise<string | undefined> {
+  const supabase = getSupabase();
+  if (forceRefresh) {
+    const { data } = await supabase.auth.refreshSession();
+    return data.session?.access_token;
+  }
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token;
+}
+
+async function doFetch(path: string, init: MobileFetchInit, token: string | undefined) {
+  const headers = new Headers(init.headers);
+  const isForm = typeof FormData !== 'undefined' && init.body instanceof FormData;
+  if (!isForm && init.body !== undefined) headers.set('Content-Type', 'application/json');
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+  /**
+   * What day it is where the member is.
+   *
+   * Sent on every request rather than stored against the person, because the
+   * device is the only thing that knows and a member who travels should get
+   * the date they are living by. The server needs it to tell the coach what
+   * today is: without it the coach worked in UTC and read yesterday evening's
+   * meal as "earlier today" for anyone an hour ahead of it.
+   */
+  headers.set('X-Gatewaze-Timezone', deviceTimezone());
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), init.timeoutMs ?? TIMEOUT_MS);
+  try {
+    return await fetch(`${config.apiUrl}${path}`, {
+      method: init.method || (init.body !== undefined ? 'POST' : 'GET'),
+      headers,
+      body: isForm
+        ? (init.body as FormData)
+        : init.body !== undefined
+          ? JSON.stringify(init.body)
+          : undefined,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Authenticated fetch. 204 → undefined; success → parsed JSON; everything
+ * else throws an ApiFailure. Retries once on 401 after a forced refresh —
+ * a refresh token expired through long absence makes that refresh fail,
+ * which surfaces as an 'auth' failure and lands in the standard
+ * sign-out path (handled by the session provider).
+ */
+/**
+ * Defense-in-depth at the shared chokepoint (module api slices also
+ * encodeURIComponent their path segments): reject traversal shapes before
+ * the URL parser can collapse them, so a crafted deep-link param can never
+ * redirect an authed request to a different endpoint.
+ */
+function assertSafePath(path: string): void {
+  if (!path.startsWith('/') || path.startsWith('//')) {
+    throw new ApiFailure('client', 'Invalid API path');
+  }
+  if (/(^|\/)\.\.?(\/|$)/.test(path) || /%2e/i.test(path) || /[\\\r\n]/.test(path)) {
+    throw new ApiFailure('client', 'Invalid API path');
+  }
+}
+
+export async function apiFetch(path: string, init: MobileFetchInit = {}): Promise<unknown> {
+  assertSafePath(path);
+  let res: Response;
+  try {
+    res = await doFetch(path, init, await accessToken());
+  } catch (err) {
+    throw toFailure(err);
+  }
+
+  if (res.status === 401) {
+    let token: string | undefined;
+    try {
+      token = await accessToken(true);
+    } catch {
+      token = undefined;
+    }
+    if (!token) throw new ApiFailure('auth', 'Session expired', 401);
+    try {
+      res = await doFetch(path, init, token);
+    } catch (err) {
+      throw toFailure(err);
+    }
+    if (res.status === 401) throw new ApiFailure('auth', 'Session expired', 401);
+  }
+
+  if (res.status === 204) return undefined;
+
+  let body: unknown;
+  try {
+    body = await res.json();
+  } catch {
+    body = undefined;
+  }
+
+  if (!res.ok) {
+    const { message, code } = parseErrorBody(body);
+    throw failureFromStatus(res.status, message, code);
+  }
+
+  /**
+   * A request that succeeded is proof there is a connection RIGHT NOW, which
+   * is the one thing a queued write has been waiting to learn. Without a
+   * connectivity API this is the earliest and cheapest signal available —
+   * earlier than the next foreground, and free, because flush() returns
+   * immediately when the queue is empty or already draining.
+   */
+  noteConnectivity();
+
+  return body;
+}

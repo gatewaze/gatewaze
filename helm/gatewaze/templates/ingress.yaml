@@ -24,6 +24,20 @@ spec:
     - host: {{ .Values.ingress.hosts.admin | quote }}
       http:
         paths:
+          {{- if .Values.adminBff.switchAdmin }}
+          # Host-session mode: sign-in routes and the proxied Supabase, API
+          # and Realtime prefixes go to admin-bff; everything else (the SPA,
+          # /embed/, /healthz) stays on the admin nginx.
+          {{- range list "/bff" "/rest/v1" "/storage/v1" "/functions/v1" "/realtime/v1" "/api" }}
+          - path: {{ . }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "gatewaze.fullname" $ }}-admin-bff
+                port:
+                  number: 3001
+          {{- end }}
+          {{- end }}
           - path: /
             pathType: Prefix
             backend:

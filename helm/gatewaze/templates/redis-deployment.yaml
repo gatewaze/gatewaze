@@ -1,6 +1,6 @@
 {{- if .Values.redis.enabled }}
-{{- if not .Values.redis.password }}
-{{- fail "redis.password must be set to a strong random value (was an insecure default in earlier chart versions)" }}
+{{- if and (not .Values.redis.password) (not .Values.existingSecret) }}
+{{- fail "redis.password must be set to a strong random value (was an insecure default in earlier chart versions), or set existingSecret with a REDIS_PASSWORD key" }}
 {{- end }}
 apiVersion: apps/v1
 kind: Deployment
@@ -32,12 +32,40 @@ spec:
         - name: redis
           image: {{ .Values.redis.image | quote }}
           imagePullPolicy: IfNotPresent
+          {{- if .Values.existingSecret }}
+          # Password comes from the operator-provided Secret. The wrapper
+          # refuses to start if the key resolves to an empty string, because
+          # `--requirepass ""` would silently run Redis with no auth at all.
+          # Probes authenticate through REDISCLI_AUTH, so the password never
+          # appears in process args.
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.existingSecret | quote }}
+                  key: REDIS_PASSWORD
+            - name: REDISCLI_AUTH
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.existingSecret | quote }}
+                  key: REDIS_PASSWORD
+          command:
+            - sh
+            - -c
+            - |
+              if [ -z "$REDIS_PASSWORD" ]; then
+                echo "REDIS_PASSWORD in the existingSecret is empty; refusing to start without auth" >&2
+                exit 1
+              fi
+              exec redis-server --appendonly yes --requirepass "$REDIS_PASSWORD"
+          {{- else }}
           command:
             - redis-server
             - --appendonly
             - "yes"
             - --requirepass
             - {{ .Values.redis.password | quote }}
+          {{- end }}
           ports:
             - name: redis
               containerPort: 6379
@@ -46,8 +74,10 @@ spec:
             exec:
               command:
                 - redis-cli
+                {{- if not .Values.existingSecret }}
                 - -a
                 - {{ .Values.redis.password | quote }}
+                {{- end }}
                 - ping
             # Probe timings are overridable via redis.livenessProbe.* /
             # redis.readinessProbe.* in values. Defaults match the pre-1.2.42
@@ -63,8 +93,10 @@ spec:
             exec:
               command:
                 - redis-cli
+                {{- if not .Values.existingSecret }}
                 - -a
                 - {{ .Values.redis.password | quote }}
+                {{- end }}
                 - ping
             initialDelaySeconds: {{ .Values.redis.readinessProbe.initialDelaySeconds | default 5 }}
             periodSeconds: {{ .Values.redis.readinessProbe.periodSeconds | default 10 }}

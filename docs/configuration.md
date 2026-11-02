@@ -39,11 +39,32 @@ const config: GatewazeConfig = {
     provider: (process.env.EMAIL_PROVIDER as 'sendgrid' | 'smtp') || 'sendgrid',
   },
 
-  modules: [],
+  // Where to look for modules. Each entry is a local path or a git repository.
+  moduleSources: [
+    {
+      url: 'https://github.com/gatewaze/gatewaze-modules.git',
+      path: 'modules',
+      branch: 'main',
+      label: 'Free',
+    },
+  ],
+
+  // Omit `modules` to make every module found in the sources available.
+  // Which ones are actually on is decided per instance in the admin.
 };
 
 export default config;
 ```
+
+The file that ships in the repository has no `modules` array. Every module
+found in the sources shows up on the Modules page, and you turn the ones you
+want on there. Add a `modules` array only if you want to limit which modules an
+instance can ever see.
+
+There is also a compiled `gatewaze.config.js` checked into the repository. The
+Docker images regenerate it from the TypeScript file during the build, so what
+runs in Docker always matches. Running the API from source with `pnpm dev`
+reads the checked-in copy, which can lag behind.
 
 ### Config Options Reference
 
@@ -64,7 +85,12 @@ export default config;
 
 ## Environment Variables
 
-All environment variables are defined in the `.env` file. Copy `.env.example` to `.env` to get started.
+Environment variables live in `docker/.env`. Run `make init` from the
+repository root to create it from `docker/.env.example`.
+
+There is also a `.env.example` at the repository root. It is a shorter file
+kept for running the application services outside Docker. The Makefile and the
+compose files read `docker/.env`, so that is the one to edit.
 
 ### Core Application
 
@@ -110,6 +136,9 @@ All environment variables are defined in the `.env` file. Copy `.env.example` to
 | `VITE_SUPABASE_URL`       | Supabase URL for the admin frontend                  | Yes      | `http://supabase.gatewaze.localhost` |
 | `VITE_SUPABASE_ANON_KEY`  | Supabase anon key for the admin frontend             | Yes      | --                                   |
 | `VITE_API_URL`            | API server URL for the admin frontend                | Yes      | `http://api.gatewaze.localhost`      |
+| `VITE_SUPABASE_FLOW_TYPE` | Supabase Auth flow for the admin: `implicit` or `pkce` (exact, lowercase). Set `pkce` only when every admin sign-in returns to the app with a `?code=` parameter, as Supabase Auth's own OAuth and custom OIDC providers do. Anything that returns tokens in the URL hash (the LFID bridge, magic links, admin invite links) fails silently under `pkce`, so those deployments must keep `implicit` | No | `implicit` |
+| `VITE_AUTH_MODE`          | Where the admin keeps its Supabase session. Set exactly `host-session` to have a same-origin session holder (the admin BFF) keep it in an HttpOnly cookie, so no real token is ever in the page. In that mode `VITE_SUPABASE_URL` must be the admin's own origin, the browser sends a placeholder token, and the session holder swaps in the real one. Any other value, or no value, keeps the session in the browser's localStorage as before | No | unset (localStorage) |
+| `VITE_SUPABASE_PUBLIC_URL` | The real Supabase URL, used for URLs that leave the admin: the Slack and Google Sheets OAuth redirect URIs built by the core admin services, and the public storage URLs that `getPublicUrl()` returns, which modules save and show outside the admin. Modules in `gatewaze-modules` use it the same way (gatewaze/gatewaze-modules#455) for their OAuth redirect URIs, links in emails, and storage URLs saved to rows or put into newsletter HTML. They read it through their own `publicSupabaseUrl()` helper rather than importing core's, because every install builds module `main` against its own admin. Set it in `host-session` mode, where `VITE_SUPABASE_URL` is the admin origin. It must be an `https` URL; `http` is accepted only for `localhost`, `127.0.0.1` and `*.localhost` hosts. Core ignores any other value with a console warning; the module helpers fall back to `VITE_SUPABASE_URL` without one | No | the value of `VITE_SUPABASE_URL` |
 | `ADMIN_HOST`              | Traefik hostname for the admin app (Docker)          | No       | `admin.gatewaze.localhost`           |
 
 ### Public Portal (Next.js)
@@ -175,10 +204,30 @@ When running with Docker Compose and Traefik, Supabase services are accessed via
 | `DISABLE_SIGNUP`                 | Disable public sign-up via Supabase Auth   | No       | `false`                              |
 | `ENABLE_EMAIL_SIGNUP`            | Enable email-based sign-up                 | No       | `true`                               |
 | `ENABLE_EMAIL_AUTOCONFIRM`       | Auto-confirm email addresses               | No       | `false`                              |
-| `VERIFY_JWT`                     | Verify JWTs in edge functions              | No       | `true`                               |
+| `VERIFY_JWT`                     | Verify JWTs in edge functions. See the note below. | No | `false` in `.env.example`      |
 | `SECRET_KEY_BASE`                | Secret key for Supabase Realtime           | No       | (generated default)                  |
 | `STUDIO_DEFAULT_ORGANIZATION`    | Default org name in Supabase Studio        | No       | `Gatewaze`                           |
 | `STUDIO_DEFAULT_PROJECT`         | Default project name in Supabase Studio    | No       | `Gatewaze`                           |
+
+**About `VERIFY_JWT`.** The compose file defaults it to `true`, but
+`docker/.env.example` sets it to `false`, so a stack you started with
+`make init` and `make up` runs with it off. That is deliberate. Gatewaze edge
+functions authenticate internally, using the service role key, an HMAC
+signature, or an admin check, and several of them serve anonymous public forms.
+Turning platform-wide JWT verification on breaks those public forms. On
+Supabase Cloud the same reasoning applies, which is why `make deploy-functions`
+passes `--no-verify-jwt`.
+
+### Secrets you must generate and then never change
+
+| Variable | What it protects | What happens if you rotate it |
+|---|---|---|
+| `API_KEY_PEPPER` | Hashes the API keys you issue. Required before the platform can create or verify any key. | Every API key you have issued stops working. |
+| `UNSUBSCRIBE_HMAC_SECRET` | Signs one-click unsubscribe links in bulk email. | The unsubscribe link in every email you have already sent stops working. |
+| `JWT_SECRET` | Signs the Supabase anon and service role keys. | Both keys have to be regenerated to match. |
+
+Generate the first two with `openssl rand -base64 32` and
+`openssl rand -base64 48`.
 
 ---
 
@@ -321,19 +370,20 @@ Note the `rediss://` scheme for TLS connections.
 
 Modules are installed as npm packages and registered in `gatewaze.config.ts`.
 
-### Installing a Module
+### Turning a module on
 
-```bash
-# Install the module package
-pnpm add @gatewaze-modules/stripe-payments
+Modules are not npm packages you install. They are discovered from the sources
+in `moduleSources`, and you turn them on from the Modules page in the admin.
+Enabling one applies its database migrations and runs its install hooks.
 
-# Register it in gatewaze.config.ts
-```
+To add your own modules, add the repository to `moduleSources`, or add it from
+the Modules page in the admin, which stores it in the `module_sources` table.
+
+Module settings can be supplied in `gatewaze.config.ts`:
 
 ```typescript
 const config: GatewazeConfig = {
   // ...
-  modules: ['@gatewaze-modules/stripe-payments'],
   moduleConfig: {
     'stripe-payments': {
       publishableKey: process.env.STRIPE_PUBLISHABLE_KEY,
@@ -343,5 +393,8 @@ const config: GatewazeConfig = {
   },
 };
 ```
+
+Most modules also expose their settings in the admin, which is usually easier
+than editing the config file and restarting.
 
 Each module may define its own configuration schema. Refer to the module's documentation for available options. See the [Modules Guide](./modules.md) for a full list of available modules and how to create custom modules.

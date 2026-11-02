@@ -1,7 +1,7 @@
 # Upgrading to Gatewaze 1.1.0 (`hardening-p1`)
 
 This release implements **phase 1** of
-[spec-production-readiness-hardening](../../gatewaze-environments/specs/spec-production-readiness-hardening.md).
+the production readiness hardening spec, which is kept in a private repository.
 Runtime behaviour is unchanged for users with `tenancy_v2_enforced=false`
 (the default). Operators must run a pre-flight + backfill before
 flipping the flag in production.
@@ -97,7 +97,7 @@ immediately (no migration needed).
 What ships **later**: error tracking (phase 2), backups + image-tag
 pinning (phase 3), real-Supabase integration tests + frontend
 optimisations (phase 4). See
-[spec-production-readiness-hardening §7](../../gatewaze-environments/specs/spec-production-readiness-hardening.md#7-workstreams-and-milestones).
+section 7 of the production readiness hardening spec, which is kept in a private repository.
 
 ## Rollback
 

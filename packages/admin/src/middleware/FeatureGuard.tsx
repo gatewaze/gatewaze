@@ -5,9 +5,12 @@
 
 import React from 'react';
 import { Navigate } from 'react-router-dom';
+import { isEmbedded } from '../embed/embedMode';
 import { useAuthContext as useAuth } from '@/app/contexts/auth/context';
 import { useHasPermission } from '@/hooks/usePermissions';
 import { AccessDeniedRedirect } from '@/app/router/AccessDeniedRedirect';
+import { HostAccessGate } from '@/components/auth/HostAccessGate';
+import { PageLoadingSpinner } from '@/components/ui/Spinner/PageLoadingSpinner';
 import type { AdminFeature } from '@/lib/permissions/types';
 
 interface FeatureGuardProps {
@@ -45,7 +48,12 @@ export function FeatureGuard({
   redirectTo,
   showLoading = true,
 }: FeatureGuardProps) {
-  const { user, loading: authLoading } = useAuth();
+  // `loading` is declared optional on AuthContextType but the provider never sets it — its state
+  // field is `isLoading`. Reading `loading` alone made authLoading permanently undefined, so the
+  // loading gate below never engaged and an unauthenticated *first render* (which is every render
+  // before async auth init finishes) fell straight through to <Navigate to="/login">.
+  const { user, isLoading, loading, accessDenied, hostAccess } = useAuth();
+  const authLoading = isLoading ?? loading;
   const { hasPermission, loading: permissionLoading } = useHasPermission(
     feature as AdminFeature,
     accountId
@@ -54,6 +62,14 @@ export function FeatureGuard({
   // Show loading state
   if (authLoading || permissionLoading) {
     if (!showLoading) return null;
+
+    // Embedded: the page-level spinner, not the full-screen "Checking permissions" loader. The
+    // route fallback before this guard and the page's own data load after it draw the same
+    // PageLoadingSpinner in the same place, so the three read as one continuous wait. (This used
+    // to return null, to avoid two different loaders back to back; that left the pane blank for
+    // as long as auth and permissions took.) Standalone keeps the full-screen loader: there is no
+    // host frame there to carry the wait.
+    if (isEmbedded()) return <PageLoadingSpinner />;
 
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -65,9 +81,14 @@ export function FeatureGuard({
     );
   }
 
-  // Not authenticated
+  // Not authenticated. Embedded, /login would hand the host a sign-in it
+  // cannot satisfy, so: a signed-in user with no admin access goes to
+  // /unauthorized (as it did when such a user was let in with no
+  // permissions), and a host-session user whose access is still being
+  // decided waits here ("Checking your access", or Retry).
   if (!user) {
-    return <Navigate to="/login" replace />;
+    if (isEmbedded() && hostAccess) return <HostAccessGate />;
+    return <Navigate to={isEmbedded() && accessDenied ? "/unauthorized" : "/login"} replace />;
   }
 
   // No permission - show fallback, redirect to an explicit target, or (default)

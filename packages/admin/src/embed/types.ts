@@ -1,0 +1,146 @@
+/**
+ * Public contract for @gatewaze/admin-embed, the embeddable admin
+ * library. The host application's outlet component is the only intended
+ * caller of mount()/unmount(); this file has no dependency on any host
+ * framework.
+ */
+
+export interface GwHostContext {
+  /**
+   * Leading '/', no trailing slash, URL-path-safe segments only, and
+   * must equal the host route prefix exactly (e.g. '/apps/gw').
+   */
+  basename: string;
+  /**
+   * In host-session mode (`session` set) `url` must be an absolute URL on the
+   * page's own origin: the host's proxy for /rest/v1, /storage/v1,
+   * /functions/v1 and /realtime/v1, which swaps in the real token.
+   *
+   * `publicUrl` is the real Supabase project URL (https, or http on
+   * localhost). When given, public storage URLs and OAuth redirect URIs use
+   * it instead of `url`. Required in host-session mode, where `url` is the
+   * host's proxy and would otherwise end up in saved image URLs.
+   */
+  supabase: { url: string; anonKey: string; publicUrl?: string };
+  /**
+   * '' or a same-origin absolute path (leading '/', no scheme/host, no
+   * trailing slash); '' means /api/gw. Cross-origin values are rejected —
+   * the token-containment guarantee (the Supabase access token never
+   * rides to a third-party origin) depends on this always resolving
+   * same-origin.
+   */
+  apiBaseUrl: string;
+  /**
+   * Host overlay. Runtime-gates even compiled-in modules on top of
+   * whatever GW's own installed_modules/RLS state allows — it narrows,
+   * it never widens. ids/feature strings come from GW's existing module
+   * registry (the same names useModuleSlots consumes); the host passes
+   * them through, it does not invent keys.
+   */
+  enabled: { moduleIds: string[]; features: string[] };
+  /**
+   * Where to send an unauthenticated user: the host's own sign-in entry
+   * point (absolute URL), and the absolute URL to return to afterwards.
+   * The embed never implements sign-in itself. Required unless `session` is
+   * set; in host-session mode a lost session sends the browser to
+   * `startUrl` when given, and otherwise reloads the page so the host's own
+   * sign-in guard takes over.
+   */
+  signIn?: { startUrl: string; returnUrl: string };
+  /**
+   * Host-session mode: the host holds the Supabase session server-side (in
+   * an HttpOnly cookie) and the embed only ever sees a placeholder token, so
+   * no real token reaches page scripts or localStorage.
+   *
+   * `meUrl` (GET, with the cookie): 200 { user, admin? } signed in as an admin
+   * (`admin`, optional: { profile, features }, the user's admin_profiles row and
+   * granted features, which saves the embed those reads; see
+   * getAdminContext in @gatewaze/host-session); 401 signed
+   * out (with `x-gw-session: expired` when the cookie's session is gone); 403
+   * { email? } signed in but not an admin; 503 { error: 'admin_check_pending' }
+   * with Retry-After (seconds) while the admin check is still running; 503
+   * { error: 'session_unavailable' } when the session store cannot answer.
+   * Any other answer is treated as unavailable, never as a sign-out.
+   *
+   * `logoutUrl` takes a POST (with the `apikey` header) and ends the
+   * session. Both must be on the page's own origin. Absent: the embed keeps
+   * its session in localStorage, as before.
+   */
+  session?: { mode: 'host'; meUrl: string; logoutUrl: string };
+  /** Session isolation; embed defaults to 'host_embed' if omitted. Ignored in host-session mode. */
+  storageKeySuffix?: string;
+  /**
+   * Where Radix portals render. Host-owned; must outlive the mount, and
+   * only the embed (and unmount) writes into it.
+   */
+  portalContainer?: HTMLElement;
+  /**
+   * Host notification sink. When present, `toast()` calls inside the embed are rendered by the
+   * HOST's notification system instead of the embed's own toaster, so they look and stack like
+   * every other notification in the host app. Absent: the embed falls back to its own toaster.
+   *
+   * Only string-content toasts can cross this boundary; anything richer stays with the embed.
+   */
+  notify?: (notification: GwEmbedNotification) => void;
+  /**
+   * Host loading spinner (the 'host-loading-indicator' capability). When
+   * present, the embed calls it each time it shows a page-level loading
+   * state (its route fallback, its permission check, and module pages that
+   * use the shared PageLoadingSpinner, or LoadingSpinner at size small or
+   * larger) and renders the returned element in place of its own spinner,
+   * inside the same centred box and inside a `role="status"` wrapper with a
+   * visually hidden "Loading" label. So the element itself should be
+   * decorative (`aria-hidden="true"`). Return a new element on every call;
+   * the embed removes it when loading ends. Absent: the embed's own spinner.
+   */
+  loadingIndicator?: () => HTMLElement;
+  /** Host hook: embed gave up. */
+  onFatal?: (err: GwEmbedFatalError) => void;
+  /**
+   * SPA navigation to host routes OUTSIDE the prefix (basename-relative
+   * useNavigate can't leave it). Fallback when absent: full
+   * window.location assign.
+   */
+  navigateHost?: (path: string) => void;
+  /**
+   * Host telemetry sink; console.warn fallback if absent. The embed
+   * never imports a host logging singleton.
+   */
+  telemetry?: (event: { name: string; [key: string]: unknown }) => void;
+}
+
+export type GwEmbedFatalErrorType =
+  | 'config_invalid'
+  | 'import_failed'
+  | 'mount_aborted'
+  | 'render_crash';
+
+export interface GwEmbedFatalError {
+  error_type: GwEmbedFatalErrorType;
+  /** e.g. 'gw_double_mount', 'gw_ctx_basename_invalid'. */
+  code: string;
+  /** Sanitized — never includes tokens, URLs with query/fragment, or stack traces. */
+  message: string;
+  field?: string;
+  recoverable: boolean;
+}
+
+export interface GwEmbedHandle {
+  unmount(): void;
+}
+
+/** Severity of a notification handed to the host, mapped from the embed's toast levels. */
+export type GwEmbedNotificationLevel = 'success' | 'error' | 'warning' | 'info';
+
+/** One notification for GwHostContext.notify. */
+export interface GwEmbedNotification {
+  level: GwEmbedNotificationLevel;
+  /** Plain text; the host renders it with its own components. */
+  message: string;
+  /** Optional secondary line. */
+  description?: string;
+  /** Stable id for this notification, unique within the mount. */
+  id: string;
+  /** Requested lifetime in ms, if the caller asked for one. The host may ignore it. */
+  durationMs?: number;
+}

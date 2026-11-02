@@ -229,8 +229,8 @@ export function gatewazeModulesPlugin(): Plugin {
                   try { canonical = realpathSync(full); } catch { /* keep `full` */ }
                   // For module `admin/index.{ts,tsx,js}` entries — the
                   // contract is: importing the file runs registry
-                  // contributions as top-level expressions (e.g.
-                  // `registerCanvasPuckPlugin(aiPlugin)`). Rollup's
+                  // contributions as top-level expressions (a call such
+                  // as `registerSomething(contribution)`). Rollup's
                   // side-effect analyzer treats such calls as droppable
                   // when the consumer only reads the namespace's named
                   // exports. Mark these modules as `no-treeshake` so
@@ -345,7 +345,14 @@ export function gatewazeModulesPlugin(): Plugin {
         }
 
         // Resolved absolute paths that don't exist (after alias resolution by other plugins).
+        // Vite's HMR appends `?t=<timestamp>` to a changed module's id; the file
+        // checks below must see the bare path, and the query goes back on the
+        // answer so the browser still gets the fresh version (30 Oct 2026: a
+        // saved module admin page was stubbed as "missing" until a restart).
         if (id.startsWith('/') && !id.includes('node_modules')) {
+          const queryAt = id.indexOf('?');
+          const bareId = queryAt >= 0 ? id.slice(0, queryAt) : id;
+          const query = queryAt >= 0 ? id.slice(queryAt) : '';
           // TypeScript source files import siblings with `.js` extension
           // (standard ESM-future-proof TS pattern). Vite's default resolver
           // normally substitutes `.js` → `.ts` automatically, but only when
@@ -358,29 +365,29 @@ export function gatewazeModulesPlugin(): Plugin {
           const candidates: string[] = [];
           // literal + each extension appended
           for (const ext of ['', '.ts', '.tsx', '.js', '.jsx']) {
-            candidates.push(id + ext);
+            candidates.push(bareId + ext);
           }
           // .js/.jsx → .ts/.tsx substitution
-          if (id.endsWith('.js') || id.endsWith('.jsx')) {
-            const stripped = id.replace(/\.jsx?$/, '');
+          if (bareId.endsWith('.js') || bareId.endsWith('.jsx')) {
+            const stripped = bareId.replace(/\.jsx?$/, '');
             candidates.push(stripped + '.ts', stripped + '.tsx');
           }
           // index files in the directory
           for (const ext of ['.ts', '.tsx', '.js', '.jsx']) {
-            candidates.push(resolve(id, 'index' + ext));
+            candidates.push(resolve(bareId, 'index' + ext));
           }
           const resolvedAbs = candidates.find(
             (p) => existsSync(p) && statSync(p).isFile(),
           );
-          if (resolvedAbs) return resolvedAbs;
+          if (resolvedAbs) return resolvedAbs + query;
           const fileExists = false;
           if (!fileExists) {
             // Check if this is a module util that was resolved via the @/ prefix
             // but the file was removed from admin src (e.g. scraperService).
             // Reverse-map the absolute path back to an @/utils/<name> alias.
             const adminSrc = resolve(projectRoot, 'packages/admin/src');
-            if (id.startsWith(adminSrc)) {
-              const relativePath = id.slice(adminSrc.length); // e.g. /utils/scraperService
+            if (bareId.startsWith(adminSrc)) {
+              const relativePath = bareId.slice(adminSrc.length); // e.g. /utils/scraperService
               const aliasKey = '@' + relativePath;
               if (utilAliases[aliasKey]) {
                 return utilAliases[aliasKey];
@@ -409,9 +416,22 @@ export function gatewazeModulesPlugin(): Plugin {
       }
       // Virtual module for gatewaze-modules
       if (id === RESOLVED_ID) {
-        const configPath = resolve(projectRoot, 'gatewaze.config.ts');
-        const { moduleIds: explicitIds, sources } = parseConfig(configPath);
+        // GATEWAZE_CONFIG_FILE lets a build target a different module
+        // allow-list than the main app's gatewaze.config.ts (e.g. the
+        // admin-embed library build, which compiles in only the pilot
+        // module subset). Unset in the normal app build/dev server.
+        const configPath = resolve(projectRoot, process.env.GATEWAZE_CONFIG_FILE || 'gatewaze.config.ts');
+        const { moduleIds: configIds, sources } = parseConfig(configPath);
         const resolvedSources = resolveSources(sources, projectRoot);
+        // GATEWAZE_MODULES (comma-separated ids) overrides the config file's
+        // allow-list outright. The hosted embed build uses it: which modules
+        // a deployment embeds is that deployment's config, not something the
+        // repo decides.
+        const envIds = (process.env.GATEWAZE_MODULES || '')
+          .split(',')
+          .map((id) => id.trim())
+          .filter(Boolean);
+        const explicitIds = envIds.length > 0 ? envIds : configIds;
         const moduleIds = explicitIds.length > 0
           ? explicitIds
           : discoverModulesFromSources(resolvedSources);
@@ -443,15 +463,16 @@ export function gatewazeModulesPlugin(): Plugin {
             );
             // If the module also ships `admin/index.ts` (or .tsx/.js),
             // side-effect-import it. Modules use this to register
-            // contributions into shared admin-side registries (e.g.
-            // editor-ai-copilot's `registerCanvasPuckPlugin(aiPlugin)`,
-            // which can't ride on the default-exported config object
-            // because the host editor reads from a runtime registry,
-            // not the module manifest). Doing the side-effect import
-            // here means modules don't need the `import.meta.glob`
-            // dance that TypeScript casts defeated for editor-ai-
-            // copilot, and any future module that needs admin-boot
-            // registration gets it for free.
+            // contributions into shared admin-side registries that a
+            // consumer reads at runtime rather than from the module
+            // manifest, so the contribution can't ride on the
+            // default-exported config object. Doing the side-effect
+            // import here means modules don't need an `import.meta.glob`
+            // dance (which TypeScript casts defeated when this was first
+            // tried), and any module that needs admin-boot registration
+            // gets it for free. (editor-ai-copilot used to register its
+            // canvas plugin this way; it is now loaded lazily by the
+            // sites module's load-canvas-ai-plugins.ts instead.)
             //
             // Use the namespaced form (`@gatewaze-modules/<slug>/admin`)
             // rather than an absolute filesystem path so the import goes
@@ -468,8 +489,9 @@ export function gatewazeModulesPlugin(): Plugin {
               // tree-shaken even with package.json sideEffects whitelisting
               // — confirmed empirically on v1.2.47 + v1.2.48 where the
               // emitted line ran through the plugin but the imported
-              // file's top-level (`registerCanvasPuckPlugin(aiPlugin)`)
-              // never reached the bundle.
+              // file's top-level registry call (at the time,
+              // editor-ai-copilot's canvas plugin registration) never
+              // reached the bundle.
               //
               // Switch to namespace-import-with-global-pin: import the
               // admin entry as a namespace object AND assign it to a
@@ -554,12 +576,14 @@ export function gatewazeModulesPlugin(): Plugin {
       // Only stub paths that look like source file imports (contain /app/, /packages/, or /gatewaze-modules/).
       if (id.startsWith('/') && !id.includes('node_modules') && !id.includes('\0') &&
           (id.includes('/app/') || id.includes('/packages/') || id.includes('gatewaze-modules'))) {
-        // Check if file exists with any extension
+        // Check if file exists with any extension. The id may carry Vite's
+        // HMR query (`?t=<timestamp>`), which is not part of the path.
+        const bareLoadId = id.split('?')[0]!;
         const extensions = ['', '.ts', '.tsx', '.js', '.jsx'];
         const fileExists = extensions.some(ext => {
-          try { return existsSync(id + ext); } catch { return false; }
+          try { return existsSync(bareLoadId + ext); } catch { return false; }
         }) || extensions.some(ext => {
-          try { return existsSync(resolve(id, 'index' + ext)); } catch { return false; }
+          try { return existsSync(resolve(bareLoadId, 'index' + ext)); } catch { return false; }
         });
         if (!fileExists) {
           console.warn(`[gatewaze-modules] Stubbing missing resolved path: ${id}`);
@@ -718,6 +742,21 @@ function resolveModuleImport(
 }
 
 /**
+ * Whether a pre-cloned directory was cloned from `url`. The entrypoints
+ * write the URL to .gatewaze-source; a directory without one (an older
+ * image, or a local sibling checkout) is taken at face value.
+ */
+function cloneCameFrom(dir: string, url: string): boolean {
+  const marker = resolve(dir, '.gatewaze-source');
+  if (!existsSync(marker)) return true;
+  try {
+    return readFileSync(marker, 'utf-8').trim() === url;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Resolve module source entries to absolute directory paths.
  * Git URLs are cloned to a local cache directory.
  */
@@ -728,13 +767,19 @@ function resolveSources(sources: SourceEntry[], projectRoot: string): string[] {
     const { url, path: subPath, branch } = normalizeSource(source);
 
     if (isGitUrl(url)) {
-      // Check if repo was already cloned by the Docker entrypoint (symlinked at /<reponame>)
+      // Check if repo was already cloned by the Docker entrypoint. It
+      // symlinks the first repo of a given name at /<reponame> and a later
+      // one with the same name (gatewaze/gatewaze-modules beside the
+      // private danthebaker/gatewaze-modules) at /<owner>-<reponame>, and
+      // writes the URL it cloned into .gatewaze-source, so a clone that
+      // came from a different URL is never taken for this one.
       const repoName = url.replace(/.*\//, '').replace(/\.git$/, '');
-      const symlinkedPath = resolve('/', repoName);
-      const localSiblingPath = resolve(projectRoot, '..', repoName);
-      const preClonedPath = existsSync(symlinkedPath) ? symlinkedPath
-        : existsSync(localSiblingPath) ? localSiblingPath
-        : null;
+      const owner = url.replace(/\.git$/, '').replace(/\/[^/]*$/, '').replace(/.*[/:]/, '');
+      const preClonedPath = [
+        resolve('/', `${owner}-${repoName}`),
+        resolve('/', repoName),
+        resolve(projectRoot, '..', repoName),
+      ].find((dir) => existsSync(dir) && cloneCameFrom(dir, url)) ?? null;
 
       if (preClonedPath) {
         const fullPath = subPath ? resolve(preClonedPath, subPath) : preClonedPath;

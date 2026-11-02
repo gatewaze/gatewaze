@@ -42,6 +42,8 @@ export function createMockSupabase() {
       'lte',
       'in',
       'is',
+      'not',
+      'like',
       'ilike',
       'or',
       'order',

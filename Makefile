@@ -17,15 +17,80 @@
 ENV_FILE      := docker/.env
 TRAEFIK_FILE  := -f docker/docker-compose.traefik.yml
 
-# Docker context pin. All Gatewaze/AAIF containers run on the `desktop-linux`
-# context on this machine; the shell's default context (`orbstack`) hosts a
-# separate LFX/k8s stack that collides on host ports (54332, 80). Exporting it
-# here means every `docker`/`docker compose` invocation in `make up`/`down`/etc
-# targets the right VM regardless of the shell default — fixing the class of bug
-# where `make up` silently spins up a duplicate stack on the wrong context.
-# `?=` keeps it overridable: `DOCKER_CONTEXT=other make up`, or set it in your
-# shell/CI. Machine-specific — change the default if your context isn't desktop-linux.
-export DOCKER_CONTEXT ?= desktop-linux
+# This repository brings up exactly one stack, and it is always called
+# `gatewaze`. Compose derives container, network and volume names from the
+# project name, so this is what makes `make up` here predictable.
+#
+# It is exported rather than read from docker/.env on purpose. A shell variable
+# beats the env file in Compose's precedence, so a docker/.env left over from
+# working on a branded deployment cannot silently retarget this repo's stack:
+# `make up` would build that brand's containers, and `make down` would then
+# stop the wrong ones.
+#
+# Running several brands on one machine is supported, but not from here. Each
+# brand lives in its own environments repository with its own env file, and is
+# started from there. This repo has no brand targets, and adding one would put
+# a specific deployment's name into an open-source tree.
+#
+# The hostnames are pinned for the same reason. Pinning only the project name
+# produced a half-branded stack: containers called gatewaze-* answering on
+# another deployment's hostnames, because Compose still read those from
+# docker/.env.
+#
+# `?=` so a shell variable still wins. That keeps the legitimate override
+# working, e.g. two vanilla checkouts on one machine:
+#   ADMIN_HOST=admin.two.localhost COMPOSE_PROJECT_NAME=gatewaze2 make up
+# What it will not do is inherit an identity from a docker/.env left behind by
+# another deployment.
+export COMPOSE_PROJECT_NAME ?= gatewaze
+export INSTANCE_NAME    ?= gatewaze
+export ADMIN_HOST       ?= admin.gatewaze.localhost
+export PORTAL_HOST      ?= app.gatewaze.localhost
+export API_HOST         ?= api.gatewaze.localhost
+export SUPABASE_HOST    ?= supabase.gatewaze.localhost
+export STUDIO_HOST      ?= studio.gatewaze.localhost
+export ANALYTICS_HOST   ?= analytics.gatewaze.localhost
+export FETCH_HOST       ?= fetch.gatewaze.localhost
+export MCP_HOST         ?= mcp.gatewaze.localhost
+export API_URL          ?= http://api.gatewaze.localhost
+# The portal's router rule has its own override, used by deployments that also
+# serve wildcard site subdomains. Left empty here so the rule falls back to a
+# plain Host() on PORTAL_HOST above; without this a leftover rule in
+# docker/.env kept the portal on another deployment's hostname even once every
+# other host was pinned.
+export PORTAL_TRAEFIK_RULE ?=
+# The URLs derived from those hosts. Auth redirects in particular: GoTrue
+# rejects a sign-in that comes back to a host outside SITE_URL /
+# ADDITIONAL_REDIRECT_URLS, so leaving these pointing at another deployment
+# breaks login on a stack that otherwise looks vanilla.
+export SUPABASE_URL     ?= http://supabase.gatewaze.localhost
+export API_EXTERNAL_URL ?= http://supabase.gatewaze.localhost
+export SITE_URL         ?= http://admin.gatewaze.localhost
+export ADDITIONAL_REDIRECT_URLS ?= http://app.gatewaze.localhost
+
+# Optional Docker context pin.
+#
+# Leave this unset and every `docker` call uses whichever context your Docker
+# CLI already targets. That is what you want on a normal machine, and it is the
+# default here.
+#
+# Set it only if you run more than one Docker VM and Gatewaze belongs to a
+# specific one. For example, a machine whose default context hosts a separate
+# k8s stack that collides on ports 80 and 54322 needs the pin, or `make up`
+# quietly starts a duplicate stack on the wrong VM. Run `docker context ls` to
+# see what you have.
+#
+# Precedence: the shell environment wins, then DOCKER_CONTEXT in docker/.env,
+# and otherwise nothing is exported at all.
+#
+#   DOCKER_CONTEXT=desktop-linux make up   # one-off
+#   echo 'DOCKER_CONTEXT=desktop-linux' >> docker/.env   # persistent, per machine
+ifndef DOCKER_CONTEXT
+DOCKER_CONTEXT := $(shell grep -E '^DOCKER_CONTEXT=' "$(ENV_FILE)" 2>/dev/null | head -1 | cut -d= -f2-)
+endif
+ifneq ($(strip $(DOCKER_CONTEXT)),)
+export DOCKER_CONTEXT
+endif
 
 # Detect Supabase mode from the env file
 SUPABASE_MODE := $(shell grep -E '^SUPABASE_MODE=' "$(ENV_FILE)" 2>/dev/null | head -1 | cut -d= -f2-)
@@ -71,10 +136,13 @@ up: _check-env _ensure-traefik _generate-mcp ## Start services
 	docker compose $(COMPOSE_FILES) up -d --build
 	@echo ""
 	@echo "Services starting (dev mode with hot reload). Visit:"
-	@grep -E '^ADMIN_HOST=' "$(ENV_FILE)" 2>/dev/null | sed 's/ADMIN_HOST=/  Admin:    http:\/\//'
-	@grep -E '^PORTAL_HOST=' "$(ENV_FILE)" 2>/dev/null | sed 's/PORTAL_HOST=/  Portal:   http:\/\//'
-	@grep -E '^API_HOST=' "$(ENV_FILE)" 2>/dev/null | sed 's/API_HOST=/  API:      http:\/\//'
-	@grep -E '^STUDIO_HOST=' "$(ENV_FILE)" 2>/dev/null | sed 's/STUDIO_HOST=/  Studio:   http:\/\//'
+	@# Print the hostnames the stack actually came up on. These used to be
+	@# grepped out of docker/.env, which reported that file's values even when
+	@# the stack was started with different ones.
+	@echo "  Admin:    http://$(ADMIN_HOST)"
+	@echo "  Portal:   http://$(PORTAL_HOST)"
+	@echo "  API:      http://$(API_HOST)"
+	@echo "  Studio:   http://$(STUDIO_HOST)"
 
 down: _check-env ## Stop services
 	docker compose $(COMPOSE_FILES) down
@@ -99,7 +167,13 @@ ps: _check-env ## Show running containers
 deploy-functions: _check-env _link-cloud _sync-secrets ## Deploy all edge functions to Supabase Cloud
 ifeq ($(SUPABASE_MODE),cloud)
 	@echo "Deploying edge functions..."
-	npx supabase functions deploy
+	# --no-verify-jwt: EVERY Gatewaze edge function runs verify_jwt=false (they
+	# authenticate internally — service-role / HMAC / admin checks — and many are
+	# anonymous public forms). config.toml only pins a handful, and most functions
+	# are module-synced (not committed) so they CAN'T be pinned there. Without this
+	# flag a blanket deploy defaults them to verify_jwt=true and breaks every
+	# anonymous caller. Pass it for all-function deploys.
+	npx supabase functions deploy --no-verify-jwt
 else
 	@echo "Error: deploy-functions is only supported in cloud mode (SUPABASE_MODE=cloud)"
 	@echo "For self-hosted, edge functions are served automatically from supabase/functions/."
@@ -259,7 +333,7 @@ _cloud-reset: _link-cloud
 	echo "    Deleted $$TOTAL auth users."
 	@echo "  [5/5] Re-deploying edge functions & secrets..."
 	@$(MAKE) _sync-secrets
-	@npx supabase functions deploy
+	@npx supabase functions deploy --no-verify-jwt   # all fns run verify_jwt=false (see deploy-functions)
 	@echo ""
 	@echo "Cloud reset complete."
 
