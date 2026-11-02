@@ -102,8 +102,10 @@ export async function GET(req: NextRequest) {
       .slice(0, MAX_TOPICS)
     const exclude = url.searchParams.get('exclude') ?? ''
 
+    // getServerBrand() returns the instance name as a string, which is what
+    // createServerSupabase takes (same as app/(bare)/e/[identifier]/page.tsx).
     const brand = await getServerBrand()
-    const supabase = await createServerSupabase(brand.id)
+    const supabase = await createServerSupabase(brand)
 
     const cards: RelatedCard[] = []
     const seenHrefs = new Set<string>(exclude ? [exclude] : [])

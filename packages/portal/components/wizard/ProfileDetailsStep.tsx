@@ -203,8 +203,10 @@ export function ProfileDetailsStep({ brandConfig, values, onChange, errors = {},
 
     // Time Zone → searchable-ish dropdown of IANA zones (defaulted from the
     // user's locale by the wizard). Determined from the browser, which is more
-    // accurate than IP for the actual zone.
-    if (attr.key === 'timezone' || attrType === 'timezone') {
+    // accurate than IP for the actual zone. 'timezone' is not a
+    // PeopleAttributeType the admin editor can set, so the key is what
+    // normally matches; the type check stays for configs stored by hand.
+    if (attr.key === 'timezone' || (attrType as string) === 'timezone') {
       return (
         <div key={attr.key}>
           {label}
