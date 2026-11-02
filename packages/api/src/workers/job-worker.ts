@@ -33,6 +33,8 @@ import {
 // file are by-design service-role.
 import { getSupabase } from '../lib/supabase.js';
 import { initSentry, installCrashHandlers } from '../lib/sentry.js';
+import { setStorageModuleDir } from '../lib/storage-registry.js';
+import { uploadToBucket } from '../lib/storage-write.js';
 import { initTracing, shutdownTracing } from '../lib/tracing.js';
 
 // Node <22 exposes no global WebSocket, but @supabase/realtime-js >=2.106
@@ -172,13 +174,11 @@ async function handleScreenshotJob(job: Job): Promise<void> {
 
       if (imageBuffer) {
         const filePath = `event-previews/${event.event_id}.jpg`;
-        const { error: uploadErr } = await supabase.storage
-          .from('media')
-          .upload(filePath, imageBuffer, {
-            upsert: true,
-            contentType: 'image/jpeg',
-            cacheControl: '3600',
-          });
+        const { error: uploadErr } = await uploadToBucket(supabase, 'media', filePath, imageBuffer, {
+          upsert: true,
+          contentType: 'image/jpeg',
+          cacheControl: '3600',
+        });
 
         if (uploadErr) {
           log(`Upload failed for ${event.event_title}: ${uploadErr.message}`);
@@ -279,6 +279,7 @@ async function main(): Promise<void> {
     }
   }
   let modules = await loadModulesWithDbSources(config as never, dbSources as never[], PROJECT_ROOT);
+  setStorageModuleDir(modules.find((m) => m.config.id === 'storage')?.resolvedDir);
 
   // Per-worker module scoping (§ SE-runner split). A worker process can be limited to a subset of
   // modules so heavy/isolated workloads (e.g. the software-engineer agent runner) get their own
