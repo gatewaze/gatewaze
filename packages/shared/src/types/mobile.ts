@@ -568,6 +568,16 @@ export interface GatewazeMobileModule {
      * screen is reached — see `MobileScreenContribution`.
      */
     historyScreen?: string;
+    /**
+     * A compact, non-scrolling list of the member's past reports, rendered
+     * inside the core's Change log sheet ("My feedback" tab). Same thunk
+     * form as `screens[].screen`. The component receives
+     * `{ onOpen: (path: string) => void }` and calls it with a pushable path
+     * when a row is tapped; the core closes the sheet, then pushes the path.
+     * It must not render its own scroll view. Optional: without it the tab
+     * shows a button that opens `historyScreen` instead.
+     */
+    historyList?: MobileComponentThunk;
   };
   /**
    * Declared by the single module that owns the chat conversation.

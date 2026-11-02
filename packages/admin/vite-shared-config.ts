@@ -50,7 +50,7 @@ export const SHARED_DEDUPE = [
  * embedded surface than for the main app.
  */
 export function discoverViteEnvNames(rootDir: string): string[] {
-  const grepCmd = `grep -rhoE 'import\\.meta\\.env\\.VITE_[A-Z0-9_]+' ${rootDir}/src ${rootDir}/../shared/src ${rootDir}/.gatewaze-modules ${rootDir}/../../../gatewaze-modules ${rootDir}/../../../gatewaze-modules ${rootDir}/../../../lf-gatewaze-modules /tmp/module-repos 2>/dev/null | sort -u || true`;
+  const grepCmd = `grep -rhoE 'import\\.meta\\.env\\.VITE_[A-Z0-9_]+' ${rootDir}/src ${rootDir}/../shared/src ${rootDir}/.gatewaze-modules ${rootDir}/../../../gatewaze-modules ${rootDir}/../../../gatewaze-modules ${rootDir}/../../../lf-gatewaze-modules ${rootDir}/../../../dan-gatewaze-modules /tmp/module-repos 2>/dev/null | sort -u || true`;
   let out = "";
   try {
     out = execSync(grepCmd, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
