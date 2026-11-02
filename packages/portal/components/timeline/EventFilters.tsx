@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { REGION_NAMES, REGION_CODES } from '@/lib/regions'
-import { isLightColor, getClientBrandConfig } from '@/config/brand'
+import { isLightColor, type EventTypeOption } from '@/config/brand'
 import { getEventTypeOptions, slugifyTopic } from '@/hooks/useEventFilters'
 import { useTopicTaxonomy } from '@/hooks/useTopicTaxonomy'
 
@@ -11,6 +11,10 @@ interface Props {
   eventType: string | null
   topics: string[]
   availableTypes: Set<string>
+  // From the server-provided brandConfig, so the server and the client render
+  // the same pills (getClientBrandConfig() returns defaults during SSR).
+  eventTypes: EventTypeOption[]
+  topicsEnabled: boolean
   onToggleType: (type: string) => void
   onToggleRegion: (code: string | null) => void
   onToggleTopic: (topic: string) => void
@@ -26,6 +30,8 @@ export function EventFilters({
   eventType,
   topics,
   availableTypes,
+  eventTypes,
+  topicsEnabled,
   onToggleType,
   onToggleRegion,
   onToggleTopic,
@@ -35,10 +41,9 @@ export function EventFilters({
   showNearMe,
   nearMeLabel,
 }: Props) {
-  const allTypeOptions = getEventTypeOptions()
+  const allTypeOptions = getEventTypeOptions(eventTypes)
   const visibleTypes = allTypeOptions.filter((opt) => availableTypes.has(opt.value))
-  const brandConfig = getClientBrandConfig()
-  const showTopics = brandConfig.eventTopicsEnabled
+  const showTopics = topicsEnabled
 
   return (
     <div className="flex flex-col items-center gap-2 mb-10 sm:flex-row sm:justify-between">
