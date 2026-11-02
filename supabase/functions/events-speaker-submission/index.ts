@@ -704,7 +704,7 @@ const AVATAR_MAX_BYTES = 5 * 1024 * 1024
  */
 async function r2IsAvatarImage(r2: R2Target, key: string): Promise<boolean> {
   try {
-    const res = await r2.client.fetch(`${r2.objectBase}/${encodeKey(key)}`, { method: 'HEAD' })
+    const res = await r2.client.fetch(`${r2.objectBase}/${encodeKey(key)}`, { signal: AbortSignal.timeout(20_000), method: 'HEAD' })
     await res.body?.cancel()
     if (!res.ok) return false
     const type = (res.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase()
@@ -717,7 +717,7 @@ async function r2IsAvatarImage(r2: R2Target, key: string): Promise<boolean> {
 }
 
 async function r2Put(r2: R2Target, key: string, body: ArrayBuffer, contentType: string): Promise<boolean> {
-  const res = await r2.client.fetch(`${r2.objectBase}/${encodeKey(key)}`, {
+  const res = await r2.client.fetch(`${r2.objectBase}/${encodeKey(key)}`, { signal: AbortSignal.timeout(20_000),
     method: 'PUT',
     body,
     headers: { 'content-type': contentType, 'cache-control': 'public, max-age=3600' },
@@ -729,7 +729,7 @@ async function r2Put(r2: R2Target, key: string, body: ArrayBuffer, contentType: 
 
 async function r2Delete(r2: R2Target, key: string): Promise<void> {
   try {
-    const res = await r2.client.fetch(`${r2.objectBase}/${encodeKey(key)}`, { method: 'DELETE' })
+    const res = await r2.client.fetch(`${r2.objectBase}/${encodeKey(key)}`, { signal: AbortSignal.timeout(20_000), method: 'DELETE' })
     await res.body?.cancel()
   } catch (error) {
     console.error('R2 delete failed:', error)
@@ -804,8 +804,23 @@ async function downloadAndStoreAvatar(personId: number, imageUrl: string): Promi
       return false
     }
 
-    // Get blob
-    const blob = await response.blob()
+    // Read at most 5 MB, whatever the server claims.
+    const reader = response.body?.getReader()
+    if (!reader) return false
+    const chunks: BlobPart[] = []
+    let total = 0
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      total += value.byteLength
+      if (total > 5 * 1024 * 1024) {
+        await reader.cancel().catch(() => undefined)
+        console.error('Avatar too large (>5MB)')
+        return false
+      }
+      chunks.push(value)
+    }
+    const blob = new Blob(chunks, { type: (response.headers.get('content-type') ?? '').split(';')[0].trim() })
 
     // Validate size (5MB max)
     if (blob.size > AVATAR_MAX_BYTES) {
