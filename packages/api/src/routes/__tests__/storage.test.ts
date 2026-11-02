@@ -213,6 +213,15 @@ describe('POST /api/storage/sign-upload', () => {
     expect((await upload('event-images', 'a.mp4', { contentType: 'video/mp4', bytes: 500 * 1024 * 1024 + 1 })).status).toBe(413);
   });
 
+  it('lets an admin upload video and documents where the path only needs a signed-in user', async () => {
+    admin();
+    expect((await upload('invite-templates', 'e/a.mp4', { contentType: 'video/mp4', bytes: 1000 })).status).toBe(200);
+    expect((await upload('media', 'profiles/a.mp4', { contentType: 'video/mp4', bytes: 1000 })).status).toBe(200);
+    expect(
+      (await upload('invite-templates', 'e/a.docx', { contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', bytes: 1000 })).status,
+    ).toBe(200);
+  });
+
   it('answers 503 when the brand is aliased but the storage module cannot load', async () => {
     user();
     storage.registryAvailable = false;

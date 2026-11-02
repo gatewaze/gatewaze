@@ -96,6 +96,18 @@ async function supabaseUpload(bucket: string, path: string, file: Blob, opts: Up
   return { path: stored, publicUrl: supabase.storage.from(bucket).getPublicUrl(stored).data.publicUrl }
 }
 
+/** Browsers often give fonts (and some other files) no type; work it out from the name. */
+const TYPES_BY_EXTENSION: Record<string, string> = {
+  ttf: 'font/ttf', otf: 'font/otf', woff: 'font/woff', woff2: 'font/woff2',
+  pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+  gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml', avif: 'image/avif',
+}
+
+function typeFromName(path: string): string {
+  const ext = (path.split('.').pop() ?? '').toLowerCase()
+  return TYPES_BY_EXTENSION[ext] ?? ''
+}
+
 /**
  * Uploads `file` to `bucket` at `path` and returns where it ended up. Use the
  * returned `path`: for public speaker uploads the server picks the final name.
@@ -103,7 +115,7 @@ async function supabaseUpload(bucket: string, path: string, file: Blob, opts: Up
 export async function uploadToStorage(bucket: string, path: string, file: Blob, opts: UploadOptions = {}): Promise<UploadResult> {
   if (!storageConfig().publicUrl) return supabaseUpload(bucket, path, file, opts)
 
-  const contentType = opts.contentType || file.type || 'application/octet-stream'
+  const contentType = opts.contentType || file.type || typeFromName(path) || 'application/octet-stream'
   const signed = await postStorage<SignedUpload>('sign-upload', {
     bucket,
     path,
