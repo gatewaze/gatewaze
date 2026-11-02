@@ -85,7 +85,7 @@ export function Composer({
   autoFocus?: boolean;
   /** Measured height, so content underneath can clear it. */
   onHeight?: (h: number) => void;
-  /** Doorway styling: no mode pills; the bar names the action instead. */
+  /** Docked on another screen: no first-run hint, and Chat focuses the field. */
   launcher?: boolean;
   zIndex?: number;
 }) {
@@ -184,18 +184,6 @@ export function Composer({
   const hint = !launcher && hintEligible && !hintDone && !draft;
 
   const [focused, setFocused] = useState(false);
-  /**
-   * Launcher screens start COLLAPSED: the glass panel carries only the
-   * buttons, no field, and no pill drawn as selected — a bar that shows a lit
-   * Chat pill and a text field on every screen reads as "you are in the chat
-   * window", which was the confusion. Tapping Chat (or the mic) expands the
-   * panel: the field animates in above the buttons and takes focus, so the
-   * gesture that asked to talk is the gesture that starts talking. Sending, or
-   * blurring with nothing typed, collapses it again. On the coach itself the
-   * composer is always expanded — that screen IS the chat.
-   */
-  const [expanded, setExpanded] = useState(!launcher);
-  const showField = launcher ? expanded : true;
   useEffect(() => {
     const spell = setTimeout(() => setSettled(true), 24_000);
     return () => clearTimeout(spell);
@@ -254,8 +242,8 @@ export function Composer({
           through the glass and reappearing below it. */}
       <ComposerFade />
       {/* The first-run hint sits ABOVE the panel, pointing down at it. Only
-          on the chat surface: on other screens the bar is a launcher and the
-          hint would be explaining something the member is not looking at. */}
+          on the chat surface: on other screens the hint would explain
+          something the member is not looking at. */}
       <FirstRunHint visible={hint} onDismiss={() => setHintDone(true)} />
       {/* One radius on all four corners. Matching the bottom pair to the
           display's own curve left them much rounder than the top pair,
@@ -271,7 +259,6 @@ export function Composer({
         there rather than a card.
       */}
       <GlassPanel radius={radius.composer} variant="clear" tint={0.45}>
-        {showField ? (
         <Animated.View entering={FadeInDown.duration(180)} style={styles.inputRow}>
           {/* The field gives way to the waveform for the whole of a voice
               note, and stays gone until the transcript lands, so the row
@@ -298,11 +285,7 @@ export function Composer({
                 placeholderTextColor={theme.textMuted}
                 multiline
                 onFocus={() => { setFocused(true); setHintDone(true); }}
-                onBlur={() => {
-                    setFocused(false);
-                    // An abandoned launcher folds back to the minimal bar.
-                    if (launcher && !draft.trim()) setExpanded(false);
-                  }}
+                onBlur={() => setFocused(false)}
                 style={[scaled(type.chat, scale), styles.input, { color: theme.text }]}
               />
               {/* The resting suggestion, drawn as a real Text so it renders whether
@@ -341,7 +324,6 @@ export function Composer({
             <VoiceIndicator voice={voice} />
           )}
         </Animated.View>
-        ) : null}
 
         <View style={styles.toolbar}>
           {modes.length > 0 ? (
@@ -355,13 +337,10 @@ export function Composer({
                   key: 'chat',
                   icon: 'message-outline',
                   label: 'Chat',
-                  // On a launcher nothing is lit until the member opens the
-                  // field; on the coach, Chat is the resting mode.
-                  active: launcher ? expanded : activeMode === null,
+                  active: activeMode === null,
                   onPress: () => {
                     if (launcher) {
-                      setExpanded(true);
-                      requestAnimationFrame(() => inputRef.current?.focus());
+                      inputRef.current?.focus();
                       return;
                     }
                     onSelectMode(null);
@@ -388,12 +367,7 @@ export function Composer({
           ) : null}
 
 
-          <VoiceButton
-            voice={voice}
-            /* On a launcher, starting a voice note opens the field too: the
-               transcript needs somewhere visible to land. */
-            onEngage={launcher ? () => setExpanded(true) : undefined}
-          />
+          <VoiceButton voice={voice} />
           <Pressable
             onPress={onSend}
             disabled={!canSend}

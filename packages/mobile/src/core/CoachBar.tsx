@@ -52,11 +52,8 @@ export function CoachBar({
       onSend={() => hand(null)}
       onHeight={onHeight}
       /**
-       * A doorway, not the chat. The full composer here — pill track with
-       * Chat lit — read as "you are in the chat window" on every screen. The
-       * launcher hides the pills and the placeholder names the action, so
-       * the bar says what it does: type here from anywhere, and sending
-       * carries you to the coach.
+       * Same composer as the coach, with Chat lit and the field showing. The
+       * placeholder says that sending carries the member to the coach.
        */
       launcher
       placeholder="Message your coach…"
