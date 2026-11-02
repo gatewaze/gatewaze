@@ -13,6 +13,7 @@ import crypto from 'crypto';
 import { getRequestSupabase } from '../lib/supabase.js';
 import { labeledRouter } from '../lib/router-registry.js';
 import { requireJwt } from '../lib/auth/require-jwt.js';
+import { ipRateLimiter } from '../lib/rate-limiter.js';
 import { isPlatformAdmin } from '../lib/auth/optional-caller.js';
 import { storageAliasActive } from '../lib/storage-registry.js';
 import { removeFromBucket, uploadToBucket } from '../lib/storage-write.js';
@@ -21,6 +22,7 @@ const AVATAR_BUCKET = 'media';
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
 export const avatarsRouter = labeledRouter('jwt');
+avatarsRouter.use(ipRateLimiter({ points: 60, durationSecs: 60, bucket: 'avatars' }));
 avatarsRouter.use(requireJwt());
 
 /**

@@ -12,7 +12,13 @@ export function formatDateTime(date: string | Date): string {
 }
 
 export function slugify(text: string): string {
-  return text.toLowerCase().replace(/[^\w\s-]/g, '').replace(/[\s_]+/g, '-').replace(/^-+|-+$/g, '');
+  const s = text.toLowerCase().replace(/[^\w\s-]/g, '').replace(/[\s_]+/g, '-');
+  // Trim leading and trailing hyphens without a regex that backtracks.
+  let start = 0;
+  let end = s.length;
+  while (start < end && s[start] === '-') start++;
+  while (end > start && s[end - 1] === '-') end--;
+  return s.slice(start, end);
 }
 
 export function truncate(text: string, maxLength: number): string {
