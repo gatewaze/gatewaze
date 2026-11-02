@@ -23,12 +23,8 @@ const HOLD_MS = 1000;
 
 export function VoiceButton({
   voice,
-  onEngage,
 }: {
   voice: ReturnType<typeof import('./useVoiceInput').useVoiceInput>;
-  /** Fired when a press starts a recording — a collapsed launcher uses it to
-      open the field so the transcript has somewhere visible to land. */
-  onEngage?: () => void;
 }) {
   const pressedAt = useRef<number | null>(null);
   // Whether THIS press is the one that started recording. Without it the tap
@@ -40,7 +36,6 @@ export function VoiceButton({
     if (voice.state === 'idle') {
       startedHere.current = true;
       pressedAt.current = Date.now();
-      onEngage?.();
       // The firm click of a switch being thrown, fired on the PRESS rather
       // than when recording actually begins: the member's thumb is asking for
       // confirmation that the app heard the press, and permission checks or a
