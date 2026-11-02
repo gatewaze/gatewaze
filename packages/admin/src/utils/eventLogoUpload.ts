@@ -1,4 +1,5 @@
-import { supabase } from '@/lib/supabase';
+import { publicStorageUrl, rewriteStorageUrl } from '@/lib/storagePublic';
+import { removeFromStorage, uploadToStorage } from '@/lib/storageUpload';
 import { toPublicUrl } from '@gatewaze/shared';
 
 export interface EventLogoUploadResult {
@@ -33,25 +34,11 @@ export async function uploadEventLogo(
     const folder = type === 'screenshot' ? 'event-screenshots' : 'event-logos';
     const filePath = `${folder}/${fileName}`;
 
-    // Read file as array buffer
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = new Uint8Array(arrayBuffer);
-
-    // Upload file to storage
-    const { data, error } = await supabase.storage
-      .from('media')
-      .upload(filePath, buffer, {
-        upsert: true, // Overwrite existing files
-        contentType: file.type,
-        cacheControl: '3600', // Cache for 1 hour
-      });
-
-    if (error) {
-      return {
-        success: false,
-        error: error.message,
-      };
-    }
+    // Upload file to storage, overwriting an existing logo
+    const data = await uploadToStorage('media', filePath, file, {
+      upsert: true,
+      contentType: file.type,
+    });
 
     // Return the relative path as `url` — callers persist this directly to the DB.
     // Display-side code resolves via `toPublicUrl` using the configured
@@ -74,16 +61,7 @@ export async function uploadEventLogo(
  */
 export async function deleteEventLogo(imagePath: string): Promise<EventLogoUploadResult> {
   try {
-    const { error } = await supabase.storage
-      .from('media')
-      .remove([imagePath]);
-
-    if (error) {
-      return {
-        success: false,
-        error: error.message,
-      };
-    }
+    await removeFromStorage('media', [imagePath]);
 
     return {
       success: true,
@@ -148,12 +126,11 @@ export function extractEventLogoPath(imageUrl: string): string | null {
  */
 export function getEventLogoUrl(imagePath: string, bucketUrl?: string): string {
   if (bucketUrl) {
-    return toPublicUrl(imagePath, bucketUrl) ?? imagePath;
+    return rewriteStorageUrl(toPublicUrl(imagePath, bucketUrl) ?? imagePath);
   }
-  // Fallback: use the admin's direct Supabase client. Only for admin-context callers
+  // Fallback: the brand's own storage address. Only for admin-context callers
   // that don't have a BrandConfig handy; prefer the `bucketUrl` overload where possible.
-  const { data } = supabase.storage.from('media').getPublicUrl(imagePath);
-  return data.publicUrl;
+  return publicStorageUrl('media', imagePath);
 }
 
 /**

@@ -9,7 +9,8 @@
  */
 
 import { createClient } from '@supabase/supabase-js'
-import { resolveBucketUrl, toPublicUrl } from '@gatewaze/shared'
+import { resolveBucketUrl, rewriteStorageUrl, toPublicUrl } from '@gatewaze/shared'
+import { resolveStoragePublic } from '@/lib/storagePublicEnv'
 import { resolveCdnBaseUrl } from '@/lib/cdnBaseUrl'
 
 export type PortalTheme = 'blobs' | 'gradient_wave' | 'basic'
@@ -207,6 +208,19 @@ export interface BrandConfig {
    * `cardImage(url, cdnBaseUrl)`.
    */
   cdnBaseUrl: string
+  /**
+   * Public origin of this brand's R2 bucket (STORAGE_PUBLIC_URL), e.g.
+   * `https://media.example.com`. Set only on a brand whose files moved off
+   * Supabase Storage; absent everywhere else, so those brands' pages are
+   * unchanged. When set, `storageBucketUrl` is this origin (the `media`
+   * bucket sits at its root) and other buckets live under `<bucket>/`.
+   */
+  storagePublicUrl?: string
+  /**
+   * Hostnames (STORAGE_LEGACY_HOSTS) of this brand's old storage addresses,
+   * which are rewritten to `storagePublicUrl`. Set only with it.
+   */
+  storageLegacyHosts?: string[]
 }
 
 // ---------------------------------------------------------------------------
@@ -608,6 +622,16 @@ export async function getServerBrandConfig(): Promise<BrandConfig> {
     // up without depending on when this module was first evaluated.
     config.cdnBaseUrl = resolveCdnBaseUrl(process.env)
 
+    // A brand whose files moved to R2: the media bucket is the root of its
+    // public origin, and its old storage addresses are rewritten to it. Read
+    // per request like the pull zone. Nothing changes for any other brand.
+    const storage = resolveStoragePublic(process.env)
+    if (storage.publicUrl) {
+      config.storagePublicUrl = storage.publicUrl
+      config.storageLegacyHosts = storage.legacyHosts
+      config.storageBucketUrl = storage.publicUrl
+    }
+
     // Resolve branding image fields to full URLs using the effective bucket URL.
     // Idempotent — already-full URLs (legacy data) pass through unchanged.
     config.logoUrl = toPublicUrl(config.logoUrl, config.storageBucketUrl) ?? config.logoUrl
@@ -615,6 +639,11 @@ export async function getServerBrandConfig(): Promise<BrandConfig> {
       toPublicUrl(config.logoIconUrl, config.storageBucketUrl) ?? config.logoIconUrl
     config.faviconUrl =
       toPublicUrl(config.faviconUrl, config.storageBucketUrl) ?? config.faviconUrl
+    if (storage.publicUrl) {
+      config.logoUrl = rewriteStorageUrl(config.logoUrl, storage)
+      config.logoIconUrl = rewriteStorageUrl(config.logoIconUrl, storage)
+      config.faviconUrl = rewriteStorageUrl(config.faviconUrl, storage)
+    }
 
     cachedConfig = config
     cacheTimestamp = now

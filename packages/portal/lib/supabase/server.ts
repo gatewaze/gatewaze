@@ -2,6 +2,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { getBrandConfigById } from '@/config/brand'
+import { withStoragePublicUrls } from '@/lib/storagePublic'
 
 /**
  * Create a Supabase client for server-side use (anon key, no user session).
@@ -10,7 +11,8 @@ import { getBrandConfigById } from '@/config/brand'
 export async function createServerSupabase(brandId: string): Promise<SupabaseClient> {
   const config = await getBrandConfigById(brandId)
   const url = process.env.SUPABASE_URL || config.supabaseUrl
-  return createClient(url, config.supabaseAnonKey)
+  // On a brand with R2, storage getPublicUrl() hands out its R2 address.
+  return withStoragePublicUrls(createClient(url, config.supabaseAnonKey))
 }
 
 /**
@@ -57,5 +59,5 @@ export async function createAuthenticatedServerSupabase(brandId: string): Promis
     } : {}),
   })
 
-  return client
+  return withStoragePublicUrls(client)
 }

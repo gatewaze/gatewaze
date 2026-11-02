@@ -1,4 +1,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
+import { storagePublicUrl, storageSizedUrl } from '@gatewaze/shared'
+
+import { storageConfig } from './storageConfig'
 
 import {
   createHostAuth,
@@ -94,7 +97,7 @@ function createLocalClient(): SupabaseClient {
     throw new Error('Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY environment variables')
   }
 
-  return createClient(url, anonKey, {
+  const client = createClient(url, anonKey, {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
@@ -102,6 +105,18 @@ function createLocalClient(): SupabaseClient {
       flowType,
       storage: window.localStorage,
       storageKey,
+    },
+  })
+
+  // Only a brand whose files moved to R2 gets the wrapper; every other
+  // brand keeps the plain client, exactly as before.
+  if (!storageConfig().publicUrl) return client
+
+  let storage: SupabaseClient['storage'] | null = null
+  return new Proxy(client, {
+    get(target, prop) {
+      if (prop === 'storage') return (storage ??= wrapStoragePublicUrls(target.storage, null))
+      return Reflect.get(target, prop, target)
     },
   })
 }
@@ -168,20 +183,43 @@ function createHostSessionClient(): SupabaseClient {
 }
 
 /**
- * In host-session mode the client's base URL is the admin (or host) origin,
- * so storage.from(bucket).getPublicUrl() would hand out URLs on that origin.
- * Modules store those URLs (competition winner images, resource covers,
- * newsletter images) and show them outside the admin, so they are rewritten
- * to the real Supabase URL. Only getPublicUrl changes: uploads, downloads and
- * signed URLs keep going through the session holder.
+ * Fixes the addresses storage.from(bucket).getPublicUrl() hands out. Only
+ * getPublicUrl changes: uploads, downloads and signed URLs are untouched.
+ *
+ * On a brand whose files moved to R2 (VITE_STORAGE_PUBLIC_URL set), the
+ * address is the R2 one, worked out from the bucket and path, in either auth
+ * mode. Otherwise, in host-session mode (`baseUrl` set) the client's base URL
+ * is the admin (or host) origin, so getPublicUrl would hand out URLs on that
+ * origin. Modules store those URLs (competition winner images, resource
+ * covers, newsletter images) and show them outside the admin, so they are
+ * rewritten to the real Supabase URL.
  */
-function wrapStoragePublicUrls(storage: SupabaseClient['storage'], baseUrl: string): SupabaseClient['storage'] {
-  const localPrefix = new URL('storage/v1/', baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`).href
+function wrapStoragePublicUrls(storage: SupabaseClient['storage'], baseUrl: string | null): SupabaseClient['storage'] {
+  const localPrefix = baseUrl === null
+    ? null
+    : new URL('storage/v1/', baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`).href
 
   const rewrite = (url: string): string => {
+    if (localPrefix === null) return url
     const publicBase = getSupabasePublicUrl().replace(/\/+$/, '')
     if (!publicBase || !url.startsWith(localPrefix)) return url
     return `${publicBase}/storage/v1/${url.slice(localPrefix.length)}`
+  }
+
+  type GetPublicUrlArgs = Parameters<ReturnType<SupabaseClient['storage']['from']>['getPublicUrl']>
+  const r2Address = (bucket: string, [path, options]: GetPublicUrlArgs): string | null => {
+    const cfg = storageConfig()
+    if (!cfg.publicUrl || typeof path !== 'string') return null
+    const t = options?.transform
+    if (t?.width) {
+      return storageSizedUrl(cfg, bucket, path, {
+        width: t.width,
+        height: t.height,
+        fit: t.resize === 'cover' ? 'cover' : 'contain',
+        quality: t.quality,
+      })
+    }
+    return storagePublicUrl(cfg, bucket, path)
   }
 
   // Methods are bound to the real object, as the `supabase` export does, so
@@ -201,7 +239,8 @@ function wrapStoragePublicUrls(storage: SupabaseClient['storage'], baseUrl: stri
             if (apiProp !== 'getPublicUrl') return bindTo(apiTarget, apiProp)
             return (...args: Parameters<typeof apiTarget.getPublicUrl>) => {
               const result = apiTarget.getPublicUrl(...args)
-              return { ...result, data: { ...result.data, publicUrl: rewrite(result.data.publicUrl) } }
+              const publicUrl = r2Address(bucket, args) ?? rewrite(result.data.publicUrl)
+              return { ...result, data: { ...result.data, publicUrl } }
             }
           },
         })

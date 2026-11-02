@@ -3,6 +3,7 @@
 import { createBrowserClient } from '@supabase/ssr'
 import { SupabaseClient } from '@supabase/supabase-js'
 import { getClientBrandConfig } from '@/config/brand'
+import { withStoragePublicUrls } from '@/lib/storagePublic'
 
 let supabaseClient: SupabaseClient | null = null
 
@@ -15,7 +16,8 @@ let supabaseClient: SupabaseClient | null = null
 export function getSupabaseClient(): SupabaseClient {
   if (!supabaseClient) {
     const config = getClientBrandConfig()
-    supabaseClient = createBrowserClient(config.supabaseUrl, config.supabaseAnonKey)
+    // On a brand with R2, storage getPublicUrl() hands out its R2 address.
+    supabaseClient = withStoragePublicUrls(createBrowserClient(config.supabaseUrl, config.supabaseAnonKey))
   }
   return supabaseClient
 }

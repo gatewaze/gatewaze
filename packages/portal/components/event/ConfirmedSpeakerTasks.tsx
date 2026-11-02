@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback } from 'react'
 import { getClientBrandConfig, isLightColor } from '@/config/brand'
 import { getSupabaseClient } from '@/lib/supabase/client'
+import { uploadToStorage } from '@/lib/storageUpload'
 import { encodeEmail } from '@/lib/emailEncoding'
 import { PortalButton } from '@/components/ui/PortalButton'
 import { SpeakerPromoKit } from '@/components/event/SpeakerPromoKit'
@@ -173,25 +174,23 @@ export function ConfirmedSpeakerTasks({
 
       if (presentationFile) {
         // Upload file to storage
-        const supabase = getSupabaseClient()
         const fileExt = presentationFile.name.split('.').pop()?.toLowerCase() || 'pdf'
         const timestamp = Date.now()
         const randomStr = Math.random().toString(36).substring(2, 15)
         const fileName = `talks/${timestamp}-${randomStr}-presentation.${fileExt}`
 
-        const { error: uploadErr } = await supabase.storage
-          .from('media')
-          .upload(fileName, presentationFile, {
+        let uploaded: { path: string }
+        try {
+          uploaded = await uploadToStorage('media', fileName, presentationFile, {
             contentType: presentationFile.type,
-            cacheControl: '3600',
             upsert: false,
           })
-
-        if (uploadErr) {
+        } catch {
           throw new Error('Failed to upload presentation')
         }
 
-        storagePath = fileName
+        // On R2 the server picks the final name; keep the one it returned.
+        storagePath = uploaded.path
         type = presentationFile.type === 'application/pdf' ? 'pdf' : 'powerpoint'
       } else if (presentationLink.trim()) {
         uploadedUrl = presentationLink.trim()

@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { publicStorageUrl } from '@/lib/storagePublic';
 import md5 from 'md5';
 
 // Person interface matching Supabase table
@@ -890,10 +891,7 @@ export class PeopleService {
   static getAvatarUrl(person: Person, size: number = 80): string | null {
     // If person has stored avatar, use it
     if (person.avatar_storage_path) {
-      const { data } = supabase.storage
-        .from('media')
-        .getPublicUrl(person.avatar_storage_path);
-      return data.publicUrl;
+      return publicStorageUrl('media', person.avatar_storage_path);
     }
 
     // No avatar available

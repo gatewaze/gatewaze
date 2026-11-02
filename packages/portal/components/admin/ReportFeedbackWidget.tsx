@@ -15,6 +15,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import { getSupabaseClient } from '@/lib/supabase/client';
+import { uploadToStorage } from '@/lib/storageUpload';
 import {
   attachmentsPayload, droppedAttachmentsWarning, extFromMime, feedbackImagePath, validateImageFile,
   type PendingAttachment,
@@ -93,10 +94,8 @@ export default function ReportFeedbackWidget() {
     const path = feedbackImagePath(projectId, key, ext);
     setAtts((a) => [...a, { key, name: file.name || `${key}.${ext}`, url: '', uploading: true }]);
     try {
-      const { error } = await getSupabaseClient().storage.from('media').upload(path, file, { upsert: false, cacheControl: '3600', contentType: file.type });
-      if (error) throw error;
-      const { data } = getSupabaseClient().storage.from('media').getPublicUrl(path);
-      setAtts((a) => a.map((x) => (x.key === key ? { ...x, uploading: false, url: data.publicUrl } : x)));
+      const { publicUrl } = await uploadToStorage('media', path, file, { upsert: false, contentType: file.type });
+      setAtts((a) => a.map((x) => (x.key === key ? { ...x, uploading: false, url: publicUrl } : x)));
     } catch (e) { setErr(`image upload failed: ${String((e as Error)?.message ?? e)}`); setAtts((a) => a.filter((x) => x.key !== key)); }
   };
   const onPaste = (e: React.ClipboardEvent) => {

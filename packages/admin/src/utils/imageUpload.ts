@@ -1,4 +1,5 @@
-import { supabase } from '@/lib/supabase';
+import { publicStorageUrl, rewriteStorageUrl } from '@/lib/storagePublic';
+import { removeFromStorage, uploadToStorage } from '@/lib/storageUpload';
 import { toPublicUrl } from '@gatewaze/shared';
 
 export interface ImageUploadResult {
@@ -58,20 +59,8 @@ export async function uploadBlogImage(
     const finalFileName = fileName || `blog-image-${timestamp}.${extension}`;
     const filePath = `blog-posts/${finalFileName}`;
 
-    // Upload file to storage
-    const { data, error } = await supabase.storage
-      .from('media')
-      .upload(filePath, file, {
-        upsert: false, // Don't overwrite existing files
-        cacheControl: '3600', // Cache for 1 hour
-      });
-
-    if (error) {
-      return {
-        success: false,
-        error: error.message,
-      };
-    }
+    // Upload file to storage, never overwriting an existing file
+    const data = await uploadToStorage('media', filePath, file, { upsert: false });
 
     // Return the relative path as `url` — callers persist this directly.
     return {
@@ -92,16 +81,7 @@ export async function uploadBlogImage(
  */
 export async function deleteBlogImage(imagePath: string): Promise<ImageUploadResult> {
   try {
-    const { error } = await supabase.storage
-      .from('media')
-      .remove([imagePath]);
-
-    if (error) {
-      return {
-        success: false,
-        error: error.message,
-      };
-    }
+    await removeFromStorage('media', [imagePath]);
 
     return {
       success: true,
@@ -150,9 +130,8 @@ export async function updateBlogImage(
  * Passes through already-full URLs unchanged (idempotent).
  */
 export function getBlogImageUrl(imagePath: string, bucketUrl?: string): string {
-  if (bucketUrl) return toPublicUrl(imagePath, bucketUrl) ?? imagePath;
-  const { data } = supabase.storage.from('media').getPublicUrl(imagePath);
-  return data.publicUrl;
+  if (bucketUrl) return rewriteStorageUrl(toPublicUrl(imagePath, bucketUrl) ?? imagePath);
+  return publicStorageUrl('media', imagePath);
 }
 
 /**
