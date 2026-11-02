@@ -1,6 +1,6 @@
 'use client'
 
-import { Component, useRef, useMemo, useEffect, useState } from 'react'
+import { Component, useRef, useMemo, useEffect, useState, useSyncExternalStore } from 'react'
 import type { ReactNode, ErrorInfo } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
@@ -31,6 +31,15 @@ function hasWebGLSupport(): boolean {
     return false
   }
 }
+
+// Cached so the probe (which creates a canvas + GL context) runs once, and so
+// useSyncExternalStore gets a stable snapshot.
+let webglSupportCache: boolean | null = null
+function getWebGLSupport(): boolean {
+  if (webglSupportCache === null) webglSupportCache = hasWebGLSupport()
+  return webglSupportCache
+}
+const noopSubscribe = () => () => {}
 
 // Vertex shader for mesh deformation with proper normals for lighting
 const vertexShader = `
@@ -286,16 +295,20 @@ function FluidMesh({ color1, color2, color3, strength, radius, roughness, metaln
     uColor3: { value: new THREE.Color(color3) },
   }), [])
 
-  // Update uniforms when props change
+  // Update uniforms when props change — through the mounted material (as useFrame
+  // does), not by mutating the memoised `uniforms` value.
   useEffect(() => {
-    uniforms.uColor1.value.set(color1)
-    uniforms.uColor2.value.set(color2)
-    uniforms.uColor3.value.set(color3)
-    uniforms.uStrength.value = strength
-    uniforms.uRadius.value = radius
-    uniforms.uRoughness.value = roughness
-    uniforms.uMetalness.value = metalness
-  }, [color1, color2, color3, strength, radius, roughness, metalness, uniforms])
+    const material = meshRef.current?.material as THREE.ShaderMaterial | undefined
+    if (!material) return
+    const u = material.uniforms
+    u.uColor1.value.set(color1)
+    u.uColor2.value.set(color2)
+    u.uColor3.value.set(color3)
+    u.uStrength.value = strength
+    u.uRadius.value = radius
+    u.uRoughness.value = roughness
+    u.uMetalness.value = metalness
+  }, [color1, color2, color3, strength, radius, roughness, metalness])
 
   // Mouse/touch event handling
   useEffect(() => {
@@ -384,17 +397,16 @@ export function FluidBackground({
   className = '',
 }: FluidBackgroundProps) {
   const [mounted, setMounted] = useState(false)
-  const [webglSupported, setWebglSupported] = useState(true)
+  // Probed once on the client; the server snapshot assumes support (the
+  // fallback renders until `mounted` either way, so hydration matches).
+  const webglSupported = useSyncExternalStore(noopSubscribe, getWebGLSupport, () => true)
 
   useEffect(() => {
-    if (!hasWebGLSupport()) {
-      setWebglSupported(false)
-      return
-    }
+    if (!webglSupported) return
     // Small delay to ensure DOM is ready for WebGL context
     const timer = setTimeout(() => setMounted(true), 50)
     return () => clearTimeout(timer)
-  }, [])
+  }, [webglSupported])
 
   const fallbackGradient = (
     <div

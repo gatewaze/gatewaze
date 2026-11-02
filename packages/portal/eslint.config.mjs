@@ -20,15 +20,6 @@ export default [
       // scripts. Warn rather than error; revisit case-by-case.
       '@next/next/no-html-link-for-pages': 'warn',
       '@next/next/no-sync-scripts': 'warn',
-      // React Compiler rules that eslint-plugin-react-hooks 7 turned on with
-      // eslint-config-next 16. They flag existing code (76 sites at the
-      // upgrade), so warn for now and fix them as those files are touched.
-      'react-hooks/set-state-in-effect': 'warn',
-      'react-hooks/purity': 'warn',
-      'react-hooks/preserve-manual-memoization': 'warn',
-      'react-hooks/static-components': 'warn',
-      'react-hooks/refs': 'warn',
-      'react-hooks/immutability': 'warn',
     },
   },
 ];

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useSyncExternalStore } from 'react'
 import { useEventContext } from './EventContext'
 import { useAuth } from '@/hooks/useAuth'
 import { useDiscountCode } from '@/hooks/useDiscountCode'
@@ -16,6 +16,28 @@ export interface DiscountWithCode extends EventDiscount {
   existingCode?: string | null
 }
 
+const noopSubscribe = () => () => {}
+
+/** True once hydrated on the client; false on the server and during hydration. */
+function useIsClient() {
+  return useSyncExternalStore(noopSubscribe, () => true, () => false)
+}
+
+/** The email stashed in sessionStorage by an earlier step, read after hydration. */
+function usePrefillEmail() {
+  return useSyncExternalStore(noopSubscribe, () => sessionStorage.getItem('prefill_email'), () => null)
+}
+
+interface ConfettiPiece { left: number; delay: number; duration: number }
+
+function makeConfetti(): ConfettiPiece[] {
+  return Array.from({ length: 20 }, () => ({
+    left: Math.random() * 100,
+    delay: Math.random() * 0.5,
+    duration: 2 + Math.random(),
+  }))
+}
+
 export function DiscountCard({ discount, index }: { discount: DiscountWithCode; index: number }) {
   const { event, useDarkText } = useEventContext()
   const { session } = useAuth()
@@ -25,10 +47,13 @@ export function DiscountCard({ discount, index }: { discount: DiscountWithCode; 
   const brandConfig = getClientBrandConfig()
   const brandPrimary = brandConfig.primaryColor
 
-  const [email, setEmail] = useState('')
+  // null until the user types; until then the sessionStorage prefill shows
+  const [emailInput, setEmail] = useState<string | null>(null)
+  const prefillEmail = usePrefillEmail()
+  const email = emailInput ?? (!session && prefillEmail ? prefillEmail : '')
   const [claimedCode, setClaimedCode] = useState<string | null>(discount.existingCode || null)
   const [availableCount, setAvailableCount] = useState<number | null>(null)
-  const [showConfetti, setShowConfetti] = useState(false)
+  const [confetti, setConfetti] = useState<ConfettiPiece[] | null>(null)
   const [copied, setCopied] = useState(false)
   const [, setMagicLinkSent] = useState(false)
   const [codePending, setCodePending] = useState(false)
@@ -39,14 +64,6 @@ export function DiscountCard({ discount, index }: { discount: DiscountWithCode; 
     () => useDarkText ? 'border border-gray-700/50' : 'border border-white/20',
     [useDarkText]
   )
-
-  // Prefill email from sessionStorage on mount
-  useEffect(() => {
-    const prefillEmail = sessionStorage.getItem('prefill_email')
-    if (prefillEmail && !session) {
-      setEmail(prefillEmail)
-    }
-  }, [session])
 
   // Check for existing code on mount and when session changes
   useEffect(() => {
@@ -103,14 +120,14 @@ export function DiscountCard({ discount, index }: { discount: DiscountWithCode; 
     if (result.success && result.code) {
       if (session) {
         setClaimedCode(result.code)
-        setShowConfetti(true)
+        setConfetti(makeConfetti())
         if (!isDynamic) {
           const count = await getAvailableCount(eventId)
           setAvailableCount(count)
         } else if (discount.max_codes != null) {
           setAvailableCount((prev) => Math.max(0, (prev ?? discount.max_codes!) - 1))
         }
-        setTimeout(() => setShowConfetti(false), 3000)
+        setTimeout(() => setConfetti(null), 3000)
       } else {
         setCodePending(true)
         try {
@@ -170,18 +187,18 @@ export function DiscountCard({ discount, index }: { discount: DiscountWithCode; 
       style={{ animationDelay: `${index * 100}ms` }}
     >
       {/* Confetti effect */}
-      {showConfetti && (
+      {confetti && (
         <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-2xl z-10">
-          {[...Array(20)].map((_, i) => (
+          {confetti.map((piece, i) => (
             <div
               key={i}
               className="absolute w-2 h-2 animate-confetti"
               style={{
-                left: `${Math.random() * 100}%`,
+                left: `${piece.left}%`,
                 top: '-10%',
                 backgroundColor: ['#FFD700', '#FF6B9D', '#C398FF', '#00D4FF', brandPrimary][i % 5],
-                animationDelay: `${Math.random() * 0.5}s`,
-                animationDuration: `${2 + Math.random()}s`,
+                animationDelay: `${piece.delay}s`,
+                animationDuration: `${piece.duration}s`,
               }}
             />
           ))}
@@ -344,11 +361,7 @@ export function DiscountsContent() {
   const { event, useDarkText, primaryColor, theme } = useEventContext()
   const [discounts, setDiscounts] = useState<DiscountWithCode[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
+  const mounted = useIsClient()
 
   useEffect(() => {
     async function fetchDiscounts() {
@@ -381,7 +394,7 @@ export function DiscountsContent() {
   }), [useDarkText])
 
   return (
-    <div className={`transition-opacity duration-500 ease-out ${mounted ? 'opacity-100' : 'opacity-0'}`}>
+    <div className={`transition-opacity duration-500 ease-out ${mounted ? 'opacity-100 starting:opacity-0' : 'opacity-0'}`}>
       {/* Loading state */}
       <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 ${
         isLoading ? 'opacity-100' : 'opacity-0 pointer-events-none'

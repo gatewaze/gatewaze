@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useMemo, useSyncExternalStore } from 'react'
 import { GlassPanel } from '@/components/ui/GlassPanel'
 import { PortalButton } from '@/components/ui/PortalButton'
 import { useRegistrationStatus } from '@/hooks/useRegistrationStatus'
@@ -12,6 +12,8 @@ interface Props {
   useDarkText: boolean
   primaryColor: string
 }
+
+const noopSubscribe = () => () => {}
 
 function formatEventDate(startDate: string | null, endDate: string | null, locale?: string): string {
   if (!startDate) return ''
@@ -37,11 +39,8 @@ function formatLocation(city: string | null, countryCode: string | null): string
 }
 
 export function RecommendedEventPanel({ recommendedEvent, useDarkText, primaryColor }: Props) {
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
+  // False on the server and during hydration, true after.
+  const mounted = useSyncExternalStore(noopSubscribe, () => true, () => false)
 
   const theme = useMemo(() => ({
     textColor: useDarkText ? '#1f2937' : '#ffffff',
@@ -132,7 +131,9 @@ export function RecommendedEventPanel({ recommendedEvent, useDarkText, primaryCo
   )
 
   return (
-    <div className={`transition-opacity duration-500 ease-out ${mounted ? 'opacity-100' : 'opacity-0'}`}>
+    // starting:opacity-0 keeps the fade-in when the panel mounts client-side
+    // (where `mounted` is already true on the first render).
+    <div className={`transition-opacity duration-500 ease-out ${mounted ? 'opacity-100 starting:opacity-0' : 'opacity-0'}`}>
       {panelContent}
     </div>
   )

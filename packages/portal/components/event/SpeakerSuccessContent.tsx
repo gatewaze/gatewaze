@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useMemo, useSyncExternalStore } from 'react'
 import Link from 'next/link'
 import { isLightColor } from '@/config/brand'
 import { GlowBorder } from '@/components/ui/GlowBorder'
@@ -25,6 +25,8 @@ interface Props {
   calendarAddedAt?: string | null
   trackingLinkCopiedAt?: string | null
 }
+
+const noopSubscribe = () => () => {}
 
 interface SubmissionData {
   email: string
@@ -68,19 +70,22 @@ export function SpeakerSuccessContent({ editToken, isExisting, isUpdated, status
     dividerBorder: useDarkText ? 'border-white/20' : 'border-white/30',
   }), [useDarkText])
 
-  // Get submission data from sessionStorage
-  const [submissionData, setSubmissionData] = useState<SubmissionData | null>(null)
-
-  useEffect(() => {
-    const stored = sessionStorage.getItem('speakerSubmission')
-    if (stored) {
-      try {
-        setSubmissionData(JSON.parse(stored))
-      } catch (e) {
-        console.error('Failed to parse submission data:', e)
-      }
+  // Get submission data from sessionStorage, read after hydration (null on the
+  // server and during hydration).
+  const storedSubmission = useSyncExternalStore(
+    noopSubscribe,
+    () => sessionStorage.getItem('speakerSubmission'),
+    () => null,
+  )
+  const submissionData = useMemo<SubmissionData | null>(() => {
+    if (!storedSubmission) return null
+    try {
+      return JSON.parse(storedSubmission)
+    } catch (e) {
+      console.error('Failed to parse submission data:', e)
+      return null
     }
-  }, [])
+  }, [storedSubmission])
 
   // Show loading state while checking auth status
   if (editToken && authLoading) {

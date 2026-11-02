@@ -225,20 +225,22 @@ function TimelineContentInner({
   // Auto-load more pages when nearMe is on but the current page yielded
   // few visible rows after filtering. Bounded by NEAR_ME_AUTO_LOAD_LIMIT
   // empty pages so we don't burn through the dataset chasing zero matches.
-  const [emptyNearMePages, setEmptyNearMePages] = useState(0)
+  // The count never renders, so it lives in a ref. The reset runs first so the
+  // auto-load effect sees a fresh count in the same commit as a filter change.
+  const emptyNearMePagesRef = useRef(0)
+  useEffect(() => {
+    emptyNearMePagesRef.current = 0
+  }, [nearMe, region, eventType, topics])
+
   useEffect(() => {
     if (!nearMe || !isPaginatedView || !initialPage) return
     if (!hasMore || capReached || isPaginatedLoading) return
-    if (emptyNearMePages >= NEAR_ME_AUTO_LOAD_LIMIT) return
+    if (emptyNearMePagesRef.current >= NEAR_ME_AUTO_LOAD_LIMIT) return
     if (nearMeEvents.length === 0 || activeEvents.length - nearMeEvents.length > activeEvents.length / 2) {
-      setEmptyNearMePages((n) => n + 1)
+      emptyNearMePagesRef.current += 1
       loadMore()
     }
-  }, [nearMe, isPaginatedView, initialPage, hasMore, capReached, isPaginatedLoading, nearMeEvents.length, activeEvents.length, emptyNearMePages, loadMore])
-
-  useEffect(() => {
-    setEmptyNearMePages(0)
-  }, [nearMe, region, eventType, topics])
+  }, [nearMe, isPaginatedView, initialPage, hasMore, capReached, isPaginatedLoading, nearMeEvents.length, activeEvents.length, loadMore])
 
   const categoryPriorityMap = useMemo(() => {
     const map = new Map<string, number>()

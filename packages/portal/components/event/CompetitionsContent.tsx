@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useSyncExternalStore } from 'react'
 import { useEventContext } from './EventContext'
 import { useAuth } from '@/hooks/useAuth'
 import { useCountdown } from '@/hooks/useCountdown'
@@ -15,24 +15,31 @@ interface CompetitionWithEntry extends EventCompetition {
   hasEntered?: boolean
 }
 
+const noopSubscribe = () => () => {}
+
+/** True once hydrated on the client; false on the server and during hydration. */
+function useIsClient() {
+  return useSyncExternalStore(noopSubscribe, () => true, () => false)
+}
+
+/** The email stashed in sessionStorage by an earlier step, read after hydration. */
+function usePrefillEmail() {
+  return useSyncExternalStore(noopSubscribe, () => sessionStorage.getItem('prefill_email'), () => null)
+}
+
 function CompetitionCard({ competition, index }: { competition: CompetitionWithEntry; index: number }) {
   const { useDarkText, primaryColor, theme } = useEventContext()
   const { session } = useAuth()
   const { enterCompetition, isEntering, error } = useCompetitionEntry()
   const timeLeft = useCountdown(competition.close_date)
 
-  const [email, setEmail] = useState('')
+  // null until the user types; until then the sessionStorage prefill shows
+  const [emailInput, setEmail] = useState<string | null>(null)
+  const prefillEmail = usePrefillEmail()
+  const email = emailInput ?? (!session && prefillEmail ? prefillEmail : '')
   const [showSuccess, setShowSuccess] = useState(false)
   const [hasEntered, setHasEntered] = useState(competition.hasEntered || false)
   const [magicLinkSent, setMagicLinkSent] = useState(false)
-
-  // Prefill email from sessionStorage on mount
-  useEffect(() => {
-    const prefillEmail = sessionStorage.getItem('prefill_email')
-    if (prefillEmail && !session) {
-      setEmail(prefillEmail)
-    }
-  }, [session])
 
   const panelTheme = useMemo(() => ({
     panelBg: useDarkText ? 'bg-gray-900/15' : 'bg-white/15',
@@ -288,11 +295,7 @@ export function CompetitionsContent() {
   const { session } = useAuth()
   const [competitions, setCompetitions] = useState<CompetitionWithEntry[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
+  const mounted = useIsClient()
 
   useEffect(() => {
     async function fetchCompetitions() {
@@ -341,7 +344,7 @@ export function CompetitionsContent() {
   }), [useDarkText])
 
   return (
-    <div className={`transition-opacity duration-500 ease-out ${mounted ? 'opacity-100' : 'opacity-0'}`}>
+    <div className={`transition-opacity duration-500 ease-out ${mounted ? 'opacity-100 starting:opacity-0' : 'opacity-0'}`}>
       {/* Loading state */}
       <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 ${
         isLoading ? 'opacity-100' : 'opacity-0 pointer-events-none'

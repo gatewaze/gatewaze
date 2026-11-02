@@ -1,16 +1,18 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 import Link from 'next/link'
 
-export function InviteRsvpBanner() {
-  const [shortCode, setShortCode] = useState<string | null>(null)
-  const [dismissed, setDismissed] = useState(false)
+const noopSubscribe = () => () => {}
 
-  useEffect(() => {
-    const code = localStorage.getItem('invite_short_code')
-    if (code) setShortCode(code)
-  }, [])
+export function InviteRsvpBanner() {
+  // Read after hydration (null on the server and during hydration).
+  const shortCode = useSyncExternalStore(
+    noopSubscribe,
+    () => localStorage.getItem('invite_short_code'),
+    () => null,
+  )
+  const [dismissed, setDismissed] = useState(false)
 
   if (!shortCode || dismissed) return null
 

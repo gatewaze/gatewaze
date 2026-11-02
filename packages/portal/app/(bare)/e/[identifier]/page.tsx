@@ -157,6 +157,55 @@ function buildRedirectUrl(
   return url.toString()
 }
 
+/**
+ * Insert a tracking session row for this redirect. Returns the new session ID,
+ * or null on failure (failures must never block the redirect).
+ */
+async function createTrackingSession(
+  brand: string,
+  eventId: string,
+  trackingParams: { clickIds: Record<string, string>; utmParams: Record<string, string> }
+): Promise<string | null> {
+  try {
+    const supabase = await createServerSupabase(brand)
+    const reqHeaders = await headers()
+    const ts = Date.now().toString(36)
+    const rand = Math.random().toString(36).substring(2, 10)
+    const sessionId = `${ts}-${rand}`
+
+    // Extract IP address from request headers
+    const ipAddress = getClientIp(reqHeaders)
+
+    await supabase
+      .from('integrations_ad_tracking_sessions')
+      .insert({
+        session_id: sessionId,
+        brand_id: brand,
+        event_id: eventId,
+        click_ids: trackingParams.clickIds,
+        platform_cookies: {},
+        utm_source: trackingParams.utmParams.utm_source || null,
+        utm_medium: trackingParams.utmParams.utm_medium || null,
+        utm_campaign: trackingParams.utmParams.utm_campaign || null,
+        utm_content: trackingParams.utmParams.utm_content || null,
+        utm_term: trackingParams.utmParams.utm_term || null,
+        referrer: reqHeaders.get('referer') || null,
+        landing_page: null,
+        user_agent: reqHeaders.get('user-agent') || null,
+        ip_address: ipAddress,
+        tracking_consent: true,
+        consent_timestamp: new Date().toISOString(),
+        consented_platforms: Object.keys(CLICK_ID_PARAMS),
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        external_redirect_at: new Date().toISOString(),
+      })
+    return sessionId
+  } catch (err) {
+    console.error('Failed to create tracking session:', err)
+    return null
+  }
+}
+
 export default async function TrackingRedirectPage({ params, searchParams }: Props) {
   const { identifier } = await params
   const resolvedSearchParams = await searchParams
@@ -202,46 +251,9 @@ export default async function TrackingRedirectPage({ params, searchParams }: Pro
     Object.keys(trackingParams.utmParams).length > 0
 
   // Create tracking session server-side (non-blocking — don't let failures prevent redirect)
-  let sessionId: string | null = null
-  if (hasTrackingParams) {
-    try {
-      const supabase = await createServerSupabase(brand)
-      const reqHeaders = await headers()
-      const ts = Date.now().toString(36)
-      const rand = Math.random().toString(36).substring(2, 10)
-      sessionId = `${ts}-${rand}`
-
-      // Extract IP address from request headers
-      const ipAddress = getClientIp(reqHeaders)
-
-      await supabase
-        .from('integrations_ad_tracking_sessions')
-        .insert({
-          session_id: sessionId,
-          brand_id: brand,
-          event_id: event.event_id,
-          click_ids: trackingParams.clickIds,
-          platform_cookies: {},
-          utm_source: trackingParams.utmParams.utm_source || null,
-          utm_medium: trackingParams.utmParams.utm_medium || null,
-          utm_campaign: trackingParams.utmParams.utm_campaign || null,
-          utm_content: trackingParams.utmParams.utm_content || null,
-          utm_term: trackingParams.utmParams.utm_term || null,
-          referrer: reqHeaders.get('referer') || null,
-          landing_page: null,
-          user_agent: reqHeaders.get('user-agent') || null,
-          ip_address: ipAddress,
-          tracking_consent: true,
-          consent_timestamp: new Date().toISOString(),
-          consented_platforms: Object.keys(CLICK_ID_PARAMS),
-          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-          external_redirect_at: new Date().toISOString(),
-        })
-    } catch (err) {
-      console.error('Failed to create tracking session:', err)
-      sessionId = null
-    }
-  }
+  const sessionId = hasTrackingParams
+    ? await createTrackingSession(brand, event.event_id, trackingParams)
+    : null
 
   // Build redirect URL and redirect immediately (HTTP 307)
   const redirectUrl = buildRedirectUrl(event.event_link, trackingParams, sessionId)
