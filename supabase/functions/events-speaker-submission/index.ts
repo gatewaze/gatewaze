@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { AwsClient } from 'https://esm.sh/aws4fetch@1.0.20'
 import { emitIntegrationEvent } from '../_shared/integrationEvents.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
@@ -627,10 +628,143 @@ async function getOrCreateMemberProfile(personId: number): Promise<{ id: string 
 }
 
 /**
+ * R2, for a brand that has moved its Supabase buckets there. Set only when the
+ * function env has STORAGE_PUBLIC_URL and all four R2 values; otherwise null
+ * and avatars go to Supabase Storage exactly as before. The `media` bucket is
+ * at the root of the R2 bucket, so a media path is its own key.
+ */
+interface R2Target {
+  client: AwsClient
+  objectBase: string
+  publicUrl: string
+}
+
+function withoutTrailingSlashes(s: string): string {
+  let end = s.length
+  while (end > 0 && s.charCodeAt(end - 1) === 47) end -= 1
+  return s.slice(0, end)
+}
+
+function r2Target(): R2Target | null {
+  const publicUrl = withoutTrailingSlashes((Deno.env.get('STORAGE_PUBLIC_URL') ?? '').trim())
+  const accountId = (Deno.env.get('R2_ACCOUNT_ID') ?? '').trim()
+  const bucket = (Deno.env.get('R2_BUCKET') ?? '').trim()
+  const accessKeyId = (Deno.env.get('R2_ACCESS_KEY_ID') ?? '').trim()
+  const secretAccessKey = (Deno.env.get('R2_SECRET_ACCESS_KEY') ?? '').trim()
+  if (!publicUrl || !accountId || !bucket || !accessKeyId || !secretAccessKey) return null
+  if (!/^https:\/\/[^/?#]+$/.test(publicUrl) || !/^[A-Za-z0-9]{1,64}$/.test(accountId) || !/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(bucket)) {
+    console.error('R2 storage settings are malformed; using Supabase Storage')
+    return null
+  }
+  return {
+    client: new AwsClient({ accessKeyId, secretAccessKey, service: 's3', region: 'auto' }),
+    objectBase: `https://${accountId}.r2.cloudflarestorage.com/${bucket}`,
+    publicUrl,
+  }
+}
+
+/** Each path segment percent-encoded, slashes kept. */
+function encodeKey(key: string): string {
+  return key.split('/').map(encodeURIComponent).join('/')
+}
+
+/** A media path that cannot escape its prefix, or null. */
+function safeMediaPath(path: string): string | null {
+  // deno-lint-ignore no-control-regex
+  if (!path || path.length > 1024 || path.startsWith('/') || path.includes('..') || /[\\?#\x00-\x1f\x7f]/.test(path)) return null
+  if (path.split('/').some((seg) => seg === '' || seg === '.')) return null
+  return path
+}
+
+/**
+ * The media path of a file the portal already uploaded to R2 under
+ * speaker-submissions/, or null when the URL is anything else.
+ */
+function ownSpeakerSubmissionPath(r2: R2Target, imageUrl: string): string | null {
+  const prefix = `${r2.publicUrl}/speaker-submissions/`
+  if (!imageUrl.startsWith(prefix)) return null
+  let path: string
+  try {
+    const u = new URL(imageUrl)
+    if (u.search || u.hash) return null
+    path = u.pathname.slice(1).split('/').map(decodeURIComponent).join('/')
+  } catch {
+    return null
+  }
+  return path.startsWith('speaker-submissions/') ? safeMediaPath(path) : null
+}
+
+const AVATAR_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+const AVATAR_MAX_BYTES = 5 * 1024 * 1024
+
+/**
+ * True when the object is there and passes the same type and size checks a
+ * downloaded avatar gets. Anyone may upload to speaker-submissions/, so the
+ * URL alone says nothing about what the file is.
+ */
+async function r2IsAvatarImage(r2: R2Target, key: string): Promise<boolean> {
+  try {
+    const res = await r2.client.fetch(`${r2.objectBase}/${encodeKey(key)}`, { method: 'HEAD' })
+    await res.body?.cancel()
+    if (!res.ok) return false
+    const type = (res.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase()
+    const bytes = Number(res.headers.get('content-length') ?? 'NaN')
+    return AVATAR_TYPES.includes(type) && Number.isFinite(bytes) && bytes > 0 && bytes <= AVATAR_MAX_BYTES
+  } catch (error) {
+    console.error('R2 head failed:', error)
+    return false
+  }
+}
+
+async function r2Put(r2: R2Target, key: string, body: ArrayBuffer, contentType: string): Promise<boolean> {
+  const res = await r2.client.fetch(`${r2.objectBase}/${encodeKey(key)}`, {
+    method: 'PUT',
+    body,
+    headers: { 'content-type': contentType, 'cache-control': 'public, max-age=3600' },
+  })
+  await res.body?.cancel()
+  if (!res.ok) console.error(`R2 upload failed: ${res.status}`)
+  return res.ok
+}
+
+async function r2Delete(r2: R2Target, key: string): Promise<void> {
+  try {
+    const res = await r2.client.fetch(`${r2.objectBase}/${encodeKey(key)}`, { method: 'DELETE' })
+    await res.body?.cancel()
+  } catch (error) {
+    console.error('R2 delete failed:', error)
+  }
+}
+
+/**
  * Download avatar from URL and store it for person
  */
 async function downloadAndStoreAvatar(personId: number, imageUrl: string): Promise<boolean> {
   try {
+    const r2 = r2Target()
+
+    // The portal already put this file in R2; point the person at it
+    // instead of storing a second copy.
+    const existingPath = r2 ? ownSpeakerSubmissionPath(r2, imageUrl) : null
+    if (r2 && existingPath) {
+      if (!(await r2IsAvatarImage(r2, existingPath))) {
+        console.error('Avatar in speaker-submissions/ is missing, too large or not an image')
+        return false
+      }
+      const { error: updateError } = await supabase.rpc('people_update_avatar', {
+        p_person_id: personId,
+        p_avatar_source: 'uploaded',
+        p_storage_path: existingPath,
+        p_linkedin_url: null
+      })
+      if (updateError) {
+        console.error('Failed to update person avatar:', updateError)
+        return false
+      }
+      console.log(`✅ Avatar stored: ${existingPath}`)
+      return true
+    }
+
     console.log(`Downloading avatar from: ${imageUrl}`)
 
     // Fetch image
@@ -644,14 +778,13 @@ async function downloadAndStoreAvatar(personId: number, imageUrl: string): Promi
     const blob = await response.blob()
 
     // Validate size (5MB max)
-    if (blob.size > 5 * 1024 * 1024) {
+    if (blob.size > AVATAR_MAX_BYTES) {
       console.error('Avatar too large (>5MB)')
       return false
     }
 
     // Validate type
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
-    if (!allowedTypes.includes(blob.type)) {
+    if (!AVATAR_TYPES.includes(blob.type)) {
       console.error(`Invalid avatar type: ${blob.type}`)
       return false
     }
@@ -662,17 +795,21 @@ async function downloadAndStoreAvatar(personId: number, imageUrl: string): Promi
     const filePath = `people/${fileName}`
 
     // Upload to storage
-    const { error: uploadError } = await supabase.storage
-      .from('media')
-      .upload(filePath, blob, {
-        contentType: blob.type,
-        cacheControl: '3600',
-        upsert: false
-      })
+    if (r2) {
+      if (!(await r2Put(r2, filePath, await blob.arrayBuffer(), blob.type))) return false
+    } else {
+      const { error: uploadError } = await supabase.storage
+        .from('media')
+        .upload(filePath, blob, {
+          contentType: blob.type,
+          cacheControl: '3600',
+          upsert: false
+        })
 
-    if (uploadError) {
-      console.error('Failed to upload avatar:', uploadError)
-      return false
+      if (uploadError) {
+        console.error('Failed to upload avatar:', uploadError)
+        return false
+      }
     }
 
     // Update person record using RPC
@@ -686,7 +823,8 @@ async function downloadAndStoreAvatar(personId: number, imageUrl: string): Promi
     if (updateError) {
       console.error('Failed to update person avatar:', updateError)
       // Try to clean up uploaded file
-      await supabase.storage.from('media').remove([filePath])
+      if (r2) await r2Delete(r2, filePath)
+      else await supabase.storage.from('media').remove([filePath])
       return false
     }
 
