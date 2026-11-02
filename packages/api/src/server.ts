@@ -31,6 +31,8 @@ import { mcpEventsRouter } from './routes/mcp-events.js';
 import { adminNavLayoutRouter } from './routes/admin-nav-layout.js';
 import { internalRouter } from './routes/internal.js';
 import { portalEventsRouter } from './routes/portal-events.js';
+import { storageRouter } from './routes/storage.js';
+import { setStorageModuleDir } from './lib/storage-registry.js';
 import { hateoasMiddleware } from './lib/hateoas.js';
 import {
   mountLabeled,
@@ -163,6 +165,9 @@ mountLabeled(app, '/api/slack', slackRouter);
 mountLabeled(app, '/api/calendar', calendarProxyRouter);
 mountLabeled(app, '/api/modules', modulesRouter);
 mountLabeled(app, '/api/api-keys', apiKeysRouter);
+// Signed browser uploads for brands whose buckets live in R2 (storage
+// module `supabase_alias`); 404 not_enabled everywhere else.
+mountLabeled(app, '/api/storage', storageRouter);
 // MCP authorization server (OAuth 2.1 + PKCE; login via LFID module or
 // magic link), admin access-model CRUD, and the pod's audit ingest.
 // mcpAuthRouter declares absolute paths (/.well-known/*, /api/mcp-auth/*),
@@ -223,6 +228,9 @@ async function registerModuleRoutes() {
     }
 
     const modules = await loadModulesWithDbSources(config, dbSources as never[], PROJECT_ROOT);
+    // The storage registry (lib/storage-registry) loads the same copy of the
+    // storage module the loader resolved.
+    setStorageModuleDir(modules.find((m) => m.config.id === 'storage')?.resolvedDir);
     for (const mod of modules) {
       // Only register API routes for enabled modules
       if (enabledModuleIds.size > 0 && !enabledModuleIds.has(mod.config.id)) {

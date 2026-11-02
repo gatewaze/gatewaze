@@ -3,11 +3,29 @@
  * Proxies Supabase Storage through Bunny CDN for optimized image delivery
  */
 
+import { resizedStorageUrl, rewriteStorageUrl, storageConfig } from '@/lib/storagePublic'
+
 interface ResizeOptions {
   width?: number
   height?: number
   quality?: number
   fit?: 'contain' | 'cover' | 'fill'
+}
+
+function r2ImageUrl(url: string, resize?: ResizeOptions): string | null {
+  const rewritten = rewriteStorageUrl(url)
+  // The origin has no trailing slash, so the '/' pins the exact host.
+  if (!rewritten.startsWith(`${storageConfig().publicUrl}/`)) return null
+  if (resize?.width) {
+    const sized = resizedStorageUrl(rewritten, {
+      width: resize.width,
+      height: resize.height,
+      quality: resize.quality,
+      fit: resize.fit === 'cover' || resize.fit === 'fill' ? 'cover' : 'contain',
+    })
+    if (sized) return sized
+  }
+  return rewritten
 }
 
 function getBunnyConfig() {
@@ -25,6 +43,13 @@ export function getBunnyImageUrl(
   supabaseUrl: string,
   resize?: ResizeOptions
 ): string {
+  // A brand whose files moved to R2 resizes there (Cloudflare), not on Bunny.
+  // Anything that is not one of its files falls through unchanged.
+  if (storageConfig().publicUrl) {
+    const r2 = r2ImageUrl(supabaseUrl, resize)
+    if (r2) return r2
+  }
+
   const config = getBunnyConfig()
 
   if (!config.enabled || !config.pullzoneUrl) {

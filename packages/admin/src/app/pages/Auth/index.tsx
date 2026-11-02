@@ -12,6 +12,7 @@ import { AuthFormValues, schema } from "./schema";
 import { Page } from "@/components/shared/Page";
 import GradientBackground from "@/components/shared/GradientBackground";
 import { getSupabase, isHostSession, signInUrl } from "@/lib/supabase";
+import { publicStorageUrl, rewriteStorageUrl } from "@/lib/storagePublic";
 import { safeReturnTo } from "@/lib/hostSession";
 import { useHostAccessCheck } from "@/hooks/useHostAccessCheck";
 import { HostAccessStatusView } from "@/components/auth/HostAccessStatusView";
@@ -85,10 +86,10 @@ export default function SignIn() {
           // fallback HTML → broken image. Resolve the same way the
           // admin-side reader does.
           if (/^https?:\/\//.test(raw)) {
-            setLogoUrl(raw);
+            setLogoUrl(rewriteStorageUrl(raw));
           } else {
-            const { data: pub } = supabase.storage.from("media").getPublicUrl(raw);
-            if (pub?.publicUrl) setLogoUrl(pub.publicUrl);
+            const pub = publicStorageUrl("media", raw);
+            if (pub) setLogoUrl(pub);
           }
         }
       } catch {

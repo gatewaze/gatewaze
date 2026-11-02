@@ -30,6 +30,8 @@
  */
 
 import { getBunnyImageUrl } from './bunnyNet'
+import { storageConfig } from './storagePublic'
+import { storageSizedUrl } from '@gatewaze/shared'
 
 /** Max photos rendered in one entry's strip. */
 export const PHOTOS_PER_TALK = 6
@@ -97,6 +99,9 @@ export function talkPhotoUrl(
   if (!supabaseUrl || !BUCKET_RE.test(bucket)) return null
   const encoded = encodeStoragePath(storagePath)
   if (!encoded) return null
+  // A brand whose files moved to R2: Cloudflare resizes the same object there.
+  const r2 = storageSizedUrl(storageConfig(), bucket, storagePath as string, { width, quality: 80, fit: 'cover' })
+  if (r2) return r2
   const base = supabaseUrl.replace(/\/+$/, '')
   const publicUrl = `${base}/storage/v1/object/public/${bucket}/${encoded}`
   return getBunnyImageUrl(publicUrl, { width, quality: 80, fit: 'cover' })

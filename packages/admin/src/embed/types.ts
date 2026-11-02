@@ -23,6 +23,13 @@ export interface GwHostContext {
    */
   supabase: { url: string; anonKey: string; publicUrl?: string };
   /**
+   * Only for a brand whose files moved off Supabase Storage. `publicUrl` is
+   * the https origin of the brand's bucket (no path, no trailing slash);
+   * `legacyHosts` are the hostnames of the brand's old storage addresses,
+   * which are rewritten to it. Absent: storage addresses stay on Supabase.
+   */
+  storage?: { publicUrl: string; legacyHosts?: string[] };
+  /**
    * '' or a same-origin absolute path (leading '/', no scheme/host, no
    * trailing slash); '' means /api/gw. Cross-origin values are rejected —
    * the token-containment guarantee (the Supabase access token never

@@ -13,12 +13,30 @@ import crypto from 'crypto';
 import { getRequestSupabase } from '../lib/supabase.js';
 import { labeledRouter } from '../lib/router-registry.js';
 import { requireJwt } from '../lib/auth/require-jwt.js';
+import { ipRateLimiter } from '../lib/rate-limiter.js';
+import { isPlatformAdmin } from '../lib/auth/optional-caller.js';
+import { storageAliasActive } from '../lib/storage-registry.js';
+import { removeFromBucket, uploadToBucket } from '../lib/storage-write.js';
 
 const AVATAR_BUCKET = 'media';
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
 export const avatarsRouter = labeledRouter('jwt');
+avatarsRouter.use(ipRateLimiter({ points: 60, durationSecs: 60, bucket: 'avatars' }));
 avatarsRouter.use(requireJwt());
+
+/**
+ * On a brand whose buckets live in R2 the upload below runs with the service
+ * role, so Supabase's storage RLS no longer stands between the caller and
+ * media/customers/. Apply the rule it enforced (media outside the public
+ * prefixes: admins only) here instead. Brands still on Supabase Storage are
+ * unchanged: the caller's own client writes and RLS decides.
+ */
+async function mayWriteAvatars(req: Request): Promise<boolean> {
+  if (!(await storageAliasActive())) return true;
+  if (!req.userId) return false;
+  return isPlatformAdmin(req.userId);
+}
 
 function getGravatarUrl(email: string, size = 200): string {
   const hash = crypto.createHash('md5').update(email.trim().toLowerCase()).digest('hex');
@@ -56,13 +74,11 @@ async function downloadAndStoreImage(
 
   const buffer = Buffer.from(await blob.arrayBuffer());
 
-  const { error: uploadError } = await supabase.storage
-    .from(AVATAR_BUCKET)
-    .upload(filePath, buffer, {
-      contentType: blob.type,
-      cacheControl: '3600',
-      upsert: false,
-    });
+  const { error: uploadError } = await uploadToBucket(supabase, AVATAR_BUCKET, filePath, buffer, {
+    contentType: blob.type,
+    cacheControl: '3600',
+    upsert: false,
+  });
 
   if (uploadError) {
     return { success: false, error: `Upload failed: ${uploadError.message}` };
@@ -76,7 +92,7 @@ async function downloadAndStoreImage(
   });
 
   if (updateError) {
-    await supabase.storage.from(AVATAR_BUCKET).remove([filePath]);
+    await removeFromBucket(supabase, AVATAR_BUCKET, [filePath]);
     return { success: false, error: `Database update failed: ${updateError.message}` };
   }
 
@@ -88,6 +104,9 @@ avatarsRouter.post('/sync/:customerId', async (req: Request, res: Response) => {
   const { customerId } = req.params;
 
   try {
+    if (!(await mayWriteAvatars(req))) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
     const supabase = getRequestSupabase(req);
     const { data: customer, error } = await supabase
       .from('people')
@@ -129,6 +148,9 @@ avatarsRouter.post('/sync-batch', async (req: Request, res: Response) => {
   }
 
   try {
+    if (!(await mayWriteAvatars(req))) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
     const supabase = getRequestSupabase(req);
     const { data: customers, error } = await supabase
       .from('people')

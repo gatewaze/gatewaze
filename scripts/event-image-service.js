@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
+import { aliasedBucketStore } from './lib/storage-registry.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -88,6 +89,23 @@ export async function uploadEventImage(imageBuffer, eventId, fileExtension = 'jp
     const fileName = `${eventId}.${fileExtension}`;
     const filePath = `event-previews/${fileName}`;
 
+    const contentType = `image/${fileExtension === 'jpg' ? 'jpeg' : fileExtension}`;
+
+    // A brand that serves its buckets from R2 (storage module supabase_alias)
+    // writes through the storage module, and the stored URL is the store's.
+    const store = await aliasedBucketStore(getSupabaseClient(), 'media');
+    if (store) {
+      console.log(`  📤 Uploading event image to storage: ${filePath}`);
+      await store.put(filePath, imageBuffer, {
+        upsert: true,
+        contentType,
+        cacheControl: 'public, max-age=3600',
+      });
+      const publicUrl = store.publicUrl(filePath);
+      console.log(`  ✅ Event image uploaded successfully: ${publicUrl}`);
+      return { success: true, url: publicUrl, path: filePath };
+    }
+
     console.log(`  📤 Uploading event image to Supabase: ${filePath}`);
 
     // Upload file to storage
@@ -95,7 +113,7 @@ export async function uploadEventImage(imageBuffer, eventId, fileExtension = 'jp
       .from('media')
       .upload(filePath, imageBuffer, {
         upsert: true, // Overwrite existing files
-        contentType: `image/${fileExtension === 'jpg' ? 'jpeg' : fileExtension}`,
+        contentType,
         cacheControl: '3600', // Cache for 1 hour
       });
 
@@ -145,6 +163,18 @@ export async function uploadEventImage(imageBuffer, eventId, fileExtension = 'jp
  */
 export async function deleteEventImage(imagePath) {
   try {
+    const store = await aliasedBucketStore(getSupabaseClient(), 'media');
+    if (store) {
+      console.log(`  🗑️  Deleting event image from storage: ${imagePath}`);
+      const { failed } = await store.remove([imagePath]);
+      if (failed.length) {
+        console.error(`  ❌ Failed to delete event image: ${imagePath}`);
+        return { success: false, error: 'delete failed' };
+      }
+      console.log(`  ✅ Event image deleted successfully`);
+      return { success: true };
+    }
+
     console.log(`  🗑️  Deleting event image from Supabase: ${imagePath}`);
 
     const { error } = await getSupabaseClient().storage

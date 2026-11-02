@@ -6,6 +6,7 @@ import type { BrandConfig } from '@/config/brand'
 import { getClientBrandConfig } from '@/config/brand'
 import { useAuth } from '@/hooks/useAuth'
 import { getSupabaseClient } from '@/lib/supabase/client'
+import { uploadToStorage } from '@/lib/storageUpload'
 import { GlassPanel } from '@/components/ui/GlassPanel'
 import { GlowInput } from '@/components/ui/GlowInput'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -343,27 +344,23 @@ export function ProfileContent({ brandConfig, enabledModuleIds = [], enabledFeat
 
     setIsUploadingImage(true)
     try {
-      const supabase = getSupabaseClient()
-
       const fileExt = profileImage.name.split('.').pop() || 'jpg'
       const timestamp = Date.now()
       const randomStr = Math.random().toString(36).substring(2, 15)
       const fileName = `profiles/${timestamp}-${randomStr}.${fileExt}`
 
-      const { error: uploadError } = await supabase.storage
-        .from('media')
-        .upload(fileName, profileImage, {
+      let uploaded: { path: string }
+      try {
+        uploaded = await uploadToStorage('media', fileName, profileImage, {
           contentType: profileImage.type,
-          cacheControl: '3600',
-          upsert: false
+          upsert: false,
         })
-
-      if (uploadError) {
+      } catch (uploadError) {
         console.error('Upload error:', uploadError)
         throw new Error('Failed to upload image')
       }
 
-      return fileName
+      return uploaded.path
     } catch (error) {
       console.error('Error uploading image:', error)
       return null

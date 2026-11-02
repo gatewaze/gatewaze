@@ -16,6 +16,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.join(__dirname, '.'),
+      // Same mapping as tsconfig paths (portal has no package dependency on it).
+      '@gatewaze/shared': path.resolve(__dirname, '../shared/src'),
     },
   },
 });

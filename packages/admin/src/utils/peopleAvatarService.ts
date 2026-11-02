@@ -1,4 +1,6 @@
 import { supabase } from '@/lib/supabase';
+import { publicStorageUrl, storageConfig } from '@/lib/storagePublic';
+import { removeFromStorage, uploadToStorage } from '@/lib/storageUpload';
 import md5 from 'md5';
 
 export type AvatarSource = 'uploaded' | 'linkedin' | 'gravatar';
@@ -14,6 +16,9 @@ export class PeopleAvatarService {
    */
   static async initializeBucket(): Promise<{ success: boolean; error?: string }> {
     try {
+      // A brand on R2 has one bucket that already exists; there is nothing to create.
+      if (storageConfig().publicUrl) return { success: true };
+
       // Check if bucket exists
       const { data: buckets } = await supabase.storage.listBuckets();
       const bucketExists = buckets?.some(b => b.name === AVATAR_BUCKET);
@@ -63,15 +68,10 @@ export class PeopleAvatarService {
       const filePath = `people/${fileName}`;
 
       // Upload to storage
-      const { error: uploadError } = await supabase.storage
-        .from(AVATAR_BUCKET)
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false
-        });
-
-      if (uploadError) {
-        return { success: false, error: uploadError.message };
+      try {
+        await uploadToStorage(AVATAR_BUCKET, filePath, file, { upsert: false });
+      } catch (uploadError) {
+        return { success: false, error: uploadError instanceof Error ? uploadError.message : 'Upload failed' };
       }
 
       // Update person record
@@ -84,7 +84,7 @@ export class PeopleAvatarService {
 
       if (updateError) {
         // Rollback storage upload
-        await supabase.storage.from(AVATAR_BUCKET).remove([filePath]);
+        await removeFromStorage(AVATAR_BUCKET, [filePath]).catch(() => undefined);
         return { success: false, error: updateError.message };
       }
 
@@ -131,16 +131,10 @@ export class PeopleAvatarService {
       const filePath = `people/${fileName}`;
 
       // Upload to storage
-      const { error: uploadError } = await supabase.storage
-        .from(AVATAR_BUCKET)
-        .upload(filePath, blob, {
-          contentType: blob.type,
-          cacheControl: '3600',
-          upsert: false
-        });
-
-      if (uploadError) {
-        return { success: false, error: uploadError.message };
+      try {
+        await uploadToStorage(AVATAR_BUCKET, filePath, blob, { contentType: blob.type, upsert: false });
+      } catch (uploadError) {
+        return { success: false, error: uploadError instanceof Error ? uploadError.message : 'Upload failed' };
       }
 
       // Update person record
@@ -153,7 +147,7 @@ export class PeopleAvatarService {
 
       if (updateError) {
         // Rollback storage upload
-        await supabase.storage.from(AVATAR_BUCKET).remove([filePath]);
+        await removeFromStorage(AVATAR_BUCKET, [filePath]).catch(() => undefined);
         return { success: false, error: updateError.message };
       }
 
@@ -214,8 +208,7 @@ export class PeopleAvatarService {
    * Get public URL for an avatar
    */
   static getAvatarPublicUrl(path: string): string {
-    const { data } = supabase.storage.from(AVATAR_BUCKET).getPublicUrl(path);
-    return data.publicUrl;
+    return publicStorageUrl(AVATAR_BUCKET, path);
   }
 
   /**
@@ -227,12 +220,10 @@ export class PeopleAvatarService {
   ): Promise<{ success: boolean; error?: string }> {
     try {
       // Delete from storage
-      const { error: storageError } = await supabase.storage
-        .from(AVATAR_BUCKET)
-        .remove([storagePath]);
-
-      if (storageError) {
-        return { success: false, error: storageError.message };
+      try {
+        await removeFromStorage(AVATAR_BUCKET, [storagePath]);
+      } catch (storageError) {
+        return { success: false, error: storageError instanceof Error ? storageError.message : 'Delete failed' };
       }
 
       // Clear person record

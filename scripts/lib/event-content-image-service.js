@@ -6,6 +6,7 @@
  */
 
 import { supabase } from '../supabase-client.js';
+import { aliasedBucketStore } from './storage-registry.js';
 
 const CONTENT_IMAGES_BUCKET = 'event-content-images';
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -25,6 +26,12 @@ const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
  */
 export async function initializeBucket() {
   try {
+    // On R2 (storage module supabase_alias) the bucket is a prefix in the
+    // provider bucket; there is nothing to create.
+    if (await aliasedBucketStore(supabase, CONTENT_IMAGES_BUCKET)) {
+      return { success: true };
+    }
+
     const { data: buckets, error: listError } = await supabase.storage.listBuckets();
 
     if (listError) {
@@ -157,6 +164,17 @@ export async function downloadAndUploadImage(imageUrl, eventId, imageIndex) {
 
     console.log(`  📤 Uploading to storage: ${storagePath}`);
 
+    const store = await aliasedBucketStore(supabase, CONTENT_IMAGES_BUCKET);
+    if (store) {
+      await store.put(storagePath, Buffer.from(await blob.arrayBuffer()), {
+        contentType,
+        cacheControl: 'public, max-age=31536000, immutable',
+        upsert: false,
+      });
+      console.log(`  ✅ Image uploaded: ${storagePath}`);
+      return { success: true, publicUrl: store.publicUrl(storagePath), storagePath };
+    }
+
     // Upload to Supabase Storage
     const { error: uploadError } = await supabase.storage
       .from(CONTENT_IMAGES_BUCKET)
@@ -247,6 +265,16 @@ export async function processAllImages(images, eventId) {
  */
 export async function deleteEventImages(eventId) {
   try {
+    const store = await aliasedBucketStore(supabase, CONTENT_IMAGES_BUCKET);
+    if (store) {
+      const files = await store.list(`${eventId}/`, 1000);
+      if (files.length === 0) return { success: true };
+      const { failed } = await store.remove(files.map((f) => f.path));
+      if (failed.length) return { success: false, error: `could not delete ${failed.length} content image(s)` };
+      console.log(`🗑️ Deleted ${files.length} content images for event ${eventId}`);
+      return { success: true };
+    }
+
     const { data: files, error: listError } = await supabase.storage
       .from(CONTENT_IMAGES_BUCKET)
       .list(eventId);
