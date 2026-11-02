@@ -293,6 +293,24 @@ describe('validateGwHostContext', () => {
     });
   });
 
+  describe('storage', () => {
+    it('accepts an https origin and plain hostnames', () => {
+      const result = validateGwHostContext(validCtx({ storage: { publicUrl: 'https://media.example.com', legacyHosts: ['proj.supabase.co'] } }));
+      expect(result.ok).toBe(true);
+    });
+
+    it.each([
+      ['http', { publicUrl: 'http://media.example.com' }, 'storage.publicUrl'],
+      ['a path', { publicUrl: 'https://media.example.com/x' }, 'storage.publicUrl'],
+      ['javascript:', { publicUrl: 'javascript:alert(1)' }, 'storage.publicUrl'],
+      ['a URL as a host', { publicUrl: 'https://media.example.com', legacyHosts: ['https://x.example'] }, 'storage.legacyHosts'],
+    ])('rejects %s', (_label, storage, field) => {
+      const result = validateGwHostContext(validCtx({ storage: storage as GwHostContext['storage'] }));
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.field).toBe(field);
+    });
+  });
+
   it('local mode is unchanged: a cross-origin supabase.url, no publicUrl and no session are fine', () => {
     const result = validateGwHostContext(validCtx({ supabase: { url: 'https://elsewhere.supabase.co', anonKey: 'k' } }));
     expect(result.ok).toBe(true);

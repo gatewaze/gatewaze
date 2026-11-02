@@ -318,6 +318,23 @@ describe('mount / unmount', () => {
       vi.unstubAllGlobals();
     });
 
+    it('writes the storage settings into the runtime config only when given', async () => {
+      const { mount } = await import('../../embed');
+      const handle = mount(
+        document.createElement('div'),
+        makeCtx({ storage: { publicUrl: 'https://media.example.com', legacyHosts: ['a.supabase.co', 'b.b-cdn.net'] } }),
+      );
+      const config = (globalThis as Record<string, unknown>).__GATEWAZE_CONFIG__ as Record<string, string>;
+      expect(config.VITE_STORAGE_PUBLIC_URL).toBe('https://media.example.com');
+      expect(config.VITE_STORAGE_LEGACY_HOSTS).toBe('a.supabase.co,b.b-cdn.net');
+      handle.unmount();
+
+      const plain = mount(document.createElement('div'), makeCtx());
+      const after = (globalThis as Record<string, unknown>).__GATEWAZE_CONFIG__ as Record<string, string>;
+      expect(after).not.toHaveProperty('VITE_STORAGE_PUBLIC_URL');
+      plain.unmount();
+    });
+
     it('leaves the local-mode config without VITE_AUTH_MODE', async () => {
       const { mount } = await import('../../embed');
       const handle = mount(document.createElement('div'), makeCtx());

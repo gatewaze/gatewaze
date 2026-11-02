@@ -36,3 +36,14 @@ export {
   rewriteImgSrcToPublicUrl,
   resolveBucketUrl,
 } from './storage';
+
+export {
+  storagePublicConfig,
+  storageKey,
+  encodeKey,
+  storagePublicUrl,
+  storageSizedUrl,
+  rewriteStorageUrl,
+  rewriteStorageUrlsInText,
+} from './storage-public';
+export type { StoragePublicConfig, PublicSize } from './storage-public';

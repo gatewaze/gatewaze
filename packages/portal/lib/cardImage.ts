@@ -25,11 +25,17 @@
  *   2. Supabase Storage's own `render/image` endpoint, which every project has
  *      but which bills against the project's transformation quota.
  *
+ * A brand whose files moved to R2 (`brandConfig.storagePublicUrl`) uses
+ * Cloudflare's `cdn-cgi/image` on its R2 origin instead of either, for its
+ * own files; its old Supabase addresses are rewritten to R2 first.
+ *
  * Anything that is NOT one of our normalised previews (an `event_logo`, an
  * externally hosted image) is returned untouched. Those can be any aspect
  * ratio, so cropping them to 1.905 or claiming a ratio they do not have
  * would be wrong.
  */
+
+import { resizedStorageUrl, rewriteStorageUrl, storageKeyOf } from '@/lib/storagePublic';
 
 export const CARD_IMAGE_WIDTH = 640;
 export const CARD_IMAGE_HEIGHT = 336;
@@ -141,6 +147,28 @@ function supabaseRenderUrl(origin: string, objectPath: string, width: number): s
 }
 
 /**
+ * On a brand with R2: the card image for one of its own files, resized by
+ * Cloudflare. Null for anything else, which then takes the usual path.
+ */
+function r2CardImage(raw: string): CardImage | null {
+  const key = storageKeyOf(raw);
+  if (key === null) return null;
+  if (!isNormalisedPreview(key)) {
+    // Not a preview: the plain R2 address, no transform.
+    return { src: rewriteStorageUrl(raw) };
+  }
+  const build = (width: number) =>
+    resizedStorageUrl(raw, { width, height: heightFor(width), fit: 'cover', quality: CDN_QUALITY }) ?? raw;
+  return {
+    src: build(CARD_IMAGE_WIDTH),
+    srcSet: SRCSET_WIDTHS.map((w) => `${build(w)} ${w}w`).join(', '),
+    sizes: SIZES,
+    width: CARD_IMAGE_WIDTH,
+    height: CARD_IMAGE_HEIGHT,
+  };
+}
+
+/**
  * Resolve the attributes for a card image. Returns `{ src }` alone when the
  * URL is not a normalised preview, which leaves today's behaviour (natural
  * intrinsic size, no transform) untouched for those.
@@ -150,6 +178,9 @@ function supabaseRenderUrl(origin: string, objectPath: string, width: number): s
  * with no zone still gets right-sized images.
  */
 export function cardImage(raw: string, cdnBaseUrl?: string): CardImage {
+  const r2 = r2CardImage(raw);
+  if (r2) return r2;
+
   let url: URL;
   try {
     url = new URL(raw);

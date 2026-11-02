@@ -8,6 +8,7 @@ import type { BrandConfig } from '@/config/brand'
 import { getClientBrandConfig, isLightColor } from '@/config/brand'
 import { stripEmojis } from '@/lib/text'
 import { getSupabaseClient } from '@/lib/supabase/client'
+import { uploadToStorage } from '@/lib/storageUpload'
 import { GlowInput, GlowTextarea } from '@/components/ui/GlowInput'
 import { PortalButton } from '@/components/ui/PortalButton'
 import { TermsModal } from './TermsModal'
@@ -347,32 +348,24 @@ export function SpeakerSubmissionForm({ event, brandConfig, onSuccess, onCancel,
 
     setIsUploadingImage(true)
     try {
-      const supabase = getSupabaseClient()
-
       // Generate unique filename
       const fileExt = profileImage.name.split('.').pop() || 'jpg'
       const timestamp = Date.now()
       const randomStr = Math.random().toString(36).substring(2, 15)
       const fileName = `speaker-submissions/${timestamp}-${randomStr}.${fileExt}`
 
-      // Upload to storage
-      const { error: uploadError } = await supabase.storage
-        .from('media')
-        .upload(fileName, profileImage, {
+      // Upload to storage. On R2 the server picks the final name, so the
+      // returned address is the one to keep.
+      let publicUrl: string
+      try {
+        ;({ publicUrl } = await uploadToStorage('media', fileName, profileImage, {
           contentType: profileImage.type,
-          cacheControl: '3600',
-          upsert: false
-        })
-
-      if (uploadError) {
+          upsert: false,
+        }))
+      } catch (uploadError) {
         console.error('Upload error:', uploadError)
         throw new Error('Failed to upload image')
       }
-
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('media')
-        .getPublicUrl(fileName)
 
       return publicUrl
     } catch (error) {
