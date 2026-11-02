@@ -10,8 +10,9 @@
  *   bucket            key                                  insert   overwrite / delete
  *   media             profiles/...                         auth     admin
  *   media             speaker-submissions/..., talks/...   anon     admin   (server picks the key)
- *   media             winner-images/...                    auth     auth
  *   media             anything else                        admin    admin
+ *     (incl. winner-images/: R2 keeps the winner-images bucket in the same
+ *      folder, so a looser media rule would let users overwrite that bucket)
  *   invite-templates  anything                             auth     auth
  *   any other bucket  anything                             admin    admin
  *   private buckets   never signed here
@@ -69,7 +70,6 @@ export function requiredRole(bucket: string, path: string, op: Operation): Role 
     if (PRIVATE_BUCKETS.has(path.split('/')[0] ?? '')) return 'never';
     if (path.startsWith('profiles/')) return op === 'insert' ? 'authenticated' : 'admin';
     if (serverKeyedPrefix(bucket, path)) return op === 'insert' ? 'anon' : 'admin';
-    if (path.startsWith('winner-images/')) return 'authenticated';
     return 'admin';
   }
   if (bucket === 'invite-templates') return 'authenticated';

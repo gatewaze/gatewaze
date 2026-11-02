@@ -117,7 +117,7 @@ describe('POST /api/storage/sign-upload', () => {
       ['anon', anon, 'media', 'talks/a.png', false, 200],
       ['user', user, 'media', 'speaker-submissions/a.png', false, 200],
       ['anon', anon, 'media', 'winner-images/a.png', false, 401],
-      ['user', user, 'media', 'winner-images/a.png', true, 200],
+      ['user', user, 'media', 'winner-images/a.png', false, 403],
       ['user', user, 'media', 'branding/logo.png', false, 403],
       ['admin', admin, 'media', 'branding/logo.png', true, 200],
       ['anon', anon, 'invite-templates', 'x/a.png', false, 401],
@@ -234,8 +234,8 @@ describe('POST /api/storage/delete', () => {
     expect(res.status).toBe(404);
   });
 
-  it('lets an authenticated user delete in winner-images/ and returns failed[]', async () => {
-    user();
+  it('lets an admin delete in winner-images/ and returns failed[]', async () => {
+    admin();
     const spy = vi.spyOn(storage.store, 'remove').mockResolvedValue({ failed: ['winner-images/b.png'] });
     const res = await del({ bucket: 'media', paths: ['winner-images/a.png', 'winner-images/b.png', 'winner-images/a.png'] });
     expect(res.status).toBe(200);
