@@ -36,6 +36,15 @@ const moduleCronJobs = [];
 const _queueCache = new Map();
 let _redisShared = null;
 
+// Retention for the jobs each tick enqueues. Mirrors GLOBAL_DEFAULT_JOB_OPTIONS
+// in packages/api/src/lib/queue/registry.ts (this script cannot import it).
+// Without it every tick stays in the completed set for ever: a 5-second cron
+// is 17k jobs a day, and the techtickets Redis ran out of memory that way.
+const CRON_JOB_RETENTION = {
+  removeOnComplete: { count: 1000, age: 24 * 3600 },
+  removeOnFail: { count: 500, age: 7 * 24 * 3600 },
+};
+
 function getQueue(queueName) {
   if (_queueCache.has(queueName)) return _queueCache.get(queueName);
   if (!_redisShared) {
@@ -184,7 +193,7 @@ async function registerModuleSchedulers() {
         const jobName = (c.data && typeof c.data.kind === 'string' && c.data.kind) ? c.data.kind : c.name;
         const tick = async () => {
           try {
-            await queue.add(jobName, c.data ?? {});
+            await queue.add(jobName, c.data ?? {}, CRON_JOB_RETENTION);
           } catch (e) {
             console.error(`[modules] enqueue failed for ${c.name}:`, e.message ?? e);
           }
