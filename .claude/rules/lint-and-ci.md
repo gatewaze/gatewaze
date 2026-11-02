@@ -145,29 +145,13 @@ the OpenAI client's own responses, not request bodies.
 Revisit when openai and chromium-bidi move to zod 4: drop the ignore and let
 the gate speak.
 
-## The unfixable node-forge advisory
+## The node-forge advisories
 
-```
-node-forge  <=1.4.0  →  patched: <0.0.0  (no fix exists; 1.4.0 IS the latest)
-```
+node-forge 1.4.0 and earlier have several high severity advisories. They include GHSA-86w9-cpqp-85rv, GHSA-5x38-2vff-x55p, GHSA-7wch-p9px-956x, GHSA-8hrf-8g6f-7xwp, GHSA-hqq3-7jhf-c5jx and GHSA-jc66-7q78-782g. Patched releases now exist, so the root `package.json` has the override `"node-forge@<=1.4.0": ">=1.4.1"` and the lockfile resolves node-forge to 1.4.2. None of these advisories are in `pnpm.auditConfig.ignoreGhsas`.
 
-GHSA-86w9-cpqp-85rv, RSA PKCS#1 v1.5 signature verification accepting extra
-nested DigestAlgorithm elements. It is in `pnpm.auditConfig.ignoreGhsas`
-because there is nothing to upgrade to.
+node-forge reaches the production graph through `packages/mobile > expo > @expo/cli`. It also reaches it through `@react-three/fiber > expo > @expo/cli`, because admin declares `@react-three/fiber` and `three` as production dependencies and imports neither. Removing them is worth doing on its own rather than inside an audit fix. Portal imports `@react-three/fiber` in `FluidBackground.tsx`, so it stays there.
 
-It reaches the production graph through `packages/mobile > expo > @expo/cli`.
-`@expo/cli` is build tooling. It runs on a developer machine during prebuild
-and is not part of the shipped app binary, and nothing on that path verifies
-an RSA signature with node-forge.
-
-Admin also declares `@react-three/fiber` and `three` as production dependencies
-and imports neither, which brings the same chain in a second time. Removing
-them is worth doing on its own rather than inside an audit fix, so the ignore
-covers the advisory by its GHSA id and both paths with it. Portal's use of
-`@react-three/fiber` is real (`FluidBackground.tsx`) and stays.
-
-Revisit when node-forge ships a patched release: drop the ignore and let the
-gate speak.
+Keep the override until the dependency chain no longer pins a vulnerable node-forge.
 
 ## husky / lint-staged
 
