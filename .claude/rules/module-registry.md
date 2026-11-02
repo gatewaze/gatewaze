@@ -15,8 +15,8 @@ by `packages/portal/scripts/generate-module-registry.ts`.
 |------|-------------|-------------|
 | `lib/modules/generated-portal-modules.ts` | `walkPortalPagesDir` | `app/(main)/m/[...path]/page.tsx` (catch-all router) |
 | `lib/modules/generated-event-pages.ts` | `discoverEventPages` | event-detail layout (event-pages slot) |
-| `lib/modules/generated-portal-rewrites.json` | derived from prefixes | `next.config.ts` rewrites |
-| `lib/modules/generated-modules-dirs.json` | resolved source paths | `next.config.ts` webpack alias |
+| `lib/modules/generated-portal-rewrites.json` | derived from prefixes | `next.config.mts` rewrites |
+| `lib/modules/generated-modules-dirs.json` | resolved source paths | `next.config.mts` webpack alias |
 | `lib/modules/generated-module-prefixes.json` | unique moduleIds | middleware URL routing |
 
 ## How the generator emits import paths
@@ -94,12 +94,12 @@ MODULE_SOURCES='/Users/dan/Git/gatewaze/premium-gatewaze-modules/modules#label=P
 
 ## The `@gatewaze-modules/*` alias
 
-`packages/portal/tsconfig.json` and `packages/portal/next.config.ts`
+`packages/portal/tsconfig.json` and `packages/portal/next.config.mts`
 both define an alias `@gatewaze-modules/*` that resolves to the first
 matching module dir on disk:
 
 ```ts
-// next.config.ts
+// next.config.mts
 config.resolve.alias = {
   ...(config.resolve.alias || {}),
   '@gatewaze-modules': moduleAliasPaths,  // ← array of resolved dirs

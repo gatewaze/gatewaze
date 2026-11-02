@@ -6,8 +6,8 @@
   "type": "module",
   "scripts": {
     "generate-modules": "tsx scripts/generate-module-registry.ts",
-    "dev": "tsx scripts/generate-module-registry.ts && next dev -p 3100 -H 0.0.0.0",
-    "build": "tsx scripts/generate-module-registry.ts && next build",
+    "dev": "tsx scripts/generate-module-registry.ts && next dev --webpack -p 3100 -H 0.0.0.0",
+    "build": "tsx scripts/generate-module-registry.ts && next build --webpack",
     "start": "next start -p 3100",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
@@ -39,7 +39,7 @@
     "html-to-text": "^9.0.5",
     "isomorphic-dompurify": "^3.0.0-rc.2",
     "leaflet": "^1.9.4",
-    "next": "^15.5.18",
+    "next": "^16.4.4",
     "openai": "^6.18.0",
     "qrcode": "^1.5.4",
     "react": "^19.1.1",
@@ -51,8 +51,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@eslint/eslintrc": "^3.2.0",
-    "@opennextjs/cloudflare": "^1.0.0",
+    "@opennextjs/cloudflare": "^1.20.15",
     "@tailwindcss/postcss": "^4.1.12",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
@@ -65,12 +64,12 @@
     "@types/react-image-gallery": "^1.2.4",
     "@types/three": "^0.182.0",
     "eslint": "^9.18.0",
-    "eslint-config-next": "^15.5.18",
+    "eslint-config-next": "^16.4.4",
     "jest-axe": "^9.0.0",
     "jsdom": "^29.0.0",
     "tailwindcss": "^4.1.12",
     "tsx": "^4.19.0",
     "typescript": "5.9.3",
-    "wrangler": "^4.86.0"
+    "wrangler": "^4.148.0"
   }
 }

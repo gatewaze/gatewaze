@@ -1,10 +1,11 @@
-import { FlatCompat } from '@eslint/eslintrc';
-
-const compat = new FlatCompat({ baseDirectory: import.meta.dirname });
+// eslint-config-next 16 ships native flat configs, so no FlatCompat bridge.
+import nextCoreWebVitals from 'eslint-config-next/core-web-vitals';
+import nextTypescript from 'eslint-config-next/typescript';
 
 export default [
-  { ignores: ['.next/**', 'node_modules/**', 'next-env.d.ts', 'public/**'] },
-  ...compat.extends('next/core-web-vitals', 'next/typescript'),
+  { ignores: ['.next/**', '.open-next/**', '.wrangler/**', 'node_modules/**', 'next-env.d.ts', 'public/**'] },
+  ...nextCoreWebVitals,
+  ...nextTypescript,
   {
     rules: {
       // Style/pre-existing noise -> warnings so lint runs green; tighten over time.
@@ -19,6 +20,15 @@ export default [
       // scripts. Warn rather than error; revisit case-by-case.
       '@next/next/no-html-link-for-pages': 'warn',
       '@next/next/no-sync-scripts': 'warn',
+      // React Compiler rules that eslint-plugin-react-hooks 7 turned on with
+      // eslint-config-next 16. They flag existing code (76 sites at the
+      // upgrade), so warn for now and fix them as those files are touched.
+      'react-hooks/set-state-in-effect': 'warn',
+      'react-hooks/purity': 'warn',
+      'react-hooks/preserve-manual-memoization': 'warn',
+      'react-hooks/static-components': 'warn',
+      'react-hooks/refs': 'warn',
+      'react-hooks/immutability': 'warn',
     },
   },
 ];

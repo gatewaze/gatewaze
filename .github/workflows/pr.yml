@@ -129,6 +129,33 @@ jobs:
       - name: admin tests
         run: pnpm --filter @gatewaze/admin test
 
+  # The portal runs `next build` at pod startup, so without this job a
+  # change that breaks the build (a Next major, a config rename, a bad
+  # dependency) is first seen as crash-looping portal pods. The module
+  # registry generator clones the public gatewaze-modules repo here, so its
+  # portal pages are built too; private module repos are not.
+  portal-build:
+    name: Portal build
+    needs: [setup]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - name: Build shared (subpath exports)
+        run: pnpm --filter @gatewaze/shared build
+      - name: Build portal
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+          # Placeholders: the build inlines NEXT_PUBLIC_* values but never
+          # needs a reachable backend.
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder
+        run: pnpm --filter @gatewaze/portal build
+
   shell-audit:
     name: Shell-call audit
     needs: [setup]

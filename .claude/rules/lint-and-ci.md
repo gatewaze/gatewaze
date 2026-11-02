@@ -11,7 +11,7 @@ source: gatewaze-skills/production-readiness/references/lint-and-ci.md
 |---------|--------|--------|---------|
 | admin | eslint v9 flat config | `packages/admin/eslint.config.js` | `js.configs.recommended`, `tseslint.configs.recommended`, `react-hooks`, `react-refresh` |
 | api | eslint v9 flat config | `packages/api/eslint.config.js` | `js.configs.recommended`, `tseslint.configs.recommended` (no React plugins — server-side only) |
-| portal | `next lint` | discovers root `.eslintrc.cjs` | `@typescript-eslint`, `react-hooks` (loaded via root) |
+| portal | eslint v9 flat config (`eslint .`; Next 16 removed `next lint`) | `packages/portal/eslint.config.mjs` | `eslint-config-next/core-web-vitals`, `eslint-config-next/typescript` (native flat configs, no `FlatCompat`). The React Compiler rules from `eslint-plugin-react-hooks` 7 are set to `warn` until the existing sites are fixed. |
 | shared | no-op echo | `"lint": "echo 'no lint configured'"` | — |
 
 `pnpm -r lint` must exit 0. If you change a lint script, run it
@@ -19,8 +19,10 @@ locally and check the exit code.
 
 ## Root `.eslintrc.cjs`
 
-Used only by portal's `next lint` (which auto-discovers parent
-configs):
+This was written for the portal's old `next lint`, which auto-discovered
+parent configs. Next 16 removed `next lint` and the portal now uses its own
+flat config, so check whether anything still reads this file before
+relying on it:
 
 ```js
 module.exports = {
@@ -73,10 +75,10 @@ Pinned versions match admin's: eslint `^9.33.0`, typescript-eslint
 Required-to-merge gates:
 
 - **typecheck** — runs `pnpm --filter @gatewaze/<pkg> typecheck` for
-  all four packages. Admin and portal are now blocking (the
-  `continue-on-error: true` was removed once phase-4 cleanup landed).
-  If a typecheck regression appears, reintroducing `continue-on-error:
-  true` is a one-line revert.
+  all four packages. Admin and portal run with `continue-on-error: true`
+  (checked 2026-11-02): both import module sources from sibling repos
+  that CI does not clone, so a standalone typecheck reports errors that
+  are not real. A portal type error therefore does not fail CI.
 - **lint** — runs `pnpm -r lint` across the workspace. Every package's
   lint script must exit 0.
 - **test** — `pnpm --filter @gatewaze/<pkg> test` for api, shared,
@@ -189,7 +191,7 @@ pnpm --filter @gatewaze/portal build  # next build
 ```
 
 The portal `next build` passes the typecheck-during-build gate
-because `next.config.ts` has `typescript.ignoreBuildErrors: true` —
+because `next.config.mts` has `typescript.ignoreBuildErrors: true` —
 that's a deliberate dev-experience choice (TS errors surface during
 `pnpm typecheck` instead of blocking the build). Don't flip it without
 weighing the cost: a broken TS state would silently ship.

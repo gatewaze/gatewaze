@@ -46,7 +46,7 @@ jobs:
     timeout-minutes: 30
 
     env:
-      # Force the next.config.ts OpenNext branch (custom image loader,
+      # Force the next.config.mts OpenNext branch (custom image loader,
       # no `output: standalone`).
       OPENNEXT_BUILD: '1'
       # Pod-startup module discovery is disabled in the Workers build —

@@ -1,3 +1,7 @@
+// Next 16 deprecates `middleware.ts` in favour of `proxy.ts`, but a proxy
+// always runs on the Node.js runtime, which the OpenNext Cloudflare adapter
+// does not support yet. This file stays as edge middleware so the portal can
+// still move to Workers; revisit when OpenNext supports Node middleware.
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { updateSupabaseSession } from './lib/supabase/middleware'

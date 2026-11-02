@@ -63,7 +63,7 @@ services:
       - ../packages/portal/types:/app/packages/portal/types
       - ../packages/portal/public:/app/packages/portal/public
       - ../packages/portal/scripts:/app/packages/portal/scripts
-      - ../packages/portal/next.config.ts:/app/packages/portal/next.config.ts
+      - ../packages/portal/next.config.mts:/app/packages/portal/next.config.mts
       - ../packages/portal/tsconfig.json:/app/packages/portal/tsconfig.json
       - ../packages/portal/postcss.config.mjs:/app/packages/portal/postcss.config.mjs
       - ../packages/portal/tailwind.config.ts:/app/packages/portal/tailwind.config.ts
