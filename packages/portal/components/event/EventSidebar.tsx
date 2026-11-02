@@ -67,13 +67,12 @@ interface Props {
 
 function useIsAdmin() {
   const { user, isLoading } = useAuth()
-  const [isAdmin, setIsAdmin] = useState(false)
+  // The answer is tied to the user it was asked for, so signing out (or in
+  // as someone else) reads as not-admin until the new answer arrives.
+  const [verdict, setVerdict] = useState<{ userId: string; isAdmin: boolean } | null>(null)
 
   useEffect(() => {
-    if (isLoading || !user) {
-      setIsAdmin(false)
-      return
-    }
+    if (isLoading || !user) return
     let cancelled = false
     getSupabaseClient()
       .from('admin_profiles')
@@ -83,12 +82,12 @@ function useIsAdmin() {
       .in('role', ['admin', 'super_admin'])
       .maybeSingle()
       .then(({ data }) => {
-        if (!cancelled) setIsAdmin(!!data)
+        if (!cancelled) setVerdict({ userId: user.id, isAdmin: !!data })
       })
     return () => { cancelled = true }
   }, [user, isLoading])
 
-  return isAdmin
+  return !isLoading && !!user && verdict?.userId === user.id && verdict.isAdmin
 }
 
 /**
@@ -569,9 +568,11 @@ function EventMobileActionsInner({ event, eventIdentifier, useDarkText, primaryC
   }, [menuOpen])
 
   // Close menu on navigation
-  useEffect(() => {
+  const [menuPathname, setMenuPathname] = useState(pathname)
+  if (menuPathname !== pathname) {
+    setMenuPathname(pathname)
     setMenuOpen(false)
-  }, [pathname])
+  }
 
   const [hoveredItem, setHoveredItem] = useState<string | null>(null)
 

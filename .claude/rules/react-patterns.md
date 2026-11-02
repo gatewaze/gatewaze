@@ -155,5 +155,5 @@ element). The admin (Vite) tolerates raw `<img>` — admin is internal-
 only, no SEO/performance pressure for image optimisation.
 
 When migrating an admin `<img>` to next-image equivalent (which the
-codebase does in some places), check that `next.config.ts`'s
+codebase does in some places), check that `next.config.mts`'s
 `images.remotePatterns` includes the source host.

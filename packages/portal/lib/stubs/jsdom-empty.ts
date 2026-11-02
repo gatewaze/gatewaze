@@ -6,7 +6,7 @@
  * via its Node code path. The next-build "Collect page data" step
  * then fails with ENOENT trying to read it from `.next/browser/`.
  *
- * Aliased in next.config.ts so the bundler resolves to this empty
+ * Aliased in next.config.mts so the bundler resolves to this empty
  * module instead. The portal's API routes that need DOM sanitisation
  * use either `dompurify` directly (browser-only) or supabase RPCs.
  *

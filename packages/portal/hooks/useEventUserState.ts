@@ -26,6 +26,24 @@ export interface EventUserState {
   isLoading: boolean
 }
 
+const SIGNED_OUT_STATE: Omit<EventUserState, 'timeline'> = {
+  isRegistered: false,
+  isConfirmedSpeaker: false,
+  hasTalkSubmission: false,
+  talkStatus: null,
+  talkTitle: null,
+  speakerEditToken: null,
+  presentationUrl: null,
+  presentationStoragePath: null,
+  presentationType: null,
+  calendarAddedAt: null,
+  trackingLinkCopiedAt: null,
+  speakerEmail: null,
+  registrationId: null,
+  registrationCalendarAddedAt: null,
+  isLoading: false,
+}
+
 function getTimeline(event: Event): EventTimeline {
   const now = new Date()
   const start = event.event_start ? new Date(event.event_start) : null
@@ -68,28 +86,13 @@ export function useEventUserState(event: Event & { id: string }): EventUserState
     return () => window.removeEventListener('registration-changed', handler)
   }, [])
 
+  // Signed out → the empty, loaded state (adjusted during render, not in the effect).
+  const signedOut = !authLoading && (!user || !session?.access_token)
+  if (signedOut && state !== SIGNED_OUT_STATE) setState(SIGNED_OUT_STATE)
+
   useEffect(() => {
     if (authLoading) return
-    if (!user || !session?.access_token) {
-      setState({
-        isRegistered: false,
-        isConfirmedSpeaker: false,
-        hasTalkSubmission: false,
-        talkStatus: null,
-        talkTitle: null,
-        speakerEditToken: null,
-        presentationUrl: null,
-        presentationStoragePath: null,
-        presentationType: null,
-        calendarAddedAt: null,
-        trackingLinkCopiedAt: null,
-        speakerEmail: null,
-        registrationId: null,
-        registrationCalendarAddedAt: null,
-        isLoading: false,
-      })
-      return
-    }
+    if (!user || !session?.access_token) return
 
     let cancelled = false
 

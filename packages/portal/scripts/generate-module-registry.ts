@@ -893,7 +893,7 @@ export const adminModulePages: AdminModulePage[] = []
   ])
   writeIfChanged(REWRITES_PATH, JSON.stringify(rewrites, null, 2))
 
-  // Export resolved source directories for next.config.ts webpack alias
+  // Export resolved source directories for next.config.mts webpack alias
   writeIfChanged(DIRS_PATH, JSON.stringify(sourceDirs, null, 2))
 
   // Export module prefixes for middleware URL rewriting

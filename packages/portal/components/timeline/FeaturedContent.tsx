@@ -17,6 +17,48 @@ interface Props {
 }
 
 /**
+ * The highest-priority category that has at least one upcoming event, with
+ * the event to feature from it: the closest one when the viewer's location
+ * is known, otherwise the soonest.
+ */
+function pickFeatured(
+  events: Event[],
+  categories: ContentCategoryOption[] | undefined,
+  userLocation: UserLocation | null | undefined,
+): { event: Event; category: ContentCategoryOption } | null {
+  if (!categories || categories.length === 0) return null
+  for (const category of categories) {
+    const matching = events.filter((e) => e.content_category === category.value)
+    if (matching.length === 0) continue
+
+    // If we have user location, pick the closest event; otherwise pick the soonest
+    let best: Event
+    if (userLocation && matching.length > 1) {
+      const withDistance = matching.map((event) => ({
+        event,
+        distance: getDistanceToEventByCity(userLocation, event.event_city),
+      }))
+      // Sort by distance (null distances go last)
+      withDistance.sort((a, b) => {
+        if (a.distance === null && b.distance === null) return 0
+        if (a.distance === null) return 1
+        if (b.distance === null) return -1
+        return a.distance - b.distance
+      })
+      best = withDistance[0].event
+    } else {
+      // Pick soonest
+      best = matching.sort(
+        (a, b) => new Date(a.event_start).getTime() - new Date(b.event_start).getTime()
+      )[0]
+    }
+
+    return { event: best, category }
+  }
+  return null
+}
+
+/**
  * Featured content section shown above the timeline.
  *
  * When content categories are configured, this picks the upcoming event(s)
@@ -31,38 +73,10 @@ export function FeaturedContent({ events, brandConfig, userLocation }: Props) {
   // Find the highest-priority category that has at least one upcoming event.
   // Hook must run unconditionally — the empty-categories check moved below
   // so we don't violate rules-of-hooks if categories ever flips at runtime.
-  const featured = useMemo(() => {
-    if (!categories || categories.length === 0) return null
-    for (const category of categories) {
-      const matching = events.filter((e) => e.content_category === category.value)
-      if (matching.length === 0) continue
-
-      // If we have user location, pick the closest event; otherwise pick the soonest
-      let best: Event
-      if (userLocation && matching.length > 1) {
-        const withDistance = matching.map((event) => ({
-          event,
-          distance: getDistanceToEventByCity(userLocation, event.event_city),
-        }))
-        // Sort by distance (null distances go last)
-        withDistance.sort((a, b) => {
-          if (a.distance === null && b.distance === null) return 0
-          if (a.distance === null) return 1
-          if (b.distance === null) return -1
-          return a.distance - b.distance
-        })
-        best = withDistance[0].event
-      } else {
-        // Pick soonest
-        best = matching.sort(
-          (a, b) => new Date(a.event_start).getTime() - new Date(b.event_start).getTime()
-        )[0]
-      }
-
-      return { event: best, category }
-    }
-    return null
-  }, [events, categories, userLocation])
+  const featured = useMemo(
+    () => pickFeatured(events, categories, userLocation),
+    [events, categories, userLocation],
+  )
 
   if (!featured) return null
 

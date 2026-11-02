@@ -43,7 +43,7 @@ gatewaze/
     portal/             # Next.js public event portal
       app/              # Next.js App Router pages
       src/              # Source code (components, lib, etc.)
-      next.config.ts
+      next.config.mts
       tailwind.config.ts
 
     api/                # Express API server

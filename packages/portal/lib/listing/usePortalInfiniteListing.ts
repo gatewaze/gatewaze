@@ -12,7 +12,7 @@
  * - Hard memory cap at MAX_ACCUMULATED_ROWS.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ListingQuery, ListingSchema } from '@gatewaze/shared/listing';
 import {
   MAX_ACCUMULATED_ROWS,
@@ -101,12 +101,13 @@ export function usePortalInfiniteListing<Row>(
 
   // Reset on filter/SSR change. Use a stable identity (ts + page + pageSize + row ids)
   // rather than referential identity on `initialPage`, which Next.js may reissue per render.
-  useEffect(() => {
-    epochRef.current += 1;
-    if (inflightRef.current) {
-      inflightRef.current.abort();
-      inflightRef.current = null;
-    }
+  // State is reset during render when the identity changes; the epoch bump + abort
+  // run in a layout effect (refs can't be touched during render), which fires in
+  // the same commit, before any stale in-flight response can land.
+  const resetKey = `${initialPage.ts}|${initialPage.page}|${initialPage.pageSize}|${initialRowKey}`;
+  const [prevResetKey, setPrevResetKey] = useState(resetKey);
+  if (prevResetKey !== resetKey) {
+    setPrevResetKey(resetKey);
     setRows(initialPage.rows);
     setNextPage(1);
     setHasMore(computeHasMore(initialPage.rows.length, initialPage.pageSize, initialPage.totalCount));
@@ -115,8 +116,14 @@ export function usePortalInfiniteListing<Row>(
     setCapReached(false);
     setTotalCount(initialPage.totalCount);
     setCountStrategy(initialPage.countStrategy);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialPage.ts, initialPage.page, initialPage.pageSize, initialRowKey]);
+  }
+  useLayoutEffect(() => {
+    epochRef.current += 1;
+    if (inflightRef.current) {
+      inflightRef.current.abort();
+      inflightRef.current = null;
+    }
+  }, [resetKey]);
 
   const loadMore = useCallback(() => {
     if (isLoading || !hasMore || capReached) return;

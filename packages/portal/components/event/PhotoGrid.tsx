@@ -63,16 +63,16 @@ export function PhotoGrid({ photos, onPhotoClick }: PhotoGridProps) {
     setIsLayoutComplete(true)
   }, [calculateColumns])
 
+  // No photos means nothing to lay out. Adjusted during render rather than in
+  // the effect below, so there is no extra commit with the stale value.
+  if (photos.length === 0 && !isLayoutComplete) {
+    setIsLayoutComplete(true)
+  }
+
   useEffect(() => {
-    if (photos.length === 0) {
-      setIsLayoutComplete(true)
-      return
-    }
+    if (photos.length === 0) return
 
     const isLazyLoad = isLayoutComplete && photos.length > prevPhotoCountRef.current
-    if (!isLayoutComplete) {
-      setIsLayoutComplete(false)
-    }
 
     const imagesToLoad = isLazyLoad
       ? photos.slice(prevPhotoCountRef.current)

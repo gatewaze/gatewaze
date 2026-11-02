@@ -20,6 +20,12 @@ interface Props {
   minimal?: boolean
 }
 
+function hasHashTokens(hash: string): boolean {
+  if (!hash.includes('access_token')) return false
+  const params = new URLSearchParams(hash.substring(1))
+  return !!params.get('access_token') && !!params.get('refresh_token')
+}
+
 export function SignInForm({ brandConfig, enabledModuleIds = [], enabledFeatures = [], minimal = false }: Props) {
   const { signInWithMagicLink, user, isLoading } = useAuth()
   const router = useRouter()
@@ -53,9 +59,10 @@ export function SignInForm({ brandConfig, enabledModuleIds = [], enabledFeatures
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
-  // Detect hash tokens immediately to avoid flashing the sign-in form
-  const [isProcessingToken, setIsProcessingToken] = useState(
-    () => typeof window !== 'undefined' && window.location.hash.includes('access_token')
+  // Detect hash tokens immediately to avoid flashing the sign-in form. Only a
+  // complete pair (access + refresh) is processed; anything else shows the form.
+  const [isProcessingToken] = useState(
+    () => typeof window !== 'undefined' && hasHashTokens(window.location.hash)
   )
 
   const primaryColor = brandConfig.primaryColor
@@ -90,8 +97,6 @@ export function SignInForm({ brandConfig, enabledModuleIds = [], enabledFeatures
           window.location.replace(destination)
         })
       })
-    } else {
-      setIsProcessingToken(false)
     }
   }, [isProcessingToken, redirectTo, router])
 

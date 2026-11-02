@@ -23,12 +23,14 @@ export function useRegistrationStatus(event: RegistrationCheckEvent) {
     return () => window.removeEventListener('registration-changed', handler)
   }, [])
 
+  // Nothing to check (signed out / no registration) → done checking. Adjusted
+  // during render rather than set from the effect.
+  const nothingToCheck = !authLoading && (!user || !event.enable_registration || !event.id)
+  if (nothingToCheck && isChecking) setIsChecking(false)
+
   useEffect(() => {
     if (authLoading) return
-    if (!user || !event.enable_registration || !event.id) {
-      setIsChecking(false)
-      return
-    }
+    if (!user || !event.enable_registration || !event.id) return
 
     let cancelled = false
     async function check() {

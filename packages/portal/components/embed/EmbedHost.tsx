@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { getClientBrandConfig } from '@/config/brand'
 import { ModuleSlot, hasPortalSlot } from '@/lib/modules/ModuleSlot'
@@ -38,10 +38,22 @@ export interface EmbedAuth {
   notify: (name: string) => void
 }
 
+const noopSubscribe = () => () => {}
+
 function post(message: Record<string, unknown>) {
   try {
     if (window.parent && window.parent !== window) window.parent.postMessage({ source: 'gatewaze-embed', ...message }, '*')
   } catch { /* no parent */ }
+}
+
+/** Who a token belongs to, per Supabase Auth; null if it is stale or rejected. */
+async function tokenUser(t: EmbedToken): Promise<EmbedAuth['user']> {
+  if (!isFresh(t)) return null
+  const config = getClientBrandConfig()
+  const probe = createClient(config.supabaseUrl, config.supabaseAnonKey, { auth: { persistSession: false, autoRefreshToken: false } })
+  const { data, error } = await probe.auth.getUser(t.access_token)
+  if (error || !data?.user) return null
+  return { id: data.user.id, email: data.user.email ?? null }
 }
 
 export interface EmbedAppearance {
@@ -60,7 +72,15 @@ export function EmbedHost({ widget, enabledModuleIds, enabledFeatures, appearanc
 }) {
   const [token, setToken] = useState<EmbedToken | null>(null)
   const [user, setUser] = useState<EmbedAuth['user']>(null)
-  const [loading, setLoading] = useState(true)
+  // Whether a fresh token is stored: null on the server and during hydration
+  // (unknown), then read from the iframe's localStorage.
+  const hasStoredToken = useSyncExternalStore(noopSubscribe, () => loadToken() !== null, () => null)
+  // Set once the stored token has been checked with Supabase Auth.
+  const [storedChecked, setStoredChecked] = useState(false)
+  // Loading until we know there is no stored token, or until it is checked.
+  // `!token` keeps a later popup sign-in (which stores its token) from
+  // reading as loading again.
+  const loading = hasStoredToken === null || (hasStoredToken && !storedChecked && !token)
   const [signingIn, setSigningIn] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
 
@@ -76,20 +96,37 @@ export function EmbedHost({ widget, enabledModuleIds, enabledFeatures, appearanc
   // Check a token (stored or fresh from the popup) with Supabase Auth and
   // read who it belongs to. A bad or expired token signs the widget out.
   const adopt = useCallback(async (t: EmbedToken | null) => {
-    if (!t || !isFresh(t)) { saveToken(null); setToken(null); setUser(null); return false }
-    const config = getClientBrandConfig()
-    const probe = createClient(config.supabaseUrl, config.supabaseAnonKey, { auth: { persistSession: false, autoRefreshToken: false } })
-    const { data, error } = await probe.auth.getUser(t.access_token)
-    if (error || !data?.user) { saveToken(null); setToken(null); setUser(null); return false }
+    const who = t ? await tokenUser(t) : null
+    if (!t || !who) { saveToken(null); setToken(null); setUser(null); return false }
     saveToken(t)
     setToken(t)
-    setUser({ id: data.user.id, email: data.user.email ?? null })
+    setUser(who)
     return true
   }, [])
 
+  // Check the stored token once on mount. State starts signed out, so only a
+  // token that checks out changes it.
   useEffect(() => {
-    adopt(loadToken()).finally(() => setLoading(false))
-  }, [adopt])
+    const stored = loadToken()
+    // Nothing fresh stored: clear any stale entry.
+    if (!stored) { saveToken(null); return }
+    void (async () => {
+      try {
+        const who = await tokenUser(stored)
+        if (who) {
+          // A popup sign-in that finished during the check wins.
+          setToken((prev) => prev ?? stored)
+          setUser((prev) => prev ?? who)
+        } else if (loadToken()?.access_token === stored.access_token) {
+          // Only clear storage if it still holds the token that was rejected,
+          // so a popup sign-in that finished meanwhile is not wiped.
+          saveToken(null)
+        }
+      } finally {
+        setStoredChecked(true)
+      }
+    })()
+  }, [])
 
   // Sign out when the token runs out, so the widget never acts on a dead one.
   useEffect(() => {

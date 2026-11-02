@@ -105,28 +105,46 @@ function buildTopicsData(
   return result
 }
 
+// One load shared by every hook instance. Resolves to the cached taxonomy, or
+// null on error (cleared so a later mount retries, as before).
+let taxonomyPromise: Promise<TopicsData | null> | null = null
+
+function loadTaxonomy(): Promise<TopicsData | null> {
+  if (taxonomyPromise) return taxonomyPromise
+
+  const supabase = getSupabaseClient()
+
+  taxonomyPromise = Promise.all([
+    supabase.from('events_topic_categories').select('id, name, parent_id, display_order'),
+    supabase.from('events_topics').select('id, name, display_order'),
+    supabase.from('events_topic_category_memberships').select('topic_id, category_id'),
+  ]).then(([catRes, topicRes, memRes]) => {
+    if (catRes.error || topicRes.error || memRes.error) {
+      taxonomyPromise = null
+      return null
+    }
+
+    const data = buildTopicsData(catRes.data, topicRes.data, memRes.data)
+    cachedTaxonomy = data
+    return data
+  }).catch(() => {
+    taxonomyPromise = null
+    return null
+  })
+  return taxonomyPromise
+}
+
 export function useTopicTaxonomy(): TopicsData {
   const [taxonomy, setTaxonomy] = useState<TopicsData>(cachedTaxonomy || {})
 
   useEffect(() => {
-    if (cachedTaxonomy) {
-      setTaxonomy(cachedTaxonomy)
-      return
-    }
-
-    const supabase = getSupabaseClient()
-
-    Promise.all([
-      supabase.from('events_topic_categories').select('id, name, parent_id, display_order'),
-      supabase.from('events_topics').select('id, name, display_order'),
-      supabase.from('events_topic_category_memberships').select('topic_id, category_id'),
-    ]).then(([catRes, topicRes, memRes]) => {
-      if (catRes.error || topicRes.error || memRes.error) return
-
-      const data = buildTopicsData(catRes.data, topicRes.data, memRes.data)
-      cachedTaxonomy = data
-      setTaxonomy(data)
+    // Covers both the first load and a cache filled by another instance after
+    // this one rendered (setTaxonomy with the same object is a no-op).
+    let cancelled = false
+    loadTaxonomy().then((data) => {
+      if (data && !cancelled) setTaxonomy(data)
     })
+    return () => { cancelled = true }
   }, [])
 
   return taxonomy
