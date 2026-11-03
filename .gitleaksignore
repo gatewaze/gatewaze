@@ -15,15 +15,15 @@
 #
 # Fingerprints are commit-scoped, so they suppress ONLY these historical
 # occurrences — any new leak, including re-adding the same values, still fails.
-26b4fd02d3298d47b223421ef830b4f1c3dca615:scripts/scrapers/DatabaseIntegrator.js:jwt:15
-26b4fd02d3298d47b223421ef830b4f1c3dca615:scripts/workers/scraper-worker.js:env-fallback-secret:337
-26b4fd02d3298d47b223421ef830b4f1c3dca615:scripts/workers/scraper-worker.js:jwt:337
-45267e01850b275eadb53ee7347f4aa416948edb:scripts/scrapers/DatabaseIntegrator.js:jwt:15
-45267e01850b275eadb53ee7347f4aa416948edb:scripts/workers/scraper-worker.js:env-fallback-secret:337
-45267e01850b275eadb53ee7347f4aa416948edb:scripts/workers/scraper-worker.js:jwt:337
-0e9515cdf090f8c354d3cb1d462d4942143e245d:scripts/browserless-service.js:env-fallback-secret:4
-8e0ea6b1746f0589ddde2d17ddd9001d0bdf8bd2:supabase/functions/email-send-push/README.md:generic-api-key:21
-8e0ea6b1746f0589ddde2d17ddd9001d0bdf8bd2:supabase/functions/email-send-push/README.md:generic-api-key:29
+8abfefd66f4216a5fb80306127e8809c96937407:scripts/scrapers/DatabaseIntegrator.js:jwt:15
+8abfefd66f4216a5fb80306127e8809c96937407:scripts/workers/scraper-worker.js:env-fallback-secret:337
+8abfefd66f4216a5fb80306127e8809c96937407:scripts/workers/scraper-worker.js:jwt:337
+55cdaaea1e163993c62acaf40ba7c7ea4dad45cf:scripts/scrapers/DatabaseIntegrator.js:jwt:15
+55cdaaea1e163993c62acaf40ba7c7ea4dad45cf:scripts/workers/scraper-worker.js:env-fallback-secret:337
+55cdaaea1e163993c62acaf40ba7c7ea4dad45cf:scripts/workers/scraper-worker.js:jwt:337
+abfca937e3cbf753ea3876933227185af76d3948:scripts/browserless-service.js:env-fallback-secret:4
+7f1a00f77f6704e7ef9dc6dd453015b521e1db94:supabase/functions/email-send-push/README.md:generic-api-key:21
+7f1a00f77f6704e7ef9dc6dd453015b521e1db94:supabase/functions/email-send-push/README.md:generic-api-key:29
 1c0f23a058a0f2ea400a3ef15e4e95491f6ec7a3:docker/.env.aaif:generic-api-key:76
 1c0f23a058a0f2ea400a3ef15e4e95491f6ec7a3:docker/.env.mlops:generic-api-key:75
 1c0f23a058a0f2ea400a3ef15e4e95491f6ec7a3:docker/.env.techtickets.example:generic-api-key:75
