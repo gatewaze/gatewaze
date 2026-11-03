@@ -4,7 +4,7 @@
 # (GATEWAZE_MCP_API_KEY) and calls the public REST API on clients' behalf.
 # Per-IP rate limiting + CORS are handled in-process; traefik routes the
 # public hostname here. Self-contained npm build (mcp has only external deps).
-FROM node:22-slim
+FROM node:25-slim
 
 ENV NODE_ENV=production \
     MCP_TRANSPORT=http \
