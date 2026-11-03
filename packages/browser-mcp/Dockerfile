@@ -2,7 +2,7 @@
 # over streamable HTTP. Registered in ai_mcp_servers as type=streamable_http and
 # reached by the recipe executor at http://browser-mcp:8080/mcp on the internal
 # network. Self-contained npm build (browser-mcp has only external deps).
-FROM node:22-slim
+FROM node:25-slim
 
 # Chromium for the `local` backend (puppeteer-core uses the system binary).
 # The `browserbase` backend runs the browser in Browserbase's cloud and does
