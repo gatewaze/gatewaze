@@ -36,10 +36,21 @@ export function slugifyTopic(name: string): string {
     .replace(/^-+|-+$/g, '')
 }
 
+/**
+ * The brand's event types, or the defaults. Pass the server-provided
+ * `brandConfig.eventTypes` from a server-rendered component: getClientBrandConfig()
+ * returns the built-in defaults during SSR and the real brand config in the
+ * browser, so reading it during render gives the server and the client
+ * different types and breaks hydration.
+ */
+function resolveEventTypes(eventTypes?: EventTypeOption[] | null): EventTypeOption[] {
+  const types = eventTypes ?? getClientBrandConfig().eventTypes
+  return types?.length ? types : DEFAULT_EVENT_TYPES
+}
+
 /** Get configured event type options with plural labels and slugs */
-export function getEventTypeOptions(): { value: string; label: string; slug: string }[] {
-  const config = getClientBrandConfig()
-  const types = config.eventTypes?.length ? config.eventTypes : DEFAULT_EVENT_TYPES
+export function getEventTypeOptions(eventTypes?: EventTypeOption[] | null): { value: string; label: string; slug: string }[] {
+  const types = resolveEventTypes(eventTypes)
   return types.map((t) => ({
     value: t.value,
     label: pluralize(t.label.charAt(0).toUpperCase() + t.label.slice(1)),
@@ -96,7 +107,7 @@ function extractFiltersFromPathname(
     for (const seg of segments) {
       if (!region && KNOWN_REGION_CODES.has(seg)) {
         region = seg as RegionCode
-      } else if (!eventType && seg in slugToType) {
+      } else if (!eventType && Object.prototype.hasOwnProperty.call(slugToType, seg)) {
         eventType = slugToType[seg]
       }
     }
@@ -105,14 +116,15 @@ function extractFiltersFromPathname(
   return { basePath, view, region, eventType }
 }
 
-export function useEventFilters() {
+export function useEventFilters(eventTypes?: EventTypeOption[] | null) {
   const searchParams = useSearchParams()
   const pathname = usePathname()
   const router = useRouter()
 
-  // Build dynamic slug maps from configured event types
-  const config = getClientBrandConfig()
-  const configuredTypes = config.eventTypes?.length ? config.eventTypes : DEFAULT_EVENT_TYPES
+  // Build dynamic slug maps from configured event types. Callers pass the
+  // server-provided brandConfig.eventTypes so a type slug in the URL parses the
+  // same way on the server and the client (see resolveEventTypes).
+  const configuredTypes = resolveEventTypes(eventTypes)
   const { typeToSlug, slugToType } = useMemo(() => buildSlugMaps(configuredTypes), [configuredTypes])
 
   // Parse region & type from path segments (e.g. /events/upcoming/eu/conferences)
