@@ -1,7 +1,7 @@
 import type { Plugin } from 'vite';
 import { readFileSync, existsSync, mkdirSync, readdirSync, statSync, realpathSync } from 'fs';
 import { resolve, dirname, isAbsolute, relative } from 'path';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { createRequire, isBuiltin } from 'module';
 
 const VIRTUAL_MODULE_ID = 'virtual:gatewaze-modules';
@@ -846,6 +846,9 @@ function isGitUrl(url: string): boolean {
   );
 }
 
+/** Same rule as packages/shared/src/modules/loader.ts: no leading '-', so a branch can't be read as an option. */
+const BRANCH_RE = /^[\w][\w.\-/]{0,254}$/;
+
 /**
  * Clone or update a git repo to a local cache directory.
  * Returns the absolute path to the cloned repo.
@@ -866,24 +869,34 @@ function cloneOrUpdateRepo(
   try {
     mkdirSync(cacheDir, { recursive: true });
 
+    if (branch && !BRANCH_RE.test(branch)) {
+      console.error(`[gatewaze-modules] Refusing to clone with invalid branch: ${branch}`);
+      return null;
+    }
+
     if (existsSync(resolve(repoDir, '.git'))) {
-      // Update existing clone
-      const branchArg = branch ? `origin ${branch}` : '';
-      execSync(`git -C "${repoDir}" pull ${branchArg} --ff-only 2>/dev/null || true`, {
-        stdio: 'pipe',
-      });
+      // Fetch the branch tip and reset to it, as the shared loader does.
+      // `pull --ff-only` cannot follow a force-pushed branch and failed
+      // silently, leaving the cache on unrelated, stale history.
+      try {
+        execFileSync('git', ['-C', repoDir, 'fetch', '--depth', '1', 'origin', branch || 'HEAD'], { stdio: 'pipe' });
+        execFileSync('git', ['-C', repoDir, 'reset', '--hard', 'FETCH_HEAD'], { stdio: 'pipe' });
+      } catch {
+        console.warn(`[gatewaze-modules] Could not update ${gitUrl}; using the cached checkout at ${repoDir}`);
+      }
     } else {
-      // Fresh clone
-      const branchFlag = branch ? `--branch ${branch}` : '';
-      execSync(`git clone --depth 1 ${branchFlag} "${gitUrl}" "${repoDir}"`, {
-        stdio: 'pipe',
-      });
+      const args = ['clone', '--depth', '1'];
+      if (branch) args.push('--branch', branch);
+      args.push(gitUrl, repoDir);
+      execFileSync('git', args, { stdio: 'pipe' });
     }
 
     console.log(`[gatewaze-modules] Resolved git source: ${gitUrl} → ${repoDir}`);
     return repoDir;
   } catch (err) {
-    console.error(`[gatewaze-modules] Failed to clone ${gitUrl}:`, err);
+    // The error can echo the remote URL; strip any credentials from it.
+    const msg = (err instanceof Error ? err.message : String(err)).replace(/\/\/[^/@\s]+@/g, '//***@');
+    console.error(`[gatewaze-modules] Failed to clone ${gitUrl}: ${msg.slice(0, 500)}`);
     return null;
   }
 }

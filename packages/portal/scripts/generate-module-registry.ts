@@ -175,13 +175,14 @@ function cloneOrUpdateRepo(gitUrl: string, branch: string | undefined): string |
     mkdirSync(cacheDir, { recursive: true })
 
     if (existsSync(resolve(repoDir, '.git'))) {
+      // Fetch the branch tip and reset to it, as the shared loader does.
+      // `pull --ff-only` cannot follow a force-pushed branch and failed
+      // silently, leaving the cache on unrelated, stale history.
       try {
-        const args = ['-C', repoDir, 'pull']
-        if (branch) args.push('origin', branch)
-        args.push('--ff-only')
-        execFileSync('git', args, { stdio: 'pipe' })
+        execFileSync('git', ['-C', repoDir, 'fetch', '--depth', '1', 'origin', branch || 'HEAD'], { stdio: 'pipe' })
+        execFileSync('git', ['-C', repoDir, 'reset', '--hard', 'FETCH_HEAD'], { stdio: 'pipe' })
       } catch {
-        // Non-fast-forward / network blip — proceed with cached repo.
+        console.warn(`[generate-module-registry] Could not update ${gitUrl}; using the cached checkout at ${repoDir}`)
       }
     } else {
       const args = ['clone', '--depth', '1']
@@ -192,7 +193,9 @@ function cloneOrUpdateRepo(gitUrl: string, branch: string | undefined): string |
 
     return repoDir
   } catch (err) {
-    console.error(`[generate-module-registry] Failed to clone ${gitUrl}:`, err)
+    // The error can echo the remote URL; strip any credentials from it.
+    const msg = (err instanceof Error ? err.message : String(err)).replace(/\/\/[^/@\s]+@/g, '//***@')
+    console.error(`[generate-module-registry] Failed to clone ${gitUrl}: ${msg.slice(0, 500)}`)
     return null
   }
 }
