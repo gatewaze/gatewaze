@@ -70,6 +70,14 @@ describe('cloneOrUpdateRepo', () => {
     expect(git(dir, 'rev-parse', 'HEAD')).toBe(git(work, 'rev-parse', 'HEAD'));
   });
 
+  it('follows the default branch when no branch is configured', () => {
+    const dir = cloneOrUpdateRepo(remoteUrl, undefined, projectRoot)!;
+    commit('module.txt', 'v2', 'second');
+    git(work, 'push', '-q', 'origin', 'main');
+    cloneOrUpdateRepo(remoteUrl, undefined, projectRoot);
+    expect(cached(dir)).toBe('v2');
+  });
+
   it('keeps serving the cache and warns when the remote cannot be reached', () => {
     const dir = cloneOrUpdateRepo(remoteUrl, 'main', projectRoot)!;
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
