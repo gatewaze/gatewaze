@@ -19,6 +19,7 @@ import type { NextRequest } from 'next/server'
 import { anonymousIdFromCookieHeader, hasAnalyticsConsent } from '@gatewaze/tracking'
 import { createServerTracker, type ServerTracker } from '@gatewaze/tracking/server'
 import type { TrackContext } from '@gatewaze/tracking'
+import { relaySegmentWriteKey } from '@/lib/lfx-segment'
 
 const API_URL = (
   process.env.GATEWAZE_API_URL ??
@@ -27,15 +28,31 @@ const API_URL = (
 ).replace(/\/+$/, '')
 
 let tracker: ServerTracker | null = null
+let relayTracker: ServerTracker | null = null
 
-export function getServerTracker(): ServerTracker {
-  tracker ??= createServerTracker({
+function buildTracker(segmentWriteKey: string | undefined): ServerTracker {
+  return createServerTracker({
     collectUrl: API_URL ? `${API_URL}/a/collect` : undefined,
     portalConfigUrl: API_URL ? `${API_URL}/a/portal-config` : undefined,
-    segmentWriteKey: process.env.SEGMENT_WRITE_KEY || undefined,
+    segmentWriteKey,
     logger: { warn: (msg, meta) => console.warn(`[tracking] ${msg}`, meta ?? '') },
   })
+}
+
+/** Server-originated events (RSVP Submitted, ...). These have no browser
+ *  copy, so they keep the Segment leg whenever SEGMENT_WRITE_KEY is set. */
+export function getServerTracker(): ServerTracker {
+  tracker ??= buildTracker(process.env.SEGMENT_WRITE_KEY || undefined)
   return tracker
+}
+
+/** Browser events relayed through /api/t. When the portal loads LF's
+ *  Segment wrapper (LFX_SEGMENT_CDN_URL), the browser already sends these to
+ *  Segment under LF's userId (the CDP UUID), so the relay's Segment leg is
+ *  off and they go to the first-party store only. */
+export function getRelayTracker(): ServerTracker {
+  relayTracker ??= buildTracker(relaySegmentWriteKey())
+  return relayTracker
 }
 
 /** Tracker that swallows every call — returned when the visitor has
@@ -55,7 +72,7 @@ const noopTracker: ServerTracker = {
  * returns a no-op tracker — backend emitters (RSVP routes, the /api/t
  * relay) all share this single gate.
  */
-export function getRequestTracking(req: NextRequest): {
+export function getRequestTracking(req: NextRequest, opts: { relay?: boolean } = {}): {
   tracker: ServerTracker
   anonymousId: string | null
   context: TrackContext
@@ -71,7 +88,7 @@ export function getRequestTracking(req: NextRequest): {
     /* unparsable referer */
   }
   return {
-    tracker: consented ? getServerTracker() : noopTracker,
+    tracker: consented ? (opts.relay ? getRelayTracker() : getServerTracker()) : noopTracker,
     anonymousId: consented ? anonymousIdFromCookieHeader(cookieHeader) : null,
     context: {
       ip: req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null,
