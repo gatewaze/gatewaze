@@ -26,6 +26,8 @@ import { ProfileCompletionWrapper } from '@/components/wizard'
 import { ModuleSlot } from '@/lib/modules/ModuleSlot'
 import { GeoTouch } from '@/components/GeoTouch'
 import { AnalyticsProvider } from '@/components/AnalyticsProvider'
+import { LfxSegment } from '@/components/LfxSegment'
+import { lfxSegmentConfig } from '@/lib/lfx-segment'
 import { TrackingMarkup } from '@/components/TrackingMarkup'
 import { getServerBrandConfig, buildGoogleFontsUrl, buildFontStack, isLightColor, getThemeBackgroundColor, resolveEventTheme, deriveAccentTints, type ThemeColors } from '@/config/brand'
 import { decodeThemeHeader, themeCssVariables, themeFontsUrl } from '@/lib/custom-domain-theme'
@@ -170,6 +172,10 @@ export default async function MainLayout({
   const brand = brandConfig.id
   const modules = await getEnabledModules()
   const complianceEnabled = isModuleEnabled(modules, 'compliance')
+  // LF's Segment wrapper, when this deployment sets LFX_SEGMENT_CDN_URL. Read
+  // at request time (not NEXT_PUBLIC_*), so the same image serves brands
+  // with and without it.
+  const lfxSegment = lfxSegmentConfig()
   // Footer precedence: the configurable legal line (admin → Settings → Branding →
   // Legal) always wins when set — even with compliance enabled, so a tenant can
   // use compliance purely for cookie consent without the Privacy/Terms/Do-Not-Sell
@@ -376,6 +382,7 @@ export default async function MainLayout({
               <GeoTouch />
             </GlowProvider>
           </TrackingProvider>
+          {lfxSegment && <LfxSegment src={lfxSegment.src} writeKey={lfxSegment.writeKey} />}
         </AnalyticsProvider>
         {complianceEnabled && <CookieConsentLoader />}
         <DevIndicatorNudge />

@@ -19,6 +19,7 @@ import type { NextRequest } from 'next/server'
 import { anonymousIdFromCookieHeader, hasAnalyticsConsent } from '@gatewaze/tracking'
 import { createServerTracker, type ServerTracker } from '@gatewaze/tracking/server'
 import type { TrackContext } from '@gatewaze/tracking'
+import { relaySegmentWriteKey } from '@/lib/lfx-segment'
 
 const API_URL = (
   process.env.GATEWAZE_API_URL ??
@@ -32,7 +33,9 @@ export function getServerTracker(): ServerTracker {
   tracker ??= createServerTracker({
     collectUrl: API_URL ? `${API_URL}/a/collect` : undefined,
     portalConfigUrl: API_URL ? `${API_URL}/a/portal-config` : undefined,
-    segmentWriteKey: process.env.SEGMENT_WRITE_KEY || undefined,
+    // Off when the portal loads LF's Segment wrapper (LFX_SEGMENT_CDN_URL):
+    // the browser then sends to Segment with LF's userId (the CDP UUID).
+    segmentWriteKey: relaySegmentWriteKey(),
     logger: { warn: (msg, meta) => console.warn(`[tracking] ${msg}`, meta ?? '') },
   })
   return tracker
