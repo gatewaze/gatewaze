@@ -43,15 +43,30 @@ function keptParams(params: URLSearchParams): string {
   return s ? `?${s}` : ''
 }
 
-/** Strips the hash and every non-utm query parameter from a URL. Relative
- * URLs stay relative. Unparsable input becomes an empty string. */
+/** First path segments whose next segment is an invite / RSVP / tracking
+ * code. Those codes act as credentials (they open someone's invite), so the
+ * segment after them is masked. */
+const TOKEN_PATH_PREFIXES = new Set(['event-invites', 'rsvp', 'invite', 'i', 'u', 'o', 'r'])
+
+function maskTokenPath(pathname: string): string {
+  const parts = pathname.split('/')
+  if (parts.length > 2 && TOKEN_PATH_PREFIXES.has(parts[1].toLowerCase()) && parts[2]) {
+    parts[2] = ':token'
+  }
+  return parts.join('/')
+}
+
+/** Strips the hash and every non-utm query parameter from a URL, and masks
+ * invite codes in the path. Relative URLs stay relative. Unparsable input
+ * becomes an empty string. */
 export function cleanUrl(value: unknown): unknown {
   if (typeof value !== 'string' || value === '') return value
   try {
     const relative = value.startsWith('/') && !value.startsWith('//')
     const u = new URL(value, 'https://placeholder.invalid')
     const rest = keptParams(u.searchParams)
-    return relative ? `${u.pathname}${rest}` : `${u.origin}${u.pathname}${rest}`
+    const path = maskTokenPath(u.pathname)
+    return relative ? `${path}${rest}` : `${u.origin}${path}${rest}`
   } catch {
     return ''
   }
@@ -110,8 +125,11 @@ export function auth0ClaimsForUser(user: PortalUser): Record<string, unknown> | 
   if (family) claims.family_name = family
   const picture = str(meta.avatar_url)
   if (picture) claims.picture = picture
+  // The wrapper uses the username to decide whether to keep a cached id, and
+  // user_metadata is user-writable. Only send it for LFID sign-ins, where
+  // the callback wrote it (provider lives in server-only app_metadata).
   const username = str(meta.lfid_username)
-  if (username) claims[LF_USERNAME_CLAIM] = username
+  if (username && appMeta.provider === 'lfid') claims[LF_USERNAME_CLAIM] = username
   const uuid = str(appMeta.cdp_uuid)
   if (uuid) claims[LF_CDP_UUID_CLAIM] = uuid
   return claims
@@ -155,9 +173,10 @@ export function lfxSegmentConfig(env: Record<string, string | undefined> = proce
   return writeKey ? { src, writeKey } : { src }
 }
 
-/** The write key for the server relay's Segment leg. Off when the browser
- * sends through LF's wrapper: the relay's copies would double every event
- * under a second, different id (auth0|... instead of the CDP UUID). */
+/** The write key for the /api/t browser relay's Segment leg. Off when the
+ * browser sends through LF's wrapper: the relay's copies of those browser
+ * events would double them under a second id. Server-originated events keep
+ * SEGMENT_WRITE_KEY (see getServerTracker). */
 export function relaySegmentWriteKey(env: Record<string, string | undefined> = process.env): string | undefined {
   if (lfxSegmentConfig(env)) return undefined
   return env.SEGMENT_WRITE_KEY || undefined

@@ -49,6 +49,15 @@ describe('auth0ClaimsForUser (what identifyAuth0User receives)', () => {
     expect(JSON.stringify(claims)).not.toContain('auth0|')
   })
 
+  it('sends the LF username only for LFID sign-ins (user_metadata is user-writable)', () => {
+    const claims = auth0ClaimsForUser({
+      email: 'otp@example.org',
+      user_metadata: { lfid_username: 'someone-else' },
+      app_metadata: { provider: 'email' },
+    })
+    expect(claims).not.toHaveProperty(LF_USERNAME_CLAIM)
+  })
+
   it('reads the CDP UUID from app_metadata only, never user_metadata', () => {
     const claims = auth0ClaimsForUser({
       email: 'mallory@example.org',
@@ -67,6 +76,7 @@ describe('auth0ClaimsForUser (what identifyAuth0User receives)', () => {
   it('returns null without an email (the wrapper will not identify)', () => {
     expect(auth0ClaimsForUser({ email: '', user_metadata: { lfid_username: 'x' } })).toBeNull()
     expect(auth0ClaimsForUser({ email: null })).toBeNull()
+    expect(auth0ClaimsForUser({ email: '  ' })).toBeNull()
   })
 })
 
@@ -84,11 +94,25 @@ describe('cleanUrl / cleanSearch (URL secrets stay out of Segment)', () => {
   })
 
   it('keeps relative paths relative', () => {
-    expect(cleanUrl('/rsvp/abc?t=secret&utm_campaign=c')).toBe('/rsvp/abc?utm_campaign=c')
+    expect(cleanUrl('/events/abc?t=secret&utm_campaign=c')).toBe('/events/abc?utm_campaign=c')
   })
 
   it('treats protocol-relative URLs as absolute', () => {
     expect(cleanUrl('//evil.example/x?t=1')).toBe('https://evil.example/x')
+  })
+
+  it('fails closed on an unparsable URL (never passes the raw value through)', () => {
+    expect(cleanUrl('https://a b.com/?token=secret')).toBe('')
+    expect(cleanUrl('http://')).toBe('')
+  })
+
+  it('masks invite / RSVP codes carried in the path', () => {
+    expect(cleanUrl('https://aaif.live/event-invites/SECRET1?utm_source=x')).toBe('https://aaif.live/event-invites/:token?utm_source=x')
+    expect(cleanUrl('/rsvp/SECRET2')).toBe('/rsvp/:token')
+    expect(cleanUrl('/invite/SECRET3/extra')).toBe('/invite/:token/extra')
+    expect(cleanUrl('/I/SECRET4')).toBe('/I/:token')
+    expect(cleanUrl('/events/my-event')).toBe('/events/my-event')
+    expect(cleanUrl('/rsvp')).toBe('/rsvp')
   })
 
   it('leaves non-strings and empty strings alone', () => {
@@ -122,7 +146,7 @@ describe('sanitizeSegmentEvent', () => {
   it('cleans href on track properties (Link Clicked)', () => {
     expect(
       sanitizeSegmentEvent({ type: 'track', messageId: 'm', properties: { href: '/i/abc?token=t' } }).properties,
-    ).toEqual({ href: '/i/abc' })
+    ).toEqual({ href: '/i/:token' })
   })
 })
 
@@ -149,6 +173,8 @@ describe('forwardableTrack (portal SDK events → wrapper track)', () => {
     expect(forwardableTrack(null)).toBeNull()
     expect(forwardableTrack({ event: '' })).toBeNull()
     expect(forwardableTrack({ event: 'x'.repeat(121) })).toBeNull()
+    expect(forwardableTrack({ event: 'x'.repeat(120) })).toEqual({ event: 'x'.repeat(120), properties: undefined })
+    expect(forwardableTrack({ event: 5 })).toBeNull()
     expect(forwardableTrack({ event: 'X', properties: [1, 2] })).toEqual({ event: 'X', properties: undefined })
   })
 })

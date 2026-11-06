@@ -6,7 +6,10 @@ import { getServerBrand } from '@/config/brand'
 import { createAuthenticatedServerSupabase } from '@/lib/supabase/server'
 
 /**
- * First-party tracking relay — the browser's ONLY analytics endpoint.
+ * First-party tracking relay — the browser's analytics endpoint, except on
+ * deployments that load LF's Segment wrapper (LFX_SEGMENT_CDN_URL, see
+ * components/LfxSegment.tsx). There the wrapper sends to Segment from the
+ * browser and this relay feeds the first-party store only.
  *
  * The client SDK (@gatewaze/tracking/client) posts every event here
  * instead of talking to vendor endpoints, because:
@@ -52,7 +55,7 @@ export async function POST(req: NextRequest) {
       return new NextResponse(null, { status: 204 })
     }
 
-    const { tracker, anonymousId, context } = getRequestTracking(req)
+    const { tracker, anonymousId, context } = getRequestTracking(req, { relay: true })
     const input = {
       properties: sanitizeProperties(body.properties),
       anonymousId,

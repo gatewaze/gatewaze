@@ -19,6 +19,12 @@ declare global {
 
 let loading: Promise<LfxSegmentAnalytics | null> | null = null
 
+/** Indirection so tests can observe the reload. */
+export const pageControl = { reload: () => window.location.reload() }
+function reloadPage() {
+  pageControl.reload()
+}
+
 /** Loads LF's wrapper once per page and starts it in protected mode, so
  * every event (including the wrapper's own first page view) passes through
  * the sanitizer. Fails closed: no protected init, no tracking. */
@@ -66,7 +72,23 @@ export function LfxSegment({ src, writeKey }: { src: string; writeKey?: string }
   const firstPageRef = useRef(true)
 
   useEffect(() => {
+    const wasConsented = consentRef.current
     consentRef.current = consented
+    // Consent withdrawn after the wrapper loaded. The script cannot be
+    // unloaded and keeps its own listeners (cross-domain anonymous id on LF
+    // links), so clear its stored identity and reload: the fresh page never
+    // loads it.
+    if (wasConsented && !consented && loading) {
+      identifiedRef.current = null
+      void loading.then(async (analytics) => {
+        try {
+          if (analytics) await analytics.reset()
+        } catch {
+          /* tracking must never break the page */
+        }
+        if (analytics) reloadPage()
+      })
+    }
   }, [consented])
 
   // Identify on sign-in, reset on sign-out.

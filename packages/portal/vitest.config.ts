@@ -14,10 +14,13 @@ export default defineConfig({
     passWithNoTests: true,
   },
   resolve: {
-    alias: {
-      '@': path.join(__dirname, '.'),
+    alias: [
+      { find: '@', replacement: path.join(__dirname, '.') },
       // Same mapping as tsconfig paths (portal has no package dependency on it).
-      '@gatewaze/shared': path.resolve(__dirname, '../shared/src'),
-    },
+      { find: '@gatewaze/shared', replacement: path.resolve(__dirname, '../shared/src') },
+      // Source, not dist (dist is not built in a test run). Subpaths first.
+      { find: /^@gatewaze\/tracking\/(client|server)$/, replacement: path.resolve(__dirname, '../tracking/src/$1/index.ts') },
+      { find: /^@gatewaze\/tracking$/, replacement: path.resolve(__dirname, '../tracking/src/index.ts') },
+    ],
   },
 });
