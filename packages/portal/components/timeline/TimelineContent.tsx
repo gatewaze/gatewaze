@@ -162,7 +162,7 @@ function TimelineContentInner({
     toggleTopic,
     clearFilters,
     filterEvents,
-  } = useEventFilters()
+  } = useEventFilters(brandConfig.eventTypes)
 
   const isShowingSearchResults = searchResults !== null
   const isInitialSearchPending = !!initialSearchQuery && !isShowingSearchResults
@@ -336,6 +336,8 @@ function TimelineContentInner({
           eventType={eventType}
           topics={topics}
           availableTypes={availableTypes}
+          eventTypes={brandConfig.eventTypes}
+          topicsEnabled={brandConfig.eventTopicsEnabled}
           onToggleType={toggleType}
           onToggleRegion={toggleRegion}
           onToggleTopic={toggleTopic}
