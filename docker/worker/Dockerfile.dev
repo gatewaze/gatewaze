@@ -7,7 +7,7 @@
 # api uses, which actually walks every loaded module and wires its
 # handlers onto the shared `jobs` queue.
 
-FROM node:20-slim
+FROM node:25-slim
 
 # Puppeteer / scraper deps stay — some worker handlers shell out to
 # scrapling-fetcher which doesn't need Chromium, but scrapers/sites
