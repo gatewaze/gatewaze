@@ -548,7 +548,13 @@ function isGitUrl(url: string): boolean {
   );
 }
 
-function cloneOrUpdateRepo(
+/** Git errors can echo a remote URL with its token; never log that part. */
+function redactCredentials(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  return msg.replace(/\/\/[^/@\s]+@/g, '//***@').slice(0, 500);
+}
+
+export function cloneOrUpdateRepo(
   gitUrl: string,
   branch: string | undefined,
   projectRoot: string,
@@ -583,15 +589,20 @@ function cloneOrUpdateRepo(
       if (token) {
         execFileSync('git', ['-C', repoDir, 'remote', 'set-url', 'origin', authUrl], execOpts);
       }
-      // `--ff-only` plus an empty refspec list is valid; we used to swallow
-      // pull errors with `|| true`. Now we catch the throw instead.
+      // Fetch the branch tip and reset to it. This used to be
+      // `pull --ff-only`, which cannot follow a force-pushed branch: after the
+      // Nov 2026 history rewrite every image's build-time checkout became
+      // unrelated to origin, the pull failed silently, and the API kept
+      // serving the module code baked into the image. The cache holds no
+      // local work, so a hard reset is safe.
       try {
-        const args = ['-C', repoDir, 'pull'];
-        if (branch) args.push('origin', branch);
-        args.push('--ff-only');
-        execFileSync('git', args, execOpts);
-      } catch {
-        // Non-fast-forward / network blip — proceed with cached repo.
+        execFileSync('git', ['-C', repoDir, 'fetch', '--depth', '1', 'origin', branch || 'HEAD'], execOpts);
+        execFileSync('git', ['-C', repoDir, 'reset', '--hard', 'FETCH_HEAD'], execOpts);
+      } catch (err) {
+        // Network blip: carry on with the cached checkout, but say so.
+        console.warn(
+          `[gatewaze-modules] Could not update ${gitUrl}; serving the cached checkout at ${repoDir}: ${redactCredentials(err)}`,
+        );
       }
     } else {
       const args = ['clone', '--depth', '1'];
@@ -603,7 +614,7 @@ function cloneOrUpdateRepo(
     console.log(`[gatewaze-modules] Resolved git source: ${gitUrl} → ${repoDir}`);
     return repoDir;
   } catch (err) {
-    console.error(`[gatewaze-modules] Failed to clone ${gitUrl}:`, err);
+    console.error(`[gatewaze-modules] Failed to clone ${gitUrl}: ${redactCredentials(err)}`);
     return null;
   }
 }
